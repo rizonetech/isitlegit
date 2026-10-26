@@ -239,12 +239,12 @@ Sections: 3 | Checklist items: 10
 
 ### Phase 99: Manual, operator only
 
-Sections: 12 | Checklist items: 43
+Sections: 12 | Checklist items: 51
 
 | Status | Reference  | Deliverable                                   | Needs    | Items |
 | ------ | ---------- | --------------------------------------------- | -------- | ----- |
 | [ ]    | D99 T01 §1 | Meta API billing and API key                  | operator | 5     |
-| [ ]    | D99 T01 §2 | Domain verification and nameservers           | operator | 7     |
+| [ ]    | D99 T01 §2 | Domain verification and nameservers           | operator | 15    |
 | [ ]    | D99 T01 §3 | Workers Paid plan                             | operator | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain                         | operator | 5     |
 | [ ]    | D99 T01 §6 | Google Web Risk API key                       | operator | 3     |
@@ -258,4 +258,4 @@ Sections: 12 | Checklist items: 43
 
 Progress: 2/187 verified sections, 3 ready to run now.
 
-Checklist: 35/849 items completed (includes Commit items).
+Checklist: 42/857 items completed (includes Commit items).

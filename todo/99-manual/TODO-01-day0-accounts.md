@@ -80,11 +80,19 @@ Credits apply in batches after the claim form; until they show, every call is ch
 1. Verify the registrant contact from the Domains.co.za email to Rizonetech's registrant contact mailbox. Done when: Domains.co.za shows the registrant verified and the hold lifted.
 2. Confirm the nameservers. Done when: the Cloudflare zone reads `active`.
 
-- [ ] Find the Domains.co.za verification email in Rizonetech's registrant contact mailbox and complete it. Done when: the Domains.co.za domain page no longer shows `serverHold`.
-- [ ] Confirm the nameservers are `carmelo.ns.cloudflare.com` and `paris.ns.cloudflare.com`. Done when: `dig +short NS isitlegit.co.za @1.1.1.1` prints both.
-- [ ] Confirm zone `88aeec6df134bc59bfa16a25751241ef` is active in Cloudflare. Done when: the zone status reads `active`.
+- [x] Find the Domains.co.za verification email in Rizonetech's registrant contact mailbox and complete it. Done when: the Domains.co.za domain page no longer shows `serverHold`. Evidence 2026-10-27 00:30 SAST: the registrar reports status `ok` (EPP `ok`); its registrant contact still reads `Unverified`, covered by the next item.
+- [x] Confirm the nameservers are `carmelo.ns.cloudflare.com` and `paris.ns.cloudflare.com`. Done when: `dig +short NS isitlegit.co.za @1.1.1.1` prints both.
+- [x] Confirm zone `88aeec6df134bc59bfa16a25751241ef` is active in Cloudflare. Done when: the zone status reads `active`. Evidence 2026-10-27 00:30 SAST: the registrar and 1.1.1.1 (DNS over HTTPS) list both nameservers and the zone reads `active`.
+- [ ] Complete the Domains.co.za registrant contact verification email sent to `hostmaster@rizonetech.com`. Done when: the registrar's registrant contact reads verified.
+- [x] Enable Email Routing on the zone and add `hostmaster@rizonetech.com` (the operator's mailbox, operator 2026-10-27) as its destination address. Done when: Email Routing reads `ready` with Cloudflare's MX, SPF and DKIM records and the destination exists. Evidence 2026-10-27 00:30 SAST: routing `ready`; MX route1 to route3, SPF `include:_spf.mx.cloudflare.net`, DKIM `cf2024-1`; destination created, unverified.
+- [x] Publish DMARC `p=reject` (operator 2026-10-27) with reports to `dmarc@isitlegit.co.za`, and CAA records allowing only the certificate authorities Universal SSL uses (`letsencrypt.org`, `pki.goog`, `ssl.com`). Done when: both read back from the zone. Evidence 2026-10-27 00:30 SAST: `_dmarc` TXT and three CAA `issue` records present.
+- [x] Turn on auto-renew (operator 2026-10-27). Done when: the registrar reads `autorenew: true`. Evidence 2026-10-27 00:30 SAST: it does; the domain expires 2027-10-26 and the reseller balance is R9.45, flagged low.
+- [x] Turn on DNSSEC in Cloudflare. Done when: Cloudflare returns the DS record. Evidence 2026-10-27 00:30 SAST: pending, DS `isitlegit.co.za. 3600 IN DS 2371 13 2 360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B723928504665`.
+- [ ] Add that DS record at Domains.co.za (key tag 2371, algorithm 13, digest type 2, the digest above); the connector has no DS tool, so the operator pastes it in the portal. Done when: the registrar reads `bDNSSec: true`, Cloudflare's DNSSEC reads `active`, and 1.1.1.1 answers with the AD flag set.
+- [ ] Turn on the registrar transfer lock once DNSSEC is active (operator 2026-10-27). Done when: the registrar reads `locked`.
 - [ ] Click the Cloudflare Email Routing verification link sent to the operator's Rizonetech mailbox once Claude has added it as a destination address (design spec section 11, Mailbox). Done when: the zone's Email Routing destination addresses list it as verified.
 - [ ] Add an Email Routing custom address `hello@isitlegit.co.za` forwarding to the operator's mailbox (named on the about page, D07 T06 §8). Done when: a test mail to it arrives.
+- [ ] Add an Email Routing custom address `dmarc@isitlegit.co.za` forwarding to the operator's mailbox (DMARC aggregate reports). Done when: the rule reads enabled.
 - [ ] Add an Email Routing custom address `conduct@isitlegit.co.za` forwarding to the operator's mailbox (named in `CODE_OF_CONDUCT.md` as the private conduct contact). Done when: a test mail to it arrives in the operator's mailbox.
 - [ ] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
 
