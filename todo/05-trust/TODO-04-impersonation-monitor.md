@@ -79,7 +79,7 @@ A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, re
 
 ## 3. Screening new or changed live pages
 
-Each fetched page's screenshot and visible text go to the screener chosen in D03 T04 §2 (Glimmer, or Spark on a smaller list); only pages judged as lures go further (spec 4.11).
+Each fetched page's screenshot and visible text go to `screenPage` with the screener `MONITOR_SCREENER` names (D03 T04 §2 ships Spark; D03 T04 §3 switches to Glimmer only if it measures as good); only pages judged as lures go further (spec 4.11).
 
 **Phase:** 6
 **Needs:** meta-api

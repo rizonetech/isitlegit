@@ -167,12 +167,13 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 202
+Sections: 56 | Checklist items: 206
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
 | [ ]    | D03 T04 §1 | Glimmer provider client with its budget    | third-party           | 4     |
-| [ ]    | D03 T04 §2 | Page screening compared with Spark         | meta-api, third-party | 5     |
+| [ ]    | D03 T04 §2 | Page screener on Muse Spark                | meta-api              | 5     |
+| [ ]    | D03 T04 §3 | Glimmer measured against Spark             | meta-api, third-party | 4     |
 | [ ]    | D04 T01 §1 | Deterministic floor from critical evidence | none                  | 4     |
 | [ ]    | D04 T01 §2 | Rule-based verdict                         | none                  | 3     |
 | [ ]    | D04 T01 §3 | Read-only agent tools with zod validation  | none                  | 5     |
@@ -256,6 +257,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 2/187 verified sections, 3 ready to run now.
+Progress: 2/188 verified sections, 3 ready to run now.
 
-Checklist: 54/857 items completed (includes Commit items).
+Checklist: 54/861 items completed (includes Commit items).
