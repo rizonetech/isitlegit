@@ -43,3 +43,19 @@ OVERALL: needs-attention
 
 HIGHEST: P1
 OVERALL: needs-attention
+
+## Round 3: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-26T21:45:13Z
+- Effort: low
+- Lenses: adversarial
+- Lines: 6
+- Digest: 5425970daf6f9f9e
+
+### adversarial: needs-attention
+
+1. **P2: A final-review finding at the round cap has no valid recovery path.** [scripts/lib/todo_graph.py:361](../../../scripts/lib/todo_graph.py#L361) requires another regular round to prove a final-review fix, but lines 572-574 reject more than 33 returned rounds. Reproduce through the normal section workflow: Astra first returns clean at round 33, Muse reports P2, the writer fixes it, and Astra approves round 34. Stamping with `--final ...:fixed` then refuses because 34 exceeds the cap; omitting round 34 fails the fix-proof requirement. Reserve or exempt the post-final verification round so this supported boundary can complete. Verified statically.
+
+HIGHEST: P2
+OVERALL: needs-attention

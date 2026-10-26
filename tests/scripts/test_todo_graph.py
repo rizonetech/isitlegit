@@ -1627,6 +1627,23 @@ class FinalStamp(Stamp):
         (self.root / other).write_bytes((self.root / self.ROUNDS).read_bytes())
         self.refused({"report": other, "verdict": "clean"}, "--final must be the section's own findings file")
 
+    def test_a_fix_after_a_loop_that_ended_at_the_cap_can_still_be_proven(self):
+        path = self.root / self.ROUNDS
+        path.write_text("# Review findings\n\n" + "".join(envelope(n) for n in range(1, tg.REVIEW_ROUND_CAP + 1)),
+                        encoding="utf-8")
+        self.write_final("1. P2 calc.py:2.\n\nHIGHEST: P2\nOVERALL: needs-attention")
+        self.later_round(tg.REVIEW_ROUND_CAP + 1)
+        reviews = [{"round": tg.REVIEW_ROUND_CAP + 1, "report": self.ROUNDS, "verdict": "clean"}]
+        before = path.read_bytes()
+        for extra in range(2, tg.POST_FINAL_CAP + 2):
+            self.later_round(tg.REVIEW_ROUND_CAP + extra)
+        self.refused({"report": self.ROUNDS, "verdict": "fixed"},
+                     f"rounds after its final review, over the {tg.POST_FINAL_CAP}",
+                     [{"round": tg.REVIEW_ROUND_CAP + tg.POST_FINAL_CAP + 1, "report": self.ROUNDS, "verdict": "clean"}])
+        path.write_bytes(before)
+        receipt = self.root / self.stamp_final({"report": self.ROUNDS, "verdict": "fixed"}, reviews)
+        self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["rounds_spent"], tg.REVIEW_ROUND_CAP + 1)
+
     def test_the_final_review_runs_at_its_scheduled_step(self):
         self.write_final(effort="high")
         self.refused({"report": self.ROUNDS, "verdict": "clean"}, "the final review in")

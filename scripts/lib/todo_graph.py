@@ -61,6 +61,9 @@ FILED = re.compile(r"^- Filed: (D\d{2} T\d{2} §[1-9]\d*)(?![\w§]|\.\d)")
 # review itself is never repeated).
 FINAL_VERDICTS = ("clean", "fixed")
 FINAL_KEYS = {"report", "verdict", "candidate", "reviewer", "model"}
+# Rounds recorded after a final review prove its fix; they are bounded on their own, outside the round cap, so a loop
+# that came back clean only at the cap can still prove a fix the final review asked for.
+POST_FINAL_CAP = 3
 PIN = ".conclave/reviewers.toml"
 PLAN_KEYS = {"report", "candidate", "reviewer", "model", "effort", "lenses"}
 STARTED = re.compile(r"^> \*\*Started:\*\* .+$", re.M)
@@ -570,8 +573,15 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                 reviewed = {e["number"]: e for e in recorded if dispatch.returned_review(e)}
                 require(reviewed, f"{report} holds no returned review: {ref}")
                 # The cap bounds every loop, however it ends: a clean round after the cap's last review is past it.
-                require(len(reviewed) <= cap,
-                        f"{report} holds {len(reviewed)} returned reviews, over the {cap}-round cap: {ref}")
+                finals = [f for f in (dispatch.read_finals((Path(root) / report).read_bytes().decode("utf-8")) or [])
+                          if f["reviewer"]]
+                final_run = finals[0]["run"] if finals else None
+                after = [n for n, e in reviewed.items() if final_run is not None and e["run"] > final_run]
+                require(len(reviewed) - len(after) <= cap,
+                        f"{report} holds {len(reviewed) - len(after)} returned reviews, over the {cap}-round cap: {ref}")
+                require(len(after) <= POST_FINAL_CAP,
+                        f"{report} holds {len(after)} rounds after its final review, over the {POST_FINAL_CAP} that may "
+                        f"prove its fix: {ref}")
                 claimed = sorted((r for r in rounds if r["report"] == report), key=lambda r: r["round"])
                 for r in claimed:
                     e = reviewed.get(r["round"])
