@@ -59,8 +59,8 @@ Credits apply in batches after the claim form; until they show, every call is ch
 2. Create the API key and store it in the vault. Done when: the vault item exists; the key is never pasted into chat.
 3. Wait for the credit. Done when: Billing, "free credits" shows US$150.
 
-- [ ] Add a payment method on the Meta Model API Billing page. Done when: Billing lists the card.
-- [ ] Set a Spend Limit notification at US$150. Done when: Billing shows it.
+- [x] Add a payment method on the Meta Model API Billing page. Done when: Billing lists the card. Evidence 2026-10-27 01:37 SAST: the operator confirmed it on the Meta Model API Billing page.
+- [x] Set a Spend Limit notification at US$150. Done when: Billing shows it. Evidence 2026-10-27 01:37 SAST: the operator confirmed it on the Meta Model API Billing page.
 - [x] Create an API key named `isitlegit-hackathon` and store it in the Conclave vault as "IsItLegit Meta Model API" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Cheaper substitute: pasting the key into chat or a file. Evidence 2026-10-27 00:50 SAST: the operator filled the vault item; a free model listing with it returned 200 and lists muse-spark-1.3, muse-wonder-1.0, sam-3.1 and muse-voice-transcribe-1.0.
 - [x] Confirm US$150 under Billing, "free credits", and record it here as a line `Meta credit visible: YYYY-MM-DD`. Done when: the line is written; every `meta-api` section checks for it before its first call. Evidence: the operator reported the credit showing on Billing at 00:40 SAST on 2026-10-27.
 - [ ] Commit: `todo: record the Meta Model API account as ready`
