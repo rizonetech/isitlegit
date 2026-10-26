@@ -4,8 +4,10 @@
     python3 design/tools/build-brand.py        (needs design/tools/requirements.txt and rsvg-convert)
 
 The operator approved the brand on 2026-10-26: direction A (a question mark whose dot is an orange tick, wordmark
-"IsIt" in ink and "Legit" in orange, Exo 800), direction C's round seal reading PROTECTED as the badge, C's app icon
-and favicons, and "the dot becomes the answer" motion frames. Every piece of text is converted to outlines from the
+"IsIt" in ink and "Legit" in orange, Exo 800) drawn in the A3 "engineered" construction chosen at 21:46 SAST (one
+constant-width stroke at Exo 800's stem weight, flat cuts, mitred corners, a squared tick), direction C's round seal
+reading PROTECTED as the badge, C's app icon and favicons with the same squared tick, and "the dot becomes the answer"
+motion frames. Every piece of text is converted to outlines from the
 vendored Exo fonts (design/fonts/, SIL OFL 1.1), shaped with HarfBuzz so kerning matches the font, so the files render
 the same everywhere without the fonts installed. PNGs and favicon.ico are rendered from the SVGs with rsvg-convert.
 Every file is written to a temporary file and then moved into place.
@@ -39,11 +41,14 @@ SAFE = "#0E7C5B"
 SUSPICIOUS = "#B26A00"
 MALICIOUS = "#C8102E"
 
-# Direction A: the question hook and the tick that replaces its dot, on a 200 by 200 grid.
-HOOK = "M64 72a36 36 0 1 1 54 31c-12 7-18 14-18 28"
-TICK = "M74 166l18 16 36-38"
-# The question's stem as used by the motion frames (the dot sits below it).
-STEM = "M58 76A42 42 0 1 1 120 112C106 120 99 130 99 140"
+# The mark on a 200 by 200 grid, A3 construction. Exo 800's stem is 0.173 em, so at the logo size (72 px text, mark
+# at half scale) a 24-unit stroke matches the letters. The hook's centreline is a 34-unit circle round (100, 68) from
+# its leftmost point clockwise to 45 degrees below horizontal, then a 45-degree neck into a vertical stem; outer and
+# inner radii are 46 and 22, all ends cut flat. Ink spans x 54 to 146 and y 22 to 195.
+STROKE = 24
+HOOK = "M66 68A34 34 0 1 1 124.04 92.04L100 116.08V138"
+TICK = "M72 160L90 178L128 140"
+FLAT = 'stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"'
 
 
 class Face:
@@ -132,9 +137,8 @@ def svg(width, height, title, body):
 
 def mark(hook, tick, transform=""):
     group = f'<g transform="{transform}">' if transform else "<g>"
-    return (f'{group}<path d="{HOOK}" fill="none" stroke="{hook}" stroke-width="20" stroke-linecap="round" '
-            f'stroke-linejoin="round"/><path d="{TICK}" fill="none" stroke="{tick}" stroke-width="20" '
-            f'stroke-linecap="round" stroke-linejoin="round"/></g>')
+    return (f'{group}<path d="{HOOK}" fill="none" stroke="{hook}" stroke-width="{STROKE}" {FLAT}/>'
+            f'<path d="{TICK}" fill="none" stroke="{tick}" stroke-width="{STROKE}" {FLAT}/></g>')
 
 
 def wordmark(exo, ink):
@@ -152,8 +156,7 @@ def seal(exo, centre_fill, tick_colour):
     """Direction C: orange disc, rim text PROTECTED, a tick at the centre."""
     body = f'<circle cx="100" cy="100" r="92" fill="{ORANGE}"/><circle cx="100" cy="100" r="54" fill="{centre_fill}"/>'
     body += exo.on_circle("IS IT LEGIT · PROTECTED · ", 100, 100, 66, 20, WHITE)
-    body += (f'<path d="M78 101l15 15 31-33" fill="none" stroke="{tick_colour}" stroke-width="13" '
-             f'stroke-linecap="round" stroke-linejoin="round"/>')
+    body += (f'<path d="M77 100l16 16 32-34" fill="none" stroke="{tick_colour}" stroke-width="14" {FLAT}/>')
     return body
 
 
@@ -161,18 +164,17 @@ def app_icon(rounded=True):
     """Direction C's app icon: orange tile, white disc, ink tick (full bleed when not rounded, for maskable use)."""
     tile = f'<rect width="180" height="180" rx="{40 if rounded else 0}" fill="{ORANGE}"/>'
     return (tile + f'<circle cx="90" cy="90" r="{56 if rounded else 50}" fill="{WHITE}"/>'
-            f'<path d="{"M66 91l17 17 33-36" if rounded else "M69 91l15 15 30-32"}" fill="none" stroke="{INK}" '
-            f'stroke-width="{14 if rounded else 13}" stroke-linecap="round" stroke-linejoin="round"/>')
+            f'<path d="{"M64 90l18 18 34-36" if rounded else "M68 90l16 16 30-32"}" fill="none" stroke="{INK}" '
+            f'stroke-width="{16 if rounded else 14}" {FLAT}/>')
 
 
 def favicon(small=False):
     """Direction C's favicon on a 32 grid; at 16 px the white disc goes and the tick turns white."""
     if small:
-        return (f'<circle cx="16" cy="16" r="16" fill="{ORANGE}"/><path d="M9.5 16.5l4.2 4.2 8.5-9" fill="none" '
-                f'stroke="{WHITE}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>')
+        return (f'<circle cx="16" cy="16" r="16" fill="{ORANGE}"/><path d="M8.5 16l4.5 4.5 9.5-10" fill="none" '
+                f'stroke="{WHITE}" stroke-width="4.4" {FLAT}/>')
     return (f'<circle cx="16" cy="16" r="16" fill="{ORANGE}"/><circle cx="16" cy="16" r="9.5" fill="{WHITE}"/>'
-            f'<path d="M12 16.2l2.8 2.8 5.4-5.8" fill="none" stroke="{INK}" stroke-width="2.6" stroke-linecap="round" '
-            f'stroke-linejoin="round"/>')
+            f'<path d="M11.6 16l3 3 5.8-6.2" fill="none" stroke="{INK}" stroke-width="2.8" {FLAT}/>')
 
 
 def badge(exo):
@@ -209,29 +211,29 @@ def social_card(exo, exo2):
 
 
 def motion_frames():
-    """The dot becomes the answer: the question's dot pulses while checking, then turns into the verdict glyph."""
-    stem = (f'<path d="{STEM}" fill="none" stroke="{INK}" stroke-width="20" stroke-linecap="round" '
-            f'stroke-linejoin="round"/>')
+    """The dot becomes the answer: the question's square dot pulses while checking, then turns into the verdict glyph
+    (a tick for safe, a bar for suspicious, a cross for malicious), drawn with the mark's flat, squared strokes."""
+    hook = f'<path d="{HOOK}" fill="none" stroke="{INK}" stroke-width="{STROKE}" {FLAT}/>'
+    dot = f'x="88" y="150" width="{STROKE}" height="{STROKE}"'
     frames = {
-        "question": f'<circle cx="99" cy="172" r="13" fill="{INK}"/>',
-        "checking": (f'<circle cx="99" cy="172" r="24" fill="{ORANGE}" fill-opacity="0.18"/>'
-                     f'<circle cx="99" cy="172" r="15" fill="{ORANGE}"/>'),
-        "deciding": f'<path d="M90 172H110" stroke="{ORANGE}" stroke-width="22" stroke-linecap="round"/>',
-        "safe": (f'<path d="M78 166L94 182L128 148" fill="none" stroke="{SAFE}" stroke-width="20" '
-                 f'stroke-linecap="round" stroke-linejoin="round"/>'),
-        "suspicious": f'<path d="M78 172H120" stroke="{SUSPICIOUS}" stroke-width="22" stroke-linecap="round"/>',
-        "malicious": (f'<path d="M84 158L114 188M114 158L84 188" fill="none" stroke="{MALICIOUS}" '
-                      f'stroke-width="20" stroke-linecap="round"/>'),
+        "question": f'<rect {dot} fill="{INK}"/>',
+        "checking": (f'<rect x="80" y="142" width="40" height="40" fill="{ORANGE}" fill-opacity="0.18"/>'
+                     f'<rect {dot} fill="{ORANGE}"/>'),
+        "deciding": f'<path d="M84 162H116" stroke="{ORANGE}" stroke-width="{STROKE}" {FLAT}/>',
+        "safe": f'<path d="{TICK}" fill="none" stroke="{SAFE}" stroke-width="{STROKE}" {FLAT}/>',
+        "suspicious": f'<path d="M72 162H128" stroke="{SUSPICIOUS}" stroke-width="{STROKE}" {FLAT}/>',
+        "malicious": (f'<path d="M82 146L118 182M118 146L82 182" fill="none" stroke="{MALICIOUS}" '
+                      f'stroke-width="{STROKE - 2}" {FLAT}/>'),
     }
     titles = {"question": "Received", "checking": "Checking", "deciding": "Deciding", "safe": "Safe",
               "suspicious": "Suspicious", "malicious": "Malicious"}
-    files = {f"motion/{name}.svg": svg(200, 200, f"IsItLegit verdict: {titles[name]}", stem + glyph)
+    files = {f"motion/{name}.svg": svg(200, 200, f"IsItLegit verdict: {titles[name]}", hook + glyph)
              for name, glyph in frames.items()}
     files["motion/checking-animated.svg"] = svg(200, 200, "IsItLegit is checking", (
         '<style>@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:.75}}'
-        '.dot{transform-origin:99px 172px;animation:pulse 1.2s ease-in-out infinite}'
+        '.dot{transform-origin:100px 162px;animation:pulse 1.2s ease-in-out infinite}'
         '@media (prefers-reduced-motion:reduce){.dot{animation:none}}</style>'
-        + stem + f'<circle class="dot" cx="99" cy="172" r="15" fill="{ORANGE}"/>'))
+        + hook + f'<rect class="dot" {dot} fill="{ORANGE}"/>'))
     return files
 
 

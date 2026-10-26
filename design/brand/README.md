@@ -2,7 +2,7 @@
 
 Approved: 2026-10-26 by the operator, in session, from the brand exploration canvas (directions A to E, then A refined).
 
-IsItLegit is a Rizonetech product with its own identity. The logo is a question mark whose dot has become an orange tick: you ask, IsItLegit answers. The badge is a round seal reading PROTECTED, shown by businesses registered in the trust network. In the product, the question's dot becomes the verdict.
+IsItLegit is a Rizonetech product with its own identity. The logo is a question mark whose dot has become an orange tick: you ask, IsItLegit answers. The mark is engineered to match the Exo 800 wordmark (chosen 2026-10-26 21:46 SAST, option A3): one constant-width stroke at Exo's stem weight, flat cuts, mitred corners and a squared tick, and every tick in the family (seal, app icon, favicons, verdict frames) is drawn the same way. The badge is a round seal reading PROTECTED, shown by businesses registered in the trust network. In the product, the question's dot becomes the verdict.
 
 Everything here was designed and built during the Meta Global AI Developer Hackathon, except `rizonetech/` (Rizonetech's own logo, used for the "by Rizonetech" credit). Regenerate every file with `python3 design/tools/build-brand.py` (requirements in `design/tools/requirements.txt`, plus `rsvg-convert`); never edit the outputs by hand.
 
