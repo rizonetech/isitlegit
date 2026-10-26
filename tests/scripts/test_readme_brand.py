@@ -51,7 +51,10 @@ def brand_errors(root):
     except (OSError, SyntaxError) as e:
         errors.append(f"banner does not decode: {e}")
     p = Picture()
-    p.feed((root / "README.md").read_text(encoding="utf-8"))
+    try:
+        p.feed((root / "README.md").read_text(encoding="utf-8"))
+    except OSError as e:
+        return errors + [f"README.md does not read: {e}"]
     want = {"(prefers-color-scheme:dark)": DARK, "(prefers-color-scheme:light)": LIGHT}
     for media, path in want.items():
         if p.sources.get(media) != path:
@@ -94,6 +97,10 @@ class Defects(unittest.TestCase):
         r.write_text(text.replace("(prefers-color-scheme: dark)", "(prefers-color-scheme: tmp)").replace(
             "(prefers-color-scheme: light)", "(prefers-color-scheme: dark)").replace("(prefers-color-scheme: tmp)", "(prefers-color-scheme: light)"), encoding="utf-8")
         self.assertIn(f"README (prefers-color-scheme:dark) shows {LIGHT}, not {DARK}", brand_errors(self.root))
+
+    def test_a_missing_readme_is_reported_not_raised(self):
+        (self.root / "README.md").unlink()
+        self.assertTrue(any(e.startswith("README.md does not read") for e in brand_errors(self.root)))
 
     def test_a_missing_logo_is_caught(self):
         (self.root / DARK).unlink()
