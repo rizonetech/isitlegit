@@ -6,6 +6,8 @@ Execution: from 2026-10-26 17:00 this plan is executed through the TODO system i
 
 Conventions for every task: TypeScript strict, one Cloudflare Worker (fetch, email and queue handlers), Hono for routes and server-rendered pages, zod for every external input and every model output, Vitest with `@cloudflare/vitest-pool-workers`, tests first for every check. Secrets only through `wrangler secret`. Commit after each task with a message that says what was built.
 
+Every build day from Tue 27 Oct: one frontier experiment at the edge of the Meta models, logged in `docs/frontier-log.md` (spec 4.9, `docs/manifesto.md`).
+
 ## Day 0: Mon 26 Oct (after 19:00 SAST kickoff)
 
 Derick (accounts, cannot be delegated):
@@ -130,6 +132,7 @@ Done when: every fixture produces a cited verdict and the floor tests pass.
 
 - [ ] Eval runner CLI that pushes each labelled sample through the real pipeline.
 - [ ] Metrics: detection rate, false positive rate, per category, median time to verdict, cost per case.
+- [ ] Model ablation (spec 4.9): rerun with each Meta model switched off in turn; record the cost of each removal in `eval/RESULTS.md` and on the dashboard.
 - [ ] Dashboard page with the latest run and production counts (cases, verdict mix, median time, invoice flags; no content).
 - [ ] Fix the worst misses found; rerun; record before and after in `eval/RESULTS.md`.
 
