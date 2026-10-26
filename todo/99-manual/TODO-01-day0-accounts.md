@@ -174,8 +174,8 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 
 1. Enable the Web Risk API in a Rizonetech Google Cloud project and create a restricted key. Done when: the key is in the vault.
 
-- [ ] Enable the Web Risk API in a Rizonetech Google Cloud project with billing. Done when: the API shows enabled.
-- [ ] Create an API key restricted to the Web Risk API only and store it in the vault as "IsItLegit Web Risk". Done when: the vault item exists. Cheaper substitute: an unrestricted key.
+- [x] Enable the Web Risk API in a Rizonetech Google Cloud project with billing. Done when: the API shows enabled. Evidence 2026-10-27 01:24 SAST: enabled in the existing Rizonetech project (the operator's choice); a lookup of Google's test phishing URL returns 200 with `SOCIAL_ENGINEERING`, and `https://www.google.com/` returns no threat.
+- [x] Create an API key restricted to the Web Risk API only and store it in the vault as "IsItLegit Web Risk". Done when: the vault item exists. Cheaper substitute: an unrestricted key. Evidence 2026-10-27 01:24 SAST: the operator restricted the key to the Web Risk API in the console and filled the vault item (39 characters, value never shown).
 - [ ] Confirm the project's Web Risk metrics show no `threatLists.computeDiff` or `hashes.search` calls (the key is in the shared Rizonetech project, operator 2026-10-27; one `computeDiff` there would bill every lookup at US$50 per 1,000). Done when: the operator confirms none, or the key moves to a project of its own.
 - [ ] Cap `uris.search` at 3,000 requests a day in the project's Web Risk quotas, so a looping bug stays inside the 100,000-a-month free tier. Done when: the quota page shows the cap.
 - [ ] Commit: `todo: record the Web Risk key`
