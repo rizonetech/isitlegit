@@ -19,7 +19,7 @@ with `--json`, `{"ok": true, "schema_version", "reviewers", "routes", "schedule"
 without `--json`, `ok` or `refused: <message>`.
 
 Reviewers run read-only in the repository root: Codex in its read-only sandbox, Antigravity in plan mode inside its
-sandbox, Claude Code in plan mode. The script prints a JSON summary; `--record` also appends a `## Round N` section to
+sandbox, Claude Code in plan mode, Muse Code with writes, shell and web tools disabled inside its sandbox. The script prints a JSON summary; `--record` also appends a `## Round N` section to
 the findings file with an atomic write, and writes nothing (exit 2, the summary still printed) to a findings file it
 cannot read back. Works the same from PowerShell and from WSL. Stdlib only.
 
@@ -349,8 +349,10 @@ def command(reviewer, executable, prompt, prompt_path, output_path, timeout, eff
     if cli == "claude":
         return [executable, "-p", "--model", model, "--effort", effort, "--permission-mode", "plan"], prompt
     if cli == "muse":
-        # Contributor mode off for every review, whatever the operator's own default: nothing sent is used for training.
+        # Read-only like the other reviewers: no file writes, no shell, no web tools, no questions back (its sandbox
+        # stays on). Contributor mode off for every review, whatever the operator's own default.
         return [executable, "exec", "--model", model, "--reasoning-effort", effort, "--contributor-mode", "off",
+                "--disable-write", "--disable-shell", "--disable-web-tools", "--disable-request-user-input",
                 "--prompt-file", str(prompt_path)], None
     text = prompt
     # A Windows .cmd or .bat shim re-parses its arguments through cmd.exe, so prose there could become commands:

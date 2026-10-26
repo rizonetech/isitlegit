@@ -1088,8 +1088,12 @@ class FinalReview(Harness):
         self.assertEqual(result.returncode, 0, result.stderr)
         (call,) = self.calls()
         self.assertEqual(call["cli"], "muse")
-        self.assertEqual(call["argv"][:8], ["exec", "--model", "muse-wonder-full-1.0", "--reasoning-effort", "medium",
-                                            "--contributor-mode", "off", "--prompt-file"])
+        self.assertEqual(call["argv"][:7], ["exec", "--model", "muse-wonder-full-1.0", "--reasoning-effort", "medium",
+                                            "--contributor-mode", "off"])
+        for flag in ("--disable-write", "--disable-shell", "--disable-web-tools", "--disable-request-user-input"):
+            self.assertIn(flag, call["argv"], "the final reviewer runs read-only")
+        self.assertNotIn("--yolo", call["argv"])
+        self.assertNotIn("--disable-sandbox", call["argv"])
         self.assertEqual((summary["reviewer"], summary["kind"], summary["lenses"]), ("wonder", "final", ["adversarial", "integration"]))
         text = self.findings.read_text(encoding="utf-8")
         self.assertIn("## Final review: wonder (`muse-wonder-full-1.0` via `muse`)", text)

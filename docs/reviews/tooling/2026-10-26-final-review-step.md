@@ -27,3 +27,19 @@ No additional findings.
 
 HIGHEST: P1
 OVERALL: needs-attention
+
+## Round 2: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-26T21:41:52Z
+- Effort: medium
+- Lenses: adversarial
+- Lines: 6
+- Digest: 93f4e25a56b4b882
+
+### adversarial: needs-attention
+
+1. **P1: Muse is not constrained to read-only access.** [scripts/review-dispatch.py:353](../../../scripts/review-dispatch.py#L353) launches `muse exec` without a read-only permission profile or equivalent restrictions. Reproduce by running the normal final-review command with Muse’s ordinary write-capable configuration: a reviewer attempting a repair can use filesystem or shell tools against the candidate. Contributor mode only controls training participation. The installed `muse exec --help` confirms separate permission, filesystem-write and shell controls, none supplied here. This breaks the dispatcher’s read-only contract and allows the candidate to change during review. Enforce read-only access for both filesystem tools and shell execution.
+
+HIGHEST: P1
+OVERALL: needs-attention
