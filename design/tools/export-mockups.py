@@ -33,6 +33,7 @@ import json
 import os
 import pathlib
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -112,7 +113,7 @@ def parse_board(path):
     if not m:
         raise BoardError(f"{pathlib.Path(path).name}: no data-dc-script block")
     props = json.loads(html.unescape(m.group(1)))
-    title = re.search(r"<title>(.*?)</title>", text, re.S)
+    title = re.search(r"<title>(.*?)</title>", text, re.S | re.I)
     return {"helmet": helmet, "body": inner.strip(), "script": m.group(2), "props": props,
             "title": title.group(1).strip() if title else pathlib.Path(path).stem}
 
@@ -270,7 +271,7 @@ window.addEventListener('load', async () => {
       add('boundary', cs.borderTopColor, el, size, weight, `${el.tagName.toLowerCase()} border`);
   }
   const pre = document.createElement('pre');
-  pre.id = 'mockup-audit';
+  pre.id = 'mockup-audit-NONCE';
   pre.style.display = 'none';
   pre.textContent = JSON.stringify({fonts, images, pairs: Object.values(pairs)});
   document.body.appendChild(pre);
@@ -279,10 +280,12 @@ window.addEventListener('load', async () => {
 """
 
 
-def standalone(name, source, out, audit):
+def standalone(name, source, out, audit, nonce=""):
     body, styles, board = resolve(name, source)
     check_assets(name, body, source)
     for style in styles:
+        if "<" in style:
+            raise BoardError(f"{name}: a style holds markup, which could close the style element")
         if NETWORK_RE.search(style) or re.search(r"@import|expression\(", style, re.I):
             raise BoardError(f"{name}: a style loads a network resource or another stylesheet")
     rel = os.path.relpath(pathlib.Path(source).resolve(), pathlib.Path(out).resolve())
@@ -299,8 +302,9 @@ def standalone(name, source, out, audit):
     faces = "".join(
         f"@font-face{{font-family:'{fam}';src:url('{fonts_rel}/{urllib.parse.quote(f)}') format('truetype');"
         f"font-weight:100 900;font-display:block}}" for fam, f in FONT_FILES.items())
-    script = AUDIT_JS.replace("FAMILIES", json.dumps(list(FONT_FILES))) if audit else ""
-    page = (f"<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{board['title']}</title>\n"
+    # The audit writes its result under a random id the board cannot know, so board content cannot pose as it.
+    script = AUDIT_JS.replace("FAMILIES", json.dumps(list(FONT_FILES))).replace("NONCE", nonce) if audit else ""
+    page = (f"<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{html.escape(html.unescape(board['title']))}</title>\n"
             f"<style>{faces}</style>\n<link rel=\"stylesheet\" href=\"{rel}/ui.css\">\n"
             + "".join(f"<style>{s}</style>\n" for s in styles) +
             f"</head>\n<body>\n{body}\n{script}</body>\n</html>\n")
@@ -367,13 +371,13 @@ def png_size(path):
     return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
 
 
-def audit_page(chrome, page_path, w, h, name):
+def audit_page(chrome, page_path, w, h, name, nonce):
     run = chromium([chrome, "--headless", f"--window-size={w},{h}", "--virtual-time-budget=4000",
                     "--dump-dom", pathlib.Path(page_path).resolve().as_uri()])
-    m = re.search(r'<pre id="mockup-audit"[^>]*>(.*?)</pre>', run.stdout, re.S)
-    if run.returncode != 0 or not m:
+    found = re.findall(rf'<pre id="mockup-audit-{re.escape(nonce)}"[^>]*>(.*?)</pre>', run.stdout, re.S)
+    if run.returncode != 0 or len(found) != 1:
         raise BoardError(f"{name}: the audit did not run")
-    data = json.loads(html.unescape(m.group(1)))
+    data = json.loads(html.unescape(found[0]))
     missing = [f for f, ok in data["fonts"].items() if not ok]
     if missing:
         raise BoardError(f"{name}: font not loaded: {', '.join(missing)}")
@@ -452,7 +456,8 @@ def cmd_export(args):
         print(f"[{i}/{len(names)}] {name} ...", end="", flush=True)
         try:
             fp = fingerprint(name, source, (b["w"], b["h"]))
-            page, _ = standalone(name, source, out, args.audit)
+            nonce = secrets.token_hex(16)
+            page, _ = standalone(name, source, out, args.audit, nonce)
             page_path = out / f"{name}.html"
             atomic_write(page_path, page)
             if not args.no_png:
@@ -460,7 +465,7 @@ def cmd_export(args):
                 manifest[name] = fp
                 atomic_write(png / "manifest.json", json.dumps(manifest, indent=1, sort_keys=True) + "\n")
             if args.audit:
-                data = audit_page(chrome, page_path, b["w"], b["h"], name)
+                data = audit_page(chrome, page_path, b["w"], b["h"], name, nonce)
                 data["fingerprint"] = fp
                 audit[name] = data
                 atomic_write(out / "audit.json", json.dumps(audit, indent=1, sort_keys=True) + "\n")

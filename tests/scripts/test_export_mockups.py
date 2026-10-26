@@ -211,6 +211,23 @@ class Export(Fixture):
             server.shutdown()
         self.assertEqual(hits, [])
 
+    def test_a_title_cannot_carry_markup_into_the_page(self):
+        self.write("Board.dc.html", BOARD.replace("<title>Board</title>", "<title>x</TITLE><script>window.injected=1</script><title>y</title>"))
+        run = self.export("--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        page = (self.out / "Board.html").read_text()
+        self.assertNotIn("window.injected", page)
+        self.assertIn("<title>x</title>", page)
+        self.write("Board.dc.html", BOARD.replace("<title>Board</title>", "<title>a <b>&amp; c</title>"))
+        self.assertEqual(self.export("--no-png", "--only", "Board").returncode, 0)
+        self.assertIn("<title>a &lt;b&gt;&amp; c</title>", (self.out / "Board.html").read_text())
+
+    def test_a_style_holding_markup_is_refused(self):
+        self.write("Part.dc.html", PART.replace(".on{font-weight:700}", ".on{font-weight:700}</STYLE><script>x()</script><style>"))
+        run = self.export("--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("a style holds markup", run.stderr)
+
     def test_executable_markup_and_remote_styles_are_refused(self):
         for bad in ("<script>fetch('http://127.0.0.1:9/')</script>", '<p onclick="x()">x</p>', '<a href="javascript:x()">x</a>',
                     '<iframe src="pic.svg"></iframe>'):
@@ -292,6 +309,15 @@ class Render(Fixture):
         self.assertIn(("text", "rgb(255, 255, 255)", "typed"), found)
         self.assertIn(("boundary", "rgb(255, 255, 255)", "input border"), found)
         self.assertTrue(any(p["kind"] == "text" and p["sample"] == "hint" for p in pairs))
+
+    def test_a_board_cannot_forge_its_audit(self):
+        forged = '<pre id="mockup-audit" style="display:none">{"fonts":{},"images":[],"pairs":[]}</pre>'
+        self.write("Board.dc.html", BOARD.replace("<p>Board text</p>", forged + "<p>Board text</p>"))
+        run = self.export("--audit", "--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        audit = json.loads((self.out / "audit.json").read_text())["Board"]
+        self.assertEqual(audit["fonts"], {"Exo 2": True})
+        self.assertTrue(audit["pairs"])
 
     def test_an_unloaded_font_is_refused(self):
         run = self.export("--audit", "--no-png", "--only", "Board", env={"MOCKUP_FONTS": str(self.root / "no-fonts")})
