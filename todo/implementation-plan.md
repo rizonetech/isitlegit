@@ -12,7 +12,7 @@ Sections: 7 | Checklist items: 59
 
 | Status | Reference  | Deliverable                           | Needs                | Items |
 | ------ | ---------- | ------------------------------------- | -------------------- | ----- |
-| [ ]    | D00 T01 §1 | Git repository and public GitHub repo | attended             | 16    |
+| [x]    | D00 T01 §1 | Git repository and public GitHub repo | attended             | 16    |
 | [ ]    | D00 T01 §2 | Worker package and health route       | none                 | 9     |
 | [ ]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 7     |
 | [ ]    | D00 T01 §4 | GitHub Actions CI                     | none                 | 6     |
@@ -49,6 +49,6 @@ Sections: 6 | Checklist items: 26
 | [ ]    | D99 T01 §6 | Google Web Risk API key             | operator | 3     |
 | [ ]    | D99 T01 §7 | Partner credits for Glimmer         | operator | 4     |
 
-Progress: 0/15 verified sections, 1 ready to run now.
+Progress: 1/15 verified sections, 2 ready to run now.
 
-Checklist: 15/94 items completed (includes Commit items).
+Checklist: 16/94 items completed (includes Commit items).

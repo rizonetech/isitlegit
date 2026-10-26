@@ -38,7 +38,7 @@ track: day-0
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Git repository and public GitHub repo | -- | [ ] |
+| 1 | §1 | Git repository and public GitHub repo | -- | [x] |
 | 2 | §2 | Worker package and health route | §1 | [ ] |
 | 3 | §3 | Vitest workers pool and Biome | §2 | [ ] |
 | 4 | §4 | GitHub Actions CI | §3 | [ ] |
@@ -81,9 +81,12 @@ The hackathon accepts only work built from 26 Oct; the first commit must land af
 - [x] Make the first commit, `repo: initial commit for the IsItLegit hackathon build`, after 19:00 SAST with the hook enabled. Done when: `git log --reverse --format=%cI | head -1` prints a time after `2026-10-26T19:00:00+02:00`.
 - [x] Create `rizonetech/isitlegit` as public with `gh repo create` and push `main`. Done when: `gh repo view rizonetech/isitlegit --json visibility,defaultBranchRef` shows `PUBLIC` and `main`, and `git ls-remote origin refs/heads/main` prints the same SHA as `git rev-parse main` (**Corrected 2026-10-26**, plan review P2: visibility alone did not prove the reviewed commit was pushed).
 - [x] Apply the GitHub settings: description, homepage `https://isitlegit.co.za`, topics, private vulnerability reporting on, the labels from `.github/labels.yml`. Done when: `gh api repos/rizonetech/isitlegit/private-vulnerability-reporting -q .enabled` prints `true`; `gh repo view rizonetech/isitlegit --json description,homepageUrl,repositoryTopics` reads back the description in `README.md`'s pitch, `https://isitlegit.co.za` and the eleven topics (`phishing`, `email-security`, `invoice-fraud`, `business-email-compromise`, `meta-ai`, `muse-spark`, `sam`, `cloudflare-workers`, `typescript`, `south-africa`, `hackathon`); and the sorted names from `gh label list -R rizonetech/isitlegit` equal the sorted names in `.github/labels.yml` (**Corrected 2026-10-26**, plan review P2: description, homepage and topics were not read back, and extra default labels could pass).
-- [ ] Commit: `todo: record the public repository and its settings`
+- [x] Commit: `todo: record the public repository and its settings`
 
 **Test checkpoint:** `git log --reverse --format=%cI | head -1` prints a time after `2026-10-26T19:00:00+02:00`; `git ls-files samples/` prints exactly `samples/.gitignore` and `samples/README.md`; `git ls-files sources competitors .remember | wc -l` prints `0`; `python3 scripts/check-publication.py` exits 0 (it exits 2 when the client list is missing, unreadable or empty, and scans the index: content including binary-marked mail fixtures, file paths, private checkout paths, the `samples/` files by identity and the local-only folders; tests in `tests/scripts/test_check_publication.py`); and `python3 -m unittest tests.scripts.test_pre_commit_hook` passes, including the client-name tests. **Corrected 2026-10-26**, plan review P1: the old check scanned the working tree and counted lines, which prints `0` when the list is missing or grep fails. **Corrected again 2026-10-26**, completion review: the replacement `test -s ... && git grep ...; test $? -eq 1` still passed with no list, and `-I` skipped binary-marked mail; both are now `scripts/check-publication.py`.
+
+> **Verified:** 2026-10-26 | §1 | 87bfdedd0649f2c9d2fd73671027556a65b3885d
+> **Review:** `docs/reviews/d00-t01-s1.json`
 
 ## 2. Worker package and health route
 

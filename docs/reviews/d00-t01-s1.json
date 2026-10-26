@@ -1,0 +1,111 @@
+{
+  "ref": "D00 T01 \u00a71",
+  "title": "Git repository and public GitHub repo",
+  "implementation_sha": "87bfdedd0649f2c9d2fd73671027556a65b3885d",
+  "date": "2026-10-26",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "git log --reverse --format=%cI | head -1 -> 2026-10-26T19:00:36+02:00",
+    "git ls-files samples/ -> samples/.gitignore samples/README.md",
+    "git ls-files sources competitors .remember | wc -l -> 0",
+    "python3 scripts/check-publication.py -> check-publication: clean (82 tracked files, 5 client names)",
+    "python3 -m unittest tests.scripts.test_pre_commit_hook -> OK"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+    "verdict": "completed",
+    "candidate": "841707cf105d906e087ff553c6ee6916f554fbd3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+    "candidate": "f6d4088fcb00f7d7f884acc8588f6903eaab3b11",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    }
+  }
+}
