@@ -16,6 +16,12 @@ How Claude Code proves the live mail paths without the operator, as authorised o
 | `conduct@` | `hostmaster@rizonetech.com` | Private conduct contact (`CODE_OF_CONDUCT.md`) | 2026-10-26 22:58 UTC |
 | `dmarc@` | `hostmaster@rizonetech.com` | DMARC aggregate reports | rule enabled |
 
+## Outbound through SMTP2GO
+
+| Test | From | To | Result |
+| --- | --- | --- | --- |
+| Send through the narrowed key, 2026-10-26 23:26 UTC | `no-reply@isitlegit.co.za` | `hello@isitlegit.co.za` | Inbox of derick@rizonetech.com in 9 s; DKIM `s1027207` for isitlegit.co.za, DMARC `p=reject` passed; internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>` |
+
 The demo aliases (`finance@`, `alerts@` and `owner@demo.isitlegit.co.za`) and `check@` (the intake Worker) join this table when D01 T02 §4 and the intake sections add them.
 
 ## How a test runs

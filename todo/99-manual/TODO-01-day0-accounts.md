@@ -112,9 +112,11 @@ Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"
 
 1. Check the plan in the Cloudflare dashboard under Workers and Pages, Plans. Done when: the plan reads Workers Paid, or it is upgraded.
 
-- [ ] Open the Cloudflare dashboard for account `f5a529987f8dc7d52ce7aba3da25e226` and read the Workers plan. Done when: it reads Workers Paid.
-- [ ] Record the plan and date in this section as a line `Plan read: Workers Paid, YYYY-MM-DD`. Done when: the line is written here.
+- [x] Open the Cloudflare dashboard for account `f5a529987f8dc7d52ce7aba3da25e226` and read the Workers plan. Done when: it reads Workers Paid. Evidence 2026-10-27 01:27 SAST: the operator confirmed the account is on Workers Paid (the API token cannot read billing).
+- [x] Record the plan and date in this section as a line `Plan read: Workers Paid, YYYY-MM-DD`. Done when: the line is written here. Evidence 2026-10-27 01:27 SAST: written below.
 - [ ] Commit: `todo: record the Workers Paid plan`
+
+Plan read: Workers Paid, 2026-10-27
 
 **Test checkpoint:** `grep -cE '^Plan read: Workers Paid, 2026-[0-9]{2}-[0-9]{2}$' todo/99-manual/TODO-01-day0-accounts.md` prints `1`.
 
@@ -134,7 +136,7 @@ Replies, verification mails and alerts go out through SMTP2GO from `check@`, `ve
 - [x] Add `isitlegit.co.za` under SMTP2GO Sending, Verified Senders, Sender Domains. Done when: SMTP2GO shows the records to add. Evidence 2026-10-27 00:50 SAST: SMTP2GO lists the domain.
 - [x] Give Claude the record names and targets (they are not secret) to add in Cloudflare DNS. Done when: the records exist in zone `88aeec6df134bc59bfa16a25751241ef`. Evidence 2026-10-27 00:50 SAST: SMTP2GO's setup added them through Cloudflare Domain Connect: `s1027207._domainkey` and `em1027207` CNAMEs (and an unused `link` tracking CNAME; tracking stays off, the emails promise none).
 - [x] Click verify in SMTP2GO. Done when: the sender domain reads verified. Evidence 2026-10-27 00:50 SAST: DKIM and return path read verified.
-- [ ] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account.
+- [x] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account. Done: Evidence 2026-10-27 01:27 SAST: the operator narrowed the key; a send from `no-reply@isitlegit.co.za` to `hello@isitlegit.co.za` ("IsItLegit SMTP2GO send test", SMTP2GO email id `1xLU5R-FnQW0hPtclR-gWDp`, sent 23:26:41 UTC on 2026-10-26) reached the derick@rizonetech.com Inbox nine seconds later (internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>`), passing DMARC `p=reject`. The narrowed key can still read account stats (read-only), which is harmless.
 - [ ] Commit: `todo: record the SMTP2GO sender domain as verified`
 
 **Test checkpoint:** `dig +short CNAME em.isitlegit.co.za @1.1.1.1` (or the record names SMTP2GO gives) resolves to SMTP2GO targets.
