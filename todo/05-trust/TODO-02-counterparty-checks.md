@@ -37,6 +37,9 @@ track: day-5
 | 3 | §3 | Registry comparison evidence that reveals nothing | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
+| 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [ ] |
+| 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [ ] |
+| 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 
 ## 1. Counterparty intake path with rate limits
 
@@ -134,6 +137,76 @@ The counterparty gets the verdict like a member, plus "Fynbos Freight is protect
 - [ ] Commit: `trust: counterparty reply with the protected line`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/counterparty-reply.test.ts` passes.
+
+## 6. Verify-this-email page for a protected business
+
+The public page a signature badge links to (design spec 2a, Verifiable signature badge): `isitlegit.co.za/v/<slug>` shows the business's name, its verified sending domains, the date verified, and one clear action: forward the email you received to `check@isitlegit.co.za` as an attachment. The badge proves nothing on its own; the forwarded message's DKIM, SPF and DMARC alignment against the registered domains is the proof, through the counterparty path (§1 to §5). It never shows bank details, addresses beyond the domains, or the finance contact.
+
+**Phase:** 5
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` verify page and `design/brand/README.md` (seal and badge rules)
+**Job:** a recipient who sees the badge confirms in one step whether the email really came from that business
+**Treatment:** the business's real domains first, the forward instruction second, nothing private
+**Chrome:** `AppShell` public variant, `Button`, `EvidenceCard` from D07 T01 §3
+
+**Build order:**
+
+1. Add a public slug per protected identity and build the page. Done when: a protected demo business's page renders its verified domains and the forward instruction.
+2. Refuse what must not show. Done when: an unprotected or unknown slug shows "This business is not protected by IsItLegit" and a 404 status.
+
+- [ ] Add `public_slug` (unique, lower-case, from the business name, editable once by the owner) to `identities` in migration `0018_verify_page.sql`. Done when: the demo business gets `fynbos-freight`.
+- [ ] Build `GET /v/:slug` in `src/web/pages/verify.tsx` on the marketing host with the seal, the business name, its verified sending domains, the verified date, and the forward-as-attachment steps for Outlook and Gmail. Done when: `test/web/verify-page.test.ts` finds each element. Cheaper substitute: a static "this business is verified" image page.
+- [ ] Show "This business is not protected by IsItLegit" with status 404 for an unknown, unprotected or lapsed identity, and never echo the requested slug as a business name. Done when: the test covers unknown and lapsed.
+- [ ] Prove no private field reaches the page (bank details, addresses, finance contact) with a test that renders a fully populated identity. Done when: the leak test passes and fails on a planted field.
+- [ ] Commit: `trust: verify-this-email page for protected businesses`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/verify-page.test.ts` passes and fails if the finance contact appears on the page.
+
+## 7. Live signature badge and its copy-paste snippet
+
+The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a lapsed protection changes every copy already sent to "Not verified" (spec 2a). The owner gets a ready signature snippet (HTML for Outlook and Gmail signature editors) with the badge linking to the verify page, built from `design/brand/logo-svg/isitlegit-badge-protected.svg`.
+
+**Phase:** 5
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` member console, protected identity section; `design/brand/README.md` badge rules
+**Job:** a business owner adds the badge to every staff signature in a minute
+**Treatment:** one copy button, a preview, and plain steps for Outlook and Gmail
+**Chrome:** `AppShell`, `Button`, `Field` from D07 T01 §3
+
+**Build order:**
+
+1. Serve the badge. Done when: a protected slug returns the Protected badge and a lapsed one returns the Not verified badge, both with short caching.
+2. Give the owner the snippet. Done when: the identity page shows a preview and copies the HTML.
+
+- [ ] Add a Not verified badge variant to `design/tools/build-brand.py` (grey seal, "NOT VERIFIED BY IS IT LEGIT") and regenerate the kit. Done when: `design/brand/logo-svg/isitlegit-badge-not-verified.svg` exists.
+- [ ] Serve `GET /b/:slug.png` and `.svg` choosing the Protected or Not verified badge from the identity's current state, with `Cache-Control: public, max-age=3600`. Done when: `test/web/badge.test.ts` sees each variant and the header. Cheaper substitute: a static image the business hosts itself, which cannot lapse.
+- [ ] Record each badge request's referring context only as a count per slug per day (no IPs, no message data). Done when: the test sees the counter rise and no address stored.
+- [ ] Add the signature snippet to the identity page (D05 T01 §3): preview, copy button, and steps for Outlook (desktop and web) and Gmail. Done when: the page test copies HTML whose image source and link point to the slug.
+- [ ] Commit: `trust: live signature badge and snippet`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/badge.test.ts` passes and fails if a lapsed identity still gets the Protected badge.
+
+## 8. Copied-badge detection and alerts
+
+An attacker who copies the badge into a fake email turns it into evidence (spec 2a): when a counterparty case contains a link to `/v/<slug>` or an image from `/b/<slug>`, but the message does not pass DKIM or SPF aligned with that business's registered domains, the case gets critical "copied Protected badge" evidence and the business is alerted with the sending domain.
+
+**Phase:** 5
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Register `trust.badge_copied`. Done when: a fixture fake with a copied badge is critical and a genuine fixture with the badge is clean.
+2. Alert the business. Done when: the alert names the lookalike sending domain.
+
+- [ ] Detect badge links and images pointing to `/v/<slug>` or `/b/<slug>` in the HTML and map them to the identity. Done when: `test/trust/badge-copied.test.ts` finds the slug in both forms.
+- [ ] Register `trust.badge_copied` (critical) when the message is not DKIM- or SPF-aligned with a registered domain of that identity, and `trust.badge_genuine` (info, counter-signal) when it is. Done when: the fake and genuine fixtures behave.
+- [ ] Include the copying domain in the impersonation alert (§4) for a copied badge. Done when: the alert snapshot names it.
+- [ ] Commit: `trust: copied-badge detection and alerts`
+
+**Test checkpoint:** `pnpm exec vitest run test/trust/badge-copied.test.ts` passes and fails if an unaligned message with the badge is rated genuine.
 
 ## Verification
 
