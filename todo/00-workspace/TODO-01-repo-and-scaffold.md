@@ -159,10 +159,10 @@ Every push runs the Worker gates and the TODO gates, so a stale plan or a failin
 
 ## 5. Cloudflare bindings and first deploy
 
-The Worker needs D1 for cases and tenants, R2 for raw mail and artefacts (with a 30-day lifecycle on `raw/` for POPIA), KV for caches, a Workflow for the pipeline and Browser Run for rendering (stack doc "Platform services"). Resource creation and the first deploy are changes to the Rizonetech Cloudflare account, so the operator confirms once before this section runs.
+The Worker needs D1 for cases and tenants, R2 for raw mail and artefacts (with a 30-day lifecycle on `raw/` for POPIA), KV for caches, a Workflow for the pipeline and Browser Run for rendering (stack doc "Platform services"). Resource creation and the first deploy are covered by the operator's standing authorisation for IsItLegit resources (design spec section 11, `AGENTS.md` Safety; **Corrected 2026-10-26:** this section needed `attended` before that authorisation).
 
 **Phase:** 0
-**Needs:** cloudflare, attended
+**Needs:** cloudflare
 **Surface:** no
 
 **Build order:**
@@ -213,7 +213,7 @@ One small script proves each Meta capability the product depends on before anyth
 **Build order:**
 
 1. Write `scripts/meta-smoke.ts` with one call per capability through the gateway, `store: false` on each. Done when: `pnpm exec tsx scripts/meta-smoke.ts --dry` prints the four planned requests without sending them.
-2. Run it once and record the results. Done when: `sources/meta-api/2026-10-26-smoke-test.md` holds each model's status, latency and token counts.
+2. Run it once and record the results. Done when: `docs/meta-smoke-test.md` holds each model's status, latency and token counts (**Corrected 2026-10-26:** was under `sources/`, which is now git-ignored and local only).
 
 - [ ] Add exact dev dependencies `openai` 7.43.0 and `tsx` 4.23.15. Done when: `pnpm install` resolves both.
 - [ ] Write `scripts/meta-smoke.ts` reading `META_API_KEY` from the environment only and refusing to run without `--confirm-credit`. Done when: running without the flag exits 2 with the reason. Cheaper substitute: a key pasted into the script.
@@ -221,16 +221,17 @@ One small script proves each Meta capability the product depends on before anyth
 - [ ] Add a `sam-3.1` call with the text prompt `logo` on a synthetic branded image, parsed with `@meta-sam/parser` 0.1.0 (Meta docs, SAM reading segmentation). Done when: `--dry` prints the request with one `input_text` and one `input_image` part.
 - [ ] Add a `muse-wonder-1.0` call with the computer tool for one step against `about:blank`. Done when: `--dry` prints the request with the computer tool declared.
 - [ ] Add a guard that refuses any model ID ending in `-contributor`. Done when: passing `--model muse-spark-1.3-contributor` exits 2.
-- [ ] Run the script once with `--confirm-credit` and write `sources/meta-api/2026-10-26-smoke-test.md` (model, status, latency, input and output tokens, cost; no keys, no response bodies beyond a short excerpt). Done when: the file lists all four calls with results or a named fallback.
+- [ ] Confirm the credit gate before any call: `grep -E '^Meta credit visible: 2026-' todo/99-manual/TODO-01-day0-accounts.md` matches (the operator records it in D99 T01 §1); without it park the section. Done when: the grep matches.
+- [ ] Run the script once with `--confirm-credit` and write `docs/meta-smoke-test.md` (model, status, latency, input and output tokens, cost; no keys, no response bodies beyond a short excerpt). Done when: the file lists all four calls with results or a named fallback.
 - [ ] Commit: `meta: smoke test of Spark, SAM 3.1 and Wonder through the gateway`
 
-**Test checkpoint:** `pnpm exec tsx scripts/meta-smoke.ts --dry` exits 0 printing four requests each with `"store": false`, and `sources/meta-api/2026-10-26-smoke-test.md` exists with four result rows.
+**Test checkpoint:** `pnpm exec tsx scripts/meta-smoke.ts --dry` exits 0 printing four requests each with `"store": false`, and `docs/meta-smoke-test.md` exists with four result rows.
 
 ## 8. README banner and social preview
 
-The reference repositories open with a brand image (Recto's `design/brand/github-banner.png`, Isotone's wordmark and cover). IsItLegit gets the same once its brand exists; until then the README opens with a text title.
+The reference repositories open with a brand image (Recto's `design/brand/github-banner.png`, Isotone's wordmark and cover). IsItLegit gets the same once its brand exists; until then the README opens with a text title. The wordmark comes out of the design session (D07 T01 §1; **Corrected 2026-10-26:** moved from phase 0 to phase 1 to follow it).
 
-**Phase:** 0
+**Phase:** 1
 **Needs:** attended
 **Surface:** no
 

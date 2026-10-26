@@ -156,7 +156,7 @@ class PreCommitHook(unittest.TestCase):
 
     def test_a_client_name_after_a_nul_byte_in_binary_content_is_refused(self):
         self.names("Acme Holdings\n")
-        (self.root / "message.eml").write_bytes(b"From: Acme Holdings\x00\n")
+        (self.root / "message.eml").write_bytes(b"MIME-Version: 1.0\x00\x01binary\x00From: Acme Holdings\n")
         self.git("add", "message.eml")
         self.assertNotEqual(self.commit().returncode, 0)
 

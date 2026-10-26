@@ -62,7 +62,7 @@ Credits apply in batches after the claim form; until they show, every call is ch
 - [ ] Add a payment method on the Meta Model API Billing page. Done when: Billing lists the card.
 - [ ] Set a Spend Limit notification at US$150. Done when: Billing shows it.
 - [ ] Create an API key named `isitlegit-hackathon` and store it in the Conclave vault as "IsItLegit Meta Model API". Done when: the vault item exists. Cheaper substitute: pasting the key into chat or a file.
-- [ ] Confirm US$150 under Billing, "free credits", and tell Claude. Done when: the credit is visible; then remove `operator` from D00 T01 §7's wait by recording the date here.
+- [ ] Confirm US$150 under Billing, "free credits", and record it here as a line `Meta credit visible: YYYY-MM-DD`. Done when: the line is written; every `meta-api` section checks for it before its first call.
 - [ ] Commit: `todo: record the Meta Model API account as ready`
 
 **Test checkpoint:** `op item get "IsItLegit Meta Model API" --vault Conclave --format json | jq -r '.id' | wc -c` prints a non-zero count (the item exists; the value is never printed).
