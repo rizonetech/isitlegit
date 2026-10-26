@@ -1,6 +1,13 @@
 <div align="center">
 
-<h1>IsItLegit</h1>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="design/brand/logo-svg/isitlegit-logo-on-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="design/brand/logo-svg/isitlegit-logo.svg">
+  <img alt="IsItLegit" src="design/brand/logo-svg/isitlegit-logo.svg" width="360">
+</picture>
+
+<br>
+<br>
 
 <p><strong>Forward a suspicious email. Get a verdict with the evidence.</strong><br>Phishing, invoice-fraud and impersonation checks for small businesses, built on Meta's models.</p>
 

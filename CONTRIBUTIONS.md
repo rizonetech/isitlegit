@@ -18,6 +18,10 @@ These files came from Rizonetech's own Conclave-SDK `base`, `todo` and `reviewer
 | `tests/scripts/`, `scripts/tests/` | Tests for that tooling |
 | `docs/todo-workflow.md`, `docs/*-prompt.md`, `docs/agent-skills-and-rules-structure.md` | How the TODO system and the reviews work |
 | `todo/README.md`, `todo/templates/` | The TODO format and its templates |
+| `design/brand/rizonetech/` | Rizonetech's own logo files from its brand kit, used only for the "by Rizonetech" credit |
+| `design/fonts/` | The Exo and Exo 2 fonts (SIL OFL 1.1) from Rizonetech's brand kit; third-party, listed in `NOTICE.md` |
+
+The IsItLegit brand itself (`design/brand/` outside `rizonetech/`, and `design/tools/build-brand.py`) was designed and built during the event, on 26 Oct 2026.
 
 Changes made to this tooling during the event (the IsItLegit environment needs, the client-name guard in the pre-commit hook) are new work and show in the history.
 

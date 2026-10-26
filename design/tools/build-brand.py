@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""Build the IsItLegit brand files in design/brand/ from the approved design.
+
+    python3 design/tools/build-brand.py        (needs design/tools/requirements.txt and rsvg-convert)
+
+The operator approved the brand on 2026-10-26: direction A (a question mark whose dot is an orange tick, wordmark
+"IsIt" in ink and "Legit" in orange, Exo 800), direction C's round seal reading PROTECTED as the badge, C's app icon
+and favicons, and "the dot becomes the answer" motion frames. Every piece of text is converted to outlines from the
+vendored Exo fonts (design/fonts/, SIL OFL 1.1), shaped with HarfBuzz so kerning matches the font, so the files render
+the same everywhere without the fonts installed. PNGs and favicon.ico are rendered from the SVGs with rsvg-convert.
+Every file is written to a temporary file and then moved into place.
+"""
+import io
+import math
+import os
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+
+import uharfbuzz as hb
+from fontTools.pens.svgPathPen import SVGPathPen
+from fontTools.pens.transformPen import TransformPen
+from fontTools.ttLib import TTFont
+from fontTools.varLib.instancer import instantiateVariableFont
+from PIL import Image
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+FONTS = ROOT / "design/fonts"
+OUT = ROOT / "design/brand"
+
+INK = "#231F20"
+ORANGE = "#FF4A14"
+ORANGE_TEXT = "#E03300"
+LIGHT = "#F1F1F2"
+WHITE = "#FFFFFF"
+SAFE = "#0E7C5B"
+SUSPICIOUS = "#B26A00"
+MALICIOUS = "#C8102E"
+
+# Direction A: the question hook and the tick that replaces its dot, on a 200 by 200 grid.
+HOOK = "M64 72a36 36 0 1 1 54 31c-12 7-18 14-18 28"
+TICK = "M74 166l18 16 36-38"
+# The question's stem as used by the motion frames (the dot sits below it).
+STEM = "M58 76A42 42 0 1 1 120 112C106 120 99 130 99 140"
+
+
+class Face:
+    """One weight of a vendored variable font: HarfBuzz for shaping, fontTools for outlines."""
+
+    def __init__(self, file, weight):
+        instance = instantiateVariableFont(TTFont(FONTS / file), {"wght": weight})
+        buffer = io.BytesIO()
+        instance.save(buffer)
+        data = buffer.getvalue()
+        self.tt = TTFont(io.BytesIO(data))
+        self.glyphs = self.tt.getGlyphSet()
+        self.order = self.tt.getGlyphOrder()
+        self.upm = self.tt["head"].unitsPerEm
+        self.hb_font = hb.Font(hb.Face(data))
+
+    def shape(self, text):
+        buffer = hb.Buffer()
+        buffer.add_str(text)
+        buffer.guess_segment_properties()
+        hb.shape(self.hb_font, buffer, {"kern": True, "liga": False})
+        return [(self.order[info.codepoint], pos.x_advance, pos.x_offset, pos.y_offset)
+                for info, pos in zip(buffer.glyph_infos, buffer.glyph_positions)]
+
+    def width(self, text, size, tracking=0.0):
+        shaped = self.shape(text)
+        return sum(adv for _, adv, _, _ in shaped) * size / self.upm + tracking * (len(shaped) - 1)
+
+    def outline(self, name, scale, x, y):
+        pen = SVGPathPen(self.glyphs)
+        self.glyphs[name].draw(TransformPen(pen, (scale, 0, 0, -scale, x, y)))
+        return pen.getCommands()
+
+    def runs(self, parts, x, y, size, tracking=0.0, anchor="start"):
+        """SVG paths for consecutive coloured runs of one line, shaped as a whole so kerning crosses the runs."""
+        text = "".join(part for part, _ in parts)
+        shaped = self.shape(text)
+        if len(shaped) != len(text):
+            raise ValueError(f"text did not shape one glyph per character: {text!r}")
+        scale = size / self.upm
+        total = self.width(text, size, tracking)
+        x -= {"start": 0, "middle": total / 2, "end": total}[anchor]
+        out, index = [], 0
+        for part, colour in parts:
+            commands = []
+            for name, adv, x_off, y_off in shaped[index:index + len(part)]:
+                commands.append(self.outline(name, scale, x + x_off * scale, y - y_off * scale))
+                x += adv * scale + tracking
+            index += len(part)
+            out.append(f'<path fill="{colour}" d="{" ".join(c for c in commands if c)}"/>')
+        return "".join(out)
+
+    def on_circle(self, text, cx, cy, radius, size, colour, start_deg=-90.0):
+        """Text set clockwise round a circle, letter spacing stretched so the string closes the circle exactly."""
+        shaped = self.shape(text)
+        scale = size / self.upm
+        advances = [adv * scale for _, adv, _, _ in shaped]
+        circumference = 2 * math.pi * radius
+        extra = (circumference - sum(advances)) / len(advances)
+        if extra < 0:
+            raise ValueError(f"{text!r} is too long for a circle of radius {radius} at size {size}")
+        out, travelled = [], 0.0
+        for (name, _, _, _), adv in zip(shaped, advances):
+            centre = travelled + adv / 2
+            angle = start_deg + math.degrees(centre / radius) + 90
+            commands = self.outline(name, scale, -adv / 2, -radius)
+            if commands:
+                out.append(f'<path fill="{colour}" transform="translate({cx:.2f} {cy:.2f}) rotate({angle:.3f})" '
+                           f'd="{commands}"/>')
+            travelled += adv + extra
+        return "".join(out)
+
+
+def write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=path.parent, suffix=path.suffix)
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+    os.replace(temporary, path)
+
+
+def svg(width, height, title, body):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" height="{height:.0f}" '
+            f'viewBox="0 0 {width:.2f} {height:.2f}" role="img"><title>{title}</title>{body}</svg>\n')
+
+
+def mark(hook, tick, transform=""):
+    group = f'<g transform="{transform}">' if transform else "<g>"
+    return (f'{group}<path d="{HOOK}" fill="none" stroke="{hook}" stroke-width="20" stroke-linecap="round" '
+            f'stroke-linejoin="round"/><path d="{TICK}" fill="none" stroke="{tick}" stroke-width="20" '
+            f'stroke-linecap="round" stroke-linejoin="round"/></g>')
+
+
+def wordmark(exo, ink):
+    """Mark plus IsIt (ink) and Legit (orange) at 72 px, on a canvas 100 px tall. The mark's ink spans x 54 to 146
+    of its 200 grid, so it is shifted left to sit flush and the text starts one stroke-width after it."""
+    size, height, scale, gap = 72, 100, 0.5, 16
+    text_x = (146 - 54) * scale + gap
+    width = text_x + exo.width("IsItLegit", size) + 2
+    body = mark(ink, ORANGE, f"translate({-54 * scale} 0) scale({scale})")
+    body += exo.runs([("IsIt", ink), ("Legit", ORANGE)], text_x, 75, size)
+    return width, height, body
+
+
+def seal(exo, centre_fill, tick_colour):
+    """Direction C: orange disc, rim text PROTECTED, a tick at the centre."""
+    body = f'<circle cx="100" cy="100" r="92" fill="{ORANGE}"/><circle cx="100" cy="100" r="54" fill="{centre_fill}"/>'
+    body += exo.on_circle("IS IT LEGIT · PROTECTED · ", 100, 100, 66, 20, WHITE)
+    body += (f'<path d="M78 101l15 15 31-33" fill="none" stroke="{tick_colour}" stroke-width="13" '
+             f'stroke-linecap="round" stroke-linejoin="round"/>')
+    return body
+
+
+def app_icon(rounded=True):
+    """Direction C's app icon: orange tile, white disc, ink tick (full bleed when not rounded, for maskable use)."""
+    tile = f'<rect width="180" height="180" rx="{40 if rounded else 0}" fill="{ORANGE}"/>'
+    return (tile + f'<circle cx="90" cy="90" r="{56 if rounded else 50}" fill="{WHITE}"/>'
+            f'<path d="{"M66 91l17 17 33-36" if rounded else "M69 91l15 15 30-32"}" fill="none" stroke="{INK}" '
+            f'stroke-width="{14 if rounded else 13}" stroke-linecap="round" stroke-linejoin="round"/>')
+
+
+def favicon(small=False):
+    """Direction C's favicon on a 32 grid; at 16 px the white disc goes and the tick turns white."""
+    if small:
+        return (f'<circle cx="16" cy="16" r="16" fill="{ORANGE}"/><path d="M9.5 16.5l4.2 4.2 8.5-9" fill="none" '
+                f'stroke="{WHITE}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>')
+    return (f'<circle cx="16" cy="16" r="16" fill="{ORANGE}"/><circle cx="16" cy="16" r="9.5" fill="{WHITE}"/>'
+            f'<path d="M12 16.2l2.8 2.8 5.4-5.8" fill="none" stroke="{INK}" stroke-width="2.6" stroke-linecap="round" '
+            f'stroke-linejoin="round"/>')
+
+
+def badge(exo):
+    """The pill badge for email signatures and websites: mini seal plus PROTECTED BY IS IT LEGIT."""
+    size, tracking = 16, 1.3
+    text_width = exo.width("PROTECTED BY IS IT LEGIT", size, tracking)
+    width, height = 10 + 36 + 10 + text_width + 18, 56
+    body = (f'<rect x="1" y="1" width="{width - 2:.2f}" height="{height - 2}" rx="27" fill="{WHITE}" '
+            f'stroke="{INK}" stroke-width="2"/>')
+    body += f'<g transform="translate(10 10) scale({36 / 32})">{favicon()}</g>'
+    body += exo.runs([("PROTECTED BY IS IT LEGIT", INK)], 56, 34, size, tracking)
+    return width, height, body
+
+
+def github_banner(exo, exo2):
+    body = f'<rect width="1280" height="640" fill="{LIGHT}"/><rect y="600" width="1280" height="40" fill="{ORANGE}"/>'
+    body += mark(INK, ORANGE, "translate(120 190) scale(0.9)")
+    body += exo.runs([("IsIt", INK), ("Legit", ORANGE)], 278, 330, 120)
+    body += exo2[500].runs([("Forward a suspicious email. Get a verdict with the evidence.", INK)], 282, 400, 32)
+    body += exo2[600].runs([("isitlegit.co.za · by Rizonetech", ORANGE_TEXT)], 282, 460, 24)
+    return body
+
+
+def social_card(exo, exo2):
+    body = f'<rect width="1200" height="630" fill="{INK}"/>'
+    body += exo.runs([("Is it legit?", WHITE)], 90, 250, 84)
+    body += exo.runs([("Ask before you pay.", ORANGE)], 90, 350, 84)
+    body += exo2[500].runs([("Phishing, invoice-fraud and impersonation checks for small businesses.", LIGHT)],
+                           94, 430, 30)
+    body += mark(WHITE, ORANGE, "translate(90 480) scale(0.42)")
+    body += exo.runs([("IsIt", WHITE), ("Legit", ORANGE)], 180, 548, 40)
+    body += exo2[600].runs([("isitlegit.co.za", LIGHT)], 1110, 548, 26, anchor="end")
+    return body
+
+
+def motion_frames():
+    """The dot becomes the answer: the question's dot pulses while checking, then turns into the verdict glyph."""
+    stem = (f'<path d="{STEM}" fill="none" stroke="{INK}" stroke-width="20" stroke-linecap="round" '
+            f'stroke-linejoin="round"/>')
+    frames = {
+        "question": f'<circle cx="99" cy="172" r="13" fill="{INK}"/>',
+        "checking": (f'<circle cx="99" cy="172" r="24" fill="{ORANGE}" fill-opacity="0.18"/>'
+                     f'<circle cx="99" cy="172" r="15" fill="{ORANGE}"/>'),
+        "deciding": f'<path d="M90 172H110" stroke="{ORANGE}" stroke-width="22" stroke-linecap="round"/>',
+        "safe": (f'<path d="M78 166L94 182L128 148" fill="none" stroke="{SAFE}" stroke-width="20" '
+                 f'stroke-linecap="round" stroke-linejoin="round"/>'),
+        "suspicious": f'<path d="M78 172H120" stroke="{SUSPICIOUS}" stroke-width="22" stroke-linecap="round"/>',
+        "malicious": (f'<path d="M84 158L114 188M114 158L84 188" fill="none" stroke="{MALICIOUS}" '
+                      f'stroke-width="20" stroke-linecap="round"/>'),
+    }
+    titles = {"question": "Received", "checking": "Checking", "deciding": "Deciding", "safe": "Safe",
+              "suspicious": "Suspicious", "malicious": "Malicious"}
+    files = {f"motion/{name}.svg": svg(200, 200, f"IsItLegit verdict: {titles[name]}", stem + glyph)
+             for name, glyph in frames.items()}
+    files["motion/checking-animated.svg"] = svg(200, 200, "IsItLegit is checking", (
+        '<style>@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:.75}}'
+        '.dot{transform-origin:99px 172px;animation:pulse 1.2s ease-in-out infinite}'
+        '@media (prefers-reduced-motion:reduce){.dot{animation:none}}</style>'
+        + stem + f'<circle class="dot" cx="99" cy="172" r="15" fill="{ORANGE}"/>'))
+    return files
+
+
+def render(svg_path, png_path, width, height):
+    subprocess.run(["rsvg-convert", "-w", str(width), "-h", str(height), "-o", str(png_path), str(svg_path)],
+                   check=True)
+
+
+def main():
+    if shutil.which("rsvg-convert") is None:
+        print("build-brand: rsvg-convert is needed to render PNGs (apt install librsvg2-bin)", file=sys.stderr)
+        return 2
+    exo = Face("Exo[wght].ttf", 800)
+    exo_bold = Face("Exo[wght].ttf", 700)
+    exo2 = {500: Face("Exo2[wght].ttf", 500), 600: Face("Exo2[wght].ttf", 600)}
+    files = {
+        "logo-svg/isitlegit-mark.svg": svg(200, 200, "IsItLegit mark", mark(INK, ORANGE)),
+        "logo-svg/isitlegit-mark-on-dark.svg": svg(200, 200, "IsItLegit mark on dark", mark(WHITE, ORANGE)),
+        "logo-svg/isitlegit-seal-protected.svg": svg(200, 200, "Protected by IsItLegit seal", seal(exo, WHITE, INK)),
+        "logo-svg/isitlegit-seal-protected-on-dark.svg": svg(200, 200, "Protected by IsItLegit seal on dark",
+                                                             seal(exo, INK, WHITE)),
+        "web/app-icon.svg": svg(180, 180, "IsItLegit app icon", app_icon()),
+        "web/app-icon-maskable.svg": svg(180, 180, "IsItLegit app icon, maskable", app_icon(rounded=False)),
+        "web/favicon.svg": svg(32, 32, "IsItLegit", favicon()),
+        "web/favicon-small.svg": svg(32, 32, "IsItLegit", favicon(small=True)),
+        "web/github-banner.svg": svg(1280, 640, "IsItLegit", github_banner(exo, exo2)),
+        "web/social-card.svg": svg(1200, 630, "IsItLegit: is it legit? Ask before you pay.", social_card(exo, exo2)),
+    }
+    for name, ink in (("logo-svg/isitlegit-logo.svg", INK), ("logo-svg/isitlegit-logo-on-dark.svg", WHITE)):
+        width, height, body = wordmark(exo, ink)
+        files[name] = svg(width, height, "IsItLegit", body)
+    width, height, body = badge(exo_bold)
+    files["logo-svg/isitlegit-badge-protected.svg"] = svg(width, height, "Protected by IsItLegit", body)
+    files.update(motion_frames())
+    for name, text in files.items():
+        write(OUT / name, text)
+
+    with tempfile.TemporaryDirectory() as scratch:
+        scratch = pathlib.Path(scratch)
+        renders = [("web/favicon-small.svg", "web/favicon-16.png", 16, 16),
+                   ("web/favicon.svg", "web/favicon-32.png", 32, 32),
+                   ("web/favicon.svg", "web/favicon-48.png", 48, 48),
+                   ("web/app-icon.svg", "web/apple-touch-icon.png", 180, 180),
+                   ("web/app-icon.svg", "web/icon-192.png", 192, 192),
+                   ("web/app-icon.svg", "web/icon-512.png", 512, 512),
+                   ("web/app-icon-maskable.svg", "web/icon-maskable-512.png", 512, 512),
+                   ("web/github-banner.svg", "web/github-banner.png", 1280, 640),
+                   ("web/social-card.svg", "web/social-card.png", 1200, 630)]
+        for name in ("isitlegit-mark", "isitlegit-mark-on-dark", "isitlegit-seal-protected",
+                     "isitlegit-seal-protected-on-dark"):
+            for px in (256, 512, 1024):
+                renders.append((f"logo-svg/{name}.svg", f"logo-png/{name}-{px}.png", px, px))
+        for name in ("isitlegit-logo", "isitlegit-logo-on-dark", "isitlegit-badge-protected"):
+            source = files[f"logo-svg/{name}.svg"]
+            w, h = (float(v) for v in source.split('viewBox="0 0 ', 1)[1].split('"', 1)[0].split())
+            for px in (480, 960, 1920):
+                renders.append((f"logo-svg/{name}.svg", f"logo-png/{name}-{px}w.png", px, round(px * h / w)))
+        for source, target, w, h in renders:
+            (scratch / target).parent.mkdir(parents=True, exist_ok=True)
+            render(OUT / source, scratch / target, w, h)
+            (OUT / target).parent.mkdir(parents=True, exist_ok=True)
+            os.replace(scratch / target, OUT / target)
+        sizes = [Image.open(OUT / f"web/favicon-{n}.png") for n in (16, 32, 48)]
+        sizes[2].save(scratch / "favicon.ico", format="ICO", sizes=[(16, 16), (32, 32), (48, 48)],
+                      append_images=sizes[:2])
+        os.replace(scratch / "favicon.ico", OUT / "web/favicon.ico")
+    print(f"build-brand: wrote {len(files)} SVG files, {len(renders)} PNG files and favicon.ico to {OUT.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

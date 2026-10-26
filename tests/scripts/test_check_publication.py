@@ -86,6 +86,21 @@ class CheckPublication(unittest.TestCase):
         self.assertIn("client name in content: <path naming a client>:1", result.stdout)
         self.assertNotIn("Acme", result.stdout + result.stderr)
 
+    def test_font_and_image_bytes_are_not_read_as_text_but_their_paths_are(self):
+        self.stage("design/fonts/Font.ttf", b"\x00\x01binary\x00ACME\x00tables\n")
+        self.stage("design/brand/logo.png", b"\x89PNG\r\n\x1a\nACME")
+        self.assertEqual(self.check().returncode, 0)
+        self.stage("design/fonts/Acme.woff2", b"\x00\x01")
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("client name in 1 tracked path(s)", result.stdout)
+
+    def test_a_pdf_is_still_read_as_text(self):
+        self.stage("test/fixtures/invoice.pdf", b"%PDF-1.7\n1 0 obj << /Author (Acme Holdings) >>\n")
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("client name in content: test/fixtures/invoice.pdf:2", result.stdout)
+
     def test_a_client_name_in_a_path_is_found(self):
         self.stage("docs/Acme-case.md", "A fictional supplier.\n")
         result = self.check()

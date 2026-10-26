@@ -187,6 +187,13 @@ class PreCommitHook(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("cannot be read", result.stderr)
 
+    def test_font_bytes_that_happen_to_match_a_short_name_do_not_block_a_commit(self):
+        self.names("qvz\n")
+        (self.root / "Font.ttf").write_bytes(b"\x00\x01QVZ\x00\n")
+        self.git("add", "Font.ttf")
+        result = self.commit()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_a_staged_file_named_after_a_client_is_refused(self):
         self.names("acme\n")
         (self.root / "Acme-invoice.txt").write_text("nothing here\n", encoding="utf-8")

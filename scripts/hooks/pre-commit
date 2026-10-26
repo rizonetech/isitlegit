@@ -8,8 +8,10 @@
 # file's content or its path. The whole index is scanned, not a diff: a diff hides binary-marked files ("Binary files
 # differ") and its "+++" headers look like content lines that start with "++". Paths are read with core.quotePath off,
 # because git otherwise escapes non-ASCII bytes (`Café` becomes `Caf\303\251`) and the name would not match. Blank
-# lines are dropped first: an empty pattern would match every line. scripts/check-publication.py runs the same scan
-# before a push.
+# lines are dropped first: an empty pattern would match every line. Font and raster image files are not read as
+# text: their bytes carry no words anyone writes a name into, and a short name (three letters) matches them by chance;
+# their paths are still checked, and mail fixtures and PDFs are still read as text. scripts/check-publication.py runs
+# the same scan before a push.
 names_file="$(git rev-parse --show-toplevel)/samples/client-names.txt"
 if [ -f "$names_file" ]; then
     # Fail closed: a list that exists but cannot be read, or a scan that errors, refuses the commit rather than
@@ -21,7 +23,7 @@ if [ -f "$names_file" ]; then
         exit 1
     fi
     if [ -s "$patterns" ]; then
-        git grep --cached -q -a -i -F -f "$patterns"
+        git grep --cached -q -a -i -F -f "$patterns" -- . ':(exclude,glob)**/*.ttf' ':(exclude,glob)**/*.otf' ':(exclude,glob)**/*.woff' ':(exclude,glob)**/*.woff2' ':(exclude,glob)**/*.png' ':(exclude,glob)**/*.jpg' ':(exclude,glob)**/*.jpeg' ':(exclude,glob)**/*.gif' ':(exclude,glob)**/*.webp' ':(exclude,glob)**/*.ico'
         content=$?
         git -c core.quotePath=false ls-files > "$patterns.paths" && grep -q -i -F -f "$patterns" "$patterns.paths"
         paths=$?

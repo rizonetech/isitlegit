@@ -25,6 +25,10 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 NAMES = ROOT / "samples/client-names.txt"
+# Font and raster image files are not read as text: their bytes carry no words anyone writes a name into, and a short
+# name matches them by chance. Their paths are still checked; mail fixtures and PDFs are still read as text.
+NOT_TEXT = [f":(exclude,glob)**/*.{ext}" for ext in ("ttf", "otf", "woff", "woff2", "png", "jpg", "jpeg", "gif", "webp",
+                                                      "ico")]
 PRIVATE_PATH = r"/home/[a-z]|[A-Z]:\\(GitHub|Users)\\[A-Za-z]|/mnt/[a-z]/(GitHub|Users)/[A-Za-z]"
 SAMPLES_ALLOWED = ["samples/.gitignore", "samples/README.md"]
 NEVER_TRACKED = ("sources/", "competitors/", ".remember/")
@@ -48,14 +52,19 @@ def client_names():
     return names, None
 
 
-def grep_locations(output, shown):
-    """`path:line` for each match in `git grep -z -n` output, the matched text dropped unread. With -z git ends the
-    path and the line number with NUL, so a path that contains a colon is never split in the wrong place."""
+def grep_locations(output, shown, tracked):
+    """`path:line` for each match in `git grep -z -n` output (records `path NUL line NUL text NEWLINE`), the matched
+    text dropped unread, so a path containing a colon is never split in the wrong place. A record whose first field
+    is not a tracked path cannot be read safely; it is reported as unreadable, never printed and never skipped."""
     locations = []
     for record in output.split("\n"):
+        if not record:
+            continue
         fields = record.split("\0")
-        if len(fields) >= 3:
+        if len(fields) >= 3 and fields[0] in tracked and fields[1].isdigit():
             locations.append(f"{shown(fields[0])}:{fields[1]}")
+        else:
+            locations.append("<unreadable grep output: rerun after fixing the file it came from>")
     return locations
 
 
@@ -69,7 +78,7 @@ def main():
         patterns.write("\n".join(names) + "\n")
     try:
         # -a reads binary-marked files (mail fixtures are `binary` in .gitattributes) as text.
-        content = git("grep", "--cached", "-z", "-n", "-a", "-i", "-F", "-f", patterns.name)
+        content = git("grep", "--cached", "-z", "-n", "-a", "-i", "-F", "-f", patterns.name, "--", ".", *NOT_TEXT)
     finally:
         pathlib.Path(patterns.name).unlink()
     if content.returncode not in (0, 1):
@@ -80,13 +89,14 @@ def main():
     def shown(path):
         return "<path naming a client>" if any(name in path.lower() for name in lowered) else path
 
-    findings += [f"client name in content: {location}" for location in grep_locations(content.stdout, shown)]
     # -z: one NUL after each path and no quoting, so a non-ASCII name (`Café`) is compared as written, not escaped.
     tracked = git("ls-files", "-z")
     if tracked.returncode:
         print(f"check-publication: git ls-files failed: {tracked.stderr.strip()}", file=sys.stderr)
         return 2
     paths = [p for p in tracked.stdout.split("\0") if p]
+    findings += [f"client name in content: {location}"
+                 for location in grep_locations(content.stdout, shown, set(paths))]
     named = sum(1 for p in paths if shown(p) != p)
     if named:
         findings.append(f"client name in {named} tracked path(s); list them locally with "
@@ -95,7 +105,7 @@ def main():
     if private.returncode not in (0, 1):
         print(f"check-publication: git grep failed: {private.stderr.strip()}", file=sys.stderr)
         return 2
-    findings += [f"private path: {location}" for location in grep_locations(private.stdout, shown)]
+    findings += [f"private path: {location}" for location in grep_locations(private.stdout, shown, set(paths))]
     samples = sorted(p for p in paths if p.startswith("samples/"))
     if samples != SAMPLES_ALLOWED:
         samples = [shown(p) for p in samples]
