@@ -234,7 +234,7 @@ The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (st
 - [ ] Deploy the Worker after the gates pass (`AGENTS.md` deploy rule). Done when: `/health` returns the deployed SHA.
 - [ ] Register the Rizonetech test organisation and its verified test sending address through the D07 T02 domain verification flow. Done when: `findMemberBySender` returns it.
 - [ ] Send `test/fixtures/forward/attached-rfc822.eml` as an attachment from the test sending address through SMTP2GO to `check@isitlegit.co.za` with `scripts/send-fixture.ts`. Done when: a case row appears with `headers_available = 1`.
-- [ ] Read the reply in the operator's mailbox alias through the SMTP2GO activity log and record the case id and reply time in `docs/live-checks.md`. Done when: the file names the case, the reply's `In-Reply-To` and the elapsed seconds.
+- [ ] Read the reply where it lands, `derick@rizonetech.com` through the Microsoft 365 connector, and cross-check it in the SMTP2GO activity log (`docs/live-checks.md`, operator 2026-10-27: Claude runs mail tests itself); record the case id, the reply's `internetMessageId` and the reply time in `docs/live-checks.md`. Done when: the file names the case, the reply's `In-Reply-To` and the elapsed seconds.
 - [ ] Commit: `intake: Email Routing for check@ with a live end-to-end smoke`
 
 **Test checkpoint:** `pnpm exec tsx scripts/send-fixture.ts test/fixtures/forward/attached-rfc822.eml --wait 120` exits 0 after finding the case in D1 with status `done` and a reply logged in SMTP2GO.
