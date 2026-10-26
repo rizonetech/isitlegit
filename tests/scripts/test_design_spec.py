@@ -121,7 +121,10 @@ class Defects(unittest.TestCase):
 
     def test_a_required_control_removed_from_coverage_and_spec_is_caught(self):
         self.json_edit("mockups/coverage.json", lambda c: c["M4"].update(items=[i for i in c["M4"]["items"] if "csv import" not in i["name"].lower()]))
-        errors = check.check_coverage(self.root)
+        self.edit("SPEC.md", "- CSV import with row errors: Row error table and Download a template. (Suppliers)\n", "")
+        self.assertNotIn("- CSV import with row errors:", (self.design / "SPEC.md").read_text())
+        errors = check.check_coverage(self.root) + check.check_spec(self.root)
+        # section 0 still names it, so the gap is found even with both representations gone
         self.assertTrue(any(e.startswith("coverage: M4 does not account for 'CSV import") for e in errors), errors)
 
     def test_a_spec_colour_that_is_no_token_is_caught(self):
