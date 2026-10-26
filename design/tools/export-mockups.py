@@ -29,6 +29,7 @@ import glob
 import functools
 import hashlib
 import html
+import html.parser
 import json
 import os
 import pathlib
@@ -53,7 +54,37 @@ ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 TEMPLATE_RE = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 BLOB_RE = re.compile(r"/_blob/([0-9a-f]{32})")
 SRC_RE = re.compile(r'(<(?:img|source|video|audio|iframe|embed)\b[^<>]*?\bsrc=")([^"]+)(")', re.I)
-EXECUTABLE_RE = re.compile(r"<(?:script|iframe|object|embed|base|meta)\b|\son[a-z]+\s*=|javascript:", re.I)
+EXECUTABLE_TAGS = {"script", "iframe", "frame", "frameset", "object", "embed", "base", "meta", "link", "applet",
+                   "portal", "noscript", "template"}
+URL_ATTRIBUTES = {"href", "src", "xlink:href", "action", "formaction", "data", "poster", "background", "srcset"}
+
+
+class _Executable(html.parser.HTMLParser):
+    """Finds markup a browser would execute: script-bearing tags, event-handler attributes (however the attribute is
+    separated: a space or a slash), srcdoc, and javascript: or vbscript: URLs. Parsing, not pattern matching."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.found = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() in EXECUTABLE_TAGS:
+            self.found.append(f"<{tag}>")
+        for key, value in attrs:
+            key = (key or "").lower()
+            if key.startswith("on") or key == "srcdoc":
+                self.found.append(f"{key}= on <{tag}>")
+            elif key in URL_ATTRIBUTES and re.match(r"^\s*(java|vb)script:", re.sub(r"[\x00-\x20]", "", value or ""), re.I):
+                self.found.append(f"{key}=javascript: on <{tag}>")
+
+    handle_startendtag = handle_starttag
+
+
+def executable_markup(body):
+    parser = _Executable()
+    parser.feed(body)
+    parser.close()
+    return parser.found
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*\.dc\.html$")
 NETWORK_RE = re.compile(r"""<(?:img|script|iframe|source|video|audio|embed|object|link)\b[^<>]*\b(?:src|href|data)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//""", re.I)
 
@@ -205,8 +236,9 @@ def check_assets(name, body, source):
     """Every src must resolve to an existing file; canvas asset links must be gone."""
     if BLOB_RE.search(body):
         raise BoardError(f"{name}: a canvas asset link (/_blob/) remains")
-    if EXECUTABLE_RE.search(body):
-        raise BoardError(f"{name}: contains executable markup (a script, frame, event handler or javascript: link)")
+    found = executable_markup(body)
+    if found:
+        raise BoardError(f"{name}: contains executable markup ({', '.join(sorted(set(found))[:3])})")
     if NETWORK_RE.search(body):
         raise BoardError(f"{name}: loads a network resource; boards render offline")
     for _, src, _ in SRC_RE.findall(body):
@@ -218,7 +250,7 @@ def check_assets(name, body, source):
 
 
 AUDIT_JS = r"""
-<script>
+<script nonce="NONCE">
 window.addEventListener('load', async () => {
   await document.fonts.ready;
   const used = new Set();
@@ -304,7 +336,13 @@ def standalone(name, source, out, audit, nonce=""):
         f"font-weight:100 900;font-display:block}}" for fam, f in FONT_FILES.items())
     # The audit writes its result under a random id the board cannot know, so board content cannot pose as it.
     script = AUDIT_JS.replace("FAMILIES", json.dumps(list(FONT_FILES))).replace("NONCE", nonce) if audit else ""
-    page = (f"<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{html.escape(html.unescape(board['title']))}</title>\n"
+    # Defence in depth: whatever the markup checks miss, the page runs no script but the audit's own (by nonce) and
+    # loads nothing but local files.
+    scripts = f"'nonce-{nonce}'" if audit and nonce else "'none'"
+    csp = (f"default-src 'none'; script-src {scripts}; style-src 'unsafe-inline' file:; img-src file: data:; "
+           f"font-src file: data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'")
+    page = (f"<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
+            f"<meta http-equiv=\"Content-Security-Policy\" content=\"{csp}\">\n<title>{html.escape(html.unescape(board['title']))}</title>\n"
             f"<style>{faces}</style>\n<link rel=\"stylesheet\" href=\"{rel}/ui.css\">\n"
             + "".join(f"<style>{s}</style>\n" for s in styles) +
             f"</head>\n<body>\n{body}\n{script}</body>\n</html>\n")

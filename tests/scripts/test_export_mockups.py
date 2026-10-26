@@ -230,7 +230,9 @@ class Export(Fixture):
 
     def test_executable_markup_and_remote_styles_are_refused(self):
         for bad in ("<script>fetch('http://127.0.0.1:9/')</script>", '<p onclick="x()">x</p>', '<a href="javascript:x()">x</a>',
-                    '<iframe src="pic.svg"></iframe>'):
+                    '<iframe src="pic.svg"></iframe>', '<svg/onload="document.body.dataset.injected=1"></svg>',
+                    '<img/src="pic.svg"/onerror=x()>', '<a href="jav&#x09;ascript:x()">x</a>', '<iframe srcdoc="x"></iframe>',
+                    '<SCRIPT>x()</SCRIPT>', '<math><a xlink:href="javascript:x()">x</a></math>'):
             with self.subTest(markup=bad):
                 self.write("Board.dc.html", BOARD.replace("<p>Board text</p>", bad))
                 run = self.export("--no-png", "--only", "Board")
@@ -318,6 +320,20 @@ class Render(Fixture):
         audit = json.loads((self.out / "audit.json").read_text())["Board"]
         self.assertEqual(audit["fonts"], {"Exo 2": True})
         self.assertTrue(audit["pairs"])
+
+    def test_the_page_policy_stops_any_script_the_checks_miss(self):
+        self.assertEqual(self.export("--no-png", "--only", "Board").returncode, 0)
+        page_path = self.out / "Board.html"
+        page = page_path.read_text()
+        self.assertIn('http-equiv="Content-Security-Policy"', page)
+        # Plant what a missed check would let through, after export, and render it.
+        page_path.write_text(page.replace("<p>Board text</p>", '<p>Board text</p><img src="none.png" onerror="document.body.dataset.x=1">'
+                                          "<script>document.body.dataset.y=1</script>"))
+        run = subprocess.run([chromium(), "--headless", "--virtual-time-budget=2000", "--dump-dom", page_path.resolve().as_uri()],
+                             capture_output=True, text=True, timeout=120)
+        self.assertIn("Board text", run.stdout)
+        self.assertNotIn('data-x="1"', run.stdout)
+        self.assertNotIn('data-y="1"', run.stdout)
 
     def test_an_unloaded_font_is_refused(self):
         run = self.export("--audit", "--no-png", "--only", "Board", env={"MOCKUP_FONTS": str(self.root / "no-fonts")})
