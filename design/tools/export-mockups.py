@@ -48,12 +48,14 @@ PNG = ROOT / "design/mockups/png"
 OUT = ROOT / "build/mockups"
 FONTS = pathlib.Path(os.environ.get("MOCKUP_FONTS", ROOT / "design/fonts"))
 FONT_FILES = {"Exo": "Exo[wght].ttf", "Exo 2": "Exo2[wght].ttf"}
+MONO_FAMILIES = ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"]  # the system mono stack (tokens)
 
 IMPORT_RE = re.compile(r"<dc-import\s+([^>]*?)\s*>\s*</dc-import>", re.S)
 ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 TEMPLATE_RE = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 BLOB_RE = re.compile(r"/_blob/([0-9a-f]{32})")
-SRC_RE = re.compile(r'(<(?:img|source|video|audio|iframe|embed)\b[^<>]*?\bsrc=")([^"]+)(")', re.I)
+SRC_RE = re.compile(r"""(<[a-z][a-z0-9-]*\b[^<>]*?\bsrc\s*=\s*(["']))(.*?)(\2)""", re.I | re.S)
+ASSET_ROOT = ROOT / "design"  # every image a board shows lives under design/ (design/brand in practice)
 EXECUTABLE_TAGS = {"script", "iframe", "frame", "frameset", "object", "embed", "base", "meta", "link", "applet",
                    "portal", "noscript", "template"}
 URL_ATTRIBUTES = {"href", "src", "xlink:href", "action", "formaction", "data", "poster", "background", "srcset"}
@@ -139,11 +141,19 @@ def parse_board(path):
         raise BoardError(f"{pathlib.Path(path).name}: no <x-dc> block")
     helmet = ""
     if "<helmet>" in inner:
-        helmet, inner = inner.split("<helmet>", 1)[1].split("</helmet>", 1)
+        parts = inner.split("<helmet>", 1)[1].split("</helmet>", 1)
+        if len(parts) != 2:
+            raise BoardError(f"{pathlib.Path(path).name}: <helmet> is not closed")
+        helmet, inner = parts
     m = re.search(r"<script type=\"text/x-dc\" data-dc-script data-props='([^']*)'>(.*?)</script>", text, re.S)
     if not m:
         raise BoardError(f"{pathlib.Path(path).name}: no data-dc-script block")
-    props = json.loads(html.unescape(m.group(1)))
+    try:
+        props = json.loads(html.unescape(m.group(1)))
+    except json.JSONDecodeError:
+        raise BoardError(f"{pathlib.Path(path).name}: data-props is not JSON")
+    if not isinstance(props, dict):
+        raise BoardError(f"{pathlib.Path(path).name}: data-props is not an object")
     title = re.search(r"<title>(.*?)</title>", text, re.S | re.I)
     return {"helmet": helmet, "body": inner.strip(), "script": m.group(2), "props": props,
             "title": title.group(1).strip() if title else pathlib.Path(path).stem}
@@ -203,6 +213,8 @@ def fill_template(body, vals, name):
 MAX_BOARD_BYTES = 2_000_000
 MAX_IMPORTS = 200
 MAX_PAGE_BYTES = 8_000_000
+MAX_IMPORT_BOARDS = 500
+MAX_IMPORT_BYTES = 64_000_000
 
 
 def resolve(name, source, attrs=None, depth=0, styles=None, budget=None):
@@ -220,12 +232,18 @@ def resolve(name, source, attrs=None, depth=0, styles=None, budget=None):
         raise BoardError(f"{name}: the board file is larger than {MAX_BOARD_BYTES} bytes")
     board = parse_board(path)
     styles = styles if styles is not None else []
-    styles.extend(re.findall(r"<style>(.*?)</style>", board["helmet"], re.S))
+    own_styles = re.findall(r"<style>(.*?)</style>", board["helmet"], re.S)
+    styles.extend(own_styles)
+    budget["bytes"] += sum(len(x) for x in own_styles)
     props = {k: v.get("default") for k, v in board["props"].items() if not k.startswith("$") and isinstance(v, dict)}
     props.update(attrs or {})
     body = board["body"]
     if TEMPLATE_RE.search(body):
         body = fill_template(body, render_vals(board, props, name), name)
+    if depth == 0:
+        budget["bytes"] += len(body)
+    if budget["bytes"] > MAX_PAGE_BYTES:
+        raise BoardError(f"{name}: the page and its styles expand to more than {MAX_PAGE_BYTES} bytes")
 
     def inline(m):
         a = dict(ATTR_RE.findall(m.group(1)))
@@ -249,7 +267,7 @@ def resolve(name, source, attrs=None, depth=0, styles=None, budget=None):
     return body, styles, board
 
 
-def check_assets(name, body, source):
+def check_assets(name, body, source, asset_root=ASSET_ROOT):
     """Every src must resolve to an existing file; canvas asset links must be gone."""
     if BLOB_RE.search(body):
         raise BoardError(f"{name}: a canvas asset link (/_blob/) remains")
@@ -258,10 +276,12 @@ def check_assets(name, body, source):
         raise BoardError(f"{name}: contains executable markup ({', '.join(sorted(set(found))[:3])})")
     if NETWORK_RE.search(body):
         raise BoardError(f"{name}: loads a network resource; boards render offline")
-    for _, src, _ in SRC_RE.findall(body):
+    for _, _, src, _ in SRC_RE.findall(body):
         if re.match(r"^(data:|#)", src):
             continue
         target = (pathlib.Path(source) / urllib.parse.unquote(src)).resolve()
+        if src.startswith(("/", "\\")) or re.match(r"^[a-z]+:", src, re.I) or not target.is_relative_to(asset_root.resolve()):
+            raise BoardError(f"{name}: asset {src} is outside design/; boards show only design files")
         if not target.is_file():
             raise BoardError(f"{name}: asset {src} does not exist")
 
@@ -270,11 +290,13 @@ AUDIT_JS = r"""
 <script nonce="NONCE">
 window.addEventListener('load', async () => {
   await document.fonts.ready;
-  const used = new Set();
+  const used = new Set(), unknown = new Set();
   for (const el of document.body.querySelectorAll('*')) {
     if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+    if (el.closest('[data-illustration]') || ['SCRIPT', 'STYLE'].includes(el.tagName) || getComputedStyle(el).display === 'none') continue;
     const fam = getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/["']/g, '');
     if (FAMILIES.includes(fam)) used.add(fam);
+    else if (!MONO.includes(fam)) unknown.add(fam);
   }
   const fonts = {};
   for (const fam of used) fonts[fam] = [...document.fonts].some(f => f.family.replace(/["']/g, '') === fam && f.status === 'loaded');
@@ -282,6 +304,8 @@ window.addEventListener('load', async () => {
   const rgba = c => { const m = (c.match(/[\d.]+/g) || ['0', '0', '0', '0']).map(Number); return [m[0], m[1], m[2], m.length > 3 ? m[3] : 1]; };
   const over = ([r, g, b, a], base) => [r * a + base[0] * (1 - a), g * a + base[1] * (1 - a), b * a + base[2] * (1 - a)];
   const css = c => `rgb(${c.map(Math.round).join(', ')})`;
+  // Element opacity (its own and every ancestor's) fades text towards what is behind it, so it joins the colour's alpha.
+  const fade = ([r, g, b, a], el) => { let o = 1; for (let n = el; n; n = n.parentElement) o *= parseFloat(getComputedStyle(n).opacity); return [r, g, b, a * o]; };
   const bgOf = el => {
     const layers = [];
     for (let n = el; n; n = n.parentElement) {
@@ -299,14 +323,16 @@ window.addEventListener('load', async () => {
     const el = t.parentElement, cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) === 0) continue;
     const illustration = !!el.closest('[data-illustration]');
-    const bg = bgOf(el), fg = css(over(rgba(cs.color), bg));
+    // An inactive control is exempt from contrast (WCAG 2.2, 1.4.3 and 1.4.11), so it is recorded but not checked.
+    const inactive = !!el.closest(':disabled, [aria-disabled="true"]');
+    const bg = bgOf(el), fg = css(over(fade(rgba(cs.color), el), bg));
     const key = [fg, css(bg), cs.fontSize, cs.fontWeight, illustration].join('|');
-    pairs[key] = pairs[key] || {kind: 'text', fg, bg: css(bg), size: parseFloat(cs.fontSize), weight: parseInt(cs.fontWeight, 10), illustration, sample: t.textContent.trim().slice(0, 40)};
+    pairs[key] = pairs[key] || {kind: 'text', fg, bg: css(bg), size: parseFloat(cs.fontSize), weight: parseInt(cs.fontWeight, 10), illustration: illustration || inactive, inactive, sample: t.textContent.trim().slice(0, 40)};
   }
   // Form text (values and placeholders are not text nodes) and the boundaries that identify a control.
   const add = (kind, fgColour, el, size, weight, sample) => {
     const illustration = !!el.closest('[data-illustration]');
-    const bg = kind === 'boundary' ? bgOf(el.parentElement || el) : bgOf(el), fg = css(over(rgba(fgColour), bg));
+    const bg = kind === 'boundary' ? bgOf(el.parentElement || el) : bgOf(el), fg = css(over(fade(rgba(fgColour), el), bg));
     const key = [kind, fg, css(bg), size, weight, illustration].join('|');
     pairs[key] = pairs[key] || {kind, fg, bg: css(bg), size, weight, illustration, sample};
   };
@@ -322,16 +348,16 @@ window.addEventListener('load', async () => {
   const pre = document.createElement('pre');
   pre.id = 'mockup-audit-NONCE';
   pre.style.display = 'none';
-  pre.textContent = JSON.stringify({fonts, images, pairs: Object.values(pairs)});
+  pre.textContent = JSON.stringify({fonts, unknownFonts: [...unknown], images, pairs: Object.values(pairs)});
   document.body.appendChild(pre);
 });
 </script>
 """
 
 
-def standalone(name, source, out, audit, nonce=""):
+def standalone(name, source, out, audit, nonce="", asset_root=ASSET_ROOT):
     body, styles, board = resolve(name, source)
-    check_assets(name, body, source)
+    check_assets(name, body, source, asset_root)
     for style in styles:
         if "<" in style:
             raise BoardError(f"{name}: a style holds markup, which could close the style element")
@@ -340,10 +366,10 @@ def standalone(name, source, out, audit, nonce=""):
     rel = os.path.relpath(pathlib.Path(source).resolve(), pathlib.Path(out).resolve())
 
     def relink(m):
-        url = m.group(2)
-        if re.match(r"^(data:|#|/)", url):
+        url = m.group(3)
+        if re.match(r"^(data:|#)", url):
             return m.group(0)
-        return f"{m.group(1)}{rel}/{url}{m.group(3)}"
+        return f"{m.group(1)}{rel}/{url}{m.group(4)}"
 
     body = SRC_RE.sub(relink, body)
     body = re.sub(r'href="([\w-]+)\.dc\.html"', r'href="\1.html"', body)
@@ -352,7 +378,8 @@ def standalone(name, source, out, audit, nonce=""):
         f"@font-face{{font-family:'{fam}';src:url('{fonts_rel}/{urllib.parse.quote(f)}') format('truetype');"
         f"font-weight:100 900;font-display:block}}" for fam, f in FONT_FILES.items())
     # The audit writes its result under a random id the board cannot know, so board content cannot pose as it.
-    script = AUDIT_JS.replace("FAMILIES", json.dumps(list(FONT_FILES))).replace("NONCE", nonce) if audit else ""
+    script = (AUDIT_JS.replace("FAMILIES", json.dumps(list(FONT_FILES))).replace("MONO", json.dumps(MONO_FAMILIES))
+              .replace("NONCE", nonce)) if audit else ""
     # Defence in depth: whatever the markup checks miss, the page runs no script but the audit's own (by nonce) and
     # loads nothing but local files.
     scripts = f"'nonce-{nonce}'" if audit and nonce else "'none'"
@@ -433,6 +460,8 @@ def audit_page(chrome, page_path, w, h, name, nonce):
     if run.returncode != 0 or len(found) != 1:
         raise BoardError(f"{name}: the audit did not run")
     data = json.loads(html.unescape(found[0]))
+    if data.get("unknownFonts"):
+        raise BoardError(f"{name}: text in a font that is no token: {', '.join(data['unknownFonts'])}")
     missing = [f for f, ok in data["fonts"].items() if not ok]
     if missing:
         raise BoardError(f"{name}: font not loaded: {', '.join(missing)}")
@@ -471,7 +500,7 @@ def fingerprint(name, source, size):
         path = source / f"{part}.dc.html"
         h.update(f"{part}:{_file_hash(str(path))}\n".encode())
         text = path.read_text(encoding="utf-8") if path.is_file() else ""
-        for src in sorted({m[1] for m in SRC_RE.findall(text)} | set(re.findall(r"url\(\s*['\"]?([^'\")]+)", text))):
+        for src in sorted({m[2] for m in SRC_RE.findall(text)} | set(re.findall(r"url\(\s*['\"]?([^'\")]+)", text))):
             if not re.match(r"^(data:|#|https?:|//)", src):
                 asset = (source / urllib.parse.unquote(src)).resolve()
                 h.update(f"asset {src}:{_file_hash(str(asset))}\n".encode())
@@ -512,22 +541,26 @@ def cmd_export(args):
         try:
             fp = fingerprint(name, source, (b["w"], b["h"]))
             nonce = secrets.token_hex(16)
-            page, _ = standalone(name, source, out, args.audit, nonce)
+            page, _ = standalone(name, source, out, args.audit, nonce, pathlib.Path(args.asset_root))
             page_path = out / f"{name}.html"
             atomic_write(page_path, page)
+            # The audit first: a board whose fonts or images fail gets neither a fresh PNG nor a manifest entry.
+            if args.audit:
+                data = audit_page(chrome, page_path, b["w"], b["h"], name, nonce)
+                data["fingerprint"] = fp
             if not args.no_png:
                 render_png(chrome, page_path, png / f"{name}.png", b["w"], b["h"])
                 manifest[name] = fp
                 atomic_write(png / "manifest.json", json.dumps(manifest, indent=1, sort_keys=True) + "\n")
             if args.audit:
-                data = audit_page(chrome, page_path, b["w"], b["h"], name, nonce)
-                data["fingerprint"] = fp
                 audit[name] = data
                 atomic_write(out / "audit.json", json.dumps(audit, indent=1, sort_keys=True) + "\n")
             print(f" ok {time.monotonic() - t0:.2f} s", flush=True)
-        except (BoardError, OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        except (BoardError, OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError, AttributeError, TypeError) as e:
             errors += 1
             audit.pop(name, None)
+            if manifest.pop(name, None) is not None:
+                atomic_write(png / "manifest.json", json.dumps(manifest, indent=1, sort_keys=True) + "\n")
             print(" failed", flush=True)
             print(f"export-mockups: {e}", file=sys.stderr, flush=True)
     took = time.monotonic() - started
@@ -556,7 +589,15 @@ def cmd_import(args):
         raise BoardError(f"{dest / 'assets.json'} is missing; it maps canvas asset ids to design/brand files")
     canvas = read_canvas(src)
     errors, files = [], {}
-    for f in list(canvas["boards"]) + ["ui.css"]:
+    names = list(canvas["boards"]) + ["ui.css"]
+    if len(names) > MAX_IMPORT_BOARDS:
+        raise BoardError(f"{src}: {len(names) - 1} boards, more than the {MAX_IMPORT_BOARDS} an import takes")
+    sizes = {f: (src / f).stat().st_size for f in names if (src / f).is_file()}
+    big = [f for f, n in sizes.items() if n > MAX_BOARD_BYTES]
+    if big or sum(sizes.values()) > MAX_IMPORT_BYTES:
+        raise BoardError(f"{src}: {', '.join(big) or 'the canvas'} is larger than an import takes "
+                         f"({MAX_BOARD_BYTES} bytes a file, {MAX_IMPORT_BYTES} in all); nothing was read")
+    for f in names:
         p = src / f
         try:
             text = p.read_text(encoding="utf-8")
@@ -619,6 +660,7 @@ def main(argv=None):
     ex.add_argument("--no-png", action="store_true")
     ex.add_argument("--audit", action="store_true")
     ex.add_argument("--only", nargs="+", metavar="BOARD")
+    ex.add_argument("--asset-root", default=str(ASSET_ROOT), help="the folder every board image must sit in (design/)")
     args = ap.parse_args(argv)
     try:
         return cmd_import(args) if args.cmd == "import" else cmd_export(args)

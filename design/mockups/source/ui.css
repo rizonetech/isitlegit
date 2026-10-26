@@ -1,4 +1,4 @@
-/* IsItLegit interface tokens and components (design/SPEC.md). 8 px grid; colours from design/brand/README.md only. */
+/* IsItLegit interface tokens and components (design/SPEC.md). Every value here is a token: colours from design/tokens/colors.json, type from typography.json, spacing on the 4 px scale in spacing.json. */
 :root {
   --ink: #181519;
   --ink-2: #343038;
@@ -27,6 +27,14 @@
   --mal-wash: #FCE9EC;
   --partial: #4A4750;
   --partial-wash: #F1F0F3;
+  --safe-band: #0E7C5B;
+  --sus-band: #8A5200;
+  --mal-band: #C8102E;
+  --partial-band: #4A4750;
+  --on-band: #FFFFFF;
+  --accent: #CC2E00;
+  --accent-hover: #B32800;
+  --on-accent: #FFFFFF;
   --radius: 12px;
   --radius-lg: 16px;
   --shadow: 0 1px 2px rgba(24, 21, 25, 0.06), 0 8px 24px rgba(24, 21, 25, 0.06);
@@ -38,6 +46,7 @@ h2 { font-size: 28px; line-height: 1.2; font-weight: 800; }
 h3 { font-size: 20px; line-height: 1.3; font-weight: 700; }
 h4 { font-size: 16px; line-height: 1.4; font-weight: 700; }
 p { margin: 0; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 a { color: var(--orange-text); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 a:hover { color: var(--ink); }
 .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--orange-text); }
@@ -49,13 +58,13 @@ a:hover { color: var(--ink); }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 20px; border-radius: 10px; border: 1px solid transparent; font-family: 'Exo 2', sans-serif; font-size: 16px; font-weight: 600; line-height: 1; color: var(--ink); background: var(--white); text-decoration: none; cursor: pointer; white-space: nowrap; box-sizing: border-box; }
 .btn-sm { height: 36px; padding: 0 14px; font-size: 14px; border-radius: 8px; }
-.btn-primary { background: var(--orange-text); color: var(--white); }
-.btn-primary:hover { background: #B32800; color: var(--white); }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); color: var(--on-accent); }
 .btn-dark { background: var(--ink); color: var(--white); }
-.btn-dark:hover { background: #000; color: var(--white); }
+.btn-dark:hover { background: var(--dark-active); color: var(--white); }
 .btn-ghost { background: var(--white); color: var(--ink); border-color: var(--line-strong); }
 .btn-ghost:hover { border-color: var(--ink); color: var(--ink); }
-.btn-danger { background: var(--white); color: var(--mal); border-color: #E7A4AF; }
+.btn-danger { background: var(--white); color: var(--mal); border-color: var(--mal); }
 .btn-link { background: none; border: none; padding: 0; height: auto; color: var(--orange-text); text-decoration: underline; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -84,10 +93,10 @@ a:hover { color: var(--ink); }
 .dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
 
 .band { border-radius: var(--radius-lg); padding: 28px 32px; display: flex; gap: 24px; align-items: center; }
-.band-mal { background: var(--mal); color: var(--white); }
-.band-sus { background: var(--sus); color: var(--white); }
-.band-safe { background: var(--safe); color: var(--white); }
-.band-partial { background: var(--partial); color: var(--white); }
+.band-mal { background: var(--mal-band); color: var(--on-band); }
+.band-sus { background: var(--sus-band); color: var(--on-band); }
+.band-safe { background: var(--safe-band); color: var(--on-band); }
+.band-partial { background: var(--partial-band); color: var(--on-band); }
 .band h1, .band h2, .band p { color: var(--white); }
 .band-running { background: var(--orange-wash); color: var(--ink); }
 .band-running h1, .band-running h2, .band-running p { color: var(--ink); }

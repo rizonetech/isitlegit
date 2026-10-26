@@ -141,7 +141,7 @@ Controls:
 
 States:
 
-- Desktop only; the phone layout is the compact header on the Home phone board (S1).
+- Phone layout: this header is desktop only; on a phone the compact header on the Home phone board (S1) replaces it.
 
 ### P4 Site footer
 

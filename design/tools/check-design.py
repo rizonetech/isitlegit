@@ -92,17 +92,34 @@ def check_inventory(root):
             errors.append(f"inventory: {name} differs from the approved version")
         if "/_blob/" in text:
             errors.append(f"inventory: {name} still links a canvas asset")
-        for src in re.findall(r'<(?:img|source)\b[^>]*\bsrc="([^"]+)"', text):
-            if not re.match(r"^(data:|https?:|#)", src) and not (path.parent / src).resolve().is_file():
+        for tag, _, src, _ in export.SRC_RE.findall(text):
+            # The canvas runtime's own <script src> in the head is not a board asset; every other src is.
+            if re.match(r"^(data:|#)", src) or tag.lower().startswith("<script"):
+                continue
+            target = (path.parent / src).resolve()
+            if re.match(r"^([a-z]+:|/|\\)", src, re.I) or not target.is_relative_to((root / "design").resolve()):
+                errors.append(f"inventory: {name} links {src}, which is outside design/")
+            elif not target.is_file():
                 errors.append(f"inventory: {name} links {src}, which does not exist")
-        if not (root / f"design/mockups/png/{name}.png").is_file():
+        png = root / f"design/mockups/png/{name}.png"
+        if not png.is_file():
             errors.append(f"inventory: {name} has no PNG in design/mockups/png")
+        elif png_size(png) != (rec.get("w"), rec.get("h")):
+            errors.append(f"inventory: the PNG of {name} is {png_size(png)}, not its approved {rec.get('w')}x{rec.get('h')}")
         elif b and manifest.get(name) != export.fingerprint(name, root / "design/mockups/source", (b["w"], b["h"])):
             errors.append(f"inventory: the PNG of {name} is stale; run design/tools/export-mockups.py export")
     for board in canvas:
         if board[:-len(".dc.html")] not in approved:
             errors.append(f"inventory: {board} is in canvas.json but was never approved")
     return errors
+
+
+def png_size(path):
+    """A PNG's width and height from its header, or None when the file is not a whole PNG."""
+    data = pathlib.Path(path).read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR" or not data.endswith(b"IEND\xaeB`\x82"):
+        return None
+    return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
 
 
 def section0_rows(root):
@@ -180,6 +197,19 @@ def check_coverage(root, resolve=resolver):
     errors = []
     coverage = load(root, "design/mockups/coverage.json")
     approved = load(root, "design/mockups/approved.json")["boards"]
+    for part in sorted(set(re.findall(r"^### (P\d+) ", (root / "design/SPEC.md").read_text(encoding="utf-8"), re.M))):
+        if part not in coverage:
+            errors.append(f"coverage: shared part {part} has no entry")
+    for row, entry in coverage.items():
+        if not re.fullmatch(r"P\d+", row):
+            continue
+        for item in entry.get("items", []):
+            if "board" in item and item["board"] in approved:
+                text = (root / f"design/mockups/source/{item['board']}.dc.html").read_text(encoding="utf-8")
+                if not item.get("evidence") or item["evidence"] not in text:
+                    errors.append(f"coverage: {row} '{item.get('name')}' evidence is not on {item['board']}")
+            elif "board" in item:
+                errors.append(f"coverage: {row} '{item.get('name')}' names board {item['board']}, which is not approved")
     for row, cell in section0_rows(root).items():
         entry = coverage.get(row)
         if not entry:
@@ -235,7 +265,7 @@ def check_spec(root):
     sections = re.split(r"\n(?=### )", spec.split("\n## 1.", 1)[-1])
     by_row = {}
     for sec in sections:
-        m = re.match(r"### ([STAMXEN]\d+) ", sec)
+        m = re.match(r"### ([STAMXENP]\d+) ", sec)
         if m:
             by_row[m.group(1)] = sec
     for row, entry in coverage.items():
@@ -243,9 +273,9 @@ def check_spec(root):
         if sec is None:
             errors.append(f"spec: row {row} has no section")
             continue
-        listed = {m.strip().lower() for m in re.findall(r"^- ([^:\n]+):", sec, re.M)}
+        listed = {norm(m) for m in re.findall(r"^- ([^:\n]+):", sec, re.M)}
         for item in entry.get("items", []):
-            if item.get("name", "").strip().lower() not in listed:
+            if norm(item.get("name", "")) not in listed:
                 errors.append(f"spec: {row} does not list '{item.get('name')}'")
     return errors
 
@@ -325,6 +355,34 @@ def check_tokens(root, audit=None):
             errors.append(f"tokens: ui.css sets {role} to {m.group(1)} px, the token says {roles[role]['size']} px")
         elif roles[role]["size"] not in typo["scale"]:
             errors.append(f"tokens: role {role} size {roles[role]['size']} is not on the type scale")
+    values = {v.upper() for theme in (themes["light"],) for v in theme.values()}
+    for colour in sorted(set(c.upper() for c in re.findall(r"#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b", css))):
+        if colour not in values:
+            errors.append(f"tokens: ui.css uses {colour}, which is no token value")
+    for band in ("safe", "sus", "mal", "partial"):
+        if not re.search(rf"\.band-{band} \{{[^}}]*background: var\(--{band}-band\)", css):
+            errors.append(f"tokens: .band-{band} must fill with --{band}-band, the role its dark value is checked under")
+    for role in ("display", "h1", "h2", "h3", "h4", "body", "small", "tiny", "label", "button", "button-small", "pill",
+                 "table", "table-header", "eyebrow", "mono", "figure"):
+        if role not in roles:
+            errors.append(f"tokens: typography role {role} is missing")
+    for role in ("h1", "h2", "h3", "h4"):
+        m = re.search(rf"\n{role} \{{[^}}]*font-weight: (\d+)", css)
+        if role in roles and (not m or int(m.group(1)) != roles[role]["weight"]):
+            errors.append(f"tokens: ui.css {role} weight disagrees with typography.json")
+    for selector, key, token in ((r"\.btn", "height", space["control-height"]["default"]),
+                                 (r"\.btn-sm", "height", space["control-height"]["small"]),
+                                 (r"\.input", "height", space["control-height"]["default"]),
+                                 (r"\.btn", "border-radius", space["radius"]["control"]),
+                                 (r"\.btn-sm", "border-radius", space["radius"]["control-small"]),
+                                 (r"\.input", "border-radius", space["radius"]["control"]),
+                                 (r"\.pill", "border-radius", space["radius"]["pill"])):
+        m = re.search(rf"\n{selector} \{{[^}}]*?\b{key}: (\d+)px", css)
+        if not m or int(m.group(1)) != token:
+            errors.append(f"tokens: ui.css {selector.lstrip(chr(92))} {key} disagrees with spacing.json ({token} px)")
+    m = re.search(r"--shadow: ([^;]+);", css)
+    if not m or m.group(1).strip() != space["shadow"]["card"]:
+        errors.append("tokens: ui.css --shadow disagrees with spacing.json")
     for var, token in (("--radius", space["radius"]["card"]), ("--radius-lg", space["radius"]["card-large"])):
         m = re.search(rf"{var}: (\d+)px", css)
         if not m or int(m.group(1)) != token:
@@ -334,24 +392,26 @@ def check_tokens(root, audit=None):
         if m and m.group(1).upper() != value.upper():
             errors.append(f"tokens: ui.css --{var} is {m.group(1)}, the light token is {value}")
     steps = space["scale"]
-    for path in sorted((root / "design/mockups/source").glob("*.dc.html")):
+    for path in sorted((root / "design/mockups/source").glob("*.dc.html")) + [root / "design/mockups/source/ui.css"]:
         text = path.read_text(encoding="utf-8")
-        for decl in re.findall(r"(?:gap|padding|margin)(?:-[a-z]+)?:\s*([0-9px\s]+?)(?:;|\"|')", text):
+        for decl in re.findall(r"(?:gap|padding|margin)(?:-[a-z]+)?:\s*([0-9px\s()calc+*/-]+?)(?:;|\"|'|\})", text):
             for value in re.findall(r"(\d+)px", decl):
                 v = int(value)
                 if v and min(abs(v - s) for s in steps) > 2:
-                    errors.append(f"tokens: {path.name[:-len('.dc.html')]} uses {v} px spacing, more than 2 px from the spacing scale")
+                    errors.append(f"tokens: {path.name.removesuffix('.dc.html')} uses {v} px spacing, more than 2 px from the spacing scale")
     return errors
 
 
 def render_audit(out):
+    """Render the audit of every board; boards whose audit failed are missing from it, so check_tokens names them."""
     run = subprocess.run([sys.executable, str(EXPORT), "export", "--audit", "--no-png", "--out", str(out)],
                          capture_output=True, text=True, timeout=1200)
     if run.returncode == 2:
         raise SystemExit(f"check-design: cannot render the audit: {run.stderr.strip()}")
     for line in run.stderr.strip().splitlines():
         print(line, file=sys.stderr)
-    return json.loads((pathlib.Path(out) / "audit.json").read_text(encoding="utf-8"))
+    path = pathlib.Path(out) / "audit.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
 
 def main(argv=None):

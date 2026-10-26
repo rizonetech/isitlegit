@@ -109,6 +109,21 @@ class Defects(unittest.TestCase):
         self.assertIn("spec: A1 does not list 'rate limited'", check.check_spec(self.root))
 
 
+    def test_a_truncated_or_resized_png_is_caught(self):
+        (self.design / "mockups/png").unlink()
+        shutil.copytree(REPO / "design/mockups/png", self.design / "mockups/png")
+        png = self.design / "mockups/png/Plan.png"
+        png.write_bytes(png.read_bytes()[:500])
+        self.assertIn("inventory: the PNG of Plan is None, not its approved 1440x1100", check.check_inventory(self.root))
+
+    def test_an_asset_outside_design_is_caught(self):
+        self.edit("mockups/source/Signin.dc.html", "../../brand/logo-svg/isitlegit-logo-on-dark.svg", "../../../samples/x.png")
+        self.assertIn("inventory: Signin links ../../../samples/x.png, which is outside design/", check.check_inventory(self.root))
+
+    def test_a_shared_part_without_coverage_is_caught(self):
+        self.json_edit("mockups/coverage.json", lambda c: c.pop("P1"))
+        self.assertIn("coverage: shared part P1 has no entry", check.check_coverage(self.root))
+
     def test_a_shared_stylesheet_change_is_caught(self):
         self.edit("mockups/source/ui.css", "body {", "body { line-height: 3; ")
         errors = check.check_inventory(self.root)

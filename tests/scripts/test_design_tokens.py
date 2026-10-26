@@ -116,6 +116,50 @@ class Defects(unittest.TestCase):
         p.write_text(p.read_text().replace("--orange-text: #CC2E00;", "--orange-text: #E03300;"))
         self.assertIn("tokens: ui.css --orange-text is #E03300, the light token is #CC2E00", check.check_tokens(self.root))
 
+    def css_edit(self, old, new):
+        p = self.root / "design/mockups/source/ui.css"
+        text = p.read_text()
+        self.assertIn(old, text)
+        p.write_text(text.replace(old, new, 1))
+
+    def test_a_stylesheet_colour_that_is_no_token_is_caught(self):
+        self.css_edit("border-color: var(--mal); }", "border-color: #E7A4AF; }")
+        self.assertIn("tokens: ui.css uses #E7A4AF, which is no token value", check.check_tokens(self.root))
+
+    def test_a_band_on_its_text_role_is_caught(self):
+        self.css_edit(".band-mal { background: var(--mal-band);", ".band-mal { background: var(--mal);")
+        self.assertIn("tokens: .band-mal must fill with --mal-band, the role its dark value is checked under", check.check_tokens(self.root))
+
+    def test_missing_roles_and_mismatched_controls_are_caught(self):
+        p = self.root / "design/tokens/typography.json"
+        data = json.loads(p.read_text())
+        del data["roles"]["display"]
+        p.write_text(json.dumps(data))
+        self.css_edit("height: 48px; padding: 0 20px;", "height: 44px; padding: 0 20px;")
+        errors = check.check_tokens(self.root)
+        self.assertIn("tokens: typography role display is missing", errors)
+        self.assertIn("tokens: ui.css .btn height disagrees with spacing.json (48 px)", errors)
+
+    def test_spacing_in_calc_and_in_the_stylesheet_is_caught(self):
+        p = self.root / "design/mockups/source/Cases.dc.html"
+        p.write_text(p.read_text().replace("padding: 32px 56px;", "padding: calc(150px);", 1))
+        self.css_edit(".card-pad { padding: 24px; }", ".card-pad { padding: 150px; }")
+        errors = check.check_tokens(self.root)
+        self.assertIn("tokens: Cases uses 150 px spacing, more than 2 px from the spacing scale", errors)
+        self.assertIn("tokens: ui.css uses 150 px spacing, more than 2 px from the spacing scale", errors)
+
+    def test_a_check_whose_audit_could_not_render_reports_instead_of_crashing(self):
+        fake = self.root / "fake-export.py"
+        fake.write_text("import sys\nprint('every board failed', file=sys.stderr)\nsys.exit(1)\n")
+        old = check.EXPORT
+        check.EXPORT = fake
+        try:
+            audit = check.render_audit(self.root / "out")
+        finally:
+            check.EXPORT = old
+        self.assertEqual(audit, {})
+        self.assertIn("tokens: the audit has no entry for Main", check.check_tokens(self.root, audit))
+
     def test_spacing_off_the_scale_is_caught(self):
         p = self.root / "design/mockups/source/Cases.dc.html"
         p.write_text(p.read_text().replace("padding: 32px 56px;", "padding: 32px 150px;", 1))

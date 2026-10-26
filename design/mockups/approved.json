@@ -1,13 +1,13 @@
 {
  "approved": "2026-10-26",
  "source": "https://claude.ai/artifact/7gNnLiAFvNBaUXyPmHrhxv",
- "ui_css_sha256": "a5a77a97af6c6374c5cb89a71b6682ec846904711b5485df44b3a3c216f637ed",
+ "ui_css_sha256": "724e5c002735411f26a1fc3a87557383eea2e27e26ac25a3b280973571092cce",
  "boards": {
   "Main": {
    "title": "M3 Report: malicious",
    "w": 1440,
    "h": 2200,
-   "sha256": "7c34fca5f2d544fbe830bfe6b87cdd2fc6f16eea4be70d651dfa23510e13ee99"
+   "sha256": "baf582bbb6f8a1d03019202f6bdac5cdd0bd81b9618a9313a063ef9efacd2299"
   },
   "AppNav": {
    "title": "App navigation",
@@ -37,7 +37,7 @@
    "title": "M3 Report: safe",
    "w": 1440,
    "h": 1400,
-   "sha256": "c753d2ddafd86d72f3cca27be6f3f7eaf580b49839c1f7ead2fb4dd58b3b807b"
+   "sha256": "acdde47017aae732e890d22495747ae40fba02c71b724e865829f2e214a13c9a"
   },
   "Report-Running": {
    "title": "M3 Report: running",
@@ -49,25 +49,25 @@
    "title": "M3 Report: partial and failed",
    "w": 1440,
    "h": 1200,
-   "sha256": "ae367a1dccd53410274be36c7830ec5d221fcfe801570977734e2bbb5975f2a2"
+   "sha256": "33306352436e494d5e0de23865e786df8adc32579c12b63e7872d6b6c362fa19"
   },
   "Report-Invoice": {
    "title": "M3 Report: invoice bank change",
    "w": 1440,
    "h": 1800,
-   "sha256": "8c9842992586a95a3b0e0f1856f59231775231f7d3dc7cd10b2aee098b14d496"
+   "sha256": "a7d55aaf67dc34dfa652d86f620afb7eda514694b0bdcf4252e7cd2b566b142b"
   },
   "Report-Counterparty": {
    "title": "M3 Report: counterparty impersonation",
    "w": 1440,
    "h": 1400,
-   "sha256": "1c7ac742b48b0e1d6457fdf4dfd9ea9918cd9ea8dccf7de7b89455bc7b7af0c2"
+   "sha256": "9296e49c4756e11df52d8f89a3965db495879b945facbd660697462086e5eb4f"
   },
   "Report-Voice": {
    "title": "M3 Report: voice note",
    "w": 1440,
    "h": 1300,
-   "sha256": "52c3ac840871936116f1bcd3fdbab3f3736b17e3a3a3263d5af9e9fa132bed93"
+   "sha256": "417e3e1b763879e4633676c0e1773b975bdd156feb182a57b40028d14932f936"
   },
   "Report-Mobile": {
    "title": "M3 Report: phone",
@@ -109,7 +109,7 @@
    "title": "M5 Protected identity",
    "w": 1440,
    "h": 2000,
-   "sha256": "b4c3e916e9b1192e0f72c37d115fb0f28dd99f25a0083e89f8de73aca7a66b16"
+   "sha256": "6b28f0b5263e87ffcbd4682f2acd30014a8fb6613838ec17efab90aba47c4c76"
   },
   "Monitor": {
    "title": "M6 Impersonation monitor",
@@ -193,7 +193,7 @@
    "title": "T1 Verify: arrived from a lookalike",
    "w": 1440,
    "h": 1200,
-   "sha256": "13cae2490d07a15fe1b224ff0b2f6d0dec7e8ad63e5b40a6d4bee4ffc49986e9"
+   "sha256": "0b07a4a7eb463b253bd3976385d518c29611668115cd66578085cd7bbdfd16a6"
   },
   "Verify-Mobile": {
    "title": "T1 Verify: phone",

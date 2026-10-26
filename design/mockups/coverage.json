@@ -2308,5 +2308,141 @@
     "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
    }
   ]
+ },
+ "P1": {
+  "items": [
+   {
+    "name": "Logo",
+    "kind": "control",
+    "board": "AppNav",
+    "evidence": "alt=\"IsItLegit, cases\""
+   },
+   {
+    "name": "Organisation switcher",
+    "kind": "control",
+    "board": "AppNav",
+    "evidence": "Karoo Couriers"
+   },
+   {
+    "name": "Check a file",
+    "kind": "control",
+    "board": "AppNav",
+    "evidence": "Check a file"
+   },
+   {
+    "name": "Main links",
+    "kind": "control",
+    "board": "AppNav",
+    "evidence": "Suppliers"
+   },
+   {
+    "name": "Settings links",
+    "kind": "control",
+    "board": "AppNav",
+    "evidence": "Domains and addresses"
+   },
+   {
+    "name": "Copy the check address",
+    "kind": "control",
+    "board": "AppNav",
+    "evidence": "check@isitlegit.co.za"
+   },
+   {
+    "name": "Sign out",
+    "kind": "control",
+    "board": "AppNav",
+    "evidence": "Sign out"
+   },
+   {
+    "name": "Active item",
+    "kind": "state",
+    "board": "AppNav",
+    "evidence": "navlink-active"
+   },
+   {
+    "name": "Counts",
+    "kind": "state",
+    "board": "AppNav",
+    "evidence": "1 new"
+   }
+  ]
+ },
+ "P2": {
+  "items": [
+   {
+    "name": "Links",
+    "kind": "control",
+    "board": "AdminNav",
+    "evidence": "Invite codes"
+   },
+   {
+    "name": "Active item",
+    "kind": "state",
+    "board": "AdminNav",
+    "evidence": "an-on"
+   },
+   {
+    "name": "Identity footer",
+    "kind": "control",
+    "board": "AdminNav",
+    "evidence": "Signed in through Cloudflare Access"
+   }
+  ]
+ },
+ "P3": {
+  "items": [
+   {
+    "name": "Logo",
+    "kind": "control",
+    "board": "SiteHeader",
+    "evidence": "alt=\"IsItLegit\""
+   },
+   {
+    "name": "Links",
+    "kind": "control",
+    "board": "SiteHeader",
+    "evidence": "Invoice fraud"
+   },
+   {
+    "name": "Sign in",
+    "kind": "control",
+    "board": "SiteHeader",
+    "evidence": "Sign in"
+   },
+   {
+    "name": "Get started free",
+    "kind": "control",
+    "board": "SiteHeader",
+    "evidence": "Get started free"
+   },
+   {
+    "name": "Phone layout",
+    "kind": "state",
+    "board": "Home-Mobile",
+    "evidence": "IsItLegit"
+   }
+  ]
+ },
+ "P4": {
+  "items": [
+   {
+    "name": "Product links",
+    "kind": "control",
+    "board": "SiteFooter",
+    "evidence": "How it works"
+   },
+   {
+    "name": "Company links",
+    "kind": "control",
+    "board": "SiteFooter",
+    "evidence": "Privacy and POPIA"
+   },
+   {
+    "name": "One state",
+    "kind": "state",
+    "board": "SiteFooter",
+    "evidence": "Built on"
+   }
+  ]
  }
 }

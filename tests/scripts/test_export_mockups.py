@@ -72,7 +72,7 @@ class Fixture(unittest.TestCase):
         self.write("Part.dc.html", PART)
         self.write("Board.dc.html", BOARD)
         self.write("pic.svg", SVG)
-        self.write("ui.css", "body{color:#181519}")
+        self.write("ui.css", "body{color:#181519;font-family:'Exo 2',sans-serif} button,input,select,textarea{font-family:inherit}")
         self.write("canvas.json", json.dumps({"boards": {
             "Board.dc.html": {"w": 400, "h": 300, "title": "Board"}, "Part.dc.html": {"w": 200, "h": 100, "title": "Part"}}}))
 
@@ -87,7 +87,8 @@ class Fixture(unittest.TestCase):
         return subprocess.run([sys.executable, str(TOOL), *args], capture_output=True, text=True, env=e, timeout=300)
 
     def export(self, *extra, env=None):
-        return self.run_tool("export", "--source", str(self.src), "--out", str(self.out), "--png", str(self.png), *extra, env=env)
+        return self.run_tool("export", "--source", str(self.src), "--out", str(self.out), "--png", str(self.png),
+                             "--asset-root", str(self.src), *extra, env=env)
 
 
 # Part scripts run in headless Chromium's sandbox, so exporting needs Chromium; without it nothing can be rendered.
@@ -225,6 +226,43 @@ class Export(Fixture):
         self.assertIn("expands to more than 200 imported parts", run.stderr)
         self.assertLess(time.monotonic() - started, 30)
 
+    def test_an_asset_outside_design_is_refused(self):
+        (self.root / "outside.svg").write_text(SVG)
+        for src in ("../outside.svg", "/etc/hostname", "file:///etc/hostname"):
+            with self.subTest(src=src):
+                self.write("Board.dc.html", BOARD.replace('src="pic.svg"', f'src="{src}"'))
+                run = self.export("--no-png", "--only", "Board")
+                self.assertEqual(run.returncode, 1, src)
+                self.assertIn("outside design/", run.stderr)
+
+    def test_a_single_quoted_or_video_src_is_checked_too(self):
+        for markup in ("<img src='missing.png' alt=''>", '<video src="missing.mp4"></video>'):
+            with self.subTest(markup=markup):
+                self.write("Board.dc.html", BOARD.replace('<img src="pic.svg" alt="">', markup))
+                run = self.export("--no-png", "--only", "Board")
+                self.assertEqual(run.returncode, 1, markup)
+
+    def test_a_malformed_board_fails_alone_and_the_rest_export(self):
+        bad_props = BOARD.replace("""data-props='{"$preview":{"width":400,"height":300}}'""", "data-props='[]'")
+        self.assertNotEqual(bad_props, BOARD)
+        for why, bad in (("unclosed helmet", BOARD.replace("</helmet>", "")), ("non-object props", bad_props)):
+            with self.subTest(why=why):
+                self.write("Board.dc.html", bad)
+                run = self.export("--no-png")
+                self.assertEqual(run.returncode, 1)
+                self.assertNotIn("Traceback", run.stderr)
+                self.assertIn("1 of 2 boards exported", run.stdout)
+        self.write("Board.dc.html", BOARD)
+
+    def test_styles_count_towards_the_page_limit(self):
+        big = "." + "x" * 100_000 + "{}"
+        self.write("Part.dc.html", PART.replace(".on{font-weight:700}", big + " .on{font-weight:700}"))
+        self.write("Board.dc.html", BOARD.replace('<dc-import name="Part" hint-size="200px,100px"></dc-import>',
+                                                  '<dc-import name="Part"></dc-import>' * 90))
+        run = self.export("--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("expand to more than", run.stderr)
+
     def test_a_title_cannot_carry_markup_into_the_page(self):
         self.write("Board.dc.html", BOARD.replace("<title>Board</title>", "<title>x</TITLE><script>window.injected=1</script><title>y</title>"))
         run = self.export("--no-png", "--only", "Board")
@@ -349,6 +387,29 @@ class Render(Fixture):
         self.assertNotIn('data-x="1"', run.stdout)
         self.assertNotIn('data-y="1"', run.stdout)
 
+    def test_opacity_fades_the_audited_colour_and_disabled_controls_are_exempt(self):
+        self.write("Board.dc.html", BOARD.replace("<p>Board text</p>", '<p style="opacity: 0.25">Faded</p><button disabled>Off</button><p>Board text</p>'))
+        run = self.export("--audit", "--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        pairs = {p["sample"]: p for p in json.loads((self.out / "audit.json").read_text())["Board"]["pairs"]}
+        self.assertNotEqual(pairs["Faded"]["fg"], "rgb(24, 21, 25)", "a quarter-opacity ink is not ink")
+        self.assertTrue(pairs["Off"]["inactive"] and pairs["Off"]["illustration"])
+
+    def test_text_in_a_font_that_is_no_token_is_refused(self):
+        self.write("Board.dc.html", BOARD.replace("<p>Board text</p>", '<p style="font-family: Nope, serif">Odd</p>'))
+        run = self.export("--audit", "--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("text in a font that is no token: Nope", run.stderr)
+
+    def test_a_board_failing_its_audit_gets_no_fresh_png(self):
+        self.assertEqual(self.export("--audit", "--only", "Board").returncode, 0)
+        old = (self.png / "Board.png").read_bytes()
+        self.write("pic.svg", "not an image")
+        run = self.export("--audit", "--only", "Board")
+        self.assertEqual(run.returncode, 1)
+        self.assertEqual((self.png / "Board.png").read_bytes(), old)
+        self.assertNotIn("Board", json.loads((self.png / "manifest.json").read_text()))
+
     def test_an_unloaded_font_is_refused(self):
         run = self.export("--audit", "--no-png", "--only", "Board", env={"MOCKUP_FONTS": str(self.root / "no-fonts")})
         self.assertEqual(run.returncode, 1)
@@ -413,6 +474,17 @@ class Import(Fixture):
         approved = json.loads((self.dest.parent / "approved.json").read_text())
         self.assertEqual(approved["ui_css_sha256"], hashlib.sha256(b"body{}").hexdigest())
         self.assertEqual((approved["boards"]["Board"]["w"], approved["boards"]["Board"]["h"]), (400, 300))
+
+    def test_an_oversized_canvas_is_refused_before_it_is_read(self):
+        (self.canvas / "Board.dc.html").write_bytes(b"x" * 2_000_001)
+        run = self.run_tool("import", str(self.canvas), "--source", str(self.dest))
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("nothing was read", run.stderr)
+        many = {f"B{i}.dc.html": {"w": 10, "h": 10} for i in range(501)}
+        (self.canvas / "canvas.json").write_text(json.dumps({"boards": many}))
+        run = self.run_tool("import", str(self.canvas), "--source", str(self.dest))
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("more than the 500 an import takes", run.stderr)
 
     def test_an_unmapped_canvas_asset_stops_the_import(self):
         (self.canvas / "Board.dc.html").write_text('<img src="/_blob/ffffffffffffffffffffffffffffffff">')
