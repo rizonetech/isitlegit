@@ -13,7 +13,9 @@ Checks, all against the index (what a commit and push would publish), never the 
   checkout folder, or the WSL mount of one);
 - `samples/` tracks exactly its `.gitignore` and `README.md`, and nothing under `sources/`, `competitors/` or
   `.remember/` is tracked.
-Stdlib only.
+Findings name where something is, never what it says: a client's name, address or a mail header must not reach
+command output or agent logs, so content findings print `path:line` and a path that itself names a client is shown
+as `<path naming a client>`. Stdlib only.
 """
 import pathlib
 import re
@@ -62,20 +64,29 @@ def main():
     if content.returncode not in (0, 1):
         print(f"check-publication: git grep failed: {content.stderr.strip()}", file=sys.stderr)
         return 2
-    findings += [f"client name in content: {line[:200]}" for line in content.stdout.splitlines()]
+    lowered = [name.lower() for name in names]
+
+    def shown(path):
+        return "<path naming a client>" if any(name in path.lower() for name in lowered) else path
+
+    for line in content.stdout.splitlines():
+        path, number = line.split(":", 2)[:2]  # git grep -n prints path:line:text; the text is dropped unread
+        findings.append(f"client name in content: {shown(path)}:{number}")
     # -z: one NUL after each path and no quoting, so a non-ASCII name (`Café`) is compared as written, not escaped.
     tracked = git("ls-files", "-z")
     if tracked.returncode:
         print(f"check-publication: git ls-files failed: {tracked.stderr.strip()}", file=sys.stderr)
         return 2
     paths = [p for p in tracked.stdout.split("\0") if p]
-    lowered = [name.lower() for name in names]
-    findings += [f"client name in path: {p}" for p in paths if any(name in p.lower() for name in lowered)]
+    named = sum(1 for p in paths if shown(p) != p)
+    if named:
+        findings.append(f"client name in {named} tracked path(s); list them locally with "
+                        "`git ls-files | grep -iFf samples/client-names.txt`")
     private = git("grep", "--cached", "-n", "-E", PRIVATE_PATH, "--", ".", ":!tests/", ":!scripts/tests/")
     if private.returncode not in (0, 1):
         print(f"check-publication: git grep failed: {private.stderr.strip()}", file=sys.stderr)
         return 2
-    findings += [f"private path: {line[:200]}" for line in private.stdout.splitlines()]
+    findings += [f"private path: {shown(':'.join(line.split(':', 2)[:2]))}" for line in private.stdout.splitlines()]
     samples = sorted(p for p in paths if p.startswith("samples/"))
     if samples != SAMPLES_ALLOWED:
         findings.append(f"samples/ must track exactly {SAMPLES_ALLOWED}, tracks {samples}")

@@ -64,7 +64,7 @@ Status: decided 2026-10-26, before the first commit. Companion to `2026-10-26-ph
 | Tests | `vitest` **4.1.12** + `@cloudflare/vitest-pool-workers` 0.23.0 | | The pool requires vitest ^4.1, so not vitest 5 |
 | Eval runner | `tsx` | 4.23.15 | Node script that submits labelled `.eml` files to the upload API and records results |
 | Demo video | `remotion` + `@remotion/cli` | 4.0.539 (pin 4.x) | Free License: Rizonetech has 3 people (eligible up to 3, commercial use allowed; checked 2026-10-26). Stay on 4.x: the 5.0 licence counts all contractors. List in the README's third-party section |
-| CI | GitHub Actions: typecheck, tests on every push; deploy from `main` | | Secrets in GitHub and `wrangler secret`, never in the repo |
+| CI | GitHub Actions: typecheck, lint, tests and the TODO gates on every push; never deploys | | Deploys run from the build session with the local Wrangler login after the same gates pass (design spec section 11); no Cloudflare API token in GitHub; secrets only through `wrangler secret` |
 
 ## Secrets and configuration
 

@@ -76,20 +76,30 @@ class CheckPublication(unittest.TestCase):
         self.stage("test/fixtures/message.eml", b"From: <billing@ACME-holdings.example>\r\n\r\nPay.\r\n")
         result = self.check()
         self.assertEqual(result.returncode, 1)
-        self.assertIn("client name in content: test/fixtures/message.eml", result.stdout)
+        self.assertIn("client name in content: test/fixtures/message.eml:1", result.stdout)
+        self.assertNotIn("ACME", result.stdout + result.stderr)  # the matching header is never echoed
+
+    def test_content_in_a_file_whose_path_names_a_client_is_reported_without_the_path(self):
+        self.stage("docs/Acme notes.md", "Billing contact at Acme.\n")
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("client name in content: <path naming a client>:1", result.stdout)
+        self.assertNotIn("Acme", result.stdout + result.stderr)
 
     def test_a_client_name_in_a_path_is_found(self):
         self.stage("docs/Acme-case.md", "A fictional supplier.\n")
         result = self.check()
         self.assertEqual(result.returncode, 1)
-        self.assertIn("client name in path: docs/Acme-case.md", result.stdout)
+        self.assertIn("client name in 1 tracked path(s)", result.stdout)
+        self.assertNotIn("Acme", result.stdout + result.stderr)
 
     def test_a_non_ascii_client_name_in_a_path_is_found(self):
         self.names("Café Holdings\n")
         self.stage("docs/Café Holdings.md", "A fictional supplier.\n")
         result = self.check()
         self.assertEqual(result.returncode, 1)
-        self.assertIn("client name in path: docs/Café Holdings.md", result.stdout)
+        self.assertIn("client name in 1 tracked path(s)", result.stdout)
+        self.assertNotIn("Café", result.stdout + result.stderr)
 
     def test_a_private_checkout_path_is_found_outside_the_test_folders_only(self):
         self.stage("tests/scripts/test_x.py", 'FIXTURE = r"R:\\GitHub\\Project\\todo"\n')
@@ -98,6 +108,7 @@ class CheckPublication(unittest.TestCase):
         result = self.check()
         self.assertEqual(result.returncode, 1)
         self.assertIn("private path: docs/notes.md:1", result.stdout)
+        self.assertNotIn("/home/someone", result.stdout)
 
     def test_an_extra_samples_file_or_a_local_only_folder_is_found(self):
         self.stage("samples/real.eml", b"From: someone\r\n")
