@@ -44,10 +44,12 @@ MALICIOUS = "#C8102E"
 # The mark on a 200 by 200 grid, A3 construction. Exo 800's stem is 0.173 em, so at the logo size (72 px text, mark
 # at half scale) a 24-unit stroke matches the letters. The hook's centreline is a 34-unit circle round (100, 68) from
 # its leftmost point clockwise to 45 degrees below horizontal, then a 45-degree neck into a vertical stem; outer and
-# inner radii are 46 and 22, all ends cut flat. Ink spans x 54 to 146 and y 22 to 195.
+# inner radii are 46 and 22, all ends cut flat. The tick's corner sits on the stem's axis (x 100) like the dot of a
+# question mark, clear of the stem (moved up and right at the operator's request, 21:53 SAST). Ink spans x 54 to 147
+# and y 22 to 187.
 STROKE = 24
-HOOK = "M66 68A34 34 0 1 1 124.04 92.04L100 116.08V138"
-TICK = "M72 160L90 178L128 140"
+HOOK = "M66 68A34 34 0 1 1 124.04 92.04L100 116.08V130"
+TICK = "M82 152L100 170L138 132"
 FLAT = 'stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"'
 
 
@@ -214,15 +216,15 @@ def motion_frames():
     """The dot becomes the answer: the question's square dot pulses while checking, then turns into the verdict glyph
     (a tick for safe, a bar for suspicious, a cross for malicious), drawn with the mark's flat, squared strokes."""
     hook = f'<path d="{HOOK}" fill="none" stroke="{INK}" stroke-width="{STROKE}" {FLAT}/>'
-    dot = f'x="88" y="150" width="{STROKE}" height="{STROKE}"'
+    dot = f'x="88" y="142" width="{STROKE}" height="{STROKE}"'
     frames = {
         "question": f'<rect {dot} fill="{INK}"/>',
-        "checking": (f'<rect x="80" y="142" width="40" height="40" fill="{ORANGE}" fill-opacity="0.18"/>'
+        "checking": (f'<rect x="80" y="134" width="40" height="40" fill="{ORANGE}" fill-opacity="0.18"/>'
                      f'<rect {dot} fill="{ORANGE}"/>'),
-        "deciding": f'<path d="M84 162H116" stroke="{ORANGE}" stroke-width="{STROKE}" {FLAT}/>',
+        "deciding": f'<path d="M84 154H116" stroke="{ORANGE}" stroke-width="{STROKE}" {FLAT}/>',
         "safe": f'<path d="{TICK}" fill="none" stroke="{SAFE}" stroke-width="{STROKE}" {FLAT}/>',
-        "suspicious": f'<path d="M72 162H128" stroke="{SUSPICIOUS}" stroke-width="{STROKE}" {FLAT}/>',
-        "malicious": (f'<path d="M82 146L118 182M118 146L82 182" fill="none" stroke="{MALICIOUS}" '
+        "suspicious": f'<path d="M72 154H128" stroke="{SUSPICIOUS}" stroke-width="{STROKE}" {FLAT}/>',
+        "malicious": (f'<path d="M86 145L114 173M114 145L86 173" fill="none" stroke="{MALICIOUS}" '
                       f'stroke-width="{STROKE - 2}" {FLAT}/>'),
     }
     titles = {"question": "Received", "checking": "Checking", "deciding": "Deciding", "safe": "Safe",
@@ -231,7 +233,7 @@ def motion_frames():
              for name, glyph in frames.items()}
     files["motion/checking-animated.svg"] = svg(200, 200, "IsItLegit is checking", (
         '<style>@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:.75}}'
-        '.dot{transform-origin:100px 162px;animation:pulse 1.2s ease-in-out infinite}'
+        '.dot{transform-origin:100px 154px;animation:pulse 1.2s ease-in-out infinite}'
         '@media (prefers-reduced-motion:reduce){.dot{animation:none}}</style>'
         + hook + f'<rect class="dot" {dot} fill="{ORANGE}"/>'))
     return files
