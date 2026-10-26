@@ -63,6 +63,7 @@ a:hover { color: var(--ink); }
 .hint { font-size: 13px; color: var(--muted); }
 .error-text { font-size: 13px; color: var(--mal); font-weight: 600; }
 .input { height: 48px; padding: 0 14px; border: 1px solid var(--control-border); border-radius: 10px; font-family: 'Exo 2', sans-serif; font-size: 16px; color: var(--ink); background: var(--white); box-sizing: border-box; width: 100%; }
+.input::placeholder { color: var(--muted); opacity: 1; }
 .input:focus { outline: 3px solid rgba(255, 74, 20, 0.25); border-color: var(--orange); }
 .input-error { border-color: var(--mal); }
 .checkbox { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }

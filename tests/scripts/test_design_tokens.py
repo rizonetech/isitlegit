@@ -32,7 +32,7 @@ class Tokens(unittest.TestCase):
 
 
 # The audit renders all 70 boards in headless Chromium; where it cannot run, the reconciliation cannot either.
-@unittest.skipUnless(shutil.which("node") and chromium(), "needs node and headless Chromium to render the boards")
+@unittest.skipUnless(chromium(), "needs headless Chromium to render the boards")
 class RenderedBoards(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -73,6 +73,12 @@ class Defects(unittest.TestCase):
 
     def fixture_errors(self, audit):
         return [e for e in check.check_tokens(self.root, audit) if "Fixture" in e]
+
+    def test_an_invisible_control_boundary_is_caught(self):
+        audit = {"Fixture": {"pairs": [{"kind": "boundary", "fg": "rgb(255, 255, 255)", "bg": "rgb(255, 255, 255)", "size": 16,
+                                        "weight": 400, "illustration": False, "sample": "input border"}]}}
+        self.assertIn("tokens: Fixture draws a control boundary #FFFFFF on #FFFFFF, which is no graphic token pair",
+                      check.check_tokens(self.root, audit))
 
     def test_illustration_content_is_exempt(self):
         self.assertEqual(self.fixture_errors(self.audit("rgb(59, 111, 216)", illustration=True)), [])

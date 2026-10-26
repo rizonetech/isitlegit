@@ -11,17 +11,18 @@ so this tool:
   `design/mockups/source/assets.json`. An unmapped asset stops the import.
 - `export`: writes each board as a standalone page under `build/mockups/` (parts inlined, local Exo fonts,
   no network) and renders `design/mockups/png/<Board>.png` at the board's size with headless Chromium.
-  `--audit` also records every text element's colour, background, size and weight, and whether every
-  image and both fonts loaded, into `build/mockups/audit.json`.
+  `--audit` also records every text element's (and form value's and placeholder's) colour, background, size
+  and weight, every input's border against its surroundings, and whether every image and font loaded, into
+  `build/mockups/audit.json`.
 
 Every board's PNG and audit entry carry a fingerprint of its rendering inputs (the board, the parts it
 imports, ui.css, its size, the fonts and this tool), so design/tools/check-design.py refuses a stale or
 partial PNG set or audit. Canvas input is treated as untrusted: board names must be plain file names,
-part scripts run in an isolated Node context without file, process or network access, and pages render
-offline. An import is staged and swapped in whole; an export replaces each PNG only after it renders and
+part scripts run in headless Chromium's renderer sandbox, executable markup is refused, and every page renders
+offline (all requests, loopback included, go to a dead proxy). An import is staged and swapped in whole; an export replaces each PNG only after it renders and
 records it in png/manifest.json, so an interrupted run is detected and finished by running it again.
 
-Exit codes: 0 done, 1 a board, asset or input problem, 2 a tool problem (no Node, no Chromium, bad arguments).
+Exit codes: 0 done, 1 a board, asset or input problem, 2 a tool problem (no Chromium, bad arguments).
 """
 import argparse
 import glob
@@ -51,6 +52,7 @@ ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 TEMPLATE_RE = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 BLOB_RE = re.compile(r"/_blob/([0-9a-f]{32})")
 SRC_RE = re.compile(r'(<(?:img|source|video|audio|iframe|embed)\b[^<>]*?\bsrc=")([^"]+)(")', re.I)
+EXECUTABLE_RE = re.compile(r"<(?:script|iframe|object|embed|base|meta)\b|\son[a-z]+\s*=|javascript:", re.I)
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*\.dc\.html$")
 NETWORK_RE = re.compile(r"""<(?:img|script|iframe|source|video|audio|embed|object|link)\b[^<>]*\b(?:src|href|data)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//""", re.I)
 
@@ -60,7 +62,7 @@ class BoardError(Exception):
 
 
 class ToolError(Exception):
-    """The environment cannot run the export (Node or Chromium missing, bad input)."""
+    """The environment cannot run the export (Chromium missing, bad input)."""
 
 
 def atomic_write(path, data):
@@ -115,30 +117,42 @@ def parse_board(path):
             "title": title.group(1).strip() if title else pathlib.Path(path).stem}
 
 
+RENDER_VALS_PAGE = """<!doctype html><meta charset="utf-8"><body><script>
+class DCLogic { constructor(props) { this.props = props; } }
+try {
+  const Component = new Function('DCLogic', CODE + '\\nreturn Component;')(DCLogic);
+  document.body.setAttribute('data-out', JSON.stringify(new Component(PROPS).renderVals() ?? {}));
+} catch (e) { document.body.setAttribute('data-err', String(e).slice(0, 200)); }
+</script></body>
+"""
+_VALS = {}
+
+
 def render_vals(board, props, name):
-    """Run the board's Component.renderVals() in Node with the given props."""
-    node = shutil.which("node")
-    if not node:
-        raise ToolError("node is not installed; it runs the parts' renderVals()")
-    # The script runs in a fresh vm context (no require, process or fetch) inside a Node process whose
-    # permission model denies file system, child process and worker access, with the host's network
-    # globals removed and a time limit.
-    program = ("const vm = require('vm'); const [code, props] = [process.argv[1], process.argv[2]];\n"
-               "for (const g of ['fetch', 'WebSocket', 'require', 'module']) { try { delete globalThis[g]; } catch {} }\n"
-               "const out = vm.runInNewContext('class DCLogic { constructor(props) { this.props = props; } }\\n' + code +"
-               " '\\nJSON.stringify(new Component(JSON.parse(PROPS)).renderVals() ?? {})', { PROPS: props }, { timeout: 5000 });\n"
-               "process.stdout.write(out);\n")
+    """Run a part's Component.renderVals() with the given props inside headless Chromium.
+
+    Canvas scripts are untrusted, and Node's vm module is not a security boundary, so they run in Chromium's
+    renderer sandbox: offline (every request, loopback included, goes to a dead proxy), from a throwaway profile,
+    with a scrubbed environment. Results are cached per script and props for the run."""
+    key = (hashlib.sha256(board["script"].encode()).hexdigest(), json.dumps(props, sort_keys=True))
+    if key in _VALS:
+        return _VALS[key]
+    chrome = find_chromium()
+    script_json = lambda v: json.dumps(v).replace("</", "<\\/")
+    page = RENDER_VALS_PAGE.replace("CODE", script_json(board["script"])).replace("PROPS", script_json(props))
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "vals.html"
+        path.write_text(page, encoding="utf-8")
+        run = chromium([chrome, "--headless", "--virtual-time-budget=2000", "--dump-dom", path.as_uri()], tmp)
+    out = re.search(r'<body data-out="([^"]*)"', run.stdout)
+    if run.returncode != 0 or not out:
+        err = re.search(r'data-err="([^"]*)"', run.stdout)
+        raise BoardError(f"{name}: renderVals failed: {html.unescape(err.group(1)) if err else 'no result'}")
     try:
-        run = subprocess.run([node, "--permission", "-e", program, board["script"], json.dumps(props)],
-                             capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired:
-        raise BoardError(f"{name}: renderVals did not finish in 30 s")
-    if run.returncode != 0:
-        raise BoardError(f"{name}: renderVals failed: {run.stderr.strip().splitlines()[-1] if run.stderr.strip() else run.returncode}")
-    try:
-        return json.loads(run.stdout or "{}")
+        _VALS[key] = json.loads(html.unescape(out.group(1)))
     except json.JSONDecodeError:
         raise BoardError(f"{name}: renderVals returned something that is not JSON")
+    return _VALS[key]
 
 
 def fill_template(body, vals, name):
@@ -190,6 +204,8 @@ def check_assets(name, body, source):
     """Every src must resolve to an existing file; canvas asset links must be gone."""
     if BLOB_RE.search(body):
         raise BoardError(f"{name}: a canvas asset link (/_blob/) remains")
+    if EXECUTABLE_RE.search(body):
+        raise BoardError(f"{name}: contains executable markup (a script, frame, event handler or javascript: link)")
     if NETWORK_RE.search(body):
         raise BoardError(f"{name}: loads a network resource; boards render offline")
     for _, src, _ in SRC_RE.findall(body):
@@ -235,7 +251,23 @@ window.addEventListener('load', async () => {
     const illustration = !!el.closest('[data-illustration]');
     const bg = bgOf(el), fg = css(over(rgba(cs.color), bg));
     const key = [fg, css(bg), cs.fontSize, cs.fontWeight, illustration].join('|');
-    pairs[key] = pairs[key] || {fg, bg: css(bg), size: parseFloat(cs.fontSize), weight: parseInt(cs.fontWeight, 10), illustration, sample: t.textContent.trim().slice(0, 40)};
+    pairs[key] = pairs[key] || {kind: 'text', fg, bg: css(bg), size: parseFloat(cs.fontSize), weight: parseInt(cs.fontWeight, 10), illustration, sample: t.textContent.trim().slice(0, 40)};
+  }
+  // Form text (values and placeholders are not text nodes) and the boundaries that identify a control.
+  const add = (kind, fgColour, el, size, weight, sample) => {
+    const illustration = !!el.closest('[data-illustration]');
+    const bg = kind === 'boundary' ? bgOf(el.parentElement || el) : bgOf(el), fg = css(over(rgba(fgColour), bg));
+    const key = [kind, fg, css(bg), size, weight, illustration].join('|');
+    pairs[key] = pairs[key] || {kind, fg, bg: css(bg), size, weight, illustration, sample};
+  };
+  for (const el of document.querySelectorAll('input, textarea, select')) {
+    const cs = getComputedStyle(el);
+    if (el.type === 'hidden' || cs.display === 'none') continue;
+    const size = parseFloat(cs.fontSize), weight = parseInt(cs.fontWeight, 10);
+    if (el.value && !['checkbox', 'radio'].includes(el.type)) add('text', cs.color, el, size, weight, el.value.slice(0, 40));
+    if (el.placeholder) add('text', getComputedStyle(el, '::placeholder').color, el, size, weight, el.placeholder.slice(0, 40));
+    if (!['checkbox', 'radio'].includes(el.type) && parseFloat(cs.borderTopWidth) > 0)
+      add('boundary', cs.borderTopColor, el, size, weight, `${el.tagName.toLowerCase()} border`);
   }
   const pre = document.createElement('pre');
   pre.id = 'mockup-audit';
@@ -250,6 +282,9 @@ window.addEventListener('load', async () => {
 def standalone(name, source, out, audit):
     body, styles, board = resolve(name, source)
     check_assets(name, body, source)
+    for style in styles:
+        if NETWORK_RE.search(style) or re.search(r"@import|expression\(", style, re.I):
+            raise BoardError(f"{name}: a style loads a network resource or another stylesheet")
     rel = os.path.relpath(pathlib.Path(source).resolve(), pathlib.Path(out).resolve())
 
     def relink(m):
@@ -286,12 +321,18 @@ def find_chromium():
     raise ToolError("no headless Chromium found; set MOCKUP_CHROMIUM")
 
 
-OFFLINE = ["--host-resolver-rules=MAP * ~NOTFOUND", "--disable-background-networking", "--no-pings"]
+# Every request (loopback included) goes to a proxy nothing listens on, so a page cannot reach any network.
+OFFLINE = ["--proxy-server=127.0.0.1:9", "--proxy-bypass-list=<-loopback>", "--disable-background-networking",
+           "--no-pings", "--no-first-run"]
 
 
-def chromium(args):
+def chromium(args, workdir=None):
+    """Run Chromium offline, in its sandbox, from a throwaway profile, with only PATH in its environment."""
     try:
-        return subprocess.run(args[:1] + OFFLINE + args[1:], capture_output=True, text=True, timeout=120)
+        with tempfile.TemporaryDirectory() as profile:
+            env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": profile}
+            return subprocess.run(args[:1] + OFFLINE + [f"--user-data-dir={profile}"] + args[1:], capture_output=True,
+                                  text=True, timeout=120, env=env, cwd=workdir or profile)
     except (OSError, subprocess.TimeoutExpired) as e:
         raise BoardError(f"Chromium did not run: {e}")
 
@@ -303,7 +344,7 @@ def render_png(chrome, page_path, png_path, w, h):
     fd, tmp = tempfile.mkstemp(dir=png_path.parent, prefix=f".{png_path.name}.", suffix=".png")
     os.close(fd)
     try:
-        run = chromium([chrome, "--headless", "--no-sandbox", "--hide-scrollbars", "--force-device-scale-factor=1",
+        run = chromium([chrome, "--headless", "--hide-scrollbars", "--force-device-scale-factor=1",
                         f"--window-size={w},{h}", "--virtual-time-budget=4000", f"--screenshot={tmp}",
                         pathlib.Path(page_path).resolve().as_uri()])
         if run.returncode != 0 or os.path.getsize(tmp) == 0:
@@ -327,7 +368,7 @@ def png_size(path):
 
 
 def audit_page(chrome, page_path, w, h, name):
-    run = chromium([chrome, "--headless", "--no-sandbox", f"--window-size={w},{h}", "--virtual-time-budget=4000",
+    run = chromium([chrome, "--headless", f"--window-size={w},{h}", "--virtual-time-budget=4000",
                     "--dump-dom", pathlib.Path(page_path).resolve().as_uri()])
     m = re.search(r'<pre id="mockup-audit"[^>]*>(.*?)</pre>', run.stdout, re.S)
     if run.returncode != 0 or not m:
@@ -368,7 +409,13 @@ def fingerprint(name, source, size):
     source = pathlib.Path(source)
     h = hashlib.sha256()
     for part in sorted(board_inputs(name, source)):
-        h.update(f"{part}:{_file_hash(str(source / f'{part}.dc.html'))}\n".encode())
+        path = source / f"{part}.dc.html"
+        h.update(f"{part}:{_file_hash(str(path))}\n".encode())
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        for src in sorted({m[1] for m in SRC_RE.findall(text)} | set(re.findall(r"url\(\s*['\"]?([^'\")]+)", text))):
+            if not re.match(r"^(data:|#|https?:|//)", src):
+                asset = (source / urllib.parse.unquote(src)).resolve()
+                h.update(f"asset {src}:{_file_hash(str(asset))}\n".encode())
     h.update(f"ui.css:{_file_hash(str(source / 'ui.css'))}\nsize:{size[0]}x{size[1]}\n".encode())
     for f in sorted(FONT_FILES.values()):
         h.update(f"{f}:{_file_hash(str(FONTS / f))}\n".encode())

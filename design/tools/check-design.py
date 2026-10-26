@@ -283,16 +283,23 @@ def check_tokens(root, audit=None):
             elif b and audit[name].get("fingerprint") != export.fingerprint(name, root / "design/mockups/source", (b["w"], b["h"])):
                 errors.append(f"tokens: the audit of {name} is stale")
         light = themes["light"]
-        listed = {}
+        listed, boundaries = {}, set()
         for p in colors["pairs"]:
-            if p["use"] != "graphic":
-                listed.setdefault((light[p["fg"]].upper(), light[p["bg"]].upper()), []).append(p["use"])
+            pair = (light[p["fg"]].upper(), light[p["bg"]].upper())
+            if p["use"] == "graphic":
+                boundaries.add(pair)
+            else:
+                listed.setdefault(pair, []).append(p["use"])
         scale = typo["scale"]
         for board, data in sorted(audit.items()):
             for t in data["pairs"]:
                 if t["illustration"]:
                     continue
                 key = (css_hex(t["fg"]), css_hex(t["bg"]))
+                if t.get("kind") == "boundary":
+                    if key not in boundaries:
+                        errors.append(f"tokens: {board} draws a control boundary {key[0]} on {key[1]}, which is no graphic token pair")
+                    continue
                 uses = listed.get(key)
                 if not uses:
                     errors.append(f"tokens: {board} renders {key[0]} on {key[1]} ('{t['sample']}'), which is no token pair")

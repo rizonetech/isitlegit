@@ -1,6 +1,7 @@
 """design/tools/export-mockups.py: boards become faithful standalone pages and PNGs, and every way that can go wrong is refused."""
 import glob
 import hashlib
+import http.server
 import importlib.util
 import json
 import os
@@ -9,11 +10,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 TOOL = REPO / "design/tools/export-mockups.py"
-HAS_NODE = shutil.which("node") is not None
 
 
 def chromium():
@@ -88,7 +89,8 @@ class Fixture(unittest.TestCase):
         return self.run_tool("export", "--source", str(self.src), "--out", str(self.out), "--png", str(self.png), *extra, env=env)
 
 
-@unittest.skipUnless(HAS_NODE, "needs node for renderVals")
+# Part scripts run in headless Chromium's sandbox, so exporting needs Chromium; without it nothing can be rendered.
+@unittest.skipUnless(chromium(), "needs headless Chromium")
 class Export(Fixture):
     def test_parts_are_inlined_with_their_props_and_render_vals(self):
         run = self.export("--no-png", "--only", "Board")
@@ -127,7 +129,12 @@ class Export(Fixture):
         self.assertEqual(run.returncode, 1)
         self.assertIn("/_blob/", run.stderr)
 
+    def static_board(self):
+        """The fixture board without its parts: the fake browsers below only take screenshots."""
+        self.write("Board.dc.html", "\n".join(l for l in BOARD.splitlines() if "<dc-import" not in l))
+
     def test_a_chromium_failure_leaves_the_old_png(self):
+        self.static_board()
         self.png.mkdir()
         (self.png / "Board.png").write_bytes(b"old")
         fake = self.root / "fake-chrome"
@@ -139,6 +146,7 @@ class Export(Fixture):
         self.assertEqual(sorted(p.name for p in self.png.iterdir()), ["Board.png"])
 
     def test_a_png_of_the_wrong_size_is_refused(self):
+        self.static_board()
         fake = self.root / "fake-chrome"
         one_pixel = ("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
                      "1f15c4890000000d49444154789c6360000002000100e221bc330000000049454e44ae426082")
@@ -171,13 +179,51 @@ class Export(Fixture):
         self.assertEqual(run.returncode, 1)
         self.assertIn("is not a plain board name", run.stderr)
 
-    def test_part_scripts_cannot_reach_files_modules_or_the_network(self):
-        for probe in ("require('fs')", "process.env", "fetch('https://example.com')"):
+    def test_part_scripts_have_no_host_process_or_modules(self):
+        for probe in ("require('fs')", "process.env", "this.constructor.constructor('return process')().env"):
             with self.subTest(probe=probe):
                 self.write("Part.dc.html", PART.replace("const active = this.props.active ?? 'one';", f"{probe}; const active = 'one';"))
                 run = self.export("--no-png", "--only", "Board")
                 self.assertEqual(run.returncode, 1, probe)
                 self.assertIn("renderVals failed", run.stderr)
+
+    def test_part_scripts_cannot_reach_a_local_server(self):
+        hits = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                hits.append(self.path)
+                self.send_response(200)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{server.server_port}/probe"
+            self.write("Part.dc.html", PART.replace("const active = this.props.active ?? 'one';",
+                                                    f"fetch('{url}', {{mode: 'no-cors'}}); new Image().src = '{url}'; const active = 'one';"))
+            run = self.export("--no-png", "--only", "Board")
+            self.assertEqual(run.returncode, 0, run.stderr)
+        finally:
+            server.shutdown()
+        self.assertEqual(hits, [])
+
+    def test_executable_markup_and_remote_styles_are_refused(self):
+        for bad in ("<script>fetch('http://127.0.0.1:9/')</script>", '<p onclick="x()">x</p>', '<a href="javascript:x()">x</a>',
+                    '<iframe src="pic.svg"></iframe>'):
+            with self.subTest(markup=bad):
+                self.write("Board.dc.html", BOARD.replace("<p>Board text</p>", bad))
+                run = self.export("--no-png", "--only", "Board")
+                self.assertEqual(run.returncode, 1, bad)
+                self.assertIn("executable markup", run.stderr)
+        self.write("Board.dc.html", BOARD)
+        self.write("Part.dc.html", PART.replace(".on{font-weight:700}", "@import url(x.css); .on{font-weight:700}"))
+        run = self.export("--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("a style loads a network resource or another stylesheet", run.stderr)
 
     def test_a_network_resource_is_refused_but_code_shown_as_text_is_not(self):
         self.write("Board.dc.html", BOARD.replace('<img src="pic.svg" alt="">', '<img src="https://example.com/x.png" alt="">'))
@@ -202,7 +248,7 @@ class Export(Fixture):
         spec.loader.exec_module(tool)
         base = tool.fingerprint("Board", self.src, (400, 300))
         self.assertNotEqual(base, tool.fingerprint("Board", self.src, (400, 301)))
-        for name, text in (("ui.css", "body{color:#000}"), ("Part.dc.html", PART.replace("One", "Uno"))):
+        for name, text in (("ui.css", "body{color:#000}"), ("Part.dc.html", PART.replace("One", "Uno")), ("pic.svg", SVG.replace("181519", "000000"))):
             with self.subTest(changed=name):
                 old = (self.src / name).read_text()
                 self.write(name, text)
@@ -212,7 +258,7 @@ class Export(Fixture):
                 tool._file_hash.cache_clear()
 
 
-@unittest.skipUnless(HAS_NODE and chromium(), "needs node and headless Chromium")
+@unittest.skipUnless(chromium(), "needs headless Chromium")
 class Render(Fixture):
     def test_png_matches_the_board_and_the_audit_sees_fonts_images_and_text(self):
         run = self.export("--audit", "--only", "Board")
@@ -236,6 +282,16 @@ class Render(Fixture):
         self.assertEqual(sorted(audit), ["Board", "Part"])
         self.assertEqual(sorted(manifest), ["Board", "Part"])
         self.assertEqual(audit["Board"]["fingerprint"], manifest["Board"])
+
+    def test_form_values_placeholders_and_input_borders_are_audited(self):
+        self.write("Board.dc.html", BOARD.replace("<p>Board text</p>", '<input value="typed" placeholder="hint" style="color: #FFFFFF; border: 1px solid #FFFFFF"><p>Board text</p>'))
+        run = self.export("--audit", "--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        pairs = json.loads((self.out / "audit.json").read_text())["Board"]["pairs"]
+        found = {(p["kind"], p["fg"], p["sample"]) for p in pairs}
+        self.assertIn(("text", "rgb(255, 255, 255)", "typed"), found)
+        self.assertIn(("boundary", "rgb(255, 255, 255)", "input border"), found)
+        self.assertTrue(any(p["kind"] == "text" and p["sample"] == "hint" for p in pairs))
 
     def test_an_unloaded_font_is_refused(self):
         run = self.export("--audit", "--no-png", "--only", "Board", env={"MOCKUP_FONTS": str(self.root / "no-fonts")})
