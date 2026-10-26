@@ -45,7 +45,8 @@ FAKE_CLI = textwrap.dedent('''\
         path = args[-1][len(pointer):].split(" exactly.")[0]
         from_file = open(path).read() if os.path.isfile(path) else None
     with open(os.environ["FAKE_LOG"], "a") as log:
-        log.write(json.dumps({"cli": name, "argv": args, "stdin": stdin, "cwd": os.getcwd(), "from_file": from_file}) + "\\n")
+        log.write(json.dumps({"cli": name, "argv": args, "stdin": stdin, "cwd": os.getcwd(), "from_file": from_file,
+                              "in_flight": os.path.exists(os.path.join(os.getcwd(), "build", "review-in-flight.json"))}) + "\\n")
     if mode == "fail":
         sys.exit(3)
     if mode == "sleep":
@@ -1140,6 +1141,14 @@ class FinalReview(Harness):
         self.assertEqual(result.returncode, 0, result.stderr)
         finals = self.module().read_finals(self.findings.read_text(encoding="utf-8"))
         self.assertEqual([f["reviewer"] for f in finals], [None, "wonder"])
+
+    def test_the_review_is_marked_in_flight_only_while_it_runs(self):
+        self.round(self.CLEAN)
+        self.log.unlink(missing_ok=True)
+        self.assertEqual(self.final()[0].returncode, 0)
+        (call,) = self.calls()
+        self.assertTrue(call["in_flight"], "the Stop hook can see the reviewer running")
+        self.assertFalse((self.repo / "build" / "review-in-flight.json").exists(), "and the mark is gone afterwards")
 
     def test_the_pin_refuses_a_final_reviewer_it_cannot_trust(self):
         head, final = FINAL_PIN.split("[reviewers.wonder]")

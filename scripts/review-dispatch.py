@@ -476,7 +476,8 @@ def review(pin, writer, prompt_path, timeout, plan=None, reviewer_name=None):
             prompt_file = tmp / "prompt.md"
             prompt_file.write_text(prompt, encoding="utf-8", newline="\n")
         argv, stdin_text = command(reviewer, executable, prompt, prompt_file, message_path, timeout, effort)
-        _, problem = run(argv, stdin_text, timeout, [stdout_path, message_path])
+        with in_flight(name, timeout):
+            _, problem = run(argv, stdin_text, timeout, [stdout_path, message_path])
         if problem is None:
             # Codex writes its final message to the -o file; stdout carries its progress, not the review.
             source = message_path if reviewer["cli"] == "codex" else stdout_path
@@ -491,6 +492,35 @@ def review(pin, writer, prompt_path, timeout, plan=None, reviewer_name=None):
         return none(problem)
     return {"writer": writer, "reviewer": name, "cli": reviewer["cli"], "model": reviewer["model"],
             "effort": effort, "failover": [], "review": text.strip(), **({"lenses": lenses} if plan else {})}
+
+
+IN_FLIGHT = ROOT / "build" / "review-in-flight.json"
+
+
+class in_flight:
+    """While a reviewer runs, build/review-in-flight.json names this dispatcher (pid and a deadline past its timeout),
+    so scripts/campaign_guard.py's Stop hook lets the campaign session end its turn to wait for the review instead of
+    pushing it on to work that would change the tree under the reviewer. Removed when the reviewer is done."""
+
+    def __init__(self, reviewer, timeout):
+        self.doc = {"pid": os.getpid(), "reviewer": reviewer,
+                    "started": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "deadline": time.time() + timeout + 60}
+
+    def __enter__(self):
+        try:
+            atomic_write(IN_FLIGHT, json.dumps(self.doc) + "\n")
+        except OSError:
+            pass  # only a convenience for the Stop hook: a review never fails for it
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if json.loads(IN_FLIGHT.read_text(encoding="utf-8")).get("pid") == self.doc["pid"]:
+                IN_FLIGHT.unlink()
+        except (OSError, ValueError):
+            pass
+        return False
 
 
 def blocked(text):

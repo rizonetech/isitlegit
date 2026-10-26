@@ -113,6 +113,24 @@ class StopHook(Workspace):
         self.assertIn(f"## Closeout run={self.run_id()}", decision["reason"])
         self.assertEqual(self.state()["blocks"], 1)
 
+    def in_flight(self, pid, deadline):
+        self.write("build/review-in-flight.json", json.dumps({"pid": pid, "reviewer": "astra", "deadline": deadline}))
+
+    def test_a_review_in_flight_lets_the_turn_end_without_a_push(self):
+        self.acquire()
+        self.in_flight(os.getpid(), time.time() + 600)
+        self.assertIsNone(self.hook(), "waiting for a running review is not a stop to push past")
+        self.assertEqual(self.state().get("blocks", 0), 0, "and it never counts toward the stall breaker")
+
+    def test_a_dead_or_expired_review_does_not_hold_the_run(self):
+        self.acquire()
+        gone = subprocess.Popen([sys.executable, "-c", "pass"])
+        gone.wait()
+        for pid, deadline in ((gone.pid, time.time() + 600), (os.getpid(), time.time() - 1)):
+            with self.subTest(pid=pid, deadline=deadline):
+                self.in_flight(pid, deadline)
+                self.assertEqual(self.hook()["decision"], "block")
+
     def test_a_text_summary_graph_is_read_too(self):
         self.acquire()
         self.ready(2, "text")

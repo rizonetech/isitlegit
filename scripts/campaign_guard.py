@@ -744,6 +744,32 @@ def _same_run(still: dict | None, guard: dict) -> bool:
             and str(still.get("run_id", "")) == str(guard.get("run_id", "")))
 
 
+def _alive(pid: int) -> bool:
+    if os.name == "nt":
+        return True  # no safe liveness probe without extra modules; the deadline bounds it instead
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def review_in_flight(root: str) -> str | None:
+    """The reviewer scripts/review-dispatch.py is running now, from build/review-in-flight.json, or None: the file
+    must name a live process and a deadline not yet passed (a crashed dispatcher's leftover file never holds a run)."""
+    try:
+        with open(os.path.join(root, "build", "review-in-flight.json"), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        pid, deadline = int(doc["pid"]), float(doc["deadline"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if pid <= 0 or time.time() > deadline or not _alive(pid):
+        return None
+    return f"{doc.get('reviewer', 'reviewer')}, dispatcher pid {pid}"
+
+
 def stop_decision(root: str, session: str) -> dict | None:
     """The hook's decision for one Stop event: None allows the stop, a dict is the `block` payload to print."""
     guard = read_guard(root)
@@ -761,6 +787,12 @@ def stop_decision(root: str, session: str) -> dict | None:
     for line in run_text.splitlines():
         if re.match(r"(## Closeout\b|PARKED\b)", line) and (not run_id or marker_run(line) == run_id):
             return None
+    reviewing = review_in_flight(root)
+    if reviewing:
+        # Waiting for a review is the work: the tree must not change under the reviewer, so the turn may end and the
+        # review's notification (or the heartbeat) resumes the row. Not a block, so it never counts toward the breaker.
+        print(f"campaign-stop: a review is running ({reviewing}); waiting for it, not stalled", file=sys.stderr)
+        return None
     deadline = time.monotonic() + _env_int("CAMPAIGN_HOOK_BUDGET_SECONDS", int(HOOK_BUDGET_SECONDS))
     phase_only = guard.get("scope") == "phase"
     ready, next_row = ready_rows(root, timeout=_remaining(deadline) / 2,
