@@ -112,7 +112,7 @@ Review lenses read against these sources: `adversarial` covers hostile mail, pro
 
 ## Unknowns and questions
 
-Answer from source first: the design spec, the stack doc, the RFCs above, the Cloudflare and Meta Model API docs in `sources/meta-api/`. When an unanswered question would change implementation, take the industry-standard default, record that it is a default with its cost of changing, and carry on. Questions that truly need the owner become a section Need (`owner-decision`, `third-party`), not a stall.
+Answer from source first: the design spec, the stack doc, the RFCs above, and the Cloudflare and Meta docs. Meta's documentation (every page in `https://dev.meta.ai/llms.txt`) and both Meta cookbooks (`meta-models/meta-model-cookbook`, `meta-models/meta-oss-cookbook`) are mirrored locally in git-ignored `sources/meta-api/`: look things up with `python3 scripts/meta-docs.py find <terms>` (every term in one file, results as `path:line [section]`), read a file with `show <path>`, and refresh with `sync` before relying on a page for a new feature. Cite the live URL, not the mirror. When an unanswered question would change implementation, take the industry-standard default, record that it is a default with its cost of changing, and carry on. Questions that truly need the owner become a section Need (`owner-decision`, `third-party`), not a stall.
 
 ## Validation
 
@@ -124,6 +124,7 @@ python3 scripts/review-dispatch.py --check-pin --json   # the reviewer pin loads
 python3 -m unittest discover -s tests/scripts      # TODO graph, run guard, pre-commit hook, CI and merge tooling
 python3 -m unittest discover -s scripts/tests      # review dispatcher
 node scripts/verify-agent-tiers.mjs                # subagent model tiers
+python3 scripts/meta-docs.py sync                   # refresh the local Meta docs and cookbook mirror
 ```
 
 Worker commands (typecheck, Biome, Vitest, `wrangler deploy`) are added here by the scaffold section that creates them. Report only commands actually run, and distinguish static evidence, test output and review proof.
