@@ -57,6 +57,7 @@ Google Web Risk Lookup API, `uris.search` only (never the Update API, which repr
 - [ ] Enforce caps: 500 lookups per organisation and 3,000 globally per day (free tier is 100,000 a month), constants in `src/checks/caps.ts` with the spec reference. Done when: the 501st lookup returns `capped` and logs it.
 - [ ] Map timeouts, 429 and 5xx to `not_checked` with the reason, never to not listed. Done when: the outage test passes. Cheaper substitute: treating an error as clean.
 - [ ] Log each call (stripped URL hash, result, latency) in `case_events` with step `reputation`. Done when: the test finds the event.
+- [ ] Write `test/checks/webrisk-api-guard.test.ts` failing on any `threatLists`, `computeDiff` or `hashes:search` in `src/`, since one such call reprices every lookup to US$50 per 1,000 (cloud.google.com/web-risk/pricing, read 2026-10-27). Done when: it passes now and fails on a planted `threatLists:computeDiff` string.
 - [ ] Commit: `checks: Web Risk lookup with cache, caps and outage handling`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/webrisk.test.ts` passes and fails if an outage returns "not listed".

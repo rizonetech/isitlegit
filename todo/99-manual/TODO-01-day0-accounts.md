@@ -176,6 +176,8 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 
 - [ ] Enable the Web Risk API in a Rizonetech Google Cloud project with billing. Done when: the API shows enabled.
 - [ ] Create an API key restricted to the Web Risk API only and store it in the vault as "IsItLegit Web Risk". Done when: the vault item exists. Cheaper substitute: an unrestricted key.
+- [ ] Confirm the project's Web Risk metrics show no `threatLists.computeDiff` or `hashes.search` calls (the key is in the shared Rizonetech project, operator 2026-10-27; one `computeDiff` there would bill every lookup at US$50 per 1,000). Done when: the operator confirms none, or the key moves to a project of its own.
+- [ ] Cap `uris.search` at 3,000 requests a day in the project's Web Risk quotas, so a looping bug stays inside the 100,000-a-month free tier. Done when: the quota page shows the cap.
 - [ ] Commit: `todo: record the Web Risk key`
 
 **Test checkpoint:** `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has).

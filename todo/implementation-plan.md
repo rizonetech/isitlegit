@@ -95,14 +95,14 @@ Sections: 28 | Checklist items: 126
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 17 | Checklist items: 78
+Sections: 17 | Checklist items: 79
 
 | Status | Reference  | Deliverable                                          | Needs      | Items |
 | ------ | ---------- | ---------------------------------------------------- | ---------- | ----- |
 | [ ]    | D01 T03 §3 | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4 | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5 | Voicemail-lure attachments in email                  | none       | 3     |
-| [ ]    | D02 T06 §1 | Web Risk lookup with cache, caps and outage handling | none       | 6     |
+| [ ]    | D02 T06 §1 | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3 | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4 | Reputation weighting rules                           | none       | 5     |
@@ -240,7 +240,7 @@ Sections: 3 | Checklist items: 10
 
 ### Phase 99: Manual, operator only
 
-Sections: 12 | Checklist items: 51
+Sections: 12 | Checklist items: 53
 
 | Status | Reference  | Deliverable                                   | Needs    | Items |
 | ------ | ---------- | --------------------------------------------- | -------- | ----- |
@@ -248,7 +248,7 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T01 §2 | Domain verification and nameservers           | operator | 15    |
 | [ ]    | D99 T01 §3 | Workers Paid plan                             | operator | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain                         | operator | 5     |
-| [ ]    | D99 T01 §6 | Google Web Risk API key                       | operator | 3     |
+| [ ]    | D99 T01 §6 | Google Web Risk API key                       | operator | 5     |
 | [ ]    | D99 T01 §7 | Partner credits for Glimmer                   | operator | 5     |
 | [ ]    | D99 T02 §1 | Rizonetech dogfooding from day 2              | operator | 3     |
 | [ ]    | D99 T02 §2 | Pilot client written consent                  | operator | 2     |
@@ -259,4 +259,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 2/188 verified sections, 3 ready to run now.
 
-Checklist: 54/861 items completed (includes Commit items).
+Checklist: 54/864 items completed (includes Commit items).
