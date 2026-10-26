@@ -335,6 +335,21 @@ class Dispatch(Harness):
         self.assertEqual(result.returncode, 2, "a review without --prompt must still be refused")
         self.assertIn("--writer and --prompt are required", result.stderr)
 
+    def test_record_writes_paths_under_the_repository_relative_to_it(self):
+        dispatch = self.module()
+        root = dispatch.ROOT.as_posix()
+        review = (f"1. **P2** [README.md:18]({root}/README.md:18) and `{root}/todo/README.md:7`; "
+                  f"/elsewhere/x.md stays.\nHIGHEST: P2\nOVERALL: needs-attention")
+        record = self.repo / "docs/reviews/00-design/D00-T01-s1.md"
+        dispatch.record(record, {**self.RESULT, "review": review, "lenses": []}, "2026-10-26T17:00:00Z")
+        dispatch.record_completion(record, {**self.RESULT, "review": review, "lenses": []}, "2026-10-26T17:00:00Z",
+                                   "0" * 40)
+        text = record.read_text(encoding="utf-8")
+        self.assertNotIn(root, text)
+        self.assertEqual(text.count("[README.md:18](README.md:18) and `todo/README.md:7`; /elsewhere/x.md stays."), 2)
+        found = dispatch.read_findings(text)
+        self.assertEqual((len(found["rounds"]), len(found["completions"])), (1, 1))
+
     def test_list_rounds_reads_back_what_record_wrote(self):
         # Two rounds written by record itself: one reviewed, one where the reviewer returned no review.
         record = self.repo / "docs/reviews/00-design/D00-T01-s1.md"

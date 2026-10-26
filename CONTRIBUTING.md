@@ -30,6 +30,7 @@ python3 scripts/todo-graph.py validate
 python3 scripts/todo-graph.py plan --check
 python3 -m unittest discover -s tests/scripts
 python3 -m unittest discover -s scripts/tests
+python3 scripts/check-publication.py   # maintainers, before every push; needs the git-ignored client list
 ```
 
 Never edit `todo/implementation-plan.md` by hand; regenerate it with `python3 scripts/todo-graph.py plan --sync`. The Worker's typecheck, lint and test commands are added here when the Worker package lands.

@@ -502,6 +502,16 @@ COUNT = re.compile(r"[0-9]{1,%d}" % len(str(MAX_OUTPUT_BYTES + 1)))
 DIGEST = re.compile(r"[0-9a-f]{16}")
 
 
+def repository_relative(text):
+    """A review with every absolute path under the repository root written relative to it. Findings files are
+    committed and may be published, and a reviewer (Codex links files by absolute path) would otherwise record the
+    checkout's location, which names the user's home folder. Applied before the line count and digest, so the record
+    reads back exactly as written."""
+    for root in {str(ROOT), ROOT.as_posix()}:
+        text = text.replace(root.rstrip("/\\") + ("\\" if "\\" in root else "/"), "")
+    return text
+
+
 def raw_lines(text):
     """Lines split on "\n" alone, the one boundary `record` and the reader share, every other byte kept. `str.splitlines`
     also splits on "\r", U+2028, U+0085 and others, which a review may contain."""
@@ -674,7 +684,7 @@ def record(path, result, when):
                          f"{unreadable_heading(existing)}; {RESERVED_NAMES}), so the round was not recorded")
     number = len(known) + 1
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
-    review = raw_lines(result["review"] or "No reviewer returned a review. This round is not an approval.")
+    review = raw_lines(repository_relative(result["review"] or "No reviewer returned a review. This round is not an approval."))
     if not COUNT.fullmatch(str(len(review))) or not ROUND_HEADING.match(f"## Round {number}: none"):
         raise Unrecorded(f"the review or the round number is past what {path} can be read back with, "
                          f"so the round was not recorded")
@@ -705,7 +715,7 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if any(entry["reviewer"] for entry in found[key]):
         raise Unrecorded(f"{path} already holds a {what}; it is one pass, so this one was not recorded")
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
-    review = raw_lines(result["review"] or f"No reviewer returned a {what}. This pass is not an approval.")
+    review = raw_lines(repository_relative(result["review"] or f"No reviewer returned a {what}. This pass is not an approval."))
     if not COUNT.fullmatch(str(len(review))):
         raise Unrecorded(f"the review is past what {path} can be read back with, so it was not recorded")
     lines = [f"{prefix}: {who}", "", f"- Writer: {result['writer']}", f"- Run: {when}", f"- Candidate: {candidate}"]

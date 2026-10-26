@@ -125,6 +125,7 @@ python3 -m unittest discover -s tests/scripts      # TODO graph, run guard, pre-
 python3 -m unittest discover -s scripts/tests      # review dispatcher
 node scripts/verify-agent-tiers.mjs                # subagent model tiers
 python3 scripts/meta-docs.py sync                   # refresh the local Meta docs and cookbook mirror
+python3 scripts/check-publication.py                # before every push: nothing private in the index (exit 2: cannot run)
 ```
 
 Worker commands (typecheck, Biome, Vitest, `wrangler deploy`) are added here by the scaffold section that creates them. Report only commands actually run, and distinguish static evidence, test output and review proof.

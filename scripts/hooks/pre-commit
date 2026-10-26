@@ -5,13 +5,14 @@
 # Receipts and findings files are graph evidence too: a commit touching only docs/reviews/ is checked as well.
 # Client names never enter the public repository. samples/client-names.txt (git-ignored, one name, domain or address
 # per line) lists them; a commit whose staged paths or added lines contain one, in any case, is refused. Blank lines
-# are dropped first: an empty pattern would match every line.
+# are dropped first: an empty pattern would match every line. --text reads files marked binary in .gitattributes
+# (mail fixtures are), which a plain diff would summarise as "Binary files differ" and hide.
 names_file="$(git rev-parse --show-toplevel)/samples/client-names.txt"
 if [ -f "$names_file" ]; then
     names=$(sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file")
     if [ -n "$names" ]; then
         if git diff --cached --name-only | grep -qiF -e "$names" ||
-            git diff --cached -U0 --no-color --no-ext-diff | grep '^+' | grep -v '^+++ ' | grep -qiF -e "$names"; then
+            git diff --cached --text -U0 --no-color --no-ext-diff | grep '^+' | grep -v '^+++ ' | grep -qiF -e "$names"; then
             echo "pre-commit: the staged changes contain a client name from samples/client-names.txt; anonymise them" >&2
             exit 1
         fi

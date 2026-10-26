@@ -143,6 +143,17 @@ class PreCommitHook(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("client name", result.stderr)
 
+    def test_a_client_name_inside_a_binary_marked_mail_fixture_is_refused(self):
+        self.names("acme\n")
+        (self.root / ".gitattributes").write_text("*.eml binary\n", encoding="utf-8")
+        self.git("add", ".gitattributes")
+        self.assertEqual(self.commit().returncode, 0)
+        (self.root / "message.eml").write_bytes(b"From: Billing <billing@acme-holdings.example>\r\nSubject: x\r\n\r\nPay.\r\n")
+        self.git("add", "message.eml")
+        result = self.commit()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("client name", result.stderr)
+
     def test_a_staged_file_named_after_a_client_is_refused(self):
         self.names("acme\n")
         (self.root / "Acme-invoice.txt").write_text("nothing here\n", encoding="utf-8")

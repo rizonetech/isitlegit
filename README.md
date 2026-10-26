@@ -4,7 +4,7 @@
 
 <p><strong>Forward a suspicious email. Get a verdict with the evidence.</strong><br>Phishing, invoice-fraud and impersonation checks for small businesses, built on Meta's models.</p>
 
-[![CI](https://github.com/rizonetech/isitlegit/actions/workflows/ci.yml/badge.svg)](https://github.com/rizonetech/isitlegit/actions/workflows/ci.yml)
+[![Execution plan](https://img.shields.io/badge/execution%20plan-todo%2F-2EA043)](todo/implementation-plan.md)
 [![License: FSL-1.1-ALv2](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg)](LICENSE)
 [![Meta Model API](https://img.shields.io/badge/Meta%20Model%20API-Muse%20Spark%20%C2%B7%20Wonder%20%C2%B7%20SAM%203.1-0467DF?logo=meta&logoColor=white)](https://dev.meta.ai/docs)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)

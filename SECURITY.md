@@ -6,10 +6,10 @@ IsItLegit's job is to open mail that may come from attackers: messages, attachme
 
 | Version | Security fixes |
 | ------- | -------------- |
-| The live service at `isitlegit.co.za` | Yes |
 | `main` | Yes; there is no release line |
+| The service at `isitlegit.co.za` | Not running yet. Once it is live it is covered, and fixes are deployed to it from `main` |
 
-Fixes are deployed to the live service from `main`.
+The code on `main` is in scope today; the service joins the scope when it goes live during the hackathon build.
 
 ## How to report a vulnerability
 
