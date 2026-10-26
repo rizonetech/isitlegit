@@ -1,30 +1,43 @@
 #!/usr/bin/env python3
 """Check that the approved designs, their coverage matrix, design/SPEC.md and the tokens agree.
 
-- inventory: every board in design/mockups/approved.json is in source/canvas.json, on disk with its approved
-  hash, free of canvas asset links, with every src resolving and a PNG in design/mockups/png/.
+- inventory: every board in design/mockups/approved.json is in source/canvas.json at its approved size, on
+  disk with its approved hash, free of canvas asset links, with every image resolving; ui.css matches its
+  approved hash; every board has a PNG whose manifest fingerprint matches its current inputs.
 - coverage: every design/SPEC.md section 0 row has a design/mockups/coverage.json entry naming each state the
   row lists plus loading, empty and error; each item is shown on a board (evidence text present), marked
   not applicable with a reason, or deferred to a TODO section that resolves.
-- spec: every approved board is linked from design/SPEC.md as PNG and source, every linked file exists, and
-  each row's section names every item of its coverage entry.
+- spec: every approved board is linked from design/SPEC.md as PNG and source, every linked file exists, each
+  row's section names every item of its coverage entry, and every colour the SPEC quotes is a token value.
 - tokens: design/tokens/*.json are complete; every pair passes WCAG 2.2 in both themes; every text pair the
-  boards render (build/mockups/audit.json) is a listed token pair; rendered sizes and board spacings sit on
+  boards render is a listed token pair (the audit must cover every approved board at its current inputs); rendered sizes and board spacings sit on
   the token scales; ui.css agrees with the tokens.
 
-Exit 0 when clean, 1 with one line per problem.
+With no --audit, the check renders its own audit of every board first (export-mockups.py export --audit
+--no-png into a temporary folder), so one command proves everything. Exit 0 when clean, 1 with one line per
+problem, 2 when the audit cannot be rendered.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 THRESHOLD = {"text": 4.5, "large-text": 3.0, "graphic": 3.0}
 UNIVERSAL = ("loading", "empty", "error")
+EXPORT = ROOT / "design/tools/export-mockups.py"
+
+
+def export_module():
+    spec = importlib.util.spec_from_file_location("export_mockups", EXPORT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def load(root, rel):
@@ -55,9 +68,19 @@ def is_large(size, weight):
 def check_inventory(root):
     root = pathlib.Path(root)
     errors = []
-    approved = load(root, "design/mockups/approved.json")["boards"]
+    record = load(root, "design/mockups/approved.json")
+    approved = record["boards"]
     canvas = load(root, "design/mockups/source/canvas.json")["boards"]
+    css = root / "design/mockups/source/ui.css"
+    if not css.is_file() or hashlib.sha256(css.read_bytes()).hexdigest() != record.get("ui_css_sha256"):
+        errors.append("inventory: ui.css differs from the approved version")
+    manifest_path = root / "design/mockups/png/manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
+    export = export_module()
     for name, rec in approved.items():
+        b = canvas.get(f"{name}.dc.html")
+        if b and (b.get("w"), b.get("h")) != (rec.get("w"), rec.get("h")):
+            errors.append(f"inventory: {name} is {b.get('w')}x{b.get('h')} in canvas.json, approved at {rec.get('w')}x{rec.get('h')}")
         path = root / f"design/mockups/source/{name}.dc.html"
         if f"{name}.dc.html" not in canvas:
             errors.append(f"inventory: approved board {name} is missing from canvas.json")
@@ -74,6 +97,8 @@ def check_inventory(root):
                 errors.append(f"inventory: {name} links {src}, which does not exist")
         if not (root / f"design/mockups/png/{name}.png").is_file():
             errors.append(f"inventory: {name} has no PNG in design/mockups/png")
+        elif b and manifest.get(name) != export.fingerprint(name, root / "design/mockups/source", (b["w"], b["h"])):
+            errors.append(f"inventory: the PNG of {name} is stale; run design/tools/export-mockups.py export")
     for board in canvas:
         if board[:-len(".dc.html")] not in approved:
             errors.append(f"inventory: {board} is in canvas.json but was never approved")
@@ -81,15 +106,57 @@ def check_inventory(root):
 
 
 def section0_rows(root):
-    """Row id to its content cell text, from the section 0 tables of design/SPEC.md."""
+    """Row id to its required-content text, from the section 0 tables of design/SPEC.md.
+
+    Page tables give it in the "Purpose and key content" column, the email table in the "Message" column.
+    """
     rows = {}
     text = (pathlib.Path(root) / "design/SPEC.md").read_text(encoding="utf-8")
     part = text.split("## 0. Page inventory", 1)[1].split("\n## 1.", 1)[0]
+    column = None
     for line in part.splitlines():
-        m = re.match(r"^\|\s*([STAMXEN]\d+)\s*\|(.*)\|\s*$", line)
-        if m:
-            rows[m.group(1)] = m.group(2)
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells and cells[0] == "#":
+            column = next((i for i, c in enumerate(cells) if c in ("Purpose and key content", "Message")), None)
+            continue
+        if re.match(r"^[STAMXEN]\d+$", cells[0]) and column is not None:
+            rows[cells[0]] = cells[column]
     return rows
+
+
+def split_top(text, seps=",;"):
+    """Split on separators outside parentheses."""
+    parts, depth, cur = [], 0, ""
+    for ch in text:
+        depth += (ch == "(") - (ch == ")")
+        if ch in seps and depth == 0:
+            parts.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    parts.append(cur)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def norm(item):
+    """Compare names without parentheticals, code marks, a label before a colon, or a leading article."""
+    item = re.sub(r"\([^)]*\)", "", item).replace("`", "").strip().rstrip(".").lower()
+    item = item.split(": ", 1)[-1]
+    item = re.sub(r"^(the|a|an|with|and)\s+", "", item)
+    return re.sub(r"\s+", " ", item).strip()
+
+
+def required_items(cell):
+    """The controls and content a row names, then the states and variants it lists."""
+    head = re.split(r"(?:^|;)\s*(?:states|variants):", cell)[0]
+    items = [i for i in split_top(head) if not re.match(r"^(states|variants):", i)]
+    for kind in ("states", "variants"):
+        m = re.search(rf"{kind}:\s*([^;]+)", cell)
+        if m:
+            items += split_top(m.group(1), ",")
+    return items
 
 
 def named_states(cell):
@@ -97,7 +164,7 @@ def named_states(cell):
     m = re.search(r"states:\s*([^;|]+)", cell)
     if not m:
         return []
-    return [s.strip().rstrip(".") for s in m.group(1).split(",") if s.strip()]
+    return [s.strip().rstrip(".") for s in split_top(m.group(1), ",")]
 
 
 def resolver(ref, _cache={}):
@@ -118,10 +185,13 @@ def check_coverage(root, resolve=resolver):
         if not entry:
             errors.append(f"coverage: section 0 row {row} has no entry")
             continue
-        names = {i.get("name", "").strip().lower() for i in entry.get("items", [])}
+        names = {norm(i.get("name", "")) for i in entry.get("items", [])}
         for state in list(UNIVERSAL) + named_states(cell):
-            if state.lower() not in names:
+            if norm(state) not in names:
                 errors.append(f"coverage: {row} does not account for the state '{state}'")
+        for need in required_items(cell):
+            if norm(need) not in names and need not in named_states(cell):
+                errors.append(f"coverage: {row} does not account for '{need}'")
         for item in entry.get("items", []):
             label = f"{row} '{item.get('name')}'"
             if "board" in item:
@@ -155,6 +225,10 @@ def check_spec(root):
         for link in (f"mockups/png/{name}.png", f"mockups/source/{name}.dc.html"):
             if f"]({link})" not in spec:
                 errors.append(f"spec: {link} is not linked from design/SPEC.md")
+    tokens = {v.upper() for theme in load(root, "design/tokens/colors.json")["themes"].values() for v in theme.values()}
+    for colour in sorted(set(re.findall(r"#[0-9A-Fa-f]{6}\b", spec))):
+        if colour.upper() not in tokens:
+            errors.append(f"spec: design/SPEC.md quotes {colour}, which is no token value")
     for link in sorted(set(re.findall(r"\]\((mockups/[^)]+)\)", spec))):
         if not (root / "design" / link).is_file():
             errors.append(f"spec: {link} does not exist")
@@ -199,6 +273,15 @@ def check_tokens(root, audit=None):
             if abs(ratio - p.get(theme, 0)) > 0.01:
                 errors.append(f"tokens: {p['fg']} on {p['bg']} records {p.get(theme)} for the {theme} theme, computed {ratio:.2f}")
     if audit is not None:
+        approved = load(root, "design/mockups/approved.json")["boards"]
+        canvas = load(root, "design/mockups/source/canvas.json")["boards"]
+        export = export_module()
+        for name in approved:
+            b = canvas.get(f"{name}.dc.html")
+            if name not in audit:
+                errors.append(f"tokens: the audit has no entry for {name}")
+            elif b and audit[name].get("fingerprint") != export.fingerprint(name, root / "design/mockups/source", (b["w"], b["h"])):
+                errors.append(f"tokens: the audit of {name} is stale")
         light = themes["light"]
         listed = {}
         for p in colors["pairs"]:
@@ -254,18 +337,31 @@ def check_tokens(root, audit=None):
     return errors
 
 
+def render_audit(out):
+    run = subprocess.run([sys.executable, str(EXPORT), "export", "--audit", "--no-png", "--out", str(out)],
+                         capture_output=True, text=True, timeout=1200)
+    if run.returncode == 2:
+        raise SystemExit(f"check-design: cannot render the audit: {run.stderr.strip()}")
+    for line in run.stderr.strip().splitlines():
+        print(line, file=sys.stderr)
+    return json.loads((pathlib.Path(out) / "audit.json").read_text(encoding="utf-8"))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--audit", default=str(ROOT / "build/mockups/audit.json"),
-                    help="audit written by export-mockups.py export --audit")
+    ap.add_argument("--audit", help="use this audit (from export-mockups.py export --audit) instead of rendering one")
     args = ap.parse_args(argv)
-    audit_path = pathlib.Path(args.audit)
     errors = check_inventory(ROOT) + check_coverage(ROOT) + check_spec(ROOT)
-    if not audit_path.is_file():
-        errors.append(f"tokens: no audit at {audit_path}; run design/tools/export-mockups.py export --audit")
-        errors += check_tokens(ROOT)
+    if args.audit:
+        audit = json.loads(pathlib.Path(args.audit).read_text(encoding="utf-8"))
     else:
-        errors += check_tokens(ROOT, json.loads(audit_path.read_text(encoding="utf-8")))
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                audit = render_audit(out)
+        except SystemExit as e:
+            print(e, file=sys.stderr)
+            return 2
+    errors += check_tokens(ROOT, audit)
     for e in errors:
         print(f"check-design: {e}", file=sys.stderr)
     print(f"check-design: {len(errors)} problem(s)")

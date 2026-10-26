@@ -1,6 +1,7 @@
 """design/tools/export-mockups.py: boards become faithful standalone pages and PNGs, and every way that can go wrong is refused."""
 import glob
 import hashlib
+import importlib.util
 import json
 import os
 import pathlib
@@ -151,6 +152,66 @@ class Export(Fixture):
         self.assertFalse((self.png / "Board.png").exists())
 
 
+    def test_a_board_name_that_is_not_a_plain_file_name_is_refused(self):
+        self.write("canvas.json", json.dumps({"boards": {"../escape.dc.html": {"w": 10, "h": 10}}}))
+        run = self.export("--no-png")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("is not a plain .dc.html file name", run.stderr)
+
+    def test_a_malformed_canvas_is_refused_without_a_traceback(self):
+        self.write("canvas.json", "{not json")
+        run = self.export("--no-png")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("is not a readable canvas.json", run.stderr)
+        self.assertNotIn("Traceback", run.stderr)
+
+    def test_an_import_name_that_escapes_the_folder_is_refused(self):
+        self.write("Board.dc.html", BOARD.replace('name="Part" active="two"', 'name="../Part"'))
+        run = self.export("--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("is not a plain board name", run.stderr)
+
+    def test_part_scripts_cannot_reach_files_modules_or_the_network(self):
+        for probe in ("require('fs')", "process.env", "fetch('https://example.com')"):
+            with self.subTest(probe=probe):
+                self.write("Part.dc.html", PART.replace("const active = this.props.active ?? 'one';", f"{probe}; const active = 'one';"))
+                run = self.export("--no-png", "--only", "Board")
+                self.assertEqual(run.returncode, 1, probe)
+                self.assertIn("renderVals failed", run.stderr)
+
+    def test_a_network_resource_is_refused_but_code_shown_as_text_is_not(self):
+        self.write("Board.dc.html", BOARD.replace('<img src="pic.svg" alt="">', '<img src="https://example.com/x.png" alt="">'))
+        run = self.export("--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("loads a network resource", run.stderr)
+        self.write("Board.dc.html", BOARD.replace("<p>Board text</p>", '<pre>&lt;img src="https://example.com/x.png"&gt;</pre>'))
+        run = self.export("--no-png", "--only", "Board")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn('&lt;img src="https://example.com/x.png"&gt;', (self.out / "Board.html").read_text())
+
+    def test_progress_is_reported_per_board(self):
+        run = self.export("--no-png")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("[1/2] Board ... ok", run.stdout)
+        self.assertIn("[2/2] Part ... ok", run.stdout)
+        self.assertRegex(run.stdout, r"2 of 2 boards exported in [\d.]+ s")
+
+    def test_the_fingerprint_follows_every_rendering_input(self):
+        spec = importlib.util.spec_from_file_location("export_mockups", TOOL)
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        base = tool.fingerprint("Board", self.src, (400, 300))
+        self.assertNotEqual(base, tool.fingerprint("Board", self.src, (400, 301)))
+        for name, text in (("ui.css", "body{color:#000}"), ("Part.dc.html", PART.replace("One", "Uno"))):
+            with self.subTest(changed=name):
+                old = (self.src / name).read_text()
+                self.write(name, text)
+                tool._file_hash.cache_clear()
+                self.assertNotEqual(base, tool.fingerprint("Board", self.src, (400, 300)))
+                self.write(name, old)
+                tool._file_hash.cache_clear()
+
+
 @unittest.skipUnless(HAS_NODE and chromium(), "needs node and headless Chromium")
 class Render(Fixture):
     def test_png_matches_the_board_and_the_audit_sees_fonts_images_and_text(self):
@@ -165,6 +226,16 @@ class Render(Fixture):
         pairs = {(p["fg"], p["bg"], p["size"], p["weight"]) for p in audit["pairs"]}
         self.assertIn(("rgb(24, 21, 25)", "rgb(255, 255, 255)", 16, 700), pairs)
         self.assertIn(("rgb(24, 21, 25)", "rgb(255, 255, 255)", 16, 400), pairs)
+
+    def test_a_partial_run_keeps_the_other_boards_and_records_fingerprints(self):
+        self.assertEqual(self.export("--audit").returncode, 0)
+        run = self.export("--audit", "--only", "Part")
+        self.assertEqual(run.returncode, 0, run.stderr)
+        audit = json.loads((self.out / "audit.json").read_text())
+        manifest = json.loads((self.png / "manifest.json").read_text())
+        self.assertEqual(sorted(audit), ["Board", "Part"])
+        self.assertEqual(sorted(manifest), ["Board", "Part"])
+        self.assertEqual(audit["Board"]["fingerprint"], manifest["Board"])
 
     def test_an_unloaded_font_is_refused(self):
         run = self.export("--audit", "--no-png", "--only", "Board", env={"MOCKUP_FONTS": str(self.root / "no-fonts")})
@@ -197,6 +268,28 @@ class Import(Fixture):
         self.assertEqual(text, '<img src="../../brand/logo.svg">')
         approved = json.loads((self.dest.parent / "approved.json").read_text())
         self.assertEqual(approved["boards"]["Board"]["sha256"], hashlib.sha256(text.encode()).hexdigest())
+
+    def test_an_unreadable_board_leaves_the_previous_import_whole(self):
+        (self.canvas / "Board.dc.html").write_text('<img src="/_blob/0123456789abcdef0123456789abcdef">')
+        self.assertEqual(self.run_tool("import", str(self.canvas), "--source", str(self.dest)).returncode, 0)
+        before = {p.name: p.read_bytes() for p in self.dest.iterdir()}
+        (self.canvas / "Board.dc.html").write_text("changed")
+        (self.canvas / "ui.css").chmod(0)
+        try:
+            run = self.run_tool("import", str(self.canvas), "--source", str(self.dest))
+        finally:
+            (self.canvas / "ui.css").chmod(0o644)
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("nothing was imported", run.stderr)
+        self.assertEqual({p.name: p.read_bytes() for p in self.dest.iterdir()}, before)
+        self.assertEqual([p.name for p in self.dest.parent.iterdir() if p.name.startswith(".")], [])
+
+    def test_the_approved_record_covers_the_stylesheet_and_sizes(self):
+        (self.canvas / "Board.dc.html").write_text("board")
+        self.assertEqual(self.run_tool("import", str(self.canvas), "--source", str(self.dest), "--approve", "2026-10-26").returncode, 0)
+        approved = json.loads((self.dest.parent / "approved.json").read_text())
+        self.assertEqual(approved["ui_css_sha256"], hashlib.sha256(b"body{}").hexdigest())
+        self.assertEqual((approved["boards"]["Board"]["w"], approved["boards"]["Board"]["h"]), (400, 300))
 
     def test_an_unmapped_canvas_asset_stops_the_import(self):
         (self.canvas / "Board.dc.html").write_text('<img src="/_blob/ffffffffffffffffffffffffffffffff">')

@@ -14,10 +14,18 @@ so this tool:
   `--audit` also records every text element's colour, background, size and weight, and whether every
   image and both fonts loaded, into `build/mockups/audit.json`.
 
-Exit codes: 0 done, 1 a board or asset problem, 2 a tool problem (no Node, no Chromium, bad arguments).
+Every board's PNG and audit entry carry a fingerprint of its rendering inputs (the board, the parts it
+imports, ui.css, its size, the fonts and this tool), so design/tools/check-design.py refuses a stale or
+partial PNG set or audit. Canvas input is treated as untrusted: board names must be plain file names,
+part scripts run in an isolated Node context without file, process or network access, and pages render
+offline. An import is staged and swapped in whole; an export replaces each PNG only after it renders and
+records it in png/manifest.json, so an interrupted run is detected and finished by running it again.
+
+Exit codes: 0 done, 1 a board, asset or input problem, 2 a tool problem (no Node, no Chromium, bad arguments).
 """
 import argparse
 import glob
+import functools
 import hashlib
 import html
 import json
@@ -28,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -41,7 +50,9 @@ IMPORT_RE = re.compile(r"<dc-import\s+([^>]*?)\s*>\s*</dc-import>", re.S)
 ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
 TEMPLATE_RE = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 BLOB_RE = re.compile(r"/_blob/([0-9a-f]{32})")
-SRC_RE = re.compile(r'\bsrc="([^"]+)"')
+SRC_RE = re.compile(r'(<(?:img|source|video|audio|iframe|embed)\b[^<>]*?\bsrc=")([^"]+)(")', re.I)
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*\.dc\.html$")
+NETWORK_RE = re.compile(r"""<(?:img|script|iframe|source|video|audio|embed|object|link)\b[^<>]*\b(?:src|href|data)\s*=\s*["']?(?:https?:)?//|url\(\s*["']?(?:https?:)?//""", re.I)
 
 
 class BoardError(Exception):
@@ -65,6 +76,24 @@ def atomic_write(path, data):
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+
+
+def read_canvas(folder):
+    """Load and validate a canvas.json: plain board file names and positive integer sizes only."""
+    path = pathlib.Path(folder) / "canvas.json"
+    try:
+        canvas = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise BoardError(f"{path} is not a readable canvas.json: {e}")
+    boards = canvas.get("boards") if isinstance(canvas, dict) else None
+    if not isinstance(boards, dict) or not boards:
+        raise BoardError(f"{path} has no boards")
+    for name, b in boards.items():
+        if not NAME_RE.match(name):
+            raise BoardError(f"{path}: board name {name!r} is not a plain .dc.html file name")
+        if not isinstance(b, dict) or not all(isinstance(b.get(k), int) and 0 < b[k] <= 20000 for k in ("w", "h")):
+            raise BoardError(f"{path}: board {name} needs integer w and h between 1 and 20000")
+    return canvas
 
 
 def parse_board(path):
@@ -91,13 +120,25 @@ def render_vals(board, props, name):
     node = shutil.which("node")
     if not node:
         raise ToolError("node is not installed; it runs the parts' renderVals()")
-    program = ("class DCLogic { constructor(props) { this.props = props; } }\n" + board["script"] +
-               "\nconst props = JSON.parse(process.argv[1]);\n"
-               "process.stdout.write(JSON.stringify(new Component(props).renderVals() ?? {}));\n")
-    run = subprocess.run([node, "-e", program, json.dumps(props)], capture_output=True, text=True, timeout=30)
+    # The script runs in a fresh vm context (no require, process or fetch) inside a Node process whose
+    # permission model denies file system, child process and worker access, with the host's network
+    # globals removed and a time limit.
+    program = ("const vm = require('vm'); const [code, props] = [process.argv[1], process.argv[2]];\n"
+               "for (const g of ['fetch', 'WebSocket', 'require', 'module']) { try { delete globalThis[g]; } catch {} }\n"
+               "const out = vm.runInNewContext('class DCLogic { constructor(props) { this.props = props; } }\\n' + code +"
+               " '\\nJSON.stringify(new Component(JSON.parse(PROPS)).renderVals() ?? {})', { PROPS: props }, { timeout: 5000 });\n"
+               "process.stdout.write(out);\n")
+    try:
+        run = subprocess.run([node, "--permission", "-e", program, board["script"], json.dumps(props)],
+                             capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        raise BoardError(f"{name}: renderVals did not finish in 30 s")
     if run.returncode != 0:
         raise BoardError(f"{name}: renderVals failed: {run.stderr.strip().splitlines()[-1] if run.stderr.strip() else run.returncode}")
-    return json.loads(run.stdout or "{}")
+    try:
+        return json.loads(run.stdout or "{}")
+    except json.JSONDecodeError:
+        raise BoardError(f"{name}: renderVals returned something that is not JSON")
 
 
 def fill_template(body, vals, name):
@@ -132,6 +173,8 @@ def resolve(name, source, attrs=None, depth=0, styles=None):
         part = a.pop("name", None)
         if not part:
             raise BoardError(f"{name}: a dc-import has no name")
+        if not NAME_RE.match(f"{part}.dc.html"):
+            raise BoardError(f"{name}: import name {part!r} is not a plain board name")
         a.pop("hint-size", None)
         return resolve(part, source, a, depth + 1, styles)[0]
 
@@ -147,8 +190,10 @@ def check_assets(name, body, source):
     """Every src must resolve to an existing file; canvas asset links must be gone."""
     if BLOB_RE.search(body):
         raise BoardError(f"{name}: a canvas asset link (/_blob/) remains")
-    for src in SRC_RE.findall(body):
-        if re.match(r"^(data:|https?:|#)", src):
+    if NETWORK_RE.search(body):
+        raise BoardError(f"{name}: loads a network resource; boards render offline")
+    for _, src, _ in SRC_RE.findall(body):
+        if re.match(r"^(data:|#)", src):
             continue
         target = (pathlib.Path(source) / urllib.parse.unquote(src)).resolve()
         if not target.is_file():
@@ -208,12 +253,12 @@ def standalone(name, source, out, audit):
     rel = os.path.relpath(pathlib.Path(source).resolve(), pathlib.Path(out).resolve())
 
     def relink(m):
-        attr, url = m.group(1), m.group(2)
-        if re.match(r"^(data:|https?:|#|/)", url) or url.endswith(".dc.html"):
+        url = m.group(2)
+        if re.match(r"^(data:|#|/)", url):
             return m.group(0)
-        return f'{attr}="{rel}/{url}"'
+        return f"{m.group(1)}{rel}/{url}{m.group(3)}"
 
-    body = re.sub(r'\b(src)="([^"]+)"', relink, body)
+    body = SRC_RE.sub(relink, body)
     body = re.sub(r'href="([\w-]+)\.dc\.html"', r'href="\1.html"', body)
     fonts_rel = os.path.relpath(FONTS.resolve(), pathlib.Path(out).resolve())
     faces = "".join(
@@ -241,9 +286,12 @@ def find_chromium():
     raise ToolError("no headless Chromium found; set MOCKUP_CHROMIUM")
 
 
+OFFLINE = ["--host-resolver-rules=MAP * ~NOTFOUND", "--disable-background-networking", "--no-pings"]
+
+
 def chromium(args):
     try:
-        return subprocess.run(args, capture_output=True, text=True, timeout=120)
+        return subprocess.run(args[:1] + OFFLINE + args[1:], capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:
         raise BoardError(f"Chromium did not run: {e}")
 
@@ -294,10 +342,52 @@ def audit_page(chrome, page_path, w, h, name):
     return data
 
 
+def board_inputs(name, source, seen=None):
+    """The board files a board renders from: itself and every part it imports, recursively."""
+    seen = seen if seen is not None else []
+    if name in seen:
+        return seen
+    seen.append(name)
+    path = pathlib.Path(source) / f"{name}.dc.html"
+    if path.is_file():
+        for attrs in IMPORT_RE.findall(path.read_text(encoding="utf-8")):
+            part = dict(ATTR_RE.findall(attrs)).get("name")
+            if part and NAME_RE.match(f"{part}.dc.html"):
+                board_inputs(part, source, seen)
+    return seen
+
+
+@functools.lru_cache(maxsize=None)
+def _file_hash(path):
+    p = pathlib.Path(path)
+    return hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else "missing"
+
+
+def fingerprint(name, source, size):
+    """A digest of everything a board's PNG and audit depend on."""
+    source = pathlib.Path(source)
+    h = hashlib.sha256()
+    for part in sorted(board_inputs(name, source)):
+        h.update(f"{part}:{_file_hash(str(source / f'{part}.dc.html'))}\n".encode())
+    h.update(f"ui.css:{_file_hash(str(source / 'ui.css'))}\nsize:{size[0]}x{size[1]}\n".encode())
+    for f in sorted(FONT_FILES.values()):
+        h.update(f"{f}:{_file_hash(str(FONTS / f))}\n".encode())
+    h.update(f"tool:{_file_hash(str(pathlib.Path(__file__).resolve()))}\n".encode())
+    return h.hexdigest()
+
+
+def load_json_or(path, default):
+    try:
+        return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return default
+    except (OSError, json.JSONDecodeError) as e:
+        raise BoardError(f"{path} is unreadable ({e}); delete it and export again")
+
+
 def cmd_export(args):
     source, out, png = pathlib.Path(args.source), pathlib.Path(args.out), pathlib.Path(args.png)
-    canvas = json.loads((source / "canvas.json").read_text(encoding="utf-8"))
-    boards = canvas["boards"]
+    boards = read_canvas(source)["boards"]
     names = [f[:-len(".dc.html")] for f in boards]
     if args.only:
         unknown = set(args.only) - set(names)
@@ -305,39 +395,54 @@ def cmd_export(args):
             raise ToolError(f"not boards: {', '.join(sorted(unknown))}")
         names = [n for n in names if n in args.only]
     chrome = None if args.no_png and not args.audit else find_chromium()
-    audit = {}
-    errors = []
-    for name in names:
-        b = boards[f"{name}.dc.html"]
+    # A partial run (--only, or a board that fails) keeps the other boards' entries: the audit and the PNG
+    # manifest are merged, and each entry's fingerprint says whether it still matches its inputs.
+    audit = load_json_or(out / "audit.json", {}) if args.audit else {}
+    manifest = load_json_or(png / "manifest.json", {}) if not args.no_png else {}
+    errors, started = 0, time.monotonic()
+    for i, name in enumerate(names, 1):
+        b, t0 = boards[f"{name}.dc.html"], time.monotonic()
+        print(f"[{i}/{len(names)}] {name} ...", end="", flush=True)
         try:
+            fp = fingerprint(name, source, (b["w"], b["h"]))
             page, _ = standalone(name, source, out, args.audit)
             page_path = out / f"{name}.html"
             atomic_write(page_path, page)
             if not args.no_png:
                 render_png(chrome, page_path, png / f"{name}.png", b["w"], b["h"])
+                manifest[name] = fp
+                atomic_write(png / "manifest.json", json.dumps(manifest, indent=1, sort_keys=True) + "\n")
             if args.audit:
-                audit[name] = audit_page(chrome, page_path, b["w"], b["h"], name)
-        except BoardError as e:
-            errors.append(str(e))
-    if args.audit:
-        atomic_write(out / "audit.json", json.dumps(audit, indent=1, sort_keys=True) + "\n")
-    for e in errors:
-        print(f"export-mockups: {e}", file=sys.stderr)
-    print(f"export-mockups: {len(names) - len(errors)} of {len(names)} boards exported")
+                data = audit_page(chrome, page_path, b["w"], b["h"], name)
+                data["fingerprint"] = fp
+                audit[name] = data
+                atomic_write(out / "audit.json", json.dumps(audit, indent=1, sort_keys=True) + "\n")
+            print(f" ok {time.monotonic() - t0:.2f} s", flush=True)
+        except (BoardError, OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+            errors += 1
+            audit.pop(name, None)
+            print(" failed", flush=True)
+            print(f"export-mockups: {e}", file=sys.stderr, flush=True)
+    took = time.monotonic() - started
+    print(f"export-mockups: {len(names) - errors} of {len(names)} boards exported in {took:.1f} s"
+          f" ({took / max(len(names), 1):.2f} s a board)")
     return 1 if errors else 0
 
 
 def cmd_import(args):
     src, dest = pathlib.Path(args.canvas), pathlib.Path(args.source)
-    assets = json.loads((dest / "assets.json").read_text(encoding="utf-8"))
-    canvas = json.loads((src / "canvas.json").read_text(encoding="utf-8"))
+    assets = load_json_or(dest / "assets.json", None)
+    if not isinstance(assets, dict):
+        raise BoardError(f"{dest / 'assets.json'} is missing; it maps canvas asset ids to design/brand files")
+    canvas = read_canvas(src)
     errors, files = [], {}
     for f in list(canvas["boards"]) + ["ui.css"]:
         p = src / f
-        if not p.is_file():
-            errors.append(f"{f}: listed in canvas.json but not in {src}")
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            errors.append(f"{f}: cannot be read from {src} ({e.__class__.__name__})")
             continue
-        text = p.read_text(encoding="utf-8")
         for blob in sorted(set(BLOB_RE.findall(text))):
             if blob not in assets:
                 errors.append(f"{f}: canvas asset {blob} has no entry in assets.json")
@@ -345,14 +450,35 @@ def cmd_import(args):
     if errors:
         for e in errors:
             print(f"export-mockups: {e}", file=sys.stderr)
+        print("export-mockups: nothing was imported", file=sys.stderr)
         return 1
-    for f, text in files.items():
-        atomic_write(dest / f, text)
-    atomic_write(dest / "canvas.json", json.dumps(canvas, indent=1) + "\n")
+    # Stage the whole new source folder beside the old one and swap them, so an interruption leaves
+    # either the old folder or the new one, never a mix.
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    staging = pathlib.Path(tempfile.mkdtemp(dir=dest.parent, prefix=f".{dest.name}.new."))
+    backup = dest.parent / f".{dest.name}.old"
+    try:
+        shutil.copy2(dest / "assets.json", staging / "assets.json")
+        for f, text in files.items():
+            atomic_write(staging / f, text)
+        atomic_write(staging / "canvas.json", json.dumps(canvas, indent=1) + "\n")
+        if backup.exists():
+            shutil.rmtree(backup)
+        if dest.exists():
+            os.replace(dest, backup)
+        os.replace(staging, dest)
+    except BaseException:
+        if not dest.exists() and backup.exists():
+            os.replace(backup, dest)
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    shutil.rmtree(backup, ignore_errors=True)
     if args.approve:
-        approved = {"approved": args.approve, "source": args.canvas_url, "boards": {
-            f[:-len(".dc.html")]: {"title": b["title"], "sha256": hashlib.sha256(files[f].encode("utf-8")).hexdigest()}
-            for f, b in canvas["boards"].items()}}
+        approved = {"approved": args.approve, "source": args.canvas_url,
+                    "ui_css_sha256": hashlib.sha256(files["ui.css"].encode("utf-8")).hexdigest(),
+                    "boards": {f[:-len(".dc.html")]: {"title": b.get("title", ""), "w": b["w"], "h": b["h"],
+                                                       "sha256": hashlib.sha256(files[f].encode("utf-8")).hexdigest()}
+                               for f, b in canvas["boards"].items()}}
         atomic_write(dest.parent / "approved.json", json.dumps(approved, indent=1) + "\n")
     print(f"export-mockups: imported {len(files) - 1} boards into {dest}")
     return 0
@@ -379,8 +505,11 @@ def main(argv=None):
     except ToolError as e:
         print(f"export-mockups: {e}", file=sys.stderr)
         return 2
-    except BoardError as e:
+    except (BoardError, OSError) as e:
         print(f"export-mockups: {e}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("export-mockups: interrupted; run the same command again to finish", file=sys.stderr)
         return 1
 
 

@@ -94,7 +94,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 
 ## 1. Shared parts
 
-Every page is drawn from these parts and from the tokens in `design/tokens/colors.json`; a page never invents its own header, navigation or colour. The approved canvas stylesheet is `mockups/source/ui.css`: ink `#181519`, ink 2 `#343038`, muted `#4D4953`, line `#E3E2E6`, line strong `#C2BFC7`, subtle `#F8F8F9`, light `#F1F1F2`, orange `#FF4A14` (graphics only), orange text `#E03300` (primary buttons and links), and the verdict colours safe `#0E7C5B`, suspicious `#8A5200` for text and `#B26A00` for graphics, malicious `#C8102E`, partial `#4A4750`, each with its wash. Type is Exo for headings and figures and Exo 2 for text, on an 8 px grid, with 12 px card radius and 16 px panel radius. Buttons come in primary, dark, ghost, danger and link styles at 48 px and 36 px heights; pills come in safe, suspicious, malicious, partial, running and neutral.
+Every page is drawn from these parts and from the tokens in `design/tokens/colors.json`; a page never invents its own header, navigation or colour. The approved canvas stylesheet is `mockups/source/ui.css`, and its values are the tokens: colours from `design/tokens/colors.json` (for example ink `#181519`, muted `#4D4953`, orange `#FF4A14` for graphics only, orange text `#CC2E00` for links, eyebrows and the primary button, suspicious `#8A5200` for text and `#B26A00` for graphics, and input borders in control border `#8E8A95`), type from `design/tokens/typography.json` (Exo for headings and figures, Exo 2 for text), spacing, radii and control heights from `design/tokens/spacing.json` (a 4 px scale; 12 px card radius, 16 px panel radius; controls 48 px and 36 px high). Buttons come in primary, dark, ghost, danger and link styles; pills come in safe, suspicious, malicious, partial, running and neutral.
 
 ### P1 App navigation
 
@@ -407,6 +407,7 @@ Boards: [PNG](mockups/png/Badges.png) · [source](mockups/source/Badges.dc.html)
 
 States:
 
+- protected or not verified badge: the one image a signature carries; it shows Protected while protection is current and Not verified once it lapses. (Badges)
 - Protected badge: The live badge at two heights. (Badges)
 - Not verified badge: Grey badge for a lapsed or unknown business. (Badges)
 - loading: No loading state. Not applicable: an image, not a page.
@@ -686,6 +687,7 @@ Boards: [PNG](mockups/png/Domains.png) · [source](mockups/source/Domains.dc.htm
 
 Controls:
 
+- verified domains and sending addresses: the two lists below, verified domains first, then single addresses outside those domains. (Domains)
 - verified domains: Domains table with Remove and Continue. (Domains)
 - sending addresses: Allowed addresses with Remove. (Domains)
 - forwarding help: Outlook desktop, Outlook on the web, Gmail. (Domains)
@@ -795,7 +797,7 @@ Boards: [PNG](mockups/png/Admin-Feedback.png) · [source](mockups/source/Admin-F
 
 Controls:
 
-- This was wrong reports: Tabs New, Triaged, Closed and the queue rows. (Admin-Feedback)
+- "This was wrong" reports with case links and provider attribution: Tabs New, Triaged, Closed and the queue rows. (Admin-Feedback)
 - case links: Each case opens its report. (Admin-Feedback)
 - provider attribution: Column naming the check or model. (Admin-Feedback)
 - triage: Triage note, File a TODO, Close: verdict was right. (Admin-Feedback)
@@ -862,7 +864,7 @@ Boards: [PNG](mockups/png/Error-403.png) · [source](mockups/source/Error-403.dc
 
 Controls:
 
-- signed in but not a member: With Go to your own cases and Sign out. (Error-403)
+- signed in but not a member of this organisation: With Go to your own cases and Sign out. (Error-403)
 
 States:
 
@@ -926,6 +928,7 @@ Boards: [PNG](mockups/png/Email-Reply.png) · [source](mockups/source/Email-Repl
 
 States:
 
+- verdict reply: the reply to every forward, in a member and a counterparty variant. (Email-Reply)
 - member variant: Verdict band, actions, reasons, report button, Headers checked panel. (Email-Reply)
 - counterparty variant: Sender against registered domains, See the evidence, Protect panel. (Email-Reply-Counterparty)
 - loading: No loading state. Not applicable: email message, delivered whole.
@@ -1008,6 +1011,7 @@ Boards: [PNG](mockups/png/Email-Monitor.png) · [source](mockups/source/Email-Mo
 
 Controls:
 
+- monitor alert with takedown pack: the alert email and the takedown pack it links. (Email-Monitor)
 - monitor alert: Screenshot mock and facts. (Email-Monitor)
 - takedown pack: Button and plain link. (Email-Monitor)
 
@@ -1037,6 +1041,7 @@ Boards: [PNG](mockups/png/Email-Operator.png) · [source](mockups/source/Email-O
 
 States:
 
+- operator notice: one notice per event to the operator, for a budget cap or a piece of feedback. (Email-Operator)
 - budget cap: Spend figures and Open the admin overview. (Email-Operator)
 - feedback: Summary and Open the feedback queue. (Email-Operator-Feedback)
 - loading: No loading state. Not applicable: email message, delivered whole.

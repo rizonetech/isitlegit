@@ -36,6 +36,7 @@ track: day-1
 | 1 | §1 | Attended design session and design/SPEC.md | -- | [ ] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [ ] |
 | 3 | §3 | App shell and shared components with every state | §2 | [ ] |
+| 4 | §4 | Design change comparison | §1 | [ ] |
 
 ## 1. Attended design session and design/SPEC.md
 
@@ -58,6 +59,10 @@ The operator chose an attended design session before any surface is built (desig
 - [x] Write `design/tokens/typography.json` (font roles Exo and Exo 2, weights, the type scale with line heights for display, h1 to h4, body, small, tiny, eyebrow and mono) and `design/tokens/spacing.json` (a 4 px spacing scale, radii, shadow), from `design/mockups/source/ui.css` and the board values. Done when: `tests/scripts/test_design_tokens.py` fails if a role named here is missing, if a `ui.css` variable or class size disagrees with its token, or if a board uses a font size or spacing that rounds to no token by more than 2 px. **Corrected 2026-10-26 (plan review):** the section created colour tokens only, but §2 compiles typography and spacing tokens that no step wrote.
 - [x] Write `design/mockups/coverage.json`: for every section 0 row, each required control and state (every state the row names after "states:" or in its content, plus loading, empty and error where the page has them), mapped either to the board that shows it with a short text the board contains as evidence, or to `not-applicable` with a reason, or to a deferral naming a resolving TODO section. Done when: `tests/scripts/test_design_spec.py` fails if a section 0 row has no entry, if a state the row names is absent from its entry, if an evidence text is missing from its board, or if a deferral does not resolve with `scripts/todo-graph.py resolve`; removing a state's text from its board makes it fail. **Corrected 2026-10-26 (plan review):** the link test proved boards exist, not that each required control and state was designed.
 - [x] Write `design/SPEC.md` sections 1 onward, one per surface group of section 0 (shared parts, marketing site, trust pages, sign-in and onboarding, member app with the report page in full, admin console, error pages, email messages, judge demo), each page listing its controls and states as in `coverage.json` and linking its board PNGs and sources; correct the header's spacing claim to the token scale. Done when: `tests/scripts/test_design_spec.py` fails if a board in `approved.json` is not linked from the SPEC, a linked file does not exist, or a page section omits a control or state its `coverage.json` entry names. **Corrected 2026-10-26 (plan review):** the list named only part of section 0.
+- [x] Bind approval and evidence to every rendering input: `approved.json` records the stylesheet hash and each board's size; each PNG (`design/mockups/png/manifest.json`) and audit entry carries a fingerprint of its board, imported parts, `ui.css`, size, fonts and the export tool; `check-design.py` refuses a changed stylesheet or size, a stale PNG, and an audit missing a board or stale. Done when: `test_a_shared_stylesheet_change_is_caught`, `test_a_board_size_change_is_caught`, `test_an_empty_or_partial_audit_is_refused`, `test_a_stale_audit_entry_is_refused` and `test_the_fingerprint_follows_every_rendering_input` pass. **Added 2026-10-26 (completion review):**
+- [x] Check required controls independently of the coverage file: `check-design.py` reads each section 0 row's content and states itself, and `design/SPEC.md` quotes only token colours. Done when: `test_a_required_control_removed_from_coverage_and_spec_is_caught` and `test_a_spec_colour_that_is_no_token_is_caught` pass. **Added 2026-10-26 (completion review):**
+- [x] Treat canvas input as untrusted and render offline: plain board and import names only, part scripts in an isolated Node context under the permission model with no `require`, `process` or `fetch`, network resources refused and Chromium's resolver disabled. Done when: `test_a_board_name_that_is_not_a_plain_file_name_is_refused`, `test_an_import_name_that_escapes_the_folder_is_refused`, `test_part_scripts_cannot_reach_files_modules_or_the_network` and `test_a_network_resource_is_refused_but_code_shown_as_text_is_not` pass. **Added 2026-10-26 (completion review):**
+- [x] Recover cleanly and report as it goes: imports staged and swapped whole, malformed input reported without a traceback, a partial export merged into the audit and manifest, per-board progress with timings, `check-design.py` as the one command (it renders its own audit), and `design/mockups/README.md` documenting commands, recovery and measured timings. Done when: `test_an_unreadable_board_leaves_the_previous_import_whole`, `test_a_malformed_canvas_is_refused_without_a_traceback`, `test_a_partial_run_keeps_the_other_boards_and_records_fingerprints` and `test_progress_is_reported_per_board` pass. **Added 2026-10-26 (completion review):**
 - [x] Publish the draft for the operator to view and approve in session (an Artifact page or local HTML). Done when: the operator has seen it. Evidence: the design canvas above, reviewed in session and approved by the operator on 2026-10-26 at 22:19 SAST ("I approve everything").
 - [x] Apply the operator's changes and add `Approved: YYYY-MM-DD by the operator` to `design/SPEC.md`. Done when: the line is present. Cheaper substitute: committing an unapproved draft.
 - [ ] Commit: `design: approved interface specification, tokens and mockups`
@@ -113,6 +118,24 @@ One layout and one component set for every app page (`AGENTS.md`: a second toolb
 - [ ] Commit: `web: app shell and shared components`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/components.test.ts && pnpm test:a11y` passes.
+
+## 4. Design change comparison
+
+When a board or a shared part changes, the operator and the build agents see what changed visually and which pages it touches before the change is re-approved (completion review of D07 T01 §1, compared with Figma Dev Mode's change comparison).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Compare a changed canvas with the approved one. Done when: one command lists the affected boards with before and after images.
+
+- [ ] Add `design/tools/export-mockups.py diff <canvas folder>` rendering the changed boards and every board that imports a changed part, beside their approved PNGs, into `build/mockups/diff/` with a pixel-difference image per board. Done when: `tests/scripts/test_export_mockups.py` shows a changed part listing every board that imports it and an unchanged board listing nothing.
+- [ ] Add a summary to the diff (`build/mockups/diff/summary.md`): each affected board, its changed-pixel share, the tokens whose values changed, and the TODO sections whose Fidelity names those boards (from `design/mockups/coverage.json` and the TODO tree). Done when: the test fixture's summary names the board, the token and the owning section.
+- [ ] Commit: `design: visual change comparison for re-approval`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_export_mockups` passes and fails if a board importing a changed part is missing from the diff.
 
 ## Verification
 

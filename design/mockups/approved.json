@@ -1,285 +1,426 @@
 {
  "approved": "2026-10-26",
  "source": "https://claude.ai/artifact/7gNnLiAFvNBaUXyPmHrhxv",
+ "ui_css_sha256": "7bedfa58782dcf1b8b297124d8e774eabe2d7348e116b78ebe7d2370e0680aa6",
  "boards": {
   "Main": {
    "title": "M3 Report: malicious",
+   "w": 1440,
+   "h": 2200,
    "sha256": "7c34fca5f2d544fbe830bfe6b87cdd2fc6f16eea4be70d651dfa23510e13ee99"
   },
   "AppNav": {
    "title": "App navigation",
+   "w": 256,
+   "h": 1000,
    "sha256": "a6b07b071309236045283b64fce2a3d29dcd07bc12949f7373d9e3afe6529d23"
   },
   "AdminNav": {
    "title": "Admin navigation",
+   "w": 256,
+   "h": 1000,
    "sha256": "cfe8c49f28eb84d833797752f90f14dfcbfc600d03194adfc97a0ff9ba36cae1"
   },
   "SiteHeader": {
    "title": "Site header",
+   "w": 1440,
+   "h": 80,
    "sha256": "3da7a895f7498f5747ee194802c7180e915a2e63d4affb7d8674387d5e4aa33e"
   },
   "SiteFooter": {
    "title": "Site footer",
+   "w": 1440,
+   "h": 360,
    "sha256": "f6a1460d6bd52e6a12829ebd87fbc77e1fc478ba38a8d9133e4dcb24994b3f3f"
   },
   "Report-Safe": {
    "title": "M3 Report: safe",
+   "w": 1440,
+   "h": 1400,
    "sha256": "c753d2ddafd86d72f3cca27be6f3f7eaf580b49839c1f7ead2fb4dd58b3b807b"
   },
   "Report-Running": {
    "title": "M3 Report: running",
+   "w": 1440,
+   "h": 1000,
    "sha256": "efaf06703abb9ef14fb53068622051c04fa0021468630a9ff812a5ee9eccd4ea"
   },
   "Report-Partial": {
    "title": "M3 Report: partial and failed",
+   "w": 1440,
+   "h": 1200,
    "sha256": "ae367a1dccd53410274be36c7830ec5d221fcfe801570977734e2bbb5975f2a2"
   },
   "Report-Invoice": {
    "title": "M3 Report: invoice bank change",
+   "w": 1440,
+   "h": 1800,
    "sha256": "8c9842992586a95a3b0e0f1856f59231775231f7d3dc7cd10b2aee098b14d496"
   },
   "Report-Counterparty": {
    "title": "M3 Report: counterparty impersonation",
+   "w": 1440,
+   "h": 1400,
    "sha256": "1c7ac742b48b0e1d6457fdf4dfd9ea9918cd9ea8dccf7de7b89455bc7b7af0c2"
   },
   "Report-Voice": {
    "title": "M3 Report: voice note",
+   "w": 1440,
+   "h": 1300,
    "sha256": "52c3ac840871936116f1bcd3fdbab3f3736b17e3a3a3263d5af9e9fa132bed93"
   },
   "Report-Mobile": {
    "title": "M3 Report: phone",
+   "w": 390,
+   "h": 1900,
    "sha256": "b47902d4b46858181e2e04dfd7642b62695dca2751d5efad3149903a1aa59e1e"
   },
   "Cases": {
    "title": "M1 Cases",
+   "w": 1440,
+   "h": 1200,
    "sha256": "7a5210bc59914239e28b1a10edad24b3de64b763b409832261676e166cad84e3"
   },
   "Cases-Empty": {
    "title": "M1 Cases: first run",
+   "w": 1440,
+   "h": 900,
    "sha256": "84409d84cf4de17484eee63b934bf7a043650a0dc5ecc33a1f8638bc5aa09cc3"
   },
   "Upload": {
    "title": "M2 Check a file",
+   "w": 1440,
+   "h": 1000,
    "sha256": "86cfb56442a095041be8df493db2415bf1f7c23496248ceb457c576c01e79e9f"
   },
   "Upload-States": {
    "title": "M2 Check a file: states",
+   "w": 1440,
+   "h": 1000,
    "sha256": "4727222b09bdadea46db52222b11173cca6e987d0d5f36a43f5472beaf4ac76d"
   },
   "Suppliers": {
    "title": "M4 Supplier ledger",
+   "w": 1440,
+   "h": 1200,
    "sha256": "3ae2091307ab1aa0c56ae27302e3eb7710dde2f5a5c1b141249486f4bc879aca"
   },
   "Protect": {
    "title": "M5 Protected identity",
+   "w": 1440,
+   "h": 2000,
    "sha256": "b4c3e916e9b1192e0f72c37d115fb0f28dd99f25a0083e89f8de73aca7a66b16"
   },
   "Monitor": {
    "title": "M6 Impersonation monitor",
+   "w": 1440,
+   "h": 1200,
    "sha256": "5ed9828e1193d5d60594fc6d28a591244ab9e69ec0500a72ee3e2f1dd7b663cc"
   },
   "Team": {
    "title": "M7 Team",
+   "w": 1440,
+   "h": 1000,
    "sha256": "fcba1e04c88fc1862f4d4502dd39d31fc2372c48df05cbc907ed959047e2cf7a"
   },
   "Domains": {
    "title": "M8 Domains and addresses",
+   "w": 1440,
+   "h": 1100,
    "sha256": "a82c96a09f6a0a195d29304ba3135de700b9bf22af99e6e9f9b4401998933892"
   },
   "Account": {
    "title": "M9 Account",
+   "w": 1440,
+   "h": 1100,
    "sha256": "583329a455eee77571b5fc00ddf85b96dfa62fc24a6b1cd1a79f9703570393dd"
   },
   "Plan": {
    "title": "M10 Plan",
+   "w": 1440,
+   "h": 1100,
    "sha256": "2abe096d66dada53f39239d50641dac046e0b72ef9e8c6a2f8c9eba5e7c2ce77"
   },
   "Signin": {
    "title": "A1 Sign in",
+   "w": 1440,
+   "h": 900,
    "sha256": "4699a972a54beda5e634d8bff3e283f003194b7e2aa8859afb50b6ed2cc165d9"
   },
   "Signin-States": {
    "title": "A1 Sign in: states",
+   "w": 1440,
+   "h": 900,
    "sha256": "ec418621ab84e889f8994e047677519b08444c1bd61ad1e66e07b3d2ee5f0f4f"
   },
   "Signup": {
    "title": "A2 Sign up",
+   "w": 1440,
+   "h": 1000,
    "sha256": "dbbc369da99898e060f1c9524d226df49c028d141355580d58c2d9b1b6303f1f"
   },
   "Invite": {
    "title": "A3 Accept invitation",
+   "w": 1440,
+   "h": 900,
    "sha256": "3686ad7c900a52a788d788f39ea8bd6321d7092b0db62f0aeaa77a99c10e1f48"
   },
   "Welcome": {
    "title": "A4 Onboarding",
+   "w": 1440,
+   "h": 1100,
    "sha256": "dcc4850ad862a9485f32d9aff0d14a8412ca868870a5ea50a7ebe752d65fb809"
   },
   "Verify-Domain": {
    "title": "A5 Verify a domain",
+   "w": 1440,
+   "h": 1100,
    "sha256": "41c2a271b926e6cf94358697aa0dc23bdd88311e7bec8c26c91efc4894acfcc6"
   },
   "Verify-Protected": {
    "title": "T1 Verify: protected",
+   "w": 1440,
+   "h": 1200,
    "sha256": "1718eadaae9a0ed88b1a0040cc91e9b0fe9ae84078be108f5863b3db85017651"
   },
   "Verify-NotProtected": {
    "title": "T1 Verify: not protected",
+   "w": 1440,
+   "h": 900,
    "sha256": "709c13c8e6efe9a593dc0dc44b89224137559baaa6ff45b92712aad3f1a6ebcc"
   },
   "Verify-Foreign": {
    "title": "T1 Verify: arrived from a lookalike",
+   "w": 1440,
+   "h": 1200,
    "sha256": "13cae2490d07a15fe1b224ff0b2f6d0dec7e8ad63e5b40a6d4bee4ffc49986e9"
   },
   "Verify-Mobile": {
    "title": "T1 Verify: phone",
+   "w": 390,
+   "h": 1500,
    "sha256": "f99dd04248c691d01177c397993b9765181e88c6e5f888d469e66f3b34bf67f0"
   },
   "Seal-Frames": {
    "title": "T2 Website seal",
+   "w": 1440,
+   "h": 760,
    "sha256": "cd2020ac26dd72740da438b045668d7348ebf67d90874e657ebe9690c4035ee0"
   },
   "Badges": {
    "title": "T3 Signature badge",
+   "w": 1440,
+   "h": 760,
    "sha256": "e41c0353a150df933028c2b2e887ec8d723a76d073db2e9fc0968f0c20f6140d"
   },
   "Admin-Overview": {
    "title": "X1 Admin overview",
+   "w": 1440,
+   "h": 1560,
    "sha256": "7b91a5102d106bc961927b2a8c58fdd7df13174b033f3851145d77c435e1174d"
   },
   "Admin-Org": {
    "title": "X2 Organisation detail",
+   "w": 1440,
+   "h": 1400,
    "sha256": "43ae884a846b9fd71a7ce56b320b7ca0e6c5d5598cb3ed80dfa8ec8e4121f7fa"
   },
   "Admin-Invites": {
    "title": "X3 Invite codes",
+   "w": 1440,
+   "h": 1000,
    "sha256": "d79ea5d6a5bbbcfb751b660bf86cf0bfc6ceb394ea80fd2fc0df95c9f2775e92"
   },
   "Admin-Feedback": {
    "title": "X4 Feedback queue",
+   "w": 1440,
+   "h": 1100,
    "sha256": "2016fe7e930eaf6759ca237cd30ff14d6535100d7769d2ce37c046d0ae501f5d"
   },
   "Admin-Eval": {
    "title": "X5 Eval runs",
+   "w": 1440,
+   "h": 1300,
    "sha256": "2fcb3ea38fce7127b93b2745c92ddc868208c63f69472daa69e5b5141b5cc4f8"
   },
   "Error-404": {
    "title": "E1 Not found",
+   "w": 960,
+   "h": 640,
    "sha256": "bd05692e439b1824d458b513221f41e145e8277a85445258b67ac5ab1c1f37cd"
   },
   "Error-410": {
    "title": "E2 Link expired",
+   "w": 960,
+   "h": 640,
    "sha256": "7a32017fda87ef11963003a57b84509cb647c4637d5d3b83cef4e587f5e77a71"
   },
   "Error-403": {
    "title": "E3 No access",
+   "w": 960,
+   "h": 640,
    "sha256": "0e19300c09d911e538d624a88f24e1face344d01dd7595f1e8b2a64859aec517"
   },
   "Error-429": {
    "title": "E4 Slow down",
+   "w": 960,
+   "h": 640,
    "sha256": "519ed8e15169b3476ebd1ab921241f4035ab44e18df72b1fb1f42a5640570587"
   },
   "Error-500": {
    "title": "E5 Something broke",
+   "w": 960,
+   "h": 640,
    "sha256": "7d68d50b8a2a6889ac06a7236046b91cf566589bc9d3e8640398a6be4a8fba47"
   },
   "Error-Maintenance": {
    "title": "E6 Maintenance",
+   "w": 960,
+   "h": 640,
    "sha256": "fd0ca8c913c165eaddcff47fdf9badb715f8edfad04076d8e6448f926aa1fa89"
   },
   "Site-404": {
    "title": "S11 Site not found",
+   "w": 960,
+   "h": 640,
    "sha256": "a6baac247680031e1f8dfe3679bf92a8748e066bd0245327ff9ff582e0c0f5ad"
   },
   "Home": {
    "title": "S1 Home",
+   "w": 1440,
+   "h": 5400,
    "sha256": "f067e0aa7fd252789894b01acfdc1e4642101a0d969efb8f7e070ff7596db53b"
   },
   "Home-Mobile": {
    "title": "S1 Home: phone",
+   "w": 390,
+   "h": 5600,
    "sha256": "4a872c9b97c9e55a8b08c99186c173a0183fa5ca366d4e24d7e538a67aa5598d"
   },
   "How": {
    "title": "S2 How it works",
+   "w": 1440,
+   "h": 2800,
    "sha256": "10c1a69ea5e09d8b0d4d9f6c7ef46ca1372971eda9483fa5b3f3e8c493a1fc18"
   },
   "InvoiceFraud": {
    "title": "S3 Invoice fraud",
+   "w": 1440,
+   "h": 2800,
    "sha256": "20896cb064e31660e03c88db8711de0cc06ea564bbf2531d6a31c801b2c2db12"
   },
   "ProtectSite": {
    "title": "S4 Protect your business",
+   "w": 1440,
+   "h": 3000,
    "sha256": "ca4f46a3841f02239e68c62675149d08b9c2b5e1d8a41cf6b5c2b54677a46531"
   },
   "Pricing": {
    "title": "S5 Pricing",
+   "w": 1440,
+   "h": 2000,
    "sha256": "54b6054dea3c6b23932cd9330ff4184f7f3a65511b95c309f557656f430068f4"
   },
   "Privacy": {
    "title": "S6 Privacy and POPIA",
+   "w": 1440,
+   "h": 2400,
    "sha256": "3fa2d95a4f1c9ecc089415c418a2abb8056427131eead860249397a437145c48"
   },
   "Terms": {
    "title": "S7 Terms",
+   "w": 1440,
+   "h": 2000,
    "sha256": "50529246a2886cd55106cfd10b6f0b227b430aa7ff114234b7dd4cfc77e14d72"
   },
   "Security": {
    "title": "S8 Security",
+   "w": 1440,
+   "h": 2000,
    "sha256": "8cd942666953f88485e869610e2df5080f624367eeb98e137fa1b4f8b794ed28"
   },
   "About": {
    "title": "S9 About and contact",
+   "w": 1440,
+   "h": 1800,
    "sha256": "37003cd2292640f3414165ce21fb50e74bc57a14923bb4521e969bd8513c4246"
   },
   "Results": {
    "title": "S10 Results",
+   "w": 1440,
+   "h": 2200,
    "sha256": "5714d1198cfa13771f18170b041d960259d7576e1ec70f49db10c4c97c9fcb5f"
   },
   "Email-Reply": {
    "title": "N1 Verdict reply",
+   "w": 760,
+   "h": 1520,
    "sha256": "e50e11f4394f4acabcc7998151b5b106f2e101ab55769fff104b960dcb5e81fe"
   },
   "Email-Reply-Counterparty": {
    "title": "N1 Verdict reply: counterparty",
+   "w": 760,
+   "h": 1720,
    "sha256": "eb9ab1bdce9dfc7c13fe1f9b8ee12ff131544ab2aecf0208bf092cee9bb6626d"
   },
   "Email-Signin": {
    "title": "N2 Sign-in link",
+   "w": 760,
+   "h": 800,
    "sha256": "6586ec8ec55214151f7d2dc512c73358b9b18d4c0cd40593d1ef385d9ef1da5f"
   },
   "Email-Invite": {
    "title": "N3 Invitation",
+   "w": 760,
+   "h": 900,
    "sha256": "3a9608cfc3db039ee22035791dd077c84fae64a468e093c4abae4455e2b38bd2"
   },
   "Email-DomainCode": {
    "title": "N4 Domain verification code",
+   "w": 760,
+   "h": 920,
    "sha256": "bc6302d163c31c8ca40226361e48ce3b408ae34a72ecd8718d02cc400ae01308"
   },
   "Email-VerifyRequest": {
    "title": "N5 Bank verification request",
+   "w": 760,
+   "h": 1200,
    "sha256": "ec2dbc77716c62f549cb928110c3f9d04fa1cc9adcf7308f134ec5739aa66a06"
   },
   "Email-Impersonation": {
    "title": "N6 Impersonation alert",
+   "w": 760,
+   "h": 1380,
    "sha256": "0d5be3237e022a6e23dcc90e2b51602f040d14aad550aa8ec9063b297f182406"
   },
   "Email-Monitor": {
    "title": "N7 Monitor alert",
+   "w": 760,
+   "h": 1780,
    "sha256": "25c2e87223bbe20178dbaffc214401d1465236f5fe5db276cddab64d895a6ee0"
   },
   "Email-Cap": {
    "title": "N8 Daily limit reached",
+   "w": 760,
+   "h": 980,
    "sha256": "8043111e8c0a5d2708dd28a154b29017a6398851de50fadceb2e906c33f433de"
   },
   "Email-Operator": {
    "title": "N9 Operator notice: budget cap",
+   "w": 760,
+   "h": 1080,
    "sha256": "351241d32dc7ad03e42c4edba0dfa798c682fe972ea4c62dcfbdce0403e23ae9"
   },
   "Site-500": {
    "title": "S11 Site error",
+   "w": 960,
+   "h": 640,
    "sha256": "e2e0cc037838a20d39b052a0c25ef47d59addaf246d2907da65413bbd0a4bc67"
   },
   "Email-Operator-Feedback": {
    "title": "N9 Operator notice: feedback",
+   "w": 760,
+   "h": 1080,
    "sha256": "e796d5d92ef16db34b482613eaf87dfe61bb58c92210912ae090c7785695e7ed"
   }
  }

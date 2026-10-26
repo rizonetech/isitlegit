@@ -660,6 +660,12 @@
  "T3": {
   "items": [
    {
+    "name": "protected or not verified badge",
+    "kind": "control",
+    "board": "Badges",
+    "evidence": "NOT VERIFIED"
+   },
+   {
     "name": "Protected badge",
     "kind": "state",
     "board": "Badges",
@@ -1488,6 +1494,12 @@
  "M8": {
   "items": [
    {
+    "name": "verified domains and sending addresses",
+    "kind": "control",
+    "board": "Domains",
+    "evidence": "Add a domain"
+   },
+   {
     "name": "verified domains",
     "kind": "control",
     "board": "Domains",
@@ -1767,7 +1779,7 @@
  "X4": {
   "items": [
    {
-    "name": "This was wrong reports",
+    "name": "\"This was wrong\" reports with case links and provider attribution",
     "kind": "control",
     "board": "Admin-Feedback",
     "evidence": "New 3"
@@ -1915,7 +1927,7 @@
  "E3": {
   "items": [
    {
-    "name": "signed in but not a member",
+    "name": "signed in but not a member of this organisation",
     "kind": "control",
     "board": "Error-403",
     "evidence": "re not a member of this organisation."
@@ -2038,6 +2050,12 @@
  },
  "N1": {
   "items": [
+   {
+    "name": "verdict reply",
+    "kind": "control",
+    "board": "Email-Reply",
+    "evidence": "Open the full report"
+   },
    {
     "name": "member variant",
     "kind": "state",
@@ -2195,6 +2213,12 @@
  "N7": {
   "items": [
    {
+    "name": "monitor alert with takedown pack",
+    "kind": "control",
+    "board": "Email-Monitor",
+    "evidence": "Takedown facts (from RDAP)"
+   },
+   {
     "name": "monitor alert",
     "kind": "control",
     "board": "Email-Monitor",
@@ -2250,6 +2274,12 @@
  },
  "N9": {
   "items": [
+   {
+    "name": "operator notice",
+    "kind": "control",
+    "board": "Email-Operator",
+    "evidence": "Budget cap reached"
+   },
    {
     "name": "budget cap",
     "kind": "state",

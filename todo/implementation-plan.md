@@ -22,7 +22,7 @@ Sections: 7 | Checklist items: 59
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 31 | Checklist items: 169
+Sections: 31 | Checklist items: 173
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -32,7 +32,7 @@ Sections: 31 | Checklist items: 169
 | [ ]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 5     |
 | [ ]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 4     |
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 6     |
-| [ ]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 9     |
+| [ ]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 13    |
 | [ ]    | D00 T01 §8 | README banner and social preview           | attended              | 4     |
 | [ ]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 6     |
 | [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
@@ -229,11 +229,12 @@ Sections: 55 | Checklist items: 202
 
 ### Phase 7: After the event
 
-Sections: 2 | Checklist items: 7
+Sections: 3 | Checklist items: 10
 
 | Status | Reference  | Deliverable                                      | Needs    | Items |
 | ------ | ---------- | ------------------------------------------------ | -------- | ----- |
 | [ ]    | D05 T04 §7 | Certificate-transparency search for brand tokens | none     | 2     |
+| [ ]    | D07 T01 §4 | Design change comparison                         | none     | 3     |
 | [ ]    | D99 T01 §5 | WhatsApp test number                             | operator | 5     |
 
 ### Phase 99: Manual, operator only
@@ -255,6 +256,6 @@ Sections: 12 | Checklist items: 43
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 1/186 verified sections, 2 ready to run now.
+Progress: 1/187 verified sections, 2 ready to run now.
 
-Checklist: 26/838 items completed (includes Commit items).
+Checklist: 30/845 items completed (includes Commit items).

@@ -59,6 +59,7 @@ class Defects(unittest.TestCase):
         self.root = pathlib.Path(self.tmp.name)
         shutil.copytree(REPO / "design/tokens", self.root / "design/tokens")
         shutil.copytree(REPO / "design/mockups/source", self.root / "design/mockups/source")
+        shutil.copy(REPO / "design/mockups/approved.json", self.root / "design/mockups/approved.json")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -70,11 +71,23 @@ class Defects(unittest.TestCase):
         errors = check.check_tokens(self.root, self.audit("rgb(178, 106, 0)"))  # #B26A00 text on white, 4.24:1
         self.assertIn("tokens: Fixture renders #B26A00 on #FFFFFF ('planted'), which is no token pair", errors)
 
+    def fixture_errors(self, audit):
+        return [e for e in check.check_tokens(self.root, audit) if "Fixture" in e]
+
     def test_illustration_content_is_exempt(self):
-        self.assertEqual(check.check_tokens(self.root, self.audit("rgb(59, 111, 216)", illustration=True)), [])
+        self.assertEqual(self.fixture_errors(self.audit("rgb(59, 111, 216)", illustration=True)), [])
 
     def test_a_listed_pair_is_accepted(self):
-        self.assertEqual(check.check_tokens(self.root, self.audit("rgb(24, 21, 25)")), [])
+        self.assertEqual(self.fixture_errors(self.audit("rgb(24, 21, 25)")), [])
+
+    def test_an_empty_or_partial_audit_is_refused(self):
+        errors = check.check_tokens(self.root, {})
+        self.assertIn("tokens: the audit has no entry for Main", errors)
+        self.assertEqual(sum(e.startswith("tokens: the audit has no entry for") for e in errors), 70)
+
+    def test_a_stale_audit_entry_is_refused(self):
+        audit = {"Main": {"fingerprint": "0" * 64, "pairs": []}}
+        self.assertIn("tokens: the audit of Main is stale", check.check_tokens(self.root, audit))
 
     def test_text_off_the_type_scale_is_caught(self):
         errors = check.check_tokens(self.root, self.audit("rgb(24, 21, 25)", size=9))

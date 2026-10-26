@@ -37,6 +37,7 @@ class Defects(unittest.TestCase):
             shutil.copy(REPO / "design/mockups" / f, d / "mockups" / f)
         (d / "mockups/png").symlink_to(REPO / "design/mockups/png")
         (d / "brand").symlink_to(REPO / "design/brand")
+        (d / "tokens").symlink_to(REPO / "design/tokens")
         self.design = d
 
     def tearDown(self):
@@ -106,6 +107,26 @@ class Defects(unittest.TestCase):
     def test_an_item_missing_from_its_spec_section_is_caught(self):
         self.edit("SPEC.md", "- rate limited:", "- throttled:")
         self.assertIn("spec: A1 does not list 'rate limited'", check.check_spec(self.root))
+
+
+    def test_a_shared_stylesheet_change_is_caught(self):
+        self.edit("mockups/source/ui.css", "body {", "body { line-height: 3; ")
+        errors = check.check_inventory(self.root)
+        self.assertIn("inventory: ui.css differs from the approved version", errors)
+        self.assertIn("inventory: the PNG of Main is stale; run design/tools/export-mockups.py export", errors)
+
+    def test_a_board_size_change_is_caught(self):
+        self.json_edit("mockups/source/canvas.json", lambda c: c["boards"]["Plan.dc.html"].update(h=900))
+        self.assertIn("inventory: Plan is 1440x900 in canvas.json, approved at 1440x1100", check.check_inventory(self.root))
+
+    def test_a_required_control_removed_from_coverage_and_spec_is_caught(self):
+        self.json_edit("mockups/coverage.json", lambda c: c["M4"].update(items=[i for i in c["M4"]["items"] if "csv import" not in i["name"].lower()]))
+        errors = check.check_coverage(self.root)
+        self.assertTrue(any(e.startswith("coverage: M4 does not account for 'CSV import") for e in errors), errors)
+
+    def test_a_spec_colour_that_is_no_token_is_caught(self):
+        self.edit("SPEC.md", "orange text `#CC2E00`", "orange text `#E03300`")
+        self.assertIn("spec: design/SPEC.md quotes #E03300, which is no token value", check.check_spec(self.root))
 
 
 if __name__ == "__main__":
