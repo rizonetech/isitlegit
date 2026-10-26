@@ -28,7 +28,7 @@ The app icon and favicons use the seal's form (orange disc, white centre, ink ti
 | ---- | --- | ---- |
 | Orange | `#FF4A14` | The brand colour: the tick, "Legit", the seal, accents. Large text and graphics only on white (3.3:1) |
 | Orange text | `#E03300` | Orange for text under 24 px on white (4.5:1) |
-| Ink | `#231F20` | Text, the question mark, dark backgrounds |
+| Ink | `#181519` | Text, the question mark, dark backgrounds |
 | Light | `#F1F1F2` | Light backgrounds |
 | White | `#FFFFFF` | Backgrounds, reversed marks |
 

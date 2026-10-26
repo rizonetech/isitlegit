@@ -32,7 +32,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FONTS = ROOT / "design/fonts"
 OUT = ROOT / "design/brand"
 
-INK = "#231F20"
+INK = "#181519"
 ORANGE = "#FF4A14"
 ORANGE_TEXT = "#E03300"
 LIGHT = "#F1F1F2"
