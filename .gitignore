@@ -18,3 +18,6 @@ competitors/
 
 # Session memory of the local agent tooling
 .remember/
+
+# Windows download metadata (the colon in the name cannot be checked out on Windows)
+*:Zone.Identifier
