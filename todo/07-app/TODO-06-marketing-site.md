@@ -36,6 +36,8 @@ track: day-6
 | 4 | §4 | Pricing page with launch prices | §2 | [ ] |
 | 5 | §5 | Privacy and POPIA page | §2 | [ ] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
+| 7 | §7 | Protect your business page | §2 | [ ] |
+| 8 | §8 | Terms, security and about pages | §2 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -162,6 +164,50 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [ ] Commit: `site: deploy to isitlegit.co.za with the app on its own host`
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
+
+## 7. Protect your business page
+
+`/protect` sells the trust network (`design/SPEC.md` S4): the protected identity, the domain-locked website seal, the signature badge, the impersonation monitor and closed-loop bank verification, each shown with the real artwork from `design/brand/` and a real (synthetic) example.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S4 and its canvas board
+**Job:** a business owner understands how IsItLegit protects their name and signs up for it
+**Treatment:** one idea per block, the real seal and badge, a clear call to protect
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Build `site/src/pages/protect.astro` against the SPEC board. Done when: each of the five protections has its block with artwork and a sourced or measured claim only.
+
+- [ ] Build the page with the five blocks and a signup call to action. Done when: the built page links to the signup and shows the seal and badge images. Cheaper substitute: a bullet list without the artwork.
+- [ ] Commit: `site: protect your business page`
+
+**Test checkpoint:** `pnpm --filter site build && grep -c 'isitlegit-seal-protected' site/dist/protect/index.html` prints at least `1`.
+
+## 8. Terms, security and about pages
+
+`/terms` (plain-language terms for the free launch period, reviewed by the operator before launch), `/security` (how hostile mail is handled and the disclosure policy from `SECURITY.md`), and `/about` (Rizonetech, the named author, a contact address, and that IsItLegit was built for the Meta Global AI Developer Hackathon) (`design/SPEC.md` S7 to S9).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S7 to S9 and their canvas boards
+**Job:** a careful buyer finds who is behind the service, the rules, and how to report a problem
+**Treatment:** plain words, dated, the same layout as the privacy page
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Build the three pages. Done when: each builds with its date and is linked from the footer.
+
+- [ ] Write `site/src/pages/terms.astro` marked "Draft for the launch period; reviewed by Rizonetech on <date>" until the operator records approval. Done when: the page builds with the draft marker.
+- [ ] Write `site/src/pages/security.astro` from `SECURITY.md` and design spec 4.6a. Done when: it links the GitHub advisory form.
+- [ ] Write `site/src/pages/about.astro` naming Derick Payne and Rizonetech (Pty) Ltd, George, with `hello@isitlegit.co.za` routed to the operator (D99 T01 §2). Done when: the page builds and the footer links all three pages.
+- [ ] Commit: `site: terms, security and about pages`
+
+**Test checkpoint:** `pnpm --filter site build && ls site/dist/terms/index.html site/dist/security/index.html site/dist/about/index.html` lists all three.
 
 ## Verification
 

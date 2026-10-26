@@ -167,7 +167,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 47 | Checklist items: 178
+Sections: 55 | Checklist items: 202
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -200,8 +200,16 @@ Sections: 47 | Checklist items: 178
 | [ ]    | D07 T06 §4 | Pricing page with launch prices            | none                  | 2     |
 | [ ]    | D07 T06 §5 | Privacy and POPIA page                     | none                  | 3     |
 | [ ]    | D07 T06 §6 | Deploy the site and split the app host     | cloudflare            | 4     |
+| [ ]    | D07 T06 §7 | Protect your business page                 | none                  | 2     |
+| [ ]    | D07 T06 §8 | Terms, security and about pages            | none                  | 4     |
 | [ ]    | D07 T07 §1 | Fictional demo businesses                  | cloudflare            | 3     |
 | [ ]    | D07 T07 §2 | Judge demo organisation                    | meta-api, live-mail   | 4     |
+| [ ]    | D07 T08 §1 | App and site error pages                   | none                  | 4     |
+| [ ]    | D07 T08 §2 | First-run onboarding checklist             | none                  | 4     |
+| [ ]    | D07 T08 §3 | Account settings and passkeys              | none                  | 3     |
+| [ ]    | D07 T08 §4 | Plan and trial page                        | none                  | 2     |
+| [ ]    | D07 T08 §5 | Admin org detail and feedback queue        | none                  | 2     |
+| [ ]    | D07 T08 §6 | Sign-in, invite and verification emails    | none                  | 3     |
 | [ ]    | D08 T02 §1 | Eval runner through the deployed pipeline  | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2 | Metrics against the spec targets           | none                  | 4     |
 | [ ]    | D08 T02 §3 | Model ablation runs                        | meta-api, cloudflare  | 4     |
@@ -230,12 +238,12 @@ Sections: 2 | Checklist items: 7
 
 ### Phase 99: Manual, operator only
 
-Sections: 12 | Checklist items: 42
+Sections: 12 | Checklist items: 43
 
 | Status | Reference  | Deliverable                                   | Needs    | Items |
 | ------ | ---------- | --------------------------------------------- | -------- | ----- |
 | [ ]    | D99 T01 §1 | Meta API billing and API key                  | operator | 5     |
-| [ ]    | D99 T01 §2 | Domain verification and nameservers           | operator | 6     |
+| [ ]    | D99 T01 §2 | Domain verification and nameservers           | operator | 7     |
 | [ ]    | D99 T01 §3 | Workers Paid plan                             | operator | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain                         | operator | 5     |
 | [ ]    | D99 T01 §6 | Google Web Risk API key                       | operator | 3     |
@@ -247,6 +255,6 @@ Sections: 12 | Checklist items: 42
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 1/178 verified sections, 2 ready to run now.
+Progress: 1/186 verified sections, 2 ready to run now.
 
-Checklist: 18/809 items completed (includes Commit items).
+Checklist: 18/834 items completed (includes Commit items).

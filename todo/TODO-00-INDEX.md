@@ -48,6 +48,7 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 - `07-app/TODO-05-admin-console.md`
 - `07-app/TODO-06-marketing-site.md`
 - `07-app/TODO-07-demo-organisations.md`
+- `07-app/TODO-08-app-essentials.md`
 - `08-eval/TODO-01-datasets.md`
 - `08-eval/TODO-02-runner-and-results.md`
 - `08-eval/TODO-03-frontier-experiments.md`
