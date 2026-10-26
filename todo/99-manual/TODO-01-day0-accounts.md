@@ -67,7 +67,7 @@ Credits apply in batches after the claim form; until they show, every call is ch
 
 Meta credit visible: 2026-10-27
 
-**Test checkpoint:** `op item get "IsItLegit Meta Model API" --vault Conclave --format json | jq -r '.id' | wc -c` prints a non-zero count (the item exists; the value is never printed).
+**Test checkpoint:** `op item get "IsItLegit Meta Model API" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has) (the item exists; the value is never printed).
 
 ## 2. Domain verification and nameservers
 
@@ -178,7 +178,7 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 - [ ] Create an API key restricted to the Web Risk API only and store it in the vault as "IsItLegit Web Risk". Done when: the vault item exists. Cheaper substitute: an unrestricted key.
 - [ ] Commit: `todo: record the Web Risk key`
 
-**Test checkpoint:** `op item get "IsItLegit Web Risk" --vault Conclave --format json | jq -r '.id' | wc -c` prints a non-zero count.
+**Test checkpoint:** `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has).
 
 ## 7. Partner credits for Glimmer
 
