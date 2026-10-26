@@ -1610,12 +1610,22 @@ class FinalStamp(Stamp):
 
     def test_a_p2_final_review_needs_fixed_and_a_later_round(self):
         self.write_final("1. P2 calc.py:2.\n\nHIGHEST: P2\nOVERALL: needs-attention")
-        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "does not match the final review, which declares P2")
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "does not match the final review, which declares HIGHEST: P2")
         self.refused({"report": self.ROUNDS, "verdict": "fixed"}, "needs a regular round recorded after the final review")
         self.later_round()
         reviews = [{"round": 2, "report": self.ROUNDS, "verdict": "clean"}]
         receipt = self.root / self.stamp_final({"report": self.ROUNDS, "verdict": "fixed"}, reviews)
         self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["final"]["verdict"], "fixed")
+
+    def test_a_final_review_without_a_severity_line_does_not_count(self):
+        self.write_final("1. P1 example.ts:1 unsafe execution.\n\nOVERALL: needs-attention")
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "with its HIGHEST line and OVERALL verdict, not 0")
+
+    def test_another_sections_final_review_does_not_stand_in(self):
+        self.write_final()
+        other = "docs/reviews/00-workspace/D00-T01-s2.md"
+        (self.root / other).write_bytes((self.root / self.ROUNDS).read_bytes())
+        self.refused({"report": other, "verdict": "clean"}, "--final must be the section's own findings file")
 
     def test_the_final_review_runs_at_its_scheduled_step(self):
         self.write_final(effort="high")

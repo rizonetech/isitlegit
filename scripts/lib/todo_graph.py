@@ -343,21 +343,21 @@ def final_record(root, final, ref, stamp_sha, commits=None):
             f"receipt final is malformed: {ref}")
     report, verdict = final["report"], final["verdict"]
     require(verdict in FINAL_VERDICTS, f"--final verdict must be one of {', '.join(FINAL_VERDICTS)}, not {verdict!r}: {ref}")
+    expected = section_findings(root, ref)
+    require(report == expected, f"--final must be the section's own findings file {expected}, not {report}: {ref}")
     path = report_ok(root, report, ref)
     dispatch = review_dispatch()
     text = path.read_bytes().decode("utf-8")
     found = dispatch.read_finals(text)
     require(found is not None, f"{report} is not a findings file the dispatcher can read: {ref}")
-    returned = [e for e in found if _other_family(dispatch, e)
-                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
-                in ("OVERALL: approve", "OVERALL: needs-attention")]
-    require(len(returned) == 1, f"{report} must hold exactly one final review returned by another model family, not "
-                                f"{len(returned)}; run review-dispatch.py --kind final: {ref}")
+    returned = [e for e in found if _other_family(dispatch, e) and dispatch.final_reply_ok(e["review"])]
+    require(len(returned) == 1, f"{report} must hold exactly one final review returned by another model family with "
+                                f"its HIGHEST line and OVERALL verdict, not {len(returned)}; run review-dispatch.py "
+                                f"--kind final: {ref}")
     (entry,) = returned
-    serious = dispatch.highest(entry["review"]) in ("P1", "P2")
-    require(serious == (verdict == "fixed"),
-            f"final verdict {verdict} does not match the final review, which declares "
-            f"{dispatch.highest(entry['review']) or 'no severity'}: {ref}")
+    declared = dispatch.declared_highest(entry["review"])
+    require((declared in ("P1", "P2")) == (verdict == "fixed"),
+            f"final verdict {verdict} does not match the final review, which declares HIGHEST: {declared}: {ref}")
     if verdict == "fixed":
         later = [r for r in dispatch.read_rounds(text) if dispatch.returned_review(r) and r["run"] > entry["run"]]
         require(bool(later), f"final verdict fixed needs a regular round recorded after the final review in {report}, "

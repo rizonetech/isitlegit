@@ -235,6 +235,23 @@ def highest(review):
     return found[-1].upper() if found else None
 
 
+DECLARED = re.compile(r"^\s*HIGHEST:\s*(P[123]|none)\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def declared_highest(review):
+    """The severity a review declares on its `HIGHEST:` line: `P1`, `P2`, `P3` or `none`; None when it declares none
+    at all, which the round prompt treats as P1 (an untagged finding counts as P1)."""
+    found = DECLARED.findall(review or "")
+    return (found[-1].upper() if found[-1].lower() != "none" else "none") if found else None
+
+
+def final_reply_ok(review):
+    """A final review is a reply that declares its highest severity and ends with the OVERALL verdict line."""
+    lines = [x.strip() for x in (review or "").splitlines() if x.strip()]
+    return declared_highest(review) is not None and bool(lines) \
+        and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
+
+
 def returned_review(entry):
     """A recorded round that is a review: a reviewer of another model family than the writer ran and replied with the
     prompt's final `OVERALL: approve` or `OVERALL: needs-attention` line. An outage, a self-review (a reviewer of the
@@ -891,19 +908,27 @@ def main(argv=None):
             if not args.record:
                 raise Refused("--kind final needs --record, the findings file whose regular rounds it follows")
             existing = existing_findings(Path(args.record), "final review")
-            recorded = read_rounds(existing)
-            if recorded is None:
+            found = read_findings(existing)
+            if found is None:
                 raise Unrecorded(f"{args.record} cannot be read back ({RESERVED_NAMES}), so no final review was run")
-            returned = [r for r in recorded if returned_review(r)]
-            if not returned or highest(returned[-1]["review"]) in ("P1", "P2"):
+            # One pass, checked before the reviewer runs, so a repeated command never spends another review.
+            if any(entry["reviewer"] for entry in found["finals"]):
+                raise Refused(f"{args.record} already holds a final review; it is one pass, so none was run")
+            returned = [r for r in found["rounds"] if returned_review(r)]
+            # The last round must declare its severity: a round without a HIGHEST line counts as P1.
+            if not returned or declared_highest(returned[-1]["review"]) not in ("P3", "none"):
                 raise Refused("the final review runs once the regular rounds have stopped: the last round that "
-                              "returned a review must declare no P1 or P2")
+                              "returned a review must declare HIGHEST: P3 or HIGHEST: none")
             reviewer_name = final["reviewer"]
         result = review(pin, args.writer, args.prompt, args.timeout, plan, reviewer_name)
     except (Refused, Unrecorded, OSError) as exc:
         print("review-dispatch refused: " + str(exc), file=sys.stderr)
         return 2
     when = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if args.kind == "final" and result["reviewer"] and not final_reply_ok(result["review"]):
+        # A reply without its severity line or verdict is no review: recorded as none, so a retry can still run.
+        result = {**result, "reviewer": None, "review": None, "failover": [
+            {"reviewer": result["reviewer"], "reason": "returned no HIGHEST line or OVERALL verdict"}]}
     if one_pass:
         result.update(kind=args.kind, candidate=args.candidate)
     if plan and plan["position"]:

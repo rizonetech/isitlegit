@@ -1111,6 +1111,32 @@ class FinalReview(Harness):
         self.assertEqual(len(module.read_rounds(text)), 2)
         self.assertEqual(module.highest(module.read_finals(text)[0]["review"]), "P2")
 
+    def test_a_last_round_without_a_severity_line_does_not_unlock_it(self):
+        self.round("1. P1 example.ts:1 unsafe execution.\n\nOVERALL: needs-attention")
+        result, _ = self.final()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("HIGHEST: P3 or HIGHEST: none", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_a_repeat_is_refused_before_the_reviewer_runs(self):
+        self.round(self.CLEAN)
+        self.assertEqual(self.final()[0].returncode, 0)
+        result, _ = self.final()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("already holds a final review", result.stderr)
+        self.assertEqual(self.calls(), [], "the repeated command spent no review")
+
+    def test_a_reply_without_its_verdict_is_no_review_and_a_retry_still_runs(self):
+        self.round(self.CLEAN)
+        result, summary = self.final("Unable to complete this review.")
+        self.assertEqual(result.returncode, 1)
+        self.assertIsNone(summary["reviewer"])
+        self.assertIn("## Final review: none", self.findings.read_text(encoding="utf-8"))
+        result, summary = self.final()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        finals = self.module().read_finals(self.findings.read_text(encoding="utf-8"))
+        self.assertEqual([f["reviewer"] for f in finals], [None, "wonder"])
+
     def test_the_pin_refuses_a_final_reviewer_it_cannot_trust(self):
         head, final = FINAL_PIN.split("[reviewers.wonder]")
 
