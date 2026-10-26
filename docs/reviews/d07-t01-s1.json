@@ -1,0 +1,108 @@
+{
+  "ref": "D07 T01 \u00a71",
+  "title": "Attended design session and design/SPEC.md",
+  "implementation_sha": "2a062bf57a1a6af24bcb868318db80136716eeab",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 6,
+      "report": "docs/reviews/07-app/D07-T01-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 design/tools/export-mockups.py export --audit && python3 -m unittest tests.scripts.test_design_tokens tests.scripts.test_export_mockups tests.scripts.test_design_spec -> 70 of 70 boards exported; Ran 78 tests OK",
+    "python3 design/tools/check-design.py -> check-design: 0 problem(s)",
+    "grep -cE '^Approved: 2026-[0-9]{2}-[0-9]{2} by the operator$' design/SPEC.md -> 1"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s1.md",
+    "verdict": "filed",
+    "candidate": "766076e377c8821e190bcd5f71ba5419e4b58568",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T01 \u00a74"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s1.md",
+    "candidate": "0a2f57c22116d70bc42d6311523a4df101151cda",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/07-app/D07-T01-s1.md",
+    "verdict": "fixed",
+    "candidate": "0653c6b52b2c7798d0891315d71593307f3c6eb3",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

@@ -33,7 +33,7 @@ track: day-1
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Attended design session and design/SPEC.md | -- | [ ] |
+| 1 | §1 | Attended design session and design/SPEC.md | -- | [x] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [ ] |
 | 3 | §3 | App shell and shared components with every state | §2 | [ ] |
 | 4 | §4 | Design change comparison | §1 | [ ] |
@@ -69,9 +69,12 @@ The operator chose an attended design session before any surface is built (desig
 - [x] Close the final review's findings: board images must sit inside `design/` (any tag, either quote style); imports refuse an oversized canvas before reading it; the page limit counts styles and the board's own body; a malformed board fails alone; the audit runs before a PNG is written, blends element opacity, exempts inactive controls and refuses text in a font that is no token; `check-design.py` checks PNG integrity, every `ui.css` colour against the tokens, band fills on their band roles, every typography role, control heights, radii and the shadow, spacing in `ui.css` and `calc()`, shared-part coverage, and reports a failed audit instead of crashing; `ui.css` makes form controls inherit the page font, fills bands from their band roles and uses token colours only; banner text drops its 0.9 and 0.95 opacity. Done when: the tests named in commit history for each pass, among them `test_an_asset_outside_design_is_refused`, `test_a_malformed_board_fails_alone_and_the_rest_export`, `test_a_board_failing_its_audit_gets_no_fresh_png`, `test_opacity_fades_the_audited_colour_and_disabled_controls_are_exempt`, `test_a_truncated_or_resized_png_is_caught`, `test_a_stylesheet_colour_that_is_no_token_is_caught` and `test_a_check_whose_audit_could_not_render_reports_instead_of_crashing`. **Added 2026-10-27 (final review).**
 - [x] Publish the draft for the operator to view and approve in session (an Artifact page or local HTML). Done when: the operator has seen it. Evidence: the design canvas above, reviewed in session and approved by the operator on 2026-10-26 at 22:19 SAST ("I approve everything").
 - [x] Apply the operator's changes and add `Approved: YYYY-MM-DD by the operator` to `design/SPEC.md`. Done when: the line is present. Cheaper substitute: committing an unapproved draft.
-- [ ] Commit: `design: approved interface specification, tokens and mockups`
+- [x] Commit: `design: approved interface specification, tokens and mockups`
 
 **Test checkpoint:** `python3 design/tools/export-mockups.py export --audit && python3 -m unittest tests.scripts.test_design_tokens tests.scripts.test_export_mockups tests.scripts.test_design_spec` passes, and `grep -cE '^Approved: 2026-[0-9]{2}-[0-9]{2} by the operator$' design/SPEC.md` prints `1`.
+
+> **Verified:** 2026-10-27 | §1 | 2a062bf57a1a6af24bcb868318db80136716eeab
+> **Review:** `docs/reviews/d07-t01-s1.json`
 
 ## 2. Design tokens compiled to the stylesheet
 
