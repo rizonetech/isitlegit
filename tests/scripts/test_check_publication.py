@@ -110,6 +110,16 @@ class CheckPublication(unittest.TestCase):
         self.assertIn("private path: docs/notes.md:1", result.stdout)
         self.assertNotIn("/home/someone", result.stdout)
 
+    def test_no_diagnostic_prints_a_client_bearing_path(self):
+        self.stage("samples/Acme Holdings.eml", b"From: nobody\r\n")
+        self.stage("sources/Acme Holdings/mail.md", "capture\n")
+        self.stage("docs/notes:Acme Holdings.md", "Billing contact at Acme.\n")
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn("Acme", result.stdout + result.stderr)
+        self.assertIn("must stay local: <path naming a client>", result.stdout)
+        self.assertIn("client name in content: <path naming a client>:1", result.stdout)
+
     def test_an_extra_samples_file_or_a_local_only_folder_is_found(self):
         self.stage("samples/real.eml", b"From: someone\r\n")
         self.stage("sources/discord/raw.txt", "capture\n")

@@ -48,6 +48,17 @@ def client_names():
     return names, None
 
 
+def grep_locations(output, shown):
+    """`path:line` for each match in `git grep -z -n` output, the matched text dropped unread. With -z git ends the
+    path and the line number with NUL, so a path that contains a colon is never split in the wrong place."""
+    locations = []
+    for record in output.split("\n"):
+        fields = record.split("\0")
+        if len(fields) >= 3:
+            locations.append(f"{shown(fields[0])}:{fields[1]}")
+    return locations
+
+
 def main():
     names, problem = client_names()
     if problem:
@@ -58,7 +69,7 @@ def main():
         patterns.write("\n".join(names) + "\n")
     try:
         # -a reads binary-marked files (mail fixtures are `binary` in .gitattributes) as text.
-        content = git("grep", "--cached", "-n", "-a", "-i", "-F", "-f", patterns.name)
+        content = git("grep", "--cached", "-z", "-n", "-a", "-i", "-F", "-f", patterns.name)
     finally:
         pathlib.Path(patterns.name).unlink()
     if content.returncode not in (0, 1):
@@ -69,9 +80,7 @@ def main():
     def shown(path):
         return "<path naming a client>" if any(name in path.lower() for name in lowered) else path
 
-    for line in content.stdout.splitlines():
-        path, number = line.split(":", 2)[:2]  # git grep -n prints path:line:text; the text is dropped unread
-        findings.append(f"client name in content: {shown(path)}:{number}")
+    findings += [f"client name in content: {location}" for location in grep_locations(content.stdout, shown)]
     # -z: one NUL after each path and no quoting, so a non-ASCII name (`Café`) is compared as written, not escaped.
     tracked = git("ls-files", "-z")
     if tracked.returncode:
@@ -82,15 +91,16 @@ def main():
     if named:
         findings.append(f"client name in {named} tracked path(s); list them locally with "
                         "`git ls-files | grep -iFf samples/client-names.txt`")
-    private = git("grep", "--cached", "-n", "-E", PRIVATE_PATH, "--", ".", ":!tests/", ":!scripts/tests/")
+    private = git("grep", "--cached", "-z", "-n", "-E", PRIVATE_PATH, "--", ".", ":!tests/", ":!scripts/tests/")
     if private.returncode not in (0, 1):
         print(f"check-publication: git grep failed: {private.stderr.strip()}", file=sys.stderr)
         return 2
-    findings += [f"private path: {shown(':'.join(line.split(':', 2)[:2]))}" for line in private.stdout.splitlines()]
+    findings += [f"private path: {location}" for location in grep_locations(private.stdout, shown)]
     samples = sorted(p for p in paths if p.startswith("samples/"))
     if samples != SAMPLES_ALLOWED:
+        samples = [shown(p) for p in samples]
         findings.append(f"samples/ must track exactly {SAMPLES_ALLOWED}, tracks {samples}")
-    findings += [f"must stay local: {p}" for p in paths if p.startswith(NEVER_TRACKED)]
+    findings += [f"must stay local: {shown(p)}" for p in paths if p.startswith(NEVER_TRACKED)]
     for finding in findings:
         print(finding)
     if findings:
