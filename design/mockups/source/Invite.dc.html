@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Accept invitation</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); font-family: 'Exo 2', sans-serif; color: #181519">
+  <section style="background: #181519; color: #FFFFFF; padding: 56px 80px; display: flex; flex-direction: column; justify-content: space-between">
+    <a href="Home.dc.html"><img src="../../brand/logo-svg/isitlegit-logo-on-dark.svg" alt="IsItLegit home" style="height: 34px; display: block"></a>
+    <div style="display: flex; flex-direction: column; gap: 24px; max-width: 520px">
+      <img src="../../brand/logo-svg/isitlegit-mark-on-dark.svg" alt="" style="width: 112px; height: 112px">
+      <h1 style="color: #FFFFFF; font-size: 44px; line-height: 1.1; font-weight: 900">Your team checks suspicious mail with IsItLegit.</h1>
+      <p style="font-size: 18px; color: #F1F1F2">Join them, and forward anything that looks wrong to check@isitlegit.co.za.</p>
+    </div>
+    <p style="font-size: 14px; color: #D2CFD7">IsItLegit by Rizonetech · George, South Africa</p>
+  </section>
+  <section style="padding: 56px 120px; display: flex; flex-direction: column; justify-content: center; gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 460px">
+      <p class="eyebrow">Invitation</p>
+      <h2 style="font-size: 32px">Thandi Nkosi invited you to join Karoo Couriers</h2>
+      <p class="muted">You will join as a <strong style="color: #181519">member</strong>: you can check mail and see the cases your team has checked.</p>
+    </div>
+    <div class="card card-pad" style="max-width: 460px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; justify-content: space-between"><span class="small muted">Signing in as</span><span class="small" style="font-weight: 600">sipho@karoocouriers.example</span></div>
+      <div style="display: flex; justify-content: space-between"><span class="small muted">Invitation expires</span><span class="small" style="font-weight: 600">Wed 29 Oct, 09:02 SAST</span></div>
+      <button class="btn btn-primary" style="width: 100%">Accept and join</button>
+      <button class="btn-link small" style="align-self: center">Not you? Decline</button>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 460px" aria-label="Other states">
+      <div class="panel" style="padding: 16px; display: flex; flex-direction: column; gap: 6px"><span class="pill pill-sus" style="align-self: flex-start">Expired</span><p class="small">This invitation has expired. Ask Thandi Nkosi to send a new one.</p></div>
+      <div class="panel" style="padding: 16px; display: flex; flex-direction: column; gap: 6px"><span class="pill pill-mal" style="align-self: flex-start">Revoked</span><p class="small">Karoo Couriers withdrew this invitation. Nothing was shared with you.</p></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

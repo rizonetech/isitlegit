@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Privacy and POPIA</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .prose p{font-size:17px;line-height:1.65;color:var(--ink-2)} .prose h2{font-size:26px;margin-top:8px} .prose ul{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:17px;line-height:1.6;color:var(--ink-2)}</style>
+</helmet>
+<div style="width: 1440px; min-height: 2400px; background: var(--white); font-family: 'Exo 2', sans-serif; color: var(--ink); display: flex; flex-direction: column">
+  <dc-import name="SiteHeader" hint-size="1440px,80px"></dc-import>
+  <section style="padding: 72px 120px 40px; display: flex; flex-direction: column; gap: 16px; border-bottom: 1px solid var(--line)">
+    <p class="eyebrow">Privacy and POPIA</p>
+    <h1 style="font-size: 48px; line-height: 1.1; font-weight: 900; max-width: 960px">What happens to the email you forward?</h1>
+    <p style="font-size: 20px; color: var(--ink-2); max-width: 900px">We use it only to investigate it for you. The email and its attachments are deleted after 30 days. The service providers that help us are named below, and Meta's models are called with <span class="mono">store: false</span>.</p>
+    <p class="small muted">Rizonetech (Pty) Ltd · Last updated 26 Oct 2026</p>
+  </section>
+
+  <section style="padding: 56px 120px 88px; display: grid; grid-template-columns: 260px 1fr; gap: 72px">
+    <nav aria-label="On this page" style="display: flex; flex-direction: column; gap: 4px; position: sticky; top: 24px; align-self: flex-start">
+      <p class="tiny muted" style="font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 0 12px 8px">On this page</p>
+      <a class="navlink navlink-active" href="#who">Who is responsible</a>
+      <a class="navlink" href="#what">What we process and why</a>
+      <a class="navlink" href="#keep">How long we keep it</a>
+      <a class="navlink" href="#processors">Who helps us</a>
+      <a class="navlink" href="#identity">Protected business details</a>
+      <a class="navlink" href="#rights">Your rights</a>
+    </nav>
+    <div class="prose" style="display: flex; flex-direction: column; gap: 40px; max-width: 820px">
+      <div id="who" style="display: flex; flex-direction: column; gap: 12px">
+        <h2>Who is responsible for your information?</h2>
+        <p>Rizonetech (Pty) Ltd in George, Western Cape, runs IsItLegit and is the responsible party under the Protection of Personal Information Act (POPIA). Our Information Officer is Derick Payne, reachable at <strong>hello@isitlegit.co.za</strong>.</p>
+      </div>
+      <div id="what" style="display: flex; flex-direction: column; gap: 12px">
+        <h2>What do we process, and why?</h2>
+        <ul>
+          <li><strong>Mail you forward or upload</strong>, with its attachments, links and any voice note: to investigate it and give you a verdict.</li>
+          <li><strong>Your account</strong>: your name, work email, organisation and role, so you can sign in and see your cases.</li>
+          <li><strong>Your supplier ledger</strong>: supplier names, domains and bank details you add, to catch changed bank accounts.</li>
+          <li><strong>Feedback</strong> when you tell us a verdict was wrong, to measure and improve accuracy.</li>
+        </ul>
+        <p>We accept mail only from members' verified domains, and we never use your mail to train a model.</p>
+      </div>
+      <div id="keep" style="display: flex; flex-direction: column; gap: 12px">
+        <h2>How long do we keep it?</h2>
+        <div class="card" style="overflow: hidden"><table class="table"><thead><tr><th>Information</th><th>Kept for</th></tr></thead><tbody>
+          <tr><td>The email and its attachments</td><td>30 days, then deleted automatically</td></tr>
+          <tr><td>Case summary, verdict and evidence</td><td>While your organisation has an account, then deleted within 30 days of closing it</td></tr>
+          <tr><td>Report links in our replies</td><td>Expire after 7 days</td></tr>
+          <tr><td>Your account and supplier ledger</td><td>Until you delete them or close the account</td></tr>
+        </tbody></table></div>
+      </div>
+      <div id="processors" style="display: flex; flex-direction: column; gap: 12px">
+        <h2>Who helps us process it?</h2>
+        <div class="card" style="overflow: hidden"><table class="table"><thead><tr><th>Provider</th><th>What they do for us</th><th>What they receive</th></tr></thead><tbody>
+          <tr><td style="font-weight: 600">Cloudflare</td><td>Hosting, storage, mail intake and the sealed browser</td><td>All case data, stored in our account</td></tr>
+          <tr><td style="font-weight: 600">Meta Model API</td><td>Muse Spark, Muse Wonder, SAM 3.1 and Muse Voice Transcribe</td><td>Rendered pages, extracted text and audio. Standard model IDs only, <span class="mono">store: false</span> on every call</td></tr>
+          <tr><td style="font-weight: 600">SMTP2GO</td><td>Sending our replies and alerts</td><td>Your address and the verdict summary</td></tr>
+          <tr><td style="font-weight: 600">Google Web Risk</td><td>Checking links against Google's list of unsafe sites</td><td>Links with the query string removed</td></tr>
+          <tr><td style="font-weight: 600">Fireworks AI</td><td>Running Muse Glimmer to screen lookalike websites</td><td>Public web pages only, never your mail</td></tr>
+        </tbody></table></div>
+        <p>Some of these providers process information outside South Africa. We use them under section 72 of POPIA, on their published data protection terms.</p>
+      </div>
+      <div id="identity" style="display: flex; flex-direction: column; gap: 12px">
+        <h2>What happens to a protected business's details?</h2>
+        <p>A protected business's registered bank account is never shown to anyone who checks mail. A checker only learns whether an invoice "matches" or "does not match the registered account", and checks are rate-limited so the details cannot be guessed.</p>
+      </div>
+      <div id="rights" style="display: flex; flex-direction: column; gap: 12px">
+        <h2>What are your rights?</h2>
+        <p>You may ask what we hold about you, ask us to correct or delete it, and object to how we use it. Write to hello@isitlegit.co.za and we will answer. If you are not satisfied, you may complain to the <a href="https://inforegulator.org.za/">Information Regulator</a>.</p>
+      </div>
+    </div>
+  </section>
+  <div style="margin-top: auto"><dc-import name="SiteFooter" hint-size="1440px,360px"></dc-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2400}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

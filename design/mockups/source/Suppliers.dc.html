@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Supplier ledger</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}.dcmain>*{flex-shrink:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1200px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="suppliers" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main class="dcmain" style="flex: 1; min-width: 0; padding: 32px 56px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center; gap: 24px">
+      <div><h1 style="font-size: 32px">Suppliers</h1><p class="small muted">Who Karoo Couriers really pays, and how. Every invoice is checked against it.</p></div>
+      <div style="display: flex; gap: 10px; align-items: center"><label for="sq" style="position: absolute; left: -9999px">Search suppliers</label><input id="sq" class="input" placeholder="Search name, domain or last 4 digits" style="width: 280px"><button class="btn btn-ghost">Import CSV</button><button class="btn btn-primary">Add supplier</button></div>
+    </header>
+
+    <div role="status" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 12px; background: #181519; color: #FFFFFF">
+      <span style="color: #7FD3B4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>
+      <p class="small" style="flex: 1; color: #FFFFFF">Outeniqua Paper's account ending 4821 is now marked as verified, from case "Statement for October".</p>
+      <button class="btn-link small" style="color: #FFFFFF">Undo</button>
+      <span class="tiny" style="color: #D2CFD7">Undo stays available for 24 hours</span>
+    </div>
+
+    <section class="card" style="overflow: hidden">
+      <table class="table">
+        <thead><tr><th>Supplier <span style="font-weight: 500">(5, 4 verified)</span></th><th>Domain</th><th>Bank account</th><th>Phone</th><th>Status</th><th style="width: 90px"></th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight: 600">Fynbos Freight (Pty) Ltd</td><td class="mono">fynbosfreight.example</td><td style="white-space: nowrap"><span class="small">Kestrel Bank</span> <span class="mono">•••• 3307</span></td><td class="small" style="white-space: nowrap">044 873 0192</td><td><span class="pill pill-mal">Changed on invoice</span><p class="tiny muted" style="margin-top: 4px">Asked their finance contact at 09:20, awaiting reply</p></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+          <tr><td style="font-weight: 600">Outeniqua Paper</td><td class="mono">outeniquapaper.example</td><td style="white-space: nowrap"><span class="small">Protea Mutual</span> <span class="mono">•••• 4821</span></td><td class="small" style="white-space: nowrap">044 382 5521</td><td><span class="pill pill-safe">Verified</span><p class="tiny muted" style="margin-top: 4px">Thandi N., today 10:02</p></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+          <tr><td style="font-weight: 600">Garden Route Tyres</td><td class="mono">grtyres.example</td><td style="white-space: nowrap"><span class="small">Kestrel Bank</span> <span class="mono">•••• 9016</span></td><td class="small" style="white-space: nowrap">044 801 4410</td><td><span class="pill pill-safe">Verified</span><p class="tiny muted" style="margin-top: 4px">Imported 14 Oct</p></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+          <tr><td style="font-weight: 600">Swartberg Fuel Depot</td><td class="mono">swartbergfuel.example</td><td style="white-space: nowrap"><span class="small">Protea Mutual</span> <span class="mono">•••• 1188</span></td><td class="small" style="white-space: nowrap">044 272 9930</td><td><span class="pill pill-safe">Verified</span><p class="tiny muted" style="margin-top: 4px">Imported 14 Oct</p></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+          <tr><td style="font-weight: 600">Klein Karoo Packaging</td><td class="mono">kkpack.example</td><td style="white-space: nowrap"><span class="small">Kestrel Bank</span> <span class="mono">•••• 7740</span></td><td class="small" style="white-space: nowrap">044 213 0087</td><td><span class="pill pill-safe">Verified</span><p class="tiny muted" style="margin-top: 4px">Ayesha P., 21 Oct</p></td><td><button class="btn btn-ghost btn-sm">Edit</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 14px" aria-label="Add supplier">
+        <h3>Add supplier</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <div class="field"><label class="label" for="sn">Name</label><input id="sn" class="input" value="Mossel Bay Couriers"></div>
+          <div class="field"><label class="label" for="sd">Email domain</label><input id="sd" class="input" value="mbcouriers.example"></div>
+          <div class="field"><label class="label" for="sb">Bank and branch code</label><input id="sb" class="input" placeholder="Kestrel Bank, 250655"></div>
+          <div class="field"><label class="label" for="sa">Account number</label><input id="sa" class="input" placeholder="Shown as •••• and the last 4"></div>
+          <div class="field" style="grid-column: span 2"><label class="label" for="sp">Phone number you already trust</label><input id="sp" class="input" value="044 690 3315"><span class="hint">From your own records, never from an invoice. This is the number we tell you to call.</span></div>
+        </div>
+        <div style="display: flex; gap: 10px"><button class="btn btn-dark btn-sm">Save supplier</button><button class="btn btn-ghost btn-sm">Cancel</button></div>
+      </section>
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 14px" aria-label="CSV import">
+        <div style="display: flex; justify-content: space-between; align-items: center"><h3>Import CSV</h3><span class="pill pill-mal">Nothing imported</span></div>
+        <p class="small muted">suppliers-oct.csv · 12 rows. We import a file only when every row is valid, so fix these and upload again.</p>
+        <table class="table" style="border: 1px solid #E3E2E6; border-radius: 10px; overflow: hidden">
+          <thead><tr><th style="width: 64px">Row</th><th>Problem</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">4</td><td class="small">account_number has 7 digits; South African accounts have 9 to 11</td></tr>
+            <tr><td class="mono">9</td><td class="small">branch_code is empty</td></tr>
+            <tr><td class="mono">11</td><td class="small">domain "gmail.example" is a free mail service, not a supplier domain</td></tr>
+          </tbody>
+        </table>
+        <p class="tiny muted">Sample data on fictional companies and banks. Columns: <span class="mono">name,domain,bank,branch_code,account_number,phone</span> · <a href="#">Download a template</a></p>
+      </section>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

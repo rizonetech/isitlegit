@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}.dcmain>*{flex-shrink:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1100px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="cases" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main class="dcmain" style="flex: 1; min-width: 0; padding: 32px 56px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+
+    <header style="display: flex; flex-direction: column; gap: 8px">
+      <p class="eyebrow">Welcome, Thandi</p>
+      <h1 style="font-size: 36px">Five steps to a business that is hard to fool</h1>
+      <p class="muted">Most teams finish in about ten minutes. You can come back to this list from Cases.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; align-items: start">
+      <section class="card" style="overflow: hidden" aria-label="Onboarding checklist">
+        <div style="padding: 18px 24px; border-bottom: 1px solid #E3E2E6; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between"><p class="small" style="font-weight: 700">2 of 5 done</p><button class="btn-link small">Hide this list</button></div>
+          <div style="height: 8px; border-radius: 6px; background: #F1F1F2"><div style="width: 40%; height: 8px; border-radius: 6px; background: #0E7C5B"></div></div>
+        </div>
+        <ol style="margin: 0; padding: 0; list-style: none">
+        <li style="display: flex; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+          <span style="width: 36px; height: 36px; border-radius: 999px; background: #0E7C5B; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>
+          <div style="flex: 1"><h4 style="color: #4D4953">Verify your domain</h4><p class="small muted">karoocouriers.example is verified, so your team's mail is accepted at check@.</p></div>
+          <span class="pill pill-safe">Done</span>
+        </li>
+        <li style="display: flex; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+          <span style="width: 36px; height: 36px; border-radius: 999px; background: #0E7C5B; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>
+          <div style="flex: 1"><h4 style="color: #4D4953">Invite your team</h4><p class="small muted">3 people joined. Everyone who reads supplier mail should be here.</p></div>
+          <span class="pill pill-safe">Done</span>
+        </li>
+        <li style="display: flex; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+          <span class="num" style="width: 36px; height: 36px; border-radius: 999px; border: 2px solid #C2BFC7; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px">3</span>
+          <div style="flex: 1"><h4 style="">Forward your first email</h4><p class="small muted">Pick any email you are unsure about and forward it as an attachment to check@isitlegit.co.za.</p></div>
+          <a href="Domains.dc.html" class="btn btn-primary btn-sm">Show me how</a>
+        </li>
+        <li style="display: flex; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+          <span class="num" style="width: 36px; height: 36px; border-radius: 999px; border: 2px solid #C2BFC7; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px">4</span>
+          <div style="flex: 1"><h4 style="">Add your suppliers</h4><p class="small muted">Upload who you pay and their bank details, so changed details on an invoice are caught.</p></div>
+          <a href="Suppliers.dc.html" class="btn btn-ghost btn-sm">Add suppliers</a>
+        </li>
+        <li style="display: flex; gap: 16px; align-items: center; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+          <span class="num" style="width: 36px; height: 36px; border-radius: 999px; border: 2px solid #C2BFC7; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px">5</span>
+          <div style="flex: 1"><h4 style="">Protect your business</h4><p class="small muted">Register your logo and bank accounts so mail pretending to be you is caught.</p></div>
+          <a href="Protect.dc.html" class="btn btn-ghost btn-sm">Protect Karoo Couriers</a>
+        </li>
+        </ol>
+      </section>
+
+      <aside style="display: flex; flex-direction: column; gap: 16px">
+        <div class="card card-pad" style="display: flex; flex-direction: column; gap: 12px; background: #181519; border-color: #181519">
+          <p style="font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #FF8A65">Your check address</p>
+          <p style="font-family: 'Exo', sans-serif; font-size: 22px; font-weight: 800; color: #FFFFFF">check@isitlegit.co.za</p>
+          <p class="small" style="color: #F1F1F2">Save it as a contact called "Is it legit?" so it is one tap away.</p>
+          <button class="btn btn-primary btn-sm" style="align-self: flex-start">Copy address</button>
+        </div>
+        <div class="panel" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px">
+          <p class="small" style="font-weight: 700">Your trial</p>
+          <p class="small muted">Everything in Protect for 14 days, free. No card needed. <a href="Plan.dc.html">See the plan</a></p>
+        </div>
+      </aside>
+    </div>
+
+    <section aria-label="Judge demo variant" style="display: flex; flex-direction: column; gap: 10px">
+      <p class="tiny muted" style="font-weight: 700; letter-spacing: .08em; text-transform: uppercase">Variant: the judge demo organisation sees this banner above the checklist</p>
+      <div style="display: flex; gap: 16px; align-items: center; padding: 18px 22px; border-radius: 16px; background: #FFF1EC; border: 1px solid #FFC9B5">
+        <img src="../../brand/logo-svg/isitlegit-mark.svg" alt="" style="width: 44px; height: 44px">
+        <div style="flex: 1"><p style="font-weight: 700">Welcome, judges. This organisation is ready to explore.</p><p class="small muted">It holds sample cases on fictional companies: a phishing email, an invoice with changed bank details, a voice note and a safe statement. Forward your own test email to check@isitlegit.co.za to see a live check.</p></div>
+        <a href="Cases.dc.html" class="btn btn-dark btn-sm">Open the sample cases</a>
+      </div>
+    </section>
+    <p class="tiny muted">Sample data on a fictional company.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

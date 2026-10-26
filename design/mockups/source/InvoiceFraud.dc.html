@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice fraud</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .prose p{font-size:17px;line-height:1.65;color:var(--ink-2)} .prose h2{font-size:26px;margin-top:8px} .prose ul{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:17px;line-height:1.6;color:var(--ink-2)}</style>
+</helmet>
+<div style="width: 1440px; min-height: 2800px; background: var(--white); font-family: 'Exo 2', sans-serif; color: var(--ink); display: flex; flex-direction: column">
+  <dc-import name="SiteHeader" hint-size="1440px,80px"></dc-import>
+  <section style="padding: 88px 120px 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center">
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <p class="eyebrow">Invoice fraud</p>
+      <h1 style="font-size: 56px; line-height: 1.06; font-weight: 900">What is invoice fraud?</h1>
+      <p style="font-size: 21px; line-height: 1.5; color: var(--ink-2)">An invoice arrives that looks exactly like your supplier's, but the bank account belongs to a criminal. You pay it, the real supplier is still owed, and the money is usually gone within hours.</p>
+      <div class="card" style="padding: 18px 20px; border-left: 4px solid var(--mal); display: flex; flex-direction: column; gap: 6px">
+        <p style="font-weight: 800; font-family: 'Exo', sans-serif; font-size: 18px">The one rule that stops it</p>
+        <p style="color: var(--ink-2)">Before paying new bank details, phone the supplier on the number you already have. Never use the number in the email.</p>
+      </div>
+      <p class="small muted">By Derick Payne, Rizonetech · Reviewed 26 Oct 2026</p>
+    </div>
+    <div class="card" style="padding: 28px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 24px 64px rgba(24,21,25,.10)">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start">
+        <div><p style="font-family: 'Exo', sans-serif; font-weight: 800; font-size: 22px">Fynbos Freight</p><p class="tiny muted">debtors@fynbos-freight.example</p></div>
+        <div style="text-align: right"><p style="font-weight: 700">TAX INVOICE</p><p class="tiny muted">INV-20931 · 24 Oct 2026</p></div>
+      </div>
+      <div class="divider"></div>
+      <div style="display: flex; justify-content: space-between"><span class="small">Linehaul George to Cape Town, October</span><span class="small num">R46,200.00</span></div>
+      <div style="display: flex; justify-content: space-between"><span class="small">VAT</span><span class="small num">R6,930.00</span></div>
+      <div style="display: flex; justify-content: space-between"><span style="font-weight: 700">Total due</span><span class="num" style="font-size: 20px">R53,130.00</span></div>
+      <div style="padding: 14px 16px; border-radius: 10px; background: var(--mal-wash); border: 1px dashed var(--mal); display: flex; flex-direction: column; gap: 4px">
+        <p class="tiny" style="font-weight: 700; color: var(--mal)">Please note our NEW banking details</p>
+        <p class="small mono">Fictional Bank · Acc 1093 2219 9032 · Branch 250655</p>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-mal">E4 · Critical</span><span class="small">Your records say Fynbos Freight banks with account ending <strong>4417</strong>.</span></div>
+      <p class="tiny muted" style="text-align: center">A fictional invoice from a fictional supplier</p>
+    </div>
+  </section>
+
+  <section style="background: var(--ink); color: var(--white); padding: 80px 120px; display: flex; flex-direction: column; gap: 36px">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 900px">
+      <h2 style="color: var(--white); font-size: 36px; line-height: 1.2">How big is the problem in South Africa?</h2>
+      <p style="font-size: 18px; color: var(--light)">South African banks reported R2.4 billion in digital banking fraud claims in 2025, up 29.2% on about R1.9 billion in 2024 and more than double the R1.09 billion of 2023.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+      <div style="display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--orange); padding-top: 20px"><span class="num" style="font-size: 56px; color: var(--white)">R2.4 billion</span><p style="color: var(--light)">reported client claims in 2025</p></div>
+      <div style="display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--orange); padding-top: 20px"><span class="num" style="font-size: 56px; color: var(--white)">110,074</span><p style="color: var(--light)">incidents in 2025, up from 97,547 in 2024</p></div>
+      <div style="display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--orange); padding-top: 20px"><span class="num" style="font-size: 56px; color: var(--white)">R21,865</span><p style="color: var(--light)">average loss per incident</p></div>
+    </div>
+    <blockquote style="margin: 0; padding: 24px 28px; border-radius: 16px; background: var(--dark-raised); display: flex; flex-direction: column; gap: 10px">
+      <p style="font-family: 'Exo', sans-serif; font-size: 21px; line-height: 1.4; font-weight: 700; color: var(--white)">"In business environments, supplier mandate fraud and business email compromise remained material risks. Criminals redirected payments through fraudulent changes to banking details, falsified supplier information, or compromised communications."</p>
+      <footer style="font-size: 15px; color: var(--on-dark-muted)">SABRIC, Annual Crime Statistics 2025, page 9</footer>
+    </blockquote>
+    <p style="font-size: 14px; color: var(--on-dark-muted)">Sources: SABRIC, <a href="http://www.sabric.co.za/wp-content/uploads/2026/08/SABRIC-Annual-Crime-Statistics-Report-2025.pdf" style="color: var(--orange-on-dark)">Annual Crime Statistics 2025</a>, pages 3, 7 and 9 (digital banking fraud reported by participating banks, individuals and businesses together). Worldwide, the FBI received 24,768 business email compromise complaints in 2025 with losses of US$3,046,598,558: <a href="https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf" style="color: var(--orange-on-dark)">FBI IC3, Internet Crime Report 2025</a>.</p>
+  </section>
+
+  <section style="padding: 88px 120px; display: flex; flex-direction: column; gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 820px">
+      <h2 style="font-size: 36px">How does IsItLegit catch a changed bank account?</h2>
+      <p style="font-size: 18px; color: var(--ink-2)">It reads the invoice, pulls out the bank details and compares them with the account your supplier really uses. A mismatch is critical evidence, whatever else the email gets right.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 12px"><span class="num" style="font-size: 32px; color: var(--orange-text)">01</span><h3>Read the invoice</h3><p class="muted">Muse Spark reads every page of the PDF and extracts the supplier, bank, account holder, account number, branch code, amount and due date.</p></article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 12px"><span class="num" style="font-size: 32px; color: var(--orange-text)">02</span><h3>Compare with your ledger</h3><p class="muted">Your supplier ledger holds each supplier's domains and verified account. A different account, a new domain or "we have changed banks" wording all raise the alarm.</p></article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 12px"><span class="num" style="font-size: 32px; color: var(--orange-text)">03</span><h3>Tell you to phone first</h3><p class="muted">The report always gives the same instruction: confirm on the number in your own records. Protect members can also have us ask the supplier's registered finance contact.</p></article>
+    </div>
+  </section>
+
+  <section style="padding: 88px 120px; background: var(--subtle); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center">
+    <div style="display: flex; flex-direction: column; gap: 18px">
+      <p class="eyebrow">Payment document check</p>
+      <h2 style="font-size: 36px; line-height: 1.2">Is that proof of payment real?</h2>
+      <p style="font-size: 18px; color: var(--ink-2)">SABRIC's 2025 report describes victims who were induced to "release goods based on falsified proof of payment" (<a href="http://www.sabric.co.za/wp-content/uploads/2026/08/SABRIC-Annual-Crime-Statistics-Report-2025.pdf">page 9</a>). Upload the PDF or screenshot on its own and we look for the signs of editing.</p>
+      <ul style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; color: var(--ink-2)">
+        <li>Edits saved after the document was created</li>
+        <li>Mixed fonts in the amount or account fields</li>
+        <li>Dates in the file that disagree with the page</li>
+        <li>A layout that differs from that bank's real notices</li>
+      </ul>
+      <p class="small muted">A check can show a document is likely doctored. It cannot prove that money was paid, so the report always says: confirm the money has cleared in your own banking app before you release goods.</p>
+    </div>
+    <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 14px">
+      <div class="band band-sus" style="padding: 18px 20px; gap: 14px"><span style="width: 48px; height: 48px; border-radius: 10px; background: var(--white); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/suspicious.svg" alt="" style="width: 40px; height: 40px"></span><div><p style="font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase">Suspicious</p><p style="font-family: 'Exo', sans-serif; font-weight: 800; font-size: 18px; line-height: 1.25">This proof of payment was edited after it was created.</p></div></div>
+      <p class="small"><span class="pill pill-sus" style="height: 22px">E2</span> The amount uses a different font from the rest of the page.</p>
+      <p class="small"><span class="pill pill-sus" style="height: 22px">E3</span> Saved twice: 09:02 and 09:41, after the stated payment time.</p>
+      <p class="tiny muted" style="text-align: center">A sample report on a fictional document</p>
+    </div>
+  </section>
+
+  <section style="padding: 88px 120px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+    <h2 style="font-size: 40px; max-width: 820px">Paying a supplier today? Check the invoice first.</h2>
+    <p style="font-size: 18px; color: var(--ink-2)">Free during launch. Add your suppliers once and every invoice is compared automatically.</p>
+    <div style="display: flex; gap: 12px"><a href="Signup.dc.html" class="btn btn-primary">Get started free</a><a href="ProtectSite.dc.html" class="btn btn-ghost">Protect your own business</a></div>
+  </section>
+  <div style="margin-top: auto"><dc-import name="SiteFooter" hint-size="1440px,360px"></dc-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

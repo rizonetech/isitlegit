@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Check a file</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="cases" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <header style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="font-size: 32px">Check a file</h1>
+      <p class="muted">For anything you did not get by email, or an email you saved. Forwarding to check@isitlegit.co.za still works for mail.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; align-items: start">
+      <section aria-label="Upload" style="display: flex; flex-direction: column; gap: 16px">
+        <label for="file" style="border: 2px dashed #C2BFC7; border-radius: 16px; background: #F8F8F9; height: 380px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; cursor: pointer; text-align: center; padding: 24px; box-sizing: border-box">
+          <span style="width: 72px; height: 72px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E3E2E6; display: inline-flex; align-items: center; justify-content: center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#181519" stroke-width="2" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></span>
+          <span style="font-family: 'Exo', sans-serif; font-size: 24px; font-weight: 800">Drop one file here</span>
+          <span class="muted">or</span>
+          <span class="btn btn-dark">Choose a file</span>
+          <span class="small muted">One file at a time, up to 25 MB</span>
+        </label>
+        <input id="file" type="file" style="position: absolute; left: -9999px">
+        <p class="small muted">We check what the file really is, not what its name says. Nothing is kept from a file we refuse.</p>
+      </section>
+
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 18px" aria-label="What you can check">
+        <h3>What you can check</h3>
+        <div style="display: flex; gap: 14px"><span class="pill pill-neutral" style="width: 72px; justify-content: center">Email</span><div><p class="small" style="font-weight: 600">A saved email</p><p class="small muted">.eml or Outlook .msg, with its original headers</p></div></div>
+        <div style="display: flex; gap: 14px"><span class="pill pill-neutral" style="width: 72px; justify-content: center">PDF</span><div><p class="small" style="font-weight: 600">Invoice, proof of payment or bank letter</p><p class="small muted">Checked for edits and against your supplier ledger</p></div></div>
+        <div style="display: flex; gap: 14px"><span class="pill pill-neutral" style="width: 72px; justify-content: center">Image</span><div><p class="small" style="font-weight: 600">Screenshot or photo</p><p class="small muted">PNG, JPEG or WebP, for example a proof of payment sent on WhatsApp</p></div></div>
+        <div style="display: flex; gap: 14px"><span class="pill pill-neutral" style="width: 72px; justify-content: center">Audio</span><div><p class="small" style="font-weight: 600">Voice note or voicemail</p><p class="small muted">.ogg, .opus, .wav, .mp3 or .m4a, up to 10 minutes</p></div></div>
+        <hr class="divider">
+        <p class="small muted">Not accepted: programs, archives, Word or Excel files and anything else. Forward those by email instead, so the whole message is checked.</p>
+      </section>
+    </div>
+
+    <section class="panel" style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center">
+      <p class="small">Karoo Couriers has used <strong>27 of 50</strong> checks today. The count resets at midnight SAST.</p>
+      <a href="Plan.dc.html" class="small">See your plan</a>
+    </section>
+    <p class="tiny muted">Sample data. The limit is 50 checks per organisation per day during the launch.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

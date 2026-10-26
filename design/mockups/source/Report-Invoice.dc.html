@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: invoice bank change</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .cmp td{padding:12px 16px} .bad{background:#FCE9EC}</style>
+</helmet>
+<div style="width: 1440px; height: 1800px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="cases" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px 64px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <nav aria-label="Breadcrumb" class="small muted" style="display: flex; gap: 8px; align-items: center"><a href="Cases.dc.html" style="color: #4D4953">Cases</a><span aria-hidden="true">/</span><span>Invoice INV-20931 and new banking details</span></nav>
+
+    <header style="display: flex; justify-content: space-between; align-items: flex-start; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <h1 style="font-size: 32px">Invoice INV-20931 and new banking details</h1>
+        <p class="small muted">From <strong style="color: #181519">Fynbos Freight Debtors &lt;debtors@fynbos-freight.example&gt;</strong> · Forwarded as an attachment by Thandi Nkosi · Mon 27 Oct 2026, 08:52</p>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <button class="btn btn-ghost btn-sm">Download PDF</button>
+        <button class="btn btn-ghost btn-sm">Copy link</button>
+      </div>
+    </header>
+
+    <section class="band band-mal" aria-label="Verdict">
+      <span style="width: 88px; height: 88px; border-radius: 16px; background: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/malicious.svg" alt="" style="width: 72px; height: 72px"></span>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1">
+        <p style="font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase">Malicious · high confidence · invoice fraud</p>
+        <h2 style="font-size: 30px; line-height: 1.2">The bank details on this invoice are not Fynbos Freight's.</h2>
+        <p style="font-size: 17px; opacity: 0.95">Someone is trying to redirect R48,760.00 into their own account.</p>
+      </div>
+    </section>
+
+    <section style="border: 2px solid #181519; border-radius: 16px; padding: 24px 28px; display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center" aria-label="What to do now">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <p class="eyebrow">Do this first</p>
+        <h3 style="font-size: 22px">Phone Fynbos Freight on the number in your supplier ledger, never the one in this email.</h3>
+        <p class="muted">Do not pay INV-20931 and do not change their bank details until they confirm by phone. Then delete the email and tell whoever handles payments.</p>
+      </div>
+      <a href="Suppliers.dc.html" class="btn btn-dark">Open Fynbos Freight in the ledger</a>
+    </section>
+
+    <section class="card card-pad" style="display: flex; flex-direction: column; gap: 16px">
+      <h3>Why we say so</h3>
+      <ul style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+        <li style="display: flex; gap: 10px"><a href="#e4" class="pill pill-mal" style="text-decoration: none">E4</a><span>The account does not match your ledger, and does not match the account Fynbos Freight registered.</span></li>
+        <li style="display: flex; gap: 10px"><a href="#e2" class="pill pill-mal" style="text-decoration: none">E2</a><span>Sent from <strong>fynbos-freight.example</strong>, a lookalike registered 6 days ago. Their real domain has no hyphen.</span></li>
+        <li style="display: flex; gap: 10px"><a href="#e6" class="pill pill-sus" style="text-decoration: none">E6</a><span>The PDF was edited after it was created, in the bank details block.</span></li>
+      </ul>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <h2 style="font-size: 22px">Evidence</h2>
+        <p class="small muted">7 findings · 9 checks ran · nothing skipped</p>
+      </div>
+
+      <article id="e4" class="card" style="overflow: hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+          <div style="display: flex; gap: 12px; align-items: center"><span class="pill pill-mal">E4 · Critical</span><h4>Bank details changed</h4></div>
+          <span class="small muted">Account numbers masked</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 1fr; gap: 24px; padding: 20px 24px">
+          <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px">
+            <div style="height: 360px; border: 1px solid #E3E2E6; border-radius: 10px; background: #FFFFFF; padding: 18px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; position: relative">
+              <div style="display: flex; justify-content: space-between"><span data-illustration style="font-family: 'Exo', sans-serif; font-weight: 800; font-size: 13px; color: #2F6B4F">FYNBOS FREIGHT</span><span class="tiny" style="font-weight: 700">TAX INVOICE</span></div>
+              <span style="height: 6px; width: 60%; background: #E3E2E6; border-radius: 3px"></span>
+              <span style="height: 6px; width: 45%; background: #E3E2E6; border-radius: 3px"></span>
+              <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; background: #F1F1F2; border-radius: 3px"></span><span style="height: 6px; background: #F1F1F2; border-radius: 3px"></span><span style="height: 6px; background: #F1F1F2; border-radius: 3px"></span></div>
+              <div style="align-self: flex-end; font-family: 'Exo', sans-serif; font-weight: 800; font-size: 13px">R48,760.00</div>
+              <div style="margin-top: auto; border: 2px solid #C8102E; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; background: #FCE9EC"><span class="tiny" style="font-weight: 700">PLEASE NOTE OUR NEW BANKING DETAILS</span><span style="height: 5px; width: 80%; background: #C2BFC7; border-radius: 3px"></span><span style="height: 5px; width: 60%; background: #C2BFC7; border-radius: 3px"></span></div>
+              <span class="pill pill-mal" style="position: absolute; right: 10px; bottom: 82px; height: 22px">E4</span>
+            </div>
+            <figcaption class="tiny muted">Page 1 of the attached PDF, bank block outlined</figcaption>
+          </figure>
+          <div style="display: flex; flex-direction: column; gap: 14px">
+            <table class="table cmp" style="border: 1px solid #E3E2E6; border-radius: 12px; overflow: hidden">
+              <thead><tr><th>Field</th><th>On this invoice</th><th>Your supplier ledger</th><th>Fynbos Freight's registered account</th></tr></thead>
+              <tbody>
+                <tr class="bad"><td style="font-weight: 600">Bank</td><td>Lowveld Mutual Bank</td><td>Karoo Commercial Bank</td><td><span class="pill pill-mal" style="height: 22px">Does not match</span></td></tr>
+                <tr class="bad"><td style="font-weight: 600">Account number</td><td class="mono">•••• 7731</td><td class="mono">•••• 4417</td><td><span class="pill pill-mal" style="height: 22px">Does not match</span></td></tr>
+                <tr><td style="font-weight: 600">Account holder</td><td>Fynbos Freight Pty Ltd</td><td>Fynbos Freight (Pty) Ltd</td><td class="small muted">Not compared</td></tr>
+                <tr><td style="font-weight: 600">Amount</td><td class="num">R48,760.00</td><td class="small muted">Usual range R30,000 to R55,000</td><td class="small muted">Not compared</td></tr>
+                <tr><td style="font-weight: 600">Reference and due date</td><td>INV-20931 · Fri 31 Oct 2026</td><td class="small muted">No earlier INV-20931</td><td class="small muted">Not compared</td></tr>
+              </tbody>
+            </table>
+            <p class="small muted">The registered account is only ever compared, never shown. "Please note our new banking details" is wording we treat as critical on its own.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="card" style="overflow: hidden" aria-label="Bank verification request">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+          <div style="display: flex; gap: 12px; align-items: center"><span class="pill pill-running">E9 · Waiting for reply</span><h4>We asked Fynbos Freight to confirm</h4></div>
+          <span class="small muted">Fynbos Freight is protected by IsItLegit</span>
+        </div>
+        <ol style="list-style: none; margin: 0; padding: 20px 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+          <li style="display: flex; gap: 12px"><span class="num" style="font-size: 20px; color: #0E7C5B">1</span><div><p class="small" style="font-weight: 600">Request sent 08:53</p><p class="small muted">To Fynbos Freight's registered finance contact, not to the sender.</p></div></li>
+          <li style="display: flex; gap: 12px"><span class="num" style="font-size: 20px; color: #CC2E00">2</span><div><p class="small" style="font-weight: 600">Waiting for their answer</p><p class="small muted">Their reply is attached to this case when it arrives.</p></div></li>
+          <li style="display: flex; gap: 12px"><span class="num" style="font-size: 20px; color: #4D4953">3</span><div><p class="small" style="font-weight: 600 ; color: #4D4953">Your phone call still comes first</p><p class="small muted">An email reply never replaces confirming by phone.</p></div></li>
+        </ol>
+      </article>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <article id="e2" class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-mal">E2 · High</span><h4>Lookalike of your supplier's domain</h4></div>
+          <p class="small"><span class="mono">fynbos-freight.example</span> imitates <span class="mono">fynbosfreight.example</span>, the domain in your ledger: a hyphen was added.</p>
+          <p class="tiny muted">Registered 21 Oct 2026 (RDAP) · checked 27 Oct 08:52</p>
+        </article>
+        <article id="e6" class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-sus">E6 · Medium</span><h4>PDF edited after it was made</h4></div>
+          <p class="small">Created 20 Oct 2026, 14:02 · changed again 26 Oct 2026, 21:47 as an incremental update. The account number uses a different font from the rest of the page.</p>
+          <p class="tiny muted">File forensics, no model involved</p>
+        </article>
+        <article class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-sus">E5 · Medium</span><h4>Real logo, wrong sender</h4></div>
+          <p class="small">SAM 3.1 found the Fynbos Freight logo; Muse Spark judged it the same as the registered logo, so it was copied onto this invoice.</p>
+        </article>
+        <article class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-neutral">E1 · Low</span><h4>Authentication passes, for the wrong domain</h4></div>
+          <p class="code" style="padding: 10px 12px; font-size: 13px">dmarc=pass header.from=fynbos-freight.example</p>
+          <p class="tiny muted">A pass only proves the mail came from fynbos-freight.example, which is not Fynbos Freight.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" style="padding: 24px; display: flex; flex-direction: column; gap: 14px" aria-label="Model trace">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><h3>How Meta's models worked on this case</h3><p class="small muted">Total 14.2 s · US$0.021</p></div>
+      <table class="table" style="background: #FFFFFF; border: 1px solid #E3E2E6; border-radius: 12px; overflow: hidden">
+        <thead><tr><th>Step</th><th>Model</th><th>What it did</th><th style="text-align: right">Time</th><th style="text-align: right">Cost</th></tr></thead>
+        <tbody>
+          <tr><td>Read the invoice</td><td><strong>Muse Spark 1.3</strong></td><td>Extracted supplier, bank, account, amount, reference and due date as structured fields</td><td style="text-align: right">4.1 s</td><td style="text-align: right">US$0.008</td></tr>
+          <tr><td>Logos</td><td><strong>SAM 3.1</strong></td><td>Found 1 logo; same as the registered logo</td><td style="text-align: right">0.9 s</td><td style="text-align: right">US$0.003</td></tr>
+          <tr><td>Verdict</td><td><strong>Muse Spark 1.3</strong></td><td>Called ledger_lookup, weighed 7 findings, cited E4, E2, E6</td><td style="text-align: right">5.6 s</td><td style="text-align: right">US$0.010</td></tr>
+        </tbody>
+      </table>
+      <p class="tiny muted">Sample figures for this design. The bank change is critical evidence, so the verdict cannot drop below suspicious whatever a model says.</p>
+    </section>
+
+    <section style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #E3E2E6; padding-top: 24px">
+      <p class="small muted">Case kept for 30 days, then the email is deleted. Only Karoo Couriers can open this report.</p>
+      <button class="btn btn-ghost btn-sm">This verdict is wrong</button>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin: feedback</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1100px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #181519">
+    <dc-import name="AdminNav" active="feedback" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 48px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center">
+      <div><h1 style="font-size: 30px">Feedback</h1><p class="small muted">"This verdict is wrong" reports, with the check or model that drove each verdict</p></div>
+      <div role="group" aria-label="Status" style="display: flex; border: 1px solid #C2BFC7; border-radius: 10px; overflow: hidden">
+        <button class="btn btn-sm" style="border-radius: 0; background: #181519; color: #FFFFFF">New 3</button>
+        <button class="btn btn-sm" style="border-radius: 0; background: #FFFFFF">Triaged 5</button>
+        <button class="btn btn-sm" style="border-radius: 0; background: #FFFFFF">Closed 12</button>
+      </div>
+    </header>
+    <div style="display: grid; grid-template-columns: 1fr 440px; gap: 24px; align-items: start">
+      <section class="card" style="overflow: hidden">
+        <table class="table">
+          <thead><tr><th>Case</th><th>Organisation</th><th>Our verdict</th><th>They say</th><th>Decided by</th><th>When</th></tr></thead>
+          <tbody>
+            <tr style="background: #FFF1EC"><td><a href="Report-Safe.dc.html" style="font-weight: 600">October statement</a></td><td class="small">Karoo Couriers</td><td><span class="pill pill-safe">Safe</span></td><td><span class="pill pill-sus">Suspicious</span></td><td class="small">Muse Spark verdict</td><td class="small muted">10:41</td></tr>
+            <tr><td><a href="Main.dc.html" style="font-weight: 600">Your NimbusMail password expires today</a></td><td class="small">Rizonetech</td><td><span class="pill pill-mal">Malicious</span></td><td><span class="pill pill-safe">Safe</span></td><td class="small">Google Web Risk</td><td class="small muted">09:58</td></tr>
+            <tr><td><a href="Report-Invoice.dc.html" style="font-weight: 600">Invoice 0042</a></td><td class="small">Outeniqua Paper</td><td><span class="pill pill-sus">Suspicious</span></td><td><span class="pill pill-safe">Safe</span></td><td class="small">Supplier ledger: new account</td><td class="small muted">Yesterday</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 16px" aria-label="Selected report">
+        <div style="display: flex; justify-content: space-between; align-items: center"><h3>October statement</h3><span class="pill pill-running">New</span></div>
+        <div class="panel" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+          <p class="tiny muted">Thandi Nkosi wrote</p>
+          <p class="small">"The statement is real but the bank account at the bottom is not the one we have on file. Should be at least suspicious."</p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <p class="small" style="font-weight: 700">What drove our verdict</p>
+          <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px" class="small">
+            <li>Muse Spark weighed 6 findings, none above low</li>
+            <li>DMARC pass for fynbosfreight.example</li>
+            <li>Invoice check: account not compared, supplier ledger empty for this supplier</li>
+          </ul>
+        </div>
+        <div class="field"><label class="label" for="note">Triage note</label><textarea id="note" class="input" style="height: 88px; padding: 12px 14px; resize: none">Invoice check skipped because the ledger was empty. Should have flagged "unknown account" instead of staying silent.</textarea></div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button class="btn btn-dark btn-sm">Add to eval set</button>
+          <button class="btn btn-ghost btn-sm">File a TODO</button>
+          <button class="btn btn-ghost btn-sm">Close: verdict was right</button>
+        </div>
+        <p class="tiny muted">Adding to the eval set stores a synthetic copy only; the member's real email never leaves their case.</p>
+      </section>
+    </div>
+    <p class="tiny muted">Sample data on fictional companies.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

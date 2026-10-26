@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin navigation</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .an{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:8px;color:#D2CFD7;text-decoration:none;font-size:15px;font-weight:600} .an:hover{background:#252127;color:#FFFFFF} .an-on{background:#2D2930;color:#FFFFFF}</style>
+</helmet>
+<nav aria-label="Admin" style="width: 256px; height: 1000px; box-sizing: border-box; padding: 24px 16px; background: #181519; display: flex; flex-direction: column; gap: 24px; font-family: 'Exo 2', sans-serif">
+  <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 8px">
+    <img src="../../brand/logo-svg/isitlegit-logo-on-dark.svg" alt="IsItLegit" style="height: 28px; align-self: flex-start">
+    <span class="pill" style="background: #FF4A14; color: #181519; align-self: flex-start">Rizonetech admin</span>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <a href="Admin-Overview.dc.html" class="{{c.overview}}">Overview</a>
+    <a href="Admin-Org.dc.html" class="{{c.orgs}}">Organisations</a>
+    <a href="Admin-Invites.dc.html" class="{{c.invites}}">Invite codes</a>
+    <a href="Admin-Feedback.dc.html" class="{{c.feedback}}">Feedback<span class="pill" style="margin-left: auto; height: 22px; background: #C8102E; color: #FFFFFF">3</span></a>
+    <a href="Admin-Eval.dc.html" class="{{c.eval}}">Eval runs</a>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding: 0 12px; color: #D2CFD7; font-size: 13px">
+    <span>Signed in through Cloudflare Access</span>
+    <span style="color: #FFFFFF; font-weight: 600">Rizonetech operator</span>
+  </div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["overview","orgs","invites","feedback","eval"],"default":"overview"},"$preview":{"width":256,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+const active = this.props.active ?? 'overview';
+const c = {};
+['overview', 'orgs', 'invites', 'feedback', 'eval'].forEach((k) => { c[k] = k === active ? 'an an-on' : 'an'; });
+return { c };
+}
+}
+</script>
+</body>
+</html>

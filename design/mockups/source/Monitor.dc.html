@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Impersonation monitor</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}.dcmain>*{flex-shrink:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1200px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="monitor" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main class="dcmain" style="flex: 1; min-width: 0; padding: 32px 56px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center; gap: 24px">
+      <div><h1 style="font-size: 32px">Impersonation monitor</h1><p class="small muted">Fake websites of Karoo Couriers, found before your customers get mail from them.</p></div>
+      <div style="display: flex; gap: 10px; align-items: center"><span class="small muted">Last run today 03:00 SAST · next 03:00 tomorrow</span></div>
+    </header>
+
+    <section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+      <div class="card card-pad"><p class="small muted">Lookalikes watched</p><span class="num" style="font-size: 32px">38</span><p class="tiny muted">of karoocouriers.example</p></div>
+      <div class="card card-pad"><p class="small muted">Live fake sites</p><span class="num" style="font-size: 32px; color: #C8102E">1</span><p class="tiny muted">found today</p></div>
+      <div class="card card-pad"><p class="small muted">Parked or empty</p><span class="num" style="font-size: 32px">3</span><p class="tiny muted">checked again if they change</p></div>
+      <div class="card card-pad"><p class="small muted">Dismissed</p><span class="num" style="font-size: 32px">1</span><p class="tiny muted">with your reason</p></div>
+    </section>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start">
+      <section class="card" style="overflow: hidden" aria-label="Findings">
+        <table class="table">
+          <thead><tr><th>Domain</th><th>Status</th><th>First seen</th></tr></thead>
+          <tbody>
+            <tr style="background: #FCE9EC"><td><p class="mono" style="font-weight: 700">karoocouriers-pay.example</p><p class="tiny muted">Login and card form · your logo</p></td><td><span class="pill pill-mal">New, live</span></td><td class="small">Today 03:04</td></tr>
+            <tr><td><p class="mono" style="font-weight: 700">karoo-couriers.example</p><p class="tiny muted">Parked page, no form</p></td><td><span class="pill pill-neutral">Watching</span></td><td class="small">19 Oct</td></tr>
+            <tr><td><p class="mono" style="font-weight: 700">karoocourier.example</p><p class="tiny muted">Asked for your seal on 21 Oct</p></td><td><span class="pill pill-sus">Taken offline</span></td><td class="small">21 Oct</td></tr>
+            <tr><td><p class="mono" style="font-weight: 700">kar0ocouriers.example</p><p class="tiny muted">Registered, no website</p></td><td><span class="pill pill-neutral">Watching</span></td><td class="small">17 Oct</td></tr>
+            <tr><td><p class="mono muted" style="font-weight: 700">karoocouriers.africa</p><p class="tiny muted">Dismissed: our own reserved domain</p></td><td><span class="pill pill-partial">Dismissed</span></td><td class="small">17 Oct</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card" style="overflow: hidden" aria-label="Finding detail">
+        <div style="padding: 20px 24px; border-bottom: 1px solid #E3E2E6; display: flex; flex-direction: column; gap: 6px">
+          <span class="pill pill-mal" style="align-self: flex-start">Critical · fake payment site</span>
+          <h3 class="mono" style="font-size: 18px">karoocouriers-pay.example</h3>
+          <p class="small muted">Registered 25 Oct 2026 through Lantern Registrar · hosted by Nimbus Cloud Hosting</p>
+        </div>
+        <div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px">
+          <div style="height: 180px; border: 1px solid #E3E2E6; border-radius: 10px; background: #F8F8F9; display: flex; flex-direction: column; overflow: hidden">
+            <div class="mono" style="height: 22px; background: #E3E2E6; font-size: 11px; padding: 3px 8px">karoocouriers-pay.example/track</div>
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px">
+              <span style="font-family: 'Exo', sans-serif; font-weight: 900">KAROO<span style="color: #CC2E00">·</span>C</span>
+              <span class="tiny" style="font-weight: 700">Pay R45.00 customs fee to release your parcel</span>
+              <span style="width: 200px; height: 16px; border: 1px solid #C2BFC7; border-radius: 4px; background: #FFFFFF"></span>
+              <span style="width: 200px; height: 16px; border: 1px solid #C2BFC7; border-radius: 4px; background: #FFFFFF"></span>
+            </div>
+          </div>
+          <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px" class="small">
+            <li>Your registered logo, matched by SAM 3.1</li>
+            <li>A card form that sends to <span class="mono">collect.parcel-fees.example</span>, found by Muse Wonder with test values</li>
+            <li>Flagged by Muse Glimmer in the daily screen, confirmed by Muse Spark</li>
+          </ul>
+          <div class="panel" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+            <p class="small" style="font-weight: 700">Takedown pack</p>
+            <p class="tiny muted">Domain, registrar and host with their abuse contacts, screenshots and the evidence, ready for you to send. We never contact them on your behalf.</p>
+          </div>
+          <div style="display: flex; gap: 10px"><button class="btn btn-dark btn-sm">Download takedown pack (PDF)</button><button class="btn btn-ghost btn-sm">Dismiss with a reason</button></div>
+        </div>
+      </section>
+    </div>
+    <p class="tiny muted">Sample data on fictional companies and providers.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>About and contact</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .prose p{font-size:17px;line-height:1.65;color:var(--ink-2)} .prose h2{font-size:26px;margin-top:8px} .prose ul{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:17px;line-height:1.6;color:var(--ink-2)}</style>
+</helmet>
+<div style="width: 1440px; min-height: 1800px; background: var(--white); font-family: 'Exo 2', sans-serif; color: var(--ink); display: flex; flex-direction: column">
+  <dc-import name="SiteHeader" hint-size="1440px,80px"></dc-import>
+  <section style="padding: 80px 120px 64px; display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 64px; align-items: center">
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <p class="eyebrow">About and contact</p>
+      <h1 style="font-size: 52px; line-height: 1.08; font-weight: 900">Who is behind IsItLegit?</h1>
+      <p style="font-size: 20px; color: var(--ink-2)">Rizonetech (Pty) Ltd, a managed IT provider in George, Western Cape. We built IsItLegit because our clients kept phoning us with the same question about a suspicious email, and the honest answer took a technician hours.</p>
+    </div>
+    <div class="card" style="padding: 32px; display: flex; flex-direction: column; align-items: flex-start; gap: 16px">
+      <img src="../../brand/rizonetech/rizonetech-logo.svg" alt="Rizonetech" style="height: 40px">
+      <p class="small muted">IsItLegit is a Rizonetech product. Source code is public at <a href="https://github.com/rizonetech/isitlegit">github.com/rizonetech/isitlegit</a> under the FSL-1.1-ALv2 licence.</p>
+    </div>
+  </section>
+
+  <section style="padding: 72px 120px; background: var(--subtle); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px">
+    <div class="prose" style="display: flex; flex-direction: column; gap: 14px">
+      <h2>How was it built?</h2>
+      <p>IsItLegit was built for the Meta Global AI Developer Hackathon by Derick Payne, Rizonetech's CEO, working as a solo developer who directs a team of AI coding agents. Every section of the plan is reviewed by an independent model before it ships.</p>
+      <p>The investigation itself runs on Meta's models: Muse Spark reads and decides, Muse Wonder walks links, SAM 3.1 checks logos, and Muse Voice Transcribe listens to voice notes. We publish what each one adds on the <a href="Results.dc.html">results page</a>.</p>
+    </div>
+    <div class="prose" style="display: flex; flex-direction: column; gap: 14px">
+      <h2>Why start with small businesses?</h2>
+      <p>Large companies have security teams. A courier, a supplier or a practice with ten people has whoever answers the phone. The scams that cost them most, changed bank details and fake proofs of payment, need a clear answer before money moves, not a filter setting.</p>
+      <p>The trust network grew from a real case at one of our clients, where a criminal pretended to be a supplier to that supplier's own courier.</p>
+    </div>
+  </section>
+
+  <section style="padding: 72px 120px 88px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+    <article class="card card-pad" style="display: flex; flex-direction: column; gap: 10px"><h3>General questions</h3><p class="muted">Pilots, MSP pricing, partnerships or privacy requests.</p><p class="mono" style="font-weight: 700; font-size: 16px">hello@isitlegit.co.za</p></article>
+    <article class="card card-pad" style="display: flex; flex-direction: column; gap: 10px"><h3>Check an email</h3><p class="muted">Members forward suspicious mail as an attachment to:</p><p class="mono" style="font-weight: 700; font-size: 16px">check@isitlegit.co.za</p></article>
+    <article class="card card-pad" style="display: flex; flex-direction: column; gap: 10px"><h3>Report a vulnerability</h3><p class="muted">Privately, through GitHub. Never in a public issue.</p><a href="Security.dc.html">How to report</a></article>
+  </section>
+  <div style="margin-top: auto"><dc-import name="SiteFooter" hint-size="1440px,360px"></dc-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

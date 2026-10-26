@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Team</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}.dcmain>*{flex-shrink:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="team" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main class="dcmain" style="flex: 1; min-width: 0; padding: 32px 56px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center; gap: 24px">
+      <div><h1 style="font-size: 32px">Team</h1><p class="small muted">People at Karoo Couriers who can check mail and see cases.</p></div>
+      <div style="display: flex; gap: 10px; align-items: center"></div>
+    </header>
+
+    <section class="card card-pad" style="display: flex; gap: 12px; align-items: flex-end" aria-label="Invite someone">
+      <div class="field" style="flex: 1"><label class="label" for="ie">Invite by email</label><input id="ie" class="input" placeholder="name@karoocouriers.example"></div>
+      <div class="field" style="width: 200px"><label class="label" for="ir">Role</label><select id="ir" class="input"><option>Member</option><option>Admin</option><option>Owner</option></select></div>
+      <button class="btn btn-primary">Send invitation</button>
+    </section>
+    <p class="tiny muted" style="margin-top: -16px"><strong>Owner</strong>: everything, including the plan and removing people. <strong>Admin</strong>: suppliers, protection, domains and invites. <strong>Member</strong>: checks mail and sees cases.</p>
+
+    <section class="card" style="overflow: hidden" aria-label="Members">
+      <table class="table">
+        <thead><tr><th>Name</th><th>Email</th><th style="width: 180px">Role</th><th>Last active</th><th style="width: 120px"></th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight: 600">Thandi Nkosi <span class="pill pill-neutral" style="height: 22px; margin-left: 6px">You</span></td><td class="small">thandi@karoocouriers.example</td><td><span class="pill pill-neutral">Owner</span></td><td class="small muted">Now</td><td><span title="Karoo Couriers needs at least one owner"><button class="btn btn-ghost btn-sm" disabled style="opacity: .5">Remove</button></span></td></tr>
+          <tr><td style="font-weight: 600">Ayesha Patel</td><td class="small">ayesha@karoocouriers.example</td><td><select class="input" style="height: 36px; font-size: 14px" aria-label="Role for Ayesha Patel"><option>Admin</option></select></td><td class="small muted">Yesterday</td><td><button class="btn btn-danger btn-sm">Remove</button></td></tr>
+          <tr><td style="font-weight: 600">Sipho Mokoena</td><td class="small">sipho@karoocouriers.example</td><td><select class="input" style="height: 36px; font-size: 14px" aria-label="Role for Sipho Mokoena"><option>Member</option></select></td><td class="small muted">Today 11:20</td><td><button class="btn btn-danger btn-sm">Remove</button></td></tr>
+          <tr><td style="font-weight: 600">Johan van Wyk</td><td class="small">johan@karoocouriers.example</td><td><select class="input" style="height: 36px; font-size: 14px" aria-label="Role for Johan van Wyk"><option>Member</option></select></td><td class="small muted">Fri 24 Oct</td><td><button class="btn btn-danger btn-sm">Remove</button></td></tr>
+        </tbody>
+      </table>
+      <div style="display: flex; gap: 10px; align-items: center; padding: 14px 16px; border-top: 1px solid #E3E2E6; background: #FDF3E1">
+        <span style="color: #8A5200"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+        <p class="small" style="color: #8A5200">You are the only owner, so you cannot be removed or made an admin. Make someone else owner first.</p>
+      </div>
+    </section>
+
+    <section class="card" style="overflow: hidden" aria-label="Pending invitations">
+      <div style="padding: 16px 20px; border-bottom: 1px solid #E3E2E6"><h3>Pending invitations</h3></div>
+      <table class="table">
+        <thead><tr><th>Email</th><th>Role</th><th>Sent</th><th>Expires</th><th style="width: 200px"></th></tr></thead>
+        <tbody>
+          <tr><td class="small">dispatch@karoocouriers.example</td><td class="small">Member</td><td class="small muted">Today 09:02 by Thandi N.</td><td class="small muted">Wed 29 Oct, 09:02</td><td style="display: flex; gap: 8px"><button class="btn btn-ghost btn-sm">Resend</button><button class="btn btn-danger btn-sm">Revoke</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+    <p class="tiny muted">Sample data on a fictional company.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

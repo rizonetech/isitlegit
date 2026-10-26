@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Site header</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<header style="width: 1440px; height: 80px; box-sizing: border-box; padding: 0 120px; display: flex; align-items: center; gap: 40px; background: #FFFFFF; border-bottom: 1px solid #E3E2E6; font-family: 'Exo 2', sans-serif">
+  <a href="Home.dc.html" aria-label="IsItLegit home"><img src="../../brand/logo-svg/isitlegit-logo.svg" alt="IsItLegit" style="height: 32px; display: block"></a>
+  <nav aria-label="Site" style="display: flex; gap: 28px; font-size: 15px; font-weight: 600">
+    <a href="How.dc.html" style="color: #181519; text-decoration: none">How it works</a>
+    <a href="InvoiceFraud.dc.html" style="color: #181519; text-decoration: none">Invoice fraud</a>
+    <a href="ProtectSite.dc.html" style="color: #181519; text-decoration: none">Protect your business</a>
+    <a href="Pricing.dc.html" style="color: #181519; text-decoration: none">Pricing</a>
+    <a href="Results.dc.html" style="color: #181519; text-decoration: none">Results</a>
+  </nav>
+  <div style="margin-left: auto; display: flex; gap: 12px; align-items: center">
+    <a href="Signin.dc.html" class="btn btn-ghost btn-sm">Sign in</a>
+    <a href="Signup.dc.html" class="btn btn-primary btn-sm">Get started free</a>
+  </div>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":80}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Account</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}.dcmain>*{flex-shrink:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1100px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="account" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main class="dcmain" style="flex: 1; min-width: 0; padding: 32px 56px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center; gap: 24px">
+      <div><h1 style="font-size: 32px">Account</h1><p class="small muted">Your sign-in details at Karoo Couriers.</p></div>
+      <div style="display: flex; gap: 10px; align-items: center"></div>
+    </header>
+
+    <section class="card card-pad" style="display: flex; flex-direction: column; gap: 16px" aria-label="Profile">
+      <h3>Profile</h3>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <div class="field"><label class="label" for="an">Name</label><input id="an" class="input" value="Thandi Nkosi"></div>
+        <div class="field"><label class="label" for="ae">Email</label><input id="ae" class="input" value="thandi@karoocouriers.example"><span class="hint">Changing it sends a confirmation link to the new address.</span></div>
+      </div>
+      <button class="btn btn-dark btn-sm" style="align-self: flex-start">Save</button>
+    </section>
+
+    <section class="card" style="overflow: hidden" aria-label="Passkeys">
+      <div style="padding: 16px 20px; border-bottom: 1px solid #E3E2E6; display: flex; justify-content: space-between; align-items: center">
+        <div><h3>Passkeys</h3><p class="small muted">Sign in with your fingerprint, face or device PIN. Nothing to phish.</p></div>
+        <button class="btn btn-primary btn-sm">Add a passkey</button>
+      </div>
+      <table class="table">
+        <thead><tr><th>Passkey</th><th>Added</th><th>Last used</th><th style="width: 120px"></th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight: 600">Windows Hello on the office PC</td><td class="small">12 Oct 2026</td><td class="small muted">Today 08:41</td><td><button class="btn btn-danger btn-sm">Remove</button></td></tr>
+          <tr><td style="font-weight: 600">iPhone</td><td class="small">13 Oct 2026</td><td class="small muted">Sat 25 Oct</td><td><button class="btn btn-danger btn-sm">Remove</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" style="overflow: hidden" aria-label="Sessions">
+      <div style="padding: 16px 20px; border-bottom: 1px solid #E3E2E6; display: flex; justify-content: space-between; align-items: center">
+        <div><h3>Where you are signed in</h3><p class="small muted">Sign out anything you do not recognise.</p></div>
+        <button class="btn btn-ghost btn-sm">Sign out everywhere else</button>
+      </div>
+      <table class="table">
+        <thead><tr><th>Device</th><th>Signed in</th><th>Last active</th><th style="width: 120px"></th></tr></thead>
+        <tbody>
+          <tr><td><span style="font-weight: 600">Edge on Windows</span> <span class="pill pill-safe" style="height: 22px; margin-left: 6px">This device</span></td><td class="small">Today 08:41 with a passkey</td><td class="small muted">Now</td><td></td></tr>
+          <tr><td style="font-weight: 600">Safari on iPhone</td><td class="small">Sat 25 Oct with a passkey</td><td class="small muted">Sat 25 Oct, 19:10</td><td><button class="btn btn-ghost btn-sm">Sign out</button></td></tr>
+          <tr><td style="font-weight: 600">Chrome on Android</td><td class="small">Thu 23 Oct with an email link</td><td class="small muted">Thu 23 Oct, 12:30</td><td><button class="btn btn-ghost btn-sm">Sign out</button></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <p class="tiny muted">Sample data.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

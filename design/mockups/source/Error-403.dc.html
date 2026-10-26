@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>No access</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 960px; height: 640px; box-sizing: border-box; padding: 40px 56px; background: #F8F8F9; font-family: 'Exo 2', sans-serif; color: #181519; display: flex; flex-direction: column; gap: 32px">
+  <header style="display: flex; justify-content: space-between; align-items: center"><a href="Cases.dc.html"><img src="../../brand/logo-svg/isitlegit-logo.svg" alt="IsItLegit" style="height: 26px; display: block"></a><span class="tiny muted">app.isitlegit.co.za</span></header>
+  <main class="card" style="flex: 1; padding: 40px 48px; display: flex; gap: 40px; align-items: center">
+    <span style="width: 152px; height: 152px; border-radius: 24px; background: #F1F1F2; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/logo-svg/isitlegit-mark.svg" alt="" style="width: 120px; height: 120px"></span>
+    <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0">
+      <p class="eyebrow" style="color: #CC2E00">Error 403</p>
+      <h1 style="font-size: 32px; line-height: 1.2">You're not a member of this organisation.</h1>
+      <p class="muted">You are signed in as <strong style="color: #181519">ayesha@outeniquapaper.example</strong>, which has no access here. Ask an owner of the organisation to invite this address, or sign in with another one.</p>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px"><a href="Cases.dc.html" class="btn btn-dark">Go to your own cases</a><button class="btn btn-ghost">Sign out</button></div>
+      
+    </div>
+  </main>
+  <footer class="tiny muted" style="display: flex; justify-content: space-between"><span>Reference 403-4H7N1C · Mon 27 Oct 2026, 10:12 SAST</span><span>IsItLegit by Rizonetech</span></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":640}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

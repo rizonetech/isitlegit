@@ -1,0 +1,682 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-26T20:00:00Z"
+ },
+ "title": "IsItLegit pages",
+ "launch": {
+  "view": "canvas",
+  "page": "app"
+ },
+ "pages": [
+  {
+   "id": "app",
+   "name": "Member app"
+  },
+  {
+   "id": "signin",
+   "name": "Sign-in and onboarding"
+  },
+  {
+   "id": "trust",
+   "name": "Trust pages"
+  },
+  {
+   "id": "admin",
+   "name": "Admin console"
+  },
+  {
+   "id": "site",
+   "name": "Marketing site"
+  },
+  {
+   "id": "errors",
+   "name": "Errors"
+  },
+  {
+   "id": "email",
+   "name": "Emails"
+  },
+  {
+   "id": "parts",
+   "name": "Shared parts"
+  }
+ ],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 2200,
+   "title": "M3 Report: malicious",
+   "page": "app"
+  },
+  "AppNav.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 256,
+   "h": 1000,
+   "title": "App navigation",
+   "page": "parts"
+  },
+  "AdminNav.dc.html": {
+   "x": 336,
+   "y": 0,
+   "w": 256,
+   "h": 1000,
+   "title": "Admin navigation",
+   "page": "parts"
+  },
+  "SiteHeader.dc.html": {
+   "x": 672,
+   "y": 0,
+   "w": 1440,
+   "h": 80,
+   "title": "Site header",
+   "page": "parts"
+  },
+  "SiteFooter.dc.html": {
+   "x": 672,
+   "y": 1120,
+   "w": 1440,
+   "h": 360,
+   "title": "Site footer",
+   "page": "parts"
+  },
+  "Report-Safe.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1400,
+   "title": "M3 Report: safe",
+   "page": "app"
+  },
+  "Report-Running.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1000,
+   "title": "M3 Report: running",
+   "page": "app"
+  },
+  "Report-Partial.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1200,
+   "title": "M3 Report: partial and failed",
+   "page": "app"
+  },
+  "Report-Invoice.dc.html": {
+   "x": 0,
+   "y": 2320,
+   "w": 1440,
+   "h": 1800,
+   "title": "M3 Report: invoice bank change",
+   "page": "app"
+  },
+  "Report-Counterparty.dc.html": {
+   "x": 1520,
+   "y": 2320,
+   "w": 1440,
+   "h": 1400,
+   "title": "M3 Report: counterparty impersonation",
+   "page": "app"
+  },
+  "Report-Voice.dc.html": {
+   "x": 3040,
+   "y": 2320,
+   "w": 1440,
+   "h": 1300,
+   "title": "M3 Report: voice note",
+   "page": "app"
+  },
+  "Report-Mobile.dc.html": {
+   "x": 4560,
+   "y": 2320,
+   "w": 390,
+   "h": 1900,
+   "title": "M3 Report: phone",
+   "page": "app"
+  },
+  "Cases.dc.html": {
+   "x": 0,
+   "y": 4340,
+   "w": 1440,
+   "h": 1200,
+   "title": "M1 Cases",
+   "page": "app"
+  },
+  "Cases-Empty.dc.html": {
+   "x": 1520,
+   "y": 4340,
+   "w": 1440,
+   "h": 900,
+   "title": "M1 Cases: first run",
+   "page": "app"
+  },
+  "Upload.dc.html": {
+   "x": 3040,
+   "y": 4340,
+   "w": 1440,
+   "h": 1000,
+   "title": "M2 Check a file",
+   "page": "app"
+  },
+  "Upload-States.dc.html": {
+   "x": 4560,
+   "y": 4340,
+   "w": 1440,
+   "h": 1000,
+   "title": "M2 Check a file: states",
+   "page": "app"
+  },
+  "Suppliers.dc.html": {
+   "x": 0,
+   "y": 5660,
+   "w": 1440,
+   "h": 1200,
+   "title": "M4 Supplier ledger",
+   "page": "app"
+  },
+  "Protect.dc.html": {
+   "x": 1520,
+   "y": 5660,
+   "w": 1440,
+   "h": 2000,
+   "title": "M5 Protected identity",
+   "page": "app"
+  },
+  "Monitor.dc.html": {
+   "x": 3040,
+   "y": 5660,
+   "w": 1440,
+   "h": 1200,
+   "title": "M6 Impersonation monitor",
+   "page": "app"
+  },
+  "Team.dc.html": {
+   "x": 4560,
+   "y": 5660,
+   "w": 1440,
+   "h": 1000,
+   "title": "M7 Team",
+   "page": "app"
+  },
+  "Domains.dc.html": {
+   "x": 0,
+   "y": 7780,
+   "w": 1440,
+   "h": 1100,
+   "title": "M8 Domains and addresses",
+   "page": "app"
+  },
+  "Account.dc.html": {
+   "x": 1520,
+   "y": 7780,
+   "w": 1440,
+   "h": 1100,
+   "title": "M9 Account",
+   "page": "app"
+  },
+  "Plan.dc.html": {
+   "x": 3040,
+   "y": 7780,
+   "w": 1440,
+   "h": 1100,
+   "title": "M10 Plan",
+   "page": "app"
+  },
+  "Signin.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "A1 Sign in",
+   "page": "signin"
+  },
+  "Signin-States.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "A1 Sign in: states",
+   "page": "signin"
+  },
+  "Signup.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1000,
+   "title": "A2 Sign up",
+   "page": "signin"
+  },
+  "Invite.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "A3 Accept invitation",
+   "page": "signin"
+  },
+  "Welcome.dc.html": {
+   "x": 0,
+   "y": 1120,
+   "w": 1440,
+   "h": 1100,
+   "title": "A4 Onboarding",
+   "page": "signin"
+  },
+  "Verify-Domain.dc.html": {
+   "x": 1520,
+   "y": 1120,
+   "w": 1440,
+   "h": 1100,
+   "title": "A5 Verify a domain",
+   "page": "signin"
+  },
+  "Verify-Protected.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1200,
+   "title": "T1 Verify: protected",
+   "page": "trust"
+  },
+  "Verify-NotProtected.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "T1 Verify: not protected",
+   "page": "trust"
+  },
+  "Verify-Foreign.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1200,
+   "title": "T1 Verify: arrived from a lookalike",
+   "page": "trust"
+  },
+  "Verify-Mobile.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 390,
+   "h": 1500,
+   "title": "T1 Verify: phone",
+   "page": "trust"
+  },
+  "Seal-Frames.dc.html": {
+   "x": 0,
+   "y": 1620,
+   "w": 1440,
+   "h": 760,
+   "title": "T2 Website seal",
+   "page": "trust"
+  },
+  "Badges.dc.html": {
+   "x": 1520,
+   "y": 1620,
+   "w": 1440,
+   "h": 760,
+   "title": "T3 Signature badge",
+   "page": "trust"
+  },
+  "Admin-Overview.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1560,
+   "title": "X1 Admin overview",
+   "page": "admin"
+  },
+  "Admin-Org.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1400,
+   "title": "X2 Organisation detail",
+   "page": "admin"
+  },
+  "Admin-Invites.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1000,
+   "title": "X3 Invite codes",
+   "page": "admin"
+  },
+  "Admin-Feedback.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1100,
+   "title": "X4 Feedback queue",
+   "page": "admin"
+  },
+  "Admin-Eval.dc.html": {
+   "x": 0,
+   "y": 1680,
+   "w": 1440,
+   "h": 1300,
+   "title": "X5 Eval runs",
+   "page": "admin"
+  },
+  "Error-404.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 960,
+   "h": 640,
+   "title": "E1 Not found",
+   "page": "errors"
+  },
+  "Error-410.dc.html": {
+   "x": 1040,
+   "y": 0,
+   "w": 960,
+   "h": 640,
+   "title": "E2 Link expired",
+   "page": "errors"
+  },
+  "Error-403.dc.html": {
+   "x": 2080,
+   "y": 0,
+   "w": 960,
+   "h": 640,
+   "title": "E3 No access",
+   "page": "errors"
+  },
+  "Error-429.dc.html": {
+   "x": 3120,
+   "y": 0,
+   "w": 960,
+   "h": 640,
+   "title": "E4 Slow down",
+   "page": "errors"
+  },
+  "Error-500.dc.html": {
+   "x": 0,
+   "y": 760,
+   "w": 960,
+   "h": 640,
+   "title": "E5 Something broke",
+   "page": "errors"
+  },
+  "Error-Maintenance.dc.html": {
+   "x": 1040,
+   "y": 760,
+   "w": 960,
+   "h": 640,
+   "title": "E6 Maintenance",
+   "page": "errors"
+  },
+  "Site-404.dc.html": {
+   "x": 2080,
+   "y": 760,
+   "w": 960,
+   "h": 640,
+   "title": "S11 Site not found",
+   "page": "errors"
+  },
+  "Home.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 5400,
+   "title": "S1 Home",
+   "page": "site"
+  },
+  "Home-Mobile.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 390,
+   "h": 5600,
+   "title": "S1 Home: phone",
+   "page": "site"
+  },
+  "How.dc.html": {
+   "x": 1990,
+   "y": 0,
+   "w": 1440,
+   "h": 2800,
+   "title": "S2 How it works",
+   "page": "site"
+  },
+  "InvoiceFraud.dc.html": {
+   "x": 3510,
+   "y": 0,
+   "w": 1440,
+   "h": 2800,
+   "title": "S3 Invoice fraud",
+   "page": "site"
+  },
+  "ProtectSite.dc.html": {
+   "x": 5030,
+   "y": 0,
+   "w": 1440,
+   "h": 3000,
+   "title": "S4 Protect your business",
+   "page": "site"
+  },
+  "Pricing.dc.html": {
+   "x": 0,
+   "y": 5720,
+   "w": 1440,
+   "h": 2000,
+   "title": "S5 Pricing",
+   "page": "site"
+  },
+  "Privacy.dc.html": {
+   "x": 1990,
+   "y": 5720,
+   "w": 1440,
+   "h": 2400,
+   "title": "S6 Privacy and POPIA",
+   "page": "site"
+  },
+  "Terms.dc.html": {
+   "x": 3510,
+   "y": 5720,
+   "w": 1440,
+   "h": 2000,
+   "title": "S7 Terms",
+   "page": "site"
+  },
+  "Security.dc.html": {
+   "x": 5030,
+   "y": 5720,
+   "w": 1440,
+   "h": 2000,
+   "title": "S8 Security",
+   "page": "site"
+  },
+  "About.dc.html": {
+   "x": 0,
+   "y": 8240,
+   "w": 1440,
+   "h": 1800,
+   "title": "S9 About and contact",
+   "page": "site"
+  },
+  "Results.dc.html": {
+   "x": 1990,
+   "y": 8240,
+   "w": 1440,
+   "h": 2200,
+   "title": "S10 Results",
+   "page": "site"
+  },
+  "Email-Reply.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 760,
+   "h": 1520,
+   "title": "N1 Verdict reply",
+   "page": "email"
+  },
+  "Email-Reply-Counterparty.dc.html": {
+   "x": 840,
+   "y": 0,
+   "w": 760,
+   "h": 1720,
+   "title": "N1 Verdict reply: counterparty",
+   "page": "email"
+  },
+  "Email-Signin.dc.html": {
+   "x": 1680,
+   "y": 0,
+   "w": 760,
+   "h": 800,
+   "title": "N2 Sign-in link",
+   "page": "email"
+  },
+  "Email-Invite.dc.html": {
+   "x": 2520,
+   "y": 0,
+   "w": 760,
+   "h": 900,
+   "title": "N3 Invitation",
+   "page": "email"
+  },
+  "Email-DomainCode.dc.html": {
+   "x": 3360,
+   "y": 0,
+   "w": 760,
+   "h": 920,
+   "title": "N4 Domain verification code",
+   "page": "email"
+  },
+  "Email-VerifyRequest.dc.html": {
+   "x": 0,
+   "y": 1840,
+   "w": 760,
+   "h": 1200,
+   "title": "N5 Bank verification request",
+   "page": "email"
+  },
+  "Email-Impersonation.dc.html": {
+   "x": 840,
+   "y": 1840,
+   "w": 760,
+   "h": 1380,
+   "title": "N6 Impersonation alert",
+   "page": "email"
+  },
+  "Email-Monitor.dc.html": {
+   "x": 1680,
+   "y": 1840,
+   "w": 760,
+   "h": 1780,
+   "title": "N7 Monitor alert",
+   "page": "email"
+  },
+  "Email-Cap.dc.html": {
+   "x": 2520,
+   "y": 1840,
+   "w": 760,
+   "h": 980,
+   "title": "N8 Daily limit reached",
+   "page": "email"
+  },
+  "Email-Operator.dc.html": {
+   "x": 3360,
+   "y": 1840,
+   "w": 760,
+   "h": 1080,
+   "title": "N9 Operator notice: budget cap",
+   "page": "email"
+  },
+  "Site-500.dc.html": {
+   "x": 3120,
+   "y": 760,
+   "w": 960,
+   "h": 640,
+   "title": "S11 Site error",
+   "page": "errors"
+  },
+  "Email-Operator-Feedback.dc.html": {
+   "x": 4200,
+   "y": 1840,
+   "w": 760,
+   "h": 1080,
+   "title": "N9 Operator notice: feedback",
+   "page": "email"
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "AppNav.dc.html",
+  "AdminNav.dc.html",
+  "SiteHeader.dc.html",
+  "SiteFooter.dc.html",
+  "Report-Safe.dc.html",
+  "Report-Running.dc.html",
+  "Report-Partial.dc.html",
+  "Report-Invoice.dc.html",
+  "Report-Counterparty.dc.html",
+  "Report-Voice.dc.html",
+  "Report-Mobile.dc.html",
+  "Cases.dc.html",
+  "Cases-Empty.dc.html",
+  "Upload.dc.html",
+  "Upload-States.dc.html",
+  "Suppliers.dc.html",
+  "Protect.dc.html",
+  "Monitor.dc.html",
+  "Team.dc.html",
+  "Domains.dc.html",
+  "Account.dc.html",
+  "Plan.dc.html",
+  "Signin.dc.html",
+  "Signin-States.dc.html",
+  "Signup.dc.html",
+  "Invite.dc.html",
+  "Welcome.dc.html",
+  "Verify-Domain.dc.html",
+  "Verify-Protected.dc.html",
+  "Verify-NotProtected.dc.html",
+  "Verify-Foreign.dc.html",
+  "Verify-Mobile.dc.html",
+  "Seal-Frames.dc.html",
+  "Badges.dc.html",
+  "Admin-Overview.dc.html",
+  "Admin-Org.dc.html",
+  "Admin-Invites.dc.html",
+  "Admin-Feedback.dc.html",
+  "Admin-Eval.dc.html",
+  "Error-404.dc.html",
+  "Error-410.dc.html",
+  "Error-403.dc.html",
+  "Error-429.dc.html",
+  "Error-500.dc.html",
+  "Error-Maintenance.dc.html",
+  "Site-404.dc.html",
+  "Site-500.dc.html",
+  "Home.dc.html",
+  "Home-Mobile.dc.html",
+  "How.dc.html",
+  "InvoiceFraud.dc.html",
+  "ProtectSite.dc.html",
+  "Pricing.dc.html",
+  "Privacy.dc.html",
+  "Terms.dc.html",
+  "Security.dc.html",
+  "About.dc.html",
+  "Results.dc.html",
+  "Email-Reply.dc.html",
+  "Email-Reply-Counterparty.dc.html",
+  "Email-Signin.dc.html",
+  "Email-Invite.dc.html",
+  "Email-DomainCode.dc.html",
+  "Email-VerifyRequest.dc.html",
+  "Email-Impersonation.dc.html",
+  "Email-Monitor.dc.html",
+  "Email-Cap.dc.html",
+  "Email-Operator.dc.html",
+  "Email-Operator-Feedback.dc.html"
+ ],
+ "notes": {},
+ "designSystems": []
+}

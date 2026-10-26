@@ -1,0 +1,151 @@
+{
+ "$comment": "IsItLegit type tokens (design/SPEC.md). Exo for headings and figures, Exo 2 for text. Board sizes between scale steps round to the nearest step (at most 2 px away).",
+ "families": {
+  "heading": "Exo",
+  "text": "Exo 2",
+  "mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+ },
+ "weights": {
+  "text": 400,
+  "text-medium": 500,
+  "text-strong": 600,
+  "heading-semibold": 600,
+  "heading": 700,
+  "heading-strong": 800,
+  "display": 900
+ },
+ "scale": [
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  20,
+  22,
+  24,
+  28,
+  32,
+  36,
+  40,
+  44,
+  48,
+  52,
+  56,
+  64
+ ],
+ "roles": {
+  "display": {
+   "family": "heading",
+   "size": 64,
+   "line": 1.04,
+   "weight": 900,
+   "tracking": "-0.02em"
+  },
+  "h1": {
+   "family": "heading",
+   "size": 40,
+   "line": 1.15,
+   "weight": 800,
+   "tracking": "-0.01em"
+  },
+  "h2": {
+   "family": "heading",
+   "size": 28,
+   "line": 1.2,
+   "weight": 800,
+   "tracking": "-0.01em"
+  },
+  "h3": {
+   "family": "heading",
+   "size": 20,
+   "line": 1.3,
+   "weight": 700,
+   "tracking": "-0.01em"
+  },
+  "h4": {
+   "family": "heading",
+   "size": 16,
+   "line": 1.4,
+   "weight": 700,
+   "tracking": "-0.01em"
+  },
+  "body": {
+   "family": "text",
+   "size": 16,
+   "line": 1.5,
+   "weight": 400
+  },
+  "small": {
+   "family": "text",
+   "size": 14,
+   "line": 1.5,
+   "weight": 400
+  },
+  "tiny": {
+   "family": "text",
+   "size": 13,
+   "line": 1.5,
+   "weight": 400
+  },
+  "label": {
+   "family": "text",
+   "size": 14,
+   "line": 1.5,
+   "weight": 600
+  },
+  "button": {
+   "family": "text",
+   "size": 16,
+   "line": 1,
+   "weight": 600
+  },
+  "button-small": {
+   "family": "text",
+   "size": 14,
+   "line": 1,
+   "weight": 600
+  },
+  "pill": {
+   "family": "text",
+   "size": 13,
+   "line": 1,
+   "weight": 700
+  },
+  "table": {
+   "family": "text",
+   "size": 15,
+   "line": 1.5,
+   "weight": 400
+  },
+  "table-header": {
+   "family": "text",
+   "size": 13,
+   "line": 1.5,
+   "weight": 700
+  },
+  "eyebrow": {
+   "family": "text",
+   "size": 13,
+   "line": 1.5,
+   "weight": 700,
+   "tracking": "0.1em",
+   "case": "uppercase"
+  },
+  "mono": {
+   "family": "mono",
+   "size": 14,
+   "line": 1.5,
+   "weight": 400
+  },
+  "figure": {
+   "family": "heading",
+   "size": 32,
+   "line": 1.1,
+   "weight": 800,
+   "tracking": "-0.02em",
+   "numeric": "tabular-nums"
+  }
+ }
+}

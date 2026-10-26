@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Verify: from a lookalike</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1200px; background: #F8F8F9; font-family: 'Exo 2', sans-serif; color: #181519; display: flex; flex-direction: column; align-items: center">
+  <header style="width: 100%; box-sizing: border-box; height: 72px; padding: 0 120px; display: flex; align-items: center; justify-content: space-between; background: #FFFFFF; border-bottom: 1px solid #E3E2E6">
+    <a href="Home.dc.html"><img src="../../brand/logo-svg/isitlegit-logo.svg" alt="IsItLegit home" style="height: 28px; display: block"></a>
+    <span class="small muted">You are on isitlegit.co.za</span>
+  </header>
+  <main style="width: 880px; padding: 56px 0; display: flex; flex-direction: column; gap: 28px">
+    <section class="band band-mal" role="alert" style="align-items: flex-start">
+      <span style="width: 88px; height: 88px; border-radius: 16px; background: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/malicious.svg" alt="" style="width: 72px; height: 72px"></span>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <p style="font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase">Stop: wrong website</p>
+        <h1 style="font-size: 34px; line-height: 1.2; color: #FFFFFF">The website you came from is not Fynbos Freight's.</h1>
+        <p style="font-size: 17px">You followed a link from <strong class="mono" style="font-size: 17px; background: #FFFFFF; color: #C8102E; padding: 2px 8px; border-radius: 6px">fynbos-freight-payments.example</strong>. Fynbos Freight does not own that site. Do not enter a password, card or bank details there, and do not pay any invoice it shows you.</p>
+      </div>
+    </section>
+
+    <section class="card card-pad" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <p class="small muted">You came from</p>
+        <p class="mono" style="font-size: 18px; font-weight: 700; padding: 10px 16px; border-radius: 10px; background: #FCE9EC; color: #C8102E; align-self: flex-start">fynbos-freight-payments.example</p>
+        <p class="tiny muted">Not registered to Fynbos Freight</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <p class="small muted">Fynbos Freight's real websites and email</p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap"><span class="mono" style="font-size: 18px; font-weight: 700; padding: 10px 16px; border-radius: 10px; background: #E8F5EF; color: #0E7C5B">fynbosfreight.example</span></div>
+        <p class="tiny muted">Verified by IsItLegit on 12 Oct 2026</p>
+      </div>
+    </section>
+
+    <section class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="font-size: 22px">What to do now</h2>
+      <ol style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 17px">
+        <li>Close the other website. If you typed a password there, change it now.</li>
+        <li>If it asked you to pay, phone Fynbos Freight on a number from your own records, not one from that site.</li>
+        <li>If an email sent you there, forward it as an attachment to <span class="mono" style="font-weight: 700">check@isitlegit.co.za</span> for the full evidence.</li>
+      </ol>
+    </section>
+
+    <section class="panel" style="padding: 20px 24px; display: flex; gap: 16px; align-items: center">
+      <img src="../../brand/logo-svg/isitlegit-seal-protected.svg" alt="" style="width: 56px; height: 56px; opacity: 0.9">
+      <p class="small">We have told Fynbos Freight that a copy of their seal was used on another website, so they can warn their customers. You do not need to do anything else.</p>
+    </section>
+
+    <p class="small muted" style="text-align: center">This page never shows bank details or contact people.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

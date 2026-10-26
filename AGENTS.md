@@ -13,7 +13,9 @@ IsItLegit (`isitlegit.co.za`) is Rizonetech's phishing, invoice-fraud and impers
 | `docs/plans/2026-10-26-phishing-invoice-analyser.md` | Day-by-day build plan the TODO tree executes |
 | `docs/manifesto.md` | Derick's manifesto: the quality bar every change is held to |
 | `docs/hackathon-criteria.md` | The event rules and judging criteria as checks: apply them to every section, commit and demo decision |
-| `design/SPEC.md` | Interface source of truth once written (report, dashboard, site) |
+| `design/SPEC.md` | Interface source of truth: every page, its controls and states, linked to its approved board |
+| `design/mockups/` | Approved boards: `png/` to look at, `source/` for exact values, `coverage.json` for required controls and states |
+| `design/tokens/` | Colour (both themes, tested contrast), type and spacing tokens |
 | `todo/` | Live execution plan (`README.md`, generated plan) |
 | `src/`, `site/`, `test/`, `eval/` | Worker, Astro site, tests, eval harness (layout: stack doc) |
 | `scripts/` | TODO graph, review dispatch, run guard; stdlib Python |
@@ -77,6 +79,7 @@ Review lenses read against these sources: `adversarial` covers hostile mail, pro
 ## Interface rules
 
 - `design/SPEC.md` wins over any screenshot, mockup or memory once it exists; until then the report, dashboard and site follow the design spec section 4.7 and the Rizonetech brand: Exo / Exo 2, orange `#FF4A14`, colours only from tokens.
+- Build every surface to its approved board (operator approval 2026-10-26): the PNG in `design/mockups/png/` shows the target, the source in `design/mockups/source/` gives exact values, and `design/mockups/coverage.json` names each control and state the page must have or the section that owns it. Values come from `design/tokens/`; a board value between two token steps is built as the nearest step. A board change goes back to the operator, then `design/tools/export-mockups.py import --approve` and `export`, and `design/tools/check-design.py` must pass.
 - Plain language first: a verdict, the top three reasons, what to do now. Evidence cards carry their screenshot, crop or header excerpt.
 - Every page works at phone width; every icon-only control has an accessible name.
 

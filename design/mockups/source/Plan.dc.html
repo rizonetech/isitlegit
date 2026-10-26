@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}.dcmain>*{flex-shrink:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1100px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="plan" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main class="dcmain" style="flex: 1; min-width: 0; padding: 32px 56px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center; gap: 24px">
+      <div><h1 style="font-size: 32px">Plan</h1><p class="small muted">Free during launch. No card, no billing.</p></div>
+      <div style="display: flex; gap: 10px; align-items: center"></div>
+    </header>
+
+    <section class="card card-pad" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: center" aria-label="Trial">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span class="pill pill-running" style="align-self: flex-start">Protect trial</span>
+        <h2 style="font-size: 26px">11 days left of your 14-day trial</h2>
+        <p class="muted">Everything in Protect is switched on until Fri 7 Nov 2026. After that Karoo Couriers keeps free checks; we will ask before anything is charged.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; justify-content: space-between"><p class="small" style="font-weight: 600">Trial used</p><p class="small">3 of 14 days</p></div>
+        <div style="height: 10px; border-radius: 6px; background: #F1F1F2"><div style="width: 21%; height: 10px; border-radius: 6px; background: #CC2E00"></div></div>
+      </div>
+    </section>
+
+    <section class="card card-pad" style="display: flex; flex-direction: column; gap: 14px" aria-label="Daily limit">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><h3>Today's checks</h3><p class="small muted">Resets at midnight SAST</p></div>
+      <div style="display: flex; justify-content: space-between"><p class="small" style="font-weight: 600">27 of 50 checks used</p><p class="small muted">23 left today</p></div>
+      <div style="height: 10px; border-radius: 6px; background: #F1F1F2"><div style="width: 54%; height: 10px; border-radius: 6px; background: #181519"></div></div>
+      <p class="hint">The daily limit keeps the launch free for everyone. When it is reached, forwarded mail gets a short reply saying when checking resumes. Need more? <a href="mailto:hello@isitlegit.co.za">Tell us</a>.</p>
+    </section>
+
+    <section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px" aria-label="Launch prices">
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>Free check</h3>
+        <p><span class="num" style="font-size: 32px">R0</span></p>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px" class="small">
+          <li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Verdicts on forwarded mail</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>See whether a business is Protected</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Up to 5 checks a day</span></li>
+        </ul>
+      </article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 14px; border: 2px solid #181519">
+        <div style="display: flex; justify-content: space-between; align-items: center"><h3>Protect</h3><span class="pill pill-running">Your trial</span></div>
+        <p><span class="num" style="font-size: 32px">from R499</span> <span class="small muted">per month</span></p>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px" class="small">
+          <li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Protected identity, signature badge and website seal</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Impersonation alerts</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Staff inbox checks</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Invoice bank-change detection and supplier ledger</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Closed-loop bank verification</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Impersonation monitor for fake websites</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Payment document check</span></li>
+        </ul>
+      </article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>MSP</h3>
+        <p><span class="num" style="font-size: 32px">from R199</span> <span class="small muted">per client per month</span></p>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px" class="small">
+          <li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>For IT providers</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Protect for every client</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>One console for all clients</span></li><li style="display: flex; gap: 10px"><span style="color: #0E7C5B; flex-shrink: 0; margin-top: 3px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span><span>Your own branding</span></li>
+        </ul>
+      </article>
+    </section>
+    <p class="small muted">Launch prices, shown so you know what comes next. Nothing is billed during the launch.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Verify a domain</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}.dcmain>*{flex-shrink:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1100px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="domains" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main class="dcmain" style="flex: 1; min-width: 0; padding: 32px 56px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+
+    <nav aria-label="Breadcrumb" class="small muted" style="display: flex; gap: 8px"><a href="Domains.dc.html" style="color: #4D4953">Domains and addresses</a><span aria-hidden="true">/</span><span>Verify kcexpress.example</span></nav>
+    <header style="display: flex; justify-content: space-between; align-items: flex-start; gap: 24px">
+      <div style="display: flex; flex-direction: column; gap: 6px"><h1 style="font-size: 32px">Prove you own kcexpress.example</h1><p class="muted">Until you do, mail from this domain is not accepted at check@ for Karoo Couriers. Choose one way.</p></div>
+      <span class="pill pill-sus">Pending</span>
+    </header>
+
+    <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 24px; align-items: start">
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 18px" aria-label="DNS record">
+        <div style="display: flex; gap: 12px; align-items: center"><span class="pill pill-neutral">Option 1 · recommended</span><h3>Add a DNS TXT record</h3></div>
+        <p class="small muted">In your domain's DNS settings (for example at your registrar or Cloudflare), add this record. It changes nothing about your website or mail.</p>
+        <table class="table" style="border: 1px solid #E3E2E6; border-radius: 12px; overflow: hidden">
+          <tbody>
+            <tr><td class="small muted" style="width: 90px">Type</td><td class="mono" style="font-weight: 700">TXT</td><td style="width: 90px"></td></tr>
+            <tr><td class="small muted">Name</td><td class="mono" style="font-weight: 700">_isitlegit.kcexpress.example</td><td><button class="btn btn-ghost btn-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>Copy</button></td></tr>
+            <tr><td class="small muted">Value</td><td class="mono" style="font-weight: 700">isitlegit-verify=7f3c9a1e52d84b06</td><td><button class="btn btn-ghost btn-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>Copy</button></td></tr>
+          </tbody>
+        </table>
+        <div style="display: flex; gap: 12px; align-items: center"><button class="btn btn-dark">Check now</button><p class="small muted">Last checked 14:05 SAST: record not found yet. New records can take a few minutes to appear.</p></div>
+      </section>
+
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 16px" aria-label="Emailed code">
+        <div style="display: flex; gap: 12px; align-items: center"><span class="pill pill-neutral">Option 2</span><h3>Get a code by email</h3></div>
+        <p class="small muted">No access to DNS? We email a code to an address only the domain's owner should read.</p>
+        <fieldset style="border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px">
+          <legend class="label" style="margin-bottom: 6px">Send the code to</legend>
+          <label class="checkbox"><input type="radio" name="to" checked><span class="mono">admin@kcexpress.example</span></label>
+          <label class="checkbox"><input type="radio" name="to"><span class="mono">postmaster@kcexpress.example</span></label>
+        </fieldset>
+        <button class="btn btn-ghost btn-sm" style="align-self: flex-start">Send code</button>
+        <div class="field"><label class="label" for="vc">Code from the email</label><input id="vc" class="input input-error mono" value="48 21 07" aria-invalid="true" aria-describedby="vc-err"><span id="vc-err" class="error-text">That code is not right. 2 tries left before this is locked for an hour.</span></div>
+        <button class="btn btn-primary btn-sm" style="align-self: flex-start">Verify</button>
+      </section>
+    </div>
+
+    <section aria-label="Other states" style="display: flex; flex-direction: column; gap: 12px">
+      <p class="tiny muted" style="font-weight: 700; letter-spacing: .08em; text-transform: uppercase">Other states of this page</p>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+        <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+          <span class="pill pill-safe" style="align-self: flex-start">Verified</span>
+          <p class="small" style="font-weight: 700">kcexpress.example is verified</p>
+          <p class="small muted">Mail from this domain is now accepted at check@, and you can add it to your protected identity. Checked by DNS at 14:12 SAST.</p>
+        </div>
+        <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+          <span class="pill pill-mal" style="align-self: flex-start">Failed</span>
+          <p class="small" style="font-weight: 700">We found a different record</p>
+          <p class="small muted">_isitlegit.kcexpress.example holds isitlegit-verify=0b19... which is not your code. Replace it with the value above and check again.</p>
+        </div>
+        <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+          <span class="pill pill-partial" style="align-self: flex-start">Locked</span>
+          <p class="small" style="font-weight: 700">Code entry is locked until 15:14 SAST</p>
+          <p class="small muted">Three wrong codes in a row. You can still verify with the DNS record at any time.</p>
+        </div>
+      </div>
+    </section>
+    <p class="tiny muted">Sample data on a fictional company.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

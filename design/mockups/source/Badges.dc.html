@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Signature badge</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 760px; box-sizing: border-box; padding: 48px 64px; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519; display: flex; flex-direction: column; gap: 28px">
+  <header style="display: flex; justify-content: space-between; align-items: flex-end">
+    <div style="display: flex; flex-direction: column; gap: 6px"><p class="eyebrow">T3 · /b/fynbos-freight.png</p><h1 style="font-size: 30px">Signature badge: a live image, not a page</h1></div>
+    <p class="small muted" style="max-width: 480px">Drawn fresh for every request, so a lapsed business shows Not verified even in signatures sent months ago. The badge proves nothing alone: the proof is the message's own DKIM, SPF and DMARC, checked when someone forwards it.</p>
+  </header>
+  <div style="display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 32px; flex: 1">
+    <div style="display: flex; flex-direction: column; gap: 20px">
+      <div class="panel" style="padding: 24px; display: flex; flex-direction: column; gap: 14px">
+        <span class="pill pill-safe" style="align-self: flex-start">Protected</span>
+        <img src="../../brand/logo-svg/isitlegit-badge-protected.svg" alt="Protected by IsItLegit badge" style="height: 52px; align-self: flex-start">
+        <img src="../../brand/logo-svg/isitlegit-badge-protected.svg" alt="Protected by IsItLegit badge, small" style="height: 36px; align-self: flex-start">
+        <p class="tiny muted">Two heights: 52 px and 36 px, both 2x for sharp screens</p>
+      </div>
+      <div class="panel" style="padding: 24px; display: flex; flex-direction: column; gap: 14px">
+        <span class="pill pill-partial" style="align-self: flex-start">Lapsed or unknown</span>
+        <span style="align-self: flex-start; height: 52px; box-sizing: border-box; padding: 0 18px 0 8px; border-radius: 26px; border: 2px solid #4A4750; background: #FFFFFF; display: inline-flex; align-items: center; gap: 10px">
+          <img src="../../brand/motion/question.svg" alt="" style="width: 38px; height: 38px">
+          <span style="display: flex; flex-direction: column; line-height: 1.1"><span style="font-family: 'Exo', sans-serif; font-weight: 800; font-size: 16px; color: #4A4750">NOT VERIFIED</span><span style="font-size: 11px; color: #4D4953">by IsItLegit</span></span>
+        </span>
+        <p class="tiny muted">Grey, never red: we do not accuse a lapsed business, we just stop vouching</p>
+      </div>
+    </div>
+    <div class="card" style="overflow: hidden; display: flex; flex-direction: column">
+      <div style="padding: 14px 20px; border-bottom: 1px solid #E3E2E6; display: flex; flex-direction: column; gap: 4px; background: #F8F8F9">
+        <p class="small"><strong>Statement for October</strong></p>
+        <p class="tiny muted">From Lerato Dlamini &lt;accounts@fynbosfreight.example&gt; · To Karoo Couriers</p>
+      </div>
+      <div style="padding: 24px; display: flex; flex-direction: column; gap: 18px; flex: 1">
+        <p class="small">Good day,</p>
+        <p class="small">Please find our October statement attached. Our banking details have not changed.</p>
+        <div style="border-top: 1px solid #E3E2E6; padding-top: 16px; display: flex; flex-direction: column; gap: 4px">
+          <p class="small" style="font-weight: 700">Lerato Dlamini</p>
+          <p class="tiny muted">Accounts · Fynbos Freight (Pty) Ltd · Mossel Bay</p>
+          <a href="Verify-Protected.dc.html" style="margin-top: 10px; align-self: flex-start"><img src="../../brand/logo-svg/isitlegit-badge-protected.svg" alt="Protected by IsItLegit: click to verify" style="height: 36px; display: block"></a>
+        </div>
+        <div class="panel" style="margin-top: auto; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start">
+          <span class="pill pill-mal" style="flex-shrink: 0">If copied</span>
+          <p class="small">Paste this badge into a fake mail from fynbos-freight.example and the forward fails DMARC against the registered domain. The checker gets an impersonation verdict, and Fynbos Freight gets an alert.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":760}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

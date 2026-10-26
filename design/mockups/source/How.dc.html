@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How it works</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .prose p{font-size:17px;line-height:1.65;color:var(--ink-2)} .prose h2{font-size:26px;margin-top:8px} .prose ul{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:17px;line-height:1.6;color:var(--ink-2)}</style>
+</helmet>
+<div style="width: 1440px; min-height: 2800px; background: var(--white); font-family: 'Exo 2', sans-serif; color: var(--ink); display: flex; flex-direction: column">
+  <dc-import name="SiteHeader" hint-size="1440px,80px"></dc-import>
+  <section style="padding: 88px 120px 72px; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 64px; align-items: center">
+    <div style="display: flex; flex-direction: column; gap: 24px">
+      <p class="eyebrow">How it works</p>
+      <h1 style="font-size: 56px; line-height: 1.06; font-weight: 900">How does IsItLegit check an email?</h1>
+      <p style="font-size: 21px; line-height: 1.5; color: var(--ink-2)">Forward it as an attachment to <strong style="color: var(--ink)">check@isitlegit.co.za</strong>. We run eight checks and four Meta models over it, and in about a minute you get a verdict by email with the evidence behind every reason.</p>
+      <p class="small muted">By Derick Payne, Rizonetech · Reviewed 26 Oct 2026</p>
+    </div>
+    <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow)">
+      <div style="display: flex; align-items: center; gap: 12px"><span class="num" style="font-size: 28px; color: var(--orange-text)">01</span><p style="font-weight: 700">You forward the email as an attachment</p></div>
+      <div class="divider"></div>
+      <div style="display: flex; align-items: center; gap: 12px"><span class="num" style="font-size: 28px; color: var(--orange-text)">02</span><p style="font-weight: 700">We investigate the sender, links, attachments and pictures</p></div>
+      <div class="divider"></div>
+      <div style="display: flex; align-items: center; gap: 12px"><span class="num" style="font-size: 28px; color: var(--orange-text)">03</span><p style="font-weight: 700">You get safe, suspicious or malicious, with proof</p></div>
+    </div>
+  </section>
+
+  <section style="padding: 72px 120px; background: var(--subtle); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 36px">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 820px">
+      <h2 style="font-size: 36px">Why forward as an attachment?</h2>
+      <p style="font-size: 18px; color: var(--ink-2)">A normal forward throws away the original headers, and the headers are where your own mail server recorded whether the sender is who they claim. Forwarding as an attachment keeps them. A normal forward still gets checked, but with less confidence, and the reply tells you how to send it properly next time.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>Outlook on Windows</h3>
+        <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; color: var(--ink-2)">
+          <li>Select the suspicious email in your inbox.</li>
+          <li>Press <span class="kbd">Ctrl</span> <span class="kbd">Alt</span> <span class="kbd">F</span>, or choose More, Forward as attachment.</li>
+          <li>Send it to check@isitlegit.co.za.</li>
+        </ol>
+      </article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>Outlook on the web and new Outlook</h3>
+        <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; color: var(--ink-2)">
+          <li>Open the email.</li>
+          <li>Choose More actions, then Forward, then Forward as attachment.</li>
+          <li>Send it to check@isitlegit.co.za.</li>
+        </ol>
+      </article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>Gmail</h3>
+        <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; color: var(--ink-2)">
+          <li>Tick the email in your inbox list.</li>
+          <li>Choose More, then Forward as attachment.</li>
+          <li>Send it to check@isitlegit.co.za.</li>
+        </ol>
+      </article>
+    </div>
+    <p class="small muted">Only mail from members' verified domains is accepted. Anything else gets no reply, so the address cannot be used to send spam. You can also <a href="Upload.dc.html">upload an .eml or .msg file</a>, a PDF or a voice note once you sign in.</p>
+  </section>
+
+  <section style="padding: 88px 120px; display: flex; flex-direction: column; gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 820px">
+      <h2 style="font-size: 36px">What happens to the email?</h2>
+      <p style="font-size: 18px; color: var(--ink-2)">Every step produces a piece of evidence. The verdict may only cite evidence that exists, so nothing in your report is a guess.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-neutral" style="flex-shrink: 0">Checks</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Who really sent it</h4><p class="small muted">SPF, DKIM and DMARC as recorded by your own mail server, display name tricks, a different Reply-To, and whether anyone at your business has heard from this sender before.</p></div></article>
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-neutral" style="flex-shrink: 0">Checks</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Lookalike domains and links</h4><p class="small muted">Swapped letters and added words, how old the domain is, where every link really lands, QR codes in images, and whether Google Web Risk lists the exact link.</p></div></article>
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-neutral" style="flex-shrink: 0">Checks</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Attachments and hidden text</h4><p class="small muted">Files pretending to be something else, HTML smuggling, macros, and words hidden from you but aimed at AI filters. An honest sender has no reason to hide words from the reader.</p></div></article>
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-running" style="flex-shrink: 0">Muse Spark</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Reads it the way you see it</h4><p class="small muted">The email, its PDFs and its landing pages are rendered as pictures. Muse Spark says which brand it claims to be, what it wants you to do and how hard it pushes.</p></div></article>
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-running" style="flex-shrink: 0">SAM 3.1</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Checks the logos</h4><p class="small muted">SAM 3.1 cuts out every logo, stamp and signature. Each crop is compared with the real brand's logo, or with the logo a protected business registered.</p></div></article>
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-running" style="flex-shrink: 0">Muse Wonder</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Walks the link for you</h4><p class="small muted">In a sealed browser, Muse Wonder clicks through the lure the way a victim would and types made-up test values, never real ones, to show where a password would have gone.</p></div></article>
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-running" style="flex-shrink: 0">Voice</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Listens to voice notes</h4><p class="small muted">Muse Voice Transcribe turns a voice note into text, then Muse Spark pulls out the request and who the caller claims to be. It supports English but not Afrikaans, isiZulu or isiXhosa yet, and we do not claim to detect voice cloning.</p></div></article>
+      <article class="card card-pad" style="display: flex; gap: 16px"><span class="pill pill-running" style="flex-shrink: 0">Verdict</span><div style="display: flex; flex-direction: column; gap: 6px"><h4>Weighs it and cites the proof</h4><p class="small muted">Muse Spark weighs all the evidence and writes the verdict. A changed bank account or a password form on a lookalike domain sets a floor the model cannot talk down.</p></div></article>
+    </div>
+  </section>
+
+  <section style="padding: 80px 120px; background: var(--ink); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 12px"><h3 style="color: var(--white)">What do you get back?</h3><p style="color: var(--light)">A reply to your forward with the verdict, the top three reasons and what to do now, plus a link to the full report. Report links are signed and expire after 7 days.</p></div>
+    <div style="display: flex; flex-direction: column; gap: 12px"><h3 style="color: var(--white)">How long do we keep it?</h3><p style="color: var(--light)">The email and its attachments are deleted after 30 days. The case summary and evidence stay so your history keeps working. <a href="Privacy.dc.html" style="color: var(--orange-on-dark)">Privacy and POPIA</a></p></div>
+    <div style="display: flex; flex-direction: column; gap: 12px"><h3 style="color: var(--white)">Does Meta keep my mail?</h3><p style="color: var(--light)">We call Meta's Model API with standard model IDs and <span class="mono" style="color: var(--white)">store: false</span> on every request, and never in the mode that allows training on what we send.</p></div>
+  </section>
+
+  <section style="padding: 88px 120px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+    <h2 style="font-size: 40px; max-width: 760px">Got one in your inbox right now? Forward it.</h2>
+    <p style="font-size: 18px; color: var(--ink-2)">Free during launch. Members join with an invite code.</p>
+    <div style="display: flex; gap: 12px"><a href="Signup.dc.html" class="btn btn-primary">Get started free</a><a href="InvoiceFraud.dc.html" class="btn btn-ghost">Read about invoice fraud</a></div>
+  </section>
+  <div style="margin-top: auto"><dc-import name="SiteFooter" hint-size="1440px,360px"></dc-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

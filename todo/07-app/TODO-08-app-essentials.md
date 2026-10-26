@@ -15,7 +15,7 @@ track: day-6
 
 ## Inputs
 
-- `design/SPEC.md` section 0 rows S11, A4, M9, M10, X2, X4, E1 to E6, N2 to N4, and their canvas boards; `design/brand/README.md`; `docs/manifesto.md` (Experience: every state designed, no raw errors).
+- `design/SPEC.md` section 0 rows S11, A4, M9, M10, X2, X4, E1 to E6, N2 to N4, and their boards in `design/mockups/`; `design/brand/README.md`; `docs/manifesto.md` (Experience: every state designed, no raw errors).
 
 ## Outcome
 
@@ -43,7 +43,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` E1 to E6 and S11 and their canvas boards
+**Fidelity:** `design/SPEC.md` E1 to E6 and S11 and their boards in `design/mockups/`
 **Job:** someone who hits a dead end knows what happened and what to do next
 **Treatment:** the question mark, one sentence, one way forward, the check@ address
 **Chrome:** `AppShell` and `ErrorState` from D07 T01 §3; the site layout for S11
@@ -67,7 +67,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` A4 and its canvas board
+**Fidelity:** `design/SPEC.md` A4 and its board in `design/mockups/`
 **Job:** a new member gets to their first real verdict in minutes
 **Treatment:** five steps, each with one action, progress shown, dismissible when done
 **Chrome:** `AppShell`, `Button`, `EmptyState` from D07 T01 §3
@@ -90,7 +90,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M9 and its canvas board
+**Fidelity:** `design/SPEC.md` M9 and its board in `design/mockups/`
 **Job:** a member manages how they sign in and stays in control of their sessions
 **Treatment:** a short settings page, destructive actions confirmed
 **Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3
@@ -112,7 +112,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M10 and its canvas board
+**Fidelity:** `design/SPEC.md` M10 and its board in `design/mockups/`
 **Job:** an owner sees what they have, what is coming, and how much they are using
 **Treatment:** plain status first, then the comparison, no checkout
 **Chrome:** `AppShell` from D07 T01 §3
@@ -133,7 +133,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` X2 and X4 and their canvas boards
+**Fidelity:** `design/SPEC.md` X2 and X4 and their boards in `design/mockups/`
 **Job:** the operator understands one client in depth and acts on every disputed verdict
 **Treatment:** dense, calm tables; links straight to the case
 **Chrome:** `AppShell` admin variant from D07 T01 §3
@@ -154,7 +154,7 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` N2 to N4 and their canvas boards
+**Fidelity:** `design/SPEC.md` N2 to N4 and their boards in `design/mockups/`
 **Job:** a person trusts and acts on a sign-in, invitation or verification email from IsItLegit
 **Treatment:** the logo, one sentence, one button, the plain link, the expiry
 **Chrome:** the email layout from D07 T03 §7

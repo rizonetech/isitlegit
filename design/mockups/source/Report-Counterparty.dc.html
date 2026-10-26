@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: counterparty impersonation</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1400px; background: #F8F8F9; font-family: 'Exo 2', sans-serif; color: #181519; display: flex; flex-direction: column; align-items: center">
+  <header style="width: 100%; box-sizing: border-box; height: 72px; padding: 0 120px; display: flex; align-items: center; justify-content: space-between; background: #FFFFFF; border-bottom: 1px solid #E3E2E6">
+    <a href="Home.dc.html"><img src="../../brand/logo-svg/isitlegit-logo.svg" alt="IsItLegit home" style="height: 28px; display: block"></a>
+    <span class="small muted">Report for a check sent to check@isitlegit.co.za · link valid for 7 days</span>
+  </header>
+
+  <main style="width: 1040px; padding: 48px 0 64px; display: flex; flex-direction: column; gap: 24px">
+    <header style="display: flex; flex-direction: column; gap: 8px">
+      <h1 style="font-size: 32px">Statement request</h1>
+      <p class="small muted">From <strong style="color: #181519">Fynbos Freight Accounts &lt;fynbosfreight.debtors@webmail.example&gt;</strong> · Checked for lerato@swartbergtransport.example · Mon 27 Oct 2026, 11:20</p>
+    </header>
+
+    <section class="band band-mal" aria-label="Verdict">
+      <span style="width: 88px; height: 88px; border-radius: 16px; background: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/malicious.svg" alt="" style="width: 72px; height: 72px"></span>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1">
+        <p style="font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase">Malicious · high confidence · impersonation</p>
+        <h2 style="font-size: 30px; line-height: 1.2">This email is not from Fynbos Freight.</h2>
+        <p style="font-size: 17px; opacity: 0.95">Fynbos Freight is protected by IsItLegit and never sends from this address.</p>
+      </div>
+    </section>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>What to do now</h3>
+        <ol style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 10px">
+          <li>Do not reply and do not send the statement.</li>
+          <li>If you need to reach Fynbos Freight, use the phone number or address you already have for them.</li>
+          <li>Delete the email.</li>
+        </ol>
+        <div style="display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 10px; background: #E8F5EF; color: #0E7C5B" class="small"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg><strong>We have told Fynbos Freight, so they can warn their other partners.</strong></div>
+      </section>
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>Why we say so</h3>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+          <li style="display: flex; gap: 10px"><a href="#e1" class="pill pill-mal" style="text-decoration: none">E1</a><span>Fynbos Freight only sends from <strong>fynbosfreight.example</strong>. This came from <strong>webmail.example</strong>.</span></li>
+          <li style="display: flex; gap: 10px"><a href="#e2" class="pill pill-mal" style="text-decoration: none">E2</a><span>The logo is Fynbos Freight's registered logo, copied into a mail they did not send.</span></li>
+          <li style="display: flex; gap: 10px"><a href="#e3" class="pill pill-sus" style="text-decoration: none">E3</a><span>It asks for your account statement, a common first step before invoice fraud.</span></li>
+        </ul>
+      </section>
+    </div>
+
+    <section style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px" aria-label="Evidence">
+      <article id="e1" class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-mal">E1 · Critical</span><h4>Not a registered address</h4></div>
+        <p class="small">Registered sending domains:</p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap"><span class="mono" style="padding: 4px 8px; border-radius: 6px; background: #E8F5EF; color: #0E7C5B">fynbosfreight.example</span><span class="mono" style="padding: 4px 8px; border-radius: 6px; background: #E8F5EF; color: #0E7C5B">mail.fynbosfreight.example</span></div>
+        <p class="small">This email: <span class="mono" style="color: #C8102E; font-weight: 700">webmail.example</span></p>
+      </article>
+      <article id="e2" class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-mal">E2 · High</span><h4>Registered logo, copied</h4></div>
+        <div style="display: flex; gap: 12px; align-items: center">
+          <div data-illustration style="width: 110px; height: 52px; border: 1px dashed #C2BFC7; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Exo', sans-serif; font-weight: 800; font-size: 12px; color: #2F6B4F">FYNBOS FREIGHT</div>
+          <span class="small muted">same as the logo Fynbos Freight registered</span>
+        </div>
+        <p class="tiny muted">SAM 3.1 crop compared by Muse Spark</p>
+      </article>
+      <article id="e3" class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-sus">E3 · Medium</span><h4>Asks for a statement</h4></div>
+        <p class="small">"Please send us the latest statement of account for our records before Friday."</p>
+        <p class="tiny muted">Muse Spark, request type: share information</p>
+      </article>
+    </section>
+
+    <section class="card" style="display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center; padding: 24px 28px" aria-label="Protected business">
+      <img src="../../brand/logo-svg/isitlegit-seal-protected.svg" alt="Protected by IsItLegit seal" style="width: 96px; height: 96px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h3>Fynbos Freight (Pty) Ltd is protected by IsItLegit</h3>
+        <p class="small muted">Identity verified 12 Oct 2026. Bank details and contact people are never shown to anyone who checks.</p>
+      </div>
+      <a href="Verify-Protected.dc.html" class="btn btn-ghost btn-sm">Their verify page</a>
+    </section>
+
+    <section style="background: #181519; color: #FFFFFF; border-radius: 16px; padding: 32px; display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center" aria-label="Protect your business">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <h3 style="color: #FFFFFF; font-size: 24px">Scammers can use Swartberg Transport's name too.</h3>
+        <p style="color: #F1F1F2">Register your real domains, logo and bank account, and hear the moment someone checks a fake.</p>
+      </div>
+      <a href="ProtectSite.dc.html" class="btn btn-primary">Protect your business</a>
+    </section>
+
+    <p class="small muted" style="text-align: center">Checks without an account are limited to 5 a day. <a href="#">This verdict is wrong</a> · Sample data on fictional companies.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+ "$comment": "IsItLegit spacing tokens (design/SPEC.md): a 4 px scale with a 2 px hairline step. Board spacings between steps round to the nearest step (at most 2 px away).",
+ "scale": [
+  2,
+  4,
+  8,
+  12,
+  16,
+  20,
+  24,
+  28,
+  32,
+  36,
+  40,
+  48,
+  56,
+  64,
+  72,
+  80,
+  88,
+  96,
+  120
+ ],
+ "radius": {
+  "small": 6,
+  "control-small": 8,
+  "control": 10,
+  "card": 12,
+  "card-large": 16,
+  "pill": 999
+ },
+ "control-height": {
+  "default": 48,
+  "small": 36
+ },
+ "shadow": {
+  "card": "0 1px 2px rgba(24, 21, 25, 0.06), 0 8px 24px rgba(24, 21, 25, 0.06)"
+ }
+}

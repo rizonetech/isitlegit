@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin overview</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1560px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #181519">
+    <dc-import name="AdminNav" active="overview" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 48px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center">
+      <div><h1 style="font-size: 30px">Overview</h1><p class="small muted">All organisations · Mon 27 Oct 2026, 14:02 SAST</p></div>
+      <div style="display: flex; gap: 8px"><button class="btn btn-ghost btn-sm">Export CSV</button><a href="Admin-Invites.dc.html" class="btn btn-dark btn-sm">New invite code</a></div>
+    </header>
+
+    <section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+      <div class="card card-pad"><p class="small muted">Organisations</p><span class="num" style="font-size: 32px">14</span><p class="tiny muted">11 with a verified domain</p></div>
+      <div class="card card-pad"><p class="small muted">Cases today</p><span class="num" style="font-size: 32px">63</span><p class="tiny muted">412 since 27 Oct</p></div>
+      <div class="card card-pad"><p class="small muted">Median time to verdict</p><span class="num" style="font-size: 32px">51 s</span><p class="tiny muted">p95 2 min 40 s</p></div>
+      <div class="card card-pad"><p class="small muted">Open feedback</p><span class="num" style="font-size: 32px; color: #C8102E">3</span><p class="tiny muted"><a href="Admin-Feedback.dc.html">Review</a></p></div>
+    </section>
+
+    <section class="card card-pad" style="display: flex; flex-direction: column; gap: 16px" aria-label="Model spend against the caps">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><h3>Model spend against the caps</h3><p class="small muted">Caps are set in code (src/meta/caps.ts)</p></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; justify-content: space-between"><p class="small" style="font-weight: 600">Meta Model API today</p><p class="small"><strong>US$6.40</strong> of 15.00</p></div><div style="height: 10px; border-radius: 6px; background: #F1F1F2"><div style="width: 43%; height: 10px; border-radius: 6px; background: #181519"></div></div></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; justify-content: space-between"><p class="small" style="font-weight: 600">Meta Model API total</p><p class="small"><strong>US$41.10</strong> of 120.00</p></div><div style="height: 10px; border-radius: 6px; background: #F1F1F2"><div style="width: 34%; height: 10px; border-radius: 6px; background: #181519"></div></div><p class="tiny muted">US$30 reserve opens on 3 Nov</p></div>
+        <div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; justify-content: space-between"><p class="small" style="font-weight: 600">Glimmer (Fireworks) total</p><p class="small"><strong>US$1.20</strong> of 10.00</p></div><div style="height: 10px; border-radius: 6px; background: #F1F1F2"><div style="width: 12%; height: 10px; border-radius: 6px; background: #181519"></div></div></div>
+      </div>
+    </section>
+
+    <section class="card card-pad" style="display: flex; flex-direction: column; gap: 16px" aria-label="Service health">
+      <div style="display: flex; justify-content: space-between; align-items: baseline"><h3>Service health</h3><p class="small muted">Checked every minute · a red tile emails the operator</p></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px"><div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #E3E2E6; border-radius: 10px"><p class="small" style="font-weight: 600; display: flex; gap: 8px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 2px; background: #0E7C5B; display: inline-block"></span>Email intake</p><p class="tiny"><strong>Healthy</strong> <span class="muted">· last mail 2 min ago</span></p></div><div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #E3E2E6; border-radius: 10px"><p class="small" style="font-weight: 600; display: flex; gap: 8px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 2px; background: #0E7C5B; display: inline-block"></span>Workflows</p><p class="tiny"><strong>Healthy</strong> <span class="muted">· 0 stuck, 0 failed today</span></p></div><div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #E3E2E6; border-radius: 10px"><p class="small" style="font-weight: 600; display: flex; gap: 8px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 2px; background: #B26A00; display: inline-block"></span>Meta Model API</p><p class="tiny"><strong>Slow</strong> <span class="muted">· p95 9.8 s over the last hour</span></p></div><div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #E3E2E6; border-radius: 10px"><p class="small" style="font-weight: 600; display: flex; gap: 8px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 2px; background: #0E7C5B; display: inline-block"></span>Browser Run</p><p class="tiny"><strong>Healthy</strong> <span class="muted">· 4 sessions today</span></p></div><div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #E3E2E6; border-radius: 10px"><p class="small" style="font-weight: 600; display: flex; gap: 8px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 2px; background: #0E7C5B; display: inline-block"></span>Google Web Risk</p><p class="tiny"><strong>Healthy</strong> <span class="muted">· last call 6 min ago</span></p></div><div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid #E3E2E6; border-radius: 10px"><p class="small" style="font-weight: 600; display: flex; gap: 8px; align-items: center"><span style="width: 8px; height: 8px; border-radius: 2px; background: #0E7C5B; display: inline-block"></span>Outbound mail (SMTP2GO)</p><p class="tiny"><strong>Healthy</strong> <span class="muted">· 0 bounces today</span></p></div></div>
+    </section>
+
+    <section class="card" style="overflow: hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #E3E2E6"><h3>Organisations</h3><input class="input" placeholder="Search organisations" style="width: 280px; height: 40px" aria-label="Search organisations"></div>
+      <table class="table">
+        <thead><tr><th>Organisation</th><th>Plan</th><th>Domains</th><th>Members</th><th style="text-align: right">Cases this week</th><th>Top threat</th><th style="text-align: right">Feedback</th></tr></thead>
+        <tbody>
+          <tr><td><a href="Admin-Org.dc.html" style="font-weight: 600; color: #181519">Karoo Couriers</a></td><td><span class="pill pill-neutral">Trial, 11 days</span></td><td class="small">1 verified</td><td>4</td><td style="text-align: right">27</td><td class="small">Credential phishing</td><td style="text-align: right">1</td></tr>
+          <tr><td style="font-weight: 600">Rizonetech</td><td><span class="pill pill-safe">Protect</span></td><td class="small">2 verified</td><td>3</td><td style="text-align: right">41</td><td class="small">Invoice bank change</td><td style="text-align: right">0</td></tr>
+          <tr><td style="font-weight: 600">Fynbos Freight (demo)</td><td><span class="pill pill-safe">Protect</span></td><td class="small">2 verified</td><td>2</td><td style="text-align: right">6</td><td class="small">Impersonation</td><td style="text-align: right">0</td></tr>
+          <tr><td style="font-weight: 600">Judges (demo)</td><td><span class="pill pill-neutral">Trial, 14 days</span></td><td class="small">Sample cases</td><td>9</td><td style="text-align: right">5</td><td class="small">Mixed</td><td style="text-align: right">0</td></tr>
+          <tr><td style="font-weight: 600">Outeniqua Paper</td><td><span class="pill pill-neutral">Trial, 6 days</span></td><td class="small"><span class="pill pill-sus">Pending</span></td><td>1</td><td style="text-align: right">0</td><td class="small muted">None yet</td><td style="text-align: right">0</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <p class="tiny muted">Sample data.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1560}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

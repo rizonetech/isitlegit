@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: partial and failed</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1200px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="cases" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px 48px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <p class="eyebrow" style="color: #4D4953">State 1 of 2 · Partial</p>
+    <nav aria-label="Breadcrumb" class="small muted" style="display: flex; gap: 8px; align-items: center"><a href="Cases.dc.html" style="color: #4D4953">Cases</a><span aria-hidden="true">/</span><span>Shared document: Q4 rates</span></nav>
+    <header style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="font-size: 30px">Shared document: Q4 rates</h1>
+      <p class="small muted">From <strong style="color: #181519">DocsLink &lt;share@docs-link.example&gt;</strong> · Forwarded as an attachment by Ayesha Patel · Fri 24 Oct 2026, 15:31</p>
+    </header>
+
+    <section class="band band-sus" aria-label="Verdict">
+      <span style="width: 80px; height: 80px; border-radius: 16px; background: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/suspicious.svg" alt="" style="width: 64px; height: 64px"></span>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1">
+        <p style="font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase">Suspicious · medium confidence · partial check</p>
+        <h2 style="font-size: 28px; line-height: 1.2">A "shared document" link that leads to a sign-in page on a new domain.</h2>
+        <p style="font-size: 17px; opacity: 0.95">Treat it as unsafe. Do not sign in on that page.</p>
+      </div>
+    </section>
+
+    <section role="note" aria-label="Partial check" style="border: 1px solid #C2BFC7; border-left: 6px solid #4A4750; border-radius: 12px; padding: 18px 22px; display: flex; gap: 18px; align-items: flex-start; background: #F1F0F3">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4A4750" stroke-width="2" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
+      <div style="display: flex; flex-direction: column; gap: 8px; flex: 1">
+        <h4>Two checks did not run, so this verdict rests on the six that did.</h4>
+        <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px" class="small">
+          <li><strong>Walkthrough (Muse Wonder):</strong> today's model limit was reached at 15:20. We could not see where the sign-in form sends passwords. The limit resets at 00:00 SAST.</li>
+          <li><strong>Google Web Risk:</strong> the service did not answer within 10 seconds. The link was not checked against its list.</li>
+        </ul>
+        <p class="small muted">What this means: the verdict could be stronger with the missing checks, never weaker. We will not guess what they would have found.</p>
+      </div>
+    </section>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-mal">E3 · High</span><h4>Sign-in form on a 2-day-old domain</h4></div><p class="small">The link lands on <span class="mono">docs-link-share.example/view</span> asking for a mailbox password.</p></article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-partial">E7 · Not checked</span><h4>Walkthrough</h4></div><p class="small">Daily model limit reached. No canary values were typed.</p></article>
+      <article class="card card-pad" style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; gap: 10px; align-items: center"><span class="pill pill-partial">E8 · Not checked</span><h4>Google Web Risk</h4></div><p class="small">No answer within 10 s. Not a "not listed" result.</p></article>
+    </div>
+
+    <hr class="divider" style="margin: 8px 0">
+
+    <p class="eyebrow" style="color: #4D4953">State 2 of 2 · Failed</p>
+    <section class="band band-partial" aria-label="Status">
+      <span style="width: 80px; height: 80px; border-radius: 16px; background: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/question.svg" alt="" style="width: 64px; height: 64px"></span>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1">
+        <p style="font-size: 14px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase">Check failed · no verdict</p>
+        <h2 style="font-size: 28px; line-height: 1.2">We could not finish checking this email.</h2>
+        <p style="font-size: 17px; opacity: 0.95">Nothing was concluded. Until it is checked, do not click its links, open its attachments or pay anything it asks for.</p>
+      </div>
+    </section>
+    <div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px">
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 12px">
+        <h3>What happened</h3>
+        <p>The attached email could not be opened: its file is damaged after byte 18,204. This is not a sign that the email is safe or unsafe.</p>
+        <p class="small muted">Reference <span class="mono">case_7Q2M9K</span> · failed at step 2 of 8 · 10:44 SAST</p>
+      </section>
+      <section class="card card-pad" style="display: flex; flex-direction: column; gap: 12px">
+        <h3>What you can do</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
+          <button class="btn btn-dark">Retry the check</button>
+          <a href="Upload.dc.html" class="btn btn-ghost">Upload it instead</a>
+        </div>
+        <p class="small muted">Retry runs the check once more. While it runs, the button reads "Retrying" and is disabled.</p>
+      </section>
+    </div>
+    <p class="tiny muted">Sample data on fictional companies.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

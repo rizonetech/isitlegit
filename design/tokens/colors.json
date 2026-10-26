@@ -1,0 +1,520 @@
+{
+ "$comment": "IsItLegit colour tokens (design/SPEC.md). Values per theme; pairs lists every foreground and background combination the approved boards use (reconciled by tests/scripts/test_design_tokens.py against build/mockups/audit.json) plus the graphic pairs, with WCAG 2.2 contrast ratios.",
+ "roles": {
+  "surface": "page and card background",
+  "subtle": "app sidebar, panels, table headers",
+  "light": "chips, code, active nav item",
+  "line": "dividers and card borders",
+  "line-strong": "decorative borders, ghost button outline",
+  "control-border": "input and checkbox boundary (3:1)",
+  "ink": "body text and headings",
+  "ink-2": "secondary text, nav items",
+  "muted": "captions, hints, table headers",
+  "orange": "brand orange for graphics and the logo, never small text",
+  "orange-text": "links, eyebrows and small orange text",
+  "orange-wash": "running state background",
+  "accent": "primary button fill",
+  "accent-hover": "primary button hover",
+  "on-accent": "text on the primary button",
+  "safe": "safe verdict text and graphics",
+  "safe-wash": "safe pill background",
+  "safe-band": "safe verdict banner fill",
+  "sus": "suspicious verdict text",
+  "sus-graphic": "suspicious verdict icons and bars (3:1)",
+  "sus-wash": "suspicious pill background",
+  "sus-band": "suspicious verdict banner fill",
+  "mal": "malicious verdict text and graphics",
+  "mal-wash": "malicious pill background",
+  "mal-band": "malicious verdict banner fill",
+  "partial": "partial verdict text",
+  "partial-wash": "partial pill background",
+  "partial-band": "partial banner fill",
+  "on-band": "text on a verdict banner",
+  "dark": "dark marketing sections, sign-in panel, admin sidebar, site footer",
+  "dark-raised": "quote and card on a dark section",
+  "dark-active": "active admin nav item",
+  "on-dark": "headings on dark sections",
+  "on-dark-soft": "body text on dark sections",
+  "on-dark-muted": "captions and sources on dark sections",
+  "orange-on-dark": "eyebrows and links on dark sections"
+ },
+ "themes": {
+  "light": {
+   "surface": "#FFFFFF",
+   "subtle": "#F8F8F9",
+   "light": "#F1F1F2",
+   "line": "#E3E2E6",
+   "line-strong": "#C2BFC7",
+   "control-border": "#8E8A95",
+   "ink": "#181519",
+   "ink-2": "#343038",
+   "muted": "#4D4953",
+   "orange": "#FF4A14",
+   "orange-text": "#CC2E00",
+   "orange-wash": "#FFF1EC",
+   "accent": "#CC2E00",
+   "accent-hover": "#B32800",
+   "on-accent": "#FFFFFF",
+   "safe": "#0E7C5B",
+   "safe-wash": "#E8F5EF",
+   "safe-band": "#0E7C5B",
+   "sus": "#8A5200",
+   "sus-graphic": "#B26A00",
+   "sus-wash": "#FDF3E1",
+   "sus-band": "#8A5200",
+   "mal": "#C8102E",
+   "mal-wash": "#FCE9EC",
+   "mal-band": "#C8102E",
+   "partial": "#4A4750",
+   "partial-wash": "#F1F0F3",
+   "partial-band": "#4A4750",
+   "on-band": "#FFFFFF",
+   "dark": "#181519",
+   "dark-raised": "#252127",
+   "dark-active": "#2D2930",
+   "on-dark": "#FFFFFF",
+   "on-dark-soft": "#F1F1F2",
+   "on-dark-muted": "#D2CFD7",
+   "orange-on-dark": "#FF8A65"
+  },
+  "dark": {
+   "surface": "#121014",
+   "subtle": "#1B181D",
+   "light": "#252128",
+   "line": "#2F2B33",
+   "line-strong": "#4A4550",
+   "control-border": "#77727E",
+   "ink": "#F4F3F6",
+   "ink-2": "#D9D6DE",
+   "muted": "#ADA9B4",
+   "orange": "#FF4A14",
+   "orange-text": "#FF7A4D",
+   "orange-wash": "#35180F",
+   "accent": "#CC2E00",
+   "accent-hover": "#B32800",
+   "on-accent": "#FFFFFF",
+   "safe": "#4CC79A",
+   "safe-wash": "#0E2A20",
+   "safe-band": "#0E7C5B",
+   "sus": "#E8A847",
+   "sus-graphic": "#E8A847",
+   "sus-wash": "#33240C",
+   "sus-band": "#8A5200",
+   "mal": "#FF6B7B",
+   "mal-wash": "#3B1218",
+   "mal-band": "#C8102E",
+   "partial": "#BEBAC5",
+   "partial-wash": "#27242B",
+   "partial-band": "#4A4750",
+   "on-band": "#FFFFFF",
+   "dark": "#1E1B21",
+   "dark-raised": "#252127",
+   "dark-active": "#2D2930",
+   "on-dark": "#FFFFFF",
+   "on-dark-soft": "#F1F1F2",
+   "on-dark-muted": "#D2CFD7",
+   "orange-on-dark": "#FF8A65"
+  }
+ },
+ "pairs": [
+  {
+   "fg": "orange",
+   "bg": "dark",
+   "use": "graphic",
+   "light": 5.38,
+   "dark": 5.06
+  },
+  {
+   "fg": "control-border",
+   "bg": "subtle",
+   "use": "graphic",
+   "light": 3.18,
+   "dark": 3.76
+  },
+  {
+   "fg": "control-border",
+   "bg": "surface",
+   "use": "graphic",
+   "light": 3.38,
+   "dark": 4.05
+  },
+  {
+   "fg": "mal",
+   "bg": "surface",
+   "use": "graphic",
+   "light": 5.88,
+   "dark": 6.88
+  },
+  {
+   "fg": "mal-band",
+   "bg": "surface",
+   "use": "graphic",
+   "light": 5.88,
+   "dark": 3.22
+  },
+  {
+   "fg": "orange",
+   "bg": "surface",
+   "use": "graphic",
+   "light": 3.36,
+   "dark": 5.62
+  },
+  {
+   "fg": "safe",
+   "bg": "surface",
+   "use": "graphic",
+   "light": 5.18,
+   "dark": 8.96
+  },
+  {
+   "fg": "safe-band",
+   "bg": "surface",
+   "use": "graphic",
+   "light": 5.18,
+   "dark": 3.65
+  },
+  {
+   "fg": "sus-graphic",
+   "bg": "surface",
+   "use": "graphic",
+   "light": 4.24,
+   "dark": 9.12
+  },
+  {
+   "fg": "on-accent",
+   "bg": "accent",
+   "use": "text",
+   "light": 5.31,
+   "dark": 5.31
+  },
+  {
+   "fg": "on-dark",
+   "bg": "dark",
+   "use": "text",
+   "light": 18.1,
+   "dark": 17.02
+  },
+  {
+   "fg": "on-dark-muted",
+   "bg": "dark",
+   "use": "text",
+   "light": 11.76,
+   "dark": 11.06
+  },
+  {
+   "fg": "on-dark-soft",
+   "bg": "dark",
+   "use": "text",
+   "light": 16.04,
+   "dark": 15.08
+  },
+  {
+   "fg": "orange-on-dark",
+   "bg": "dark",
+   "use": "text",
+   "light": 7.82,
+   "dark": 7.35
+  },
+  {
+   "fg": "on-dark",
+   "bg": "dark-active",
+   "use": "text",
+   "light": 14.27,
+   "dark": 14.27
+  },
+  {
+   "fg": "on-dark",
+   "bg": "dark-raised",
+   "use": "text",
+   "light": 15.84,
+   "dark": 15.84
+  },
+  {
+   "fg": "on-dark-muted",
+   "bg": "dark-raised",
+   "use": "text",
+   "light": 10.3,
+   "dark": 10.3
+  },
+  {
+   "fg": "ink",
+   "bg": "light",
+   "use": "text",
+   "light": 16.04,
+   "dark": 14.32
+  },
+  {
+   "fg": "ink-2",
+   "bg": "light",
+   "use": "text",
+   "light": 11.44,
+   "dark": 11.02
+  },
+  {
+   "fg": "ink",
+   "bg": "line",
+   "use": "text",
+   "light": 14.04,
+   "dark": 12.55
+  },
+  {
+   "fg": "on-band",
+   "bg": "mal-band",
+   "use": "text",
+   "light": 5.88,
+   "dark": 5.88
+  },
+  {
+   "fg": "ink",
+   "bg": "mal-wash",
+   "use": "text",
+   "light": 15.52,
+   "dark": 14.78
+  },
+  {
+   "fg": "ink-2",
+   "bg": "mal-wash",
+   "use": "text",
+   "light": 11.07,
+   "dark": 11.37
+  },
+  {
+   "fg": "mal",
+   "bg": "mal-wash",
+   "use": "text",
+   "light": 5.04,
+   "dark": 5.94
+  },
+  {
+   "fg": "muted",
+   "bg": "mal-wash",
+   "use": "text",
+   "light": 7.52,
+   "dark": 7.09
+  },
+  {
+   "fg": "dark",
+   "bg": "orange",
+   "use": "text",
+   "light": 5.38,
+   "dark": 5.06
+  },
+  {
+   "fg": "ink",
+   "bg": "orange-wash",
+   "use": "text",
+   "light": 16.42,
+   "dark": 14.74
+  },
+  {
+   "fg": "ink-2",
+   "bg": "orange-wash",
+   "use": "text",
+   "light": 11.71,
+   "dark": 11.35
+  },
+  {
+   "fg": "muted",
+   "bg": "orange-wash",
+   "use": "text",
+   "light": 7.96,
+   "dark": 7.07
+  },
+  {
+   "fg": "orange-text",
+   "bg": "orange-wash",
+   "use": "text",
+   "light": 4.81,
+   "dark": 6.32
+  },
+  {
+   "fg": "on-band",
+   "bg": "partial-band",
+   "use": "text",
+   "light": 9.1,
+   "dark": 9.1
+  },
+  {
+   "fg": "ink",
+   "bg": "partial-wash",
+   "use": "text",
+   "light": 15.94,
+   "dark": 13.83
+  },
+  {
+   "fg": "muted",
+   "bg": "partial-wash",
+   "use": "text",
+   "light": 7.73,
+   "dark": 6.63
+  },
+  {
+   "fg": "partial",
+   "bg": "partial-wash",
+   "use": "text",
+   "light": 8.01,
+   "dark": 8.02
+  },
+  {
+   "fg": "on-band",
+   "bg": "safe-band",
+   "use": "text",
+   "light": 5.18,
+   "dark": 5.18
+  },
+  {
+   "fg": "ink",
+   "bg": "safe-wash",
+   "use": "text",
+   "light": 16.15,
+   "dark": 13.86
+  },
+  {
+   "fg": "ink-2",
+   "bg": "safe-wash",
+   "use": "text",
+   "light": 11.53,
+   "dark": 10.67
+  },
+  {
+   "fg": "muted",
+   "bg": "safe-wash",
+   "use": "text",
+   "light": 7.83,
+   "dark": 6.65
+  },
+  {
+   "fg": "safe",
+   "bg": "safe-wash",
+   "use": "text",
+   "light": 4.62,
+   "dark": 7.25
+  },
+  {
+   "fg": "ink",
+   "bg": "subtle",
+   "use": "text",
+   "light": 17.05,
+   "dark": 15.9
+  },
+  {
+   "fg": "ink-2",
+   "bg": "subtle",
+   "use": "text",
+   "light": 12.17,
+   "dark": 12.24
+  },
+  {
+   "fg": "mal",
+   "bg": "subtle",
+   "use": "text",
+   "light": 5.54,
+   "dark": 6.39
+  },
+  {
+   "fg": "muted",
+   "bg": "subtle",
+   "use": "text",
+   "light": 8.27,
+   "dark": 7.62
+  },
+  {
+   "fg": "orange-text",
+   "bg": "subtle",
+   "use": "text",
+   "light": 5.0,
+   "dark": 6.81
+  },
+  {
+   "fg": "safe",
+   "bg": "subtle",
+   "use": "text",
+   "light": 4.88,
+   "dark": 8.32
+  },
+  {
+   "fg": "ink",
+   "bg": "surface",
+   "use": "text",
+   "light": 18.1,
+   "dark": 17.12
+  },
+  {
+   "fg": "ink-2",
+   "bg": "surface",
+   "use": "text",
+   "light": 12.92,
+   "dark": 13.18
+  },
+  {
+   "fg": "mal",
+   "bg": "surface",
+   "use": "text",
+   "light": 5.88,
+   "dark": 6.88
+  },
+  {
+   "fg": "muted",
+   "bg": "surface",
+   "use": "text",
+   "light": 8.77,
+   "dark": 8.21
+  },
+  {
+   "fg": "orange-text",
+   "bg": "surface",
+   "use": "text",
+   "light": 5.31,
+   "dark": 7.34
+  },
+  {
+   "fg": "partial",
+   "bg": "surface",
+   "use": "text",
+   "light": 9.1,
+   "dark": 9.93
+  },
+  {
+   "fg": "safe",
+   "bg": "surface",
+   "use": "text",
+   "light": 5.18,
+   "dark": 8.96
+  },
+  {
+   "fg": "sus",
+   "bg": "surface",
+   "use": "text",
+   "light": 6.39,
+   "dark": 9.12
+  },
+  {
+   "fg": "on-band",
+   "bg": "sus-band",
+   "use": "text",
+   "light": 6.39,
+   "dark": 6.39
+  },
+  {
+   "fg": "ink",
+   "bg": "sus-wash",
+   "use": "text",
+   "light": 16.45,
+   "dark": 13.59
+  },
+  {
+   "fg": "orange-text",
+   "bg": "sus-wash",
+   "use": "text",
+   "light": 4.82,
+   "dark": 5.82
+  },
+  {
+   "fg": "sus",
+   "bg": "sus-wash",
+   "use": "text",
+   "light": 5.8,
+   "dark": 7.24
+  }
+ ]
+}

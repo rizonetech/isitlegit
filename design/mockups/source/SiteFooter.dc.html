@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Site footer</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .fl{color:#F1F1F2;text-decoration:none;font-size:15px} .fl:hover{color:#FFFFFF;text-decoration:underline}</style>
+</helmet>
+<footer style="width: 1440px; height: 360px; box-sizing: border-box; padding: 56px 120px 40px; background: #181519; color: #F1F1F2; font-family: 'Exo 2', sans-serif; display: flex; flex-direction: column; justify-content: space-between">
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 32px">
+    <div style="display: flex; flex-direction: column; gap: 16px; grid-column: span 2">
+      <img src="../../brand/logo-svg/isitlegit-logo-on-dark.svg" alt="IsItLegit" style="height: 30px; width: auto; align-self: flex-start">
+      <p style="font-size: 15px; color: #F1F1F2; max-width: 360px">Forward a suspicious email to <strong style="color: #FFFFFF">check@isitlegit.co.za</strong> and get a verdict with the evidence.</p>
+    </div>
+    <nav aria-label="Product" style="display: flex; flex-direction: column; gap: 10px"><p style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #D2CFD7">Product</p><a class="fl" href="How.dc.html">How it works</a><a class="fl" href="InvoiceFraud.dc.html">Invoice fraud</a><a class="fl" href="ProtectSite.dc.html">Protect your business</a><a class="fl" href="Pricing.dc.html">Pricing</a><a class="fl" href="Results.dc.html">Results</a></nav>
+    <nav aria-label="Company" style="display: flex; flex-direction: column; gap: 10px"><p style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #D2CFD7">Company</p><a class="fl" href="About.dc.html">About and contact</a><a class="fl" href="Security.dc.html">Security</a><a class="fl" href="Privacy.dc.html">Privacy and POPIA</a><a class="fl" href="Terms.dc.html">Terms</a></nav>
+    <div style="display: flex; flex-direction: column; gap: 10px"><p style="font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #D2CFD7">Built on</p><p style="font-size: 15px">Meta's Muse Spark, Muse Wonder, SAM 3.1 and Muse Voice Transcribe</p><p style="font-size: 15px">Cloudflare Workers</p></div>
+  </div>
+  <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #343038; padding-top: 24px; font-size: 14px; color: #D2CFD7">
+    <span>© 2026 Rizonetech (Pty) Ltd · George, South Africa</span>
+    <span>IsItLegit by Rizonetech · Built for the Meta Global AI Developer Hackathon</span>
+  </div>
+</footer>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":360}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

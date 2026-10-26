@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Check a file: states</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .st{display:flex;flex-direction:column;gap:14px} .zone{border-radius:16px;height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;box-sizing:border-box;text-align:center}</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="cases" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <header style="display: flex; flex-direction: column; gap: 6px">
+      <h1 style="font-size: 32px">Check a file: states</h1>
+      <p class="muted">Each message names the problem and what to do. Errors appear in the page's alert region, under the drop zone.</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+      <section class="st" aria-label="Uploading">
+        <p class="eyebrow" style="color: #4D4953">Uploading</p>
+        <div class="zone" style="border: 2px solid #FF4A14; background: #FFF1EC" aria-busy="true">
+          <img src="../../brand/motion/checking.svg" alt="" style="width: 56px; height: 56px">
+          <p style="font-weight: 700">Uploading INV-20931.pdf</p>
+          <div style="width: 360px; height: 8px; border-radius: 4px; background: #FFFFFF" role="progressbar" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100"><div style="width: 64%; height: 8px; border-radius: 4px; background: #CC2E00"></div></div>
+          <p class="small muted">1.2 MB of 1.9 MB · then the report opens</p>
+          <button class="btn btn-dark btn-sm" disabled style="opacity: 0.5">Uploading...</button>
+        </div>
+      </section>
+
+      <section class="st" aria-label="Refused type">
+        <p class="eyebrow" style="color: #4D4953">Refused type · 415</p>
+        <div class="zone" style="border: 2px dashed #C2BFC7; background: #F8F8F9"><span style="font-family: 'Exo', sans-serif; font-size: 20px; font-weight: 800">Drop one file here</span><span class="btn btn-dark btn-sm">Choose a file</span></div>
+        <div role="alert" style="border-left: 6px solid #C8102E; background: #FCE9EC; border-radius: 10px; padding: 14px 18px"><p style="font-weight: 700; color: #C8102E">We cannot check "invoice.pdf.exe".</p><p class="small">It is a program, not a document. Do not open it. If it came by email, forward that email to check@isitlegit.co.za as an attachment instead.</p></div>
+      </section>
+
+      <section class="st" aria-label="Too large">
+        <p class="eyebrow" style="color: #4D4953">Too large · 413</p>
+        <div class="zone" style="border: 2px dashed #C2BFC7; background: #F8F8F9"><span style="font-family: 'Exo', sans-serif; font-size: 20px; font-weight: 800">Drop one file here</span><span class="btn btn-dark btn-sm">Choose a file</span></div>
+        <div role="alert" style="border-left: 6px solid #C8102E; background: #FCE9EC; border-radius: 10px; padding: 14px 18px"><p style="font-weight: 700; color: #C8102E">"site-meeting.m4a" is 31 MB. The limit is 25 MB.</p><p class="small">Upload a shorter clip, or the part of the recording that matters. Voice notes are checked up to 10 minutes.</p></div>
+      </section>
+
+      <section class="st" aria-label="Daily limit reached">
+        <p class="eyebrow" style="color: #4D4953">Daily limit reached · 429</p>
+        <div class="zone" style="border: 2px dashed #E3E2E6; background: #F8F8F9; opacity: 0.6" aria-disabled="true"><span style="font-family: 'Exo', sans-serif; font-size: 20px; font-weight: 800">Uploads paused until midnight</span><span class="btn btn-dark btn-sm" style="opacity: 0.5">Choose a file</span></div>
+        <div role="alert" style="border-left: 6px solid #8A5200; background: #FDF3E1; border-radius: 10px; padding: 14px 18px"><p style="font-weight: 700; color: #8A5200">Karoo Couriers has used all 50 checks for today.</p><p class="small">Checks start again at 00:00 SAST, in 9 hours 12 minutes. Until then, do not act on anything you were unsure about. <a href="Plan.dc.html">About your plan</a></p></div>
+      </section>
+    </div>
+
+    <section class="panel" style="padding: 16px 20px; display: flex; gap: 12px; align-items: center" aria-label="Signed out">
+      <span class="pill pill-neutral">Signed out · 401</span>
+      <p class="small">Your session ended. <a href="Signin.dc.html">Sign in again</a> and choose the file once more; nothing was uploaded.</p>
+    </section>
+    <p class="tiny muted">On success the page goes straight to the running report (<a href="Report-Running.dc.html">M3 Report: running</a>). The launch limit is 50 checks per organisation per day.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Results</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .prose p{font-size:17px;line-height:1.65;color:var(--ink-2)} .prose h2{font-size:26px;margin-top:8px} .prose ul{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:17px;line-height:1.6;color:var(--ink-2)}</style>
+</helmet>
+<div style="width: 1440px; min-height: 2200px; background: var(--white); font-family: 'Exo 2', sans-serif; color: var(--ink); display: flex; flex-direction: column">
+  <dc-import name="SiteHeader" hint-size="1440px,80px"></dc-import>
+  <section style="padding: 80px 120px 56px; display: flex; flex-direction: column; gap: 18px">
+    <p class="eyebrow">Results</p>
+    <h1 style="font-size: 52px; line-height: 1.08; font-weight: 900; max-width: 980px">How often is IsItLegit right?</h1>
+    <p style="font-size: 20px; color: var(--ink-2); max-width: 900px">On our latest test of [N] labelled emails and documents, IsItLegit caught [XX]% of attacks and wrongly flagged [X]% of genuine mail. Every release runs the same test, and we publish the numbers whether they are good or not.</p>
+    <p class="small muted">Eval run [run id] · [date], [time] SAST · dataset described in <a href="https://github.com/rizonetech/isitlegit/blob/main/eval/DATASETS.md">eval/DATASETS.md</a></p>
+  </section>
+
+  <section style="padding: 0 120px 64px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px">
+    <div class="card card-pad" style="display: flex; flex-direction: column; gap: 6px"><p class="small muted">Attacks caught</p><span class="num" style="font-size: 44px">[XX]%</span><p class="tiny"><span class="pill pill-neutral" style="height: 22px">Target 95% or more</span></p></div>
+    <div class="card card-pad" style="display: flex; flex-direction: column; gap: 6px"><p class="small muted">False alarms on genuine mail</p><span class="num" style="font-size: 44px">[X]%</span><p class="tiny"><span class="pill pill-neutral" style="height: 22px">Target 2% or less</span></p></div>
+    <div class="card card-pad" style="display: flex; flex-direction: column; gap: 6px"><p class="small muted">Median time to verdict</p><span class="num" style="font-size: 44px">[XX] s</span><p class="tiny"><span class="pill pill-neutral" style="height: 22px">Target under 60 s</span></p></div>
+    <div class="card card-pad" style="display: flex; flex-direction: column; gap: 6px"><p class="small muted">Median model cost per check</p><span class="num" style="font-size: 44px">US$[0.0X]</span><p class="tiny"><span class="pill pill-neutral" style="height: 22px">Target under US$0.05</span></p></div>
+  </section>
+
+  <section style="padding: 0 120px 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px">
+    <div class="card" style="overflow: hidden">
+      <div style="padding: 18px 20px; border-bottom: 1px solid var(--line)"><h3>By kind of attack</h3></div>
+      <table class="table"><thead><tr><th>Category</th><th style="text-align: right">Samples</th><th style="text-align: right">Caught</th></tr></thead><tbody>
+        <tr><td>Credential phishing</td><td style="text-align: right">[N]</td><td style="text-align: right">[XX]%</td></tr>
+        <tr><td>Business email compromise</td><td style="text-align: right">[N]</td><td style="text-align: right">[XX]%</td></tr>
+        <tr><td>Invoice bank change</td><td style="text-align: right">[N]</td><td style="text-align: right">[XX]%</td></tr>
+        <tr><td>Doctored proof of payment</td><td style="text-align: right">[N]</td><td style="text-align: right">[XX]%</td></tr>
+        <tr><td>Voice note lures</td><td style="text-align: right">[N]</td><td style="text-align: right">[XX]%</td></tr>
+        <tr><td>Genuine mail, flagged in error</td><td style="text-align: right">[N]</td><td style="text-align: right">[X]%</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card" style="overflow: hidden">
+      <div style="padding: 18px 20px; border-bottom: 1px solid var(--line)"><h3>Speed and cost</h3></div>
+      <table class="table"><thead><tr><th>Measure</th><th style="text-align: right">Result</th><th style="text-align: right">Target</th></tr></thead><tbody>
+        <tr><td>Time to verdict, median</td><td style="text-align: right">[XX] s</td><td style="text-align: right">under 60 s</td></tr>
+        <tr><td>Time to verdict, 95th percentile</td><td style="text-align: right">[X] min [XX] s</td><td style="text-align: right">under 3 min</td></tr>
+        <tr><td>Model cost, median check</td><td style="text-align: right">US$[0.0X]</td><td style="text-align: right">under US$0.05</td></tr>
+        <tr><td>Model cost, with a walkthrough</td><td style="text-align: right">US$[0.XX]</td><td style="text-align: right">under US$0.25</td></tr>
+      </tbody></table>
+    </div>
+  </section>
+
+  <section style="padding: 72px 120px; background: var(--subtle); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 900px">
+      <h2 style="font-size: 36px">What does each Meta model add?</h2>
+      <p style="font-size: 18px; color: var(--ink-2)">We run the same test again with one model switched off at a time. The difference is what that model is worth. A model whose removal costs nothing gets cut or reworked.</p>
+    </div>
+    <div class="card" style="overflow: hidden">
+      <table class="table"><thead><tr><th>Switched off</th><th>Replaced by</th><th style="text-align: right">Attacks caught</th><th style="text-align: right">False alarms</th><th style="text-align: right">Median time</th><th style="text-align: right">Median cost</th></tr></thead><tbody>
+        <tr><td style="font-weight: 600">Nothing (full pipeline)</td><td class="small muted">None</td><td style="text-align: right">[XX]%</td><td style="text-align: right">[X]%</td><td style="text-align: right">[XX] s</td><td style="text-align: right">US$[0.0X]</td></tr>
+        <tr><td style="font-weight: 600">Muse Spark reasoning</td><td class="small muted">Rule-based verdict</td><td style="text-align: right">[minus X] pts</td><td style="text-align: right">[plus X] pts</td><td style="text-align: right">[X] s</td><td style="text-align: right">US$[X]</td></tr>
+        <tr><td style="font-weight: 600">Muse Wonder walkthrough</td><td class="small muted">No walkthrough</td><td style="text-align: right">[minus X] pts</td><td style="text-align: right">[X] pts</td><td style="text-align: right">[X] s</td><td style="text-align: right">US$[X]</td></tr>
+        <tr><td style="font-weight: 600">SAM 3.1 logo check</td><td class="small muted">No logo comparison</td><td style="text-align: right">[minus X] pts</td><td style="text-align: right">[X] pts</td><td style="text-align: right">[X] s</td><td style="text-align: right">US$[X]</td></tr>
+        <tr><td style="font-weight: 600">Muse Voice Transcribe</td><td class="small muted">No transcript</td><td style="text-align: right">[minus X] pts</td><td style="text-align: right">[X] pts</td><td style="text-align: right">[X] s</td><td style="text-align: right">US$[X]</td></tr>
+        <tr><td style="font-weight: 600">Muse Glimmer screening</td><td class="small muted">Every page to Muse Spark</td><td style="text-align: right">[X] pts</td><td style="text-align: right">[X] pts</td><td style="text-align: right">[X] s</td><td style="text-align: right">US$[X]</td></tr>
+      </tbody></table>
+    </div>
+  </section>
+
+  <section style="padding: 72px 120px 88px; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start">
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <h2 style="font-size: 32px">What happened in real use?</h2>
+      <p style="font-size: 17px; color: var(--ink-2)">Counts from members' real mail since launch. Real mail is only ever counted, never added to the test set or shown.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+      <div class="card card-pad"><p class="small muted">Cases checked</p><span class="num" style="font-size: 36px">[N]</span></div>
+      <div class="card card-pad"><p class="small muted">Malicious or suspicious</p><span class="num" style="font-size: 36px">[N]</span></div>
+      <div class="card card-pad"><p class="small muted">Bank changes caught</p><span class="num" style="font-size: 36px">[N]</span></div>
+      <div class="card card-pad"><p class="small muted">Verdicts reported wrong</p><span class="num" style="font-size: 36px">[N]</span></div>
+    </div>
+  </section>
+  <div style="margin-top: auto"><dc-import name="SiteFooter" hint-size="1440px,360px"></dc-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2200}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

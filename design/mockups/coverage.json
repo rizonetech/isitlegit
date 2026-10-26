@@ -1,0 +1,2282 @@
+{
+ "S1": {
+  "items": [
+   {
+    "name": "one-line promise",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "Ask before you pay."
+   },
+   {
+    "name": "forward-to-check@ action",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "Copy address"
+   },
+   {
+    "name": "sourced South African fraud figures",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "R2.4 billion"
+   },
+   {
+    "name": "the three threats",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "Three scams that cost small businesses the most."
+   },
+   {
+    "name": "a real report",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "A sample report on fictional companies"
+   },
+   {
+    "name": "how Meta's models work",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "Eight checks, four Meta models"
+   },
+   {
+    "name": "Protected seal",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "Scammers use your name too. Make it checkable."
+   },
+   {
+    "name": "pricing teaser",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "Free during launch. Protect from R499 per month after launch."
+   },
+   {
+    "name": "signup",
+    "kind": "control",
+    "board": "Home",
+    "evidence": "Get started free"
+   },
+   {
+    "name": "phone layout",
+    "kind": "state",
+    "board": "Home-Mobile",
+    "evidence": "Open menu"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S2": {
+  "items": [
+   {
+    "name": "forward as attachment",
+    "kind": "control",
+    "board": "How",
+    "evidence": "Why forward as an attachment?"
+   },
+   {
+    "name": "Outlook desktop",
+    "kind": "control",
+    "board": "How",
+    "evidence": "Outlook on Windows"
+   },
+   {
+    "name": "Outlook web",
+    "kind": "control",
+    "board": "How",
+    "evidence": "Outlook on the web and new Outlook"
+   },
+   {
+    "name": "Gmail",
+    "kind": "control",
+    "board": "How",
+    "evidence": "Tick the email in your inbox list."
+   },
+   {
+    "name": "what happens to the mail",
+    "kind": "control",
+    "board": "How",
+    "evidence": "What happens to the email?"
+   },
+   {
+    "name": "the models",
+    "kind": "control",
+    "board": "How",
+    "evidence": "Reads it the way you see it"
+   },
+   {
+    "name": "retention",
+    "kind": "control",
+    "board": "How",
+    "evidence": "How long do we keep it?"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S3": {
+  "items": [
+   {
+    "name": "the bank-change scam",
+    "kind": "control",
+    "board": "InvoiceFraud",
+    "evidence": "What is invoice fraud?"
+   },
+   {
+    "name": "the fixed action",
+    "kind": "control",
+    "board": "InvoiceFraud",
+    "evidence": "The one rule that stops it"
+   },
+   {
+    "name": "sourced figures",
+    "kind": "control",
+    "board": "InvoiceFraud",
+    "evidence": "How big is the problem in South Africa?"
+   },
+   {
+    "name": "payment document check",
+    "kind": "control",
+    "board": "InvoiceFraud",
+    "evidence": "Is that proof of payment real?"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S4": {
+  "items": [
+   {
+    "name": "protected identity",
+    "kind": "control",
+    "board": "ProtectSite",
+    "evidence": "1 · Protected identity"
+   },
+   {
+    "name": "website seal",
+    "kind": "control",
+    "board": "ProtectSite",
+    "evidence": "2 · Website seal"
+   },
+   {
+    "name": "signature badge",
+    "kind": "control",
+    "board": "ProtectSite",
+    "evidence": "3 · Signature badge"
+   },
+   {
+    "name": "impersonation monitor",
+    "kind": "control",
+    "board": "ProtectSite",
+    "evidence": "Find the fake website before the fake email"
+   },
+   {
+    "name": "closed-loop verification",
+    "kind": "control",
+    "board": "ProtectSite",
+    "evidence": "5 · Bank verification"
+   },
+   {
+    "name": "Protect my business",
+    "kind": "control",
+    "board": "ProtectSite",
+    "evidence": "Protect my business"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S5": {
+  "items": [
+   {
+    "name": "Free during launch",
+    "kind": "control",
+    "board": "Pricing",
+    "evidence": "Free during launch"
+   },
+   {
+    "name": "Free check",
+    "kind": "control",
+    "board": "Pricing",
+    "evidence": "Up to 5 checks a day"
+   },
+   {
+    "name": "Protect from R499",
+    "kind": "control",
+    "board": "Pricing",
+    "evidence": "R499"
+   },
+   {
+    "name": "MSP from R199 per client",
+    "kind": "control",
+    "board": "Pricing",
+    "evidence": "R199"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S6": {
+  "items": [
+   {
+    "name": "processors",
+    "kind": "control",
+    "board": "Privacy",
+    "evidence": "Who helps us process it?"
+   },
+   {
+    "name": "purposes",
+    "kind": "control",
+    "board": "Privacy",
+    "evidence": "What do we process, and why?"
+   },
+   {
+    "name": "retention",
+    "kind": "control",
+    "board": "Privacy",
+    "evidence": "How long do we keep it?"
+   },
+   {
+    "name": "information officer",
+    "kind": "control",
+    "board": "Privacy",
+    "evidence": "Our Information Officer is Derick Payne"
+   },
+   {
+    "name": "rights",
+    "kind": "control",
+    "board": "Privacy",
+    "evidence": "Your rights"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S7": {
+  "items": [
+   {
+    "name": "plain-language terms for the free launch period",
+    "kind": "control",
+    "board": "Terms",
+    "evidence": "What are the rules for using IsItLegit?"
+   },
+   {
+    "name": "draft review date",
+    "kind": "state",
+    "board": "Terms",
+    "evidence": "Draft for the launch period; reviewed by Rizonetech on [date]"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S8": {
+  "items": [
+   {
+    "name": "how we handle hostile mail",
+    "kind": "control",
+    "board": "Security",
+    "evidence": "A sealed browser for links"
+   },
+   {
+    "name": "disclosure policy",
+    "kind": "control",
+    "board": "Security",
+    "evidence": "Report a vulnerability"
+   },
+   {
+    "name": "links SECURITY.md",
+    "kind": "control",
+    "board": "Security",
+    "evidence": "SECURITY.md"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S9": {
+  "items": [
+   {
+    "name": "Rizonetech",
+    "kind": "control",
+    "board": "About",
+    "evidence": "Who is behind IsItLegit?"
+   },
+   {
+    "name": "the author",
+    "kind": "control",
+    "board": "About",
+    "evidence": "Rizonetech's CEO"
+   },
+   {
+    "name": "contact address",
+    "kind": "control",
+    "board": "About",
+    "evidence": "General questions"
+   },
+   {
+    "name": "the hackathon build",
+    "kind": "control",
+    "board": "About",
+    "evidence": "How was it built?"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static page with fixed content, nothing to be empty"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S10": {
+  "items": [
+   {
+    "name": "latest eval against targets",
+    "kind": "control",
+    "board": "Results",
+    "evidence": "How often is IsItLegit right?"
+   },
+   {
+    "name": "model ablation",
+    "kind": "control",
+    "board": "Results",
+    "evidence": "What does each Meta model add?"
+   },
+   {
+    "name": "production counts",
+    "kind": "control",
+    "board": "Results",
+    "evidence": "What happened in real use?"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static page, prerendered by Astro and served whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "board": "Results",
+    "evidence": "[XX]%"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "S11": {
+  "items": [
+   {
+    "name": "plain message",
+    "kind": "control",
+    "board": "Site-404",
+    "evidence": "That page isn"
+   },
+   {
+    "name": "the search-free way back",
+    "kind": "control",
+    "board": "Site-404",
+    "evidence": "Here is the way back."
+   },
+   {
+    "name": "the check@ address",
+    "kind": "control",
+    "board": "Site-404",
+    "evidence": "Came here to check a suspicious email?"
+   },
+   {
+    "name": "404",
+    "kind": "state",
+    "board": "Site-404",
+    "evidence": "Page not found"
+   },
+   {
+    "name": "500",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "Something went wrong"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static error page, rendered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static error page with fixed content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "Reference 500-site"
+   }
+  ]
+ },
+ "T1": {
+  "items": [
+   {
+    "name": "business name",
+    "kind": "control",
+    "board": "Verify-Protected",
+    "evidence": "Fynbos Freight (Pty) Ltd"
+   },
+   {
+    "name": "verified sending domains",
+    "kind": "control",
+    "board": "Verify-Protected",
+    "evidence": "Fynbos Freight only sends email from"
+   },
+   {
+    "name": "date verified",
+    "kind": "control",
+    "board": "Verify-Protected",
+    "evidence": "Identity verified by IsItLegit on 12 Oct 2026"
+   },
+   {
+    "name": "forward-to-check steps",
+    "kind": "control",
+    "board": "Verify-Protected",
+    "evidence": "Copy check@isitlegit.co.za"
+   },
+   {
+    "name": "protected",
+    "kind": "state",
+    "board": "Verify-Protected",
+    "evidence": "Protected by IsItLegit"
+   },
+   {
+    "name": "not protected or lapsed",
+    "kind": "state",
+    "board": "Verify-NotProtected",
+    "evidence": "is not protected right now"
+   },
+   {
+    "name": "came from a foreign domain",
+    "kind": "state",
+    "board": "Verify-Foreign",
+    "evidence": "Stop: wrong website"
+   },
+   {
+    "name": "phone layout",
+    "kind": "state",
+    "board": "Verify-Mobile",
+    "evidence": "No \"Forward as attachment\" on your phone?"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "server-rendered page delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "deferred": "D05 T02 §6",
+    "reason": "an unknown slug has no board; the owner renders it with the site 404 (S11)"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Site-500",
+    "evidence": "This page didn"
+   }
+  ]
+ },
+ "T2": {
+  "items": [
+   {
+    "name": "seal",
+    "kind": "control",
+    "board": "Seal-Frames",
+    "evidence": "Click to verify"
+   },
+   {
+    "name": "business name",
+    "kind": "control",
+    "board": "Seal-Frames",
+    "evidence": "Fynbos Freight (Pty) Ltd"
+   },
+   {
+    "name": "today's date",
+    "kind": "control",
+    "board": "Seal-Frames",
+    "evidence": "Protected · Mon 27 Oct 2026"
+   },
+   {
+    "name": "neutral state when the origin cannot be told",
+    "kind": "state",
+    "board": "Seal-Frames",
+    "evidence": "Is this business legit?"
+   },
+   {
+    "name": "counterfeit domain",
+    "kind": "state",
+    "board": "Seal-Frames",
+    "evidence": "refused to connect."
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "a small framed page delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "the neutral state covers a seal with nothing to vouch for"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "deferred": "D05 T02 §9",
+    "reason": "a lapsed or unknown slug has no board; the owner serves the neutral seal"
+   }
+  ]
+ },
+ "T3": {
+  "items": [
+   {
+    "name": "Protected badge",
+    "kind": "state",
+    "board": "Badges",
+    "evidence": "Two heights: 52 px and 36 px"
+   },
+   {
+    "name": "Not verified badge",
+    "kind": "state",
+    "board": "Badges",
+    "evidence": "NOT VERIFIED"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "an image, not a page"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "an image, not a page"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Badges",
+    "evidence": "Lapsed or unknown"
+   }
+  ]
+ },
+ "A1": {
+  "items": [
+   {
+    "name": "email field",
+    "kind": "control",
+    "board": "Signin",
+    "evidence": "Work email"
+   },
+   {
+    "name": "magic-link button",
+    "kind": "control",
+    "board": "Signin",
+    "evidence": "Email me a sign-in link"
+   },
+   {
+    "name": "passkey button",
+    "kind": "control",
+    "board": "Signin",
+    "evidence": "Sign in with a passkey"
+   },
+   {
+    "name": "check your inbox",
+    "kind": "state",
+    "board": "Signin-States",
+    "evidence": "Check your inbox"
+   },
+   {
+    "name": "link expired or used",
+    "kind": "state",
+    "board": "Signin-States",
+    "evidence": "That link no longer works"
+   },
+   {
+    "name": "rate limited",
+    "kind": "state",
+    "board": "Signin-States",
+    "evidence": "Too many sign-in attempts"
+   },
+   {
+    "name": "passkey prompt",
+    "kind": "state",
+    "board": "Signin-States",
+    "evidence": "Confirm it is you"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T02 §7",
+    "reason": "the submit button shows a busy state while the request runs; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "a form page; the empty form is the default state"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "A2": {
+  "items": [
+   {
+    "name": "invite code",
+    "kind": "control",
+    "board": "Signup",
+    "evidence": "Invite code"
+   },
+   {
+    "name": "email",
+    "kind": "control",
+    "board": "Signup",
+    "evidence": "Work email"
+   },
+   {
+    "name": "organisation name",
+    "kind": "control",
+    "board": "Signup",
+    "evidence": "Organisation name"
+   },
+   {
+    "name": "POPIA consent",
+    "kind": "control",
+    "board": "Signup",
+    "evidence": "I agree to IsItLegit processing mail I forward"
+   },
+   {
+    "name": "code invalid",
+    "kind": "state",
+    "board": "Signup",
+    "evidence": "We do not recognise that code."
+   },
+   {
+    "name": "used up",
+    "kind": "state",
+    "board": "Signup",
+    "evidence": "This code has been used up."
+   },
+   {
+    "name": "expired",
+    "kind": "state",
+    "board": "Signup",
+    "evidence": "This code expired on 31 Oct 2026."
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T02 §7",
+    "reason": "the submit button shows a busy state while the request runs; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "a form page; the empty form is the default state"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "A3": {
+  "items": [
+   {
+    "name": "organisation and inviter",
+    "kind": "control",
+    "board": "Invite",
+    "evidence": "invited you to join Karoo Couriers"
+   },
+   {
+    "name": "accept",
+    "kind": "control",
+    "board": "Invite",
+    "evidence": "Accept and join"
+   },
+   {
+    "name": "expired",
+    "kind": "state",
+    "board": "Invite",
+    "evidence": "This invitation has expired."
+   },
+   {
+    "name": "revoked",
+    "kind": "state",
+    "board": "Invite",
+    "evidence": "Karoo Couriers withdrew this invitation."
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "server-rendered page delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "an invitation page always has its invitation or a state above"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "A4": {
+  "items": [
+   {
+    "name": "verify your domain",
+    "kind": "control",
+    "board": "Welcome",
+    "evidence": "Verify your domain"
+   },
+   {
+    "name": "invite your team",
+    "kind": "control",
+    "board": "Welcome",
+    "evidence": "Invite your team"
+   },
+   {
+    "name": "forward your first email",
+    "kind": "control",
+    "board": "Welcome",
+    "evidence": "Forward your first email"
+   },
+   {
+    "name": "add suppliers",
+    "kind": "control",
+    "board": "Welcome",
+    "evidence": "Add your suppliers"
+   },
+   {
+    "name": "protect your business",
+    "kind": "control",
+    "board": "Welcome",
+    "evidence": "Protect your business"
+   },
+   {
+    "name": "judge demo notice for the judge organisation",
+    "kind": "state",
+    "board": "Welcome",
+    "evidence": "Welcome, judges."
+   },
+   {
+    "name": "progress",
+    "kind": "state",
+    "board": "Welcome",
+    "evidence": "2 of 5 done"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T08 §2",
+    "reason": "server-rendered; the shell's loading pattern from D07 T01 §3 applies; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "the checklist always has its five steps"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "A5": {
+  "items": [
+   {
+    "name": "TXT record to copy",
+    "kind": "control",
+    "board": "Verify-Domain",
+    "evidence": "Add a DNS TXT record"
+   },
+   {
+    "name": "check now",
+    "kind": "control",
+    "board": "Verify-Domain",
+    "evidence": "Check now"
+   },
+   {
+    "name": "emailed-code option",
+    "kind": "control",
+    "board": "Verify-Domain",
+    "evidence": "Get a code by email"
+   },
+   {
+    "name": "pending",
+    "kind": "state",
+    "board": "Verify-Domain",
+    "evidence": "Pending"
+   },
+   {
+    "name": "verified",
+    "kind": "state",
+    "board": "Verify-Domain",
+    "evidence": "is verified"
+   },
+   {
+    "name": "failed",
+    "kind": "state",
+    "board": "Verify-Domain",
+    "evidence": "We found a different record"
+   },
+   {
+    "name": "locked",
+    "kind": "state",
+    "board": "Verify-Domain",
+    "evidence": "Code entry is locked until 15:14 SAST"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T02 §7",
+    "reason": "Check now shows a busy state during the DNS lookup; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "the page always concerns one claimed domain"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M1": {
+  "items": [
+   {
+    "name": "stats panel",
+    "kind": "control",
+    "board": "Cases",
+    "evidence": "Checked this week"
+   },
+   {
+    "name": "this week",
+    "kind": "control",
+    "board": "Cases",
+    "evidence": "19 last week"
+   },
+   {
+    "name": "money at risk caught",
+    "kind": "control",
+    "board": "Cases",
+    "evidence": "Money at risk caught"
+   },
+   {
+    "name": "filters",
+    "kind": "control",
+    "board": "Cases",
+    "evidence": "All channels"
+   },
+   {
+    "name": "search",
+    "kind": "control",
+    "board": "Cases",
+    "evidence": "Search by sender or subject"
+   },
+   {
+    "name": "case table",
+    "kind": "control",
+    "board": "Cases",
+    "evidence": "Showing 1 to 8 of 64"
+   },
+   {
+    "name": "empty first run",
+    "kind": "state",
+    "board": "Cases-Empty",
+    "evidence": "No cases yet"
+   },
+   {
+    "name": "filtered empty",
+    "kind": "state",
+    "board": "Cases-Empty",
+    "evidence": "Clear filters"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "board": "Cases",
+    "evidence": "Checking"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "board": "Cases-Empty",
+    "evidence": "Check your first suspicious email."
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M2": {
+  "items": [
+   {
+    "name": "drop zone",
+    "kind": "control",
+    "board": "Upload",
+    "evidence": "Drop one file here"
+   },
+   {
+    "name": "accepted types",
+    "kind": "control",
+    "board": "Upload",
+    "evidence": "What you can check"
+   },
+   {
+    "name": "progress",
+    "kind": "control",
+    "board": "Upload-States",
+    "evidence": "1.2 MB of 1.9 MB"
+   },
+   {
+    "name": "uploading",
+    "kind": "state",
+    "board": "Upload-States",
+    "evidence": "Uploading INV-20931.pdf"
+   },
+   {
+    "name": "refused type",
+    "kind": "state",
+    "board": "Upload-States",
+    "evidence": "Refused type · 415"
+   },
+   {
+    "name": "too large",
+    "kind": "state",
+    "board": "Upload-States",
+    "evidence": "Too large · 413"
+   },
+   {
+    "name": "daily cap reached",
+    "kind": "state",
+    "board": "Upload-States",
+    "evidence": "Daily limit reached · 429"
+   },
+   {
+    "name": "signed out",
+    "kind": "state",
+    "board": "Upload-States",
+    "evidence": "Signed out · 401"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "board": "Upload-States",
+    "evidence": "Uploading..."
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "board": "Upload",
+    "evidence": "One file at a time, up to 25 MB"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M3": {
+  "items": [
+   {
+    "name": "verdict banner",
+    "kind": "control",
+    "board": "Main",
+    "evidence": "Malicious · high confidence"
+   },
+   {
+    "name": "headline",
+    "kind": "control",
+    "board": "Main",
+    "evidence": "This is a password-phishing email pretending to be NimbusMail."
+   },
+   {
+    "name": "three reasons",
+    "kind": "control",
+    "board": "Main",
+    "evidence": "Why we say so"
+   },
+   {
+    "name": "actions",
+    "kind": "control",
+    "board": "Main",
+    "evidence": "What to do now"
+   },
+   {
+    "name": "evidence cards",
+    "kind": "control",
+    "board": "Main",
+    "evidence": "9 findings · 8 checks ran · nothing skipped"
+   },
+   {
+    "name": "model trace",
+    "kind": "control",
+    "board": "Main",
+    "evidence": "How Meta's models worked on this case"
+   },
+   {
+    "name": "feedback",
+    "kind": "control",
+    "board": "Main",
+    "evidence": "This verdict is wrong"
+   },
+   {
+    "name": "running",
+    "kind": "state",
+    "board": "Report-Running",
+    "evidence": "We are investigating this email."
+   },
+   {
+    "name": "safe",
+    "kind": "state",
+    "board": "Report-Safe",
+    "evidence": "Safe · high confidence"
+   },
+   {
+    "name": "suspicious",
+    "kind": "state",
+    "board": "Report-Voice",
+    "evidence": "Suspicious · medium confidence · voice note"
+   },
+   {
+    "name": "malicious",
+    "kind": "state",
+    "board": "Main",
+    "evidence": "Malicious · high confidence"
+   },
+   {
+    "name": "partial",
+    "kind": "state",
+    "board": "Report-Partial",
+    "evidence": "Two checks did not run"
+   },
+   {
+    "name": "failed",
+    "kind": "state",
+    "board": "Report-Partial",
+    "evidence": "Check failed · no verdict"
+   },
+   {
+    "name": "invoice",
+    "kind": "state",
+    "board": "Report-Invoice",
+    "evidence": "Malicious · high confidence · invoice fraud"
+   },
+   {
+    "name": "payment document",
+    "kind": "state",
+    "deferred": "D07 T03 §3",
+    "reason": "no board of its own; the payment document card on S3 is its visual reference"
+   },
+   {
+    "name": "voice note",
+    "kind": "state",
+    "board": "Report-Voice",
+    "evidence": "What was said"
+   },
+   {
+    "name": "counterparty (no private data)",
+    "kind": "state",
+    "board": "Report-Counterparty",
+    "evidence": "Checks without an account are limited to 5 a day."
+   },
+   {
+    "name": "monitor finding",
+    "kind": "state",
+    "deferred": "D07 T03 §3",
+    "reason": "no board of its own; the monitor detail panel on M6 is its visual reference"
+   },
+   {
+    "name": "phone layout",
+    "kind": "state",
+    "board": "Report-Mobile",
+    "evidence": "6 more findings"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "board": "Report-Running",
+    "evidence": "Step 5 of 8"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "a report always has a verdict, a running state or a failed state"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Report-Partial",
+    "evidence": "We could not finish checking this email."
+   }
+  ]
+ },
+ "M4": {
+  "items": [
+   {
+    "name": "table with masked accounts",
+    "kind": "control",
+    "board": "Suppliers",
+    "evidence": "Changed on invoice"
+   },
+   {
+    "name": "add and edit",
+    "kind": "control",
+    "board": "Suppliers",
+    "evidence": "Save supplier"
+   },
+   {
+    "name": "CSV import with row errors",
+    "kind": "state",
+    "board": "Suppliers",
+    "evidence": "Nothing imported"
+   },
+   {
+    "name": "mark verified undo",
+    "kind": "control",
+    "board": "Suppliers",
+    "evidence": "Undo stays available for 24 hours"
+   },
+   {
+    "name": "search",
+    "kind": "control",
+    "board": "Suppliers",
+    "evidence": "Search name, domain or last 4 digits"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D06 T01 §4",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "deferred": "D06 T01 §4",
+    "reason": "no supplier yet has no board; the owner shows Add supplier and Import CSV"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M5": {
+  "items": [
+   {
+    "name": "names",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Trading names"
+   },
+   {
+    "name": "domains",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Manage domains"
+   },
+   {
+    "name": "logo",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Replace logo"
+   },
+   {
+    "name": "finance contact",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Finance contact"
+   },
+   {
+    "name": "bank accounts (masked)",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Add account"
+   },
+   {
+    "name": "protected switch",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Protected since 12 Oct 2026"
+   },
+   {
+    "name": "signature badge snippet",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Copy signature HTML"
+   },
+   {
+    "name": "website seal snippet",
+    "kind": "control",
+    "board": "Protect",
+    "evidence": "Copy embed code"
+   },
+   {
+    "name": "recent impersonation alerts",
+    "kind": "state",
+    "board": "Protect",
+    "evidence": "Recent impersonation alerts"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D05 T01 §3",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "deferred": "D05 T01 §3",
+    "reason": "an organisation with no protected identity yet has no board"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M6": {
+  "items": [
+   {
+    "name": "findings with status",
+    "kind": "control",
+    "board": "Monitor",
+    "evidence": "New, live"
+   },
+   {
+    "name": "first seen",
+    "kind": "control",
+    "board": "Monitor",
+    "evidence": "First seen"
+   },
+   {
+    "name": "takedown pack",
+    "kind": "control",
+    "board": "Monitor",
+    "evidence": "Download takedown pack (PDF)"
+   },
+   {
+    "name": "dismiss",
+    "kind": "control",
+    "board": "Monitor",
+    "evidence": "Dismiss with a reason"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D05 T04 §5",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "deferred": "D05 T04 §5",
+    "reason": "no findings yet has no board"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M7": {
+  "items": [
+   {
+    "name": "members",
+    "kind": "control",
+    "board": "Team",
+    "evidence": "Last active"
+   },
+   {
+    "name": "roles",
+    "kind": "control",
+    "board": "Team",
+    "evidence": ": checks mail and sees cases."
+   },
+   {
+    "name": "invites",
+    "kind": "control",
+    "board": "Team",
+    "evidence": "Send invitation"
+   },
+   {
+    "name": "remove",
+    "kind": "control",
+    "board": "Team",
+    "evidence": "Remove"
+   },
+   {
+    "name": "last-owner guard",
+    "kind": "state",
+    "board": "Team",
+    "evidence": "You are the only owner"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T04 §3",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "a team always has at least its owner"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M8": {
+  "items": [
+   {
+    "name": "verified domains",
+    "kind": "control",
+    "board": "Domains",
+    "evidence": "Add a domain"
+   },
+   {
+    "name": "sending addresses",
+    "kind": "control",
+    "board": "Domains",
+    "evidence": "Add a single address"
+   },
+   {
+    "name": "forwarding help",
+    "kind": "control",
+    "board": "Domains",
+    "evidence": "How to forward an email for checking"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T04 §4",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "an organisation always has the domain it signed up with"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M9": {
+  "items": [
+   {
+    "name": "name",
+    "kind": "control",
+    "board": "Account",
+    "evidence": "Profile"
+   },
+   {
+    "name": "email",
+    "kind": "control",
+    "board": "Account",
+    "evidence": "Changing it sends a confirmation link to the new address."
+   },
+   {
+    "name": "passkeys (add, remove)",
+    "kind": "control",
+    "board": "Account",
+    "evidence": "Add a passkey"
+   },
+   {
+    "name": "sessions",
+    "kind": "control",
+    "board": "Account",
+    "evidence": "Where you are signed in"
+   },
+   {
+    "name": "sign out",
+    "kind": "control",
+    "board": "Account",
+    "evidence": "Sign out everywhere else"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T08 §3",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "an account always has its profile and current session"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "M10": {
+  "items": [
+   {
+    "name": "trial days left",
+    "kind": "control",
+    "board": "Plan",
+    "evidence": "11 days left of your 14-day trial"
+   },
+   {
+    "name": "what Protect includes",
+    "kind": "control",
+    "board": "Plan",
+    "evidence": "Impersonation monitor for fake websites"
+   },
+   {
+    "name": "launch pricing",
+    "kind": "control",
+    "board": "Plan",
+    "evidence": "Launch prices, shown so you know what comes next."
+   },
+   {
+    "name": "daily cap and usage",
+    "kind": "control",
+    "board": "Plan",
+    "evidence": "27 of 50 checks used"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T08 §4",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "every organisation has a plan"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "X1": {
+  "items": [
+   {
+    "name": "organisations table",
+    "kind": "control",
+    "board": "Admin-Overview",
+    "evidence": "Search organisations"
+   },
+   {
+    "name": "model spend against caps",
+    "kind": "control",
+    "board": "Admin-Overview",
+    "evidence": "Model spend against the caps"
+   },
+   {
+    "name": "service health",
+    "kind": "control",
+    "board": "Admin-Overview",
+    "evidence": "Service health"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T05 §2",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "deferred": "D07 T05 §2",
+    "reason": "no organisations yet has no board"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "X2": {
+  "items": [
+   {
+    "name": "onboarding",
+    "kind": "control",
+    "board": "Admin-Org",
+    "evidence": "4 of 5 done"
+   },
+   {
+    "name": "domains",
+    "kind": "control",
+    "board": "Admin-Org",
+    "evidence": "TXT record, verified 27 Oct 09:02"
+   },
+   {
+    "name": "members",
+    "kind": "control",
+    "board": "Admin-Org",
+    "evidence": "Members"
+   },
+   {
+    "name": "cases by week",
+    "kind": "control",
+    "board": "Admin-Org",
+    "evidence": "Cases by week"
+   },
+   {
+    "name": "threats",
+    "kind": "control",
+    "board": "Admin-Org",
+    "evidence": "Top threats, 30 days"
+   },
+   {
+    "name": "feedback",
+    "kind": "control",
+    "board": "Admin-Org",
+    "evidence": "Feedback from this organisation"
+   },
+   {
+    "name": "plan",
+    "kind": "control",
+    "board": "Admin-Org",
+    "evidence": "Trial of Protect, ends Mon 10 Nov 2026"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T08 §5",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "board": "Admin-Org",
+    "evidence": "Protected identity: not set up"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "X3": {
+  "items": [
+   {
+    "name": "create",
+    "kind": "control",
+    "board": "Admin-Invites",
+    "evidence": "Create code"
+   },
+   {
+    "name": "list uses",
+    "kind": "control",
+    "board": "Admin-Invites",
+    "evidence": "1 of 30"
+   },
+   {
+    "name": "revoke",
+    "kind": "control",
+    "board": "Admin-Invites",
+    "evidence": "Revoked"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T05 §2",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "deferred": "D07 T05 §2",
+    "reason": "no codes yet has no board"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "X4": {
+  "items": [
+   {
+    "name": "This was wrong reports",
+    "kind": "control",
+    "board": "Admin-Feedback",
+    "evidence": "New 3"
+   },
+   {
+    "name": "case links",
+    "kind": "control",
+    "board": "Admin-Feedback",
+    "evidence": "Your NimbusMail password expires today"
+   },
+   {
+    "name": "provider attribution",
+    "kind": "control",
+    "board": "Admin-Feedback",
+    "evidence": "Decided by"
+   },
+   {
+    "name": "triage",
+    "kind": "control",
+    "board": "Admin-Feedback",
+    "evidence": "Add to eval set"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D07 T08 §5",
+    "reason": "server-rendered; not drawn"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "deferred": "D07 T08 §5",
+    "reason": "an empty queue has no board"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "X5": {
+  "items": [
+   {
+    "name": "every run",
+    "kind": "control",
+    "board": "Admin-Eval",
+    "evidence": "All runs"
+   },
+   {
+    "name": "targets",
+    "kind": "control",
+    "board": "Admin-Eval",
+    "evidence": "Target at least 95%"
+   },
+   {
+    "name": "ablation",
+    "kind": "control",
+    "board": "Admin-Eval",
+    "evidence": "What each Meta model is worth"
+   },
+   {
+    "name": "start a run",
+    "kind": "control",
+    "board": "Admin-Eval",
+    "evidence": "Start a run"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "deferred": "D08 T02 §4",
+    "reason": "a run in progress has no board"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "board": "Admin-Eval",
+    "evidence": "Nothing here is a result."
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   }
+  ]
+ },
+ "E1": {
+  "items": [
+   {
+    "name": "same page for a missing and a forbidden case",
+    "kind": "control",
+    "board": "Error-404",
+    "evidence": "case links never reveal anything"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static error page, rendered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static error page with fixed content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "this page is itself an error page"
+   }
+  ]
+ },
+ "E2": {
+  "items": [
+   {
+    "name": "report link past its 7 days",
+    "kind": "control",
+    "board": "Error-410",
+    "evidence": "This report link has expired."
+   },
+   {
+    "name": "how to get a new one",
+    "kind": "control",
+    "board": "Error-410",
+    "evidence": "Sign in to see the case"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static error page, rendered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static error page with fixed content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "this page is itself an error page"
+   }
+  ]
+ },
+ "E3": {
+  "items": [
+   {
+    "name": "signed in but not a member",
+    "kind": "control",
+    "board": "Error-403",
+    "evidence": "re not a member of this organisation."
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static error page, rendered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static error page with fixed content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "this page is itself an error page"
+   }
+  ]
+ },
+ "E4": {
+  "items": [
+   {
+    "name": "rate limit or daily cap",
+    "kind": "control",
+    "board": "Error-429",
+    "evidence": "s limit of 50 checks."
+   },
+   {
+    "name": "when it resets",
+    "kind": "control",
+    "board": "Error-429",
+    "evidence": "00:00 SAST, in 5 h 12 min"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static error page, rendered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static error page with fixed content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "this page is itself an error page"
+   }
+  ]
+ },
+ "E5": {
+  "items": [
+   {
+    "name": "apology",
+    "kind": "control",
+    "board": "Error-500",
+    "evidence": "Sorry, something broke on our side."
+   },
+   {
+    "name": "reference id",
+    "kind": "control",
+    "board": "Error-500",
+    "evidence": "Reference 500-8K1V3P"
+   },
+   {
+    "name": "status",
+    "kind": "control",
+    "board": "Error-500",
+    "evidence": "we have been told about it"
+   },
+   {
+    "name": "the forward address still works",
+    "kind": "control",
+    "board": "Error-500",
+    "evidence": "Forwarding still works"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static error page, rendered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static error page with fixed content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "this page is itself an error page"
+   }
+  ]
+ },
+ "E6": {
+  "items": [
+   {
+    "name": "planned downtime notice",
+    "kind": "control",
+    "board": "Error-Maintenance",
+    "evidence": "Planned maintenance"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "static error page, rendered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "static error page with fixed content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "this page is itself an error page"
+   }
+  ]
+ },
+ "N1": {
+  "items": [
+   {
+    "name": "member variant",
+    "kind": "state",
+    "board": "Email-Reply",
+    "evidence": "Open the full report"
+   },
+   {
+    "name": "counterparty variant",
+    "kind": "state",
+    "board": "Email-Reply-Counterparty",
+    "evidence": "Not from Fynbos Freight"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N2": {
+  "items": [
+   {
+    "name": "sign-in link",
+    "kind": "control",
+    "board": "Email-Signin",
+    "evidence": "Sign in to IsItLegit"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N3": {
+  "items": [
+   {
+    "name": "invitation",
+    "kind": "control",
+    "board": "Email-Invite",
+    "evidence": "Accept the invitation"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N4": {
+  "items": [
+   {
+    "name": "domain verification code",
+    "kind": "control",
+    "board": "Email-DomainCode",
+    "evidence": "Your verification code for karoocouriers.example"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N5": {
+  "items": [
+   {
+    "name": "bank verification request",
+    "kind": "control",
+    "board": "Email-VerifyRequest",
+    "evidence": "Just reply with one word"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N6": {
+  "items": [
+   {
+    "name": "impersonation alert",
+    "kind": "control",
+    "board": "Email-Impersonation",
+    "evidence": "How they used your name"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N7": {
+  "items": [
+   {
+    "name": "monitor alert",
+    "kind": "control",
+    "board": "Email-Monitor",
+    "evidence": "Takedown facts (from RDAP)"
+   },
+   {
+    "name": "takedown pack",
+    "kind": "control",
+    "board": "Email-Monitor",
+    "evidence": "Get the takedown pack"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N8": {
+  "items": [
+   {
+    "name": "daily limit reached",
+    "kind": "control",
+    "board": "Email-Cap",
+    "evidence": "s 50 checks."
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
+ "N9": {
+  "items": [
+   {
+    "name": "budget cap",
+    "kind": "state",
+    "board": "Email-Operator",
+    "evidence": "Budget cap reached"
+   },
+   {
+    "name": "feedback",
+    "kind": "state",
+    "board": "Email-Operator-Feedback",
+    "evidence": "A member says a verdict is wrong."
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ }
+}

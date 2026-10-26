@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign up</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); font-family: 'Exo 2', sans-serif; color: #181519">
+  <section style="background: #181519; color: #FFFFFF; padding: 56px 80px; display: flex; flex-direction: column; justify-content: space-between">
+    <a href="Home.dc.html"><img src="../../brand/logo-svg/isitlegit-logo-on-dark.svg" alt="IsItLegit home" style="height: 34px; display: block"></a>
+    <div style="display: flex; flex-direction: column; gap: 24px; max-width: 520px">
+      <img src="../../brand/logo-svg/isitlegit-mark-on-dark.svg" alt="" style="width: 112px; height: 112px">
+      <h1 style="color: #FFFFFF; font-size: 44px; line-height: 1.1; font-weight: 900">Protect your business from fake invoices and phishing.</h1>
+      <p style="font-size: 18px; color: #F1F1F2">Create your organisation. During the launch you need an invite code; checks are free.</p>
+    </div>
+    <p style="font-size: 14px; color: #D2CFD7">IsItLegit by Rizonetech · George, South Africa</p>
+  </section>
+  <section style="padding: 56px 120px; display: flex; flex-direction: column; justify-content: center; gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 8px"><h2 style="font-size: 32px">Create an account</h2><p class="muted">Already have one? <a href="Signin.dc.html">Sign in</a></p></div>
+    <form style="display: flex; flex-direction: column; gap: 16px; max-width: 440px" aria-label="Sign up">
+      <div class="field"><label class="label" for="ic">Invite code</label><input id="ic" class="input input-error" value="GARDEN-ROUTE-24" aria-invalid="true" aria-describedby="ic-err"><span id="ic-err" class="error-text">This code has been used up. Ask whoever gave it to you for a new one.</span></div>
+      <div class="field"><label class="label" for="em">Work email</label><input id="em" class="input" type="email" value="thandi@karoocouriers.example" autocomplete="email"></div>
+      <div class="field"><label class="label" for="on">Organisation name</label><input id="on" class="input" value="Karoo Couriers"></div>
+      <div class="panel" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+        <p class="small">We process the email you forward to check it, delete the original message and attachments after 30 days, and keep a short case summary. Meta's models and our other processors handle it under POPIA. <a href="Privacy.dc.html">Read the privacy notice</a></p>
+        <label class="checkbox"><input type="checkbox" checked><span>I agree to IsItLegit processing mail I forward, as the privacy notice describes.</span></label>
+      </div>
+      <button class="btn btn-primary" type="submit" style="width: 100%">Create account</button>
+    </form>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; max-width: 440px" aria-label="Other invite code messages">
+      <span class="tiny muted">Other code messages:</span>
+      <span class="tiny" style="color: #C8102E; font-weight: 600">"We do not recognise that code."</span>
+      <span class="tiny" style="color: #C8102E; font-weight: 600">"This code expired on 31 Oct 2026."</span>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

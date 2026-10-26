@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Slow down</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 960px; height: 640px; box-sizing: border-box; padding: 40px 56px; background: #F8F8F9; font-family: 'Exo 2', sans-serif; color: #181519; display: flex; flex-direction: column; gap: 32px">
+  <header style="display: flex; justify-content: space-between; align-items: center"><a href="Cases.dc.html"><img src="../../brand/logo-svg/isitlegit-logo.svg" alt="IsItLegit" style="height: 26px; display: block"></a><span class="tiny muted">app.isitlegit.co.za</span></header>
+  <main class="card" style="flex: 1; padding: 40px 48px; display: flex; gap: 40px; align-items: center">
+    <span style="width: 152px; height: 152px; border-radius: 24px; background: #F1F1F2; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/suspicious.svg" alt="" style="width: 120px; height: 120px"></span>
+    <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0">
+      <p class="eyebrow" style="color: #8A5200">Error 429</p>
+      <h1 style="font-size: 32px; line-height: 1.2">You've reached today's limit of 50 checks.</h1>
+      <p class="muted">Karoo Couriers can check 50 emails or files a day during the launch. The limit resets at <strong style="color: #181519">00:00 SAST, in 5 h 12 min</strong>. Mail forwarded before then is not checked: you get one email saying so, and can forward it again after the reset.</p>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px"><a href="Plan.dc.html" class="btn btn-dark">See your plan</a><a href="Cases.dc.html" class="btn btn-ghost">Back to cases</a></div>
+      <div class="panel" style="padding: 12px 14px"><p class="small"><strong>Too many requests at once?</strong> <span class="muted">The same page also covers a short burst limit: then it says "try again in 30 seconds" and counts down.</span></p></div>
+    </div>
+  </main>
+  <footer class="tiny muted" style="display: flex; justify-content: space-between"><span>Reference 429-2B6W5R · Mon 27 Oct 2026, 18:48 SAST</span><span>IsItLegit by Rizonetech</span></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":640}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

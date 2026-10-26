@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); font-family: 'Exo 2', sans-serif; color: #181519">
+  <section style="background: #181519; color: #FFFFFF; padding: 56px 80px; display: flex; flex-direction: column; justify-content: space-between">
+    <a href="Home.dc.html"><img src="../../brand/logo-svg/isitlegit-logo-on-dark.svg" alt="IsItLegit home" style="height: 34px; display: block"></a>
+    <div style="display: flex; flex-direction: column; gap: 24px; max-width: 520px">
+      <img src="../../brand/logo-svg/isitlegit-mark-on-dark.svg" alt="" style="width: 112px; height: 112px">
+      <h1 style="color: #FFFFFF; font-size: 44px; line-height: 1.1; font-weight: 900">Every suspicious email, investigated. Every reason, cited.</h1>
+      <p style="font-size: 18px; color: #F1F1F2">Sign in to see your cases, protect your business name and keep your supplier list honest.</p>
+    </div>
+    <p style="font-size: 14px; color: #D2CFD7">IsItLegit by Rizonetech · George, South Africa</p>
+  </section>
+  <section style="padding: 56px 120px; display: flex; flex-direction: column; justify-content: center; gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 8px"><h2 style="font-size: 32px">Sign in</h2><p class="muted">We send a one-time link to your email. No password to remember or steal.</p></div>
+    <form style="display: flex; flex-direction: column; gap: 16px; max-width: 440px" aria-label="Sign in">
+      <div class="field"><label class="label" for="email">Work email</label><input id="email" class="input" type="email" placeholder="you@yourbusiness.co.za" autocomplete="email"></div>
+      <button class="btn btn-primary" type="submit" style="width: 100%">Email me a sign-in link</button>
+      <div style="display: flex; align-items: center; gap: 12px" aria-hidden="true"><span style="height: 1px; background: #E3E2E6; flex: 1"></span><span class="small muted">or</span><span style="height: 1px; background: #E3E2E6; flex: 1"></span></div>
+      <button class="btn btn-ghost" type="button" style="width: 100%"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#181519" stroke-width="2" aria-hidden="true"><circle cx="8" cy="10" r="4"/><path d="M11.5 12.5L20 21M16 17l2-2M18.5 19.5l2-2"/></svg>Sign in with a passkey</button>
+    </form>
+    <p class="small muted" style="max-width: 440px">New here? You need an invite code during the launch. <a href="Signup.dc.html">Create an account</a></p>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

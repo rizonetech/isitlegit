@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin: organisation</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1400px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #181519">
+    <dc-import name="AdminNav" active="orgs" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 48px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <nav aria-label="Breadcrumb" class="small muted" style="display: flex; gap: 8px"><a href="Admin-Overview.dc.html" style="color: #4D4953">Organisations</a><span aria-hidden="true">/</span><span>Karoo Couriers</span></nav>
+    <header style="display: flex; justify-content: space-between; align-items: flex-start">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; gap: 12px; align-items: center"><h1 style="font-size: 30px">Karoo Couriers</h1><span class="pill pill-neutral">Trial, 11 days left</span></div>
+        <p class="small muted">Joined Mon 27 Oct 2026 with invite KAROO-7Q4M · 4 members · daily cap 50 cases</p>
+      </div>
+      <div style="display: flex; gap: 8px"><button class="btn btn-ghost btn-sm">Extend trial</button><button class="btn btn-ghost btn-sm">Change daily cap</button><button class="btn btn-danger btn-sm">Suspend</button></div>
+    </header>
+
+    <section style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px">
+      <div class="card card-pad" style="display: flex; flex-direction: column; gap: 12px">
+        <h3>Onboarding</h3>
+        <p class="small muted">4 of 5 done</p>
+        <div style="height: 8px; border-radius: 6px; background: #F1F1F2"><div style="width: 80%; height: 8px; border-radius: 6px; background: #0E7C5B"></div></div>
+        <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px" class="small">
+          <li><span class="pill pill-safe" style="height: 20px">Done</span> Verify your domain</li>
+          <li><span class="pill pill-safe" style="height: 20px">Done</span> Invite your team</li>
+          <li><span class="pill pill-safe" style="height: 20px">Done</span> Forward your first email</li>
+          <li><span class="pill pill-safe" style="height: 20px">Done</span> Add suppliers</li>
+          <li><span class="pill pill-neutral" style="height: 20px">Open</span> Protect your business</li>
+        </ul>
+      </div>
+      <div class="card card-pad" style="display: flex; flex-direction: column; gap: 12px">
+        <h3>Domains</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center"><span class="mono">karoocouriers.example</span><span class="pill pill-safe">Verified</span></div>
+        <p class="tiny muted">TXT record, verified 27 Oct 09:02</p>
+        <div style="display: flex; justify-content: space-between; align-items: center"><span class="mono">karoo-couriers.example</span><span class="pill pill-sus">Pending</span></div>
+        <p class="tiny muted">Code sent to admin@ 27 Oct 09:05, not used yet</p>
+      </div>
+      <div class="card card-pad" style="display: flex; flex-direction: column; gap: 12px">
+        <h3>Members</h3>
+        <table class="table" style="font-size: 14px"><tbody>
+          <tr><td style="padding: 8px 0">Thandi Nkosi</td><td style="padding: 8px 0; text-align: right"><span class="pill pill-neutral">Owner</span></td></tr>
+          <tr><td style="padding: 8px 0">Sipho Mokoena</td><td style="padding: 8px 0; text-align: right"><span class="pill pill-neutral">Admin</span></td></tr>
+          <tr><td style="padding: 8px 0">Ayesha Patel</td><td style="padding: 8px 0; text-align: right"><span class="pill pill-neutral">Member</span></td></tr>
+          <tr><td style="padding: 8px 0">Johan van Wyk</td><td style="padding: 8px 0; text-align: right"><span class="pill pill-running">Invited</span></td></tr>
+        </tbody></table>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px">
+      <div class="card card-pad" style="display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><h3>Cases by week</h3><p class="small muted">Malicious and suspicious in colour</p></div>
+        <div style="height: 200px; display: flex; align-items: flex-end; gap: 20px; padding: 0 8px; border-bottom: 1px solid #E3E2E6" role="img" aria-label="Cases per week: 12, 19, 27; risky cases 3, 6, 9">
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px"><span class="tiny" style="font-weight: 700">12</span><div style="width: 100%; height: 88px; border-radius: 6px 6px 0 0; background: #E3E2E6; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden"><div style="height: 22px; background: #C8102E"></div></div></div>
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px"><span class="tiny" style="font-weight: 700">19</span><div style="width: 100%; height: 139px; border-radius: 6px 6px 0 0; background: #E3E2E6; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden"><div style="height: 44px; background: #C8102E"></div></div></div>
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px"><span class="tiny" style="font-weight: 700">27</span><div style="width: 100%; height: 176px; border-radius: 6px 6px 0 0; background: #E3E2E6; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden"><div style="height: 59px; background: #C8102E"></div></div></div>
+        </div>
+        <div style="display: flex; gap: 20px; padding: 0 8px" class="tiny muted"><span style="flex: 1; text-align: center">13 Oct</span><span style="flex: 1; text-align: center">20 Oct</span><span style="flex: 1; text-align: center">27 Oct</span></div>
+      </div>
+      <div class="card card-pad" style="display: flex; flex-direction: column; gap: 14px">
+        <h3>Top threats, 30 days</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between" class="small"><span>Credential phishing</span><strong>9</strong></div><div style="height: 8px; border-radius: 6px; background: #F1F1F2"><div style="width: 100%; height: 8px; border-radius: 6px; background: #181519"></div></div></div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between" class="small"><span>Invoice bank change</span><strong>5</strong></div><div style="height: 8px; border-radius: 6px; background: #F1F1F2"><div style="width: 56%; height: 8px; border-radius: 6px; background: #181519"></div></div></div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between" class="small"><span>Supplier impersonation</span><strong>3</strong></div><div style="height: 8px; border-radius: 6px; background: #F1F1F2"><div style="width: 33%; height: 8px; border-radius: 6px; background: #181519"></div></div></div>
+          <div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between" class="small"><span>Doctored proof of payment</span><strong>1</strong></div><div style="height: 8px; border-radius: 6px; background: #F1F1F2"><div style="width: 11%; height: 8px; border-radius: 6px; background: #181519"></div></div></div>
+        </div>
+        <p class="tiny muted">Money at risk caught: R184,300 across 3 invoices</p>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px">
+      <div class="card" style="overflow: hidden">
+        <div style="padding: 16px 20px; border-bottom: 1px solid #E3E2E6; display: flex; justify-content: space-between"><h3>Feedback from this organisation</h3><a href="Admin-Feedback.dc.html" class="small">Open queue</a></div>
+        <table class="table"><thead><tr><th>Case</th><th>Our verdict</th><th>They said</th><th>Status</th></tr></thead><tbody>
+          <tr><td class="small"><a href="Report-Safe.dc.html">October statement</a></td><td><span class="pill pill-safe">Safe</span></td><td class="small">"Should be suspicious"</td><td><span class="pill pill-running">New</span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="card card-pad" style="display: flex; flex-direction: column; gap: 10px">
+        <h3>Plan</h3>
+        <p class="small">Trial of Protect, ends Mon 10 Nov 2026</p>
+        <p class="small muted">Today 21 of 50 cases · no billing during launch</p>
+        <p class="small muted">Protected identity: not set up</p>
+      </div>
+    </section>
+    <p class="tiny muted">Sample data on fictional companies.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

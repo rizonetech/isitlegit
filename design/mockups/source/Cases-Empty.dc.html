@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cases: first run</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 900px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="cases" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <header style="display: flex; justify-content: space-between; align-items: center">
+      <div><h1 style="font-size: 32px">Cases</h1><p class="small muted">Everything Karoo Couriers has checked</p></div>
+      <a href="Upload.dc.html" class="btn btn-primary">Check a file</a>
+    </header>
+
+    <section class="card" style="padding: 48px; display: grid; grid-template-columns: 220px 1fr; gap: 48px; align-items: center">
+      <img src="../../brand/motion/question.svg" alt="" style="width: 200px; height: 200px">
+      <div style="display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <p class="eyebrow">No cases yet</p>
+          <h2>Check your first suspicious email.</h2>
+          <p class="muted" style="font-size: 18px; max-width: 620px">Forward it as an attachment, so its original headers come along. The verdict comes back by email in about a minute and appears here.</p>
+        </div>
+        <div class="card" style="padding: 8px 8px 8px 20px; display: flex; align-items: center; gap: 16px; max-width: 620px">
+          <div style="display: flex; flex-direction: column; line-height: 1.3; flex: 1"><span class="tiny muted">Forward it, as an attachment, to</span><span style="font-family: 'Exo', sans-serif; font-size: 22px; font-weight: 800">check@isitlegit.co.za</span></div>
+          <button class="btn btn-dark">Copy address</button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 760px">
+          <div class="panel" style="padding: 14px 16px"><p class="small" style="font-weight: 700">Outlook desktop</p><p class="tiny muted">Select the email, then Home, More, Forward as attachment.</p></div>
+          <div class="panel" style="padding: 14px 16px"><p class="small" style="font-weight: 700">Outlook on the web</p><p class="tiny muted">Open the email, then More actions, Forward as attachment.</p></div>
+          <div class="panel" style="padding: 14px 16px"><p class="small" style="font-weight: 700">Gmail</p><p class="tiny muted">Open the email, then More, Forward as attachment.</p></div>
+        </div>
+        <p class="small muted">Only mail sent from <strong>karoocouriers.example</strong>, your verified domain, is accepted. <a href="Upload.dc.html">Or upload a file</a>, including invoices, proofs of payment and voice notes.</p>
+      </div>
+    </section>
+
+    <section aria-label="Filtered empty state" style="display: flex; flex-direction: column; gap: 12px">
+      <p class="eyebrow" style="color: #4D4953">Second state · filters match nothing</p>
+      <div class="card" style="padding: 32px; display: flex; justify-content: space-between; align-items: center">
+        <div style="display: flex; flex-direction: column; gap: 4px"><h3>No cases match "statement", Malicious, last 7 days.</h3><p class="small muted">64 cases in total. Try a wider date range or another verdict.</p></div>
+        <button class="btn btn-ghost">Clear filters</button>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

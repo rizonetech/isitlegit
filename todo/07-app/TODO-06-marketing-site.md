@@ -172,7 +172,7 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` S4 and its canvas board
+**Fidelity:** `design/SPEC.md` S4 and its board in `design/mockups/`
 **Job:** a business owner understands how IsItLegit protects their name and signs up for it
 **Treatment:** one idea per block, the real seal and badge, a clear call to protect
 **Chrome:** the site layout in `site/src/layouts/Base.astro`
@@ -193,7 +193,7 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` S7 to S9 and their canvas boards
+**Fidelity:** `design/SPEC.md` S7 to S9 and their boards in `design/mockups/`
 **Job:** a careful buyer finds who is behind the service, the rules, and how to report a problem
 **Treatment:** plain words, dated, the same layout as the privacy page
 **Chrome:** the site layout in `site/src/layouts/Base.astro`

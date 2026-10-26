@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: running</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .step{display:grid;grid-template-columns:28px 1fr 160px 90px;gap:14px;align-items:center;padding:14px 20px;border-bottom:1px solid #E3E2E6} .step:last-child{border-bottom:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; display: flex; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <aside style="width: 256px; flex-shrink: 0; background: #F8F8F9; border-right: 1px solid #E3E2E6">
+    <dc-import name="AppNav" active="cases" hint-size="256px,1000px"></dc-import>
+  </aside>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px 48px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <nav aria-label="Breadcrumb" class="small muted" style="display: flex; gap: 8px; align-items: center"><a href="Cases.dc.html" style="color: #4D4953">Cases</a><span aria-hidden="true">/</span><span>Remittance advice 4471</span></nav>
+
+    <header style="display: flex; flex-direction: column; gap: 8px">
+      <h1 style="font-size: 32px">Remittance advice 4471</h1>
+      <p class="small muted">From <strong style="color: #181519">Outeniqua Paper Accounts &lt;accounts@outeniqua-paper.example&gt;</strong> · Forwarded as an attachment by Sipho Mokoena · Mon 27 Oct 2026, 10:02</p>
+    </header>
+
+    <section class="band band-running" aria-label="Status" aria-live="polite">
+      <span style="width: 88px; height: 88px; border-radius: 16px; background: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0"><img src="../../brand/motion/checking.svg" alt="" style="width: 72px; height: 72px"></span>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1">
+        <p class="eyebrow">Checking · 0:21 so far</p>
+        <h2 style="font-size: 30px; line-height: 1.2">We are investigating this email.</h2>
+        <p style="font-size: 17px; color: #343038">Most checks finish within a minute. This page updates by itself, and we also email you the verdict.</p>
+      </div>
+      <span class="pill pill-running" style="align-self: flex-start">Step 5 of 8</span>
+    </section>
+
+    <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: start">
+      <section class="card" style="overflow: hidden" aria-label="Progress">
+        <div style="padding: 16px 20px; border-bottom: 1px solid #E3E2E6; display: flex; justify-content: space-between"><h3>Progress</h3><span class="small muted">Started 10:02:04 SAST</span></div>
+        <div class="step"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0E7C5B" stroke-width="2.5" aria-label="Done"><path d="M5 12l5 5 9-10"/></svg><span>Received and stored</span><span class="small muted">Worker</span><span class="small muted" style="text-align: right">0.4 s</span></div>
+        <div class="step"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0E7C5B" stroke-width="2.5" aria-label="Done"><path d="M5 12l5 5 9-10"/></svg><span>Opened the attached email and 1 PDF</span><span class="small muted">Worker</span><span class="small muted" style="text-align: right">0.6 s</span></div>
+        <div class="step"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0E7C5B" stroke-width="2.5" aria-label="Done"><path d="M5 12l5 5 9-10"/></svg><span>Sender, authentication and hidden text</span><span class="small muted">Deterministic checks</span><span class="small muted" style="text-align: right">1.1 s</span></div>
+        <div class="step"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0E7C5B" stroke-width="2.5" aria-label="Done"><path d="M5 12l5 5 9-10"/></svg><span>Domains, links and reputation</span><span class="small muted">Deterministic checks</span><span class="small muted" style="text-align: right">3.8 s</span></div>
+        <div class="step" style="background: #FFF1EC"><span style="width: 18px; height: 18px; border-radius: 4px; background: #FF4A14; display: inline-block; margin-left: 2px" aria-label="Running"></span><span style="font-weight: 600">Reading the email and invoice</span><span class="small" style="font-weight: 600">Muse Spark 1.3</span><span class="small" style="text-align: right; color: #CC2E00; font-weight: 600">Running</span></div>
+        <div class="step"><span style="width: 18px; height: 18px; border-radius: 4px; border: 2px solid #C2BFC7; display: inline-block; margin-left: 2px; box-sizing: border-box" aria-label="Waiting"></span><span class="muted">Logos against the reference</span><span class="small muted">SAM 3.1</span><span class="small muted" style="text-align: right">Waiting</span></div>
+        <div class="step"><span style="width: 18px; height: 18px; border-radius: 4px; border: 2px dashed #C2BFC7; display: inline-block; margin-left: 2px; box-sizing: border-box" aria-label="Only if needed"></span><span class="muted">Walk the link in a sealed browser, only if it leads to a login or payment form</span><span class="small muted">Muse Wonder 1.0</span><span class="small muted" style="text-align: right">If needed</span></div>
+        <div class="step"><span style="width: 18px; height: 18px; border-radius: 4px; border: 2px solid #C2BFC7; display: inline-block; margin-left: 2px; box-sizing: border-box" aria-label="Waiting"></span><span class="muted">Weigh the evidence and write the verdict</span><span class="small muted">Muse Spark 1.3</span><span class="small muted" style="text-align: right">Waiting</span></div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 16px">
+        <div class="card card-pad" style="display: flex; flex-direction: column; gap: 12px">
+          <h3>Found so far</h3>
+          <p class="small muted">Early findings. The verdict weighs all of them once every step has run.</p>
+          <div style="display: flex; gap: 10px; align-items: flex-start"><span class="pill pill-sus">E1 · Medium</span><p class="small">Reply-To goes to <span class="mono">outeniqua.accounts@webmail.example</span>, not the sender's domain.</p></div>
+          <div style="display: flex; gap: 10px; align-items: flex-start"><span class="pill pill-neutral">E2 · Low</span><p class="small">First email from this address to Karoo Couriers.</p></div>
+        </div>
+        <div class="panel" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+          <h4>While you wait</h4>
+          <p class="small">Do not act on the email yet. You can leave this page: the verdict arrives by email at sipho@karoocouriers.example.</p>
+        </div>
+      </section>
+    </div>
+    <p class="tiny muted">Sample data on fictional companies. Status refreshes every 2 seconds and stops when the case is done.</p>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

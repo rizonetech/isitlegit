@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pricing</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800;900&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0} .prose p{font-size:17px;line-height:1.65;color:var(--ink-2)} .prose h2{font-size:26px;margin-top:8px} .prose ul{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:17px;line-height:1.6;color:var(--ink-2)}</style>
+</helmet>
+<div style="width: 1440px; min-height: 2000px; background: var(--white); font-family: 'Exo 2', sans-serif; color: var(--ink); display: flex; flex-direction: column">
+  <dc-import name="SiteHeader" hint-size="1440px,80px"></dc-import>
+  <section style="padding: 80px 120px 40px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+    <span class="pill pill-running" style="height: 32px; padding: 0 16px; font-size: 14px">Free during launch</span>
+    <h1 style="font-size: 56px; line-height: 1.06; font-weight: 900; max-width: 900px">What does IsItLegit cost?</h1>
+    <p style="font-size: 21px; line-height: 1.5; color: var(--ink-2); max-width: 760px">Nothing during the launch. Checking stays free after it. The prices below are our launch prices for when billing starts; nobody is charged today and we do not ask for a card.</p>
+  </section>
+
+  <section style="padding: 32px 120px 80px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: stretch">
+    <article class="card" style="padding: 32px; display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 8px"><h2 style="font-size: 24px">Free check</h2><p class="muted">For anyone who receives a suspicious email</p></div>
+      <div><span class="num" style="font-size: 48px">R0</span></div>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Verdicts on forwarded mail, with evidence</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Check whether a business is Protected by IsItLegit</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Up to 5 checks a day</li>
+      </ul>
+      <a href="Signup.dc.html" class="btn btn-ghost" style="margin-top: auto">Get started free</a>
+    </article>
+    <article class="card" style="padding: 32px; display: flex; flex-direction: column; gap: 20px; border: 2px solid var(--ink); box-shadow: 0 24px 64px rgba(24,21,25,.10)">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start"><div style="display: flex; flex-direction: column; gap: 8px"><h2 style="font-size: 24px">Protect</h2><p class="muted">For a business that wants its name protected</p></div><span class="pill pill-running">Free during launch</span></div>
+      <div style="display: flex; align-items: baseline; gap: 8px"><span class="small muted">from</span><span class="num" style="font-size: 48px">R499</span><span class="muted">per month</span></div>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Everything in Free check, for your whole team</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Protected identity, website seal and signature badge</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Impersonation alerts and the daily website monitor</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Invoice bank-change detection with your supplier ledger</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Bank verification with your finance contact</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Payment document check for invoices and proofs of payment</li>
+      </ul>
+      <a href="Signup.dc.html" class="btn btn-primary" style="margin-top: auto">Start free during launch</a>
+    </article>
+    <article class="card" style="padding: 32px; display: flex; flex-direction: column; gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 8px"><h2 style="font-size: 24px">MSP</h2><p class="muted">For IT providers who look after many businesses</p></div>
+      <div style="display: flex; align-items: baseline; gap: 8px"><span class="small muted">from</span><span class="num" style="font-size: 48px">R199</span><span class="muted">per client per month</span></div>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px">
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Protect for each client at a wholesale price</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">One console for every client's cases and threats</li>
+        <li style="display: flex; gap: 10px"><img src="../../brand/motion/safe.svg" alt="" style="width: 20px; height: 20px; margin-top: 2px">Your own branding on replies and reports</li>
+      </ul>
+      <a href="About.dc.html" class="btn btn-ghost" style="margin-top: auto">Talk to us</a>
+    </article>
+  </section>
+
+  <section style="padding: 72px 120px 88px; background: var(--subtle); border-top: 1px solid var(--line); display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 56px">
+    <h2 style="font-size: 36px; line-height: 1.2">Questions about pricing</h2>
+    <div style="display: flex; flex-direction: column; gap: 0">
+      <div style="padding: 20px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px"><h3>Do I need a card to start?</h3><p style="color: var(--ink-2)">No. There is no billing during the launch, so there is nothing to pay and no card to enter.</p></div>
+      <div style="padding: 20px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px"><h3>How do I join during the launch?</h3><p style="color: var(--ink-2)">With an invite code. New organisations get a 14-day trial with every feature unlocked, so you can try Protect on your own mail.</p></div>
+      <div style="padding: 20px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px"><h3>What happens when the launch ends?</h3><p style="color: var(--ink-2)">Billing has not started. When it does, you choose whether to move to a paid plan; the prices on this page are launch prices.</p></div>
+      <div style="padding: 20px 0; display: flex; flex-direction: column; gap: 8px"><h3>Why is checking free?</h3><p style="color: var(--ink-2)">Because the people who receive a fake are the ones who catch it. Every check of mail that claims to be a protected business also protects that business.</p></div>
+    </div>
+  </section>
+  <div style="margin-top: auto"><dc-import name="SiteFooter" hint-size="1440px,360px"></dc-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2000}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
