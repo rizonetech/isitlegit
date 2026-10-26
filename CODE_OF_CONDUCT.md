@@ -37,7 +37,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement through GitHub: contact a maintainer of the [Rizonetech organization](https://github.com/rizonetech) directly and ask for a private channel. Please do not describe the incident in a public issue or discussion. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement by email to **conduct@isitlegit.co.za**, which reaches the maintainer privately. Content on GitHub itself can also be reported to GitHub with its [report abuse form](https://github.com/contact/report-abuse). Please do not describe the incident in a public issue or discussion. All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 

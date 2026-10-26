@@ -4,7 +4,7 @@ The `todo/` tree is the live execution plan for building the project. Markdown i
 
 One rule governs everything below: **a TODO section must be implementable by someone with zero conversation context.** A fresh session starts with none. If a section only makes sense to someone who was in the room, it is not done.
 
-This system is the one Rizonetech uses in Recto and its other repositories, installed from `R:\GitHub\Conclave-SDK` (the `todo` and `reviewer` kits) on 2026-10-26: one validator that refuses malformed work, a generated plan, and stamps backed by review receipts. The governing product documents stay where they are: the design spec and tech stack in `docs/specs/`, the day plan in `docs/plans/`, the interface in `design/SPEC.md`. TODO files execute those documents; they do not restate them.
+This system is the one Rizonetech uses in Recto and its other repositories, installed from Rizonetech's Conclave-SDK (the `todo` and `reviewer` kits) on 2026-10-26: one validator that refuses malformed work, a generated plan, and stamps backed by review receipts. The governing product documents stay where they are: the design spec and tech stack in `docs/specs/`, the day plan in `docs/plans/`, the interface in `design/SPEC.md`. TODO files execute those documents; they do not restate them.
 
 ## Tree shape
 

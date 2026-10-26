@@ -8,12 +8,12 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 8 | Checklist items: 59
+Sections: 8 | Checklist items: 60
 
 | Status | Reference  | Deliverable                           | Needs                | Items |
 | ------ | ---------- | ------------------------------------- | -------------------- | ----- |
 | [ ]    | D00 T01 §1 | Git repository and public GitHub repo | attended             | 15    |
-| [ ]    | D00 T01 §2 | Worker package and health route       | none                 | 8     |
+| [ ]    | D00 T01 §2 | Worker package and health route       | none                 | 9     |
 | [ ]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 7     |
 | [ ]    | D00 T01 §4 | GitHub Actions CI                     | none                 | 5     |
 | [ ]    | D00 T01 §5 | Cloudflare bindings and first deploy  | cloudflare, attended | 8     |
@@ -23,12 +23,12 @@ Sections: 8 | Checklist items: 59
 
 ### Phase 99: Manual, operator only
 
-Sections: 7 | Checklist items: 29
+Sections: 7 | Checklist items: 30
 
 | Status | Reference  | Deliverable                         | Needs    | Items |
 | ------ | ---------- | ----------------------------------- | -------- | ----- |
 | [ ]    | D99 T01 §1 | Meta API billing and API key        | operator | 5     |
-| [ ]    | D99 T01 §2 | Domain verification and nameservers | operator | 4     |
+| [ ]    | D99 T01 §2 | Domain verification and nameservers | operator | 5     |
 | [ ]    | D99 T01 §3 | Workers Paid plan                   | operator | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain               | operator | 5     |
 | [ ]    | D99 T01 §5 | WhatsApp test number                | operator | 5     |
@@ -37,4 +37,4 @@ Sections: 7 | Checklist items: 29
 
 Progress: 0/15 verified sections, 1 ready to run now.
 
-Checklist: 14/88 items completed (includes Commit items).
+Checklist: 14/90 items completed (includes Commit items).
