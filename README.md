@@ -39,7 +39,7 @@ IsItLegit is built by [Rizonetech](https://www.rizonetech.com/), a managed IT pr
 
 ## What it does
 
-- **Forward, send or upload.** Forward a suspicious email to `check@isitlegit.co.za`, send it on WhatsApp, or upload it. A plain-language verdict comes back in minutes: the verdict, the top three reasons, and what to do now.
+- **Forward, send or upload.** Forward a suspicious email to `check@isitlegit.co.za`, or upload an email, a document, a screenshot or a voice note. A plain-language verdict comes back in minutes: the verdict, the top three reasons, and what to do now.
 - **Evidence, not vibes.** Every claim in a verdict cites a piece of evidence: a header, a domain, a rendered screenshot, a logo crop, an invoice field. Hard rules set a floor the model cannot lower.
 - **Follows the link so you do not have to.** A contained browser opens the landing page, and an agent walks the login form with canary values to show what the page is really after.
 - **Invoice and payment checks.** Changed bank details, doctored invoices and fake proofs of payment are compared with what the supplier really uses.
@@ -53,7 +53,7 @@ IsItLegit is built by [Rizonetech](https://www.rizonetech.com/), a managed IT pr
 | Muse Wonder | Walks a suspicious landing page in a contained browser, with canary values only |
 | SAM 3.1 | Finds and compares logos, stamps and signatures with the registered ones |
 | Muse Image | Builds the synthetic doctored-document test set |
-| Muse Voice Transcribe | Turns WhatsApp voice notes into text for the same checks |
+| Muse Voice Transcribe | Turns voice notes and voicemail lures into text for the same checks |
 | Muse Glimmer | Screens lookalike sites for the impersonation monitor (open weights, hosted) |
 
 Every call uses a Standard model ID with `store: false`. The full map is in section 9 of the [design spec](docs/specs/2026-10-26-phishing-invoice-analyser-design.md).

@@ -21,7 +21,7 @@ A useful report includes what you sent (a synthetic `.eml` is ideal), the steps,
 
 ## In scope
 
-- The Worker and its intake channels: email, WhatsApp and upload.
+- The Worker and its intake channels: email and upload.
 - Prompt injection that changes a verdict, a recipient or a stored record.
 - Escape from the contained browser walkthrough, or a walkthrough that types anything other than canary values.
 - Access to another member's cases, reports or a registered business's identity data.

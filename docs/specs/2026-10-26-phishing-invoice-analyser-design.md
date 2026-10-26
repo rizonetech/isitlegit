@@ -47,7 +47,7 @@ Growth loop: every counterparty verdict on a protected business shows "Protected
 | Criterion | Weight | How this design earns it |
 |---|---|---|
 | Impact | 30% | Real clients, real losses (invoice fraud), a product Rizonetech can sell after the event. Theme: Build for Your World |
-| Use of Meta AI tooling | 25% | Every hosted Muse model plus the open-weight Glimmer, each doing a job only it can do (section 9): Muse Spark reads rendered emails, screenshots and PDFs and reasons with tool calls over evidence; SAM 3.1 segments logos; Muse Wonder walks the phishing site as a computer-use agent; Muse Voice Transcribe turns scam voice notes and voicemail lures into evidence; Muse Glimmer screens the impersonation monitor's daily volume cheaply; Muse Image builds the doctored-document test set; checks arrive through Meta's own WhatsApp Business Platform |
+| Use of Meta AI tooling | 25% | Every hosted Muse model plus the open-weight Glimmer, each doing a job only it can do (section 9): Muse Spark reads rendered emails, screenshots and PDFs and reasons with tool calls over evidence; SAM 3.1 segments logos; Muse Wonder walks the phishing site as a computer-use agent; Muse Voice Transcribe turns scam voice notes and voicemail lures into evidence; Muse Glimmer screens the impersonation monitor's daily volume cheaply; Muse Image builds the doctored-document test set |
 | Demo | 25% | Live forward of a phishing email, verdict arrives by reply; invoice bank-change catch; accuracy dashboard |
 | Technical depth | 20% | Evidence-cited verdicts, deterministic overrides, sandboxed link detonation, eval harness with detection and false positive rates |
 
@@ -62,7 +62,7 @@ All on Cloudflare, TypeScript. Concrete services, libraries and versions: `2026-
 ```
 client mailbox --forward as attachment--> check@isitlegit.co.za --Email Routing--> intake Worker
 web upload (.eml/.msg, PDF, image) ------------------------------------> intake Worker
-WhatsApp (screenshot, voice note, PDF, forwarded text) --Cloud API webhook--> intake Worker
+web upload (voice note .ogg/.opus/.wav/.mp3, screenshot) ----------------> intake Worker
 intake Worker --> R2 (raw message, attachments) + D1 (case row) --> Workflow instance
 AnalysisWorkflow (durable steps):
   1. parse MIME            5. visual analysis (Browser Run + Meta vision + SAM)
@@ -80,7 +80,9 @@ eval runner (CLI + Worker route) --> metrics in D1 --> dashboard page
 - **Web upload** of `.eml` and `.msg` for the same pipeline, behind tenant login.
 - **Reply** by email with the verdict summary and a signed link to the report page.
 
-### 4.1a WhatsApp intake (decided 15:30)
+### 4.1a WhatsApp intake (after the event)
+
+**Removed from the hackathon scope 2026-10-26 19:30 by the operator.** Nothing below is built during the event; it stays as the post-event design. Voice notes still reach the product as web uploads (a WhatsApp voice note saved as `.ogg` or `.opus`) and as voicemail-lure attachments in email (4.2a), so Muse Voice Transcribe keeps its job. Cost of reversing: one intake route, the webhook signature check and the D99 T01 §5 operator steps.
 
 In South Africa most scams that reach a small business arrive on WhatsApp, not email: fake supplier messages, screenshots of "proof of payment", voice notes from a "director" asking for an urgent transfer. Members send the suspicious item to the IsItLegit WhatsApp number.
 
@@ -92,7 +94,7 @@ In South Africa most scams that reach a small business arrive on WhatsApp, not e
 
 ### 4.2a Voice notes and voicemail lures
 
-- Sources: WhatsApp voice notes (Ogg Opus) and email attachments posing as voicemail (`.wav`, `.mp3`, or an HTML "play message" lure).
+- Sources: voice notes uploaded on the web (a WhatsApp voice note saved as Ogg Opus `.ogg` or `.opus`, or `.wav`, `.mp3`, `.m4a`), and email attachments posing as voicemail (`.wav`, `.mp3`, or an HTML "play message" lure). WhatsApp intake itself is after the event (4.1a).
 - Audio is decoded in the Worker (`ogg-opus-decoder`, WASM) to 16 kHz mono 16-bit WAV, the format the endpoint accepts, capped at 10 minutes.
 - **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`, diarization mode) returns the transcript; Muse Spark then extracts the request (pay, change bank details, share a code, click a link), the claimed identity and urgency, as evidence.
 - Claimed identity is checked against the trust network: "claims to be your director; your director's registered number is not the sender".
@@ -237,7 +239,7 @@ Looks for fake websites of each protected business, so the business hears about 
 ## 5. Demo (3 minutes, draft)
 
 1. 0:00 Problem in one line with a real-looking phishing email that "got past Microsoft 365".
-2. 0:20 Forward it as attachment from Outlook. Reply lands within a minute: malicious, with the lookalike domain, SPF fail and the SAM logo crop. Replay of the Muse Wonder walkthrough: it clicks "View invoice", reaches a fake Microsoft login, types the canary password and shows the domain that would have received it. The same mail hides white-on-white text telling AI scanners it is safe; the report lists that as evidence against it.
+2. 0:20 Forward it as attachment from Outlook. Reply lands within a minute: malicious, with the lookalike domain, SPF fail and the SAM logo crop. Replay of the Muse Wonder walkthrough: it clicks "View invoice", reaches a fake login page of a fictional mail provider (hosted by us on `fixtures.isitlegit.co.za`), types the canary password and shows the domain that would have received it. The same mail hides white-on-white text telling AI scanners it is safe; the report lists that as evidence against it.
 3. 1:10 Invoice case: genuine-looking PDF, bank details changed. Critical flag, "phone the supplier on 011 ... from your records".
 4. 1:50 Genuine email: verdict safe, showing it does not cry wolf.
 5. 2:15 Dashboard: accuracy on N labelled samples, plus real usage since 27 Oct (Rizonetech and pilot clients, counts only).
@@ -281,7 +283,7 @@ Cut list, in order, if time runs short (updated for the trust network): QR decod
 
 Stretch if ahead: Glimmer LoRA fine-tune for phishing screening; Muse Spark video input for scam screen recordings.
 
-Cut order for the broader Meta layer (15:30), if time runs short: Glimmer fine-tune (already stretch), Muse Image test set (fall back to code-made pairs), Glimmer screening (Spark screens a smaller candidate list), WhatsApp voice notes (keep email voicemail lures). The WhatsApp intake itself is kept.
+Cut order for the broader Meta layer (15:30), if time runs short: Glimmer fine-tune (already stretch), Muse Image test set (fall back to code-made pairs), Glimmer screening (Spark screens a smaller candidate list), voice-note upload (keep email voicemail lures). WhatsApp intake is out of the event scope (4.1a).
 
 ## 9. Meta model map
 
@@ -294,7 +296,6 @@ Cut order for the broader Meta layer (15:30), if time runs short: Glimmer fine-t
 | Bulk screening for the impersonation monitor | Muse Glimmer (open weights, via a hosted provider) | Cheap first pass over hundreds of candidate pages a day; Muse Spark only sees the flagged ones. Stretch: LoRA fine-tune on public phishing corpora |
 | Doctored-document test set | `muse-image-1.0` | Edits synthetic invoices and POPs of fictional companies into tampered versions for the eval |
 | Optional injection classifier | Llama Prompt Guard | Second, independent injection check if it runs on Workers AI (4.6a) |
-| Intake channel | WhatsApp Business Platform Cloud API | Meta's messaging platform as the second way in |
 | Logo segmentation | `sam-3.1` | Text-prompt segmentation, boxes and masks |
 | Brand domain lookup | `muse-spark-1.3` with search grounding | Cited live answers |
 | Building the product | Not claimed | We do not build with Muse Code, so we do not list it as Meta tooling |
@@ -306,3 +307,23 @@ All calls go to `https://api.meta.ai/v1` (Responses API) with the stock `openai`
 1. Decided 2026-10-26: product name IsItLegit, own domain `isitlegit.co.za` (registration pending), intake `check@isitlegit.co.za`.
 2. Eval datasets and their licences (day 2).
 3. Repository licence. The repo must be public; "all rights reserved" keeps the product commercial, an open licence (MIT, AGPL) invites contributions. Default if undecided: all rights reserved.
+4. Decided 2026-10-26 19:00: repository licence `FSL-1.1-ALv2` (see `README.md`).
+
+## 11. Decisions for the unattended build (2026-10-26 19:30)
+
+Answered by the operator in session so the build can run through `process-plan` without stopping. Each decision names where it is enforced.
+
+| Topic | Decision | Enforced in |
+| ----- | -------- | ----------- |
+| Authority | The run may deploy the `isitlegit` Worker, create and migrate its own D1, R2, KV, Workflow and AI Gateway, change DNS and Email Routing on the `isitlegit.co.za` zone only, configure the Access app for `/admin`, and set GitHub Actions secrets in `rizonetech/isitlegit`. Never another zone, Worker or account | `AGENTS.md` Safety |
+| Budget | Code-enforced caps: Meta Model API US$120 in total for build, experiments and eval, at most US$15 a day, US$30 held back for demo and judging days; Fireworks (Glimmer) at most US$10; Browser Run inside Workers Paid. On a cap the model is switched off for the day, the case gets a marked partial report, and the run carries on | Model client budget guard (`src/meta/`) |
+| Outbound | Replies only to registered members (Rizonetech, pilots) and Rizonetech-controlled test mailboxes. Closed-loop verification and impersonation alerts go only to the fictional demo businesses, whose registered contacts are aliases on `isitlegit.co.za` forwarding to the operator's Rizonetech mailbox | Mail sender allowlist (`src/mail/`) |
+| Signup | Invite codes during the event (Rizonetech, pilots), daily case caps per organisation, and a ready judge demo organisation with sample cases whose code goes in the submission. Open signup after the event | 4.8, `src/auth/` |
+| WhatsApp | Out of the event scope (4.1a); voice notes arrive by web upload and email | 4.1a, 4.2a |
+| Design | An attended design session (Tue 27 Oct morning) produces `design/SPEC.md`, the tokens and mockups before any surface section; backend sections run first | `todo/07-app` |
+| Brand | IsItLegit is its own sub-brand with Rizonetech DNA: its own wordmark and verdict colours (safe, suspicious, malicious) on Rizonetech orange `#FF4A14` and Exo / Exo 2, "by Rizonetech" in the footer | `design/SPEC.md` |
+| Fixtures | Phishing fixture sites imitate fictional brands only (a made-up mail provider and bank) on `fixtures.isitlegit.co.za`, `noindex`, behind random paths. Real brands appear only as reference logos in R2 for detection, never imitated on our pages. The demo's "fake Microsoft login" becomes the fictional provider | 4.4a, 5 |
+| Pricing | "Free during launch" on the site; Free check, Protect from R499 per month, MSP from R199 per client per month shown as launch prices; no billing | Marketing site |
+| Mailbox | The operator's Rizonetech address receives the test-mailbox and demo-alert aliases and is the only identity Access admits to `/admin` | D99 T01, Access policy |
+| Eval data | A synthetic South African set (fictional banks, suppliers and couriers; Muse Spark text, Muse Image documents) plus public corpora whose licences allow our use, each recorded in `eval/DATASETS.md`. Real mail is only ever counted | 4.9 |
+| Blockers | An unattended run parks a section it cannot finish with a dated note, records the reason in `todo/findings.md`, sends the operator a push notification for real blockers only, and carries on with other ready work | `AGENTS.md` |

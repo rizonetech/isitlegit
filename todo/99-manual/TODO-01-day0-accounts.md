@@ -26,7 +26,8 @@ track: day-0
 - The Meta Model API shows the US$150 under Billing, "free credits", with a card on file and a US$150 Spend Limit notification, and the key is in the vault.
 - `isitlegit.co.za` is out of `serverHold` and the Cloudflare zone is `active`.
 - The Rizonetech Cloudflare account is on Workers Paid.
-- SMTP2GO, WhatsApp, Google Web Risk and Fireworks credentials are in the vault, each named in the stack doc's secrets list.
+- SMTP2GO, Google Web Risk and Fireworks credentials are in the vault, each named in the stack doc's secrets list.
+- The operator's Rizonetech mailbox is a verified Email Routing destination, so the test-mailbox, demo-alert and `conduct@` aliases can forward to it.
 
 **Adjacency:** all=not-applicable (operator account tasks with no product records)
 
@@ -82,6 +83,7 @@ Credits apply in batches after the claim form; until they show, every call is ch
 - [ ] Find the Domains.co.za verification email in Rizonetech's registrant contact mailbox and complete it. Done when: the Domains.co.za domain page no longer shows `serverHold`.
 - [ ] Confirm the nameservers are `carmelo.ns.cloudflare.com` and `paris.ns.cloudflare.com`. Done when: `dig +short NS isitlegit.co.za @1.1.1.1` prints both.
 - [ ] Confirm zone `88aeec6df134bc59bfa16a25751241ef` is active in Cloudflare. Done when: the zone status reads `active`.
+- [ ] Click the Cloudflare Email Routing verification link sent to the operator's Rizonetech mailbox once Claude has added it as a destination address (design spec section 11, Mailbox). Done when: the zone's Email Routing destination addresses list it as verified.
 - [ ] Add an Email Routing custom address `conduct@isitlegit.co.za` forwarding to the operator's mailbox (named in `CODE_OF_CONDUCT.md` as the private conduct contact). Done when: a test mail to it arrives in the operator's mailbox.
 - [ ] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
 
@@ -130,7 +132,9 @@ Replies, verification mails and alerts go out through SMTP2GO from `check@`, `ve
 
 The WhatsApp intake (design spec 4.1a) needs a Meta for Developers app with the WhatsApp product; the free test number serves the demo and dogfooding.
 
-**Phase:** 99
+**Corrected 2026-10-26:** the operator removed WhatsApp from the hackathon scope at 19:30 (design spec 4.1a and section 11). This section moves to phase 7, after the event; it was phase 99, due tonight.
+
+**Phase:** 7
 **Needs:** operator
 **Surface:** no
 

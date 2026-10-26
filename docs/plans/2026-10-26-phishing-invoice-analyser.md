@@ -18,7 +18,7 @@ Derick (accounts, cannot be delegated):
 - [ ] Register `isitlegit.co.za` on Domains.co.za (R80); Claude then adds the Cloudflare zone and nameservers.
 - [ ] Google Cloud: enable the Web Risk API in a Rizonetech project, create an API key restricted to it, store in the Conclave vault.
 - [ ] Apply for partner credits if offered (Baseten, Modal, Fireworks). Fireworks matters most: it hosts Muse Glimmer.
-- [ ] Meta for Developers: create an app with the WhatsApp product (Business portfolio under Rizonetech), note the test number, add your own and staff numbers as test recipients. Store the access token and app secret in the Conclave vault.
+- [ ] ~~Meta for Developers: create an app with the WhatsApp product (Business portfolio under Rizonetech), note the test number, add your own and staff numbers as test recipients. Store the access token and app secret in the Conclave vault.~~ Out of the event scope (operator, 2026-10-26 19:30; spec 4.1a).
 
 Claude:
 - [ ] `git init`, first commit after 19:00 SAST: README (what it is, "built during the Meta Global AI Developer Hackathon, 26 Oct to 4 Nov 2026"), `.gitignore`, licence file per decision, `docs/` and `sources/`.
@@ -93,12 +93,12 @@ Done when: the fake Microsoft login fixture site (hosted by us) is walked end to
 
 ## Broader Meta layer (decided 15:30)
 
-- [ ] Day 1: WhatsApp webhook route (signature check, media to R2, same Workflow); reply in chat. Tests: bad signature rejected, unknown number ignored, image and PDF create cases.
+- [ ] ~~Day 1: WhatsApp webhook route (signature check, media to R2, same Workflow); reply in chat. Tests: bad signature rejected, unknown number ignored, image and PDF create cases.~~ Out of the event scope (operator, 2026-10-26 19:30; spec 4.1a).
 - [ ] Day 1 spike: `ogg-opus-decoder` in Workers to 16 kHz WAV; one call to `muse-voice-transcribe-1.0`.
 - [ ] Day 3: voice notes and voicemail lures (spec 4.2a): transcript, request and claimed-identity extraction, trust-network check of the claimed caller.
 - [ ] Day 5: Muse Image doctored-document pairs for the eval (spec 4.9), fictional companies only, stamped SYNTHETIC.
 - [ ] Day 6 or 7: Muse Glimmer screening in the impersonation monitor through a hosted provider; record cost per page against Muse Spark.
-- [ ] Demo: a WhatsApp voice note from a "director" asking for an urgent payment, checked in chat.
+- [ ] Demo: a voice note from a "director" asking for an urgent payment, uploaded on the web and checked (WhatsApp intake is after the event, spec 4.1a).
 
 ## Paid layers (decided 15:10; after the core and trust network)
 

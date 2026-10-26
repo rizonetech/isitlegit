@@ -12,17 +12,31 @@
 # before a push.
 names_file="$(git rev-parse --show-toplevel)/samples/client-names.txt"
 if [ -f "$names_file" ]; then
+    # Fail closed: a list that exists but cannot be read, or a scan that errors, refuses the commit rather than
+    # passing it unchecked (git grep and grep exit 1 for "no match" and above 1 for an error).
     patterns=$(mktemp) || exit 1
-    sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file" > "$patterns"
+    if ! sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file" > "$patterns"; then
+        rm -f "$patterns"
+        echo "pre-commit: samples/client-names.txt exists but cannot be read; fix its permissions" >&2
+        exit 1
+    fi
     if [ -s "$patterns" ]; then
-        if git grep --cached -q -a -i -F -f "$patterns" ||
-            git -c core.quotePath=false ls-files | grep -q -i -F -f "$patterns"; then
-            rm -f "$patterns"
+        git grep --cached -q -a -i -F -f "$patterns"
+        content=$?
+        git -c core.quotePath=false ls-files > "$patterns.paths" && grep -q -i -F -f "$patterns" "$patterns.paths"
+        paths=$?
+        rm -f "$patterns" "$patterns.paths"
+        if [ "$content" -eq 0 ] || [ "$paths" -eq 0 ]; then
             echo "pre-commit: the staged tree contains a client name from samples/client-names.txt; anonymise it" >&2
             exit 1
         fi
+        if [ "$content" -ne 1 ] || [ "$paths" -ne 1 ]; then
+            echo "pre-commit: the client-name scan failed, so the commit is refused unchecked; run it again" >&2
+            exit 1
+        fi
+    else
+        rm -f "$patterns"
     fi
-    rm -f "$patterns"
 fi
 
 git diff --cached --name-only -- todo/ docs/reviews/ | grep -q . || exit 0

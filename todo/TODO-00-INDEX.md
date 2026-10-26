@@ -5,7 +5,7 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 | Domain | Scope |
 | ------ | ----- |
 | `00-workspace` | Repository, scaffold, CI, Cloudflare resources, Meta smoke test |
-| `01-intake` | Email, WhatsApp and upload intake, MIME parsing, voice decoding |
+| `01-intake` | Email and upload intake, MIME parsing, voice decoding, outbound mail |
 | `02-checks` | Deterministic evidence: headers, sender, domains, attachments, reputation |
 | `03-vision` | Rendering, Muse Spark extraction, SAM 3.1 logos, Glimmer screening |
 | `04-agent` | Verdict agent, citation validator, floor, injection defence, walkthrough |

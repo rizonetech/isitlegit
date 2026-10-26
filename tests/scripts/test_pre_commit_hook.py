@@ -174,6 +174,19 @@ class PreCommitHook(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("client name", result.stderr)
 
+    @unittest.skipIf(os.name == "nt" or os.geteuid() == 0, "needs POSIX permissions and a non-root user")
+    def test_an_unreadable_client_list_refuses_the_commit(self):
+        self.names("Acme Holdings\n")
+        (self.root / "notes.txt").write_text("Acme Holdings\n", encoding="utf-8")
+        self.git("add", "notes.txt")
+        (self.root / "samples/client-names.txt").chmod(0)
+        try:
+            result = self.commit()
+        finally:
+            (self.root / "samples/client-names.txt").chmod(0o644)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cannot be read", result.stderr)
+
     def test_a_staged_file_named_after_a_client_is_refused(self):
         self.names("acme\n")
         (self.root / "Acme-invoice.txt").write_text("nothing here\n", encoding="utf-8")

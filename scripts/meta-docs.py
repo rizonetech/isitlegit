@@ -62,8 +62,12 @@ def parse_index(text):
 def local_path(url):
     """https://dev.meta.ai/docs/muse-code/auth.md becomes docs/muse-code/auth.md under the mirror."""
     rel = url.removeprefix("https://dev.meta.ai/")
-    if not rel or ".." in pathlib.PurePosixPath(rel).parts:
+    parts = pathlib.PurePosixPath(rel).parts
+    if not rel or rel.startswith(("/", "\\")) or ".." in parts or "\\" in rel or ":" in rel:
         raise ValueError(f"refusing an unexpected page URL: {url}")
+    destination = (MIRROR / rel).resolve()
+    if MIRROR.resolve() not in destination.parents:
+        raise ValueError(f"refusing a page URL that leaves the mirror: {url}")
     return rel
 
 

@@ -4,7 +4,7 @@ Agent instructions for this repository. Claude Code loads this file through the 
 
 ## What is here
 
-IsItLegit (`isitlegit.co.za`) is Rizonetech's phishing, invoice-fraud and impersonation checker for small businesses, built for the Meta Global AI Developer Hackathon (Startup track, 26 Oct to 4 Nov 2026). Members forward a suspicious email to `check@isitlegit.co.za`, send it on WhatsApp or upload it, and get a verdict with cited evidence; registered businesses also get a trust network (verified identity, impersonation alerts, closed-loop bank verification). One Cloudflare Worker in TypeScript, Meta models for vision, reasoning, segmentation, computer use and speech.
+IsItLegit (`isitlegit.co.za`) is Rizonetech's phishing, invoice-fraud and impersonation checker for small businesses, built for the Meta Global AI Developer Hackathon (Startup track, 26 Oct to 4 Nov 2026). Members forward a suspicious email to `check@isitlegit.co.za` or upload it (an email, a document, a screenshot or a voice note), and get a verdict with cited evidence; registered businesses also get a trust network (verified identity, impersonation alerts, closed-loop bank verification). One Cloudflare Worker in TypeScript, Meta models for vision, reasoning, segmentation, computer use and speech.
 
 | Path | Purpose |
 | ---- | ------- |
@@ -72,7 +72,7 @@ From the design spec sections 4.4a, 4.6, 4.6a and 2a. A change that needs to bre
 - A failure path that reports success: a Workflow step that swallows an error, a reply sent without a stored case, a model outage that yields a verdict instead of a partial report.
 - A file under `samples/` staged for commit.
 
-Review lenses read against these sources: `adversarial` covers hostile mail, prompt injection, hostile landing pages, oversized input and races between Workflow steps; `integration` covers the Workflow steps, the R2 and D1 contracts, Email Routing, SMTP2GO, WhatsApp and the Meta API; `source-defect` covers RFC 5322, RFC 2045 to 2049, RFC 7208 (SPF), RFC 6376 (DKIM), RFC 7489 (DMARC), RFC 8617 (ARC), the Cloudflare Workers, Workflows, Email Routing and Browser Run docs, the Meta Model API docs and the design spec.
+Review lenses read against these sources: `adversarial` covers hostile mail, prompt injection, hostile landing pages, oversized input and races between Workflow steps; `integration` covers the Workflow steps, the R2 and D1 contracts, Email Routing, SMTP2GO and the Meta API; `source-defect` covers RFC 5322, RFC 2045 to 2049, RFC 7208 (SPF), RFC 6376 (DKIM), RFC 7489 (DMARC), RFC 8617 (ARC), the Cloudflare Workers, Workflows, Email Routing and Browser Run docs, the Meta Model API docs and the design spec.
 
 ## Interface rules
 
@@ -96,7 +96,11 @@ Review lenses read against these sources: `adversarial` covers hostile mail, pro
 ## Safety
 
 - Local reversible work in the repository needs no confirmation.
-- Ask the operator once before anything that sends, deletes or changes something outside the repository: mail to real people, production deploys, DNS changes, cloud resource deletion, credentials.
+- **Standing authorisation (operator, 2026-10-26 19:30, design spec section 11):** without asking, deploy the `isitlegit` Worker; create, migrate and configure its own D1, R2, KV, Workflow, AI Gateway and Browser Run bindings; change DNS records and Email Routing rules on the `isitlegit.co.za` zone only; configure the Cloudflare Access application for `/admin`; set GitHub Actions secrets in `rizonetech/isitlegit`. Never touch another zone, Worker, account or repository, and never delete a resource holding data without asking.
+- Outbound mail goes only to registered members and Rizonetech-controlled test mailboxes (design spec section 11); the sender allowlist in code enforces it.
+- Spend stays inside the code-enforced budget (design spec section 11); a run never raises a cap.
+- Ask the operator once before anything else that sends, deletes or changes something outside the repository: mail to real people, a resource outside the authorisation above, credentials.
+- **Unattended runs never ask.** A section that cannot finish is parked with a dated note, its reason goes to `todo/findings.md`, a push notification goes to the operator only for a real blocker (an account, a credential, a spent budget, a provider outage longer than an hour), and the run continues with other ready work.
 - Never send real client mail to the Meta Model API without that client's written consent.
 - When a command needs sudo, give the operator the exact command to run with `! sudo ...`.
 

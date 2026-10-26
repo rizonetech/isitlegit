@@ -18,7 +18,6 @@ Status: decided 2026-10-26, before the first commit. Companion to `2026-10-26-ph
 | Blobs | R2 | Raw messages, attachments, screenshots, logo crops, page renders | Lifecycle rule deletes `raw/` after 30 days (POPIA) |
 | Caches | KV | RDAP lookups, brand-domain table, model results by artefact hash | Eventual consistency is fine for caches |
 | Inbound mail | Email Routing to the `email()` handler on the product's own domain: `check@isitlegit.co.za` | Dedicated zone on Cloudflare; no impact on Rizonetech's Microsoft 365 mail | 25 MiB message limit |
-| WhatsApp channel | **WhatsApp Business Platform Cloud API** (Meta Graph API): webhook `POST /whatsapp` on the Worker, replies through the messages endpoint | Second intake channel; Meta's own platform | Verify `X-Hub-Signature-256` with the app secret; media URLs are short-lived, fetch to R2 at once; developer test number during the event |
 | Open-weight model | **Muse Glimmer** through a hosted inference provider (Fireworks AI first, OpenRouter or Together AI as fallback), OpenAI-compatible | Cheap bulk screening for the impersonation monitor | Model ID per provider recorded at setup; provider key as a Worker secret |
 | Reputation signals | Google Web Risk Lookup API (`uris.search` only), Cloudflare 1.1.1.2 over DoH, Tranco or Majestic Million top-sites list in KV | Spec 4.3a; free tiers that allow commercial use | Web Risk API key restricted to the Web Risk API; results cached in KV 24 h (6 h for not listed); daily caps |
 | Outbound mail | **SMTP2GO** HTTP API (`POST https://api.smtp2go.com/v3/email/send`) called with `fetch` from the Worker; replies threaded with `In-Reply-To` and `References` custom headers | Rizonetech's existing provider (credential "Rizonetech SMTP2GO" in the Conclave vault), delivery logs and bounce handling already familiar | Verify `isitlegit.co.za` as a sender domain in SMTP2GO (DKIM and return-path CNAMEs added in Cloudflare DNS); API key as a Worker secret |
@@ -42,7 +41,7 @@ Status: decided 2026-10-26, before the first commit. Companion to `2026-10-26-ph
 | Marketing site | `astro` | 7.4.2 | Static output; no server adapter needed |
 | MIME parsing | `postal-mime` | 4.1.4 | Works in Workers |
 | Outlook `.msg` parsing | `@kenjiuno/msgreader` | 1.29.0 | Day 1: prove it runs under `nodejs_compat`; cut to `.eml`-only if not |
-| Audio decoding | `ogg-opus-decoder` | 1.7.5 | WhatsApp voice notes (Ogg Opus) to PCM, then 16 kHz mono WAV for Muse Voice Transcribe; day 1 spike in Workers |
+| Audio decoding | `ogg-opus-decoder` | 1.7.5 | Uploaded voice notes (Ogg Opus, as WhatsApp saves them) to PCM, then 16 kHz mono WAV for Muse Voice Transcribe; day 1 spike in Workers |
 | Domain parsing | `tldts` | 7.4.19 | Registrable domain, public suffix |
 | Lookalike detection | own module over the Unicode confusables table | n/a | `confusables` on npm is from 2022; a small skeleton function plus edit distance is easier to test |
 | QR decoding | `jsqr` | 1.4.0 | Runs inside the Browser Run page, not in the Worker |
@@ -69,7 +68,7 @@ Status: decided 2026-10-26, before the first commit. Companion to `2026-10-26-ph
 
 ## Secrets and configuration
 
-- `META_API_KEY` (Meta Model API, Standard mode), `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_APP_SECRET` (Meta app), `GLIMMER_PROVIDER_API_KEY`, `WEB_RISK_API_KEY`, `SMTP2GO_API_KEY` (sender restricted to isitlegit.co.za), `REPORT_LINK_SECRET` (HMAC), `CF_ACCESS_AUD` and team domain: `wrangler secret put`, source of truth in the Conclave vault.
+- `META_API_KEY` (Meta Model API, Standard mode), `GLIMMER_PROVIDER_API_KEY`, `WEB_RISK_API_KEY`, `SMTP2GO_API_KEY` (sender restricted to isitlegit.co.za), `REPORT_LINK_SECRET` (HMAC), `CF_ACCESS_AUD` and team domain: `wrangler secret put`, source of truth in the Conclave vault.
 - No secrets in `wrangler.jsonc`, fixtures or tests; tests use stubbed model responses.
 
 ## Repository layout

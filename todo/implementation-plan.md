@@ -21,20 +21,27 @@ Sections: 8 | Checklist items: 62
 | [ ]    | D00 T01 §7 | Meta smoke test                       | meta-api, cloudflare | 8     |
 | [ ]    | D00 T01 §8 | README banner and social preview      | attended             | 4     |
 
+### Phase 7: After the event
+
+Sections: 1 | Checklist items: 5
+
+| Status | Reference  | Deliverable          | Needs    | Items |
+| ------ | ---------- | -------------------- | -------- | ----- |
+| [ ]    | D99 T01 §5 | WhatsApp test number | operator | 5     |
+
 ### Phase 99: Manual, operator only
 
-Sections: 7 | Checklist items: 30
+Sections: 6 | Checklist items: 26
 
 | Status | Reference  | Deliverable                         | Needs    | Items |
 | ------ | ---------- | ----------------------------------- | -------- | ----- |
 | [ ]    | D99 T01 §1 | Meta API billing and API key        | operator | 5     |
-| [ ]    | D99 T01 §2 | Domain verification and nameservers | operator | 5     |
+| [ ]    | D99 T01 §2 | Domain verification and nameservers | operator | 6     |
 | [ ]    | D99 T01 §3 | Workers Paid plan                   | operator | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain               | operator | 5     |
-| [ ]    | D99 T01 §5 | WhatsApp test number                | operator | 5     |
 | [ ]    | D99 T01 §6 | Google Web Risk API key             | operator | 3     |
 | [ ]    | D99 T01 §7 | Partner credits for Glimmer         | operator | 4     |
 
 Progress: 0/15 verified sections, 1 ready to run now.
 
-Checklist: 15/92 items completed (includes Commit items).
+Checklist: 15/93 items completed (includes Commit items).

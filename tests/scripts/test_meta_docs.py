@@ -55,8 +55,10 @@ class MetaDocs(unittest.TestCase):
 
     def test_a_page_url_that_climbs_out_of_the_mirror_is_refused(self):
         self.assertEqual(meta_docs.local_path("https://dev.meta.ai/docs/sam/x.md"), "docs/sam/x.md")
-        with self.assertRaises(ValueError):
-            meta_docs.local_path("https://dev.meta.ai/docs/../../etc/passwd.md")
+        for hostile in ("https://dev.meta.ai/docs/../../etc/passwd.md", "https://dev.meta.ai//home/someone/AGENTS.md",
+                        "https://dev.meta.ai/C:\\Users\\x.md", "https://dev.meta.ai/docs\\..\\..\\x.md"):
+            with self.subTest(hostile=hostile), self.assertRaises(ValueError):
+                meta_docs.local_path(hostile)
 
     def test_find_needs_every_term_in_one_file_and_searches_docs_and_cookbooks(self):
         self.mirror_page("docs/models.md", "# Models\n\n## Muse Spark\nSet store to false.\n")
