@@ -1,4 +1,5 @@
-# IsItLegit's issue labels, created on GitHub from this file (D00 T01 §1).
+# IsItLegit's issue labels, created on GitHub from this file (D00 T01 §1). GitHub's defaults that duplicate these
+# (enhancement) or invite outside pull requests during judging (good first issue, help wanted) are deleted.
 
 # Area: which part of IsItLegit the issue is about.
 - name: intake
@@ -53,3 +54,18 @@
 - name: fixed-on-main
   color: "0e8a16"
   description: Fixed on main and deployed to the live service.
+- name: duplicate
+  color: "cfd3d7"
+  description: Already reported in another issue.
+- name: invalid
+  color: "e4e669"
+  description: Not an IsItLegit problem, or not reproducible.
+- name: wontfix
+  color: "ffffff"
+  description: Deliberately left as it is; the issue says why.
+- name: question
+  color: "d876e3"
+  description: A question rather than a bug or a request.
+- name: documentation
+  color: "0075ca"
+  description: The README, the specs or other documentation.
