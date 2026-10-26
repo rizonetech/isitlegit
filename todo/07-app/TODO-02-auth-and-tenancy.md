@@ -97,7 +97,7 @@ One organisation per client company, roles owner, admin and member (spec 4.8). I
 2. Add invites, revocation and removal with role checks. Done when: tests prove a member cannot invite and a removed member loses access.
 
 - [ ] Enable the Better Auth organisation plugin with roles `owner`, `admin`, `member`. Done when: `test/auth/org.test.ts` creates an organisation with the creator as owner.
-- [ ] Send invites with `sendMail({ kind: "signin" })` and accept them through the magic link. Done when: an invitee joins as `member`.
+- [ ] Send invites with `sendMail({ kind: "signin" })`, expiring after 48 hours (the Better Auth organisation plugin default; **Corrected 2026-10-26:** no expiry was set), and accept them through the magic link. Done when: an invitee joins as `member` and a 49-hour-old invite is refused.
 - [ ] Allow invite and removal for owners and admins only. Done when: a member's attempt gets 403.
 - [ ] Revoke an invite and remove a member, deleting the member's sessions for that organisation. Done when: the removed member's next request to an organisation route gets 403.
 - [ ] Write `requireOrg(c)` middleware putting the active organisation id on the context for every app route. Done when: every later route test can use it, and a request for another organisation's case gets 404. Cheaper substitute: reading the organisation id from a query parameter.
@@ -143,7 +143,8 @@ Mail is accepted at `check@` only from domains an organisation has proven it own
 
 - [ ] Add migration `0005_domains.sql` with `org_domains` (`org_id`, `domain` registrable form via `tldts` 7.4.19, `token`, `state` pending or verified, `method`, `verified_at`) and `org_addresses` (`org_id`, `address`, `state`, `verified_at`), unique per domain across organisations. Done when: a second organisation claiming a verified domain is refused.
 - [ ] Verify DNS by querying `https://cloudflare-dns.com/dns-query?name=_isitlegit.<domain>&type=TXT` for `isitlegit-verify=<token>`. Done when: `test/auth/domains.test.ts` with a stubbed DoH response verifies and a wrong token does not.
-- [ ] Verify by emailed code to `admin@` or `postmaster@` the domain (allowed by the allowlist for `verify` kind only to these two local parts of a domain being claimed). Done when: entering the code verifies; a wrong code three times locks for an hour.
+- [ ] Verify by emailed code to `admin@` or `postmaster@` the domain (allowed by the allowlist for `verify` kind only to these two local parts of a domain being claimed). Done when: entering the code verifies; the code expires after 30 minutes (**Corrected 2026-10-26:** no expiry was set); a wrong code three times locks for an hour.
+- [ ] Verify a single sending address outside any verified domain (`org_addresses`, `design/SPEC.md` M8) by a 6-digit code emailed to that address, expiring after 30 minutes, with the same three-try lock. Done when: `test/auth/domains.test.ts` verifies an address by code and refuses an expired one. (**Corrected 2026-10-26:** M8 lists sending addresses but no item verified one.)
 - [ ] Write `findMemberBySender(address)` returning the organisation for a verified address, else for a verified registrable domain of the address, else null. Done when: tests cover subdomain senders (`mail.example.co.za` maps to `example.co.za`) and an unverified domain returning null.
 - [ ] Record each verification attempt and result in `auth_events` (from §6). Done when: the test finds the rows.
 - [ ] Commit: `auth: domain verification and member sender lookup`

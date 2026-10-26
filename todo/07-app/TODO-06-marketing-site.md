@@ -126,7 +126,7 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 
 ## 5. Privacy and POPIA page
 
-What data IsItLegit processes, why, for how long (raw mail and attachments deleted after 30 days; case summaries kept), who processes it (Cloudflare, Meta Model API in Standard mode with `store: false`, SMTP2GO, Google Web Risk with URLs stripped of query strings), the information officer, and members' rights under POPIA.
+What data IsItLegit processes, why, for how long (raw mail and attachments deleted after 30 days; case summaries kept), who processes it (Cloudflare, Meta Model API in Standard mode with `store: false`, SMTP2GO, Google Web Risk with URLs stripped of query strings, Fireworks AI for Muse Glimmer on public lookalike web pages only), the information officer, and members' rights under POPIA. **Corrected 2026-10-26:** Fireworks was missing from the processors; case summary retention and the information officer now come from spec section 4.8 (POPIA bullet).
 
 **Phase:** 6
 **Needs:** none
@@ -140,7 +140,7 @@ What data IsItLegit processes, why, for how long (raw mail and attachments delet
 
 1. Build `site/src/pages/privacy.astro`. Done when: the page lists each processor, purpose and retention.
 
-- [ ] Write the page from spec 4.8 and 4.3a facts, naming Rizonetech (Pty) Ltd as responsible party and the information officer contact. Done when: the page builds with each processor listed.
+- [ ] Write the page from spec 4.8 and 4.3a facts, naming Rizonetech (Pty) Ltd as responsible party, Derick Payne as information officer and `hello@isitlegit.co.za` as the contact. Done when: the page builds with each of the five processors listed and both retention periods stated.
 - [ ] Link it from the signup page's POPIA notice and the site footer. Done when: both links resolve.
 - [ ] Commit: `site: privacy and POPIA page`
 

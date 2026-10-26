@@ -115,5 +115,5 @@ video/                Remotion project for the demo video (titles, architecture 
 ## Open items
 
 1. Registered 2026-10-26. Add the zone to Cloudflare once the registry publishes it, point nameservers to Cloudflare. Hostnames: `isitlegit.co.za` (marketing), `app.isitlegit.co.za` (app), `check@isitlegit.co.za` (intake).
-2. Confirm the account is on Workers Paid; verify `isitlegit.co.za` as a sender domain in SMTP2GO (senders `check@`, `verify@`, `alerts@`).
+2. Confirm the account is on Workers Paid; verify `isitlegit.co.za` as a sender domain in SMTP2GO (senders `check@`, `verify@`, `alerts@`, and `no-reply@` for sign-in and invitation mail, D07 T08 §6).
 3. Day 1 spikes: `msgreader` in Workers; AI Gateway custom provider passes the Responses API and image payloads through unchanged; SAM 3.1 logo recall; whether Llama Prompt Guard runs on Workers AI (optional second injection check, spec 4.6a).

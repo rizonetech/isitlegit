@@ -110,7 +110,7 @@ Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"
 
 ## 4. SMTP2GO sender domain
 
-Replies, verification mails and alerts go out through SMTP2GO from `check@`, `verify@` and `alerts@isitlegit.co.za` (stack doc "Outbound mail"). The DNS records SMTP2GO gives are added to the Cloudflare zone by Claude once the operator starts the sender-domain setup.
+Replies, verification mails and alerts go out through SMTP2GO from `check@`, `verify@`, `alerts@` and `no-reply@isitlegit.co.za` (stack doc "Outbound mail"; **Corrected 2026-10-26:** `no-reply@` added for sign-in and invitation mail, D07 T08 §6). One verified sender domain covers every address. The DNS records SMTP2GO gives are added to the Cloudflare zone by Claude once the operator starts the sender-domain setup.
 
 **Phase:** 99
 **Needs:** operator

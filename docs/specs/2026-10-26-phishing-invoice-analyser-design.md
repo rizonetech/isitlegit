@@ -35,7 +35,7 @@ Checking is free; protection is paid. Prices are starting hypotheses to test wit
 
 | Tier | Customer | Includes | Price hypothesis |
 |---|---|---|---|
-| Free check | Any counterparty | Verdicts on forwarded mail, "IsItLegit Verified" status of a business, monthly cap | Free |
+| Free check | Any counterparty | Verdicts on forwarded mail, "IsItLegit Verified" status of a business, 5 checks a day per sender (D05 T02 §1; **Corrected 2026-10-26:** said "monthly cap" with no figure) | Free |
 | Protect | SMB | Verified identity, impersonation alerts, staff inbox checks, invoice bank-change detection, closed-loop verification, impersonation monitor (fake websites), payment document check | R499 to R999 per company per month |
 | MSP | IT providers such as Rizonetech | Wholesale per client, MSP console, own branding | About R199 per client per month |
 | Verification API (after the event) | Accounting and payment platforms, banks, cyber insurers | Payee identity and bank-detail check at payment time | Per call |
@@ -78,7 +78,7 @@ eval runner (CLI + Worker route) --> metrics in D1 --> dashboard page
 ### 4.1 Intake
 
 - **Forward as attachment is the supported path.** A normal Outlook forward strips the original headers, which kills the authentication checks. The intake Worker detects whether the forward carries an attached `message/rfc822` (or `.msg`). If it does not, it still analyses the inline content, marks header evidence as unavailable, lowers confidence, and the reply explains how to forward as attachment.
-- **Only registered tenants.** The sender's domain must belong to a tenant in D1; anything else gets no processing and no reply (prevents abuse and backscatter).
+- **Only registered tenants, plus counterparty checks.** The sender's domain must belong to a tenant in D1; anything else gets no processing and no reply (prevents abuse and backscatter). The one exception is a counterparty check (section 2a): a non-member forward whose original claims a protected business is processed, limited to 5 per sender and 50 per protected business a day (D05 T02 §1). **Corrected 2026-10-26:** this bullet contradicted section 2a by saying no non-member mail is ever processed.
 - **Web upload** of `.eml` and `.msg` for the same pipeline, behind tenant login.
 - **Reply** by email with the verdict summary and a signed link to the report page.
 
@@ -207,7 +207,7 @@ Verdict banner, plain-language headline, evidence cards (each with its screensho
 - **MSP console** (Rizonetech, behind Cloudflare Access): every client organisation, onboarding status, volume, top threats, accuracy. MSPs reselling to their clients is the business model.
 - Report links in reply emails are HMAC-signed and expire.
 - **Marketing site** at `isitlegit.co.za` (Astro): what it does, the invoice-fraud story, how forwarding works, pricing (shown, not charged), privacy and POPIA page, signup.
-- POPIA: raw messages and attachments deleted after 30 days (R2 lifecycle rule), case summaries kept.
+- POPIA: raw messages and attachments deleted after 30 days (R2 lifecycle rule); case summaries kept while the organisation has an account and deleted within 30 days of closing it (**Corrected 2026-10-26:** said only "kept"; default chosen so the privacy page can state a period). The Information Officer is the head of the private body under POPIA, Derick Payne as CEO of Rizonetech (Pty) Ltd, reached at `hello@isitlegit.co.za`.
 - Meta Model API data terms (`sources/meta-api/2026-10-26-meta-model-api.md`): use **Standard-mode model IDs only, never `-contributor`** (Contributor content may be used for training and must not contain personal data); send `store: false` on every request; no fixed retention period is published and Zero Data Retention is not available to us, so real client mail needs the client's consent and a Meta data-processing review before production use. Defensive phishing analysis is not prohibited by the Acceptable Use Policy as read, but abuse systems may flag phishing content; if that happens, ask `aup_exceptions@meta.com`.
 - **Hackathon constraint:** no real client email in the public repo, demo or Discord. Demo and eval data are public corpora with compatible licences plus synthetic emails we write.
 

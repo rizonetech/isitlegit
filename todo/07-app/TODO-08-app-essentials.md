@@ -149,7 +149,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 6. Sign-in, invite and verification emails
 
-The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built like the reply (D07 T03 §7): inline-styled HTML from tokens plus a complete plain-text part, from `check@isitlegit.co.za` or `verify@` as specified, with the purpose and expiry stated and no tracking.
+The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built like the reply (D07 T03 §7): inline-styled HTML from tokens plus a complete plain-text part, sign-in and invitation from `no-reply@isitlegit.co.za` and the domain code from `verify@`, with the purpose and expiry stated and no tracking. **Corrected 2026-10-26:** these said `check@`, so a member replying to a sign-in email would start a check; `no-reply@` has no Email Routing rule, so a reply bounces.
 
 **Phase:** 6
 **Needs:** none
@@ -163,7 +163,7 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 
 1. Build the three templates and wire them to the senders. Done when: snapshots match the boards and the email lint passes.
 
-- [ ] Build `src/mail/templates/signin.tsx`, `invite.tsx` and `domain-code.tsx` and use them from D07 T02 §1, §3 and §5. Done when: `test/mail/auth-emails.test.ts` snapshots both parts of each.
+- [ ] Build `src/mail/templates/signin.tsx`, `invite.tsx` and `domain-code.tsx` and use them from D07 T02 §1, §3 and §5, sending sign-in and invitation from `no-reply@` and the code from `verify@`. Done when: `test/mail/auth-emails.test.ts` snapshots both parts of each and asserts each From address.
 - [ ] Run the email lint (no flex or grid, tables for layout, alt text) on each. Done when: it passes and fails on a planted `display:grid`.
 - [ ] Commit: `mail: sign-in, invitation and verification emails`
 
