@@ -1,4 +1,4 @@
 # design/tools/build-brand.py; also needs rsvg-convert (librsvg2-bin)
 fonttools==4.63.0
 uharfbuzz==0.53.3
-pillow==12.2.0
+pillow==13.0.0

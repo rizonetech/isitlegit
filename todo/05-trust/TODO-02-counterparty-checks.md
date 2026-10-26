@@ -40,6 +40,7 @@ track: day-5
 | 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [ ] |
 | 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [ ] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
+| 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
 
 ## 1. Counterparty intake path with rate limits
 
@@ -207,6 +208,34 @@ An attacker who copies the badge into a fake email turns it into evidence (spec 
 - [ ] Commit: `trust: copied-badge detection and alerts`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/badge-copied.test.ts` passes and fails if an unaligned message with the badge is rated genuine.
+
+## 9. Domain-locked website seal
+
+The seal a protected business shows on its own website, locked to its verified domains by the browser itself (design spec 2a, Domain-locked website seal): `isitlegit.co.za/s/<slug>` serves the seal as a small page meant to be framed, with `Content-Security-Policy: frame-ancestors` listing only the identity's verified domains (and their `www.` and subdomains when verified), so on any counterfeit domain the browser refuses to render it. The seal shows today's date and links to the verify page (§6). A blocked embed still requests the seal, and that request's `Referer` or `Sec-Fetch-Dest: iframe` with an unregistered origin becomes an impersonation lead for the business.
+
+**Phase:** 5
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` verify page and seal; `design/brand/logo-svg/isitlegit-seal-protected.svg`
+**Job:** a visitor to a protected business's real website sees a live seal that cannot appear on a fake copy of that site
+**Treatment:** the seal, the business name and today's date; one click to the verify page
+**Chrome:** the seal artwork from `design/brand/`; no app shell inside the frame
+
+**Build order:**
+
+1. Serve the framed seal with the domain lock. Done when: the response carries `frame-ancestors` with exactly the verified domains and a browser test shows it rendering on an allowed origin and blocked on another.
+2. Give the owner the embed code. Done when: the identity page shows a one-line embed snippet and a preview.
+3. Turn blocked embeds into alerts. Done when: a request from an unregistered origin creates one lead and one alert per origin per day.
+
+- [ ] Serve `GET /s/:slug` in `src/web/pages/seal.tsx`: the Protected seal, the business name, today's date in SAST, and a link to `/v/:slug?from=site` opening in a new tab; `Content-Security-Policy: frame-ancestors <verified origins>`; no `X-Frame-Options` that would conflict. Done when: `test/web/seal.test.ts` checks the header lists exactly the verified origins for a fixture identity. Cheaper substitute: a plain image the business could hotlink from anywhere.
+- [ ] Return a neutral "Verify at isitlegit.co.za" seal (no business name, no Protected wording) for a lapsed or unknown slug, and when the request has no `Referer` and no `Sec-Fetch-Site` information. Done when: the test covers lapsed, unknown and referrer-less requests. Cheaper substitute: showing Protected when the origin cannot be told.
+- [ ] Prove the lock in a real browser: a Browser Run test page on an allowed origin renders the seal and a page on `fixtures.isitlegit.co.za` (not in the list) is blocked by the browser. Done when: `test/web/seal-frame.browser.test.ts` records both outcomes.
+- [ ] Record a request whose `Referer` origin is not a verified domain as `seal_leads` (slug, origin, first seen, count per day; no IPs) and send the business one impersonation alert per origin per day through §4. Done when: `test/trust/seal-leads.test.ts` sees one lead and one alert for two requests from the same origin.
+- [ ] Show the verify page's notice "You came from <origin>, which is not a <business> domain" when `/v/:slug` is opened from an unregistered origin. Done when: the verify page test covers it.
+- [ ] Add the embed snippet (`<iframe src="https://isitlegit.co.za/s/<slug>" width="220" height="88" title="Protected by IsItLegit" style="border:0"></iframe>`) with a preview and install steps for WordPress and plain HTML to the identity page. Done when: the page test copies a snippet pointing at the slug.
+- [ ] Commit: `trust: domain-locked website seal`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/seal.test.ts test/trust/seal-leads.test.ts` passes and fails if `frame-ancestors` admits an unverified origin.
 
 ## Verification
 
