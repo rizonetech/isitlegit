@@ -49,7 +49,7 @@ Write `Started:` now. If the section body carries no `> **Started:**` line, add 
 - **Never mark `[x]` without evidence.** The Implementation Order row flips only through `stamp`, after review. This skill never flips a row itself.
 - **User data first.** Every file write follows the project's saving rule (its governing plan or `AGENTS.md`): temporary file in the destination folder, then atomic replace (`ReplaceFileW`, `MoveFileExW`, or `os.replace`). Read back what was written. Destructive paths are confirmed. The checkpoint exercises a failure path, not only the happy path.
 - **The layer rules hold.** Respect the module boundaries and thread-safety contract in `AGENTS.md` and the project's governing plan. A fix that violates the module table is wrong even when it works.
-- **Fidelity is the bar on surfaces.** Build against `design/SPEC.md` and its screenshot, using tokens from `design/tokens/` only. No raw hex value on a control.
+- **Fidelity is the bar on surfaces.** Build against `design/SPEC.md`, its approved board in `design/mockups/` and the Fidelity contract at the top of the SPEC, using tokens from `design/tokens/` only. No raw hex value on a control. Match what the contract says must match; data, counts, plan-set numbers and measurements within the token scale may differ; a must-match departure is recorded as a `Deviation` bullet in the SPEC in the same commit.
 
 ## Workflow
 

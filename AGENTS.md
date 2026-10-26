@@ -79,6 +79,7 @@ Review lenses read against these sources: `adversarial` covers hostile mail, pro
 ## Interface rules
 
 - `design/SPEC.md` wins over any screenshot, mockup or memory once it exists; until then the report, dashboard and site follow the design spec section 4.7 and the Rizonetech brand: Exo / Exo 2, orange `#FF4A14`, colours only from tokens.
+- The Fidelity contract in `design/SPEC.md` decides what a surface must match (controls and states, structure, wording, tokens, accessibility) and what may differ (data and counts, numbers the plan sets, measurements within the token scale); a difference in a must-match item is built as a recorded `Deviation` or raised, anything else is not a finding.
 - Build every surface to its approved board (operator approval 2026-10-26): the PNG in `design/mockups/png/` shows the target, the source in `design/mockups/source/` gives exact values, and `design/mockups/coverage.json` names each control and state the page must have or the section that owns it. Values come from `design/tokens/`; a board value between two token steps is built as the nearest step. A board change goes back to the operator, then `design/tools/export-mockups.py import --approve` and `export`, and `design/tools/check-design.py` must pass.
 - Plain language first: a verdict, the top three reasons, what to do now. Evidence cards carry their screenshot, crop or header excerpt.
 - Every page works at phone width; every icon-only control has an accessible name.

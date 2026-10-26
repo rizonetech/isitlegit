@@ -100,7 +100,7 @@ After the last fix, re-run the section's Test checkpoint and its owed gates (aff
 
 ### 6. Surface, feature, and frozen checks
 
-Surface and feature completeness: 100% of every control, menu item, dialog and state on the Fidelity counterpart is working (proven on the rendered surface with real data and read-back in this review) or deferred to a named, resolving section, and every required refusal/error/undo path is exercised. Refuse the stamp for an unaccounted control or a `Cheaper substitute` shortcut. Frozen files: every `**Freeze check:**` ran and passed with the result quoted; a frozen behavior that moved without a recorded operator approval means no stamp and a question for the operator.
+Fidelity follows the contract at the top of `design/SPEC.md`: compare the built page with its board's PNG for the must-match list only; data, counts, plan-set numbers and measurements within the token scale are not findings, and a recorded `Deviation` with a reason that holds is accepted. Surface and feature completeness: 100% of every control, menu item, dialog and state on the Fidelity counterpart is working (proven on the rendered surface with real data and read-back in this review) or deferred to a named, resolving section, and every required refusal/error/undo path is exercised. Refuse the stamp for an unaccounted control or a `Cheaper substitute` shortcut. Frozen files: every `**Freeze check:**` ran and passed with the result quoted; a frozen behavior that moved without a recorded operator approval means no stamp and a question for the operator.
 
 ### 7. Stamp
 

@@ -4,6 +4,33 @@ Status: page inventory written 2026-10-26 21:55 SAST; every page was designed on
 
 References chosen by the operator (2026-10-26 21:42): Stripe (stripe.com) for the marketing site's structure, typography and "show the real product" approach, and Have I Been Pwned (haveibeenpwned.com) for the one-question, one-instant-answer pattern. Pixel precision is the bar: spacing from the 4 px scale in `design/tokens/spacing.json`, type from Exo (headings) and Exo 2 (text) on the scale in `design/tokens/typography.json`, colours from `design/tokens/colors.json` only; a board value between two steps is built as the nearest step.
 
+## Fidelity contract
+
+Every surface is built to look and behave like its approved board, judged by a person's eye, not by pixels. The board is the target for structure, components, wording and tokens; it is a sample for data and exact measurements. This contract decides what a builder must match, what may differ, and what a reviewer may raise.
+
+### Must match
+
+- Every control and state its `design/mockups/coverage.json` entry names, present and working, or the deferral it names.
+- The structure: the same regions in the same order and hierarchy, the same shared parts (navigation, header, footer), the same component for each job (a band for the verdict, a card for each piece of evidence, a pill for a status).
+- The wording of headings, labels, buttons, empty and error messages, unless the plan, a spec or this file sets other words.
+- Values from the tokens only: colour, type role, spacing step, radius, control height. No raw colour on a surface (`test/web/no-raw-colours.test.ts`).
+- Accessibility: contrast from the token pairs, keyboard order, focus visible, an accessible name on every control, phone width per the phone boards.
+
+### May differ, and is never a finding by itself
+
+- Data. Names, counts, amounts, dates, row numbers, chart values, sample text and its length come from the running system, not from the board. A board showing 8 cases or "27 of 50" is a picture, not a requirement.
+- Numbers and rules the plan or a spec sets. Where a board and the plan disagree on a fact (a limit, a price, an expiry, a count), the plan wins and the build follows it.
+- Measurements within the token scale. A board value between two steps is built as the nearest step; a few pixels of difference from real fonts, real text wrapping, browser form controls or content-driven height is expected. A board's height is the canvas size, not the page height.
+- Layout at widths the boards do not show, as long as it follows the nearest board (desktop or phone) and keeps the structure above.
+
+### Deviations
+
+A builder who must depart from a "must match" item for a real reason (the plan, real data, accessibility, the platform) records it under the page's section here as a bullet `- Deviation (DNN TNN §N): <what differs> because <why>` in the same commit, and carries on. A reviewer accepts a recorded deviation with a reason; it raises only a "must match" difference with no deviation recorded, or a deviation whose reason does not hold. A change to the approved look itself (a new layout, a different component) goes back to the operator first.
+
+### How it is checked
+
+Side by side, the built page at the board's width with fixture data and the board's PNG, read for the "must match" list above, plus the coverage entry and the token test. There is no pixel-difference or screenshot-threshold gate; design/tools/export-mockups.py and its future comparison step (D07 T01 §4) inform a review, they do not fail a build.
+
 ## 0. Page inventory
 
 Every page and message IsItLegit shows. Each row names its owning TODO section; a page without an owner is a planning defect. States are the ones every page must design: loading, empty, error, and any listed.
