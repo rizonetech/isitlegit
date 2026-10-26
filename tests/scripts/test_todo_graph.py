@@ -1548,6 +1548,91 @@ class Stamp(Tree):
         self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["rounds_spent"], 10)
 
 
+FINAL_PIN = UNIFORM_PIN.replace("[routes]", """[reviewers.wonder]
+cli = "muse"
+model = "muse-wonder-full-1.0"
+effort = "medium"
+
+[routes]""") + 'final = { reviewer = "wonder", effort = "medium", lenses = ["adversarial"] }\n'
+
+
+class FinalStamp(Stamp):
+    """A schedule with a final step: the stamp needs exactly one final review, after the rounds, and a fix it found
+    proven by a later round."""
+    ROUNDS = "docs/reviews/00-workspace/D00-T01-s1.md"
+
+    def setUp(self):
+        super().setUp()
+        (self.root / tg.PIN).write_text(FINAL_PIN, encoding="utf-8")
+        self.sha = self.commit("final pin")
+        self.tick_work()
+
+    def write_final(self, review="1. P3 a name.\n\nHIGHEST: P3\nOVERALL: approve", effort="medium", lenses=("adversarial",)):
+        result = {"writer": "claude", "reviewer": "wonder", "model": "muse-wonder-full-1.0", "cli": "muse",
+                  "effort": effort, "lenses": list(lenses), "failover": [], "review": review}
+        tg.review_dispatch().record_completion(self.root / self.ROUNDS, result, "2026-10-24T00:00:00Z", self.sha,
+                                               kind="final")
+
+    def later_round(self, n=2):
+        with open(self.root / self.ROUNDS, "a", encoding="utf-8", newline="") as handle:
+            handle.write(f"\n## Round {n}: astra (`m` via `codex`)\n\n- Writer: claude\n- Run: 2026-10-25T00:00:00Z\n"
+                         f"- Effort: low\n- Lenses: adversarial\n\nThe fix holds.\n\nOVERALL: approve\n\n")
+
+    def stamp_final(self, final, reviews=None):
+        return self.stamp("D00 T01 §1", self.sha, reviews or self.reviews, ["true -> ok"], "2026-10-24", final=final)
+
+    def refused(self, final, fragment, reviews=None):
+        with self.assertRaises(tg.Refused) as ctx:
+            self.stamp_final(final, reviews)
+        self.assertIn(fragment, str(ctx.exception))
+
+    def test_the_stamp_needs_the_final_review(self):
+        self.refused(None, "--final '<findings file>:<clean|fixed>' is required")
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "must hold exactly one final review")
+
+    def test_a_clean_final_review_stamps_and_edits_to_its_record_refuse(self):
+        self.write_final()
+        receipt = self.root / self.stamp_final({"report": self.ROUNDS, "verdict": "clean"})
+        data = json.loads(receipt.read_text(encoding="utf-8"))
+        self.assertEqual((data["final"]["reviewer"], data["final"]["verdict"]), ("wonder", "clean"))
+        tg.graph(self.root)
+        for key, value in (("verdict", "fixed"), ("reviewer", "astra")):
+            with self.subTest(key=key):
+                edited = json.loads(json.dumps(data))
+                edited["final"][key] = value
+                receipt.write_text(json.dumps(edited), encoding="utf-8")
+                with self.assertRaises(tg.Refused):
+                    tg.graph(self.root)
+        dropped = json.loads(json.dumps(data))
+        del dropped["final"]
+        receipt.write_text(json.dumps(dropped), encoding="utf-8")
+        self.refuses("records a final review exactly when its schedule has a final step")
+
+    def test_a_p2_final_review_needs_fixed_and_a_later_round(self):
+        self.write_final("1. P2 calc.py:2.\n\nHIGHEST: P2\nOVERALL: needs-attention")
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "does not match the final review, which declares P2")
+        self.refused({"report": self.ROUNDS, "verdict": "fixed"}, "needs a regular round recorded after the final review")
+        self.later_round()
+        reviews = [{"round": 2, "report": self.ROUNDS, "verdict": "clean"}]
+        receipt = self.root / self.stamp_final({"report": self.ROUNDS, "verdict": "fixed"}, reviews)
+        self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["final"]["verdict"], "fixed")
+
+    def test_the_final_review_runs_at_its_scheduled_step(self):
+        self.write_final(effort="high")
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "the final review in")
+
+    def test_a_final_review_without_a_final_step_refuses(self):
+        (self.root / tg.PIN).write_text(UNIFORM_PIN, encoding="utf-8")
+        self.sha = self.commit("no final step")
+        self.write_final()
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "has no final step")
+
+
+
+# FinalStamp borrows Stamp's fixture, not its tests: those run once, under Stamp's own pin.
+for _name in [n for n in vars(Stamp) if n.startswith("test_") and n not in vars(FinalStamp)]:
+    setattr(FinalStamp, _name, None)
+
 class PlanTable(Tree):
     def test_title_that_wraps_the_generated_plan_table_refuses_naming_the_section(self):
         # Within the 88-character cell limit, but the plan pads every row to it: 60 characters make 103-character rows.

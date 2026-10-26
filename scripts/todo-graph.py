@@ -15,6 +15,7 @@
         --completion '<findings file>:<complete|completed|filed>' \
         --review '<round>:<report path>:<clean|fixed|stopped-at-33|stopped-low-severity>' --check '<command> -> <result>' \
         [--cap-outcome '<what was done when the review cap was reached>']   # required with a stopped verdict
+        [--final '<findings file>:<clean|fixed>']   # required when the schedule has a final step
     python scripts/todo-graph.py unstamp 'D02 T01 §1' --reason '<what regressed, and the repair section>'
 
 Format and rules: todo/README.md. Stdlib only.
@@ -42,6 +43,12 @@ def review_round(value):
 def completion_review(value):
     report, _, verdict = value.rpartition(":")
     require(bool(report) and bool(verdict), f"--completion takes <findings file>:<verdict>, not {value!r}")
+    return {"report": report, "verdict": verdict}
+
+
+def final_review(value):
+    report, _, verdict = value.rpartition(":")
+    require(bool(report) and bool(verdict), f"--final takes <findings file>:<verdict>, not {value!r}")
     return {"report": report, "verdict": verdict}
 
 
@@ -79,6 +86,8 @@ def main():
     s.add_argument("--plan", help="required: <findings file>, the one-pass plan review before the build")
     s.add_argument("--completion", type=completion_review,
                    help="required: <findings file>:<complete|completed|filed>, the one-pass completion review")
+    s.add_argument("--final", type=final_review,
+                   help="required when the schedule has a final step: <findings file>:<clean|fixed>, the final review")
     u = sub.add_parser("unstamp", help="an audit found a stamped section regressed: reopen it, keeping the receipt")
     u.add_argument("ref")
     u.add_argument("--reason", required=True)
@@ -92,7 +101,8 @@ def main():
         return 0
     if args.command == "stamp":
         receipt = stamp(ROOT, args.ref, args.sha, args.review, args.checks, args.date, sync_plan=True,
-                        cap_outcome=args.cap_outcome, completion=args.completion, plan=args.plan)
+                        cap_outcome=args.cap_outcome, completion=args.completion, plan=args.plan,
+                        final=args.final)
         print(f"stamped {args.ref}; receipt {receipt}; plan synchronized")
         return 0
     rows = graph()

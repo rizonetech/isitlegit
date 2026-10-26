@@ -1038,6 +1038,109 @@ class Schedule(Harness):
         self.assertEqual(self.calls(), [])
 
 
+FINAL_PIN = SCHEDULED_PIN + textwrap.dedent('''
+    [reviewers.wonder]
+    cli = "muse"
+    model = "muse-wonder-full-1.0"
+    effort = "medium"
+
+    [schedule.final]
+    reviewer = "wonder"
+    effort = "medium"
+    lenses = ["adversarial", "integration"]
+''')
+
+
+class FinalReview(Harness):
+    """--kind final: one review by [schedule.final]'s reviewer, only after the rounds stop, never repeated."""
+    CANDIDATE = "0123456789abcdef0123456789abcdef01234567"
+    CLEAN = "1. P3 calc.py:2 a name.\n\nHIGHEST: P3\nOVERALL: approve"
+
+    def setUp(self):
+        super().setUp()
+        self.muse = write_launcher(self.bin, "muse", Path(self._tmp.name) / "fake_cli.py")
+        self.pin = self.repo / ".conclave/reviewers.toml"
+        self.pin.write_text(FINAL_PIN, encoding="utf-8")
+        self.findings = self.repo / "findings.md"
+
+    def round(self, say):
+        result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--record", str(self.findings),
+                                  codex="say", say=say)
+        self.assertIn(result.returncode, (0, 1), result.stderr)
+
+    def final(self, say="1. P3 a name.\n\nHIGHEST: P3\nOVERALL: approve"):
+        self.log.unlink(missing_ok=True)
+        return self.dispatch("--kind", "final", "--candidate", self.CANDIDATE, "--writer", "claude", "--prompt",
+                             str(self.prompt), "--record", str(self.findings), muse="say", say=say)
+
+    def test_it_waits_until_the_rounds_have_stopped(self):
+        result, _ = self.final()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("once the regular rounds have stopped", result.stderr)
+        self.round("1. P1 calc.py:2 subtracts.\n\nHIGHEST: P1\nOVERALL: needs-attention")
+        result, _ = self.final()
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(self.calls(), [], "no final reviewer ran")
+
+    def test_it_runs_once_through_muse_with_contributor_mode_off(self):
+        self.round(self.CLEAN)
+        result, summary = self.final()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (call,) = self.calls()
+        self.assertEqual(call["cli"], "muse")
+        self.assertEqual(call["argv"][:8], ["exec", "--model", "muse-wonder-full-1.0", "--reasoning-effort", "medium",
+                                            "--contributor-mode", "off", "--prompt-file"])
+        self.assertEqual((summary["reviewer"], summary["kind"], summary["lenses"]), ("wonder", "final", ["adversarial", "integration"]))
+        text = self.findings.read_text(encoding="utf-8")
+        self.assertIn("## Final review: wonder (`muse-wonder-full-1.0` via `muse`)", text)
+        module = self.module()
+        (entry,) = module.read_finals(text)
+        self.assertEqual((entry["candidate"], entry["effort"]), (self.CANDIDATE, "medium"))
+        self.assertEqual(len(module.read_rounds(text)), 1, "the final review is not a round")
+        result, _ = self.final()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("is one pass", result.stderr)
+        self.assertEqual(len(module.read_finals(self.findings.read_text(encoding="utf-8"))), 1)
+
+    def test_a_fix_is_proven_by_one_more_round_not_another_final(self):
+        self.round(self.CLEAN)
+        self.assertEqual(self.final("1. P2 calc.py:2.\n\nHIGHEST: P2\nOVERALL: needs-attention")[0].returncode, 0)
+        self.round(self.CLEAN)
+        module = self.module()
+        text = self.findings.read_text(encoding="utf-8")
+        self.assertEqual(len(module.read_rounds(text)), 2)
+        self.assertEqual(module.highest(module.read_finals(text)[0]["review"]), "P2")
+
+    def test_the_pin_refuses_a_final_reviewer_it_cannot_trust(self):
+        head, final = FINAL_PIN.split("[reviewers.wonder]")
+
+        def pin(reviewer=None, step=None):
+            block = "[reviewers.wonder]" + final
+            for old, new in (reviewer or {}).items():
+                self.assertIn(old, block)
+                block = block.replace(old, new)
+            top, tail = block.split("[schedule.final]")
+            for old, new in (step or {}).items():
+                self.assertIn(old, tail)
+                tail = tail.replace(old, new)
+            return head + top + "[schedule.final]" + tail
+
+        cases = {
+            "of the writer's family": pin({'cli = "muse"': 'cli = "claude"', 'model = "muse-wonder-full-1.0"': 'model = "claude-x"'}),
+            "of the round reviewer's family": pin({'cli = "muse"': 'cli = "codex"', 'model = "muse-wonder-full-1.0"': 'model = "gpt-x"'}),
+            "undefined": pin(step={'reviewer = "wonder"': 'reviewer = "nobody"'}),
+            "without lenses": pin(step={'lenses = ["adversarial", "integration"]\n': ""}),
+            "at an effort muse does not take": pin(step={'effort = "medium"': 'effort = "ultra-max"'}),
+        }
+        self.pin.write_text(pin(), encoding="utf-8")
+        self.assertEqual(self.dispatch("--check-pin")[0].returncode, 0, "the unchanged pin loads")
+        for why, text in cases.items():
+            with self.subTest(why=why):
+                self.pin.write_text(text, encoding="utf-8")
+                result, _ = self.dispatch("--check-pin")
+                self.assertEqual(result.returncode, 2, why)
+                self.assertRegex(result.stdout + result.stderr, r"schedule(\.|\] )final", why)
+
 class MultiCli(Harness):
     """The Antigravity and Claude Code reviewers: each writer family is reviewed by another family, read-only."""
 

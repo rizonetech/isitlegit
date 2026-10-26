@@ -22,6 +22,14 @@ cli = "codex"
 model = "gpt-6-astra"
 effort = "medium"
 
+# Muse Wonder Full through Muse Code (the operator's subscription, Standard mode, contributor mode off on every
+# call), the final reviewer: one review per section after the Astra rounds stop (operator, 2026-10-26 23:03). It is
+# no route: [schedule.final] names it, and it is of a family neither the writer nor Astra belongs to.
+[reviewers.wonder]
+cli = "muse"
+model = "muse-wonder-full-1.0"
+effort = "medium"
+
 # Claude Code writes and Astra reviews. No other writer is routed, so a round
 # for Codex or Gemini work refuses until a route is added here.
 [routes]
@@ -64,3 +72,10 @@ lenses = ["consistency", "quality", "design", "optimization", "record"]
 [schedule.escalation]
 effort = "medium"
 lenses = ["adversarial"]
+
+# One final review per section by Muse Wonder Full, after the rounds stop (the last returned round declares no P1 or
+# P2). A P1 or P2 it finds is fixed and proven by one more regular round; it is never repeated.
+[schedule.final]
+reviewer = "wonder"
+effort = "medium"
+lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]

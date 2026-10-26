@@ -56,6 +56,11 @@ FILED = re.compile(r"^- Filed: (D\d{2} T\d{2} §[1-9]\d*)(?![\w§]|\.\d)")
 # review (`plan`) and the pin's [schedule] (`schedule`), and stamp replays the schedule over every recorded pass through
 # scripts/review-dispatch.py's own `scheduled`. A receipt without them predates the requirement and is frozen by digest
 # under `before_plan` in LEGACY_RECEIPTS, so dropping the fields from a new receipt does not dodge the checks.
+# The one-pass final review, required for every new stamp whose schedule has a final step: clean (it declared no P1 or
+# P2) or fixed (it declared one, and a regular round recorded after it returned a review, proving the fix; the final
+# review itself is never repeated).
+FINAL_VERDICTS = ("clean", "fixed")
+FINAL_KEYS = {"report", "verdict", "candidate", "reviewer", "model"}
 PIN = ".conclave/reviewers.toml"
 PLAN_KEYS = {"report", "candidate", "reviewer", "model", "effort", "lenses"}
 STARTED = re.compile(r"^> \*\*Started:\*\* .+$", re.M)
@@ -329,6 +334,46 @@ def completion_record(root, completion, ref, stamp_sha, commits=None):
             "model": entry["model"], "filed": filed}
 
 
+def final_record(root, final, ref, stamp_sha, commits=None):
+    """The receipt's record of the section's final review, from `--final <findings file>:<clean|fixed>`: the findings
+    file holds exactly one final review returned by a reviewer of another family than the writer, its candidate a
+    commit at or before the stamped one; clean needs it to declare no P1 or P2, fixed needs it to declare one and a
+    returned regular round recorded after it."""
+    require(isinstance(final, dict) and isinstance(final.get("report"), str) and isinstance(final.get("verdict"), str),
+            f"receipt final is malformed: {ref}")
+    report, verdict = final["report"], final["verdict"]
+    require(verdict in FINAL_VERDICTS, f"--final verdict must be one of {', '.join(FINAL_VERDICTS)}, not {verdict!r}: {ref}")
+    path = report_ok(root, report, ref)
+    dispatch = review_dispatch()
+    text = path.read_bytes().decode("utf-8")
+    found = dispatch.read_finals(text)
+    require(found is not None, f"{report} is not a findings file the dispatcher can read: {ref}")
+    returned = [e for e in found if _other_family(dispatch, e)
+                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
+                in ("OVERALL: approve", "OVERALL: needs-attention")]
+    require(len(returned) == 1, f"{report} must hold exactly one final review returned by another model family, not "
+                                f"{len(returned)}; run review-dispatch.py --kind final: {ref}")
+    (entry,) = returned
+    serious = dispatch.highest(entry["review"]) in ("P1", "P2")
+    require(serious == (verdict == "fixed"),
+            f"final verdict {verdict} does not match the final review, which declares "
+            f"{dispatch.highest(entry['review']) or 'no severity'}: {ref}")
+    if verdict == "fixed":
+        later = [r for r in dispatch.read_rounds(text) if dispatch.returned_review(r) and r["run"] > entry["run"]]
+        require(bool(later), f"final verdict fixed needs a regular round recorded after the final review in {report}, "
+                             f"proving the fix: {ref}")
+    candidate = entry["candidate"]
+    if commits is None or candidate not in commits:
+        commit_ok(root, candidate)
+    if commits is None:
+        ancestor = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", candidate, stamp_sha],
+                                  capture_output=True, timeout=30)
+        require(ancestor.returncode == 0,
+                f"the final review's candidate {candidate} is not the stamped commit or an ancestor of it: {ref}")
+    return {"report": report, "verdict": verdict, "candidate": candidate, "reviewer": entry["reviewer"],
+            "model": entry["model"]}
+
+
 def _other_family(dispatch, entry):
     """A review returned by a reviewer of another model family than the writer: not an outage, not a self-review."""
     return bool(entry["reviewer"]) and entry["writer"] in dispatch.WRITER_FAMILY \
@@ -460,6 +505,10 @@ def schedule_ok(root, data, ref, surface):
             f"{completion} must hold exactly one returned completion review: {ref}")
     for entry in completions:
         check(f"the completion review in {completion}", entry, dispatch.scheduled(schedule, "completion", [], surface))
+    if "final" in schedule:
+        final = data["final"]["report"]
+        for entry in dispatch.read_finals((Path(root) / final).read_bytes().decode("utf-8")):
+            check(f"the final review in {final}", entry, dispatch.scheduled(schedule, "final", [], surface))
     for report in dict.fromkeys(r["report"] for r in data["reviews"]):
         recorded = dispatch.read_rounds((Path(root) / report).read_bytes().decode("utf-8"))
         for i, entry in enumerate(recorded):
@@ -589,6 +638,13 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
         require("completion" in data and "rounds_spent" in data,
                 f"a receipt with a plan review also records its completion review and rounds_spent: {ref}")
         require(isinstance(data["schedule"], dict), f"receipt schedule is malformed: {ref}")
+        require(("final" in data) == ("final" in data["schedule"]),
+                f"a receipt records a final review exactly when its schedule has a final step: {ref}")
+        if "final" in data:
+            require(isinstance(data["final"], dict) and set(data["final"]) == FINAL_KEYS, f"receipt final is malformed: {ref}")
+            if root is not None:
+                require(final_record(root, data["final"], ref, stamp_sha, commits if commits is not None else set())
+                        == data["final"], f"receipt final does not match its findings file {data['final']['report']}: {ref}")
         if root is not None:
             require(plan_record(root, recorded["report"], ref, commits if commits is not None else set()) == recorded,
                     f"receipt plan does not match its findings file {recorded['report']}: {ref}")
@@ -1085,7 +1141,8 @@ def review_rounds(root=ROOT):
                         "stopped_low_severity": sum("stopped-low-severity" in s["verdicts"] for s in sections)}}
 
 
-def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=None, completion=None, plan=None):
+def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=None, completion=None, plan=None,
+          final=None):
     """Close a section: write its receipt, tick its row and checklist, add the Verified and Review lines. The receipt
     records the plan review (`plan`: its findings file, required), the completion review (`completion`: {"report",
     "verdict"}, required), the pin's review schedule every pass is checked against, the review rounds spent against
@@ -1130,6 +1187,13 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
         data["cap_outcome"] = cap_outcome.strip()
     data["plan"] = plan_record(root, plan, ref, start=build_start(root, row.path, row.body, ref))
     data["schedule"] = pin_schedule(root, sha, ref)
+    if "final" in data["schedule"]:
+        require(final is not None,
+                f"--final '<findings file>:<{'|'.join(FINAL_VERDICTS)}>' is required: the schedule has a final step; run "
+                f"review-dispatch.py --kind final once the rounds have stopped: {ref}")
+        data["final"] = final_record(root, final, ref, sha)
+    else:
+        require(final is None, f"--final given, but the schedule at {sha} has no final step: {ref}")
     receipt_data_ok(data, ref, sha, root=root, surface=field(row.body, "Surface") == "yes")
     receipt_path = root / receipt
     require(not receipt_path.exists(), f"receipt already exists: {receipt}")

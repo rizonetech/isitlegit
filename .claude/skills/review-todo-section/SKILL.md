@@ -84,6 +84,16 @@ The loop is bounded: at most 33 rounds (a round that returns no review does not 
 
 Architecture check: on sections touching an architectural boundary the governing plan names (process or thread contracts, data ownership, module seams), one findings-file paragraph answers whether the change keeps the governing plan's architecture intact, naming any decision it effectively revises. A revision is recorded as a plan correction, never smuggled in as code.
 
+### 4a. The final review (once, after the rounds stop)
+
+When the pin has a `[schedule.final]` step, the section gets exactly one final review by that reviewer (Muse Wonder Full here) once the rounds have stopped, in the foreground, on the candidate tip:
+
+```bash
+python3 scripts/review-dispatch.py --kind final --candidate <full candidate tip SHA> --writer claude --prompt <scratch-review-prompt.md> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md
+```
+
+The dispatcher refuses it until the last returned round declares no P1 or P2, and refuses a second one. It is recorded as `## Final review`. If it declares a P1 or P2, fix each finding in this section with its regression test, then run one more regular round (step 4) on the fix: that round, not another final review, proves it. The stamp then takes `--final '<findings file>:fixed'`; with no P1 or P2, `--final '<findings file>:clean'`.
+
 ### 5. Re-run the gates
 
 After the last fix, re-run the section's Test checkpoint and its owed gates (affected test suites, build warnings clean, `validate`, the Freeze check in frozen files, any sanitizer build the section names). Quote the outputs in the findings file. A fix verified by reasoning is not verified. A red gate reopens the candidate: fix, re-run to green, and re-run the affected lens, because earlier verdicts rested on the broken candidate.
@@ -97,7 +107,7 @@ Surface and feature completeness: 100% of every control, menu item, dialog and s
 Tick nothing by hand. Confirm every checklist item except `Commit:` is `[x]`, then:
 
 ```powershell
-python scripts/todo-graph.py stamp 'DNN TNN §N' --sha <full candidate tip SHA> --plan 'docs/reviews/<domain>/D<NN>-T<NN>-s<N>.md' --completion 'docs/reviews/<domain>/D<NN>-T<NN>-s<N>.md:complete' --review '1:docs/reviews/<domain>/D<NN>-T<NN>-s<N>.md:clean' --check '<checkpoint command> -> <quoted result>'
+python scripts/todo-graph.py stamp 'DNN TNN §N' --sha <full candidate tip SHA> --plan 'docs/reviews/<domain>/D<NN>-T<NN>-s<N>.md' --completion 'docs/reviews/<domain>/D<NN>-T<NN>-s<N>.md:complete' --final 'docs/reviews/<domain>/D<NN>-T<NN>-s<N>.md:clean' --review '1:docs/reviews/<domain>/D<NN>-T<NN>-s<N>.md:clean' --check '<checkpoint command> -> <quoted result>'
 ```
 
 One `--plan` (required, naming the section's own findings file; `stamp` refuses without it, with any other file, with a findings file that holds no `## Plan review` returned by another model family and ending `PLAN: complete` or `PLAN: gaps` then its `OVERALL:` line, or with a plan review whose candidate is not the commit that recorded the section's `Started:` line or an earlier one), one `--completion` (required; `stamp` refuses without it, with an unknown verdict, with a findings file that holds no returned `## Completion review`, with a verdict the review's `COMPLETION:` line does not support, or with a `filed` verdict whose `- Filed:` refs are missing or do not resolve), one `--review` per round, one `--check` per gate actually run. `stamp` also replays the pin's `[schedule]` (at the stamped commit) through the dispatcher's own scheduler and refuses any pass, the plan review, the completion review or a recorded round (outages included), whose effort or lenses differ from what the schedule gave it, naming the pass, the expected and the recorded values. With a `stopped-at-33` or `stopped-low-severity` verdict add `--cap-outcome '<what was done when the cap was reached>'` (which leftovers were filed where, or why the section stays unstamped); `stamp` refuses a stopped verdict without it. The receipt records the plan review (`plan`: findings file, candidate, reviewer, model, effort, lenses), the pin's schedule (`schedule`), the completion review (`completion`: findings file, verdict, candidate, reviewer, model, filed sections), `rounds_spent` (every round the dispatcher recorded in the findings file, outage rounds included), `round_cap` and `cap_outcome`; `python scripts/todo-graph.py query rounds` lists them across stamped sections so the cap can be tuned. `stamp` writes the receipt `docs/reviews/<ref>.json`, ticks the `Commit:` item and the Implementation Order row, appends the `Verified:` and `Review:` lines, marks the file `done` when its last section stamps, and the CLI syncs the plan. Commit the stamp, receipt, findings file and regenerated plan together as `todo: stamp <ref>`. Add any `Deferred:` lines (each with its `-> XREF:` owner) and `Started:` to `Duration:` notes to the section before stamping, since a stamped section's checklist is never rewritten; a later change is a new section that names the old one.
