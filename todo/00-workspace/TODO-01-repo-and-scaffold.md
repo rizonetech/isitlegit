@@ -233,6 +233,8 @@ One small script proves each Meta capability the product depends on before anyth
 
 ## 8. README banner and social preview
 
+> **Started:** 2026-10-26T23:42:17Z
+
 The reference repositories open with a brand image (Recto's `design/brand/github-banner.png`, Isotone's wordmark and cover). IsItLegit gets the same once its brand exists; until then the README opens with a text title. The wordmark comes out of the design session (D07 T01 §1; **Corrected 2026-10-26:** moved from phase 0 to phase 1 to follow it).
 
 **Phase:** 1
