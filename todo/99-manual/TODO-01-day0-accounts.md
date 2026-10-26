@@ -61,9 +61,11 @@ Credits apply in batches after the claim form; until they show, every call is ch
 
 - [ ] Add a payment method on the Meta Model API Billing page. Done when: Billing lists the card.
 - [ ] Set a Spend Limit notification at US$150. Done when: Billing shows it.
-- [ ] Create an API key named `isitlegit-hackathon` and store it in the Conclave vault as "IsItLegit Meta Model API". Done when: the vault item exists. Cheaper substitute: pasting the key into chat or a file.
-- [ ] Confirm US$150 under Billing, "free credits", and record it here as a line `Meta credit visible: YYYY-MM-DD`. Done when: the line is written; every `meta-api` section checks for it before its first call.
+- [ ] Create an API key named `isitlegit-hackathon` and store it in the Conclave vault as "IsItLegit Meta Model API" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Cheaper substitute: pasting the key into chat or a file.
+- [x] Confirm US$150 under Billing, "free credits", and record it here as a line `Meta credit visible: YYYY-MM-DD`. Done when: the line is written; every `meta-api` section checks for it before its first call. Evidence: the operator reported the credit showing on Billing at 00:40 SAST on 2026-10-27.
 - [ ] Commit: `todo: record the Meta Model API account as ready`
+
+Meta credit visible: 2026-10-27
 
 **Test checkpoint:** `op item get "IsItLegit Meta Model API" --vault Conclave --format json | jq -r '.id' | wc -c` prints a non-zero count (the item exists; the value is never printed).
 
@@ -132,7 +134,7 @@ Replies, verification mails and alerts go out through SMTP2GO from `check@`, `ve
 - [ ] Add `isitlegit.co.za` under SMTP2GO Sending, Verified Senders, Sender Domains. Done when: SMTP2GO shows the records to add.
 - [ ] Give Claude the record names and targets (they are not secret) to add in Cloudflare DNS. Done when: the records exist in zone `88aeec6df134bc59bfa16a25751241ef`.
 - [ ] Click verify in SMTP2GO. Done when: the sender domain reads verified.
-- [ ] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO". Done when: the vault item exists.
+- [ ] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists.
 - [ ] Commit: `todo: record the SMTP2GO sender domain as verified`
 
 **Test checkpoint:** `dig +short CNAME em.isitlegit.co.za @1.1.1.1` (or the record names SMTP2GO gives) resolves to SMTP2GO targets.
