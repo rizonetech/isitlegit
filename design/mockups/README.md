@@ -19,7 +19,7 @@ Both tools need a headless Chromium (Playwright's `chrome-headless-shell`, or `M
 
 ## When something goes wrong
 
-- An import is staged beside `source/` and swapped in whole; a failed or interrupted import leaves the previous `source/` untouched.
+- An import is staged beside `source/` and swapped in whole; a failed import leaves the previous `source/` untouched, and an import killed in the middle of the swap is finished by the next import, which restores the moved-aside folder before it reads anything.
 - An export replaces each PNG only after Chromium renders it at the right size, and records it in `png/manifest.json` straight away. After an interruption, `check-design.py` names the boards whose PNG is stale; run the export again to finish.
 - Canvas files are untrusted input: board names must be plain file names, boards may hold no executable markup (scripts, frames, event handlers, `javascript:` links), part scripts run in Chromium's renderer sandbox, and every page renders offline because all requests, loopback included, go to a proxy nothing listens on.
 

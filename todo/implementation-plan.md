@@ -22,7 +22,7 @@ Sections: 7 | Checklist items: 59
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 31 | Checklist items: 175
+Sections: 31 | Checklist items: 176
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -32,7 +32,7 @@ Sections: 31 | Checklist items: 175
 | [ ]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 5     |
 | [ ]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 4     |
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 6     |
-| [ ]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 15    |
+| [ ]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 16    |
 | [ ]    | D00 T01 §8 | README banner and social preview           | attended              | 4     |
 | [ ]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 6     |
 | [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
@@ -258,4 +258,4 @@ Sections: 12 | Checklist items: 43
 
 Progress: 1/187 verified sections, 2 ready to run now.
 
-Checklist: 32/847 items completed (includes Commit items).
+Checklist: 33/848 items completed (includes Commit items).

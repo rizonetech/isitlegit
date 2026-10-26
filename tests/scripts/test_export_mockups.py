@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -211,6 +212,19 @@ class Export(Fixture):
             server.shutdown()
         self.assertEqual(hits, [])
 
+    def test_multiplying_imports_are_stopped_before_they_expand(self):
+        boards = {}
+        for i in range(9):
+            inner = "x" * 1024 if i == 8 else "".join(f'<dc-import name="B{i + 1}"></dc-import>' for _ in range(32))
+            self.write(f"B{i}.dc.html", BOARD.replace(BOARD[BOARD.index("<div style"):BOARD.index("</x-dc>")], f"<div>{inner}</div>\n"))
+            boards[f"B{i}.dc.html"] = {"w": 10, "h": 10, "title": f"B{i}"}
+        self.write("canvas.json", json.dumps({"boards": boards}))
+        started = time.monotonic()
+        run = self.export("--no-png", "--only", "B0")
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("expands to more than 200 imported parts", run.stderr)
+        self.assertLess(time.monotonic() - started, 30)
+
     def test_a_title_cannot_carry_markup_into_the_page(self):
         self.write("Board.dc.html", BOARD.replace("<title>Board</title>", "<title>x</TITLE><script>window.injected=1</script><title>y</title>"))
         run = self.export("--no-png", "--only", "Board")
@@ -381,6 +395,17 @@ class Import(Fixture):
         self.assertIn("nothing was imported", run.stderr)
         self.assertEqual({p.name: p.read_bytes() for p in self.dest.iterdir()}, before)
         self.assertEqual([p.name for p in self.dest.parent.iterdir() if p.name.startswith(".")], [])
+
+    def test_an_import_killed_mid_swap_is_finished_by_the_next_one(self):
+        (self.canvas / "Board.dc.html").write_text("board")
+        self.assertEqual(self.run_tool("import", str(self.canvas), "--source", str(self.dest)).returncode, 0)
+        os.replace(self.dest, self.dest.parent / ".source.old")      # killed after moving source/ aside
+        (self.dest.parent / ".source.new.abc").mkdir()                # and before installing the staged copy
+        run = self.run_tool("import", str(self.canvas), "--source", str(self.dest))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("restored", run.stderr)
+        self.assertEqual((self.dest / "Board.dc.html").read_text(), "board")
+        self.assertEqual(sorted(p.name for p in self.dest.parent.iterdir()), ["source"])
 
     def test_the_approved_record_covers_the_stylesheet_and_sizes(self):
         (self.canvas / "Board.dc.html").write_text("board")

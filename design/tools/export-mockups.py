@@ -198,13 +198,26 @@ def fill_template(body, vals, name):
     return TEMPLATE_RE.sub(lookup, body)
 
 
-def resolve(name, source, attrs=None, depth=0, styles=None):
+# Limits on what one board may expand to, checked before anything is expanded: imports multiply (a part imported
+# many times by parts imported many times), so a depth limit alone does not bound the output.
+MAX_BOARD_BYTES = 2_000_000
+MAX_IMPORTS = 200
+MAX_PAGE_BYTES = 8_000_000
+
+
+def resolve(name, source, attrs=None, depth=0, styles=None, budget=None):
     """Return a board's body with its imports inlined and its template filled; collect part styles."""
+    budget = budget if budget is not None else {"imports": 0, "bytes": 0}
     if depth > 8:
         raise BoardError(f"{name}: imports nest deeper than 8 levels")
+    budget["imports"] += 1
+    if budget["imports"] > MAX_IMPORTS:
+        raise BoardError(f"{name}: a board expands to more than {MAX_IMPORTS} imported parts")
     path = pathlib.Path(source) / f"{name}.dc.html"
     if not path.exists():
         raise BoardError(f"import of {name} has no board {path.name}")
+    if path.stat().st_size > MAX_BOARD_BYTES:
+        raise BoardError(f"{name}: the board file is larger than {MAX_BOARD_BYTES} bytes")
     board = parse_board(path)
     styles = styles if styles is not None else []
     styles.extend(re.findall(r"<style>(.*?)</style>", board["helmet"], re.S))
@@ -222,7 +235,11 @@ def resolve(name, source, attrs=None, depth=0, styles=None):
         if not NAME_RE.match(f"{part}.dc.html"):
             raise BoardError(f"{name}: import name {part!r} is not a plain board name")
         a.pop("hint-size", None)
-        return resolve(part, source, a, depth + 1, styles)[0]
+        expanded = resolve(part, source, a, depth + 1, styles, budget)[0]
+        budget["bytes"] += len(expanded)
+        if budget["bytes"] > MAX_PAGE_BYTES:
+            raise BoardError(f"{name}: imports expand to more than {MAX_PAGE_BYTES} bytes")
+        return expanded
 
     body = IMPORT_RE.sub(inline, body)
     if "<dc-import" in body:
@@ -519,8 +536,21 @@ def cmd_export(args):
     return 1 if errors else 0
 
 
+def recover_import(dest):
+    """Finish what an import killed mid-swap left behind: put back a source folder that was moved aside but not
+    replaced, and remove staging and backup folders no import still needs."""
+    backup = dest.parent / f".{dest.name}.old"
+    if not dest.exists() and backup.is_dir():
+        os.replace(backup, dest)
+        print(f"export-mockups: restored {dest} from an interrupted import", file=sys.stderr)
+    for stale in [backup, *dest.parent.glob(f".{dest.name}.new.*")]:
+        if stale.is_dir():
+            shutil.rmtree(stale, ignore_errors=True)
+
+
 def cmd_import(args):
     src, dest = pathlib.Path(args.canvas), pathlib.Path(args.source)
+    recover_import(dest)
     assets = load_json_or(dest / "assets.json", None)
     if not isinstance(assets, dict):
         raise BoardError(f"{dest / 'assets.json'} is missing; it maps canvas asset ids to design/brand files")
