@@ -4,19 +4,25 @@
 # Ticking a checklist item changes the generated plan, so every TODO edit needs `plan --sync`.
 # Receipts and findings files are graph evidence too: a commit touching only docs/reviews/ is checked as well.
 # Client names never enter the public repository. samples/client-names.txt (git-ignored, one name, domain or address
-# per line) lists them; a commit whose staged paths or added lines contain one, in any case, is refused. Blank lines
-# are dropped first: an empty pattern would match every line. --text reads files marked binary in .gitattributes
-# (mail fixtures are), which a plain diff would summarise as "Binary files differ" and hide.
+# per line) lists them; a commit is refused while the index (what the commit records) holds one, in any case, in a
+# file's content or its path. The whole index is scanned, not a diff: a diff hides binary-marked files ("Binary files
+# differ") and its "+++" headers look like content lines that start with "++". Paths are read with core.quotePath off,
+# because git otherwise escapes non-ASCII bytes (`Café` becomes `Caf\303\251`) and the name would not match. Blank
+# lines are dropped first: an empty pattern would match every line. scripts/check-publication.py runs the same scan
+# before a push.
 names_file="$(git rev-parse --show-toplevel)/samples/client-names.txt"
 if [ -f "$names_file" ]; then
-    names=$(sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file")
-    if [ -n "$names" ]; then
-        if git diff --cached --name-only | grep -qiF -e "$names" ||
-            git diff --cached --text -U0 --no-color --no-ext-diff | grep '^+' | grep -v '^+++ ' | grep -qiF -e "$names"; then
-            echo "pre-commit: the staged changes contain a client name from samples/client-names.txt; anonymise them" >&2
+    patterns=$(mktemp) || exit 1
+    sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file" > "$patterns"
+    if [ -s "$patterns" ]; then
+        if git grep --cached -q -a -i -F -f "$patterns" ||
+            git -c core.quotePath=false ls-files | grep -q -i -F -f "$patterns"; then
+            rm -f "$patterns"
+            echo "pre-commit: the staged tree contains a client name from samples/client-names.txt; anonymise it" >&2
             exit 1
         fi
     fi
+    rm -f "$patterns"
 fi
 
 git diff --cached --name-only -- todo/ docs/reviews/ | grep -q . || exit 0

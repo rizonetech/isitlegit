@@ -63,11 +63,12 @@ def main():
         print(f"check-publication: git grep failed: {content.stderr.strip()}", file=sys.stderr)
         return 2
     findings += [f"client name in content: {line[:200]}" for line in content.stdout.splitlines()]
-    tracked = git("ls-files")
+    # -z: one NUL after each path and no quoting, so a non-ASCII name (`Café`) is compared as written, not escaped.
+    tracked = git("ls-files", "-z")
     if tracked.returncode:
         print(f"check-publication: git ls-files failed: {tracked.stderr.strip()}", file=sys.stderr)
         return 2
-    paths = tracked.stdout.splitlines()
+    paths = [p for p in tracked.stdout.split("\0") if p]
     lowered = [name.lower() for name in names]
     findings += [f"client name in path: {p}" for p in paths if any(name in p.lower() for name in lowered)]
     private = git("grep", "--cached", "-n", "-E", PRIVATE_PATH, "--", ".", ":!tests/", ":!scripts/tests/")

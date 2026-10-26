@@ -154,6 +154,26 @@ class PreCommitHook(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("client name", result.stderr)
 
+    def test_a_client_name_after_a_nul_byte_in_binary_content_is_refused(self):
+        self.names("Acme Holdings\n")
+        (self.root / "message.eml").write_bytes(b"From: Acme Holdings\x00\n")
+        self.git("add", "message.eml")
+        self.assertNotEqual(self.commit().returncode, 0)
+
+    def test_a_client_name_on_a_line_starting_with_plus_signs_is_refused(self):
+        self.names("Acme Holdings\n")
+        (self.root / "notes.txt").write_text("++ Acme Holdings\n", encoding="utf-8")
+        self.git("add", "notes.txt")
+        self.assertNotEqual(self.commit().returncode, 0)
+
+    def test_a_non_ascii_client_name_in_a_file_name_is_refused(self):
+        self.names("Café Holdings\n")
+        (self.root / "Café Holdings.md").write_text("A fictional supplier.\n", encoding="utf-8")
+        self.git("add", "Café Holdings.md")
+        result = self.commit()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("client name", result.stderr)
+
     def test_a_staged_file_named_after_a_client_is_refused(self):
         self.names("acme\n")
         (self.root / "Acme-invoice.txt").write_text("nothing here\n", encoding="utf-8")

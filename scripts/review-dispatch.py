@@ -502,13 +502,24 @@ COUNT = re.compile(r"[0-9]{1,%d}" % len(str(MAX_OUTPUT_BYTES + 1)))
 DIGEST = re.compile(r"[0-9a-f]{16}")
 
 
-def repository_relative(text):
+def repository_relative(text, record=None):
     """A review with every absolute path under the repository root written relative to it. Findings files are
     committed and may be published, and a reviewer (Codex links files by absolute path) would otherwise record the
-    checkout's location, which names the user's home folder. Applied before the line count and digest, so the record
-    reads back exactly as written."""
+    checkout's location, which names the user's home folder. A Markdown link to such a path becomes a link relative to
+    the findings file `record` (`[a.md:18](/root/a.md:18)` in docs/reviews/x/ becomes `[a.md:18](../../../a.md#L18)`),
+    so it opens the file on GitHub at that line; any other mention keeps the repository-relative path as text. Applied
+    before the line count and digest, so the record reads back exactly as written."""
+    folder = Path(os.path.abspath(record)).parent if record else ROOT
     for root in {str(ROOT), ROOT.as_posix()}:
-        text = text.replace(root.rstrip("/\\") + ("\\" if "\\" in root else "/"), "")
+        prefix = root.rstrip("/\\") + ("\\" if "\\" in root else "/")
+
+        def link(match):
+            target = match.group(1).replace("\\", "/")
+            relative = Path(os.path.relpath(ROOT / target, folder)).as_posix()
+            return f"]({relative}#L{match.group(2)})" if match.group(2) else f"]({relative})"
+
+        text = re.sub(r"\]\(" + re.escape(prefix) + r"([^)\s:]+)(?::(\d+))?\)", link, text)
+        text = text.replace(prefix, "")
     return text
 
 
@@ -684,7 +695,7 @@ def record(path, result, when):
                          f"{unreadable_heading(existing)}; {RESERVED_NAMES}), so the round was not recorded")
     number = len(known) + 1
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
-    review = raw_lines(repository_relative(result["review"] or "No reviewer returned a review. This round is not an approval."))
+    review = raw_lines(repository_relative(result["review"] or "No reviewer returned a review. This round is not an approval.", path))
     if not COUNT.fullmatch(str(len(review))) or not ROUND_HEADING.match(f"## Round {number}: none"):
         raise Unrecorded(f"the review or the round number is past what {path} can be read back with, "
                          f"so the round was not recorded")
@@ -715,7 +726,7 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if any(entry["reviewer"] for entry in found[key]):
         raise Unrecorded(f"{path} already holds a {what}; it is one pass, so this one was not recorded")
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
-    review = raw_lines(repository_relative(result["review"] or f"No reviewer returned a {what}. This pass is not an approval."))
+    review = raw_lines(repository_relative(result["review"] or f"No reviewer returned a {what}. This pass is not an approval.", path))
     if not COUNT.fullmatch(str(len(review))):
         raise Unrecorded(f"the review is past what {path} can be read back with, so it was not recorded")
     lines = [f"{prefix}: {who}", "", f"- Writer: {result['writer']}", f"- Run: {when}", f"- Candidate: {candidate}"]

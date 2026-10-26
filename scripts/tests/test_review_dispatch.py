@@ -346,7 +346,7 @@ class Dispatch(Harness):
                                    "0" * 40)
         text = record.read_text(encoding="utf-8")
         self.assertNotIn(root, text)
-        self.assertEqual(text.count("[README.md:18](README.md:18) and `todo/README.md:7`; /elsewhere/x.md stays."), 2)
+        self.assertEqual(text.count("[README.md:18](../../../README.md#L18) and `todo/README.md:7`; /elsewhere/x.md stays."), 2)
         found = dispatch.read_findings(text)
         self.assertEqual((len(found["rounds"]), len(found["completions"])), (1, 1))
 

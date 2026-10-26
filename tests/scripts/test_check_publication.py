@@ -84,6 +84,13 @@ class CheckPublication(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("client name in path: docs/Acme-case.md", result.stdout)
 
+    def test_a_non_ascii_client_name_in_a_path_is_found(self):
+        self.names("Café Holdings\n")
+        self.stage("docs/Café Holdings.md", "A fictional supplier.\n")
+        result = self.check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("client name in path: docs/Café Holdings.md", result.stdout)
+
     def test_a_private_checkout_path_is_found_outside_the_test_folders_only(self):
         self.stage("tests/scripts/test_x.py", 'FIXTURE = r"R:\\GitHub\\Project\\todo"\n')
         self.assertEqual(self.check().returncode, 0)
