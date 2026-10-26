@@ -1,0 +1,20 @@
+# The generated plan is byte-compared by plan --check, the tooling parses Markdown strictly, and the hook runs
+# under sh: keep text sources LF on every platform.
+* text=auto eol=lf
+scripts/hooks/* text eol=lf
+LICENSE text eol=lf
+# Mail fixtures are compared byte for byte: CRLF line ends are part of an RFC 5322 message.
+*.eml binary
+*.msg binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.wav binary
+*.ogg binary
+*.opus binary
+*.woff2 binary
+*.ttf binary

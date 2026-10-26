@@ -1,0 +1,3 @@
+# Only the two forms are offered. GitHub adds the "Report a security vulnerability" entry to the
+# chooser itself because SECURITY.md exists and private vulnerability reporting is on.
+blank_issues_enabled: false

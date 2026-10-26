@@ -1,0 +1,4 @@
+# Real mail samples contain client and personal data. Never commit them.
+*
+!.gitignore
+!README.md

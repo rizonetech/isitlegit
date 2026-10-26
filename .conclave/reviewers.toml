@@ -1,0 +1,66 @@
+# Independent reviewers for this repository, read by scripts/review-dispatch.py.
+#
+# A route names exactly one reviewer for work written by one agent, never of
+# the writer's own model family (the CLI names it: codex is OpenAI, agy is
+# Google, claude is Anthropic). A reviewer that is not installed, fails, times
+# out, returns nothing or replies OVERALL: blocked is skipped and the reason
+# recorded: there is no review, never an approval, and no other reviewer runs.
+#
+# Loaded strictly: an unknown key, an unknown CLI, a malformed model, a route
+# naming an undefined reviewer, a second reviewer in a route, or a reviewer of
+# the writer's own model family refuses every dispatch. The schedule is loaded
+# as strictly: an unknown lens or an effort a routed CLI does not take refuses
+# too. Edit this file to suit the project: it is a starting point, not a link.
+
+schema_version = 1
+
+# GPT-6 Astra through the Codex CLI, read-only sandbox. The effort here is the
+# default for a pass the schedule does not cover; [schedule] sets each pass's
+# own effort.
+[reviewers.astra]
+cli = "codex"
+model = "gpt-6-astra"
+effort = "medium"
+
+# Claude Code writes and Astra reviews. No other writer is routed, so a round
+# for Codex or Gemini work refuses until a route is added here.
+[routes]
+claude = ["astra"]
+
+# The review schedule. The dispatcher picks each pass's effort and lenses, so
+# the loop runs the same way every time: a plan review before the build, the
+# completion review after it, three fixed adversarial rounds at falling effort,
+# then one low-effort lens per round in rotation until the loop stops. With
+# severity_stop_after = 0 the first round with no P1 or P2 finding (its worst
+# P3, or none) ends the loop; a low-effort round that finds a P1 is followed by
+# one medium-effort adversarial round. The cap stays 33 rounds. Delete the
+# whole [schedule] block to review every round at the reviewer's own effort.
+[schedule]
+severity_stop_after = 0
+
+[schedule.plan]
+effort = "medium"
+lenses = ["plan"]
+
+[schedule.completion]
+effort = "medium"
+
+[[schedule.rounds]]
+effort = "high"
+lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
+
+[[schedule.rounds]]
+effort = "medium"
+lenses = ["adversarial"]
+
+[[schedule.rounds]]
+effort = "low"
+lenses = ["adversarial"]
+
+[schedule.rotation]
+effort = "low"
+lenses = ["consistency", "quality", "design", "optimization", "record"]
+
+[schedule.escalation]
+effort = "medium"
+lenses = ["adversarial"]

@@ -1,0 +1,51 @@
+name: Wrong verdict or bug
+description: IsItLegit missed a phishing mail, flagged a genuine one, or did not work the way it should.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. A maintainer reads every report and replies here, so watch this issue for questions.
+
+        **Do not attach real mail that contains anyone's personal data, bank details or a client's name.** Describe the mail, or attach a synthetic look-alike with fictional names, domains and bank details. Security problems go to private reporting, not here: see [SECURITY.md](https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md).
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong?
+      options:
+        - A phishing or fraud mail was called safe (missed)
+        - A genuine mail was called suspicious or malicious (false alarm)
+        - The reply, report or dashboard did not work
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: How did you send it?
+      options:
+        - Forwarded to check@isitlegit.co.za
+        - WhatsApp
+        - Upload on the website
+        - Not applicable
+    validations:
+      required: true
+  - type: input
+    id: case
+    attributes:
+      label: Case reference
+      description: The reference at the top of the report or reply, if you have one. It lets us find the case without you sharing the mail.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The verdict or behaviour you got, and why you think it is wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true

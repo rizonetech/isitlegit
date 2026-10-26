@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # GitHub Actions stay pinned to full commit SHAs (D00 T01 §4); Dependabot proposes the bumps.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies

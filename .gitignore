@@ -1,0 +1,20 @@
+# Dependencies, build output and local Cloudflare state
+node_modules/
+.wrangler/
+build/
+dist/
+site/dist/
+__pycache__/
+
+# Secrets: Worker secrets go through `wrangler secret put`, never a file in the tree
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+
+# Local research: Discord captures, profiles of named entrants and mirrored third-party pages stay off the public repository
+sources/
+competitors/
+
+# Session memory of the local agent tooling
+.remember/

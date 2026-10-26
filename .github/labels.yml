@@ -1,0 +1,55 @@
+# IsItLegit's issue labels, created on GitHub from this file (D00 T01 §1).
+
+# Area: which part of IsItLegit the issue is about.
+- name: intake
+  color: "1d76db"
+  description: Email, WhatsApp and upload intake, parsing and replies.
+- name: checks
+  color: "1d76db"
+  description: Header, domain, link, reputation and hidden-text checks.
+- name: vision
+  color: "1d76db"
+  description: Rendering, logo and document comparison, the image models.
+- name: walkthrough
+  color: "1d76db"
+  description: The contained browser walkthrough of landing pages.
+- name: trust-network
+  color: "1d76db"
+  description: Registered businesses, counterparty checks and impersonation alerts.
+- name: invoice
+  color: "1d76db"
+  description: Invoice, bank detail and payment document checks.
+- name: app
+  color: "1d76db"
+  description: Reports, dashboard, account and website.
+- name: eval
+  color: "1d76db"
+  description: The evaluation set, harness and targets.
+
+# Kind: what sort of issue it is.
+- name: bug
+  color: "d73a4a"
+  description: IsItLegit does not behave as documented or expected.
+- name: missed-threat
+  color: "b60205"
+  description: A phishing or fraud mail was called safe.
+- name: false-alarm
+  color: "fbca04"
+  description: A genuine mail was called suspicious or malicious.
+- name: feature
+  color: "a2eeef"
+  description: A request for something IsItLegit does not do yet.
+- name: security
+  color: "b60205"
+  description: A security fix; the report itself stays private until the advisory.
+- name: dependencies
+  color: "0366d6"
+  description: A dependency or GitHub Actions update.
+
+# State: where the issue is in its life.
+- name: needs-sample
+  color: "fbca04"
+  description: Waiting for a synthetic sample or steps that show the problem.
+- name: fixed-on-main
+  color: "0e8a16"
+  description: Fixed on main and deployed to the live service.

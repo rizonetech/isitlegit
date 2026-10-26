@@ -1,0 +1,15 @@
+{
+  "title": "IsItLegit: hackathon build plan",
+  "acceptance": "Submitted on Cerebral Valley by Wed 4 Nov 18:00 SAST: public repo, 3 minute video, and a live deployment that turns a forwarded phishing email or WhatsApp message into a cited verdict",
+  "phases": {
+    "0": "Repository, scaffold and smoke test (Mon 26 Oct)",
+    "1": "Intake and pipeline skeleton (Tue 27 Oct)",
+    "2": "Deterministic checks and reputation (Wed 28 Oct)",
+    "3": "Links, vision and voice (Thu 29 Oct)",
+    "4": "Logos and the walkthrough agent (Fri 30 Oct)",
+    "5": "Invoices, documents and the trust network (Sat 31 Oct)",
+    "6": "Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)",
+    "7": "After the event",
+    "99": "Manual, operator only"
+  }
+}

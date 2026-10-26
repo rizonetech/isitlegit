@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest something IsItLegit should check or do.
+title: "[Feature]: "
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: The scam, mail or situation you want IsItLegit to handle. Describe it without real people's or clients' details.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: What IsItLegit should check, show or do.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How you handle it today
