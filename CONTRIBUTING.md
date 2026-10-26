@@ -30,6 +30,7 @@ python3 scripts/todo-graph.py validate
 python3 scripts/todo-graph.py plan --check
 python3 -m unittest discover -s tests/scripts
 python3 -m unittest discover -s scripts/tests
+LIVE_CHECKS=1 python3 -m unittest tests.scripts.test_readme_brand   # maintainers: reads the live social preview; needs gh and pip install -r design/tools/requirements.txt
 python3 scripts/check-publication.py   # maintainers, before every push; needs the git-ignored client list
 ```
 
