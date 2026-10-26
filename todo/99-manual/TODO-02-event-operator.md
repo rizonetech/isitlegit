@@ -1,0 +1,148 @@
+---
+schema_version: 1
+id: event-operator
+domain: 99-manual
+status: active
+title: "TODO-02 -- Operator Tasks During the Event"
+track: day-2
+---
+
+# TODO-02 -- Operator Tasks During the Event
+
+> **Goal:** The steps only Derick can take during the build are done on time: Rizonetech dogfoods from day 2, any pilot client consents in writing, competitor posts are pasted in for review, the demo is recorded and edited, and the entry is submitted on Cerebral Valley by Wed 4 Nov 18:00 SAST and confirmed received.
+
+> **Current state:** Measured 2026-10-26 20:00 SAST. Accounts and keys are in D99 T01. The design session is D07 T01 §1.
+
+## Inputs
+
+- `docs/hackathon-criteria.md` (submission requirements), design spec 4.10 (real usage), 5 (demo), plan Days 2, 6, 8 and 9.
+- -> XREF: D09 T02 §3 -- the demo script and assets the recording follows
+
+## Outcome
+
+- Real Rizonetech usage counts exist from 27 Oct; the video is on YouTube; the submission shows as received.
+
+**Adjacency:** all=not-applicable (operator actions outside the product)
+
+**Adjacency rationale:** These are human steps; their results are recorded here.
+
+## Implementation Order
+
+| Order | Section | Deliverable | Depends On | Status |
+| ----- | ------- | ----------- | ---------- | ------ |
+| 1 | §1 | Rizonetech dogfooding from day 2 | -- | [ ] |
+| 2 | §2 | Pilot client written consent | §1 | [ ] |
+| 3 | §3 | Record the demo footage | §1 | [ ] |
+| 4 | §4 | Assemble, caption and upload the video | §3 | [ ] |
+| 5 | §5 | Submit on Cerebral Valley and confirm receipt | §4 | [ ] |
+| 6 | §6 | Paste competitor updates for review | -- | [ ] |
+
+## 1. Rizonetech dogfooding from day 2
+
+Rizonetech is tenant one (spec 4.10): Derick and staff forward every suspicious email they receive from Tue 27 Oct, once intake is live.
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Register Rizonetech's domain and invite staff. Done when: staff are members and the domain is verified.
+
+- [ ] Sign up with an invite code, verify `rizonetech.com`, and invite staff. Done when: the members list shows them.
+- [ ] Tell staff to forward suspicious mail as an attachment to `check@isitlegit.co.za`, and record the start date here as a line `Dogfooding since: YYYY-MM-DD`. Done when: the line is written.
+- [ ] Commit: `todo: record Rizonetech dogfooding`
+
+**Test checkpoint:** `grep -cE '^Dogfooding since: 2026-' todo/99-manual/TODO-02-event-operator.md` prints `1`.
+
+## 2. Pilot client written consent
+
+Optional: one to three clients opt in in writing from day 6, covering processing by the Meta Model API in Standard mode (spec 4.10). Their content never leaves the product; only counts are shown.
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Ask and record. Done when: each pilot's consent is on file or the decision not to run pilots is recorded.
+
+- [ ] Ask up to three clients and keep each signed consent outside the repository, recording here only `Pilot consent: <count>, YYYY-MM-DD` (no names). Done when: the line is written, with count 0 if none.
+- [ ] Commit: `todo: record pilot consents`
+
+**Test checkpoint:** `grep -cE '^Pilot consent: [0-3], 2026-' todo/99-manual/TODO-02-event-operator.md` prints `1`.
+
+## 3. Record the demo footage
+
+OBS Studio at 1080p with Derick's voice on a separate track, following `docs/demo-script.md`; one uncut take of forward-to-reply with the demo clock (plan Day 8).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Record each beat. Done when: the raw files exist and are listed here.
+
+- [ ] Record the beats from `docs/demo-script.md`, including the uncut forward-to-reply take. Done when: a line `Footage recorded: YYYY-MM-DD` is written here.
+- [ ] Commit: `todo: record demo footage done`
+
+**Test checkpoint:** `grep -cE '^Footage recorded: 2026-' todo/99-manual/TODO-02-event-operator.md` prints `1`.
+
+## 4. Assemble, caption and upload the video
+
+DaVinci Resolve assembly with the Remotion assets (D09 T02 §4), captions from Muse Voice Transcribe exported as SRT and corrected by hand, at most 3 minutes, uploaded to YouTube (unlisted or public) and checked logged out (plan Day 8).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Edit, caption and upload. Done when: the YouTube link plays logged out and is in the README.
+
+- [ ] Assemble and export at 1080p, 3:00 or shorter. Done when: the file's duration is 180 seconds or less.
+- [ ] Upload to YouTube and record `Video: https://www.youtube.com/watch?v=<id>` here; Claude adds it to the README. Done when: the line is written and the link plays logged out.
+- [ ] Commit: `todo: record the demo video link`
+
+**Test checkpoint:** `grep -cE '^Video: https://www.youtube.com/watch\?v=' todo/99-manual/TODO-02-event-operator.md` prints `1`.
+
+## 5. Submit on Cerebral Valley and confirm receipt
+
+Submit by Wed 4 Nov 18:00 SAST (official deadline Thu 5 Nov 04:00 SAST): public repository, video link, Startup track, Rizonetech as the startup, the judge demo code (`docs/hackathon-criteria.md`).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Submit and confirm. Done when: the submission shows as received.
+
+- [ ] Submit at `https://cerebralvalley.ai/e/meta-ai-developer-hackathon/hackathon/submit` with the repository URL, video link, track and judge code. Done when: the form confirms.
+- [ ] Record `Submitted: YYYY-MM-DD HH:MM SAST` here after seeing the submission as received. Done when: the line is written.
+- [ ] Commit: `todo: record the submission`
+
+**Test checkpoint:** `grep -cE '^Submitted: 2026-11-0[1-4] ' todo/99-manual/TODO-02-event-operator.md` prints `1`.
+
+## 6. Paste competitor updates for review
+
+Claude cannot read Discord; on Sun 1 Nov and Tue 3 Nov Derick pastes new project posts so the competitor profiles stay current (plan Day 8).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Paste updates twice. Done when: both dates are recorded here.
+
+- [ ] Paste new Discord project posts on Sun 1 Nov and Tue 3 Nov and record `Competitor update: YYYY-MM-DD` here each time. Done when: two lines exist.
+- [ ] Commit: `todo: record competitor updates`
+
+**Test checkpoint:** `grep -cE '^Competitor update: 2026-11-0[1-3]$' todo/99-manual/TODO-02-event-operator.md` prints `2`.
+
+## Verification
+
+- Each line above is recorded; the submission is received.
+- `python3 scripts/todo-graph.py validate` and `plan --check` pass.

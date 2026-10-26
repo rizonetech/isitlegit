@@ -184,6 +184,7 @@ Muse Glimmer is not on the Meta Model API; it runs through a hosted provider, Fi
 - [ ] Apply for Fireworks AI credits (US$25) through the event's partner offer. Done when: it is recorded here as a line `Partner credit Fireworks: <applied|granted|not offered>, YYYY-MM-DD`.
 - [ ] Apply for Baseten and Modal credits if offered. Done when: each is recorded here as a line `Partner credit <name>: <applied|granted|not offered>, YYYY-MM-DD`.
 - [ ] Store the Fireworks API key in the vault as "IsItLegit Fireworks" once granted. Done when: the vault item exists.
+- [ ] Remove `third-party` from the Needs of D03 T04 §1 and §2 once the key is stored, so the unattended run can take them. Done when: `python3 scripts/todo-graph.py resolve 'D03 T04 §1'` no longer reports the Need.
 - [ ] Commit: `todo: record partner credits`
 
 **Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.

@@ -22,6 +22,7 @@ track: day-0
 - `sources/cerebralvalley/2026-10-26-credit-claim.md`: no Meta API call before the credit shows under Billing.
 - -> XREF: D99 T01 §1 -- the Meta account, payment method, spend limit and API key that §7 needs before it runs
 - -> XREF: D99 T01 §3 -- the Workers Paid plan that Browser Run hours and Workflows limits in §5 rely on
+- -> XREF: D07 T01 §1 -- the design session whose wordmark §8 puts in the README
 
 ## Outcome
 
@@ -45,7 +46,7 @@ track: day-0
 | 5 | §5 | Cloudflare bindings and first deploy | §4 | [ ] |
 | 6 | §6 | AI Gateway for the Meta Model API | §5 | [ ] |
 | 7 | §7 | Meta smoke test | §6 | [ ] |
-| 8 | §8 | README banner and social preview | §1 | [ ] |
+| 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 

@@ -7,7 +7,7 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 | `00-workspace` | Repository, scaffold, CI, Cloudflare resources, Meta smoke test |
 | `01-intake` | Email and upload intake, MIME parsing, voice decoding, outbound mail |
 | `02-checks` | Deterministic evidence: headers, sender, domains, attachments, reputation |
-| `03-vision` | Rendering, Muse Spark extraction, SAM 3.1 logos, Glimmer screening |
+| `03-vision` | Model client, rendering, Muse Spark reading, SAM 3.1 logos, Glimmer screening |
 | `04-agent` | Verdict agent, citation validator, floor, injection defence, walkthrough |
 | `05-trust` | Protected identities, counterparty checks, alerts, impersonation monitor |
 | `06-invoice` | Invoice fraud, supplier ledger, payment document check |
@@ -19,6 +19,41 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 ## Active TODOs
 
 - `00-workspace/TODO-01-repo-and-scaffold.md`
+- `01-intake/TODO-01-email-intake.md`
+- `01-intake/TODO-02-outbound-mail.md`
+- `01-intake/TODO-03-upload-and-voice.md`
+- `02-checks/TODO-01-evidence-core.md`
+- `02-checks/TODO-02-headers-and-sender.md`
+- `02-checks/TODO-03-domains.md`
+- `02-checks/TODO-04-attachments.md`
+- `02-checks/TODO-05-hidden-text.md`
+- `02-checks/TODO-06-reputation.md`
+- `02-checks/TODO-07-links.md`
+- `03-vision/TODO-01-meta-client.md`
+- `03-vision/TODO-02-vision-pipeline.md`
+- `03-vision/TODO-03-sam-logos.md`
+- `03-vision/TODO-04-glimmer.md`
+- `04-agent/TODO-01-verdict-agent.md`
+- `04-agent/TODO-02-walkthrough.md`
+- `05-trust/TODO-01-protected-identity.md`
+- `05-trust/TODO-02-counterparty-checks.md`
+- `05-trust/TODO-03-closed-loop-verification.md`
+- `05-trust/TODO-04-impersonation-monitor.md`
+- `06-invoice/TODO-01-invoice-fraud.md`
+- `06-invoice/TODO-02-payment-documents.md`
+- `07-app/TODO-01-design-system.md`
+- `07-app/TODO-02-auth-and-tenancy.md`
+- `07-app/TODO-03-report-page.md`
+- `07-app/TODO-04-member-console.md`
+- `07-app/TODO-05-admin-console.md`
+- `07-app/TODO-06-marketing-site.md`
+- `07-app/TODO-07-demo-organisations.md`
+- `08-eval/TODO-01-datasets.md`
+- `08-eval/TODO-02-runner-and-results.md`
+- `08-eval/TODO-03-frontier-experiments.md`
+- `09-launch/TODO-01-hardening.md`
+- `09-launch/TODO-02-submission.md`
 - `99-manual/TODO-01-day0-accounts.md`
+- `99-manual/TODO-02-event-operator.md`
 
 ## Completed TODOs
