@@ -22,13 +22,14 @@ cli = "codex"
 model = "gpt-6-astra"
 effort = "medium"
 
-# Muse Wonder Full through Muse Code (the operator's subscription, Standard mode, contributor mode off on every
-# call), the final reviewer: one review per section after the Astra rounds stop (operator, 2026-10-26 23:03). It is
-# no route: [schedule.final] names it, and it is of a family neither the writer nor Astra belongs to.
+# Muse Wonder through Muse Code (the operator's subscription, Standard mode, contributor mode off on every call), the
+# final reviewer: one review per section after the Astra rounds stop (operator, 2026-10-26 23:03). It is no route:
+# [schedule.final] names it, and it is of a family neither the writer nor Astra belongs to. Muse Wonder, not Wonder
+# Full, at high effort (operator, 2026-10-28 01:44); the catalog's id is muse-wonder-1.0.
 [reviewers.wonder]
 cli = "muse"
-model = "muse-wonder-full-1.0"
-effort = "medium"
+model = "muse-wonder-1.0"
+effort = "high"
 
 # Claude Code writes and Astra reviews. No other writer is routed, so a round
 # for Codex or Gemini work refuses until a route is added here.
@@ -73,14 +74,15 @@ lenses = ["consistency", "quality", "design", "optimization", "record"]
 effort = "medium"
 lenses = ["adversarial"]
 
-# One final review per section by Muse Wonder Full, after the rounds stop (the last returned round declares no P1 or
+# One final review per section by Muse Wonder, after the rounds stop (the last returned round declares no P1 or
 # P2). A P1 or P2 it finds is fixed and proven by one more regular round; it is never repeated.
 #
 # mode switches it: "required" (the stamp needs it), "optional" (it runs when asked; a reviewer that returns no review
 # is a warning, and the stamp may go without it) or "off" (it never runs; the stamp takes none). The mode at a
-# section's stamped commit is the one its receipt is held to. Off since 2026-10-27 (operator): turn it back on here.
+# section's stamped commit is the one its receipt is held to. Off from 2026-10-27, back on as optional from 2026-10-28
+# 01:44 (operator: Muse Wonder at high effort, soft fail kept).
 [schedule.final]
 reviewer = "wonder"
-effort = "medium"
+effort = "high"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
-mode = "off"
+mode = "optional"
