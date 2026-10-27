@@ -90,6 +90,8 @@ pnpm build                       # bundles the Worker with a dry-run deploy into
 pnpm dev                         # serves http://localhost:8787 with COMMIT_SHA set to your checkout's commit
 ```
 
+While you edit, `pnpm exec vitest --watch` keeps the tests running in workerd and reruns them when a file under `src/` or `test/` changes; press `q` to stop it. `pnpm test` is the one-shot run the gates use.
+
 In a second terminal, `curl -s localhost:8787/health` prints `{"ok":true,"commit":"<the output of git rev-parse HEAD>"}`. The commit is the checkout's `HEAD` when `pnpm dev` started: Wrangler reloads edited code but not the commit, so after a new commit, a checkout of another commit, or with uncommitted edits, the reported commit is not the whole story. Stop the server with `Ctrl+C` (or `x` in the Wrangler prompt) and run `pnpm dev` again after committing. After changing `wrangler.jsonc`, run `pnpm types` and commit `worker-configuration.d.ts`, or `pnpm typecheck` refuses it. Port 8787 already in use means another `pnpm dev` is still running; stop that one first, or run `pnpm dev --port 8788`.
 
 ## Governing documents

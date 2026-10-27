@@ -1,5 +1,8 @@
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+// Vitest watch mode reruns this file when the Worker changes only if the test imports it; requests still go through
+// `exports`, as in production (developers.cloudflare.com/workers/testing/vitest-integration/migration-guides/migrate-from-unstable-dev/).
+import "../src/index";
 
 describe("GET /health", () => {
   it("answers 200 with ok and the commit the Worker is configured with", async () => {
