@@ -721,6 +721,20 @@ describe("scripts/gateway-config.ts restore", () => {
     expect(failed(after.lines)).toMatch(/after restoring, the provider's headers is set/);
   });
 
+  it("refuses a snapshot it may not read, naming the error and sending nothing (round 5)", async () => {
+    await take();
+    const world = cloudflare(live());
+    chmodSync(FILE, 0o000);
+    try {
+      const outcome = await restore(options(world.fetchStub));
+      expect(outcome.code).toBe(2);
+      expect(failed(outcome.lines)).toMatch(/ai-gateway\.json cannot be read \(EACCES\); restore it from git/);
+    } finally {
+      chmodSync(FILE, 0o600);
+    }
+    expect(world.requests).toEqual([]);
+  });
+
   it("refuses a missing, unreadable or malformed file before any request", async () => {
     const world = cloudflare(live());
     const missing = await restore(options(world.fetchStub, { file: join(DIR, "none.json") }));
