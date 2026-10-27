@@ -21,12 +21,19 @@ const artefact = (caseId: string | null, key: string) =>
       "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, 'raw', 'ab', 'message/rfc822', 10)",
     )
     .bind(key, caseId);
-const evidence = (caseId: string | null, id: string, severity = "high") =>
+const evidence = (
+  caseId: string | null,
+  id: string,
+  severity = "high",
+  detail = '{"spf":"fail","nested":[1,2]}',
+  keys = '["raw/a"]',
+  seq = Number(id.slice(1)),
+) =>
   db
     .prepare(
-      `INSERT INTO evidence (case_id, id, "check", severity, summary, detail_json, artefact_keys_json, created_at) VALUES (?, ?, 'auth', ?, 'SPF failed', '{"spf":"fail","nested":[1,2]}', '["raw/a"]', ?)`,
+      `INSERT INTO evidence (case_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at) VALUES (?, ?, ?, 'auth', ?, 'SPF failed', ?, ?, ?)`,
     )
-    .bind(caseId, id, severity, now());
+    .bind(caseId, id, seq, severity, detail, keys, now());
 const event = (caseId: string | null, step: string) =>
   db
     .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms) VALUES (?, ?, 'ok', ?, 5)")
@@ -96,6 +103,24 @@ describe("the core schema", () => {
       .all();
     expect(results.map((r) => r.case_id).sort()).toEqual([a, b].sort());
     await expect(evidence(a, "E1").run()).rejects.toThrow(/UNIQUE constraint failed/);
+  });
+
+  it("keeps evidence in creation order past nine items, and in the shapes spec 4.3 names", async () => {
+    const caseId = await newCase();
+    for (let i = 1; i <= 10; i++) await evidence(caseId, `E${i}`).run();
+    const { results } = await db.prepare("SELECT id FROM evidence WHERE case_id = ? ORDER BY seq").bind(caseId).all();
+    expect(results.map((r) => r.id)).toEqual(Array.from({ length: 10 }, (_, i) => `E${i + 1}`));
+    const other = await newCase();
+    for (const [detail, keys] of [
+      ["42", "[]"],
+      ['"text"', "[]"],
+      ["{}", "{}"],
+      ["{}", '"raw/a"'],
+    ])
+      await expect(evidence(other, "E1", "high", detail, keys).run(), `${detail} ${keys}`).rejects.toThrow(
+        /CHECK constraint failed/,
+      );
+    await expect(evidence(other, "E2", "high", "{}", "[]", 3).run()).rejects.toThrow(/CHECK constraint failed/);
   });
 
   it("refuses a child row without a case or naming a missing one, in every child table", async () => {

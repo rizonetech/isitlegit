@@ -49,6 +49,16 @@ def missing_gates(package, text, heading):
     return [command for command in wanted if command not in listed]
 
 
+# A gate runs in CI and in every session's checks, so one that applied migrations remotely, deployed, rolled back or set
+# a secret would change production on every run.
+LIVE = re.compile(r"--remote\b|wrangler (deploy|versions deploy|rollback|secret put)\b(?!.*--dry-run)")
+
+
+def live_database_gates(package):
+    """The gates whose command would change the live Worker or database."""
+    return [name for name in gates(package) if LIVE.search(package["scripts"][name])]
+
+
 def stack_node_pin(text):
     match = re.search(r"^\| Runtime and package manager \(local\) \| Node 24, pnpm 11 \| ([0-9.]+) / ([0-9.]+) \|", text, re.M)
     return match.groups() if match else None
@@ -65,13 +75,7 @@ class Repository(unittest.TestCase):
                 self.assertEqual(missing_gates(self.package, (REPO / path).read_text(encoding="utf-8"), heading), [])
 
     def test_no_gate_touches_the_live_database(self):
-        # A gate runs in CI and in every session's checks; one that applied migrations or deployed would change
-        # production on every run.
-        for name in gates(self.package):
-            command = self.package["scripts"][name]
-            with self.subTest(gate=name):
-                self.assertNotIn("--remote", command)
-                self.assertNotRegex(command, r"wrangler (deploy|versions deploy|rollback|secret put)(?! --dry-run)(?!.*--dry-run)")
+        self.assertEqual(live_database_gates(self.package), [])
 
     def test_node_and_pnpm_pins_match_the_stack_doc(self):
         node, pnpm = stack_node_pin((REPO / "docs/specs/2026-10-26-tech-stack-design.md").read_text(encoding="utf-8"))
@@ -109,6 +113,17 @@ class Defects(unittest.TestCase):
     def test_a_level_3_section_includes_its_own_blocks(self):
         complete = self.NESTED.replace("pnpm typecheck\n", "pnpm typecheck\npnpm build\n")
         self.assertEqual(missing_gates(self.PACKAGE, complete, "### Run it"), [])
+
+    def test_a_gate_that_would_change_production_is_caught(self):
+        package = {"scripts": dict(self.PACKAGE["scripts"], **{
+            "migrate": "wrangler d1 migrations apply DB --remote",
+            "ship": "wrangler deploy",
+            "undo": "wrangler rollback",
+            "token": "wrangler secret put X",
+            "local": "wrangler d1 migrations apply DB --local",
+        })}
+        self.assertEqual(sorted(live_database_gates(package)), ["migrate", "ship", "token", "undo"])
+        self.assertEqual(live_database_gates(self.PACKAGE), [])  # build's deploy is a --dry-run
 
     def test_a_missing_section_lists_every_gate(self):
         self.assertEqual(missing_gates(self.PACKAGE, "## Other\n", "## Validation"),

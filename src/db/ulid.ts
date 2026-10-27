@@ -1,5 +1,6 @@
 // ULIDs for case ids (D01 T01 §1, required by the artefact store in §2): 48 bits of milliseconds then 80 random bits,
-// in Crockford's base32, 26 characters that sort by creation time. Small enough to own here rather than add a package.
+// in Crockford's base32, 26 characters. Ids from different milliseconds sort by creation time; two from the same
+// millisecond sort at random (the ULID spec's plain mode, not its monotonic one). Small enough to own here.
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const ULID = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
 
