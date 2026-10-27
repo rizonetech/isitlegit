@@ -77,6 +77,19 @@ python3 scripts/todo-graph.py plan --check
 python3 -m unittest discover -s tests/scripts
 ```
 
+### Run the Worker locally
+
+You need Node 24 and pnpm 11 (`corepack enable` installs the pinned pnpm from `package.json`) and git. From a clean clone:
+
+```bash
+pnpm install --frozen-lockfile   # exact pins from pnpm-lock.yaml
+pnpm typecheck                   # generates worker-configuration.d.ts, then tsc --noEmit
+pnpm build                       # bundles the Worker with a dry-run deploy into build/dry
+pnpm dev                         # serves http://localhost:8787 with COMMIT_SHA set to your checkout's commit
+```
+
+In a second terminal, `curl -s localhost:8787/health` prints `{"ok":true,"commit":"<the output of git rev-parse HEAD>"}`. A different commit means the server was started from an older checkout: stop it with `Ctrl+C` (or `x` in the Wrangler prompt) and run `pnpm dev` again. Port 8787 already in use means another `pnpm dev` is still running; stop that one first, or run `pnpm dev --port 8788`.
+
 ## Governing documents
 
 | Document | Role |

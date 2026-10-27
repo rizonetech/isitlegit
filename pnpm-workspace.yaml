@@ -7,3 +7,6 @@ packages:
 allowBuilds:
   esbuild: true
   workerd: true
+
+# Package scripts run in pnpm's own shell on every platform, so `$(git rev-parse HEAD)` in `dev` works under Windows cmd too.
+shellEmulator: true

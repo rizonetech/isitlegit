@@ -34,7 +34,15 @@ LIVE_CHECKS=1 python3 -m unittest tests.scripts.test_readme_brand   # maintainer
 python3 scripts/check-publication.py   # maintainers, before every push; needs the git-ignored client list
 ```
 
-Never edit `todo/implementation-plan.md` by hand; regenerate it with `python3 scripts/todo-graph.py plan --sync`. The Worker's typecheck, lint and test commands are added here when the Worker package lands.
+The Worker gates (Node 24, pnpm 11; the full local run is under "Run the Worker locally" in the [README](README.md#run-the-worker-locally)):
+
+```bash
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm build
+```
+
+Never edit `todo/implementation-plan.md` by hand; regenerate it with `python3 scripts/todo-graph.py plan --sync`. The Worker's lint and test commands join these gates with D00 T01 §3.
 
 ## Pull requests and commits
 
