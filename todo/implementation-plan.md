@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 260
+Sections: 38 | Checklist items: 262
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -39,7 +39,7 @@ Sections: 38 | Checklist items: 260
 | [ ]    | D01 T02 §6 | Forwarding failures detected and reported  | operator              | 6     |
 | [ ]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | operator              | 4     |
 | [x]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
-| [ ]    | D01 T03 §7 | MP3 decoding                               | none                  | 5     |
+| [ ]    | D01 T03 §7 | MP3 decoding                               | none                  | 7     |
 | [ ]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
 | [ ]    | D01 T03 §9 | Filtered resampling for WAV                | none                  | 4     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
@@ -279,4 +279,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 25/208 verified sections, 13 ready to run now.
 
-Checklist: 321/1096 items completed (includes Commit items).
+Checklist: 321/1098 items completed (includes Commit items).

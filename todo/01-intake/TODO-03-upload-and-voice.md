@@ -198,24 +198,32 @@ The member-facing page for uploads: one drop zone and file picker, accepted type
 
 ## 7. MP3 decoding
 
+> **Started:** 2026-10-27T21:26Z
+
 Spec 4.2a lists `.mp3` among voice-note uploads and as the usual format of a voicemail-lure attachment. §2 found that `mpg123-decoder` (the same WASM family as `ogg-opus-decoder`) can run in a Worker with the same fix: a precompiled module and the `@eshaz/web-worker` stub. Filed from §2's validation (2026-10-27) so that section stays one format family.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-27** (validation before building; the items said `mpg123-decoder` 1.0.3 and §2's precompiled-module route). `mpg123-decoder` is MIT around libmpg123, which is LGPL-2.1, and the WebAssembly would be committed to this repository and shipped in the Worker; the repository has no policy on copyleft code (the product is FSL-1.1-ALv2, and spec section 10's default is "all rights reserved"), so the permissive decoder is taken: minimp3 (CC0, https://github.com/lieff/minimp3), as compiled to a 21 KB WebAssembly module with no imports by `minimp3-wasm` 0.1.0 (Apache-2.0, https://github.com/bashi/minimp3-wasm; it calls itself a demo, so only its `.wasm` is used, with a binding written here, never its `fetch`-based loader). Measured in Node: a 3-second 440 Hz tone at 44.1 kHz from LAME decodes to 3.03 s (the encoder's padding) at 440 Hz. Like libopus, minimp3 does not report damage: a file cut at 60 % and one with 400 bytes flipped both decoded without complaint, shorter. So the Worker walks the MP3 frames itself before decoding, as it walks Ogg pages. The fixture is encoded with LAME (`@breezystack/lamejs` 1.2.7, LGPL-3.0), a development dependency that never ships.
+
+**Operator decision (open, not blocking):** whether copyleft code may ship in the Worker. Reversing this choice to `mpg123-decoder` costs one module swap (`src/voice/mp3.ts`) and its notice; the frame walk and tests stay.
+
 **Build order:**
 
-1. Decode MP3 in the workers pool. Done when: a synthetic MP3 fixture decodes to PCM in a Vitest workers test with nothing compiled at runtime.
+1. Decode MP3 in the workers pool. Done when: a synthetic MP3 fixture decodes to the tone in a Vitest workers test with nothing compiled at runtime.
 2. Route MP3 through §2's pipeline. Done when: an MP3 voice note yields 16 kHz mono WAV chunks like any other.
 
-- [ ] Add exact dependency `mpg123-decoder` 1.0.3 and extract its WASM with `scripts/build-opus-wasm.ts` (extended to both decoders) to `src/voice/mpg123-decoder.wasm`, set on the decoder's static `module`. Done when: `test/node/opus-wasm.test.ts` checks both committed files against the installed packages.
-- [ ] Generate `test/fixtures/audio/tone.mp3` (the same 3-second tone) in `scripts/fixtures/make-audio.ts` with an MP3 encoder whose licence allows a development dependency, recording the choice. Done when: the fixture and generator are committed and the generator's output is the same on every run.
-- [ ] Decode MP3 in `decodeToPcm` (`src/voice/decode.ts`), and stop refusing it. Done when: `test/voice/decode.test.ts` decodes the MP3 fixture and refuses a truncated one with a typed error.
-- [ ] Close §2's deferral as `Resolved:`. Done when: §2's Deferred line reads resolved with this section's commit.
+- [ ] Add exact development dependencies `minimp3-wasm` 0.1.0 and `@breezystack/lamejs` 1.2.7, and commit `minimp3-wasm`'s `dist/decoder.opt.wasm` as `src/voice/minimp3.wasm` with its licences beside it (`src/voice/minimp3.wasm.LICENSE`: minimp3's CC0 and minimp3-wasm's Apache-2.0) and rows in `NOTICE.md`. Done when: `test/node/opus-wasm.test.ts` fails when the committed file differs from the installed package's, and `NOTICE.md` names both.
+- [ ] Generate `test/fixtures/audio/tone.mp3` (the same 3-second tone, 44.1 kHz mono, 64 kbit/s) and `tone-stereo.mp3` (the tone on the left, silence on the right) in `scripts/fixtures/make-audio.ts` with LAME. Done when: both files and the generator are committed and the generator's output is the same on every run.
+- [ ] Walk the MP3 before decoding, in `src/voice/mp3.ts`: skip an ID3v2 tag at the start (its syncsafe size within the file) and an ID3v1 or APE tag at the end; read every frame header (MPEG 1, 2 or 2.5, Layer III, a defined bitrate and sample rate, not free format; one sample rate and channel mode throughout) and require each frame to start where the one before it ends and the last to end with the file. The length is the frames' count times their samples (1,152 or 576), so audio over 30 minutes is refused unread. Done when: `test/voice/decode.test.ts` refuses with `CorruptAudio` a file cut mid-frame, one with bytes flipped inside a frame header, one with junk between frames, and one whose ID3v2 size runs past the file, each by name; refuses a free-format or Layer II file with `UnsupportedAudio`; and refuses a 31-minute file with `AudioTooLong` before decoding.
+- [ ] Decode with minimp3 in `src/voice/mp3.ts`: instantiate `src/voice/minimp3.wasm` (imported as a module) once per decode, copy the input into its memory, decode 5 seconds at a time, mix down and resample each block to 16 kHz with §2's `Resampler` into §2's chunk writer, and refuse a decode whose sample count differs from the frame walk's. Done when: the MP3 fixtures decode to 440 Hz within 2 Hz at the tone's level (RMS within 5 %), the stereo one at half level, to the frame walk's length, and a 25-minute MP3 to three chunks, in the workers pool.
+- [ ] Route `audio/mpeg` and `audio/mp3` through `decodeToWavChunks` in `src/voice/decode.ts`, and stop refusing them. Done when: the MP3 refusal test is replaced by these, and M4A is still refused.
+- [ ] Close §2's MP3 deferral as `Resolved:`. Done when: §2's Deferred line reads resolved with this section's commit.
 - [ ] Commit: `voice: decode MP3 voice notes and voicemail attachments`
 
-**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if an MP3 is refused, if its decoded tone is not 440 Hz at its level and length, or if its WAV header is not 16000 Hz, 1 channel, 16 bits.
+**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts test/node/opus-wasm.test.ts` passes and fails if an MP3 is refused, if its decoded tone is not 440 Hz at its level and length, if damage passes the frame walk, or if a long MP3 is decoded at all.
 
 ## 8. M4A decoding
 
