@@ -88,21 +88,25 @@ Evidence 2026-10-27 15:00 SAST, after the final review: `0002_evidence_order.sql
 
 ## 2. Case store and R2 artefact layout
 
+> **Started:** 2026-10-27T12:48Z
+
 Raw mail and every artefact live in R2 under the case id; D1 holds only metadata (spec 4.2). The `raw/` prefix carries the 30-day lifecycle rule from D00 T01 §5, so raw content is never written elsewhere.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-27** (validation before build): `attachmentKey` names the content's SHA-256, so it takes the hash, not only the name (`attachmentKey(caseId, sha256, name)`; likewise `artefactKey`); the derived kinds are the `artefacts.kind` values other than `raw` and `attachment` (`render`, `crop`, `page`, `audio`; the parsed summary is case data in D1, not an R2 artefact); and "in one step" cannot be one transaction across R2 and D1, so the order is fixed instead: the object is written first with R2 verifying its SHA-256, then the row; a row that cannot be written removes the object it just wrote; and the key is derived from the content, so a retried put of the same content finds the same key and an existing matching row and answers it, which keeps a retried workflow step safe. Objects under `raw/` expire after 30 days (D00 T01 §5) while their rows stay, so a reader meets a missing object as expired, not as an error; the readers own that (the report, D07 T03).
+
 **Build order:**
 
 1. Write `src/intake/store.ts` with key builders and put helpers that hash content. Done when: tests show the exact keys and the SHA-256 in the artefact row.
 2. Refuse writes outside the layout. Done when: a bad kind or case id throws before any R2 call.
 
-- [ ] Write `rawKey(caseId)` returning `raw/<caseId>/message.eml`, `attachmentKey(caseId, name)` returning `raw/<caseId>/attachments/<sha256>-<safeName>`, and `artefactKey(caseId, kind, name)` returning `art/<caseId>/<kind>/<sha256>-<safeName>` for derived artefacts (screenshots, crops, the parsed summary) in `src/intake/store.ts`. Done when: `test/intake/store.test.ts` asserts all three formats and fails if an attachment is written outside `raw/`. (**Corrected 2026-10-27**, D00 T01 §5 plan review: attachments were `art/` artefacts, outside the 30-day `raw/` lifecycle rule, though the design spec deletes raw messages and attachments after 30 days.)
-- [ ] Write `putRaw` and `putArtefact` that compute SHA-256 with WebCrypto, write to `ARTEFACTS` and insert the `artefacts` row in one step. Done when: a test with the R2 binding reads the object back and finds the matching row. Cheaper substitute: storing bodies in D1 blobs.
+- [ ] Write `rawKey(caseId)` returning `raw/<caseId>/message.eml`, `attachmentKey(caseId, sha256, name)` returning `raw/<caseId>/attachments/<sha256>-<safeName>`, and `artefactKey(caseId, kind, sha256, name)` returning `art/<caseId>/<kind>/<sha256>-<safeName>` for derived artefacts (`render`, `crop`, `page`, `audio`) in `src/intake/store.ts`. Done when: `test/intake/store.test.ts` asserts all three formats and fails if an attachment is written outside `raw/`. (**Corrected 2026-10-27**, D00 T01 §5 plan review: attachments were `art/` artefacts, outside the 30-day `raw/` lifecycle rule, though the design spec deletes raw messages and attachments after 30 days.)
+- [ ] Write `putRaw`, `putAttachment` and `putArtefact` that compute SHA-256 with WebCrypto, write the object to `ARTEFACTS` (with the hash for R2 to verify and the media type), then insert the `artefacts` row; a failed row removes the object just written, and a repeated put of the same content answers the existing row without writing again. Done when: a test with the R2 binding reads the object back and finds the matching row; a row insert that fails leaves no object; and the same put twice leaves one object and one row. Cheaper substitute: storing bodies in D1 blobs.
 - [ ] Sanitise attachment names (path separators, control characters, length cap 120) before they enter a key. Done when: a test with `../../x.eml` and a 500-character name yields a safe key.
-- [ ] Refuse a case id that is not a ULID and a kind outside the `artefacts.kind` list. Done when: both raise a typed `StoreError` in tests.
+- [ ] Refuse a case id that is not a ULID (`isUlid`, `src/db/ulid.ts`), a derived kind outside `render`, `crop`, `page` and `audio`, and a hash that is not 64 lowercase hex characters, before any R2 or D1 call. Done when: each raises a typed `StoreError` in tests, with no object or row written.
 - [ ] Commit: `intake: case store and R2 artefact layout`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/store.test.ts` passes and fails if `rawKey` stops using the `raw/` prefix.
