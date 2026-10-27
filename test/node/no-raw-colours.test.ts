@@ -36,10 +36,14 @@ const FUNCTIONS = "rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dar
 // A hex literal ends where a name cannot continue, so `#fade-in` (an anchor or id) is not `#fade`.
 const HEX = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})(?![\w-])/gi;
 const FUNCTION = new RegExp(`\\b(?:${FUNCTIONS})\\(`, "gi");
-// Properties that take a colour; a named colour is a literal only where one of these (or a Tailwind arbitrary value)
-// gives it, so words like `tan` or `mark` elsewhere are not colours.
-const COLOUR_PROPERTY =
-  /\b(?:color|background(?:-color)?|border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-color)?|outline(?:-color)?|fill|stroke|caret-color|accent-color|text-decoration(?:-color)?|column-rule(?:-color)?|box-shadow|text-shadow|stop-color|flood-color|lighting-color)\s*:\s*([^;"'}\n]*)/gi;
+// Properties that take a colour, in CSS (kebab case), JSX style objects (camel case) and SVG presentation attributes;
+// a named colour is a literal only where one of these (or a Tailwind arbitrary value) gives it, so words like `tan` or
+// `mark` elsewhere are not colours. `[:=]` covers `color: red`, `{ color: "red" }` and `fill="red"`.
+const KEBAB =
+  "color|background(?:-color)?|border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-color)?|outline(?:-color)?|fill|stroke|caret-color|accent-color|text-decoration(?:-color)?|column-rule(?:-color)?|box-shadow|text-shadow|stop-color|flood-color|lighting-color";
+const CAMEL =
+  "backgroundColor|border(?:Top|Right|Bottom|Left|Block|Inline)?(?:Start|End)?Color|outlineColor|caretColor|accentColor|textDecoration(?:Color)?|columnRule(?:Color)?|boxShadow|textShadow|stopColor|floodColor|lightingColor";
+const COLOUR_PROPERTY = new RegExp(`(?<![\\w-])(?:${KEBAB}|${CAMEL})\\s*[:=]\\s*\\{?\\s*["'\`]?([^;"'\`}\\n]*)`, "gi");
 const ARBITRARY = /\[([^\]\s]*)\]/g;
 
 function named(value: string): string[] {
@@ -172,6 +176,8 @@ describe("raw colours", () => {
       "a{color:red} b{background:navy none}",
       '<p class="bg-[red] [color:tomato] text-[#abc]">',
       "bg-ink var(--color-ink) #fade-in tan-line mark",
+      "const P = () => <p style={{ color: \"red\", backgroundColor: 'navy' }}>x</p>;",
+      '<svg><path fill="red" stroke=\'tomato\' stop-color="white" /></svg>',
     ].join("\n");
     expect(rawColours(text)).toEqual([
       "1: #f00",
@@ -188,6 +194,11 @@ describe("raw colours", () => {
       "6: #abc",
       "6: tomato",
       "6: red",
+      "8: red",
+      "8: navy",
+      "9: red",
+      "9: tomato",
+      "9: white",
     ]);
   });
 

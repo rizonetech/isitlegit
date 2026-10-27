@@ -145,6 +145,7 @@ One layout and one component set for every app page (`AGENTS.md`: a second toolb
 - [ ] Add htmx 2.0.11 as a self-hosted static asset and a `hx-` helper for partial updates. Done when: `GET /static/htmx.min.js` serves it and `NOTICE.md` lists it (BSD 2-Clause).
 - [ ] Add a `/dev/components` page (only when `ENV` is `development`) showing every component in every state. Done when: it returns 404 in production config.
 - [ ] Add an accessibility check with Browser Run plus axe-core 4.11 on `/dev/components` at 360 px and 1280 px. Done when: `pnpm test:a11y` reports zero violations and fails on a planted unlabeled icon button.
+- [ ] Check every rendered page for colours in `style` and SVG presentation attributes: render each shell page and component state with Hono's renderer in `test/node/rendered-colours.test.ts` and refuse any colour that is not `var(--color-*)`, `transparent` or `currentcolor` in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: a planted `style={{ color: "red" }}` and `fill="red"` in a shell component each fail it. (D07 T01 §2 round 2, 2026-10-27: the source scan in `test/node/no-raw-colours.test.ts` is a pattern match over source text, so the rendered HTML, which Hono owns, is the authoritative proof once pages exist.)
 - [ ] Commit: `web: app shell and shared components`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/components.test.ts && pnpm test:a11y` passes.
