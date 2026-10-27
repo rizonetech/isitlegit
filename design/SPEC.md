@@ -121,7 +121,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 
 ## 1. Shared parts
 
-Every page is drawn from these parts and from the tokens in `design/tokens/colors.json`; a page never invents its own header, navigation or colour. The approved canvas stylesheet is `mockups/source/ui.css`, and its values are the tokens: colours from `design/tokens/colors.json` (for example ink `#181519`, muted `#4D4953`, orange `#FF4A14` for graphics only, orange text `#CC2E00` for links, eyebrows and the primary button, suspicious `#8A5200` for text and `#B26A00` for graphics, and input borders in control border `#8E8A95`), type from `design/tokens/typography.json` (Exo for headings and figures, Exo 2 for text), spacing, radii and control heights from `design/tokens/spacing.json` (a 4 px scale; 12 px card radius, 16 px panel radius; controls 48 px and 36 px high). Buttons come in primary, dark, ghost, danger and link styles; pills come in safe, suspicious, malicious, partial, running and neutral.
+Every page is drawn from these parts and from the tokens in `design/tokens/colors.json`; a page never invents its own header, navigation or colour. The approved canvas stylesheet is `mockups/source/ui.css`, and its values are the tokens: colours from `design/tokens/colors.json` (for example ink `#181519`, muted `#4D4953`, orange `#FF4A14` for graphics only, orange text `#CC2E00` for links, eyebrows and the primary button, suspicious `#8A5200` for text and `#B26A00` for graphics, and input borders in control border `#8E8A95`), type from `design/tokens/typography.json` (Exo for headings and figures, Exo 2 for text), spacing, radii and control heights from `design/tokens/spacing.json` (a 4 px scale; 12 px card radius, 16 px panel radius; controls 48 px and 36 px high). Buttons come in primary, dark, ghost, danger and link styles; pills come in safe, suspicious, malicious, partial, running and neutral, and the admin sidebar's brand ("Rizonetech admin", dark on orange) and alert (a count, white on the malicious band) as `AdminNav` draws them (D07 T01 §3).
 
 - Deviation (D07 T01 §6): every control (button, link, text field, checkbox) shows its keyboard focus as a solid 2 px `orange-text` outline 2 px outside it, at least 4.7:1 in light and 6.1:1 in dark against the surface, subtle, light and orange-wash backgrounds controls sit on (`design/tokens/colors.json`), because WCAG 2.2 asks for 3:1 against the adjacent colours. The boards draw a 3 px ring at 25% orange on a text field (about 1.4:1) and no focus state for buttons or checkboxes. An invalid field keeps its red border under the outline.
 - Deviation (D07 T01 §6): a board value exactly between two steps of the 4 px scale (26, 22, 18, 14, 10, 6 px) is built as the step above (28, 24, 20, 16, 12, 8 px) because "nearest step" leaves the tie open, and the step above keeps touch targets and text room; so the 26 px pill is 28 px, the 22 px navigation pill 24 px, the 18 px checkbox 20 px, the 14 px side padding of the input and of the small button 16 px, and the field's 6 px gap 8 px.
@@ -144,6 +144,8 @@ States:
 
 - Active item: one of cases, suppliers, protect, monitor, team, domains, account, plan is highlighted through the `active` property; Check a file and onboarding pages keep Cases highlighted.
 - Counts: the Monitor pill shows new findings and disappears at zero; the Plan pill shows trial days left, or the plan name after the trial.
+- Deviation (D07 T01 §3): the sidebar is fixed to the window's left edge with its own scroll, so its footer card and user block stay at the bottom of the window on a long page, where the page boards lay the navigation out in the page's flow; one placement serves the in-page sidebar and the phone popover alike, so a menu left open while the window widens past `md` still sits beside the content (the browser's top layer cannot be put back in the page by CSS).
+- Deviation (D07 T01 §3): below `md` the sidebar opens from the phone header's Menu button as a popover (`Report-Mobile` draws the button, not what it opens); a browser without the Popover API (before Chrome 114, Safari 17, Firefox 125) gets no Menu and the sidebar as a full-width block in the page above the content.
 
 ### P2 Admin navigation
 
@@ -151,7 +153,7 @@ Boards: [PNG](mockups/png/AdminNav.png) · [source](mockups/source/AdminNav.dc.h
 
 Controls:
 
-- Links: Overview, Organisations, Invite codes, Feedback (with the open count in a malicious pill), Eval runs.
+- Links: Overview, Organisations, Invite codes, Feedback (with the open count in an alert pill, solid as `AdminNav` draws it), Eval runs.
 
 States:
 

@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { LOGO, LOGO_MARK, LOGO_MARK_ON_DARK, LOGO_ON_DARK } from "../../src/web/assets";
+import { APP_CSS, LOGO, LOGO_MARK, LOGO_MARK_ON_DARK, LOGO_ON_DARK } from "../../src/web/assets";
 import { AppShell } from "../../src/web/components/AppShell";
 import { Document } from "../../src/web/components/Document";
 import { chromiumPath, launch, openPage } from "./browser";
@@ -109,12 +111,60 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("frames at phone and desktop
       expect(nav).toMatchObject({ x: 0, y: 0, width: 256, height: 800 });
       expect(main?.x).toBeGreaterThanOrEqual(256);
       expect(await overflow(page)).toBeLessThanOrEqual(0);
+      // The skip link, focused, is shown above the open sidebar (the top layer paints over any z-index).
+      await page.focus('a[href="#content"]');
+      const covered = await page.evaluate(() => {
+        const skip = document.querySelector('a[href="#content"]') as HTMLElement;
+        const box = skip.getBoundingClientRect();
+        return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) !== skip;
+      });
+      expect(covered).toBe(false);
       // The backdrop is clear from md: nothing dims the content beside the sidebar.
       const dim = await page.evaluate(
         () => getComputedStyle(document.getElementById("nav") as Element, "::backdrop").backgroundColor,
       );
       expect(dim).toBe("rgba(0, 0, 0, 0)");
       await page.context().close();
+    });
+
+  // A browser without the Popover API, emulated: no `popover` attribute (nothing hides the sidebar by itself) and the
+  // stylesheet's `@supports not selector(:popover-open)` rules in force.
+  async function withoutPopover(html: string, width: number): Promise<Page> {
+    const context = await browser.newContext({ viewport: { width, height: 900 }, javaScriptEnabled: false });
+    const page = await context.newPage();
+    const css = readFileSync(join(import.meta.dirname, "../../public", APP_CSS), "utf-8");
+    expect(css).toContain("@supports not selector(:popover-open)");
+    await page.route("http://app.test/**", (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/")
+        return route.fulfill({ contentType: "text/html", body: html.replaceAll(' popover="auto"', "") });
+      if (path === APP_CSS)
+        return route.fulfill({
+          contentType: "text/css",
+          body: css.replaceAll("@supports not selector(:popover-open)", "@supports selector(*)"),
+        });
+      return route.fulfill({ status: 404 });
+    });
+    await page.goto("http://app.test/");
+    return page;
+  }
+
+  for (const frame of ["member", "admin"] as const)
+    it(`${frame}: without the Popover API the sidebar is a block above the content at 360 px, and beside it at 1280 px`, async () => {
+      const phone = await withoutPopover(FRAMES[frame], 360);
+      expect(await shown(phone, 'button[aria-label="Menu"]')).toBe(false);
+      const nav = await phone.locator("#nav").boundingBox();
+      const header = await phone.locator("header").boundingBox();
+      const main = await phone.locator("main").boundingBox();
+      expect(nav?.width).toBe(360);
+      expect(nav && header && nav.y >= header.y + header.height).toBe(true);
+      expect(nav && main && main.y >= nav.y + nav.height).toBe(true);
+      expect(await overflow(phone)).toBeLessThanOrEqual(0);
+      await phone.context().close();
+      const desktop = await withoutPopover(FRAMES[frame], 1280);
+      expect(await desktop.locator("#nav").boundingBox()).toMatchObject({ x: 0, width: 256 });
+      expect((await desktop.locator("main").boundingBox())?.x).toBeGreaterThanOrEqual(256);
+      await desktop.context().close();
     });
 
   it("member: the sidebar stays in place while a long page scrolls at 1280 px", async () => {

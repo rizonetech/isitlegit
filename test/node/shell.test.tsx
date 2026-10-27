@@ -204,5 +204,11 @@ describe("initials", () => {
     expect(initials("Thandi Nkosi")).toBe("TN");
     expect(initials("  karoo   couriers ltd ")).toBe("KC");
     expect(initials("Cher")).toBe("C");
+    // The first character as a reader sees it, never half of a surrogate pair or a letter without its accent.
+    expect(initials("🚚 Fast Movers")).toBe("🚚F");
+    expect(initials("\u{1F469}\u200D\u{1F469}\u200D\u{1F467} Family Trust")).toBe(
+      "\u{1F469}\u200D\u{1F469}\u200D\u{1F467}F",
+    );
+    expect(initials("e\u0301mile zola")).toBe("E\u0301Z");
   });
 });

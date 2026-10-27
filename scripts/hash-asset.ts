@@ -101,7 +101,8 @@ export function hashAssets(argv: string[]): {
   ].join("\n");
   writeIfChanged(modulePath, module);
   // Only now, with assets.ts naming the new set, are files the set no longer names removed: a build that failed before
-  // this point left the previous stylesheet, fonts and assets.ts in place together.
+  // this point left the previous stylesheet, fonts and assets.ts in place together. Every fingerprinted file a page
+  // names must be in `keep`, or this deletes it: a new asset (D07 T01 §9's scripts) joins the set built here.
   const keep = new Set([`/static/${name}`, ...Object.values(fonts), ...logos.map((logo) => logo.url)]);
   for (const path of files(dir)) {
     const url = `/${relative(pub, path).replaceAll("\\", "/")}`;

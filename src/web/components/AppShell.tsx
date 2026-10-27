@@ -16,10 +16,11 @@ import {
 import { Pill } from "./Pill";
 
 // The one page frame every app page renders inside (D07 T01 §3; AGENTS.md: a second toolbar or panel shape is a
-// defect), in three variants as the approved boards draw them: the member app with the P1 navigation (`AppNav`), the
+// defect), once per document: it owns the ids `nav` and `content`, the `main` landmark and the Menu's popover target, in three variants as the approved boards draw them: the member app with the P1 navigation (`AppNav`), the
 // admin console with the P2 navigation (`AdminNav`), and the public frame of a report opened from a signed link
 // (`Report-Counterparty`). Below `md` the member and admin sidebars become a popover behind the phone header's Menu
-// button (`Report-Mobile`), which opens and closes with no script.
+// button (`Report-Mobile`), which opens and closes with no script. A browser without the Popover API (before Chrome
+// 114, Safari 17, Firefox 125) gets no Menu below `md`: the sidebar is a full-width block in the page above the content.
 
 export const CHECK_ADDRESS = "check@isitlegit.co.za";
 
@@ -58,24 +59,33 @@ export type PublicShellProps = { variant: "public"; children: Child };
 export type AppShellProps = MemberShellProps | AdminShellProps | PublicShellProps;
 
 // "Thandi Nkosi" to "TN", "Karoo Couriers" to "KC": the first letters of the first two words.
+const GRAPHEMES = new Intl.Segmenter("en", { granularity: "grapheme" });
+
 export function initials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      // The first character as a reader sees it (an emoji, an accented letter written in two code points), not one
+      // UTF-16 unit, which would split a surrogate pair.
+      .map((word) => GRAPHEMES.segment(word)[Symbol.iterator]().next().value?.segment.toUpperCase() ?? "")
+      .join("")
+  );
 }
 
 const SKIP =
-  "sr-only focus:not-sr-only focus:fixed focus:top-8 focus:left-8 focus:z-50 focus:px-16 focus:py-12 focus:bg-surface focus:text-ink focus:rounded-control focus:shadow-card " +
+  // Shown at the top right when focused: an open popover sidebar (top layer, above any z-index) covers the left edge.
+  "sr-only focus:not-sr-only focus:fixed focus:top-8 focus:right-8 focus:z-50 focus:px-16 focus:py-12 focus:bg-surface focus:text-ink focus:rounded-control focus:shadow-card " +
   FOCUS;
 // The sidebar: fixed to the left edge at every width, a popover below `md` (the browser hides a closed popover; `open:`
 // matches `:popover-open`) and always shown from `md`, where the content keeps a sidebar-wide margin. It is placed the
 // same way open or closed, so a menu left open while the window widens past `md` (the top layer cannot be put back in
 // the page by CSS) still sits beside the content, and its backdrop turns clear.
 const SIDEBAR =
-  "open:flex md:flex flex-col w-sidebar box-border px-16 py-24 m-0 fixed inset-y-0 left-0 h-full overflow-y-auto border-0 backdrop:bg-ink/40 md:backdrop:bg-transparent";
+  "open:flex md:flex flex-col w-sidebar box-border px-16 py-24 m-0 fixed inset-y-0 left-0 h-full overflow-y-auto border-0 backdrop:bg-ink/40 md:backdrop:bg-transparent " +
+  // Without the Popover API (no `:popover-open`), below `md`: a full-width block in the page, as the page flows.
+  "max-md:not-supports-[selector(:popover-open)]:flex max-md:not-supports-[selector(:popover-open)]:static max-md:not-supports-[selector(:popover-open)]:w-full max-md:not-supports-[selector(:popover-open)]:h-auto";
 const MEMBER_LINK =
   "flex items-center gap-12 h-40 px-12 rounded-control-small text-15 weight-text-strong no-underline text-ink-2 hover:bg-light hover:text-ink aria-[current=page]:bg-light aria-[current=page]:text-ink";
 const ADMIN_LINK =
@@ -112,7 +122,13 @@ function PhoneHeader(props: { home: string; homeLabel: string }) {
       <a href={props.home} class={cx("col-start-2 justify-self-center rounded-small", FOCUS)}>
         <Brand light={LOGO_MARK} dark={LOGO_MARK_ON_DARK} alt={props.homeLabel} class="w-32 h-32" />
       </a>
-      <Button size="small-icon" popovertarget="nav" label="Menu" icon={<MenuIcon />} class="justify-self-end" />
+      <Button
+        size="small-icon"
+        popovertarget="nav"
+        label="Menu"
+        icon={<MenuIcon />}
+        class="justify-self-end not-supports-[selector(:popover-open)]:hidden"
+      />
     </header>
   );
 }
