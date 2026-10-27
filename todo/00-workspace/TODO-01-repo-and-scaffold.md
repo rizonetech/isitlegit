@@ -471,6 +471,8 @@ Evidence after the completion review, 2026-10-27 19:05 SAST. Its three gaps and 
 
 Evidence after review round 1, 2026-10-27 19:20 SAST. Its three P1 findings are fixed in `cbb764f`. A live check with two throwaway pricing rules on an unused model name (both deleted, read back gone) showed Cloudflare requires `token_pricing` (US$ per million tokens) and derives the per-token `cost_in` and `cost_out` from it, so restore writes prices only as `token_pricing`, and the file's costs must agree with it. `dlp`, `guardrails`, `spend_limits` and `workers_ai_billing_mode` are typed as Cloudflare's schema gives them, and a malformed file's error names only the position, never its content. `pnpm exec vitest run --project node test/node/gateway-config.test.ts`: 22 passed (the stand-in prices rules as the live check showed); seven more mutations each fail it. Live: snapshot re-taken (values unchanged, the stricter schema's key order), `restore` no change.
 
+Evidence after review round 2, 2026-10-27 19:26 SAST. Its two findings are fixed in `a374ed0`: a provider URL carrying a user name or password is refused in the file and in the account without printing it, and a file over 1 MiB is refused before it is read. `pnpm exec vitest run --project node test/node/gateway-config.test.ts`: 24 passed; both mutations caught. Live `restore --dry`: no change.
+
 **Test checkpoint:** `pnpm exec vitest run test/node/gateway-config.test.ts` passes and fails if `restore` deletes anything or reports success when the read-back differs.
 
 ## 12. Rollback from a split deployment
