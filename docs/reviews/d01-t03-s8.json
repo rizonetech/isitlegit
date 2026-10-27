@@ -1,0 +1,104 @@
+{
+  "ref": "D01 T03 \u00a78",
+  "title": "M4A decoding",
+  "implementation_sha": "4709018b9a2c1c726f16fd4d32b581194d17d456",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T03-s8.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/voice/decode.test.ts -> Tests  31 passed (31)",
+    "pnpm exec vitest run -> Tests 446 passed (446)"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T03-s8.md",
+    "verdict": "filed",
+    "candidate": "96259e822abb420f06308aac90dd777435897856",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T03 \u00a71",
+      "D01 T03 \u00a76",
+      "D01 T03 \u00a710"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "cap_outcome": "Round 1's only finding, a P3 (section 2's M4A resolution named no commit), was fixed in 4709018 rather than filed; nothing left over",
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T03-s8.md",
+    "candidate": "f90d7e9d3984587912e4f53b2291026f2831ef98",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

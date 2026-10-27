@@ -41,7 +41,7 @@ track: day-1
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [ ] |
 | 7 | §7 | MP3 decoding | §2 | [x] |
-| 8 | §8 | M4A decoding | §2 | [ ] |
+| 8 | §8 | M4A decoding | §2 | [x] |
 | 9 | §9 | Filtered resampling for WAV | §2 | [ ] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 
@@ -276,9 +276,12 @@ Evidence after round 1, 2026-10-28 00:49 SAST: adversarial, integration and sour
 
 > **Deferred:** decoding M4A (AAC) voice notes with libxaac, once the AAC patent decision is made -> XREF: D01 T03 §10
 
-- [ ] Commit: `voice: M4A voice notes decoded or refused by design`
+- [x] Commit: `voice: M4A voice notes decoded or refused by design`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes, and fails if an M4A is silently accepted without being decoded.
+
+> **Verified:** 2026-10-28 | §8 | 4709018b9a2c1c726f16fd4d32b581194d17d456
+> **Review:** `docs/reviews/d01-t03-s8.json`
 
 ## 9. Filtered resampling for WAV
 

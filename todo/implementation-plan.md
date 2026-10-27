@@ -40,7 +40,7 @@ Sections: 38 | Checklist items: 263
 | [ ]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | operator              | 4     |
 | [x]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
 | [x]    | D01 T03 §7 | MP3 decoding                               | none                  | 7     |
-| [ ]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
+| [x]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
 | [ ]    | D01 T03 §9 | Filtered resampling for WAV                | none                  | 5     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
@@ -278,6 +278,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 26/209 verified sections, 12 ready to run now.
+Progress: 27/209 verified sections, 11 ready to run now.
 
-Checklist: 332/1105 items completed (includes Commit items).
+Checklist: 333/1105 items completed (includes Commit items).
