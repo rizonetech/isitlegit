@@ -361,15 +361,49 @@ describe("scripts/rollback.ts", () => {
     expect(damaged.state.rollbacks).toEqual([]);
   });
 
-  it("reads a version listed at 0% beside one at 100% as a single version, as the smoke check does", async () => {
-    const { state, wrangler } = stage("c");
+  it("reads a version listed at 0% beside one at 100% as a single version, in either order", async () => {
+    // History a, b, b2 (commit B), c (commit C); c serves, b2 is listed at 0%. Whichever comes first, the active
+    // commit is C, so the default choice is b2 (commit B), the newest other code.
+    for (const order of [
+      [
+        { version_id: "c", percentage: 100 },
+        { version_id: "b2", percentage: 0 },
+      ],
+      [
+        { version_id: "b2", percentage: 0 },
+        { version_id: "c", percentage: 100 },
+      ],
+    ]) {
+      rmSync(REJECTED, { force: true });
+      const { state, wrangler } = stage("c");
+      state.split = order;
+      const outcome = await run(wrangler, passing(state));
+      expect(outcome.ok).toBe(true);
+      expect(outcome.lines[0]).toBe(`active: c (commit ${COMMITS.c})`);
+      expect(state.rollbacks).toEqual(["b2"]);
+    }
+    // The reviewer's case: [b at 0%, c2 at 100%] with c2 a republish of c1's commit must go back to b, not c1.
+    const commits: Record<string, string> = {
+      b: COMMITS.b as string,
+      c1: COMMITS.c as string,
+      c2: COMMITS.c as string,
+    };
+    const history = [deployment("b", 1), deployment("c1", 2), deployment("c2", 3)];
+    const { state, wrangler } = stage("c2", {
+      view: viewOf(commits, { b: 1, c1: 2, c2: 3 }),
+      deployments: async () => history,
+    });
     state.split = [
-      { version_id: "c", percentage: 100 },
-      { version_id: "b2", percentage: 0 },
+      { version_id: "b", percentage: 0 },
+      { version_id: "c2", percentage: 100 },
     ];
-    const outcome = await run(wrangler, passing(state));
+    rmSync(REJECTED, { force: true });
+    const outcome = await run(wrangler, {
+      ...passing(state),
+      health: async () => ({ commit: commits[state.active] as string }),
+    });
     expect(outcome.ok).toBe(true);
-    expect(state.rollbacks).toEqual(["b2"]);
+    expect(state.rollbacks).toEqual(["b"]);
   });
 
   it("judges a roll-forward by the code, not the upload number", async () => {

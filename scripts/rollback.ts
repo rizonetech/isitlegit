@@ -168,9 +168,11 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     });
     const active = single(before);
     const servingCommits = views.map((v) => v?.commit ?? null);
+    // The active version's own commit, found by its id: a version listed at 0% may come first.
+    const activeCommit = active ? (servingCommits[before.findIndex((v) => v.version_id === active)] ?? null) : null;
     lines.push(
       active
-        ? `active: ${active} (commit ${servingCommits[0] ?? "unknown"})`
+        ? `active: ${active} (commit ${activeCommit ?? "unknown"})`
         : `split: ${before.map((v, i) => `${v.version_id} ${v.percentage}% (commit ${servingCommits[i] ?? "unknown"})`).join(", ")}`,
     );
     let forward = false;
@@ -205,7 +207,6 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
           "no",
           `rollback: a split deployment serves (${describe(before)}); name the version to restore with --to (docs/operations.md)`,
         );
-      const activeCommit = servingCommits[0];
       await withProgress("Choosing a version from the deployment history", log, async () => {
         const history = await wrangler.deployments(deadline);
         const seen = new Set<string>();
