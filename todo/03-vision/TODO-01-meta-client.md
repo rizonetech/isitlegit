@@ -10,9 +10,9 @@ track: day-1
 
 # TODO-01 -- Meta Model Client, Budget Guard and Untrusted Content
 
-> **Goal:** Every call to a Meta model (Muse Spark, Muse Wonder, SAM 3.1, Muse Image, Muse Voice Transcribe) and to the hosted Glimmer provider goes through one client that sends `store: false`, refuses any `-contributor` model ID, routes through the AI Gateway with payload logging off, enforces the operator's budget caps in code, records cost and latency per case step for the model trace, caches results by artefact hash, validates structured output with zod, and wraps every piece of hostile content in an untrusted block.
+> **Goal:** Every call to a Meta model (Muse Spark, Muse Wonder, SAM 3.1, Muse Image, Muse Voice Transcribe, and Muse Spark 1.3 Contributor for public pages) goes through one client that sends `store: false`, refuses any `-contributor` model ID except `muse-spark-1.3-contributor` from `src/meta/contributor.ts` (operator decision 2026-10-27; was "and to the hosted Glimmer provider", and every `-contributor` ID refused), routes through the AI Gateway with payload logging off, enforces the operator's budget caps in code, records cost and latency per case step for the model trace, caches results by artefact hash, validates structured output with zod, and wraps every piece of hostile content in an untrusted block.
 
-> **Current state:** Measured 2026-10-26 20:00 SAST. No model code exists. D00 T01 §6 creates the AI Gateway custom provider and D00 T01 §7 the smoke test. The budget decision (US$120 Meta total, US$15 a day, US$30 reserve, Glimmer US$10, on Baseten since 2026-10-27) is in design spec section 11.
+> **Current state:** Measured 2026-10-26 20:00 SAST. No model code exists. D00 T01 §6 creates the AI Gateway custom provider and D00 T01 §7 the smoke test. The budget decision (US$120 Meta total, US$15 a day, US$30 reserve, Glimmer's US$10 cap removed with Glimmer by operator decision on 2026-10-27) is in design spec section 11.
 
 ## Inputs
 
@@ -24,7 +24,7 @@ track: day-1
 
 ## Outcome
 
-- A test fails if any source file or request names a `-contributor` model or omits `store: false`.
+- A test fails if any source file or request names a `-contributor` model outside `src/meta/contributor.ts`, names one other than `muse-spark-1.3-contributor`, or omits `store: false` (corrected 2026-10-27, operator decision).
 - When the daily or total cap is reached, the next call for that model is refused before the network, the case gets a marked partial report, and the operator is notified once.
 - Every model call leaves a `case_events` row with model, step, milliseconds and cost.
 
@@ -62,14 +62,14 @@ One module, `src/meta/client.ts`, is the only place that talks to `api.meta.ai` 
 - [ ] Write `metaResponses({ model, input, ...rest }, ctx)` that refuses a model not in `MODELS`, forces `store: false` (overriding any caller value), reaches the authenticated gateway through the Worker's `AI` binding (`env.AI.gateway("isitlegit")`, pre-authenticated, so no gateway token is stored; D00 T01 §6) at `META_GATEWAY_URL`'s `custom-meta` route, and sends `cf-aig-collect-log-payload: false`. Done when: `test/meta/client.test.ts` checks all four with a stubbed gateway, and a call that bypasses the binding is refused. Cheaper substitute: callers setting `store` themselves. (**Corrected 2026-10-27** (D00 T01 §6 plan review P2): the gateway now requires authentication; if the binding cannot route the custom provider's Responses call, the Worker sends a gateway `AI Gateway Run` token kept as the Worker secret `CF_AIG_TOKEN` instead, recorded here when built.)
 - [ ] Write `metaRaw(path, body, ctx)` for `/v1/asr/transcribe` and `/v1/images/edits` with the same model check and header. Done when: the test covers a transcribe call.
 - [ ] Map OpenAI-style error envelopes to typed `ModelError` (rate limit, invalid request, server, abuse flag) with retry for 429 and 5xx only. Done when: tests cover each class.
-- [ ] Write `test/meta/no-contributor.test.ts` scanning `src/`, `scripts/` and `eval/` for `-contributor`. Done when: it passes now and fails on a planted string.
+- [ ] Write `test/meta/no-contributor.test.ts` scanning `src/`, `scripts/` and `eval/` for `-contributor`, allowing exactly `muse-spark-1.3-contributor` in `src/meta/contributor.ts`. Done when: it passes now and fails on a planted string anywhere else, or on another `-contributor` ID in that file. (**Corrected 2026-10-27**, operator decision approving a change to this frozen behaviour: Muse Spark 1.3 Contributor replaces the outside providers for public-page screening.)
 - [ ] Commit: `meta: model client with store false, Standard IDs and the gateway`
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/client.test.ts test/meta/no-contributor.test.ts` passes, and fails if a caller's `store: true` reaches the request.
 
 ## 2. Budget guard with daily and total caps
 
-The operator's caps are enforced in code (design spec section 11): Meta Model API US$120 total and US$15 a day, with US$30 held back for demo and judging days (3 and 4 Nov may use the reserve); Glimmer provider US$10 total. Spend is estimated before a call from the request size and settled after from the usage the response reports. A refused call ends the step as partial; it never silently degrades a verdict.
+The operator's caps are enforced in code (design spec section 11): Meta Model API US$120 total and US$15 a day, with US$30 held back for demo and judging days (3 and 4 Nov may use the reserve); Muse Spark Contributor screening counts inside these caps (corrected 2026-10-27: the Glimmer provider's US$10 cap left with Glimmer). Spend is estimated before a call from the request size and settled after from the usage the response reports. A refused call ends the step as partial; it never silently degrades a verdict.
 
 **Phase:** 1
 **Needs:** none
@@ -81,7 +81,7 @@ The operator's caps are enforced in code (design spec section 11): Meta Model AP
 1. Add `model_spend` and `src/meta/budget.ts`. Done when: tests reserve, settle and refuse at both caps.
 2. Notify the operator once per cap event. Done when: reaching a cap sends one notice and later refusals send none.
 
-- [ ] Add migration `0007_spend.sql` with `model_spend` (`at`, `day` SAST date, `provider` meta or glimmer, `model`, `case_id`, `estimate_usd`, `actual_usd`). Done when: it applies locally.
+- [ ] Add migration `0007_spend.sql` with `model_spend` (`at`, `day` SAST date, `provider` meta (corrected 2026-10-27: `glimmer` removed), `model`, `case_id`, `estimate_usd`, `actual_usd`). Done when: it applies locally.
 - [ ] Write `reserve(provider, model, estimateUsd, day)` refusing when today's spend plus the estimate exceeds the day cap, or the total plus the estimate exceeds the total cap minus the reserve (the reserve is usable only on 2026-11-03 and 2026-11-04). Done when: `test/meta/budget.test.ts` covers under-cap, day cap, total cap and the reserve days.
 - [ ] Write `settle(reservationId, usage)` computing actual cost from `MODELS` prices and the usage the response reports. Done when: a test with recorded usage numbers produces the exact cost.
 - [ ] Put the caps in `src/meta/caps.ts` as constants with the decision reference, readable by the admin console and changeable only by a commit. Done when: the admin spend view (D07 T05 §2) can import them. Cheaper substitute: environment variables a run could raise.

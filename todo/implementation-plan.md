@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 9 | Checklist items: 107
+Sections: 9 | Checklist items: 108
 
 | Status | Reference   | Deliverable                            | Needs                | Items |
 | ------ | ----------- | -------------------------------------- | -------------------- | ----- |
@@ -17,7 +17,7 @@ Sections: 9 | Checklist items: 107
 | [x]    | D00 T01 §3  | Vitest workers pool and Biome          | none                 | 15    |
 | [x]    | D00 T01 §4  | GitHub Actions CI                      | none                 | 12    |
 | [x]    | D00 T01 §5  | Cloudflare bindings and first deploy   | cloudflare           | 24    |
-| [ ]    | D00 T01 §6  | AI Gateway for the Meta Model API      | cloudflare           | 8     |
+| [ ]    | D00 T01 §6  | AI Gateway for the Meta Model API      | cloudflare           | 9     |
 | [ ]    | D00 T01 §7  | Meta smoke test                        | meta-api, cloudflare | 10    |
 | [ ]    | D00 T01 §10 | Deploy rollback and re-verification    | cloudflare           | 3     |
 | [ ]    | D00 T01 §11 | AI Gateway config snapshot and restore | cloudflare           | 3     |
@@ -179,9 +179,9 @@ Sections: 56 | Checklist items: 207
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [ ]    | D03 T04 §1 | Glimmer provider client with its budget    | third-party           | 4     |
+| [ ]    | D03 T04 §1 | Contributor client for public pages        | none                  | 4     |
 | [ ]    | D03 T04 §2 | Page screener on Muse Spark                | meta-api              | 5     |
-| [ ]    | D03 T04 §3 | Glimmer measured against Spark             | meta-api, third-party | 4     |
+| [ ]    | D03 T04 §3 | Contributor measured against Spark         | meta-api              | 4     |
 | [ ]    | D04 T01 §1 | Deterministic floor from critical evidence | none                  | 4     |
 | [ ]    | D04 T01 §2 | Rule-based verdict                         | none                  | 3     |
 | [ ]    | D04 T01 §3 | Read-only agent tools with zod validation  | none                  | 5     |
@@ -251,7 +251,7 @@ Sections: 6 | Checklist items: 23
 
 ### Phase 99: Manual, operator only
 
-Sections: 12 | Checklist items: 54
+Sections: 12 | Checklist items: 51
 
 | Status | Reference  | Deliverable                                   | Needs    | Items |
 | ------ | ---------- | --------------------------------------------- | -------- | ----- |
@@ -260,7 +260,7 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T01 §3 | Workers Paid plan                             | operator | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain                         | operator | 5     |
 | [ ]    | D99 T01 §6 | Google Web Risk API key                       | operator | 6     |
-| [ ]    | D99 T01 §7 | Partner credits for Glimmer                   | operator | 5     |
+| [ ]    | D99 T01 §7 | Partner credits for Glimmer                   | operator | 2     |
 | [ ]    | D99 T02 §1 | Rizonetech dogfooding from day 2              | operator | 3     |
 | [ ]    | D99 T02 §2 | Pilot client written consent                  | operator | 2     |
 | [ ]    | D99 T02 §3 | Record the demo footage                       | operator | 2     |
@@ -270,4 +270,4 @@ Sections: 12 | Checklist items: 54
 
 Progress: 11/199 verified sections, 12 ready to run now.
 
-Checklist: 209/1007 items completed (includes Commit items).
+Checklist: 210/1005 items completed (includes Commit items).

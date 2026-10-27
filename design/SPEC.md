@@ -261,7 +261,7 @@ Controls:
 - protected identity: Register domains, logo and bank account. (ProtectSite)
 - website seal: Seal shown on the real domain, blocked on a copy. (ProtectSite)
 - signature badge: Badge that turns copies into evidence. (ProtectSite)
-- impersonation monitor: Daily lookalike watch with Muse Glimmer screening. (ProtectSite)
+- impersonation monitor: Daily lookalike watch with Muse Spark Contributor screening (corrected 2026-10-27, was Muse Glimmer). (ProtectSite)
 - closed-loop verification: Finance contact confirms changed bank details; the buttons drawn are illustration of the email reply (N5). (ProtectSite)
 - Protect my business: Opens Sign up; See a verify page opens T1; See pricing opens S5. (ProtectSite)
 
@@ -296,7 +296,7 @@ Boards: [PNG](mockups/png/Privacy.png) · [source](mockups/source/Privacy.dc.htm
 
 Controls:
 
-- processors: Cloudflare, Meta Model API with store: false, SMTP2GO, Google Web Risk, Baseten (Muse Glimmer on public lookalike pages only; corrected 2026-10-27, was Fireworks AI). (Privacy)
+- processors: Cloudflare, Meta Model API with store: false, SMTP2GO, Google Web Risk (corrected 2026-10-27: Baseten and Fireworks AI removed; Muse Spark Contributor on public lookalike pages runs on the Meta Model API). (Privacy)
 - purposes: Mail, account, supplier ledger, feedback. (Privacy)
 - retention: Retention table. (Privacy)
 - information officer: Responsible party and contact hello@isitlegit.co.za. (Privacy)
@@ -778,7 +778,7 @@ Boards: [PNG](mockups/png/Admin-Overview.png) · [source](mockups/source/Admin-O
 Controls:
 
 - organisations table: Table with search; names open X2; Export CSV and New invite code. (Admin-Overview)
-- model spend against caps: Bars for Meta today, Meta total and Glimmer. (Admin-Overview)
+- model spend against caps: Bars for Meta today and Meta total (corrected 2026-10-27: the Glimmer bar left with Glimmer). (Admin-Overview)
 - service health: Six tiles (email intake, workflows, Meta Model API, Browser Run, Google Web Risk, outbound mail), each with a status dot, a word (Healthy, Slow, Down) and a detail line; a red tile emails the operator. (Admin-Overview)
 
 States:

@@ -9,7 +9,7 @@ track: day-6
 
 # TODO-04 -- Impersonation Monitor for Fake Websites
 
-> **Goal:** Every day the monitor generates lookalike domains for each protected business, checks which resolve, screens new or changed live pages cheaply (Glimmer or Spark, D03 T04 §2), sends flagged pages through the full vision pipeline and, where a form exists, the walkthrough, and alerts the business with a takedown pack (domain, registrar and host from RDAP, screenshots, abuse contacts).
+> **Goal:** Every day the monitor generates lookalike domains for each protected business, checks which resolve, screens new or changed live pages cheaply (Muse Spark Contributor or Standard Spark, D03 T04; corrected 2026-10-27, was Glimmer or Spark), sends flagged pages through the full vision pipeline and, where a form exists, the walkthrough, and alerts the business with a takedown pack (domain, registrar and host from RDAP, screenshots, abuse contacts).
 
 > **Current state:** Measured 2026-10-26 20:00 SAST. The confusables module (D02 T03 §1), vision pipeline (D03) and walkthrough (D04 T02) are planned before this file. Certificate-transparency search is first on the cut list (spec section 8) and is after the event.
 
@@ -79,7 +79,7 @@ A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, re
 
 ## 3. Screening new or changed live pages
 
-Each fetched page's screenshot and visible text go to `screenPage` with the screener `MONITOR_SCREENER` names (D03 T04 §2 ships Spark; D03 T04 §3 switches to Glimmer only if it measures as good); only pages judged as lures go further (spec 4.11).
+Each fetched page's screenshot and visible text go to `screenPage` with the screener `MONITOR_SCREENER` names (D03 T04 §2 ships Spark; D03 T04 §3 switches to Muse Spark Contributor only if it measures as good; corrected 2026-10-27, was Glimmer); only pages judged as lures go further (spec 4.11).
 
 **Phase:** 6
 **Needs:** meta-api

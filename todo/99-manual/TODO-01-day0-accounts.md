@@ -26,7 +26,7 @@ track: day-0
 - The Meta Model API shows the US$150 under Billing, "free credits", with a card on file and a US$150 Spend Limit notification, and the key is in the vault.
 - `isitlegit.co.za` is out of `serverHold` and the Cloudflare zone is `active`.
 - The Rizonetech Cloudflare account is on Workers Paid.
-- SMTP2GO, Google Web Risk and Baseten credentials are in the vault, each named in the stack doc's secrets list (**Corrected 2026-10-27:** was Fireworks; Glimmer moved to Baseten).
+- SMTP2GO and Google Web Risk credentials are in the vault, each named in the stack doc's secrets list (**Corrected 2026-10-27:** the Fireworks, then Baseten, credential for Glimmer is no longer needed: the operator replaced the outside providers with Muse Spark 1.3 Contributor on the Meta Model API).
 - The operator's Rizonetech mailbox is a verified Email Routing destination, so the test-mailbox, demo-alert and `conduct@` aliases can forward to it.
 
 **Adjacency:** all=not-applicable (operator account tasks with no product records)
@@ -187,7 +187,7 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 
 ## 7. Partner credits for Glimmer
 
-Muse Glimmer is not on the Meta Model API; it runs through a hosted provider, Baseten first (design spec 4.11; **Corrected 2026-10-27:** was Fireworks AI first). The event offers partner credits to selected participants.
+The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-27 (operator decision, 10:47 SAST):** the outside providers are removed from the plan; Muse Spark 1.3 Contributor on the Meta Model API screens public pages instead (D03 T04), so no partner credit is used. This section now only records what each offer came to. Its earlier items (apply for the Fireworks, Baseten and Modal credits; store the provider key; lift `third-party` from D03 T04's Needs) are superseded: D03 T04 no longer names a provider or that Need.
 
 **Phase:** 99
 **Needs:** operator
@@ -195,15 +195,12 @@ Muse Glimmer is not on the Meta Model API; it runs through a hosted provider, Ba
 
 **Build order:**
 
-1. Apply for the Fireworks, Baseten and Modal credits when the event opens them. Done when: each application is submitted or recorded as not offered.
+1. Record each partner credit and that it is not used. Done when: one line per provider below.
 
-- [ ] Apply for Fireworks AI credits (US$25) through the event's partner offer. Done when: it is recorded here as a line `Partner credit Fireworks: <applied|granted|not offered>, YYYY-MM-DD`.
-- [ ] Apply for Baseten and Modal credits if offered. Done when: each is recorded here as a line `Partner credit <name>: <applied|granted|not offered>, YYYY-MM-DD`.
-- [ ] Store the Baseten API key in the vault as "IsItLegit Baseten" (the operator received it by email on 2026-10-27). Done when: the vault item exists. (**Corrected 2026-10-27:** was the Fireworks key; Glimmer moved to Baseten.)
-- [ ] Remove `third-party` from the Needs of D03 T04 §1 and §3 once the key is stored, so the unattended run can take them. Done when: `python3 scripts/todo-graph.py resolve 'D03 T04 §1'` no longer reports the Need. **Corrected 2026-10-27:** §2 is now the Spark screener and never needed the provider; the Glimmer comparison moved to §3.
+- [ ] Record each partner offer as a line `Partner credit <name>: <applied|granted|not offered>, YYYY-MM-DD (<what it covered>; not used: operator decision 2026-10-27)`, for Fireworks, Baseten and Modal. Done when: the three lines exist.
 - [ ] Commit: `todo: record partner credits`
 
-Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute, for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark, not Muse Glimmer; the key is in Conclave as "Baseten x Meta Hackathon Key"; verified 10:30 SAST: a text and an image call answered in 1.5 s and 3.3 s; the model always reasons, so even a one-word answer spends tens to hundreds of output tokens. The earlier 403s were calls to other model IDs)
+Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decision 2026-10-27; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
 
 **Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
 
