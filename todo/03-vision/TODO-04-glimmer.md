@@ -9,13 +9,13 @@ track: day-6
 
 # TODO-04 -- Muse Glimmer Screening Through a Hosted Provider
 
-> **Goal:** The impersonation monitor screens candidate pages through one `screenPage` interface that ships with Muse Spark, and Muse Glimmer (open weights, 30B, text and image in, through a hosted provider, Fireworks AI first, inside its own US$10 budget) replaces Spark there only when a recorded comparison shows it misses no lure Spark finds. **Corrected 2026-10-27 (operator: a Fireworks issue must not stop development):** the monitor no longer waits on the provider: Spark screens from day one, Glimmer is a measured upgrade.
+> **Goal:** The impersonation monitor screens candidate pages through one `screenPage` interface that ships with Muse Spark, and Muse Glimmer (open weights, 30B, text and image in, through a hosted provider, Baseten first, inside its own US$10 budget; **Corrected 2026-10-27:** was Fireworks AI first) replaces Spark there only when a recorded comparison shows it misses no lure Spark finds. **Corrected 2026-10-27 (operator: a Fireworks issue must not stop development):** the monitor no longer waits on the provider: Spark screens from day one, Glimmer is a measured upgrade.
 
-> **Current state:** Measured 2026-10-26 20:00 SAST. No provider account or key yet (D99 T01 §7). Glimmer is not on the Meta Model API (spec 9). **Updated 2026-10-27 01:10 SAST:** a Fireworks account exists but the event credit has not arrived and Fireworks has an open issue; no key is stored.
+> **Current state:** Measured 2026-10-26 20:00 SAST. No provider account or key yet (D99 T01 §7). Glimmer is not on the Meta Model API (spec 9). **Updated 2026-10-27 01:10 SAST:** a Fireworks account exists but the event credit has not arrived and Fireworks has an open issue; no key is stored. **Updated 2026-10-27 09:58 SAST:** Baseten granted its partner credit and issued an API key (to be stored in the vault as "IsItLegit Baseten", D99 T01 §7). Baseten serves Glimmer only as a dedicated deployment (`meta-models/Muse-Glimmer-30B`, BF16 on one H100, OpenAI-compatible, US$0.10833 per GPU minute), so it is scaled to zero between the daily runs and its cost is GPU time, not tokens.
 
 ## Inputs
 
-- Design spec 4.11 (monitor screening), 9 (model map), 11 (Budget: Glimmer US$10); stack doc "Open-weight model" (Fireworks AI first, OpenRouter or Together as fallback, OpenAI-compatible).
+- Design spec 4.11 (monitor screening), 9 (model map), 11 (Budget: Glimmer US$10); stack doc "Open-weight model" (Baseten first as a dedicated deployment, Together AI serverless as fallback, OpenAI-compatible; **Corrected 2026-10-27:** was Fireworks AI first).
 - Meta docs `muse-glimmer.md`, `open-weight-models.md`; cookbook `meta-models/meta-oss-cookbook/muse-glimmer` (look up with `python3 scripts/meta-docs.py find glimmer`).
 
 ## Outcome
@@ -48,7 +48,7 @@ An OpenAI-compatible client pointed at the provider's base URL with `GLIMMER_PRO
 1. Record the provider and model ID. Done when: `src/meta/glimmer.ts` names the provider base URL and model ID with the docs URL they came from.
 2. Route calls through the budget guard. Done when: a stubbed test reserves and settles against the `glimmer` cap.
 
-- [ ] Confirm which provider serves Muse Glimmer with the partner credit recorded in D99 T01 §7 (Fireworks first), and record base URL, model ID and per-token prices in `src/meta/glimmer.ts` with the provider's docs URL. Done when: the constants exist; until the key exists this section keeps `third-party` in Needs.
+- [ ] Deploy Muse Glimmer on Baseten (the partner credit in D99 T01 §7) with autoscaling to zero and the shortest scale-down delay Baseten allows, and record its deployment model ID, base URL, the AI Gateway Baseten route and the per-minute price (US$0.10833 per H100 minute) in `src/meta/glimmer.ts` with the provider's docs URL; the US$10 guard counts GPU minutes (deploy, scale and run time) from Baseten's usage, not tokens. Done when: the constants exist and one call through AI Gateway answers; until the key exists this section keeps `third-party` in Needs. (**Corrected 2026-10-27:** was "Fireworks first" with per-token prices; Baseten serves Glimmer only as a dedicated deployment.)
 - [ ] Write `glimmerChat(request, ctx)` using the `openai` SDK with the provider base URL and key, structured output if the provider supports it, else JSON mode with zod validation. Done when: `test/meta/glimmer.test.ts` checks the request with a stubbed transport.
 - [ ] Reserve and settle through `budget.ts` with provider `glimmer` and the US$10 total cap. Done when: the cap test refuses the call past US$10.
 - [ ] Commit: `meta: Glimmer provider client with its budget`

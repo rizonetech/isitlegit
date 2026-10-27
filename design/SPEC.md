@@ -296,7 +296,7 @@ Boards: [PNG](mockups/png/Privacy.png) · [source](mockups/source/Privacy.dc.htm
 
 Controls:
 
-- processors: Cloudflare, Meta Model API with store: false, SMTP2GO, Google Web Risk, Fireworks AI. (Privacy)
+- processors: Cloudflare, Meta Model API with store: false, SMTP2GO, Google Web Risk, Baseten (Muse Glimmer on public lookalike pages only; corrected 2026-10-27, was Fireworks AI). (Privacy)
 - purposes: Mail, account, supplier ledger, feedback. (Privacy)
 - retention: Retention table. (Privacy)
 - information officer: Responsible party and contact hello@isitlegit.co.za. (Privacy)

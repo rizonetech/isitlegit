@@ -26,7 +26,7 @@ track: day-0
 - The Meta Model API shows the US$150 under Billing, "free credits", with a card on file and a US$150 Spend Limit notification, and the key is in the vault.
 - `isitlegit.co.za` is out of `serverHold` and the Cloudflare zone is `active`.
 - The Rizonetech Cloudflare account is on Workers Paid.
-- SMTP2GO, Google Web Risk and Fireworks credentials are in the vault, each named in the stack doc's secrets list.
+- SMTP2GO, Google Web Risk and Baseten credentials are in the vault, each named in the stack doc's secrets list (**Corrected 2026-10-27:** was Fireworks; Glimmer moved to Baseten).
 - The operator's Rizonetech mailbox is a verified Email Routing destination, so the test-mailbox, demo-alert and `conduct@` aliases can forward to it.
 
 **Adjacency:** all=not-applicable (operator account tasks with no product records)
@@ -187,7 +187,7 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 
 ## 7. Partner credits for Glimmer
 
-Muse Glimmer is not on the Meta Model API; it runs through a hosted provider, Fireworks AI first (design spec 4.11). The event offers partner credits to selected participants.
+Muse Glimmer is not on the Meta Model API; it runs through a hosted provider, Baseten first (design spec 4.11; **Corrected 2026-10-27:** was Fireworks AI first). The event offers partner credits to selected participants.
 
 **Phase:** 99
 **Needs:** operator
@@ -199,9 +199,11 @@ Muse Glimmer is not on the Meta Model API; it runs through a hosted provider, Fi
 
 - [ ] Apply for Fireworks AI credits (US$25) through the event's partner offer. Done when: it is recorded here as a line `Partner credit Fireworks: <applied|granted|not offered>, YYYY-MM-DD`.
 - [ ] Apply for Baseten and Modal credits if offered. Done when: each is recorded here as a line `Partner credit <name>: <applied|granted|not offered>, YYYY-MM-DD`.
-- [ ] Store the Fireworks API key in the vault as "IsItLegit Fireworks" once granted. Done when: the vault item exists.
+- [ ] Store the Baseten API key in the vault as "IsItLegit Baseten" (the operator received it by email on 2026-10-27). Done when: the vault item exists. (**Corrected 2026-10-27:** was the Fireworks key; Glimmer moved to Baseten.)
 - [ ] Remove `third-party` from the Needs of D03 T04 §1 and §3 once the key is stored, so the unattended run can take them. Done when: `python3 scripts/todo-graph.py resolve 'D03 T04 §1'` no longer reports the Need. **Corrected 2026-10-27:** §2 is now the Spark screener and never needed the provider; the Glimmer comparison moved to §3.
 - [ ] Commit: `todo: record partner credits`
+
+Partner credit Baseten: granted, 2026-10-27
 
 **Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
 

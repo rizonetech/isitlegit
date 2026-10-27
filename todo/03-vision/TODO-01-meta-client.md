@@ -12,7 +12,7 @@ track: day-1
 
 > **Goal:** Every call to a Meta model (Muse Spark, Muse Wonder, SAM 3.1, Muse Image, Muse Voice Transcribe) and to the hosted Glimmer provider goes through one client that sends `store: false`, refuses any `-contributor` model ID, routes through the AI Gateway with payload logging off, enforces the operator's budget caps in code, records cost and latency per case step for the model trace, caches results by artefact hash, validates structured output with zod, and wraps every piece of hostile content in an untrusted block.
 
-> **Current state:** Measured 2026-10-26 20:00 SAST. No model code exists. D00 T01 §6 creates the AI Gateway custom provider and D00 T01 §7 the smoke test. The budget decision (US$120 Meta total, US$15 a day, US$30 reserve, Fireworks US$10) is in design spec section 11.
+> **Current state:** Measured 2026-10-26 20:00 SAST. No model code exists. D00 T01 §6 creates the AI Gateway custom provider and D00 T01 §7 the smoke test. The budget decision (US$120 Meta total, US$15 a day, US$30 reserve, Glimmer US$10, on Baseten since 2026-10-27) is in design spec section 11.
 
 ## Inputs
 

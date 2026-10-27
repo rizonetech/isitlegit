@@ -128,7 +128,7 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 
 ## 5. Privacy and POPIA page
 
-What data IsItLegit processes, why, for how long (raw mail and attachments deleted after 30 days; case summaries kept), who processes it (Cloudflare, Meta Model API in Standard mode with `store: false`, SMTP2GO, Google Web Risk with URLs stripped of query strings, Fireworks AI for Muse Glimmer on public lookalike web pages only), the information officer, and members' rights under POPIA. **Corrected 2026-10-26:** Fireworks was missing from the processors; case summary retention and the information officer now come from spec section 4.8 (POPIA bullet).
+What data IsItLegit processes, why, for how long (raw mail and attachments deleted after 30 days; case summaries kept), who processes it (Cloudflare, Meta Model API in Standard mode with `store: false`, SMTP2GO, Google Web Risk with URLs stripped of query strings, Baseten for Muse Glimmer on public lookalike web pages only; **Corrected 2026-10-27:** was Fireworks AI), the information officer, and members' rights under POPIA. **Corrected 2026-10-26:** Fireworks was missing from the processors; case summary retention and the information officer now come from spec section 4.8 (POPIA bullet).
 
 **Phase:** 6
 **Needs:** none
