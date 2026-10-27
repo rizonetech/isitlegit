@@ -10,17 +10,17 @@
     "authentication": true,
     "byok_only": false,
     "log_classification": false,
+    "logpush": false,
+    "zdr": false,
     "log_management": 10000000,
     "log_management_strategy": "DELETE_OLDEST",
-    "logpush": false,
     "logpush_public_key": null,
     "rate_limiting_technique": "fixed",
     "retry_backoff": null,
     "retry_delay": null,
     "retry_max_attempts": null,
     "store_id": "",
-    "workers_ai_billing_mode": "postpaid",
-    "zdr": false
+    "workers_ai_billing_mode": "postpaid"
   },
   "provider": {
     "name": "Meta Model API",

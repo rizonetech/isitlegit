@@ -103,7 +103,58 @@ const RECORDED_GATEWAY_FIELDS = GATEWAY_FIELDS.filter((f) => !(CREDENTIALS.gatew
 // request rather than half-applied. A credential-bearing field is refused in the file as it is in the account.
 const count = z.number().int().min(0).nullable();
 const credential = z.never({ error: "can hold a credential, so a snapshot never carries it" }).optional();
-const settings = z.record(z.string(), z.unknown()).nullable().optional();
+const action = z.enum(["FLAG", "BLOCK"]);
+const strings = z.array(z.string());
+const Dlp = z.union([
+  z.object({ action, enabled: z.boolean(), profiles: strings }).strict(),
+  z
+    .object({
+      enabled: z.boolean(),
+      policies: z.array(
+        z
+          .object({
+            id: z.string(),
+            enabled: z.boolean(),
+            action,
+            profiles: strings,
+            check: z.array(z.enum(["REQUEST", "RESPONSE"])),
+          })
+          .strict(),
+      ),
+    })
+    .strict(),
+]);
+const categories = z.partialRecord(z.enum(["P1", ...Array.from({ length: 13 }, (_, i) => `S${i + 1}`)]), action);
+const Guardrails = z.object({ prompt: categories, response: categories }).strict();
+const filter = z.object({ mode: z.literal("filter"), values: strings }).strict();
+const SpendLimits = z
+  .object({
+    enabled: z.boolean().optional(),
+    rules: z
+      .array(
+        z
+          .object({
+            enabled: z.boolean().optional(),
+            id: z
+              .string()
+              .regex(/^[a-zA-Z0-9_-]+$/)
+              .optional(),
+            limit: z.number().positive(),
+            limitType: z.literal("cost"),
+            metadata: z
+              .record(z.string(), z.union([z.object({ mode: z.literal("partition") }).strict(), filter]))
+              .optional(),
+            model: filter.optional(),
+            provider: filter.optional(),
+            technique: z.enum(["fixed", "sliding"]).optional(),
+            window: z.number().int().positive(),
+          })
+          .strict(),
+      )
+      .max(20)
+      .optional(),
+  })
+  .strict();
 const GatewaySettings = z
   .object({
     id: z.literal(GATEWAY),
@@ -125,10 +176,10 @@ const GatewaySettings = z
     retry_delay: z.number().int().min(0).max(60_000).nullable().optional(),
     retry_max_attempts: z.number().int().min(1).max(5).nullable().optional(),
     store_id: z.string().optional(),
-    workers_ai_billing_mode: z.string().min(1).optional(),
-    dlp: settings,
-    guardrails: settings,
-    spend_limits: settings,
+    workers_ai_billing_mode: z.enum(["postpaid", "unified"]).optional(),
+    dlp: Dlp.optional(),
+    guardrails: Guardrails.nullable().optional(),
+    spend_limits: SpendLimits.nullable().optional(),
     otel: credential,
     stripe: credential,
   })
@@ -155,12 +206,22 @@ const PricingRule = z
     model: z.string().min(1),
     model_rule: z.enum(["equals", "starts-with", "contains"]),
     cost_type: z.string().min(1),
+    // Read back per token; derived by Cloudflare from token_pricing, so they must agree with it.
     cost_in: z.number().min(0),
     cost_out: z.number().min(0),
-    token_pricing: z.record(z.string(), z.number().min(0)).nullable(),
+    // US$ per million tokens: the only way Cloudflare takes a rule's prices (it refuses a rule without it).
+    token_pricing: z
+      .object({ input_tokens: z.number().min(0), output_tokens: z.number().min(0) })
+      .catchall(z.number().min(0)),
     enable: z.boolean(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (r) =>
+      Math.abs(r.cost_in - r.token_pricing.input_tokens / 1e6) < 1e-12 &&
+      Math.abs(r.cost_out - r.token_pricing.output_tokens / 1e6) < 1e-12,
+    { message: "cost_in and cost_out must be token_pricing's input and output prices per token", path: ["cost_in"] },
+  );
 export const Snapshot = z
   .object({
     schema: z.literal(1),
@@ -420,6 +481,15 @@ export async function snapshot(options: Options): Promise<Outcome> {
   return end(0);
 }
 
+// Cloudflare takes a pricing rule's prices only as token_pricing, per million tokens, and derives the per-token cost_in
+// and cost_out it reads back (live check 2026-10-27; a per-token cost_in written directly was stored a million times
+// too small, D00 T01 §6). So a write never carries cost_in or cost_out: a price change is sent as token_pricing.
+function ruleForWrite(fields: Raw, whole?: Raw): Raw {
+  const { cost_in, cost_out, ...rest } = fields;
+  const priced = cost_in !== undefined || cost_out !== undefined;
+  return priced && whole && rest.token_pricing === undefined ? { ...rest, token_pricing: whole.token_pricing } : rest;
+}
+
 type Change = { what: string; method: "POST" | "PUT" | "PATCH"; path: string; body: Raw; details: string[] };
 
 // A value as the operator reads it: a logo by its size, prices with their units.
@@ -446,16 +516,24 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
       `${shown(options.file)} does not exist; take one with snapshot, or write an earlier one out with git show`,
     );
   let want: SnapshotData;
+  let raw: unknown;
   try {
-    const parsed = Snapshot.safeParse(JSON.parse(readFileSync(options.file, "utf-8")));
-    if (!parsed.success)
-      return refuse(
-        `${shown(options.file)} is not a snapshot (${issue(parsed.error)}); take a fresh one, or restore an earlier one from git`,
-      );
-    want = parsed.data;
+    raw = JSON.parse(readFileSync(options.file, "utf-8"));
   } catch (error) {
-    return refuse(`${shown(options.file)} cannot be read as JSON (${(error as Error).message}); restore it from git`);
+    // The parser's message quotes the file, which may hold a credential, so only the position is given.
+    const at = /position (\d+)/.exec((error as Error).message)?.[1];
+    const why =
+      error instanceof SyntaxError
+        ? `is not valid JSON${at ? ` (at character ${at})` : ""}`
+        : `cannot be read (${(error as NodeJS.ErrnoException).code})`;
+    return refuse(`${shown(options.file)} ${why}; restore it from git, or take a fresh snapshot`);
   }
+  const parsed = Snapshot.safeParse(raw);
+  if (!parsed.success)
+    return refuse(
+      `${shown(options.file)} is not a snapshot (${issue(parsed.error)}); take a fresh one, or restore an earlier one from git`,
+    );
+  want = parsed.data;
   const c = client(options, say);
   let live: Live;
   try {
@@ -534,7 +612,7 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
         what: `create pricing rule ${rule.model}`,
         method: "POST",
         path: "/custom-providers/costs",
-        body: withoutNulls({ account_provider_id: "{provider}", ...rule }),
+        body: ruleForWrite({ account_provider_id: "{provider}", ...rule }),
         needsProvider: true,
         details: changed(
           [...RULE_FIELDS].filter((f) => f !== "model"),
@@ -550,7 +628,7 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
           what: `update pricing rule ${rule.model} (${differ.join(", ")})`,
           method: "PATCH",
           path: `/custom-providers/costs/${current.id}`,
-          body: Object.fromEntries(differ.map((f) => [f, rule[f]])),
+          body: ruleForWrite(Object.fromEntries(differ.map((f) => [f, rule[f]])), rule),
           details: changed(differ, have, rule),
         });
     }

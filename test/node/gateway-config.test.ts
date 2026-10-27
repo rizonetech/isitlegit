@@ -124,15 +124,30 @@ function cloudflare(state: { gateway: Raw | null; providers: Raw[]; costs: Raw[]
     }
     if (path.startsWith("/custom-providers/costs")) {
       if (method === "GET") return list(state.costs, query);
+      // As Cloudflare answered a live check on 2026-10-27: token_pricing (per million tokens) is required, and the
+      // per-token cost_in and cost_out are derived from it; a cost_in written directly is taken per million.
+      const priced = (tp: { input_tokens: number; output_tokens: number }) => ({
+        token_pricing: JSON.stringify(tp),
+        cost_in: tp.input_tokens / 1e6,
+        cost_out: tp.output_tokens / 1e6,
+      });
       if (method === "POST") {
-        const created = { ...body, id: `r-new-${++next}`, token_pricing: JSON.stringify(body?.token_pricing ?? null) };
+        if (!body?.token_pricing || typeof body.token_pricing !== "object")
+          return json({ errors: [{ code: 7001, message: "token_pricing object must be provided" }] }, 400);
+        const created = { ...body, id: `r-new-${++next}`, ...priced(body.token_pricing as never) };
         state.costs.push(created);
         return json({ result: created });
       }
       const found = state.costs.find((c) => c.id === path.split("/").at(-1));
       if (!found) return json({ errors: [{ code: 7002 }] }, 404);
       if (method === "PATCH") {
-        Object.assign(found, body, body?.token_pricing ? { token_pricing: JSON.stringify(body.token_pricing) } : {});
+        Object.assign(
+          found,
+          body,
+          typeof body?.cost_in === "number" ? { cost_in: body.cost_in / 1e6 } : {},
+          typeof body?.cost_out === "number" ? { cost_out: body.cost_out / 1e6 } : {},
+          body?.token_pricing ? priced(body.token_pricing as never) : {},
+        );
         return json({ result: found });
       }
       if (method === "DELETE") {
@@ -280,7 +295,11 @@ describe("scripts/gateway-config.ts restore", () => {
     const priced = await restore(options(changed.fetchStub));
     expect(priced.code, failed(priced.lines)).toBe(0);
     expect(changed.writes()).toEqual([
-      { method: "PATCH", path: "/custom-providers/costs/r-spark", body: { cost_out: 4.25e-6 } },
+      {
+        method: "PATCH",
+        path: "/custom-providers/costs/r-spark",
+        body: { token_pricing: { input_tokens: 1.25, output_tokens: 4.25, input_cached_tokens: 0.15 } },
+      },
     ]);
     expect(failed(priced.lines)).toMatch(/the live pricing rule muse-image-1 is not in .*; it is kept/);
     expect(changed.state.costs).toHaveLength(3);
@@ -378,6 +397,75 @@ describe("scripts/gateway-config.ts restore", () => {
       expect(failed(outcome.lines), label).not.toContain("Bearer x");
     }
     expect(world.requests).toEqual([]);
+  });
+
+  it("never quotes a malformed file, which may hold a credential (round 1)", async () => {
+    writeFileSync(FILE, '{"provider": {"headers": FAKE_SECRET_VALUE}}');
+    const world = cloudflare(live());
+    const outcome = await restore(options(world.fetchStub));
+    expect(outcome.code).toBe(2);
+    expect(failed(outcome.lines)).toMatch(/is not valid JSON( \(at character \d+\))?; restore it from git/);
+    expect(failed(outcome.lines)).not.toMatch(/FAKE|SECRE/);
+    expect(world.requests).toEqual([]);
+  });
+
+  it("writes prices only as token_pricing, per million tokens, so a restored rule reads back at its price (round 1)", async () => {
+    const want = await take();
+    const world = cloudflare({ ...live(), costs: [rules()[1] as Raw] });
+    const outcome = await restore(options(world.fetchStub));
+    expect(outcome.code, failed(outcome.lines)).toBe(0);
+    const [created] = world.writes();
+    expect(created?.body).not.toHaveProperty("cost_in");
+    expect(created?.body).not.toHaveProperty("cost_out");
+    expect(created?.body?.token_pricing).toEqual({
+      input_tokens: 1.25,
+      output_tokens: 4.25,
+      input_cached_tokens: 0.15,
+    });
+    const spark = world.state.costs.find((c) => c.model === "muse-spark-1.3");
+    expect([spark?.cost_in, spark?.cost_out]).toEqual([want.rules[0]?.cost_in, want.rules[0]?.cost_out]);
+    // A file whose per-token costs disagree with its token_pricing is refused before any request.
+    writeFileSync(FILE, JSON.stringify({ ...want, rules: [{ ...want.rules[0], cost_in: 1.25 }, want.rules[1]] }));
+    const fresh = cloudflare(live());
+    const refused = await restore(options(fresh.fetchStub));
+    expect(refused.code).toBe(2);
+    expect(failed(refused.lines)).toMatch(/rules\.0\.cost_in: cost_in and cost_out must be token_pricing's/);
+    writeFileSync(FILE, JSON.stringify({ ...want, rules: [{ ...want.rules[0], token_pricing: null }] }));
+    expect((await restore(options(fresh.fetchStub))).code).toBe(2);
+    expect(fresh.requests).toEqual([]);
+  });
+
+  it("checks the gateway's nested settings against Cloudflare's schema before any request (round 1)", async () => {
+    const want = await take();
+    const cases: [string, Raw, RegExp][] = [
+      ["dlp with a string flag", { dlp: { enabled: "false" } }, /gateway\.dlp/],
+      ["a guardrail of a number", { guardrails: { prompt: 42, response: {} } }, /gateway\.guardrails\.prompt/],
+      [
+        "a spend limit with no window",
+        { spend_limits: { enabled: true, rules: [{ limitType: "cost", limit: 5 }] } },
+        /gateway\.spend_limits\.rules\.0\.window/,
+      ],
+      ["an unknown billing mode", { workers_ai_billing_mode: "invalid" }, /gateway\.workers_ai_billing_mode/],
+    ];
+    const world = cloudflare(live());
+    for (const [label, extra, why] of cases) {
+      writeFileSync(FILE, JSON.stringify({ ...want, gateway: { ...want.gateway, ...extra } }));
+      const outcome = await restore({ ...options(world.fetchStub), dry: true });
+      expect(outcome.code, label).toBe(2);
+      expect(failed(outcome.lines), label).toMatch(why);
+    }
+    expect(world.requests).toEqual([]);
+    // Valid nested settings pass, and are shown as a change.
+    const good = {
+      dlp: { action: "FLAG", enabled: true, profiles: ["p1"] },
+      guardrails: { prompt: { P1: "BLOCK" }, response: { S3: "FLAG" } },
+      spend_limits: { enabled: true, rules: [{ limitType: "cost", limit: 5, window: 86_400 }] },
+      workers_ai_billing_mode: "postpaid",
+    };
+    writeFileSync(FILE, JSON.stringify({ ...want, gateway: { ...want.gateway, ...good } }));
+    const dry = await restore({ ...options(world.fetchStub), dry: true });
+    expect(dry.code, failed(dry.lines)).toBe(0);
+    expect(failed(dry.lines)).toMatch(/would update gateway isitlegit \(.*dlp.*guardrails.*spend_limits/);
   });
 
   it("keeps an interrupt's inventory current: before, during and after a write (G2)", async () => {
@@ -572,7 +660,7 @@ describe("scripts/gateway-config.ts restore", () => {
       /does not exist; take one with snapshot, or write an earlier one out with git show/,
     );
     writeFileSync(FILE, "{ not json");
-    expect(failed((await restore(options(world.fetchStub))).lines)).toMatch(/cannot be read as JSON/);
+    expect(failed((await restore(options(world.fetchStub))).lines)).toMatch(/is not valid JSON/);
     const want = await take();
     world.requests.length = 0;
     const bad = { ...want, rules: [{ ...want.rules[0], cost_in: "cheap" }] };
