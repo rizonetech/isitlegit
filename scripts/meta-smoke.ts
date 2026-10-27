@@ -6,8 +6,9 @@
 //   Spark image     muse-spark-1.3 reads a random code printed only on test/fixtures/meta-smoke/code-card.png.
 //   SAM 3.1         sam-3.1, streamed to `response.completed` and parsed with @meta-sam/parser, finds the logo on
 //                   logo-card.png (a box overlapping its known area).
-//   Wonder          muse-wonder-1.0 with the computer tool clicks Continue on continue-page.png (a screenshot; no
-//                   browser is driven and no URL is opened).
+//   Wonder          muse-wonder-1.0, given a `click(x, y)` function, clicks Continue on continue-page.png (a screenshot;
+//                   no browser is driven and no URL is opened). Meta's native computer tool is refused for our key, so
+//                   function tools are the design (operator, 2026-10-27; D04 T02).
 //
 // Every request carries `store: false`, an output ceiling, the gateway's Run token and `cf-aig-collect-log: true` with
 // `cf-aig-collect-log-payload: false`; no `-contributor` model is ever sent (Meta's terms, spec 4.8). Before any call
@@ -110,7 +111,9 @@ export function plannedCalls(fx: Fixtures): Planned[] {
       stream: false,
       body: {
         model: "muse-wonder-1.0",
-        tools: [{ type: "computer" }],
+        tools: [CLICK_TOOL],
+        // Meta allows only "auto" here.
+        tool_choice: "auto",
         input: userInput("Click the Continue button.", fx.images.page),
         store: false,
         max_output_tokens: 2048,
@@ -135,14 +138,18 @@ const overlap = (a: number[], b: number[]) => {
   return union > 0 ? (w * h) / union : 0;
 };
 
-const ComputerCall = z.object({
-  type: z.literal("computer_call"),
-  call_id: z.string(),
-  actions: z
-    .array(z.object({ type: z.string(), x: z.number().optional(), y: z.number().optional() }).passthrough())
-    .min(1),
-  pending_safety_checks: z.array(z.unknown()).optional(),
-});
+const CLICK_TOOL = {
+  type: "function",
+  name: "click",
+  description: "Click the left mouse button at a point on the screenshot, in pixels from its top-left corner.",
+  parameters: {
+    type: "object",
+    properties: { x: { type: "integer" }, y: { type: "integer" } },
+    required: ["x", "y"],
+    additionalProperties: false,
+  },
+};
+const ClickArguments = z.object({ x: z.number(), y: z.number() }).strict();
 
 // What each call's answer must show, given the fixtures' known facts.
 export function judge(name: string, fx: Fixtures, answer: unknown): Check {
@@ -160,19 +167,24 @@ export function judge(name: string, fx: Fixtures, answer: unknown): Check {
   }
   if (name === "Wonder") {
     const items = (answer as { output?: unknown[] })?.output ?? [];
-    const call = items.find((i) => (i as { type?: unknown })?.type === "computer_call");
-    if (!call) return { ok: false, detail: `no computer_call; returned ${JSON.stringify(excerpt ?? null)}` };
-    const parsed = ComputerCall.safeParse(call);
-    if (!parsed.success) return { ok: false, detail: `a malformed computer_call: ${parsed.error.issues[0]?.message}` };
-    if ((parsed.data.pending_safety_checks ?? []).length > 0)
-      return { ok: false, detail: "the action came with a pending safety check" };
-    const first = parsed.data.actions[0] as { type: string; x?: number; y?: number };
+    const call = items.find((i) => (i as { type?: unknown })?.type === "function_call") as
+      | { name?: unknown; arguments?: unknown }
+      | undefined;
+    if (!call) return { ok: false, detail: `no function call; returned ${JSON.stringify(excerpt ?? null)}` };
+    if (call.name !== "click") return { ok: false, detail: `called ${String(call.name)}, not click` };
+    let args: unknown;
+    try {
+      args = JSON.parse(String(call.arguments));
+    } catch {
+      return { ok: false, detail: "the click's arguments are not JSON" };
+    }
+    const parsed = ClickArguments.safeParse(args);
+    if (!parsed.success) return { ok: false, detail: `malformed click arguments: ${parsed.error.issues[0]?.message}` };
+    const { x, y } = parsed.data;
     const [l, t, r, b] = fx.buttonBox;
-    if (first.type !== "click" || first.x === undefined || first.y === undefined)
-      return { ok: false, detail: `the first action was ${first.type}, not a click` };
-    return first.x >= l && first.x <= r && first.y >= t && first.y <= b
-      ? { ok: true, detail: `clicked Continue at (${first.x}, ${first.y})` }
-      : { ok: false, detail: `clicked (${first.x}, ${first.y}), outside the button (${l}, ${t})-(${r}, ${b})` };
+    return x >= l && x <= r && y >= t && y <= b
+      ? { ok: true, detail: `clicked Continue at (${x}, ${y})` }
+      : { ok: false, detail: `clicked (${x}, ${y}), outside the button (${l}, ${t})-(${r}, ${b})` };
   }
   return { ok: false, detail: `no judge for ${name}` };
 }

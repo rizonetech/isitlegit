@@ -12,6 +12,8 @@ track: day-4
 
 > **Goal:** When a link leads to a page with a form or a lure button, Muse Wonder drives a contained Browser Run session with its computer tool: it clicks through "view document" lures to the real credential page, types per-case canary credentials, and the report shows the chain of pages, the domain that would have received the password and whether the canary was accepted; the driver, not the model, enforces 8 steps, 60 seconds, http(s) only, no downloads and canary-only typing.
 
+> **Corrected 2026-10-27 (operator decision, D00 T01 §7):** Meta's API refuses the native computer tool for our key (`Unsupported tool type: 'computer'`, direct and through the gateway, though `computer-use.md` documents it), and allows `tool_choice` only as `"auto"`. Muse Wonder drives the page through our own function tools instead (`click`, `type`, `scroll`, `keypress`, `wait`, `screenshot`, each a Responses API `function` tool returning `function_call` items), Meta's own cookbook approach (`03_use_cases/12_computer_use`); the smoke test proved Wonder clicks the right button through a `click(x, y)` function. Where this file says `computer_call` or the native computer tool, read the function calls; the sections rewrite those items when they start.
+
 > **Current state:** Measured 2026-10-26 20:00 SAST. No walkthrough code exists. Fixture sites imitate fictional brands only, on `fixtures.isitlegit.co.za` (design spec section 11).
 
 ## Inputs

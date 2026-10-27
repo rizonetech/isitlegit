@@ -34,11 +34,11 @@ const message = (text: string, usage = { input_tokens: 100, output_tokens: 10 },
   output_text: text,
   usage,
 });
-const click = (x: number, y: number, extra: object = {}) => ({
+const click = (x: number, y: number, name = "click") => ({
   id: "resp",
   object: "response",
   status: "completed",
-  output: [{ type: "computer_call", call_id: "c1", actions: [{ type: "click", button: "left", x, y }], ...extra }],
+  output: [{ type: "function_call", call_id: "c1", name, arguments: JSON.stringify({ x, y }) }],
   usage: { input_tokens: 2000, output_tokens: 50 },
 });
 const price = { "muse-spark-1.3": [1.25, 4.25], "muse-wonder-1.0": [4, 20] } as const;
@@ -215,16 +215,16 @@ describe("scripts/meta-smoke.ts", () => {
     }
   });
 
-  it("fails Wonder for a click outside the button, a typed action, a refusal and a pending safety check", async () => {
+  it("fails Wonder for a click outside the button, another function, malformed arguments and no call", async () => {
     const json = (b: unknown) => () =>
       new Response(JSON.stringify(b), { headers: { "content-type": "application/json" } });
-    const typed = click(640, 450);
-    (typed.output[0] as { actions: object[] }).actions = [{ type: "type", text: "Continue" }];
+    const malformed = click(640, 450);
+    (malformed.output[0] as { arguments: string }).arguments = '{"x":"middle"}';
     const cases: [object, RegExp][] = [
       [click(100, 100), /outside the button/],
-      [typed, /was type, not a click/],
-      [message("I cannot help with that."), /no computer_call/],
-      [click(640, 450, { pending_safety_checks: [{ id: "s1", code: "malicious_instructions" }] }), /safety check/],
+      [click(640, 450, "type"), /called type, not click/],
+      [malformed, /malformed click arguments/],
+      [message("I cannot help with that."), /no function call/],
     ];
     for (const [answer, why] of cases) {
       const outcome = await live(world({ answers: { wonder: json(answer) } }).fetchStub).run;
