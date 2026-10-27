@@ -301,7 +301,15 @@ describe("scripts/check-gateway-tokens.ts", () => {
     child.kill("SIGINT");
     expect(await exited).toBe(130);
     expect(stderr).toContain("check-gateway-tokens: interrupted");
+    // Running, not merely unreaped: a killed process whose parent has exited stays a zombie until init reaps it, which
+    // can lag under load, and kill(pid, 0) still finds a zombie. /proc names its state (Z); elsewhere kill(pid, 0) decides.
     const alive = () => {
+      try {
+        const stat = readFileSync(`/proc/${stalled}/stat`, "utf-8");
+        return stat.slice(stat.lastIndexOf(")") + 2, stat.lastIndexOf(")") + 3) !== "Z";
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT" && existsSync("/proc/self")) return false;
+      }
       try {
         process.kill(stalled, 0);
         return true;
