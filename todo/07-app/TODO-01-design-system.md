@@ -297,26 +297,34 @@ Evidence 2026-10-27 06:58 SAST. `pnpm test`: 11 files, 68 tests, including `test
 
 ## 7. Verdict band, evidence card and severity
 
+> **Started:** 2026-10-27T06:19:25Z
+
 How a verdict and its evidence look on every report.
+
+**Corrected 2026-10-27** (validation before build): the section built severity as "icon plus text" (`ui.css` `.sev`), but no board draws that: every report board (`Main`, `Report-Safe`, `Report-Partial`, `Report-Running`) shows severity as a pill carrying the evidence id and the level ("E7 · Critical"), coloured by level, and each of the three reasons links to its card with an "E7" pill. The verdict band also carries the verdict's motion art on a white tile, which the section did not name or serve, and its phone layout (`Report-Mobile`) differs. The verdict pill words come from the case table (`Cases`). Each is an item below; the report page that assembles them is D07 T03.
 
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M3 (verdict banner, evidence cards with severity pills), boards `Main`, `Report-Safe`, `Report-Partial`, `Report-Running`, values from `design/mockups/source/ui.css` (`.band`, `.card`, `.sev`)
+**Fidelity:** `design/SPEC.md` M3 (verdict banner, three reasons led by evidence pills, evidence cards with severity pills), boards `Main`, `Report-Safe`, `Report-Partial`, `Report-Running`, `Report-Mobile` (the band at phone width) and `Cases` (the verdict pills), values from `design/mockups/source/ui.css` (`.band`, `.card`, `.pill`)
 **Job:** a reader sees the verdict first and each finding with its proof
-**Treatment:** tokens only, the verdict as text and icon as well as colour
-**Chrome:** this section defines `VerdictBand`, `VerdictBadge`, `EvidenceCard` and `Severity`
+**Treatment:** tokens only; the verdict and every severity as words as well as colour; the art decorative (`alt=""`), the words carrying the meaning
+**Chrome:** this section defines `VerdictBand`, `VerdictBadge`, `SeverityPill`, `EvidenceRef`, `EvidenceCard`, `EvidenceFigure` and `EvidenceQuote`, built on `Pill` (§6)
 
 **Build order:**
 
-1. Build the verdict and evidence components. Done when: each renders every variant from the boards.
+1. Serve the verdict art and build the band and badge. Done when: each verdict renders with its colours, words and art at desktop and phone width.
+2. Build severity and the evidence card. Done when: every level and card layout renders from the boards, and a reason's pill jumps to its card.
 
-- [ ] Build `VerdictBand` (`malicious`, `suspicious`, `safe`, `partial`, `running`) with its eyebrow ("Verdict · confidence"), headline and one sentence, and `VerdictBadge` as the matching `Pill`. Done when: `test/node/verdict.test.tsx` renders every variant with its band colours and the verdict word as text. Source: SPEC M3, board `Main`.
-- [ ] Build `Severity` (critical, high, medium, low, info) as icon plus text. Done when: the test finds the word in each level.
-- [ ] Build `EvidenceCard` with an id, a severity, a title, a summary, a detail and one artefact (an image, a crop, a header excerpt). Done when: the test renders one card of each artefact kind and finds the severity and title in each.
+- [ ] Serve the verdict art: `scripts/hash-asset.ts` copies `malicious.svg`, `suspicious.svg`, `safe.svg`, `question.svg` and `checking-animated.svg` from `design/brand/motion/` to `public/static/brand/motion/<name>.<hash>.svg`, exported from `src/web/assets.ts` as `MOTION` (`malicious`, `suspicious`, `safe`, `question`, `checking`) and kept by its prune. Done when: `test/node/hash-asset.test.ts`, `test/node/assets.test.ts` and `test/node/serve.test.ts` cover them (fingerprinted, `image/svg+xml`, immutable cache).
+- [ ] Build `VerdictBand` in `src/web/components/Verdict.tsx` as a `<section aria-label="Verdict">` with variants `malicious`, `suspicious`, `safe`, `partial` (a check that failed: "Check failed · no verdict") and `running`: the art tile (white, 88 px, radius `card-large`, the art 72 px: malicious, suspicious, safe, question for partial, checking for running, whose animation stops under reduced motion), the eyebrow ("Malicious · high confidence"; 14 px, 700, uppercase, 0.1em), the headline (`h2` by default, a heading level the page may set; 30 px built 32) and one sentence (17 px); the band `bg-<verdict>-band` with `text-on-band`, and `running` on `bg-orange-wash` with `text-ink` and an `orange-text` eyebrow; padding 28 by 32, gap 24, radius `card-large`. Below `md` (`Report-Mobile`) it stacks: the tile at 56 px (52 built 56) beside the 13 px eyebrow, then the 24 px headline and the 16 px sentence, padding 20, gap 16. Done when: `test/node/verdict.test.tsx` renders every variant with its token classes, words and art, and refuses an empty headline. Source: SPEC M3, boards `Main`, `Report-Safe`, `Report-Partial`, `Report-Running`, `Report-Mobile`. Cheaper substitute: a coloured box with no words, which colour-blind readers cannot read.
+- [ ] Build `VerdictBadge` as the matching `Pill` for a case row: malicious "Malicious", suspicious "Suspicious", safe "Safe", partial "Partial", running "Checking". Done when: the test renders each with its pill variant and word. Source: board `Cases`.
+- [ ] Build `SeverityPill` ("E7 · Critical") for levels `critical` and `high` (malicious pill), `medium` (suspicious), `low` (neutral), `info` (safe) and `not-checked` (partial, "Not checked"), and `EvidenceRef`, the reasons' link pill ("E7", the same colour, to `#e7`) named "Evidence E7, critical" for a screen reader with the visible "E7" first, and with the shared focus ring. Done when: the test renders every level with its words and pill classes, and `EvidenceRef`'s `href` and accessible name. Source: boards `Main`, `Report-Safe`, `Report-Partial`, `Report-Running`.
+- [ ] Build `EvidenceCard` as an `<article>` with its id (`e7`, the reasons' anchor), a `SeverityPill`, a title (`h4` by default), optional meta on the right ("6 steps · 31 s · contained browser"), its proof as children and an optional footnote (13 px, muted), in the two layouts the boards draw: `split` (a header bar with a bottom border over a padded body, `Main` E7) and `compact` (one padded column, gap 12 for the board's 10, `Main` E4); and the two proof parts the boards repeat: `EvidenceFigure` (a framed 150 px box built 152, `subtle` with a `line` border, and its caption) and `EvidenceQuote` (quoted text in the code style). Done when: the test renders both layouts with each part and finds the id, pill, title, meta and footnote. Cheaper substitute: one card shape for every finding.
+- [ ] Prove the parts in Chromium: an `EvidenceRef` jumps to its card (the card is the `:target` and in view), its focus ring is 3:1 or more against the reason it sits in, in both themes; the band's words meet 4.5:1 on every variant in both themes; at 360 px the band and a `split` card with three figures have no horizontal overflow. Done when: `test/node/verdict-browser.test.tsx` passes, and fails when `EvidenceRef` loses its focus ring.
 - [ ] Commit: `web: verdict band, evidence card and severity`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx` passes.
+**Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/node/verdict-browser.test.tsx` passes: every verdict, severity and card layout from the boards, the jump from a reason to its card, contrast in both themes, and the phone width.
 
 ## 8. Empty, loading, error and partial states
 
