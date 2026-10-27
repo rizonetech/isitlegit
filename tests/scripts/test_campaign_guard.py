@@ -64,7 +64,8 @@ class Workspace(unittest.TestCase):
         self.write(".gitignore", "build/\nscripts/ready.txt\nscripts/open.txt\n")
         self.ready(3)
         self.write(RUN_FILE, "# Phase run: Phase 0\n\n## Critical events\n")
-        for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
+        # No auto maintenance: newer git detaches it after a commit and it can outlive the test's temporary directory.
+        for args in (["init", "-q"], ["config", "maintenance.auto", "false"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
                      ["config", "commit.gpgsign", "false"], ["add", "-A"], ["commit", "-qm", "seed"]):
             subprocess.run(["git", *args], cwd=self.root, capture_output=True, check=True)
 

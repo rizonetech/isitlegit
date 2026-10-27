@@ -48,7 +48,8 @@ class PreCommitHook(unittest.TestCase):
         (todo / "INDEX.md").write_text("# Index\n- TODO-01-a.md\n", encoding="utf-8")
         (self.root / "todo/TODO-00-INDEX.md").write_text("# Index\n- 00-workspace/TODO-01-a.md\n", encoding="utf-8")
         self.sync()
-        for args in (["init", "-q"], ["config", "user.email", "t@example.com"], ["config", "user.name", "T"],
+        # No auto maintenance: newer git detaches it after a commit and it can outlive the test's temporary directory.
+        for args in (["init", "-q"], ["config", "maintenance.auto", "false"], ["config", "user.email", "t@example.com"], ["config", "user.name", "T"],
                      ["config", "core.autocrlf", "false"], ["add", "-A"], ["commit", "-qm", "seed"],
                      ["config", "core.hooksPath", "scripts/hooks"]):
             self.git(*args)

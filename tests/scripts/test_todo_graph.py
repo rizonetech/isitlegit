@@ -443,7 +443,9 @@ class Stamp(Tree):
         report_path.write_text("# Review findings\n\n" + envelope(1), encoding="utf-8")
         (self.root / ".conclave").mkdir()
         (self.root / tg.PIN).write_text(UNIFORM_PIN, encoding="utf-8")
-        for args in (["init", "-q"], ["config", "user.email", "t@example.com"],
+        # No auto maintenance: newer git detaches it after a commit, and it can still be writing .git/objects/pack when
+        # tearDown removes the repository ("Directory not empty", seen on the GitHub runner).
+        for args in (["init", "-q"], ["config", "maintenance.auto", "false"], ["config", "user.email", "t@example.com"],
                      ["config", "user.name", "T"], ["add", "-A"], ["commit", "-qm", "x"]):
             subprocess.run(["git", "-C", str(self.root), *args], check=True)
         self.sha = self.head()
