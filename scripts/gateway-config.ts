@@ -387,6 +387,10 @@ function credentialsSet(live: Live): string[] {
   return [
     ...CREDENTIALS.gateway.filter((f) => live.gateway && set(live.gateway[f])).map((f) => `the gateway's ${f}`),
     ...CREDENTIALS.provider.filter((f) => live.provider && set(live.provider[f])).map((f) => `the provider's ${f}`),
+    // A URL with a user name or password is a credential too, checked before any value is shown.
+    ...(["base_url", "link"] as const)
+      .filter((f) => live.provider && typeof live.provider[f] === "string" && !withoutUserInfo(live.provider[f]))
+      .map((f) => `the provider's ${f} (a user name or password in the URL)`),
   ];
 }
 const credentialRefusal = (fields: string[]) =>

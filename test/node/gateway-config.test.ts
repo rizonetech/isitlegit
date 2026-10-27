@@ -420,9 +420,22 @@ describe("scripts/gateway-config.ts restore", () => {
     });
     const refused = await snapshot(options(keyed.fetchStub));
     expect(refused.code).toBe(2);
-    expect(failed(refused.lines)).toMatch(/provider\.base_url: carries a user name or password/);
+    expect(failed(refused.lines)).toMatch(/the provider's base_url \(a user name or password in the URL\) is set/);
     expect(failed(refused.lines)).not.toContain("SYNTHETIC_PASSWORD");
     expect(readFileSync(FILE, "utf-8")).toBe("the previous snapshot\n");
+    // In the account, a restore refuses before showing any value, dry or not (round 3).
+    await take();
+    for (const dry of [true, false]) {
+      const account = cloudflare({
+        ...live(),
+        providers: [{ ...provider(), base_url: "https://user:SYNTHETIC_PASSWORD@api.meta.ai" }],
+      });
+      const outcome = await restore({ ...options(account.fetchStub), dry });
+      expect(outcome.code).toBe(2);
+      expect(failed(outcome.lines)).toMatch(/the provider's base_url \(a user name or password in the URL\) is set/);
+      expect(failed(outcome.lines)).not.toContain("SYNTHETIC_PASSWORD");
+      expect(account.writes()).toEqual([]);
+    }
   });
 
   it("refuses a file over 1 MiB before reading it (round 2)", async () => {
