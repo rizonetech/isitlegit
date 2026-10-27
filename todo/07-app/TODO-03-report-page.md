@@ -111,6 +111,7 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 - [ ] Serve artefacts through `GET /a/:caseId/:key` with the same access rule as the report and `Content-Disposition: inline` for images only. Done when: another organisation's request gets 404 and an HTML artefact is served as `text/plain`.
 - [ ] Render reputation cards with provider, what was listed, when, and the delisting link (spec 4.3a). Done when: the listing fixture shows all four.
 - [ ] Order cards by severity, then by the order the verdict cites them. Done when: the test checks the order.
+- [ ] Show an evidence item whose stored object is gone as unavailable, not broken (**added 2026-10-27**, D01 T01 §2's completion review): `readArtefact` answers `missing` for a raw object past the 30-day rule (D00 T01 §5), and the card says the original file was deleted after 30 days for privacy while the finding and the verdict stay readable; a `StoreError` with code `storage` is shown as a temporary failure to retry, never as expiry. Done when: `test/web/evidence-cards.test.ts` renders a missing attachment as expired with the report still whole, and a storage failure as retryable.
 - [ ] Commit: `web: evidence cards by kind`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes and fails if an HTML artefact is served as HTML.

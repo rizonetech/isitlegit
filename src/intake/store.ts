@@ -89,7 +89,8 @@ const hex = (buffer: ArrayBuffer | undefined) =>
 
 type Row = { r2_key: string; case_id: string; kind: Kind; sha256: string; media_type: string; bytes: number };
 
-async function write(store: Store, item: Stored, body: Uint8Array): Promise<Stored> {
+async function write(store: Store, wanted: Stored, body: Uint8Array): Promise<Stored> {
+  let item = wanted;
   let created: R2Object | null;
   try {
     created = await store.bucket.put(item.key, body, {
@@ -110,6 +111,9 @@ async function write(store: Store, item: Stored, body: Uint8Array): Promise<Stor
     }
     if (hex(existing?.checksums.sha256) !== item.sha256)
       throw new StoreError("conflict", `${item.key} already holds other content`);
+    // The stored object's media type wins: the same bytes declared differently by a later writer are recorded as the
+    // object already holds them, so R2, D1 and the answer agree.
+    item = { ...item, mediaType: existing?.httpMetadata?.contentType ?? item.mediaType };
   }
   let row: Row | null;
   try {
@@ -199,10 +203,11 @@ export async function readArtefact(
     mediaType: row.media_type,
     bytes: row.bytes,
   };
+  // The body is read inside the same boundary: a transfer cut off after the headers is a storage failure too.
   try {
     object = await store.bucket.get(key);
+    return object ? { stored, body: new Uint8Array(await object.arrayBuffer()) } : { stored, missing: true };
   } catch (error) {
     throw new StoreError("storage", `reading ${key}: ${(error as Error).message}`);
   }
-  return object ? { stored, body: new Uint8Array(await object.arrayBuffer()) } : { stored, missing: true };
 }

@@ -32,7 +32,7 @@ async function newCase(): Promise<string> {
 const rows = async (caseId: string) =>
   (await env.DB.prepare("SELECT * FROM artefacts WHERE case_id = ? ORDER BY r2_key").bind(caseId).all()).results;
 // A store whose R2 and D1 calls are counted, and whose next calls can be made to fail or to alter the body.
-function watched(options: { failPut?: number; failInsert?: number; corrupt?: boolean } = {}) {
+function watched(options: { failPut?: number; failInsert?: number; corrupt?: boolean; failBody?: number } = {}) {
   const calls = { put: 0, head: 0, get: 0, prepare: 0 };
   const bucket = new Proxy(env.ARTEFACTS, {
     get(target, key) {
@@ -42,10 +42,24 @@ function watched(options: { failPut?: number; failInsert?: number; corrupt?: boo
           if (options.failPut && options.failPut-- > 0) throw new Error("R2 unavailable");
           return target.put(k, options.corrupt ? bytes("tampered") : body, opts);
         };
-      if (key === "head" || key === "get")
+      if (key === "head")
         return (k: string) => {
-          calls[key]++;
-          return target[key](k);
+          calls.head++;
+          return target.head(k);
+        };
+      if (key === "get")
+        return async (k: string) => {
+          calls.get++;
+          const object = await target.get(k);
+          if (!object || !(options.failBody && options.failBody-- > 0)) return object;
+          // The headers arrived; the body is cut off.
+          return new Proxy(object, {
+            get(o, m) {
+              if (m === "arrayBuffer") return () => Promise.reject(new Error("network connection lost"));
+              const value = Reflect.get(o, m);
+              return typeof value === "function" ? value.bind(o) : value;
+            },
+          });
         };
       const value = Reflect.get(target, key);
       return typeof value === "function" ? value.bind(target) : value;
@@ -215,6 +229,63 @@ describe("storing and reading", () => {
     );
     expect(await rows(caseId)).toHaveLength(0);
   });
+
+  it("records the stored object's media type when a later writer declares the same bytes differently", async () => {
+    // Writer A creates the object, then its row fails; writer B, the same bytes as text/html, completes it.
+    const caseId = await newCase();
+    const a = watched({ failInsert: 1 });
+    await expect(putAttachment(a.store, caseId, "part.txt", bytes("same bytes"), "text/plain")).rejects.toEqual(
+      refusal("database"),
+    );
+    const b = await putAttachment(store, caseId, "part.txt", bytes("same bytes"), "text/html");
+    const row = (await rows(caseId))[0];
+    const head = await env.ARTEFACTS.head(b.key);
+    expect([b.mediaType, row?.media_type, head?.httpMetadata?.contentType]).toEqual([
+      "text/plain",
+      "text/plain",
+      "text/plain",
+    ]);
+    // Two overlapping writers declaring different types: all three agree on whichever object won.
+    const other = await newCase();
+    const [x, y] = await Promise.all([
+      putAttachment(store, other, "p.bin", bytes("race"), "application/octet-stream"),
+      putAttachment(store, other, "p.bin", bytes("race"), "image/png"),
+    ]);
+    const winner = (await env.ARTEFACTS.head(x.key))?.httpMetadata?.contentType;
+    expect([x.mediaType, y.mediaType, (await rows(other))[0]?.media_type]).toEqual([winner, winner, winner]);
+  });
+
+  it("reports a body cut off after its headers as a storage failure, and reads it on retry", async () => {
+    const caseId = await newCase();
+    const stored = await putAttachment(store, caseId, "cut.txt", bytes("whole body"), "text/plain");
+    const flaky = watched({ failBody: 1 });
+    await expect(readArtefact(flaky.store, caseId, stored.key)).rejects.toEqual(refusal("storage"));
+    const read = await readArtefact(flaky.store, caseId, stored.key);
+    expect(read && "body" in read && new TextDecoder().decode(read.body)).toBe("whole body");
+  });
+
+  it("stores and reads back a 25 MiB attachment, the intake limit, within its time budget", async () => {
+    const times = { write: [] as number[], read: [] as number[] };
+    const big = new Uint8Array(25 * 1024 * 1024);
+    for (let i = 0; i < big.length; i += 4096) big[i] = i % 251;
+    for (let run = 0; run < 3; run++) {
+      const caseId = await newCase();
+      let start = performance.now();
+      const stored = await putAttachment(store, caseId, "large.pdf", big, "application/pdf");
+      times.write.push(performance.now() - start);
+      start = performance.now();
+      const read = await readArtefact(store, caseId, stored.key);
+      times.read.push(performance.now() - start);
+      expect(read && "body" in read && read.body.byteLength).toBe(big.byteLength);
+      expect(stored.sha256).toBe(await hexOf(big));
+    }
+    const p95 = (list: number[]) => [...list].sort((a, b) => a - b)[Math.ceil(list.length * 0.95) - 1] as number;
+    console.info(
+      `25 MiB local Miniflare: write ${times.write.map(Math.round)} ms, read ${times.read.map(Math.round)} ms`,
+    );
+    expect(p95(times.write)).toBeLessThan(15_000);
+    expect(p95(times.read)).toBeLessThan(15_000);
+  }, 120_000);
 
   it("reads an object that is gone as missing, and another case's key as not found", async () => {
     const caseId = await newCase();

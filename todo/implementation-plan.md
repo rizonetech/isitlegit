@@ -26,12 +26,12 @@ Sections: 11 | Checklist items: 129
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 32 | Checklist items: 215
+Sections: 32 | Checklist items: 216
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
 | [x]    | D01 T01 §1 | Core D1 schema and migration runner        | none                  | 12    |
-| [ ]    | D01 T01 §2 | Case store and R2 artefact layout          | none                  | 5     |
+| [ ]    | D01 T01 §2 | Case store and R2 artefact layout          | none                  | 6     |
 | [ ]    | D01 T01 §8 | Signed expiring report links               | none                  | 5     |
 | [ ]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 5     |
 | [ ]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 4     |
@@ -65,7 +65,7 @@ Sections: 32 | Checklist items: 215
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 33 | Checklist items: 174
+Sections: 33 | Checklist items: 175
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -95,7 +95,7 @@ Sections: 33 | Checklist items: 174
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 5     |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 6     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
-| [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 5     |
+| [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
 | [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 4     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
@@ -271,4 +271,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 15/200 verified sections, 13 ready to run now.
 
-Checklist: 248/1027 items completed (includes Commit items).
+Checklist: 249/1029 items completed (includes Commit items).
