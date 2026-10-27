@@ -66,11 +66,13 @@ const toneFrames = framesOf(toneMp3);
 const repeated = (count: number) =>
   concat(Array.from({ length: count }, (_, i) => toneFrames[i % toneFrames.length] as Uint8Array));
 
-// A Xing/Info frame for the 44.1 kHz mono stream, declaring `frames`, with a LAME tag of `delay` and `padding`.
-function infoFrame(frames: number, delay?: number, padding?: number): Uint8Array {
+// A Xing/Info frame for the 44.1 kHz mono stream, declaring `frames`, with a LAME tag of `delay` and `padding`; with
+// `crc`, its header announces a CRC and the tag stays where LAME writes it, right after the side information.
+function infoFrame(frames: number, delay?: number, padding?: number, crc = false): Uint8Array {
   const frame = new Uint8Array(208);
   frame.set((toneFrames[0] as Uint8Array).subarray(0, 4));
   frame[2] = (frame[2] as number) & ~0x02; // no padding byte: 208 bytes
+  if (crc) frame[1] = (frame[1] as number) & ~0x01; // protection bit 0: a CRC follows the header
   const tag = 4 + 17;
   frame.set(new TextEncoder().encode("Info"), tag);
   const view = new DataView(frame.buffer);
@@ -158,7 +160,8 @@ describe("MP3 decoding", () => {
     };
     await decodeAll(repeated(toneFrames.length * 5), { mp3Decoder: counting }); // 15 s
     expect(largest).toBeGreaterThan(0);
-    expect(largest).toBeLessThanOrEqual(5 * 44_100 + 1_152);
+    expect(largest).toBeLessThanOrEqual(5 * 44_100); // whole frames, never past 5 seconds (round 1)
+    expect(largest).toBeGreaterThan(5 * 44_100 - 1_152);
     for await (const _chunk of decodeToWavChunks(toneMp3, "audio/mpeg", { chunkSeconds: 0.5 })) break;
   });
 
@@ -195,6 +198,14 @@ describe("MP3 decoding", () => {
     expect(tagged.length).toBeLessThan(plain.length);
     // A Xing frame alone (no LAME tag) only counts frames: nothing is dropped.
     expect(joined(await decodeAll(concat([infoFrame(n), toneMp3]))).length).toBe(plain.length);
+  });
+
+  it("reads a LAME tag in a frame that announces a CRC, where LAME writes it (round 1)", async () => {
+    const n = toneFrames.length;
+    const tagged = joined(await decodeAll(concat([infoFrame(n, 576, 1_000, true), toneMp3])));
+    expect(tagged.length).toBe(Math.ceil(((n * 1_152 - 576 - 1_000) * 16_000) / 44_100));
+    const cut = await refusal(concat([infoFrame(n, 576, 1_000, true), concat(toneFrames.slice(0, -3))]));
+    expect(cut.message).toMatch(/frames where its Xing header declares/);
   });
 
   describe("damage is refused by name", () => {

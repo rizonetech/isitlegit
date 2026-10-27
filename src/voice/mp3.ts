@@ -75,11 +75,13 @@ const ascii = (bytes: Uint8Array, at: number, n: number) => String.fromCharCode(
 // or null when the frame is audio.
 function vbrTag(bytes: Uint8Array, at: number, frame: Frame) {
   const sideInfo = frame.version === 1 ? (frame.channels === 1 ? 17 : 32) : frame.channels === 1 ? 9 : 17;
-  let tag = at + 4 + (frame.crc ? 2 : 0) + sideInfo;
   const end = at + frame.length;
-  if (tag + 8 > end) return null;
-  const name = ascii(bytes, tag, 4);
-  if (name !== "Xing" && name !== "Info") return null;
+  // LAME writes the tag right after the side information even when the frame announces a CRC (its VbrTag.c keeps
+  // the offset fixed), while a CRC-aware writer puts it 2 bytes later: both are looked for.
+  const isTag = (tag: number) => tag + 8 <= end && ["Xing", "Info"].includes(ascii(bytes, tag, 4));
+  const plain = at + 4 + sideInfo;
+  let tag = isTag(plain) ? plain : frame.crc && isTag(plain + 2) ? plain + 2 : -1;
+  if (tag < 0) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const flags = bytes[tag + 7] as number;
   tag += 8;
@@ -201,9 +203,12 @@ export function createMp3Decoder(audio: Uint8Array): Mp3Stream {
       let total = 0;
       let channels = 0;
       let rate = 0;
-      while (offset < audio.length && (rate === 0 || total < seconds * rate)) {
+      // Whole frames up to `seconds`, never past it (at least one frame, so a decode always moves on).
+      let frameSamples = 0;
+      while (offset < audio.length && (total === 0 || total + frameSamples <= seconds * rate)) {
         const samples = wasm.decode_frame(offset);
         if (samples === 0) throw new CorruptAudio(`MP3 frame ${frame} does not decode (minimp3 refuses its contents)`);
+        frameSamples = samples;
         channels = wasm.frame_channels();
         rate = wasm.frame_rate();
         parts.push(Int16Array.from(new Int16Array(wasm.memory.buffer, wasm.pcm_offset(), samples * channels)));
