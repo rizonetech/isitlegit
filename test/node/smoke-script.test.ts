@@ -204,6 +204,52 @@ describe("scripts/smoke.ts", () => {
     expect(outcome.ok).toBe(false);
   });
 
+  it("keeps the new token when the secret landed though the command failed, and says so when it cannot tell", async () => {
+    const vault = { fields: [{ id: "credential", value: "a".repeat(64) }] };
+    const worker = { token: "a".repeat(64), newest: VERSION, listFails: false };
+    const run: Runner = async (command, args, input) => {
+      if (command === "op" && args[1] === "get") return JSON.stringify(vault);
+      if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
+      if (command === "sh" && args.includes("edit")) {
+        vault.fields = JSON.parse(input).fields;
+        return "";
+      }
+      if (args.includes("secret")) {
+        // Cloudflare published the secret, then the answer was lost.
+        worker.token = input;
+        worker.newest = "v-rotated";
+        throw new Error("wrangler secret put: connection reset");
+      }
+      if (args.includes("status"))
+        return JSON.stringify({ versions: [{ version_id: worker.newest, percentage: 100 }] });
+      if (args.includes("list")) {
+        if (worker.listFails && worker.newest === "v-rotated-2") throw new Error("wrangler: network error");
+        return JSON.stringify([{ id: worker.newest, number: worker.newest === VERSION ? 1 : 2 }]);
+      }
+      throw new Error(`unexpected ${command} ${args.join(" ")}`);
+    };
+    const rotate = rotateWith(run, () => ({}));
+    expect(await rotate(Date.now() + 2_000)).toEqual({ token: worker.token, version: "v-rotated" });
+    expect(vault.fields[0]?.value).toBe(worker.token);
+    // When the versions cannot be read after the failure, it neither restores the vault nor claims nothing changed.
+    const before = vault.fields[0]?.value;
+    worker.listFails = true;
+    const run2: Runner = async (command, args, input, deadline, env) => {
+      if (args.includes("secret")) {
+        worker.token = input;
+        worker.newest = "v-rotated-2";
+        throw new Error("wrangler secret put: connection reset");
+      }
+      return run(command, args, input, deadline, env);
+    };
+    const uncertain = await rotateWith(run2, () => ({}))(Date.now() + 2_000).catch((e: Error) => e);
+    expect((uncertain as Error).message).toMatch(
+      /could not tell whether the Worker took the new token.*`--rotate` again/,
+    );
+    expect(vault.fields[0]?.value).not.toBe(before);
+    expect(vault.fields[0]?.value).toBe(worker.token);
+  });
+
   it("refuses a rotation while a rollback is in effect, before the vault or the Worker changes", async () => {
     const calls: string[] = [];
     const run: Runner = async (command, args) => {

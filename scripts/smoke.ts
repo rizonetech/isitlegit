@@ -364,9 +364,22 @@ export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
     try {
       await run("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], token, deadline);
     } catch (error) {
-      // The Worker kept the old token (a rollback that landed after the check above, a network failure), so the vault
-      // goes back to it and the two agree again.
+      // A failed command does not prove the secret failed: Cloudflare may have published it before the answer was
+      // lost. A new newest version means it landed (the smoke run that follows then checks it with the new token); no
+      // new version means the Worker kept the old token, so the vault goes back to it; no answer leaves it uncertain.
       const why = (error as Error).message;
+      let landed: boolean | undefined;
+      try {
+        landed = (await newestVersionWith(run, deadline)) !== newest;
+      } catch {
+        landed = undefined;
+      }
+      if (landed) return { token, version: await activeVersionWith(run, deadline) };
+      if (landed === undefined)
+        throw new Error(
+          `could not tell whether the Worker took the new token (${why}); the vault holds the new one, and plain smoke ` +
+            "runs fail if the Worker does not: run `--rotate` again (docs/operations.md)",
+        );
       let restored = false;
       try {
         field.value = old;
