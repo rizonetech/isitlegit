@@ -1,0 +1,304 @@
+import { OggOpusDecoder } from "ogg-opus-decoder";
+import { describe, expect, it } from "vitest";
+import {
+  AudioTooLong,
+  CorruptAudio,
+  decodeToWavChunks,
+  type OpusStream,
+  Resampler,
+  UnsupportedAudio,
+} from "../../src/voice/decode";
+import { toneOgg, toneStereoOgg, toneWav } from "../fixtures/audio/load";
+import { BOS, oggCrc, oggPackets, oggPage, oggStream, tone, wavFile } from "../fixtures/audio/ogg";
+
+// D01 T03 §2: voice notes decoded to 16 kHz mono 16-bit WAV, checked by their sound, not only their headers.
+
+const FRAME_16K = 320; // one 20 ms Opus frame at 16 kHz
+const PRE_SKIP = 312;
+
+type Wav = { format: number; channels: number; rate: number; bits: number; riffSize: number; samples: Int16Array };
+function readWav(chunk: Uint8Array): Wav {
+  const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+  const ascii = (at: number) => String.fromCharCode(...chunk.subarray(at, at + 4));
+  expect([ascii(0), ascii(8), ascii(12), ascii(36)]).toEqual(["RIFF", "WAVE", "fmt ", "data"]);
+  const dataSize = view.getUint32(40, true);
+  expect(dataSize).toBe(chunk.length - 44);
+  return {
+    format: view.getUint16(20, true),
+    channels: view.getUint16(22, true),
+    rate: view.getUint32(24, true),
+    bits: view.getUint16(34, true),
+    riffSize: view.getUint32(4, true),
+    samples: new Int16Array(chunk.slice(44).buffer),
+  };
+}
+
+async function decodeAll(bytes: Uint8Array, type: string, options = {}): Promise<Uint8Array[]> {
+  const out: Uint8Array[] = [];
+  for await (const chunk of decodeToWavChunks(bytes, type, options)) out.push(chunk);
+  return out;
+}
+
+const rms = (s: Int16Array, from = 0, to = s.length) => {
+  let sum = 0;
+  for (let i = from; i < to; i++) sum += (s[i] as number) ** 2;
+  return Math.sqrt(sum / (to - from));
+};
+// Frequency from zero crossings over a stretch clear of the start and the end.
+const frequency = (s: Int16Array, rate: number) => {
+  const from = Math.floor(rate * 0.25);
+  const to = s.length - Math.floor(rate * 0.25);
+  let crossings = 0;
+  for (let i = from + 1; i < to; i++) if ((s[i - 1] as number) < 0 !== (s[i] as number) < 0) crossings++;
+  return crossings / 2 / ((to - from) / rate);
+};
+
+// The fixture's Opus packets, and a stream of `repeats` copies of them (granules and checksums rebuilt).
+const fixture = oggPackets(toneOgg);
+const headers = fixture.slice(0, 2).map((p) => p.packet);
+const audio = fixture.slice(2).map((p) => p.packet);
+const repeated = (repeats: number) =>
+  oggStream(headers, Array.from({ length: repeats }, () => audio).flat(), PRE_SKIP, 960);
+
+const counting = () => {
+  const seen = { made: 0, freed: 0, decodes: 0, largest: 0 };
+  const make = (): OpusStream => {
+    seen.made++;
+    const decoder = new OggOpusDecoder();
+    return {
+      ready: decoder.ready,
+      decode: (data) => {
+        seen.decodes++;
+        seen.largest = Math.max(seen.largest, data.length);
+        return decoder.decode(data);
+      },
+      flush: () => decoder.flush(),
+      free: () => {
+        seen.freed++;
+        decoder.free();
+      },
+    };
+  };
+  return { seen, make };
+};
+
+describe("Resampler", () => {
+  const run = (rate: number, blocks: Float32Array[]) => {
+    const out: number[] = [];
+    const resampler = new Resampler(rate, (s) => out.push(s));
+    for (const block of blocks) resampler.push(block);
+    resampler.end();
+    return out;
+  };
+  const ramp = (n: number) => Float32Array.from({ length: n }, (_, i) => i / n);
+  const split = (whole: Float32Array, sizes: number[]) => {
+    const blocks: Float32Array[] = [];
+    let at = 0;
+    for (let i = 0; at < whole.length; i++) {
+      const size = sizes[i % sizes.length] as number;
+      blocks.push(whole.subarray(at, at + size));
+      at += size;
+    }
+    return blocks;
+  };
+
+  it("gives the same samples however the input is split into blocks", () => {
+    for (const rate of [48_000, 44_100, 22_050, 8_000]) {
+      const input = ramp(rate);
+      const whole = run(rate, [input]);
+      expect(run(rate, split(input, [1, 7, 960, 13, 2]))).toEqual(whole);
+      expect(whole).toHaveLength(16_000);
+    }
+  });
+
+  it("keeps every sample, the last included, when the rate is already 16 kHz", () => {
+    const input = ramp(1_000);
+    expect(run(16_000, split(input, [3, 1, 250]))).toEqual([...input]);
+  });
+});
+
+describe("decodeToWavChunks", () => {
+  it("decodes an Ogg Opus voice note to the tone it holds, with nothing compiled at runtime", async () => {
+    // A Worker refuses runtime compilation anyway; this proves the decoder never asks for it.
+    // The Workers types leave `compile` out, since the runtime refuses it.
+    const wasm = WebAssembly as unknown as { compile: (bytes: BufferSource) => Promise<WebAssembly.Module> };
+    const compile = wasm.compile;
+    let compiles = 0;
+    wasm.compile = () => {
+      compiles++;
+      throw new Error("runtime compilation");
+    };
+    let chunks: Uint8Array[];
+    try {
+      chunks = await decodeAll(toneOgg, "audio/ogg");
+    } finally {
+      wasm.compile = compile;
+    }
+    expect(compiles).toBe(0);
+    expect(chunks).toHaveLength(1);
+    const wav = readWav(chunks[0] as Uint8Array);
+    expect([wav.format, wav.channels, wav.rate, wav.bits]).toEqual([1, 1, 16_000, 16]);
+    expect(wav.riffSize).toBe(36 + wav.samples.length * 2);
+    expect(Math.abs(wav.samples.length - 48_000)).toBeLessThanOrEqual(FRAME_16K);
+    expect(Math.abs(frequency(wav.samples, 16_000) - 440)).toBeLessThan(2);
+    // The tone at half of full scale: RMS 0.5 / sqrt(2) of 32768, within 10% after lossy coding.
+    expect(rms(wav.samples, 4_000, 44_000) / (0.5 * 32768 * Math.SQRT1_2)).toBeCloseTo(1, 1);
+  });
+
+  it("resamples and mixes down a 44.1 kHz stereo WAV, keeping the tone's pitch and level", async () => {
+    const chunks = await decodeAll(toneWav, "audio/wav");
+    expect(chunks).toHaveLength(1);
+    const wav = readWav(chunks[0] as Uint8Array);
+    expect([wav.format, wav.channels, wav.rate, wav.bits]).toEqual([1, 1, 16_000, 16]);
+    expect(wav.samples.length).toBe(48_000);
+    expect(Math.abs(frequency(wav.samples, 16_000) - 440)).toBeLessThan(2);
+    const source = tone(44_100, 3);
+    expect(Math.abs(rms(wav.samples) / rms(source) - 1)).toBeLessThan(0.05);
+  });
+
+  it("averages channels: the tone against its inverse mixes down to silence", async () => {
+    const left = tone(44_100, 1);
+    const stereo = new Int16Array(left.length * 2);
+    left.forEach((v, i) => {
+      stereo[2 * i] = v;
+      stereo[2 * i + 1] = -v;
+    });
+    const wav = readWav((await decodeAll(wavFile(stereo, 44_100, 2), "audio/wav"))[0] as Uint8Array);
+    expect(rms(wav.samples)).toBeLessThan(2);
+  });
+
+  it("averages an Opus file's channels: the tone on one side and silence on the other comes out at half level", async () => {
+    const mono = readWav((await decodeAll(toneOgg, "audio/ogg"))[0] as Uint8Array).samples;
+    const stereo = readWav((await decodeAll(toneStereoOgg, "audio/ogg"))[0] as Uint8Array).samples;
+    expect(stereo.length).toBe(mono.length);
+    expect(rms(stereo, 4_000, 44_000) / rms(mono, 4_000, 44_000)).toBeCloseTo(0.5, 1);
+    expect(Math.abs(frequency(stereo, 16_000) - 440)).toBeLessThan(2);
+  });
+
+  it("splits into chunks with no sample lost or repeated at a boundary", async () => {
+    const whole = readWav((await decodeAll(toneWav, "audio/wav"))[0] as Uint8Array).samples;
+    const chunks = await decodeAll(toneWav, "audio/wav", { chunkSeconds: 0.1 });
+    expect(chunks).toHaveLength(30);
+    const parts = chunks.map((c) => readWav(c).samples);
+    expect(parts.every((p) => p.length === 1_600)).toBe(true);
+    const joined = new Int16Array(whole.length);
+    let at = 0;
+    for (const p of parts) {
+      joined.set(p, at);
+      at += p.length;
+    }
+    expect(at).toBe(whole.length);
+    expect(joined).toEqual(whole);
+    // The same through the Opus path, whose decoder gives its blocks in other sizes.
+    const opusWhole = readWav((await decodeAll(toneOgg, "audio/ogg"))[0] as Uint8Array).samples;
+    const opusParts = (await decodeAll(toneOgg, "audio/ogg", { chunkSeconds: 0.37 })).map((c) => readWav(c).samples);
+    expect(opusParts.reduce((n, p) => n + p.length, 0)).toBe(opusWhole.length);
+    expect(Int16Array.from(opusParts.flatMap((p) => [...p]))).toEqual(opusWhole);
+  });
+
+  it("decodes a 25-minute recording into three 10-minute chunks", { timeout: 180_000 }, async () => {
+    const long = repeated(500); // 500 x 3 s
+    expect(long.length).toBeLessThan(25 * 1024 * 1024);
+    const lengths: number[] = [];
+    for await (const chunk of decodeToWavChunks(long, "audio/ogg")) {
+      const wav = readWav(chunk);
+      expect([wav.channels, wav.rate, wav.bits]).toEqual([1, 16_000, 16]);
+      lengths.push(wav.samples.length);
+    }
+    expect(lengths.slice(0, 2)).toEqual([9_600_000, 9_600_000]);
+    expect(Math.abs((lengths[2] as number) - 4_800_000)).toBeLessThanOrEqual(FRAME_16K);
+    expect(lengths).toHaveLength(3);
+  });
+
+  it("refuses a recording over 30 minutes before decoding any of it", async () => {
+    const { seen, make } = counting();
+    await expect(decodeAll(repeated(620), "audio/ogg", { opusDecoder: make })).rejects.toBeInstanceOf(AudioTooLong);
+    expect(seen.made).toBe(0);
+  });
+
+  it("frees the decoder when the caller stops after the first chunk", async () => {
+    const { seen, make } = counting();
+    for await (const _chunk of decodeToWavChunks(toneOgg, "audio/ogg", { opusDecoder: make, chunkSeconds: 0.5 })) break;
+    expect(seen).toMatchObject({ made: 1, freed: 1 });
+  });
+
+  it("feeds the decoder in slices of at most 64 KiB, never the whole file", async () => {
+    const { seen, make } = counting();
+    const thirty = repeated(10); // 30 s, about 240 KB
+    await decodeAll(thirty, "audio/ogg", { opusDecoder: make });
+    expect(seen.decodes).toBe(Math.ceil(thirty.length / 65_536));
+    expect(seen.largest).toBeLessThanOrEqual(65_536);
+  });
+
+  it("refuses MP3 and M4A by type until D01 T03 §7 and §8 decode them", async () => {
+    const mp3 = Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0, 0xff, 0xfb, 0x90, 0x64]);
+    const m4a = Uint8Array.from([0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4d, 0x34, 0x41, 0x20]);
+    for (const [bytes, type] of [
+      [mp3, "audio/mpeg"],
+      [m4a, "audio/mp4"],
+    ] as const) {
+      const refusal = await decodeAll(bytes, type).catch((e: unknown) => e);
+      expect(refusal).toBeInstanceOf(UnsupportedAudio);
+      expect((refusal as UnsupportedAudio).type).toBe(type);
+      expect((refusal as Error).message).toContain(type);
+    }
+  });
+
+  describe("damaged audio is refused, never passed on", () => {
+    const refusal = async (bytes: Uint8Array, type: string, options = {}) => {
+      const error = await decodeAll(bytes, type, options).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(CorruptAudio);
+      return (error as Error).message;
+    };
+
+    it("an Ogg cut short, empty, without audio, or not Opus", async () => {
+      expect(await refusal(toneOgg.slice(0, Math.floor(toneOgg.length * 0.6)), "audio/ogg")).toMatch(/cut short/);
+      expect(await refusal(new Uint8Array(0), "audio/ogg")).toMatch(/empty/);
+      // Cut exactly at a page boundary: every page is whole, but the stream never ends.
+      const pages = [oggPage(headers[0] as Uint8Array, BOS, 0n, 0), oggPage(headers[1] as Uint8Array, 0, 0n, 1)];
+      audio.slice(0, 50).forEach((p, i) => {
+        pages.push(oggPage(p, 0, BigInt(PRE_SKIP + (i + 1) * 960), i + 2));
+      });
+      const atBoundary = Uint8Array.from(pages.flatMap((p) => [...p]));
+      expect(await refusal(atBoundary, "audio/ogg")).toMatch(/does not end the stream/);
+      expect(await refusal(oggStream(headers, [], PRE_SKIP, 960), "audio/ogg")).toMatch(/cut short|no audio/);
+      const tagsLast = oggStream([headers[0] as Uint8Array], [headers[1] as Uint8Array], 0, 0);
+      expect(await refusal(tagsLast, "audio/ogg")).toMatch(/no audio/);
+      const notOpus = oggStream([new TextEncoder().encode("OpusHeadless______")], audio.slice(0, 3), PRE_SKIP, 960);
+      expect(await refusal(notOpus, "audio/ogg")).toMatch(/OpusHead|not Opus/);
+    });
+
+    it("an Ogg page with flipped bytes fails its checksum", async () => {
+      const flipped = toneOgg.slice();
+      const middle = Math.floor(flipped.length / 2);
+      flipped[middle] = (flipped[middle] as number) ^ 0xff;
+      expect(await refusal(flipped, "audio/ogg")).toMatch(/fails its checksum/);
+      // The test's own checksum agrees with the decoder's on an intact stream.
+      expect(oggCrc(new Uint8Array(0))).toBe(0);
+    });
+
+    it("an Opus frame the decoder reports as bad, in pages whose checksums are intact", async () => {
+      // TOC code 3 with a frame count of 0: an invalid Opus packet (RFC 6716 3.2.5).
+      const bad = audio.map((p, i) => (i === 75 ? Uint8Array.from([0x03, 0x00]) : p));
+      expect(await refusal(oggStream(headers, bad, PRE_SKIP, 960), "audio/ogg")).toMatch(/damaged frames/);
+    });
+
+    it("an Opus stream that decodes to nothing", async () => {
+      const silent = (): OpusStream => {
+        const none = { channelData: [], samplesDecoded: 0, errors: [] };
+        return { ready: Promise.resolve(), decode: () => none, flush: async () => none, free: () => {} };
+      };
+      expect(await refusal(toneOgg, "audio/ogg", { opusDecoder: silent })).toMatch(/decoded to no audio/);
+    });
+
+    it("a WAV with a bad format code, a chunk past the end, no channels, or no RIFF header", async () => {
+      const samples = tone(16_000, 0.1);
+      expect(await refusal(wavFile(samples, 16_000, 1, 3), "audio/wav")).toMatch(/format 3/);
+      const long = wavFile(samples, 16_000, 1);
+      new DataView(long.buffer).setUint32(40, samples.byteLength * 10, true);
+      expect(await refusal(long, "audio/wav")).toMatch(/runs past the end/);
+      expect(await refusal(wavFile(samples, 16_000, 0), "audio/wav")).toMatch(/no channels/);
+      expect(await refusal(new TextEncoder().encode("not a wave file at all"), "audio/wav")).toMatch(/RIFF WAVE/);
+    });
+  });
+});
