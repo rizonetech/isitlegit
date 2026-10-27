@@ -3,6 +3,7 @@
 // HMAC-SHA256 under REPORT_LINK_SECRET over the JSON array ["report-link:v1", caseId, orgId, expiry], so changing any
 // of them, or a signature made for another purpose or link format, fails. A tampered, malformed or expired link is
 // refused, never served; a missing or short secret is a configuration error, never a refusal of the link.
+import { ConfigError } from "../config";
 import { isUlid } from "../db/ulid";
 
 export const LINK_DAYS = 7;
@@ -15,12 +16,8 @@ const SIGNATURE = /^[A-Za-z0-9_-]{43}$/;
 // The case store's organisation id (src/db/cases.ts: 1 to 200 characters).
 const orgIdValid = (orgId: string) => orgId.length >= 1 && orgId.length <= 200;
 
-export class ConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConfigError";
-  }
-}
+// The shared configuration error (src/config.ts), re-exported for the link's callers.
+export { ConfigError };
 
 export type LinkRefusal = "malformed" | "path" | "signature" | "expired" | "too-far";
 export type VerifiedLink =

@@ -6,4 +6,6 @@ interface Env {
   // The HMAC key of the reply's report links (src/web/report-link.ts): 32 random bytes as base64url, kept in the vault
   // as "IsItLegit report link secret". Replacing it invalidates every link already sent.
   REPORT_LINK_SECRET?: string;
+  // SMTP2GO's API key for outbound mail (src/mail/smtp2go.ts), sender restricted to isitlegit.co.za; kept in the vault.
+  SMTP2GO_API_KEY?: string;
 }

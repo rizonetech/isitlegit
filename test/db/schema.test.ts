@@ -150,3 +150,50 @@ describe("the core schema", () => {
     }
   });
 });
+
+// src/db/migrations/0003_mail.sql (D01 T02 §1): one row per logical send, the statuses its client and D01 T02 §2 write,
+// a recipient only as a hash, and a case's sends deleted with it.
+describe("the mail send log", () => {
+  const HASH = "a".repeat(64);
+  let k = 0;
+  let rows = 0;
+  const send = (caseId: string | null, status = "sent", kind = "reply", key = `send-${++k}`, toHash = HASH) =>
+    db
+      .prepare(
+        "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
+      )
+      .bind(`m-${++rows}`, key, caseId, kind, toHash, status, now(), now());
+
+  it("round-trips every status, D01 T02 §2's refused included, and refuses an unknown status or kind", async () => {
+    const id = await newCase();
+    for (const status of ["pending", "sent", "failed", "uncertain", "refused"]) await send(id, status).run();
+    const statuses = await db.prepare("SELECT status FROM mail_sends WHERE case_id = ? ORDER BY status").bind(id).all();
+    expect(statuses.results.map((r) => r.status)).toEqual(["failed", "pending", "refused", "sent", "uncertain"]);
+    for (const kind of ["reply", "signin", "verify", "alert", "notice", "renewal"])
+      await send(null, "sent", kind).run();
+    await expect(send(id, "delivered").run()).rejects.toThrow(/CHECK constraint failed/);
+    await expect(send(id, "sent", "newsletter").run()).rejects.toThrow(/CHECK constraint failed/);
+  });
+
+  it("holds one row per send key, and a recipient only as a 64-hex hash", async () => {
+    await send(null, "sent", "signin", "signin:once").run();
+    await expect(send(null, "sent", "signin", "signin:once").run()).rejects.toThrow(/UNIQUE constraint failed/);
+    for (const toHash of ["someone@example.com", "A".repeat(64), "a".repeat(63)])
+      await expect(send(null, "sent", "signin", `hash-${toHash.length}-${toHash[0]}`, toHash).run()).rejects.toThrow(
+        /CHECK constraint failed/,
+      );
+  });
+
+  it("deletes a case's sends with it, leaving another case's and those with no case", async () => {
+    const [gone, kept] = [await newCase(), await newCase()];
+    await send(gone, "sent", "reply", `reply:${gone}`).run();
+    await send(kept, "sent", "reply", `reply:${kept}`).run();
+    await send(null, "sent", "alert", "alert:standalone").run();
+    await db.prepare("DELETE FROM cases WHERE id = ?").bind(gone).run();
+    const keys = await db
+      .prepare("SELECT send_key FROM mail_sends WHERE send_key IN (?, ?, ?) ORDER BY send_key")
+      .bind(`reply:${gone}`, `reply:${kept}`, "alert:standalone")
+      .all();
+    expect(keys.results.map((r) => r.send_key)).toEqual(["alert:standalone", `reply:${kept}`]);
+  });
+});
