@@ -76,6 +76,8 @@ The operator's caps are enforced in code (design spec section 11): Meta Model AP
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/meta/budget.test.ts` passes unchanged.
 
+**Added 2026-10-27** (D00 T01 §7's plan review): the Meta smoke test spends before this guard exists; its runs are recorded in `docs/meta-smoke-test.md` (and locally in `build/meta-smoke-spend.json`), and the guard's starting totals include that spend, so spec 11's US$120 total counts it.
+
 **Build order:**
 
 1. Add `model_spend` and `src/meta/budget.ts`. Done when: tests reserve, settle and refuse at both caps.
