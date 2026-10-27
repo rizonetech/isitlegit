@@ -319,6 +319,23 @@ Evidence for the two items above, 2026-10-28 01:20 SAST. `tone-12k.mp3` holds it
 
 Ours is faster on every Ogg Opus input (libopus decodes straight to 16 kHz) and on the short MP3, and refuses the damaged file where FFmpeg conceals it; FFmpeg is about twice as fast on the 25-minute MP3, where our windowed sinc runs in JavaScript. That is the trade taken: the filter keeps aliases 60 dB down, and the slowest case still finishes well inside a Worker's CPU limit. The first CI run (`b9fb1b8`) decoded every input but its report line was missed behind the reporter's colour codes; fixed in `f7face8`.
 
+Evidence after the completion review, 2026-10-28 01:40 SAST. Its three in-scope gaps and two improvements are closed. A WAV claiming a rate outside 8 to 192 kHz is refused (`UnsupportedAudio`) before a filter is built (a header can claim 4,294,967,295 Hz, which would have asked for a 7.9 GB table; tested at both edges, and the check removed makes the test hang where CI times out). FFmpeg's first output is taken when 99 % of a short file's samples have come out, not at process exit (`timeOutput`, tested with a process that lingers a second after its output). The bench saves `build/voice-bench.json` through a temporary file and reads it back (tested). The polyphase sums now run in `native/resample/resample.c`, four taps at a time (WebAssembly SIMD, `src/voice/resample.wasm`, built by `scripts/build-wasm.py`, which now builds both modules and CI rechecks), MP3 frames decode in place, and minimp3 is built at `-O3` with SIMD: the 25-minute MP3 went from 6.9 s to about 3.1 s locally. The bench now times WAV too (the note, upload-sized 25 MiB files at 48 and 44.1 kHz, a malformed one) and reports the median of three runs of each input on one runner, since FFmpeg's own time for the same file moved by half between two CI runs. CI run 40602990459 (`335df7e`, FFmpeg 6.1.1-3ubuntu5, medians of three):
+
+| Input | Ours: first output | Ours: done or refused | FFmpeg: first output | FFmpeg: done |
+| ----- | ------------------ | --------------------- | -------------------- | ------------ |
+| note (3 s, Ogg Opus) | 14 ms | 14 ms | 63 ms | 66 ms |
+| recording (25 min, Ogg Opus) | 1,029 ms | 2,464 ms | 2,477 ms | 6,109 ms |
+| dense stereo (29 min, Ogg Opus) | 236 ms | 659 ms | 939 ms | 2,637 ms |
+| damaged (Ogg Opus) | none | refused in 0 ms | none | 64 ms (decoded, damage concealed) |
+| note (3 s, MP3) | 24 ms | 24 ms | 58 ms | 61 ms |
+| recording (25 min, MP3) | 1,232 ms | 3,049 ms | 1,843 ms | 4,570 ms |
+| note (3 s, WAV 44.1 kHz stereo) | 10 ms | 10 ms | 63 ms | 67 ms |
+| upload-sized (25 MiB, WAV 48 kHz) | 216 ms | 216 ms | 505 ms | 514 ms |
+| upload-sized (25 MiB, WAV 44.1 kHz) | 221 ms | 221 ms | 511 ms | 520 ms |
+| malformed (WAV) | none | refused in 0 ms | none | 67 ms (decoded) |
+
+Ours is faster on every input, first output and completion, and refuses both damaged files where FFmpeg decodes through them. FFmpeg's times include starting its process, which is part of using it. `pnpm exec vitest run`: 455 passed, 2 skipped (the bench halves).
+
 - [ ] Commit: `voice: filtered resampling for WAV, timed against FFmpeg`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts test/voice/mp3.test.ts` passes, and fails if a passband tone moves more than 0.5 dB, a stopband tone or an upsampling image leaves more than -60 dB, an MP3's 12 kHz tone is not suppressed against its decoded level, or a length or continuity test breaks. (**Corrected 2026-10-28**, plan review P2 2.)

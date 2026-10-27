@@ -2,8 +2,8 @@
 // Workers test pool) and test/node/voice-bench.test.ts (FFmpeg, which must be installed) with VOICE_BENCH set, prints
 // their timings side by side and saves both reports to build/voice-bench.json (written to a temporary file, renamed
 // into place and read back). Both tests check each output's length (and our refusal of the damaged files) before they
-// report, so a failed or truncated run fails here instead of passing for a fast one. Every timing is the median of three runs
-// on the same runner.
+// report, so a failed or truncated run fails here instead of passing for a fast one. Every timing is the median of
+// three runs on the same runner.
 //
 //   node scripts/voice-bench.ts
 import { spawn, spawnSync } from "node:child_process";
