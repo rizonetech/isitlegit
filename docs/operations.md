@@ -118,3 +118,15 @@ The limits are those of Workers Logs ([Workers Logs limits](https://developers.c
 The gateway's own `log_management` (10,000,000) and `log_management_strategy` (`DELETE_OLDEST`) are Legacy Logs settings and do not apply to this account. Nothing needs deleting by hand: a log older than 7 days is gone, so evidence that must last longer (such as `docs/meta-smoke-test.md`) is written to the repository at the time.
 
 The events hold metadata only: the model, path, user agent, status, duration, token counts and cost. All 22 events of 2026-10-27 were checked and none holds a request or response body, which matches the gateway's logs API answering 404 code 7002 for every body (D00 T01 §7).
+
+## Report link secret
+
+A reply's report link (`/r/<case>?o=…&e=…&s=…`) is signed with the Worker secret `REPORT_LINK_SECRET`, 32 random bytes as base64url kept in the vault as "IsItLegit report link secret" (`src/web/report-link.ts`). A link opens its one case for 7 days.
+
+Replacing the secret invalidates every report link already sent: recipients then open their report from the console instead. Replace it only when it may have leaked. To replace it, write a new value into the vault item first, read it back, then set it on the Worker from the vault so the value is never printed or passed as an argument:
+
+```bash
+conclave-op read "op://Conclave/IsItLegit report link secret/credential" | tr -d '\n' | pnpm exec wrangler secret put REPORT_LINK_SECRET
+```
+
+Cloudflare sets a secret only on the newest version, so do it while no rollback is in effect, and run the smoke check afterwards: `wrangler secret put` publishes a new version of the same code.
