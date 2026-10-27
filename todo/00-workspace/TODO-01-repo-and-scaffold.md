@@ -43,7 +43,7 @@ track: day-0
 | 2 | §2 | Worker package and health route | §1 | [x] |
 | 3 | §3 | Vitest workers pool and Biome | §2 | [x] |
 | 4 | §4 | GitHub Actions CI | §3 | [x] |
-| 5 | §5 | Cloudflare bindings and first deploy | §4 | [ ] |
+| 5 | §5 | Cloudflare bindings and first deploy | §4 | [x] |
 | 6 | §6 | AI Gateway for the Meta Model API | §5 | [ ] |
 | 7 | §7 | Meta smoke test | §6 | [ ] |
 | 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
@@ -255,13 +255,16 @@ The Worker needs D1 for cases and tenants, R2 for raw mail and artefacts (with a
 - [x] Kill everything a command started at its deadline: each runs in its own process group, killed whole, so `pnpm exec` cannot leave wrangler running. Done when: the test runs a sleeper through `pnpm exec`, finds it killed by the deadline with no survivor, and fails with the single-process kill. (Review round 2, 2026-10-27, P2.)
 - [x] Stop every running command when the run is interrupted: on SIGINT or SIGTERM the script kills each running command's process group, then exits 130. Done when: the test interrupts a real run of `runCommand` mid-command, finds it exit 130 with nothing left running, and fails without the cleanup. (Review round 3, 2026-10-27, P2.)
 - [x] Close the final review's gaps (2026-10-27): SIGHUP (a closed terminal or SSH session) stops the running commands as SIGINT and SIGTERM do; on Windows a command's tree is killed through `taskkill /T /F`, which has no process groups; the Workflow instance is created inside the cleanup guard, so one whose creation answers after the limit is still terminated. Done when: `test/node/smoke-script.test.ts` signals a real run with each of SIGINT, SIGTERM and SIGHUP and finds nothing left, and finds the `taskkill` call on Windows; `test/smoke-failures.test.ts` terminates a late-created instance; dropping SIGHUP or the guard fails them.
-- [ ] Commit: `infra: Cloudflare bindings, R2 lifecycle and first deploy`
+- [x] Commit: `infra: Cloudflare bindings, R2 lifecycle and first deploy`
 
 **Test checkpoint:** `curl -s https://isitlegit.derick-f5a.workers.dev/health` returns `"ok":true` with the SHA of `git rev-parse HEAD`, and `node scripts/smoke.ts` reports `DB`, `ARTEFACTS`, `CACHE`, `ANALYSIS` and `BROWSER` all `ok` on the deployed Worker (**Corrected 2026-10-27:** `/health` alone passes with no working binding).
 
 Evidence 2026-10-27 09:20 SAST (after the completion review). Wrangler 4.153.0. R2 rules read back: `raw-30-days` (raw/, 30 days), `smoke-1-day` (smoke/, 1 day), the default multipart abort. `wrangler deploy --var COMMIT_SHA:c573826...` from a clean, pushed tree green in CI: version `b2a0173d`, `/health` answered `200 {"ok":true,"commit":"c573826896e9c2229302954c22fe3f7ce09c90b3"}`; `node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev` set the secret (version `b83f15a7`), reached that version, printed `DB`, `ARTEFACTS`, `CACHE`, `ANALYSIS` and `BROWSER` all `ok`, and passed in 14 s. `pnpm test`: 19 files, 157 tests. The paragraph below is the first deploy's.
 
 Evidence 2026-10-27 08:55 SAST. Account "Derick@rizonetech.com's Account": D1 `isitlegit` (WEUR), R2 `isitlegit-artefacts` with `raw-30-days` (enabled, prefix `raw/`, expire after 30 days) beside the default multipart-abort rule, KV `isitlegit-cache`. `wrangler deploy --var COMMIT_SHA:6cd7ab7...` from a clean tree whose `HEAD` was pushed and green in CI (run 40462504039): `https://isitlegit.derick-f5a.workers.dev/health` answered `200 {"ok":true,"commit":"6cd7ab749adf3472c6f5c654d1eecc93b5d6b633"}`; `/internal/smoke` without a token answered 404; `node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev` printed `DB: ok`, `ARTEFACTS: ok`, `CACHE: ok`, `ANALYSIS: ok`, `BROWSER: ok` and exited 0. `pnpm test`: 18 files, 151 tests; removing the R2 binding from `wrangler.jsonc` fails 2 of the bindings and smoke tests.
+
+> **Verified:** 2026-10-27 | §5 | e9dc4bfbdbfba6b7c3575f3e07c7ccb24576f41c
+> **Review:** `docs/reviews/d00-t01-s5.json`
 
 ## 6. AI Gateway for the Meta Model API
 
