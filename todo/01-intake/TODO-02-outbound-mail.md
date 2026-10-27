@@ -38,7 +38,7 @@ track: day-1
 | 2 | §2 | Recipient allowlist enforced in code | §1, D07 T02 §3 | [ ] |
 | 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §8 | [ ] |
 | 4 | §4 | Test and demo mail aliases | §1 | [x] |
-| 5 | §5 | Reconcile uncertain sends | §1 | [ ] |
+| 5 | §5 | Reconcile uncertain sends | §1 | [x] |
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [ ] |
 
@@ -174,7 +174,7 @@ A send recorded `uncertain` (no answer, an unreadable answer, or a 5xx, §1) may
 - [x] Hand an unresolved send to the operator, never let it age out silently: a row still uncertain when it leaves the age band (3 days) gets one `alert` mail to the operator (`sendMail`, send key `unresolved:<send key>`) naming its kind, its case and its send key, never an address; and `docs/operations.md` gives the resolution: look the send key up in SMTP2GO's activity, then set the row with `scripts/mail-settle.ts <send key> sent|failed` (refused unless the row is uncertain, `failed` only on the operator's word that SMTP2GO has no record). Done when: a test drives repeated search failures through the cutoff and finds one alert, the script's tests settle a row and refuse a sent one, and the page holds the steps. (**Corrected 2026-10-27**, plan review P2 5.)
 - [x] Run it from the Worker's scheduled handler every 15 minutes: export `scheduled` from `src/index.ts` beside the HTTP handler, and add the cron trigger `*/15 * * * *` to `wrangler.jsonc`. Done when: a test calls the exported entrypoint's `scheduled` and finds the reconciler called with 3 days and 30 minutes, another reads the cron from `wrangler.jsonc`, and the HTTP routes still answer. (**Corrected 2026-10-27**, plan review P2 4.)
 - [x] Never send from the reconciler: it only reads SMTP2GO and writes rows (and the operator alert goes through `sendMail` under its own key). Done when: the test fails if the reconciler makes a request to the send endpoint for the row it reconciles.
-- [ ] Commit: `mail: reconcile uncertain sends with SMTP2GO's record`
+- [x] Commit: `mail: reconcile uncertain sends with SMTP2GO's record`
 
 Evidence 2026-10-27 21:40 SAST. Migration `0004_mail_claims.sql` adds `claimed_at` (applied locally); `sendMail` sets it on every claim. `src/mail/reconcile.ts` searches SMTP2GO's activity around the latest claim, settles a row only on an event carrying its send key and only while the row is still the attempt and state it read, keeps an empty search uncertain, and hands a row still unresolved after 3 days to the operator once. `src/index.ts` exports `scheduled` beside `fetch`, and `wrangler.jsonc` adds the cron `*/15 * * * *` and `OPERATOR_EMAIL` (`hostmaster@rizonetech.com`). `scripts/mail-settle.ts` and `docs/operations.md` give the operator's resolution. `pnpm exec vitest run test/mail/reconcile.test.ts test/mail/smtp2go.test.ts test/scheduled.test.ts test/node/mail-settle.test.ts`: all pass, including a retry through the real `sendMail` landing between the reconciler's read and write (the retry's outcome kept) and a send that appears on a later run. Seven mutations (the retry keeping the old claim, a window ignoring the claim, absence made retryable, unconditional settlement, a repeated alert, a cron that does nothing, a settle that reopens a sent row) each fail them. `SMTP2GO_API_KEY` is not yet on the Worker, so the cron does nothing until it is; the live database needs migrations 0003 and 0004 before the next deploy (`docs/operations.md`, database migrations).
 
@@ -184,6 +184,9 @@ Evidence after the completion review, 2026-10-27 21:48 SAST. Its five in-scope g
 Evidence after review rounds 1 to 4, 2026-10-27 22:03 SAST. Round 1 (`5cc220d`): operator alerts are keyed by attempt (`unresolved:<send key>@<claim time>`), so a later attempt that ages out gets its own alert; a failed alert makes the run degraded; migration `0006_mail_searched_at.sql` orders a backlog never-searched first, then least recently searched, so a run budget smaller than the backlog reaches every row. Round 2 (`edf767a`): `src/mail/settle.ts` accepts the `@` in alert keys; a spent request budget stops searching and pausing at once. Round 3 (`d42b204`): a run stops at a 10-minute deadline (`RUN_DEADLINE_MS`, under the scheduled handler's 15-minute limit) and cuts each request's timeout to the time left, reporting degraded. Round 4 approved. `pnpm exec vitest run`: 392 passed; every fix's mutation fails it. The live database needs migrations 0003 to 0006 before the next deploy.
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reconcile.test.ts test/mail/smtp2go.test.ts` passes, and fails if a settled row is wrong, if an empty search makes a row retryable, if a stale reconciler overwrites a retry, or if the reconciler ever sends.
+
+> **Verified:** 2026-10-27 | §5 | 3703516cb561ec3fd10d2fa084dae0db88b4f7ce
+> **Review:** `docs/reviews/d01-t02-s5.json`
 
 ## 6. Forwarding failures detected and reported
 
