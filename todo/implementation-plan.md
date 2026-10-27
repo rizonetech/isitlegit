@@ -8,14 +8,14 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 7 | Checklist items: 74
+Sections: 7 | Checklist items: 76
 
 | Status | Reference  | Deliverable                           | Needs                | Items |
 | ------ | ---------- | ------------------------------------- | -------------------- | ----- |
 | [x]    | D00 T01 §1 | Git repository and public GitHub repo | attended             | 16    |
 | [x]    | D00 T01 §2 | Worker package and health route       | none                 | 16    |
 | [x]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 15    |
-| [ ]    | D00 T01 §4 | GitHub Actions CI                     | none                 | 6     |
+| [ ]    | D00 T01 §4 | GitHub Actions CI                     | none                 | 8     |
 | [ ]    | D00 T01 §5 | Cloudflare bindings and first deploy  | cloudflare           | 8     |
 | [ ]    | D00 T01 §6 | AI Gateway for the Meta Model API     | cloudflare           | 4     |
 | [ ]    | D00 T01 §7 | Meta smoke test                       | meta-api, cloudflare | 9     |
@@ -230,10 +230,11 @@ Sections: 56 | Checklist items: 206
 
 ### Phase 7: After the event
 
-Sections: 3 | Checklist items: 10
+Sections: 4 | Checklist items: 16
 
 | Status | Reference  | Deliverable                                      | Needs    | Items |
 | ------ | ---------- | ------------------------------------------------ | -------- | ----- |
+| [ ]    | D00 T01 §9 | Red CI refused when a section starts             | none     | 6     |
 | [ ]    | D05 T04 §7 | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4 | Design change comparison                         | none     | 3     |
 | [ ]    | D99 T01 §5 | WhatsApp test number                             | operator | 5     |
@@ -257,6 +258,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 5/188 verified sections, 4 ready to run now.
+Progress: 5/189 verified sections, 4 ready to run now.
 
-Checklist: 105/883 items completed (includes Commit items).
+Checklist: 105/891 items completed (includes Commit items).

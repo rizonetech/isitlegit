@@ -47,6 +47,7 @@ track: day-0
 | 6 | §6 | AI Gateway for the Meta Model API | §5 | [ ] |
 | 7 | §7 | Meta smoke test | §6 | [ ] |
 | 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
+| 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -193,6 +194,8 @@ Every push runs the Worker gates and the TODO gates, so a stale plan or a failin
 - [x] Add steps `python3 scripts/todo-graph.py validate`, `python3 scripts/todo-graph.py plan --check`, `python3 -m unittest discover -s tests/scripts` and `python3 -m unittest discover -s scripts/tests` to `ci.yml`. Done when: the run log shows each step green on `main`; `python3 scripts/todo-graph.py plan --check` exits non-zero on a stale plan in a scratch copy (it exits 2, the validator's refusal code; **Corrected 2026-10-27:** this said 1); and a throwaway branch `ci-probe-red` whose only change is a failing assertion in `test/health.test.ts` makes the run conclude `failure` at `pnpm test` with the later steps skipped, after which the branch is deleted. **Corrected 2026-10-27:** a stale plan cannot be committed without bypassing `scripts/hooks/pre-commit`, which `AGENTS.md` forbids; the probe proves a red step fails the run, and the scratch copy proves `plan --check` goes red on staleness.
 - [x] Create `.conclave/ci.json` with `{"workflows": ["ci.yml"]}`. Done when: `python3 scripts/ci_status.py --json` names `ci.yml` with `verdict` `green` and `verdict_run.headSha` equal to the pushed section commit, and, before the probe branch is deleted, `python3 scripts/ci_status.py --json --branch ci-probe-red` exits 1 with `verdict` `red` and the failed test job in `failed_jobs`. **Corrected 2026-10-27** (plan review P2): exit 0 alone also means no completed run at all (`report()` in `scripts/ci_status.py` exits 0 unless a verdict is `red`).
 - [x] Add the CI badge for `.github/workflows/ci.yml` to the badge row in `README.md`, first in the row as in Isotone. Done when: the badge renders the workflow's status on GitHub. Cheaper substitute: a badge for a workflow that does not exist yet.
+- [ ] Add `tests/scripts/test_ci_workflow.py` (standard library): `.github/workflows/ci.yml` triggers on `push` and `pull_request`, has a read-only token, pins every action to a full SHA with its tag, gives every job `timeout-minutes`, runs the frozen install, every `package.json` gate (as `test_worker_gates.py` defines them), validate, plan check and both suites, reads no secret, never deploys or serves, and `pnpm build` stays a dry run. Done when: it failed on the single-job workflow (`job gates has no timeout-minutes`) and passes now, and its planted defects (a tag pin, a dropped trigger, a write token, a missing timeout, a dropped or commented-out gate, a new `lint` script, a secret, a deploy, a real-deploy `build` script) each fail. (Completion review 2026-10-27, missing in scope.)
+- [ ] Split `ci.yml` into four jobs (`worker`, `todo`, `project-scripts`, `kit-scripts`) so `gh run rerun --failed` repeats only the group that failed, each with `timeout-minutes` about five times its measured time on run 40431354712 (Worker gates 25 s: 10; TODO graph 1 s: 5; project tests 144 s: 15; kit tests 34 s: 10). Done when: a push run on `main` shows four jobs, each `success`. Cheaper substitute: one job with the runner's six-hour default, which a hung Chromium holds for hours. (Completion review 2026-10-27, in-scope excellence item, and an out-of-scope one taken here because the section does not fix the job layout.)
 - [ ] Commit: `ci: run Worker and TODO gates on every push`
 
 **Test checkpoint:** `gh run list --workflow ci.yml --branch main --event push --limit 5 --json headSha,status,conclusion,url` holds a run whose `headSha` is the section's pushed commit with `status` `completed` and `conclusion` `success` (its URL recorded here), and the `ci-probe-red` run concluded `failure`. **Corrected 2026-10-27** (plan review P2): the latest run on any branch, for any commit, could pass the check while the candidate stayed untested.
@@ -296,6 +299,28 @@ The reference repositories open with a brand image (Recto's `design/brand/github
 
 > **Verified:** 2026-10-27 | §8 | 716e9ef5301c3aa1d1ad22f54cda4fc269a060a9
 > **Review:** `docs/reviews/d00-t01-s8.json`
+
+## 9. Red CI refused when a section starts
+
+Filed 2026-10-27 from the D00 T01 §4 completion review (gap 3, missing out of scope). The rule that a red `main` comes before any new row lives in the `process-phase` skill and the heartbeat prompt: an agent that skips reading `scripts/ci_status.py` can still claim a row while CI is red. This section makes the refusal mechanical at the point a section starts.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Make `python3 scripts/todo-graph.py resolve` report a red `main` for an open section. Done when: `resolve` on a ready section exits non-zero with the red workflow and run URL while `scripts/ci_status.py` reports red.
+2. Prove the refusal and its escape. Done when: tests cover red, green, unknown and the documented override.
+
+- [ ] Add a CI gate to `resolve` in `scripts/todo-graph.py` that calls `scripts/ci_status.py --json` for an open, otherwise-ready section and exits 5 (a new code, documented in the `--help` text and `todo/README.md`) when any watched workflow on `main` is `red`, printing the workflow, commit and run URL. Done when: with a stubbed `gh` reporting red, `resolve` on a ready section exits 5 and names the run; green exits 0 as today. Cheaper substitute: a reminder line in the skill text, which is what exists now.
+- [ ] Treat an unknown CI state (`ci_status.py` exit 3, no `gh`) as a printed warning, not a refusal, so offline and unauthenticated sessions still work. Done when: a test with `gh` missing shows `resolve` exits 0 with a `ci unknown` warning on stderr.
+- [ ] Add `--allow-red '<reason>'` to `resolve` for the section that repairs the red itself, recording the reason in the section's `Started:` note. Done when: a test shows `--allow-red` exits 0 on red and the reason is required.
+- [ ] Add the tests to `tests/scripts/test_todo_graph.py` with a stubbed `gh` on `PATH`. Done when: each case above fails if its branch in `resolve` is removed.
+- [ ] Update `process-todo-section` step 0's exit table and `todo/README.md` "Commands" for exit 5. Done when: both name exit 5 and `--allow-red`.
+- [ ] Commit: `todo: resolve refuses a new section while main is red`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including a red case that exits 5 and an unknown case that exits 0 with a warning.
 
 ## Verification
 

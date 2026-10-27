@@ -1,5 +1,6 @@
 # The Worker and TODO gates on every push and pull request. CI never deploys: deploys run from the build session with
-# the local Wrangler login after the same gates pass (tech stack spec, "CI").
+# the local Wrangler login after the same gates pass (tech stack spec, "CI"). Four jobs, so `gh run rerun --failed`
+# repeats only the group that failed; each timeout is about five times the job's measured time (run 40431354712).
 name: CI
 
 on:
@@ -10,22 +11,19 @@ permissions:
   contents: read
 
 jobs:
-  gates:
+  worker:
+    name: Worker gates
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Full history: `todo-graph.py validate` checks that every stamp's commit exists (a shallow clone has only HEAD).
-          fetch-depth: 0
-
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
-
       - name: pnpm install --frozen-lockfile
         run: pnpm install --frozen-lockfile
       - name: pnpm typecheck
@@ -37,15 +35,45 @@ jobs:
       - name: pnpm build
         run: pnpm build
 
+  todo:
+    name: TODO graph
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history: `todo-graph.py validate` checks that every stamp's commit exists (a shallow clone has only HEAD).
+          fetch-depth: 0
       - name: TODO graph validate
         run: python3 scripts/todo-graph.py validate
       - name: Implementation plan is current
         run: python3 scripts/todo-graph.py plan --check
+
+  project-scripts:
+    name: Project script tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - name: Project script tests
         run: python3 -m unittest discover -s tests/scripts
         env:
           # The image's /usr/bin/chromium (/usr/local/share/chromium) aborts: it has no setuid sandbox and AppArmor blocks
           # the user-namespace one. Google Chrome ships a working sandbox, which the mockup exporter keeps on.
           MOCKUP_CHROMIUM: /usr/bin/google-chrome
+
+  kit-scripts:
+    name: Kit script tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - name: Kit script tests
         run: python3 -m unittest discover -s scripts/tests
