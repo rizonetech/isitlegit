@@ -384,7 +384,11 @@ Filed 2026-10-27 from the D00 T01 §4 completion review (gap 3, missing out of s
 
 ## 10. Deploy rollback and re-verification
 
+> **Started:** 2026-10-27T09:42:38Z
+
 When a deploy breaks the live Worker, the operator returns to the last good version with one command and proves it, without deleting or recreating the D1, R2 or KV resources (completion review of D00 T01 §5, gap 5 and excellence item 8, compared with Cloudflare's own rollback).
+
+**Corrected 2026-10-27** (validation before build): `wrangler deployments list` does not show a version's commit; `wrangler versions view <id> --json` does, as the version's `COMMIT_SHA` plain-text binding. Every smoke run publishes a version by setting `SMOKE_TOKEN` (§5), so "the version before the live one" is usually the same code with another secret; "previous" means the newest version whose commit differs from the live one. And the rolled-back version's smoke run itself publishes a version through `wrangler secret put`, so the run must prove that version still serves the rolled-back commit (the smoke run already fails on a commit mismatch).
 
 **Phase:** 0
 **Needs:** cloudflare
@@ -394,7 +398,7 @@ When a deploy breaks the live Worker, the operator returns to the last good vers
 
 1. Package the rollback. Done when: one command rolls back to a named or the previous version and verifies it.
 
-- [ ] Write `scripts/rollback.ts`: it lists the recent versions (`wrangler deployments list`) with their commits, rolls back to the version named or the one before the live one (`wrangler rollback <version> --message <reason>`), then reads `/health` and runs `scripts/smoke.ts` with `--commit` set to that version's commit, and exits non-zero unless both pass. It never touches D1, R2 or KV. Done when: `test/node/rollback.test.ts` drives it against stand-ins for `wrangler` and the Worker (a good rollback, a refused one, a rolled-back version whose smoke run fails), and one real rollback to the current version and back is recorded in the evidence.
+- [ ] Write `scripts/rollback.ts`: it lists the recent versions (`wrangler versions list --json`) with each one's commit (`wrangler versions view <id> --json`, the `COMMIT_SHA` binding), rolls back to the version named or to the newest one whose commit differs from the live one (`wrangler rollback <version> --message <reason>`), then reads `/health` and runs `scripts/smoke.ts` with `--commit` set to that version's commit, and exits non-zero unless both pass; it prints each step as it starts and the commit it expects. A run whose smoke step serves another commit (its `secret put` published newer code) fails and says so. It never touches D1, R2 or KV. Done when: `test/node/rollback.test.ts` drives it against stand-ins for `wrangler` and the Worker (a good rollback, a refused one, a rolled-back version whose smoke run fails), and one real rollback to the current version and back is recorded in the evidence.
 - [ ] Document the procedure in `docs/operations.md` (when to roll back, the command, what it proves, and that a schema migration is not undone by a rollback). Done when: the page names the command and its checks.
 - [ ] Commit: `infra: one-command rollback with re-verification`
 
