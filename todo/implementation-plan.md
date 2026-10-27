@@ -65,7 +65,7 @@ Sections: 32 | Checklist items: 221
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 34 | Checklist items: 181
+Sections: 34 | Checklist items: 182
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -93,7 +93,7 @@ Sections: 34 | Checklist items: 181
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 5     |
-| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 6     |
+| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
 | [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 4     |
@@ -178,7 +178,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 54 | Checklist items: 198
+Sections: 55 | Checklist items: 204
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -220,6 +220,7 @@ Sections: 54 | Checklist items: 198
 | [ ]    | D07 T08 §4 | Plan and trial page                        | none                  | 2     |
 | [ ]    | D07 T08 §5 | Admin org detail and feedback queue        | none                  | 2     |
 | [ ]    | D07 T08 §6 | Sign-in, invite and verification emails    | none                  | 3     |
+| [ ]    | D07 T08 §7 | Renew an expired report link               | operator              | 6     |
 | [ ]    | D08 T02 §1 | Eval runner through the deployed pipeline  | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2 | Metrics against the spec targets           | none                  | 4     |
 | [ ]    | D08 T02 §3 | Model ablation runs                        | meta-api, cloudflare  | 4     |
@@ -270,6 +271,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 20/201 verified sections, 12 ready to run now.
+Progress: 20/202 verified sections, 12 ready to run now.
 
-Checklist: 290/1049 items completed (includes Commit items).
+Checklist: 290/1056 items completed (includes Commit items).

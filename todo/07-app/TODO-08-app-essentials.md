@@ -35,6 +35,7 @@ track: day-6
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [ ] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
+| 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 
 ## 1. App and site error pages
 
@@ -168,6 +169,34 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 - [ ] Commit: `mail: sign-in, invitation and verification emails`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/auth-emails.test.ts` passes.
+
+## 7. Renew an expired report link
+
+A recipient whose report link has passed its 7 days (D01 T01 §8) reaches the 410 page (`design/SPEC.md` E2, §1), which today offers signing in or forwarding the email again. A stranger holding an old link must learn nothing, yet the person the reply went to should get a fresh link to the same report in one step, without a new analysis or searching for the case. Filed from D01 T01 §8's completion review (out-of-scope excellence gap, 2026-10-27), which compared it with Stripe's hosted invoice page, whose expired-link page sends a fresh link to the recipient's address.
+
+**Phase:** 6
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` E2 (the 410 page, once its renewal control is drawn), board `Error-410` and the renewed-link email
+**Job:** the person the reply went to gets back into their report in one request and one click
+**Treatment:** one field or one button, one sentence on what happens next, the same answer whether or not the address is entitled, tokens only
+**Chrome:** the error page from §1, the shared `Button` and `Field` (D07 T01 §6), the reply mail design (D07 T03 §7)
+
+**Operator decision (open):** the renewal control is a design change to the approved `Error-410` board (an email field, or a button that mails the original recipient), drawn and approved first. Recording `Renewal approved: YYYY-MM-DD (<board>)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Draw and approve the renewal. Done when: the board and the SPEC entry exist and the approval line is recorded.
+2. Renew without leaking. Done when: an entitled request mails a fresh link and every request gets the same page.
+
+- [ ] Draw the renewal on `design/mockups/source/Error-410.dc.html` and its PNG, and add it to `design/SPEC.md` E2 (the control, the confirmation sentence, the email). Done when: the board and SPEC entry are committed and the operator's `Renewal approved:` line is recorded here. Cheaper substitute: telling the reader to forward the email again, which reruns the analysis.
+- [ ] Accept a renewal only for an authentic expired link (`verifyReportLink` answers `expired`) and send the fresh link only to an address the case already records as its reply recipient or a member of the case's organisation. Done when: `test/web/report-renew.test.ts` sends to the recorded recipient and to a member, and to nobody for any other address or for a tampered or foreign link.
+- [ ] Answer every request with the same confirmation page and timing class, whether or not anything was sent, so the page reveals neither the case nor who may receive it. Done when: the test compares the entitled and unentitled responses byte for byte.
+- [ ] Mail the fresh link with `signReportLink` and an absolute link from the trusted origin (D01 T02 §3), through `sendMail` with a `kind` of `renewal`, at most 3 per case per day. Done when: the test records one `mail_sends` row per renewal and refuses the fourth in a day with the same page. Cheaper substitute: extending the old link's lifetime, which would make every leaked link live longer.
+- [ ] Prove the page in Chromium: the control is reachable by keyboard, its label names it, and the confirmation is announced. Done when: `test/node/report-renew-browser.test.tsx` passes in both themes.
+- [ ] Commit: `web: renew an expired report link`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-renew.test.ts test/node/report-renew-browser.test.tsx` passes, and fails if an unentitled address is mailed or its page differs from the entitled one.
 
 ## Verification
 

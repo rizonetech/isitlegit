@@ -62,6 +62,7 @@ track: day-2
 2. Add the print stylesheet. Done when: the report prints to PDF without the shell's navigation.
 
 - [ ] Write `GET /r/:caseId` in `src/web/pages/report.tsx` accepting a valid `verifyReportLink` or a session with `requireOrg` matching the case. Done when: `test/web/report-access.test.ts` covers the four cases, all failures returning the same 404. Cheaper substitute: case ids as the only secret.
+- [ ] Answer an authentic link past its expiry (`verifyReportLink` refuses it as `expired`, so its signature held) with the 410 "Link expired" page (`design/SPEC.md` E2, D07 T08 §1), and every other refusal (tampered, malformed, foreign, another organisation's case) with the same 404, so the 410 discloses nothing a stranger could not already know. Done when: `test/web/report-access.test.ts` gets 410 for an expired authentic link and byte-identical 404s for a tampered link and for another organisation's case. (**Added 2026-10-27**, D01 T01 §8's completion review: this section said every failure is a 404, while the SPEC draws a 410 recovery page for an expired link.)
 - [ ] Load the case, verdict and evidence with one query each, scoped to the organisation. Done when: the test counts queries.
 - [ ] Add a print stylesheet hiding navigation and expanding evidence cards. Done when: a Browser Run PDF render of a fixture has no navigation text.
 - [ ] Set `Cache-Control: private, no-store` and `X-Robots-Tag: noindex`. Done when: the test reads both headers.
