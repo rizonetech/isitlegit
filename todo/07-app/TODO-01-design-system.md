@@ -41,7 +41,7 @@ track: day-1
 | 4 | §4 | Design change comparison | §1 | [ ] |
 | 5 | §5 | Hashed static assets and fonts | §2 | [x] |
 | 6 | §6 | Buttons, fields and pills | §2, §5 | [x] |
-| 7 | §7 | Verdict band, evidence card and severity | §6 | [ ] |
+| 7 | §7 | Verdict band, evidence card and severity | §6 | [x] |
 | 8 | §8 | Empty, loading, error and partial states | §6 | [ ] |
 | 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [ ] |
 | 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [ ] |
@@ -325,7 +325,7 @@ How a verdict and its evidence look on every report.
 - [x] Build `SeverityPill` ("E7 · Critical") for levels `critical` and `high` (malicious pill), `medium` (suspicious), `low` (neutral), `info` (safe) and `not-checked` (partial, "Not checked"), and `EvidenceRef`, the reasons' link pill ("E7", the same colour, to `#e7`) named "Evidence E7, critical" for a screen reader with the visible "E7" first, and with the shared focus ring. Done when: the test renders every level with its words and pill classes, and `EvidenceRef`'s `href` and accessible name. Source: boards `Main`, `Report-Safe`, `Report-Partial`, `Report-Running`.
 - [x] Build `EvidenceCard` as an `<article>` with its id (`e7`, the reasons' anchor), a `SeverityPill`, a title (`h4` by default), optional meta on the right ("6 steps · 31 s · contained browser"), its proof as children and an optional footnote (13 px, muted), in the two layouts the boards draw: `split` (a header bar with a bottom border over a padded body, `Main` E7) and `compact` (one padded column, gap 12 for the board's 10, `Main` E4); and the two proof parts the boards repeat: `EvidenceFigure` (a framed 150 px box built 152, `subtle` with a `line` border, and its caption) and `EvidenceQuote` (quoted text in the code style). Done when: the test renders both layouts with each part and finds the id, pill, title, meta and footnote. Cheaper substitute: one card shape for every finding.
 - [x] Prove the parts in Chromium: Tab reaches an `EvidenceRef` (a native link), Enter follows it, and its card becomes the `:target` and is in view; its focus ring is 3:1 or more against the reason it sits in, in both themes; the band's words meet 4.5:1 on every state in both themes; at 360 px the band is stacked (the tile and eyebrow on one row above the headline and sentence) with the 40 px art inside its 56 px tile, and neither the band nor a `split` card with three figures overflows. Done when: `test/node/verdict-browser.test.tsx` passes, and fails when `EvidenceRef` is not reachable by Tab or loses its focus ring.
-- [ ] Commit: `web: verdict band, evidence card and severity`
+- [x] Commit: `web: verdict band, evidence card and severity`
 
 Evidence 2026-10-27 19:50 SAST. `scripts/hash-asset.ts` fingerprints the five verdict art files into `public/static/brand/motion/` and exports them as `MOTION` from `src/web/assets.ts` (the checking art is the animated one, whose own stylesheet stops it under reduced motion); `test/node/hash-asset.test.ts`, `assets.test.ts` and `serve.test.ts` cover them (22 passed). `src/web/components/Verdict.tsx` holds `VerdictBand` and `VerdictBadge`; `src/web/components/Evidence.tsx` holds `SeverityPill`, `EvidenceRef`, `EvidenceCard`, `EvidenceFigure` and `EvidenceQuote`; `Pill` now exports `pillClass`, so the link pill shares its look. The figure's 150 px is built 152 as a named layout token, `evidence-figure` in `design/tokens/spacing.json` (the board value is a tie on the 4 px scale, so the step above, as design/SPEC.md's D07 T01 §6 rule says). `pnpm exec vitest run test/node/verdict.test.tsx test/node/verdict-browser.test.tsx`: 20 passed (14 rendering, 6 in Chromium in both themes: Tab reaches "Evidence E7, critical", its ring measures 3:1 or more against the reason, Enter makes `#e7` the `:target` in view; every band's eyebrow, headline and sentence 4.5:1 or more on all six states; 88/72 px row at 1280 px; at 360 px the 56 px tile with 40 px art beside the eyebrow, headline and sentence below, no overflow). Five mutations (the pill made untabbable, its focus ring removed, the phone stacking removed, the phone art enlarged, the quote not wrapping) each fail it. `pnpm build:assets` leaves nothing uncommitted; `pnpm exec vitest run`: 341 passed.
 
@@ -334,6 +334,9 @@ Evidence after the completion review, 2026-10-27 20:00 SAST. Its two in-scope ga
 > **Deferred:** opening a figure's capture at full resolution from its 152 px preview, with an unavailable state -> XREF: D07 T03 §8
 
 **Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/node/verdict-browser.test.tsx` passes: every verdict, severity and card layout from the boards, the jump from a reason to its card, contrast in both themes, and the phone width.
+
+> **Verified:** 2026-10-27 | §7 | 0cee955e96c5360101634c43757f5fda51da05ce
+> **Review:** `docs/reviews/d07-t01-s7.json`
 
 ## 8. Empty, loading, error and partial states
 

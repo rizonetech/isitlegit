@@ -1,0 +1,102 @@
+{
+  "ref": "D07 T01 \u00a77",
+  "title": "Verdict band, evidence card and severity",
+  "implementation_sha": "0cee955e96c5360101634c43757f5fda51da05ce",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/verdict.test.tsx test/node/verdict-browser.test.tsx -> 22 passed (8 in Chromium, both themes)",
+    "pnpm build:assets -> nothing uncommitted under src/web, public, design/fonts",
+    "pnpm exec vitest run -> 343 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s7.md",
+    "verdict": "filed",
+    "candidate": "e805fc6942dbc73ce088308be0e6c12df3c1daf0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a78"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s7.md",
+    "candidate": "9ac1d8861eaf906c23c68988ab7c5947110c75be",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

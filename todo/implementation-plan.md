@@ -87,7 +87,7 @@ Sections: 34 | Checklist items: 181
 | [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
-| [ ]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
+| [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
 | [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
 | [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
@@ -270,6 +270,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 19/201 verified sections, 13 ready to run now.
+Progress: 20/201 verified sections, 12 ready to run now.
 
-Checklist: 284/1047 items completed (includes Commit items).
+Checklist: 285/1047 items completed (includes Commit items).
