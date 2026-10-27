@@ -27,7 +27,7 @@ After the change it reads back the active version, waits for `/health` to report
 
 A rollback changes only which code version serves traffic. It never changes D1, R2 or KV data. It does not undo a D1 schema migration either, so code older than a migration may meet a newer schema: check `migrations/` between the two commits before rolling back across one.
 
-Each run says what it recorded. A rollback records the version and commit it leaves; a roll-forward (`--to` a newer version) records nothing and clears its target, which you have just vouched for. When the incident is over and a good deploy is live, delete `build/rollback-rejected.json`, so later rollbacks may choose those versions again.
+Each run says what it recorded. A rollback records the version and commit it leaves, before it deploys. A roll-forward is `--to` a version whose code descends (in git) from what serves, not merely a later upload; it records nothing, and clears its target from the record only once the target is verified. The deployment is read again just before anything is written or deployed, and a run that finds it changed meanwhile (another deploy) stops without doing anything. A target without a `COMMIT_SHA` cannot be proven by `/health` or the smoke check, so it is refused; deploy a known-good commit instead. When the incident is over and a good deploy is live, delete `build/rollback-rejected.json`, so later rollbacks may choose those versions again.
 
 ### A split deployment
 
@@ -38,7 +38,7 @@ pnpm exec wrangler deployments status                     # the serving versions
 node scripts/rollback.ts --reason "<what broke>" --to <id>  # one side of the split, or an older version
 ```
 
-It moves the named version to 100%, then verifies it as for any rollback. The record follows the same rules: a rollback records every serving version other than the target, with its commit; when the target is newer than every serving version, it is a roll-forward and records nothing. Whether the deployment changed is judged on the whole deployment (every version and its percentage): `no` when the split is as it was (a refused or failed call), `yes` when anything moved, and `uncertain` only when the deployment cannot be read.
+It moves the named version to 100%, then verifies it as for any rollback. The record follows the same rules: a rollback records every serving version other than the target, with its commit; when the target's code descends from every serving version's, it is a roll-forward and records nothing until verified. A version listed at 0% serves nothing and is ignored. Whether the deployment changed is judged on the whole deployment (every version and its percentage): `no` when the split is as it was (a refused or failed call), `yes` when anything moved, and `uncertain` only when the deployment cannot be read.
 
 ## Redeploy a known-good commit
 

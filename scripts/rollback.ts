@@ -40,7 +40,8 @@ export type Wrangler = {
 export type Checks = {
   // The commit /health reports, or the reason it did not answer.
   health: (deadline: number) => Promise<{ commit: string } | { error: string }>;
-  smoke: (commit: string, deadline: number) => Promise<{ ok: boolean; lines: string[] }>;
+  // Pinned to `version`: the smoke run fails if another version serves while it checks.
+  smoke: (commit: string, version: string, deadline: number) => Promise<{ ok: boolean; lines: string[] }>;
 };
 export type RollbackOptions = {
   reason: string;
@@ -51,6 +52,9 @@ export type RollbackOptions = {
   waitMs?: number;
   log?: (line: string) => void;
   pause?: (ms: number) => Promise<unknown>;
+  // Whether commit `older` is an ancestor of `newer` (git); false when either is unknown. A roll-forward is a target
+  // whose code descends from every serving version's, not merely a later upload.
+  isAncestor?: (older: string, newer: string) => Promise<boolean>;
 };
 export type RollbackOutcome = { ok: boolean; changed: "no" | "yes" | "uncertain"; lines: string[] };
 
@@ -69,7 +73,9 @@ type Rejected = { versions: string[]; commits: string[] };
 function readRejected(file: string): Rejected {
   if (!existsSync(file)) return { versions: [], commits: [] };
   const data = JSON.parse(readFileSync(file, "utf-8")) as Partial<Rejected>;
-  if (!Array.isArray(data.versions) || !Array.isArray(data.commits))
+  const strings = (list: unknown): list is string[] =>
+    Array.isArray(list) && list.every((item) => typeof item === "string" && item !== "");
+  if (!strings(data.versions) || !strings(data.commits))
     throw new Error(`${file} is not a rejected-versions record; fix or delete it (docs/operations.md)`);
   return { versions: data.versions, commits: data.commits };
 }
@@ -86,14 +92,39 @@ const seconds = (start: number) => `${Math.round((Date.now() - start) / 1000)} s
 
 // The deployment as served: every version and its share of traffic. One version at 100% is the usual case; a gradual
 // deployment splits traffic between two.
+// A version listed at 0% serves nothing and is left out, as `scripts/smoke.ts` reads it.
 export type Serving = { version_id: string; percentage: number }[];
-const single = (serving: Serving) =>
-  serving.length === 1 && serving[0]?.percentage === 100 ? (serving[0].version_id as string) : null;
+const live = (serving: Serving) => serving.filter((v) => v.percentage > 0);
+const single = (serving: Serving) => {
+  const serving_ = live(serving);
+  return serving_.length === 1 && serving_[0]?.percentage === 100 ? (serving_[0].version_id as string) : null;
+};
 const describe = (serving: Serving) =>
-  single(serving) ?? serving.map((v) => `${v.version_id} ${v.percentage}%`).join(", ");
+  single(serving) ??
+  live(serving)
+    .map((v) => `${v.version_id} ${v.percentage}%`)
+    .join(", ");
+// A status answer that is not a whole deployment (no serving version, shares that do not add up to 100%, a missing id)
+// is refused rather than read as one.
+function checked(serving: Serving): Serving {
+  const valid =
+    Array.isArray(serving) &&
+    serving.every(
+      (v) =>
+        typeof v?.version_id === "string" &&
+        v.version_id &&
+        typeof v.percentage === "number" &&
+        v.percentage >= 0 &&
+        v.percentage <= 100,
+    ) &&
+    live(serving).length > 0 &&
+    Math.abs(serving.reduce((sum, v) => sum + v.percentage, 0) - 100) < 0.001;
+  if (!valid) throw new Error(`the deployment status is not a whole deployment: ${JSON.stringify(serving)}`);
+  return serving;
+}
 const sameDeployment = (a: Serving, b: Serving) => {
   const key = (s: Serving) =>
-    s
+    live(s)
       .map((v) => `${v.version_id}@${v.percentage}`)
       .sort()
       .join(",");
@@ -110,6 +141,7 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     waitMs = 240_000,
     log = () => {},
     pause = (ms) => new Promise((r) => setTimeout(r, ms)),
+    isAncestor = async () => false,
   } = options;
   const start = Date.now();
   const end = start + waitMs;
@@ -126,11 +158,12 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
   let before: Serving = [];
   let chosen: string | undefined;
   let commit: string | null = null;
-  let rejected: Rejected;
+  let rejected: Rejected = { versions: [], commits: [] };
+  let clearOnSuccess = false;
   try {
     rejected = readRejected(rejectedFile);
     const views = await withProgress("Reading the versions serving traffic", log, async () => {
-      before = await wrangler.deployment(deadline);
+      before = checked(await wrangler.deployment(deadline));
       return Promise.all(before.map((v) => wrangler.view(v.version_id, deadline)));
     });
     const active = single(before);
@@ -145,17 +178,25 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
       if (target === active) return finish(false, "no", `rollback: ${target} already serves all traffic`);
       const targetView = await wrangler.view(target, deadline);
       commit = targetView?.commit ?? null;
-      // A target newer than every serving version is a roll-forward: what it leaves is not judged broken.
-      forward =
-        !!targetView &&
-        views.every((v) => !!v) &&
-        views.every((v) => (targetView.number as number) > (v as { number: number }).number);
-      if (!commit)
+      if (!targetView)
         return finish(
           false,
           "no",
           `rollback: version ${target} is gone (Cloudflare keeps the 100 most recent); redeploy a known-good commit (docs/operations.md)`,
         );
+      if (!commit)
+        return finish(
+          false,
+          "no",
+          `rollback: version ${target} carries no COMMIT_SHA, so /health and the smoke check cannot prove it; redeploy a known-good commit (docs/operations.md)`,
+        );
+      // A roll-forward is a target whose code descends from every serving version's: what it leaves is not judged
+      // broken. Unknown commits, or the same commit, count as a rollback, which records.
+      const targetCommit = commit;
+      const servingLive = before.map((v, i) => ({ v, commit: servingCommits[i] })).filter(({ v }) => v.percentage > 0);
+      forward =
+        servingLive.every(({ commit: c }) => !!c && c !== targetCommit) &&
+        (await Promise.all(servingLive.map(({ commit: c }) => isAncestor(c as string, targetCommit)))).every(Boolean);
       chosen = target;
     } else {
       if (!active)
@@ -189,31 +230,36 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
         );
     }
     lines.push(`chosen: ${chosen} (commit ${commit})`);
-    // Recorded before the rollback, so a retry after this run never goes back to the code it is leaving: every serving
-    // version other than the target, with its commit (unless it is the target's). A roll-forward records nothing and
-    // clears its target, which the operator has just vouched for.
+    // The deployment is read again just before anything is written or deployed: one that changed while this run was
+    // choosing (another operator's deploy) is refused, so a split never reaches the call and nothing goes unrecorded.
+    const again = checked(await wrangler.deployment(deadline));
+    if (!sameDeployment(again, before))
+      return finish(
+        false,
+        "no",
+        `rollback: the deployment changed while this run was preparing (${describe(before)}, now ${describe(again)}); this run changed nothing: read it and run again`,
+      );
+    // A rollback records, before the call, every serving version other than the target with its commit (unless it is
+    // the target's), so a retry never goes back to the code it is leaving. A roll-forward records nothing now and
+    // clears its target only once the target is verified.
     const goingTo = chosen as string;
-    const left = before
-      .map((v, i) => ({ version: v.version_id, commit: servingCommits[i] }))
+    const left = live(before)
+      .map((v) => ({ version: v.version_id, commit: servingCommits[before.indexOf(v)] }))
       .filter((v) => v.version !== goingTo);
-    const record = forward
-      ? {
-          versions: rejected.versions.filter((v) => v !== goingTo),
-          commits: rejected.commits.filter((c) => c !== commit),
-        }
-      : {
-          versions: [...new Set([...rejected.versions, ...left.map((v) => v.version)])],
-          commits: [
-            ...new Set([
-              ...rejected.commits,
-              ...left.map((v) => v.commit).filter((c): c is string => !!c && c !== commit),
-            ]),
-          ],
-        };
-    writeRejected(rejectedFile, record);
+    if (!forward)
+      writeRejected(rejectedFile, {
+        versions: [...new Set([...rejected.versions, ...left.map((v) => v.version)])],
+        commits: [
+          ...new Set([
+            ...rejected.commits,
+            ...left.map((v) => v.commit).filter((c): c is string => !!c && c !== commit),
+          ]),
+        ],
+      });
+    clearOnSuccess = forward;
     lines.push(
       forward
-        ? `recorded: nothing (a roll-forward); ${goingTo} is cleared from ${rejectedFile}`
+        ? `recorded: nothing (a roll-forward); ${goingTo} is cleared from ${rejectedFile} once verified`
         : `recorded: ${left
             .map((v) =>
               v.commit && v.commit === commit
@@ -267,7 +313,7 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     if (health.commit !== expected)
       return settle(false, `rollback: /health reports commit ${health.commit}, expected ${expected}`);
     log("Running the smoke check...");
-    const smoke = await checks.smoke(expected, deadline);
+    const smoke = await checks.smoke(expected, version, deadline);
     lines.push(...smoke.lines);
     let after: Serving;
     try {
@@ -281,6 +327,14 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     }
     if (single(after) !== version)
       return finish(false, changedSince(after), `rollback: after the checks, ${notTarget(after)}`);
+    if (smoke.ok && clearOnSuccess) {
+      const current = readRejected(rejectedFile);
+      writeRejected(rejectedFile, {
+        versions: current.versions.filter((v) => v !== version),
+        commits: current.commits.filter((c) => c !== expected),
+      });
+      lines.push(`cleared: ${version} (commit ${expected}) from ${rejectedFile}`);
+    }
     return smoke.ok
       ? finish(true, changedSince(after), `rolled back to ${version}, verified`)
       : finish(false, changedSince(after), "rollback: the smoke check failed");
@@ -422,11 +476,16 @@ export function checksFor(base: string): Checks {
         return { error: (error as Error).message };
       }
     },
-    smoke: async (commit, deadline) =>
+    smoke: async (commit, version, deadline) =>
       runSmoke(base, {
         commit,
         getToken: tokenFromVault,
-        activeVersion: activeVersionFromWrangler,
+        // Read at the start and the end of the run: any other version serving then fails the check.
+        activeVersion: async (by) => {
+          const serving = await activeVersionFromWrangler(by);
+          if (serving !== version) throw new Error(`${serving} serves, not ${version}`);
+          return serving;
+        },
         waitMs: Math.max(1_000, deadline - Date.now()),
         log: (line) => console.log(`  ${line}`),
       }),
@@ -454,6 +513,16 @@ if (import.meta.filename === process.argv[1]) {
     checks: checksFor(`https://${WORKER_HOST}`),
     // The checkout's own build/, wherever the script is run from; ROLLBACK_RECORD points elsewhere (the tests).
     rejectedFile: process.env.ROLLBACK_RECORD ?? join(import.meta.dirname, "../build/rollback-rejected.json"),
+    isAncestor: (older, newer) =>
+      runCommand(
+        "git",
+        ["-C", join(import.meta.dirname, ".."), "merge-base", "--is-ancestor", older, newer],
+        "",
+        Date.now() + 10_000,
+      ).then(
+        () => true,
+        () => false,
+      ),
     log: (line) => console.log(line),
   });
   for (const line of outcome.lines) console.log(line);

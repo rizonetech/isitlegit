@@ -77,7 +77,17 @@ const passing = (state: { active: string }): Checks => ({
 });
 const fast = () => new Promise((r) => setTimeout(r, 10));
 const run = (wrangler: Wrangler, checks: Checks, extra: Partial<Parameters<typeof runRollback>[0]> = {}) =>
-  runRollback({ reason: "test", wrangler, checks, rejectedFile: REJECTED, waitMs: 2_000, pause: fast, ...extra });
+  runRollback({
+    reason: "test",
+    wrangler,
+    checks,
+    rejectedFile: REJECTED,
+    waitMs: 2_000,
+    pause: fast,
+    // Commits A, B, C follow one another in history.
+    isAncestor: async (older, newer) => (older[0] as string) < (newer[0] as string),
+    ...extra,
+  });
 
 describe("scripts/rollback.ts", () => {
   it("by default chooses the newest earlier version with another commit, rolls back, verifies, and records the version it left", async () => {
@@ -149,7 +159,7 @@ describe("scripts/rollback.ts", () => {
     );
     const forward = await run(wrangler, passing(state), { target: "c" });
     expect(forward.ok).toBe(true);
-    expect(forward.lines).toContain(`recorded: nothing (a roll-forward); c is cleared from ${REJECTED}`);
+    expect(forward.lines).toContain(`recorded: nothing (a roll-forward); c is cleared from ${REJECTED} once verified`);
     // The good version b2 that the roll-forward left is still eligible for the next rollback.
     expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: [], commits: [] });
     const again = await run(wrangler, passing(state));
@@ -258,8 +268,8 @@ describe("scripts/rollback.ts", () => {
     let reads = 0;
     const blind = stage("c", {
       deployment: async () => {
-        if (++reads > 2) throw new Error("status unavailable");
-        return reads === 1 ? original() : all("a");
+        if (++reads > 3) throw new Error("status unavailable");
+        return reads <= 2 ? original() : all("a");
       },
     });
     expect(await run(blind.wrangler, passing(blind.state), { target: "a" })).toMatchObject({
@@ -291,6 +301,112 @@ describe("scripts/rollback.ts", () => {
     expect(existsSync(record)).toBe(false);
   }, 15_000);
 
+  it("refuses when the deployment changes while it prepares, before writing or deploying anything", async () => {
+    let reads = 0;
+    const { state, wrangler } = stage("c", {
+      deployment: async () =>
+        ++reads === 1
+          ? all("c")
+          : [
+              { version_id: "c", percentage: 90 },
+              { version_id: "b2", percentage: 10 },
+            ],
+    });
+    const outcome = await run(wrangler, passing(state));
+    expect(outcome).toMatchObject({ ok: false, changed: "no" });
+    expect(outcome.lines.at(-2)).toMatch(
+      /the deployment changed while this run was preparing \(c, now c 90%, b2 10%\)/,
+    );
+    expect(state.rollbacks).toEqual([]);
+    expect(existsSync(REJECTED)).toBe(false);
+  });
+
+  it("clears a roll-forward's target only once it is verified", async () => {
+    writeFileSync(REJECTED, rejected(["c"], [COMMITS.c as string]));
+    const refused = stage("b2", {
+      rollback: async () => {
+        throw new SecretsChanged(["SMOKE_TOKEN"]);
+      },
+    });
+    expect(await run(refused.wrangler, passing(refused.state), { target: "c" })).toMatchObject({
+      ok: false,
+      changed: "no",
+    });
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: ["c"], commits: [COMMITS.c] });
+    const failing = stage("b2");
+    await run(
+      failing.wrangler,
+      { ...passing(failing.state), smoke: async () => ({ ok: false, lines: [] }) },
+      { target: "c" },
+    );
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: ["c"], commits: [COMMITS.c] });
+    const good = stage("b2");
+    const outcome = await run(good.wrangler, passing(good.state), { target: "c" });
+    expect(outcome.ok).toBe(true);
+    expect(outcome.lines).toContain(`cleared: c (commit ${COMMITS.c}) from ${REJECTED}`);
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: [], commits: [] });
+  });
+
+  it("refuses a status or a record that is not well formed", async () => {
+    for (const bad of [[], [{ version_id: "c", percentage: 50 }], [{ version_id: "", percentage: 100 }]]) {
+      const { state, wrangler } = stage("c", { deployment: async () => bad as Serving });
+      const outcome = await run(wrangler, passing(state), { target: "a" });
+      expect(outcome).toMatchObject({ ok: false, changed: "no" });
+      expect(outcome.lines.at(-2)).toMatch(/not a whole deployment/);
+      expect(state.rollbacks).toEqual([]);
+    }
+    writeFileSync(REJECTED, JSON.stringify({ versions: [123], commits: [null] }));
+    const damaged = stage("c");
+    expect(await run(damaged.wrangler, passing(damaged.state))).toMatchObject({ ok: false, changed: "no" });
+    expect(damaged.state.rollbacks).toEqual([]);
+  });
+
+  it("reads a version listed at 0% beside one at 100% as a single version, as the smoke check does", async () => {
+    const { state, wrangler } = stage("c");
+    state.split = [
+      { version_id: "c", percentage: 100 },
+      { version_id: "b2", percentage: 0 },
+    ];
+    const outcome = await run(wrangler, passing(state));
+    expect(outcome.ok).toBe(true);
+    expect(state.rollbacks).toEqual(["b2"]);
+  });
+
+  it("judges a roll-forward by the code, not the upload number", async () => {
+    // a2 is commit A uploaded again after c: the highest number, older code. Restoring it is a rollback that records c.
+    const commits: Record<string, string> = { ...COMMITS, a2: COMMITS.a as string };
+    const { state, wrangler } = stage("c", { view: viewOf(commits, { ...NUMBERS, a2: 9 }) });
+    const outcome = await run(
+      wrangler,
+      { ...passing(state), health: async () => ({ commit: commits[state.active] as string }) },
+      { target: "a2" },
+    );
+    expect(outcome.ok).toBe(true);
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: ["c"], commits: [COMMITS.c] });
+  });
+
+  it("says a target without a COMMIT_SHA cannot be proven, rather than calling it gone", async () => {
+    const { state, wrangler } = stage("c", {
+      view: async (version) => (version === "x" ? { commit: null, number: 7 } : viewOf(COMMITS)(version)),
+    });
+    const outcome = await run(wrangler, passing(state), { target: "x" });
+    expect(outcome).toMatchObject({ ok: false, changed: "no" });
+    expect(outcome.lines.at(-2)).toMatch(/version x carries no COMMIT_SHA/);
+  });
+
+  it("pins the smoke check to the version it restored", async () => {
+    const { state, wrangler } = stage("c");
+    let pinned: string | undefined;
+    await run(wrangler, {
+      ...passing(state),
+      smoke: async (_commit, version) => {
+        pinned = version;
+        return { ok: true, lines: [] };
+      },
+    });
+    expect(pinned).toBe("b2");
+  });
+
   it("records nothing when the named version is newer than every serving version", async () => {
     const { state, wrangler } = stage("b");
     state.split = [
@@ -299,7 +415,7 @@ describe("scripts/rollback.ts", () => {
     ];
     const outcome = await run(wrangler, passing(state), { target: "c" });
     expect(outcome.ok).toBe(true);
-    expect(outcome.lines).toContain(`recorded: nothing (a roll-forward); c is cleared from ${REJECTED}`);
+    expect(outcome.lines).toContain(`recorded: nothing (a roll-forward); c is cleared from ${REJECTED} once verified`);
     // Newer than one side only: a rollback relative to the newer side, so both others are recorded.
     rmSync(REJECTED, { force: true });
     const mixed = stage("a");
@@ -352,7 +468,7 @@ describe("scripts/rollback.ts", () => {
     let reads = 0;
     const blind = stage("c", {
       deployment: async () => {
-        if (++reads > 1) throw new Error("status unavailable");
+        if (++reads > 2) throw new Error("status unavailable");
         return split();
       },
       rollback: async () => {
@@ -450,7 +566,7 @@ describe("scripts/rollback.ts", () => {
     const stall = (deadline: number) =>
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("stalled")), deadline - Date.now()));
     const { state, wrangler } = stage("c", {
-      deployment: async (deadline) => (++reads === 1 ? all("c") : stall(deadline)),
+      deployment: async (deadline) => (++reads <= 2 ? all("c") : stall(deadline)),
       rollback: (_v, _m, deadline) => stall(deadline),
     });
     const started = Date.now();
@@ -596,7 +712,7 @@ describe("scripts/rollback.ts", () => {
     let reads = 0;
     const { state, wrangler } = stage("c", {
       deployment: async () => {
-        if (++reads > 1) throw new Error("status unavailable");
+        if (++reads > 2) throw new Error("status unavailable");
         return all("c");
       },
     });
