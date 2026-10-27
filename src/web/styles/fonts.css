@@ -11,10 +11,10 @@
 @font-face {
   font-family: "Exo Fallback";
   src: local("Arial"), local("Liberation Sans"), local("Arimo");
+  size-adjust: 106.94%;
   ascent-override: 93.69%;
   descent-override: 30.58%;
   line-gap-override: 0.0%;
-  size-adjust: 106.94%;
 }
 
 @font-face {
@@ -28,8 +28,8 @@
 @font-face {
   font-family: "Exo 2 Fallback";
   src: local("Arial"), local("Liberation Sans"), local("Arimo");
+  size-adjust: 102.98%;
   ascent-override: 97.01%;
   descent-override: 19.52%;
   line-gap-override: 0.0%;
-  size-adjust: 102.98%;
 }
