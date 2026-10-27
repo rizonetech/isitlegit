@@ -86,7 +86,7 @@ Architecture check: on sections touching an architectural boundary the governing
 
 ### 4a. The final review (once, after the rounds stop)
 
-When the pin has a `[schedule.final]` step, the section gets exactly one final review by that reviewer (Muse Wonder Full here) once the rounds have stopped, in the foreground, on the candidate tip:
+When the pin has a `[schedule.final]` step whose `mode` is not `off`, the section gets exactly one final review by that reviewer (Muse Wonder Full here) once the rounds have stopped (with `mode = "optional"`, a reviewer that returns no review is a warning and the stamp may go without `--final`; with `mode = "off"` skip this step and stamp without `--final`), in the foreground, on the candidate tip:
 
 ```bash
 python3 scripts/review-dispatch.py --kind final --candidate <full candidate tip SHA> --writer claude --prompt <scratch-review-prompt.md> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md

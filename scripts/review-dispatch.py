@@ -193,6 +193,18 @@ def check_step(where, step, efforts, lenses=True):
                           f"{', '.join(LENSES)}")
 
 
+# How the final review takes part: `required` (the stamp needs it), `optional` (it runs, a reviewer that returns no
+# review is a warning rather than a failure, and the stamp may go without it), or `off` (it never runs and the stamp
+# takes none). One key in [schedule.final] switches it.
+FINAL_MODES = ("required", "optional", "off")
+
+
+def final_mode(schedule):
+    """The final step's mode, or None when the schedule has no final step."""
+    final = (schedule or {}).get("final")
+    return final.get("mode", "required") if isinstance(final, dict) else None
+
+
 def check_schedule(schedule, clis, reviewers=None, families=()):
     """The review schedule, as strictly as the reviewers: every effort valid for every routed CLI that takes one (an
     Antigravity reviewer keeps the effort its model name carries), every lens known. The optional `final` step names
@@ -203,8 +215,11 @@ def check_schedule(schedule, clis, reviewers=None, families=()):
         raise Refused(f"[schedule] needs exactly {', '.join(sorted(keys))}, and may add final")
     if "final" in schedule:
         final = schedule["final"]
-        if not isinstance(final, dict) or set(final) != {"reviewer", "effort", "lenses"}:
-            raise Refused("[schedule.final] needs exactly reviewer, effort and lenses")
+        if not isinstance(final, dict) or not {"reviewer", "effort", "lenses"} <= set(final) <= {
+                "reviewer", "effort", "lenses", "mode"}:
+            raise Refused("[schedule.final] needs exactly reviewer, effort and lenses, and may add mode")
+        if final.get("mode", "required") not in FINAL_MODES:
+            raise Refused(f"[schedule.final] mode must be one of {', '.join(FINAL_MODES)}")
         name = final["reviewer"]
         if not isinstance(name, str) or name not in (reviewers or {}):
             raise Refused("[schedule.final] reviewer must be a defined reviewer")
@@ -941,6 +956,9 @@ def main(argv=None):
             final = (pin.get("schedule") or {}).get("final")
             if not final:
                 raise Refused("the pin's [schedule] has no final step, so there is no final reviewer")
+            if final_mode(pin["schedule"]) == "off":
+                raise Refused('the final review is off ([schedule.final] mode = "off" in .conclave/reviewers.toml); '
+                              'stamp without --final, or set mode to "optional" or "required" to run it')
             if not args.record:
                 raise Refused("--kind final needs --record, the findings file whose regular rounds it follows")
             existing = existing_findings(Path(args.record), "final review")
@@ -989,6 +1007,11 @@ def main(argv=None):
             print("review-dispatch refused: " + str(exc), file=sys.stderr)
             return 2
     print(json.dumps({**result, "run": when}, indent=2))
+    if not result["reviewer"] and args.kind == "final" and final_mode(pin["schedule"]) == "optional":
+        # The soft failure: an optional final reviewer that returned no review does not hold the section up.
+        print("review-dispatch: the optional final review returned no review; the section may stamp without --final",
+              file=sys.stderr)
+        return 0
     return 0 if result["reviewer"] else 1
 
 

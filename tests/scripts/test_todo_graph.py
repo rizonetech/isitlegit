@@ -1592,6 +1592,31 @@ class FinalStamp(Stamp):
         self.refused(None, "--final '<findings file>:<clean|fixed>' is required")
         self.refused({"report": self.ROUNDS, "verdict": "clean"}, "must hold exactly one final review")
 
+    def set_mode(self, mode):
+        pin = self.root / tg.PIN
+        text = pin.read_text(encoding="utf-8")
+        old = 'final = { reviewer = "wonder", effort = "medium", lenses = ["adversarial"] }'
+        self.assertIn(old, text)
+        pin.write_text(text.replace(old, old[:-2] + f', mode = "{mode}" }}'), encoding="utf-8")
+        self.sha = self.commit(f"final {mode}")
+
+    def test_an_optional_final_review_may_be_left_out_and_is_checked_when_given(self):
+        self.set_mode("optional")
+        receipt = self.root / self.stamp_final(None)
+        self.assertNotIn("final", json.loads(receipt.read_text(encoding="utf-8")))
+        tg.graph(self.root)
+
+    def test_an_optional_final_review_given_must_still_be_real(self):
+        self.set_mode("optional")
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "must hold exactly one final review")
+
+    def test_a_final_review_switched_off_stamps_without_one_and_refuses_one_given(self):
+        self.set_mode("off")
+        self.refused({"report": self.ROUNDS, "verdict": "clean"}, "the final review is off")
+        receipt = self.root / self.stamp_final(None)
+        self.assertNotIn("final", json.loads(receipt.read_text(encoding="utf-8")))
+        tg.graph(self.root)
+
     def test_a_clean_final_review_stamps_and_edits_to_its_record_refuse(self):
         self.write_final()
         receipt = self.root / self.stamp_final({"report": self.ROUNDS, "verdict": "clean"})
@@ -1608,7 +1633,7 @@ class FinalStamp(Stamp):
         dropped = json.loads(json.dumps(data))
         del dropped["final"]
         receipt.write_text(json.dumps(dropped), encoding="utf-8")
-        self.refuses("records a final review exactly when its schedule has a final step")
+        self.refuses("a receipt records a final review when its schedule requires one")
 
     def test_a_p2_final_review_needs_fixed_and_a_later_round(self):
         self.write_final("1. P2 calc.py:2.\n\nHIGHEST: P2\nOVERALL: needs-attention")

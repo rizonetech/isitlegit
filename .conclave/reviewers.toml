@@ -75,7 +75,12 @@ lenses = ["adversarial"]
 
 # One final review per section by Muse Wonder Full, after the rounds stop (the last returned round declares no P1 or
 # P2). A P1 or P2 it finds is fixed and proven by one more regular round; it is never repeated.
+#
+# mode switches it: "required" (the stamp needs it), "optional" (it runs when asked; a reviewer that returns no review
+# is a warning, and the stamp may go without it) or "off" (it never runs; the stamp takes none). The mode at a
+# section's stamped commit is the one its receipt is held to. Off since 2026-10-27 (operator): turn it back on here.
 [schedule.final]
 reviewer = "wonder"
 effort = "medium"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
+mode = "off"

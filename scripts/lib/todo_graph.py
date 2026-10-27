@@ -60,6 +60,12 @@ FILED = re.compile(r"^- Filed: (D\d{2} T\d{2} §[1-9]\d*)(?![\w§]|\.\d)")
 # P2) or fixed (it declared one, and a regular round recorded after it returned a review, proving the fix; the final
 # review itself is never repeated).
 FINAL_VERDICTS = ("clean", "fixed")
+
+
+def final_mode(schedule):
+    """The schedule's final step mode (`required`, `optional` or `off`; required when unset), or None without one."""
+    final = (schedule or {}).get("final")
+    return final.get("mode", "required") if isinstance(final, dict) else None
 FINAL_KEYS = {"report", "verdict", "candidate", "reviewer", "model"}
 # Rounds recorded after a final review prove its fix; they are bounded on their own, outside the round cap, so a loop
 # that came back clean only at the cap can still prove a fix the final review asked for.
@@ -508,7 +514,7 @@ def schedule_ok(root, data, ref, surface):
             f"{completion} must hold exactly one returned completion review: {ref}")
     for entry in completions:
         check(f"the completion review in {completion}", entry, dispatch.scheduled(schedule, "completion", [], surface))
-    if "final" in schedule:
+    if "final" in schedule and "final" in data:
         final = data["final"]["report"]
         for entry in dispatch.read_finals((Path(root) / final).read_bytes().decode("utf-8")):
             check(f"the final review in {final}", entry, dispatch.scheduled(schedule, "final", [], surface))
@@ -648,8 +654,11 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
         require("completion" in data and "rounds_spent" in data,
                 f"a receipt with a plan review also records its completion review and rounds_spent: {ref}")
         require(isinstance(data["schedule"], dict), f"receipt schedule is malformed: {ref}")
-        require(("final" in data) == ("final" in data["schedule"]),
-                f"a receipt records a final review exactly when its schedule has a final step: {ref}")
+        mode = final_mode(data["schedule"])
+        require(("final" in data and mode in ("required", "optional"))
+                or ("final" not in data and mode in (None, "optional", "off")),
+                f"a receipt records a final review when its schedule requires one, may when it is optional, and never "
+                f"when it is off or absent: {ref}")
         if "final" in data:
             require(isinstance(data["final"], dict) and set(data["final"]) == FINAL_KEYS, f"receipt final is malformed: {ref}")
             if root is not None:
@@ -1197,11 +1206,14 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
         data["cap_outcome"] = cap_outcome.strip()
     data["plan"] = plan_record(root, plan, ref, start=build_start(root, row.path, row.body, ref))
     data["schedule"] = pin_schedule(root, sha, ref)
-    if "final" in data["schedule"]:
+    mode = final_mode(data["schedule"])
+    if mode == "required" or (mode == "optional" and final is not None):
         require(final is not None,
                 f"--final '<findings file>:<{'|'.join(FINAL_VERDICTS)}>' is required: the schedule has a final step; run "
                 f"review-dispatch.py --kind final once the rounds have stopped: {ref}")
         data["final"] = final_record(root, final, ref, sha)
+    elif mode == "off":
+        require(final is None, f'--final given, but the final review is off at {sha} ([schedule.final] mode = "off"): {ref}')
     else:
         require(final is None, f"--final given, but the schedule at {sha} has no final step: {ref}")
     receipt_data_ok(data, ref, sha, root=root, surface=field(row.body, "Surface") == "yes")

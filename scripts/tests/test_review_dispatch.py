@@ -1160,6 +1160,47 @@ class FinalReview(Harness):
         self.assertTrue(call["in_flight"], "the Stop hook can see the reviewer running")
         self.assertFalse((self.repo / "build" / "review-in-flight.json").exists(), "and the mark is gone afterwards")
 
+    def set_mode(self, mode):
+        pin = self.repo / ".conclave/reviewers.toml"
+        text = pin.read_text(encoding="utf-8")
+        head, final = text.split("[schedule.final]")
+        marker = 'lenses = ["adversarial", "integration"]\n'
+        self.assertIn(marker, final)
+        pin.write_text(head + "[schedule.final]" + final.replace(marker, marker + f'mode = "{mode}"\n'), encoding="utf-8")
+
+    def test_a_final_review_switched_off_is_refused_before_the_reviewer_runs(self):
+        self.round(self.CLEAN)
+        self.set_mode("off")
+        result, _ = self.final()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('the final review is off ([schedule.final] mode = "off"', result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_an_optional_final_review_that_returns_nothing_is_a_warning_not_a_failure(self):
+        self.round(self.CLEAN)
+        self.set_mode("optional")
+        result, summary = self.final("Unable to complete this review.")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIsNone(summary["reviewer"])
+        self.assertIn("the optional final review returned no review", result.stderr)
+        # It still runs and counts when it answers.
+        self.findings.unlink()
+        self.round(self.CLEAN)
+        self.assertEqual(self.final()[0].returncode, 0)
+        self.assertEqual(len(self.module().read_finals(self.findings.read_text(encoding="utf-8"))), 1)
+
+    def test_a_required_final_review_that_returns_nothing_still_fails(self):
+        self.round(self.CLEAN)
+        self.set_mode("required")
+        self.assertEqual(self.final("Unable to complete this review.")[0].returncode, 1)
+
+    def test_the_pin_refuses_an_unknown_final_mode(self):
+        self.set_mode("sometimes")
+        module = self.module()
+        with self.assertRaises(module.Refused) as ctx:
+            module.load_pin(self.repo / ".conclave/reviewers.toml")
+        self.assertIn("mode must be one of required, optional, off", str(ctx.exception))
+
     def test_the_pin_refuses_a_final_reviewer_it_cannot_trust(self):
         head, final = FINAL_PIN.split("[reviewers.wonder]")
 
