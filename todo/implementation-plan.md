@@ -61,7 +61,7 @@ Sections: 32 | Checklist items: 207
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 33 | Checklist items: 151
+Sections: 33 | Checklist items: 155
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -81,7 +81,7 @@ Sections: 33 | Checklist items: 151
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 5     |
 | [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
-| [ ]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 5     |
+| [ ]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 9     |
 | [ ]    | D07 T01 §3  | App shell and its three frames                        | none     | 10    |
 | [ ]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 4     |
 | [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
@@ -266,4 +266,4 @@ Sections: 12 | Checklist items: 54
 
 Progress: 8/195 verified sections, 7 ready to run now.
 
-Checklist: 143/948 items completed (includes Commit items).
+Checklist: 143/952 items completed (includes Commit items).
