@@ -9,7 +9,13 @@
   // IsItLegit's own resources (D00 T01 §5), created under the operator's standing authorisation (AGENTS.md).
   // Cases, tenants and every other record.
   "d1_databases": [
-    { "binding": "DB", "database_name": "isitlegit", "database_id": "7a393f34-f8be-4ba6-b0a8-fce35a34a0e7" }
+    {
+      "binding": "DB",
+      "database_name": "isitlegit",
+      "database_id": "7a393f34-f8be-4ba6-b0a8-fce35a34a0e7",
+      // The schema's history (D01 T01 §1); `pnpm db:migrate:local` and `pnpm db:migrate:remote` apply it.
+      "migrations_dir": "src/db/migrations"
+    }
   ],
   // Raw mail and attachments under raw/ (deleted after 30 days by the bucket's lifecycle rule, POPIA) and derived
   // artefacts under art/.

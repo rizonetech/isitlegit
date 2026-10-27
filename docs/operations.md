@@ -10,6 +10,18 @@ node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev --commit <deploye
 
 It reads the smoke token from the vault (Conclave, "IsItLegit Smoke token") and the version serving all traffic, uses every binding once (D1, R2, KV, the analysis Workflow, Browser Run), and passes only if that version answered with the expected commit and every check is `ok`, and the same version still serves afterwards. It publishes nothing. `--rotate` makes a new token, stores it in the vault first, then sets it on the Worker, which publishes a new version of the same code, and checks that version. Vault calls go through `conclave-op`, the 1Password wrapper that loads the service account after checking its token file. When the Worker step fails, the script reads the newest version to learn what happened, and says which of three outcomes it met: the Worker kept the old token, so the vault was put back to it and nothing changed; the secret landed although the command failed, so the new token is kept and checked; or it could not tell. Only the last (or an interrupt mid-rotation) can leave the vault and the Worker disagreeing, and then plain runs fail with HTTP 404: run `--rotate` again, and its passing check proves the two agree. Cloudflare sets a secret only on the newest version, so while a rollback is in effect `--rotate` refuses before changing anything; rotate once a good commit is deployed again.
 
+## Database migrations
+
+The schema lives in `src/db/migrations/` (the `DB` binding's `migrations_dir`). Apply a new migration to the live database before deploying the code that needs it, so the old code keeps working against the new schema while the deploy lands:
+
+```bash
+pnpm db:migrate:local                                   # try it on a local database first
+pnpm db:migrate:remote                                  # then the live one
+pnpm exec wrangler d1 migrations list DB --remote        # reads back "No migrations to apply"
+```
+
+Write migrations that only add (new tables, new nullable columns), so code one deploy behind still runs. A rollback never reverts a migration (below).
+
 ## Roll back a broken deploy
 
 Roll back when a deploy breaks the live Worker: `/health` fails or reports the wrong commit, the smoke check fails, or members see errors.
