@@ -15,6 +15,10 @@ const DIR = join(ROOT, `build/test-controls-${process.pid}`);
 const colors = JSON.parse(readFileSync(join(ROOT, "design/tokens/colors.json"), "utf-8")).themes;
 const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
 
+// Every variant and size sits on each background the boards place controls on, so the focus ring is measured against
+// what is really beside it. The backgrounds come from token variables (inline here, since a test's own classes are not
+// compiled into the stylesheet).
+const BACKGROUNDS = ["subtle", "light", "orange-wash"];
 const BODY = String(
   <main>
     <Button id="primary" variant="primary" data-action="primary">
@@ -32,9 +36,28 @@ const BODY = String(
     <Button id="off" disabled disabledReason="The last owner cannot be removed" data-action="off">
       Remove
     </Button>
-    <Button id="offlink" href="#never" disabled>
+    <Button id="offlink" href="#never" disabled data-action="offlink">
       Previous
     </Button>
+    <Button id="ariaoff" aria-disabled="true" data-action="ariaoff">
+      Marked
+    </Button>
+    {BACKGROUNDS.map((bg) => (
+      <div style={`background: var(--color-${bg}); padding: 8px`}>
+        <Button id={`${bg}-primary`} variant="primary">
+          P
+        </Button>
+        <Button id={`${bg}-danger`} variant="danger">
+          D
+        </Button>
+        <Button id={`${bg}-small`} size="small">
+          S
+        </Button>
+        <Button id={`${bg}-link`} variant="link">
+          L
+        </Button>
+      </div>
+    ))}
     <form id="form">
       <Field id="email" name="email" label="Email" value="a@b.example" />
       <Field id="bad" name="bad" label="Bad" error="Enter a value" />
@@ -94,11 +117,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
     it(`shows a focus ring of 3:1 or more on every control reached with Tab, invalid fields included (${theme})`, async () => {
       const page = await open(theme);
       const reached: Record<string, { outline: string; contrast: number }> = {};
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 30; i++) {
         await page.keyboard.press("Tab");
         const focus = await page.evaluate(() => {
-          // The ring composited over the page's real background on a 1x1 canvas, so any colour syntax and any alpha
-          // count as a viewer sees them; then the WCAG contrast ratio of the two.
+          // The ring composited over what is really beside it (every painted ancestor's background, page first) on a
+          // 1x1 canvas, so any colour syntax and any alpha count as a viewer sees them; then the WCAG contrast ratio.
           const pixel = (fill: string[]) => {
             const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d");
             if (!ctx) throw new Error("no canvas");
@@ -106,7 +129,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
               ctx.fillStyle = colour;
               ctx.fillRect(0, 0, 1, 1);
             }
-            return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+            return [...ctx.getImageData(0, 0, 1, 1).data];
           };
           const luminance = (rgb: number[]) => {
             const [r, g, b] = rgb.map((v) => {
@@ -117,26 +140,32 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
           };
           const el = document.activeElement as HTMLElement;
           const s = getComputedStyle(el);
-          const background = getComputedStyle(document.body).backgroundColor;
-          const ring = luminance(pixel([background, s.outlineColor]));
-          const page = luminance(pixel([background]));
+          const behind: string[] = [];
+          for (let node = el.parentElement; node; node = node.parentElement)
+            behind.unshift(getComputedStyle(node).backgroundColor);
+          const beside = pixel(behind);
+          const ring = luminance(pixel([...behind, s.outlineColor]));
+          const page = luminance(beside);
           const [hi, lo] = ring > page ? [ring, page] : [page, ring];
           return {
             id: el.id,
             outline: `${s.outlineStyle} ${s.outlineWidth}`,
             contrast: (hi + 0.05) / (lo + 0.05),
-            background,
+            opaque: beside[3] === 255,
           };
         });
-        expect(focus.background, "the fixture paints the theme surface").not.toBe("rgba(0, 0, 0, 0)");
-        if (focus.id) reached[focus.id] = { outline: focus.outline, contrast: focus.contrast };
+        // Past the last control focus returns to the document itself, which has nothing behind it to measure.
+        if (!focus.id) continue;
+        expect(focus.opaque, `an opaque background behind ${focus.id}`).toBe(true);
+        reached[focus.id] = { outline: focus.outline, contrast: focus.contrast };
       }
-      for (const id of ["primary", "ghost", "dark", "go", "email", "bad", "consent", "plain", "submit"]) {
+      const placed = BACKGROUNDS.flatMap((bg) => ["primary", "danger", "small", "link"].map((v) => `${bg}-${v}`));
+      for (const id of ["primary", "ghost", "dark", "go", ...placed, "email", "bad", "consent", "plain", "submit"]) {
         expect(reached[id], `${id} reached`).toBeDefined();
         expect(reached[id]?.outline, `${id} focus ring`).toMatch(/^solid [1-9]/);
         expect(reached[id]?.contrast, `${id} focus contrast`).toBeGreaterThanOrEqual(3);
       }
-      expect(Object.keys(reached)).not.toContain("off");
+      for (const id of ["off", "offlink", "ariaoff", "locked"]) expect(Object.keys(reached)).not.toContain(id);
       await page.close();
     });
 
@@ -149,10 +178,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
     await page.focus("#go");
     await page.keyboard.press("Enter");
     expect(await page.evaluate(() => location.hash)).toBe("#arrived");
-    await page.click("#off", { force: true });
-    await page.click("#offlink", { force: true });
+    // A pointer reaches none of them, so neither a native handler nor a delegated one on their data hooks fires.
+    for (const id of ["off", "offlink", "ariaoff"]) await page.click(`#${id}`, { force: true });
     // The keyboard cannot reach them either: focus stays where it was, and Enter and Space do nothing.
-    for (const id of ["off", "offlink"]) {
+    for (const id of ["off", "offlink", "ariaoff"]) {
       await page.focus("#go");
       expect(
         await page.evaluate(

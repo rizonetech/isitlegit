@@ -1,4 +1,4 @@
-import { cx, ids, type PassThrough, passThrough } from "./attrs";
+import { cx, FOCUS, ids, type PassThrough, passThrough } from "./attrs";
 
 // A labelled text field (design/SPEC.md 1, ui.css `.field`, `.input`): label, optional hint, optional error. The error
 // state sets aria-invalid and both hint and error describe the input, by ids derived from the required, page-unique id.
@@ -17,10 +17,12 @@ export type FieldProps = PassThrough & {
   class?: string;
 };
 
-// Focus is a solid 2 px orange outline, 3:1 or more against the surface in both themes, kept with the red border of an
-// invalid field (the board's 25% ring measured about 1.4:1; a SPEC deviation, design/SPEC.md 1).
-const INPUT =
-  "h-control px-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface box-border w-full placeholder:text-muted focus:outline-2 focus:outline-offset-2 focus:outline-orange focus:border-orange aria-invalid:border-mal aria-invalid:focus:border-mal";
+// Focus is the shared outline (attrs.ts FOCUS) over the board's orange border, and an invalid field keeps its red border
+// under it (the board's 25% ring measured about 1.4:1; a SPEC deviation, design/SPEC.md 1).
+const INPUT = cx(
+  "h-control px-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface box-border w-full placeholder:text-muted focus:border-orange aria-invalid:border-mal aria-invalid:focus:border-mal",
+  FOCUS,
+);
 
 export function Field(props: FieldProps) {
   const { id, label, name, type = "text", value, placeholder, hint, error, required, autocomplete, inputmode } = props;

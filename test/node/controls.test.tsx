@@ -25,13 +25,16 @@ describe("Button", () => {
       const markup = html(<Button variant={variant as ButtonVariant}>Go</Button>);
       for (const name of classes) expect(markup, `${variant} ${name}`).toContain(name);
       if (variant !== "link") expect(markup).toContain("h-control ");
-      expect(markup).toContain("focus-visible:outline-orange");
+      expect(markup).toContain(
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text",
+      );
     }
   });
 
   it("renders the 48 px and the small 36 px size", () => {
     expect(html(<Button>Go</Button>)).toMatch(/h-control px-20 rounded-control text-16/);
-    expect(html(<Button size="small">Go</Button>)).toMatch(/h-control-small px-12 rounded-control-small text-14/);
+    // The board's 14 px padding of `.btn-sm` is built as the step above, 16 (design/SPEC.md 1).
+    expect(html(<Button size="small">Go</Button>)).toMatch(/h-control-small px-16 rounded-control-small text-14/);
   });
 
   it("is a button of type button by default, a submit button when asked, and a link with href", () => {
@@ -96,6 +99,19 @@ describe("Button", () => {
     expect(() => html(<Button icon={<svg aria-hidden="true" />} />)).toThrow("needs a label");
   });
 
+  it("refuses an icon written as children, an icon component, a blank label and a blank caller name", () => {
+    const Icon = () => <svg aria-hidden="true" />;
+    expect(() => html(<Button>{<svg aria-hidden="true" />}</Button>)).toThrow("needs a label");
+    expect(() => html(<Button>{<Icon />}</Button>)).toThrow("needs a label");
+    expect(() => html(<Button icon={<Icon />} label=" " />)).toThrow("needs a label");
+    expect(() => html(<Button aria-label=" ">{<Icon />}</Button>)).toThrow("needs a label");
+    // Named by hidden text, by a caller's labelledby, or by visible text (a blank caller name is then left off).
+    expect(() => html(<Button>{[<Icon />, <span class="sr-only">Copy</span>]}</Button>)).not.toThrow();
+    expect(() => html(<Button aria-labelledby="copy-title">{<Icon />}</Button>)).not.toThrow();
+    // biome-ignore lint/a11y/useValidAriaValues: the blank name is the caller input under test, which the control drops
+    expect(tag(html(<Button aria-label="">Copy</Button>), "button")).not.toMatch(/\saria-label=/);
+  });
+
   it("disables a button natively and a link without its href, and describes the reason", () => {
     const button = html(
       <Button id="remove" variant="danger" disabled disabledReason="The last owner cannot be removed">
@@ -143,6 +159,31 @@ describe("Button", () => {
         "button",
       ),
     ).not.toMatch(/\shx-/);
+  });
+
+  it("drops htmx in the data-hx- spelling too, and reads a caller's aria-disabled as disabled", () => {
+    const link = tag(
+      html(
+        <Button href="/cases?page=0" data-hx-get="/cases?page=0" data-action="page" disabled>
+          Previous
+        </Button>,
+      ),
+      "a",
+    );
+    expect(link).not.toMatch(/\s(data-)?hx-/);
+    // Announced as an unavailable link, and out of the pointer's reach (its data hooks cannot be clicked).
+    expect(link).toMatch(/role="link"/);
+    expect(link).toContain("pointer-events-none");
+    const marked = tag(
+      html(
+        <Button aria-disabled="true" data-hx-post="/x" hx-post="/x">
+          Remove
+        </Button>,
+      ),
+      "button",
+    );
+    expect(marked).toMatch(/\sdisabled[\s=>]/);
+    expect(marked).not.toMatch(/\s(data-)?hx-/);
   });
 });
 
@@ -270,5 +311,27 @@ describe("Checkbox", () => {
       ),
     ).toContain("disabled");
     expect(tag(html(<Checkbox name="c">x</Checkbox>), "input")).not.toMatch(/\schecked/);
+  });
+
+  it("drops htmx from a disabled box, in both spellings, and reads a caller's aria-disabled as disabled", () => {
+    const off = tag(
+      html(
+        <Checkbox name="c" disabled hx-post="/x" hx-trigger="load" data-hx-get="/y">
+          x
+        </Checkbox>,
+      ),
+      "input",
+    );
+    expect(off).not.toMatch(/\s(data-)?hx-/);
+    const marked = tag(
+      html(
+        <Checkbox name="c" aria-disabled="true" hx-post="/x">
+          x
+        </Checkbox>,
+      ),
+      "input",
+    );
+    expect(marked).toMatch(/\sdisabled[\s=>]/);
+    expect(marked).not.toMatch(/\shx-/);
   });
 });

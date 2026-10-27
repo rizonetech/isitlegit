@@ -1,9 +1,9 @@
 import type { Child } from "hono/jsx";
-import { cx, ids, type PassThrough, passThrough } from "./attrs";
+import { cx, FOCUS, hasText, ids, isDisabled, nonBlank, type PassThrough, passThrough } from "./attrs";
 
 // The app's buttons (design/SPEC.md 1, design/mockups/source/ui.css `.btn`): primary, dark, ghost, danger and link, at
 // the 48 px control height or the 36 px small one. Token classes only; a board value between two scale steps is built
-// as the step above (see the SPEC's shared parts).
+// as the step above (the 14 px padding of `.btn-sm` is 16; see the SPEC's shared parts).
 export type ButtonVariant = "primary" | "dark" | "ghost" | "danger" | "link";
 
 type Content =
@@ -27,14 +27,13 @@ export type ButtonProps = PassThrough &
     disabledReason?: string;
   };
 
-const FOCUS = "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-orange";
 const DISABLED =
   "disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 const BOX =
   "inline-flex items-center justify-center gap-8 border border-transparent font-text weight-text-strong leading-none no-underline cursor-pointer whitespace-nowrap box-border";
 const SIZE = {
   default: "h-control px-20 rounded-control text-16",
-  small: "h-control-small px-12 rounded-control-small text-14",
+  small: "h-control-small px-16 rounded-control-small text-14",
 };
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-accent text-on-accent hover:bg-accent-hover",
@@ -51,22 +50,20 @@ export function buttonClass(variant: ButtonVariant = "ghost", size: "default" | 
 }
 
 export function Button(props: ButtonProps) {
-  const { variant = "ghost", size = "default", id, disabled, disabledReason, icon, label, children } = props;
-  if (!children && !label) throw new Error("Button: an icon-only button needs a label");
+  const { variant = "ghost", size = "default", id, disabledReason, icon, label, children } = props;
+  const disabled = isDisabled(props as Record<string, unknown>);
+  const given = passThrough(props as Record<string, unknown>, disabled);
+  // A caller's contextual name ("Remove Alice") wins over the generic label; a blank one is no name.
+  const name = nonBlank(given["aria-label"]) ?? nonBlank(label);
+  if (!name && !nonBlank(given["aria-labelledby"]) && !hasText(children))
+    throw new Error("Button: an icon-only button needs a label");
   if (disabledReason && !id) throw new Error("Button: a disabled reason needs an id to describe the control");
   const reasonId = disabledReason && id ? `${id}-reason` : undefined;
-  // A disabled control keeps no htmx action: htmx ignores aria-disabled, so an hx-get on a disabled link would still run.
-  const given = Object.fromEntries(
-    Object.entries(passThrough(props as Record<string, unknown>)).filter(
-      ([key]) => !(disabled && key.startsWith("hx-")),
-    ),
-  ) as PassThrough;
   const common = {
     ...given,
     id,
     class: cx(buttonClass(variant, size), props.class),
-    // A caller's contextual name ("Remove Alice") wins over the generic label; descriptions merge with the reason.
-    "aria-label": (given["aria-label"] as string | undefined) ?? label,
+    "aria-label": name,
     "aria-describedby": ids(given["aria-describedby"], reasonId),
   };
   const body = (
@@ -78,7 +75,9 @@ export function Button(props: ButtonProps) {
   const control =
     props.href !== undefined ? (
       disabled ? (
-        <a {...common} aria-disabled="true">
+        // A link with no href: role keeps it announced as a link, unavailable; no pointer reaches it, so a delegated
+        // click handler on its data hooks cannot fire, as none fires on a native disabled button.
+        <a {...common} class={cx(common.class, "pointer-events-none")} role="link" aria-disabled="true">
           {body}
         </a>
       ) : (
