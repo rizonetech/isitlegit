@@ -1,12 +1,17 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hashAssets } from "../../scripts/hash-asset.ts";
+import { hashAssets, parseFonts } from "../../scripts/hash-asset.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const DIR = join(ROOT, `build/test-hash-asset-${process.pid}`);
+const EXO = "/static/fonts/exo.aaaaaaaaaaaa.woff2";
+const EXO2 = "/static/fonts/exo2.cccccccccccc.woff2";
 const FONTS_CSS =
-  '@font-face {\n  font-family: "Exo";\n  src: url("/static/fonts/exo.aaaaaaaaaaaa.woff2") format("woff2");\n}\n';
+  `@font-face {\n  font-family: "Exo";\n  src: url("${EXO}") format("woff2");\n}\n` +
+  `@font-face {\n  font-family: "Exo 2";\n  src: url("${EXO2}") format("woff2");\n}\n` +
+  '@font-face {\n  font-family: "Exo Fallback";\n  src: local("Arial");\n}\n';
+const FAMILIES = ["Exo", "Exo 2"];
 const args = () => [
   "node",
   "hash-asset",
@@ -20,8 +25,16 @@ const args = () => [
   join(DIR, "assets.ts"),
 ];
 
+// The two served fonts every fixture keeps, so the set always names files that exist.
+function keepFonts(): void {
+  mkdirSync(join(DIR, "public/static/fonts"), { recursive: true });
+  writeFileSync(join(DIR, "public", EXO), "exo");
+  writeFileSync(join(DIR, "public", EXO2), "exo2");
+}
+
 beforeAll(() => {
   mkdirSync(join(DIR, "public/static"), { recursive: true });
+  keepFonts();
   writeFileSync(join(DIR, "fonts.css"), FONTS_CSS);
 });
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
@@ -31,7 +44,7 @@ describe("hash-asset", () => {
     writeFileSync(join(DIR, "app.css"), "a{}");
     const { css, fonts } = hashAssets(args());
     expect(css).toMatch(/^\/static\/app\.[0-9a-f]{12}\.css$/);
-    expect(fonts).toEqual({ Exo: "/static/fonts/exo.aaaaaaaaaaaa.woff2" });
+    expect(fonts).toEqual({ Exo: EXO, "Exo 2": EXO2 });
     expect(readFileSync(join(DIR, "public", css), "utf-8")).toBe("a{}");
     expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toContain(`export const APP_CSS = "${css}";`);
   });
@@ -45,15 +58,16 @@ describe("hash-asset", () => {
   });
 
   it("removes a font the new set no longer names, and leaves other files alone", () => {
-    mkdirSync(join(DIR, "public/static/fonts"), { recursive: true });
-    writeFileSync(join(DIR, "public/static/fonts/exo.aaaaaaaaaaaa.woff2"), "current");
+    keepFonts();
     writeFileSync(join(DIR, "public/static/fonts/exo.bbbbbbbbbbbb.woff2"), "old");
     writeFileSync(join(DIR, "public/static/robots.txt"), "kept");
     writeFileSync(join(DIR, "app.css"), "a{}");
     hashAssets(args());
-    expect(readdirSync(join(DIR, "public/static/fonts"))).toEqual(["exo.aaaaaaaaaaaa.woff2"]);
+    expect(readdirSync(join(DIR, "public/static/fonts")).sort()).toEqual([
+      "exo.aaaaaaaaaaaa.woff2",
+      "exo2.cccccccccccc.woff2",
+    ]);
     expect(readFileSync(join(DIR, "public/static/robots.txt"), "utf-8")).toBe("kept");
-    rmSync(join(DIR, "public/static/fonts"), { recursive: true });
     rmSync(join(DIR, "public/static/robots.txt"));
   });
 
@@ -78,6 +92,53 @@ describe("hash-asset", () => {
     writeFileSync(join(DIR, "app.css"), "b{}");
     const after = hashAssets(args()).css;
     expect(after).not.toBe(before);
-    expect(readdirSync(join(DIR, "public/static"))).toEqual([after.split("/").pop()]);
+    expect(readdirSync(join(DIR, "public/static")).filter((name) => name.endsWith(".css"))).toEqual([
+      after.split("/").pop(),
+    ]);
+  });
+});
+
+describe("the font set hash-asset reads", () => {
+  it("reads faces quoted either way, in any declaration order, and skips local() fallbacks", () => {
+    const css =
+      `@font-face{src:url('${EXO}') format('woff2');font-weight:100 900;font-family:'Exo'}` +
+      `/* note */@font-face { font-display: swap; font-family: Exo 2 ; src: url(${EXO2}) }` +
+      "@font-face{font-family:'Exo 2 Fallback';src:local('Arial')}";
+    expect(parseFonts(css, join(DIR, "public"), FAMILIES)).toEqual({ Exo: EXO, "Exo 2": EXO2 });
+  });
+
+  it("refuses a set missing a brand family, naming a missing file, or naming a family twice", () => {
+    const pub = join(DIR, "public");
+    expect(() => parseFonts("", pub, FAMILIES)).toThrow("no web-font face for Exo, Exo 2");
+    expect(() => parseFonts(`@font-face{font-family:"Exo";src:url("${EXO}")}`, pub, FAMILIES)).toThrow("Exo 2");
+    expect(() =>
+      parseFonts(`@font-face{font-family:"Exo";src:url("/static/fonts/gone.000000000000.woff2")}`, pub, ["Exo"]),
+    ).toThrow("not under public/");
+    expect(() =>
+      parseFonts(
+        `@font-face{font-family:"Exo";src:url("${EXO}")}@font-face{font-family:"Exo";src:url("${EXO}")}`,
+        pub,
+        ["Exo"],
+      ),
+    ).toThrow("twice");
+  });
+
+  it("writes and prunes nothing when fonts.css cannot be read as the brand set", () => {
+    keepFonts();
+    writeFileSync(join(DIR, "app.css"), "z{}");
+    const before = readdirSync(join(DIR, "public/static/fonts")).sort();
+    const moduleBefore = readFileSync(join(DIR, "assets.ts"), "utf-8");
+    writeFileSync(join(DIR, "fonts.css"), "/* emptied */");
+    expect(() => hashAssets(args())).toThrow("no web-font face");
+    expect(readdirSync(join(DIR, "public/static/fonts")).sort()).toEqual(before);
+    expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toBe(moduleBefore);
+    writeFileSync(join(DIR, "fonts.css"), FONTS_CSS);
+  });
+
+  it("removes temporary files a killed build left beside assets.ts and fonts.css", () => {
+    writeFileSync(join(DIR, "assets.ts.4242.tmp"), "half");
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    hashAssets(args());
+    expect(readdirSync(DIR).filter((name) => name.endsWith(".tmp"))).toEqual([]);
   });
 });

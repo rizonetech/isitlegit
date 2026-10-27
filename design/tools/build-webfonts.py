@@ -6,7 +6,8 @@
 Converts the vendored variable fonts (design/fonts/, SIL OFL 1.1) to WOFF2 in public/static/fonts/, named
 `<family>.<first 12 hex of the SHA-256 of the source TTF and the converter pins>.woff2`, and writes src/web/styles/fonts.css with their @font-face
 rules, plus an "<family> Fallback" face over Arial (or the metric-compatible Liberation Sans or Arimo) scaled to the same
-space, so the swap shifts no layout. The fallback metrics are computed with fonttools when a font converts and kept in
+space, so running text keeps its layout when the web font swaps in (measured for mixed-case prose at desktop and
+phone width; upper-case and tabular-figure roles are not matched separately). The fallback metrics are computed with fonttools when a font converts and kept in
 design/fonts/fallback-metrics.json. The name follows the source font and the pinned fonttools and brotli, so a family whose current file already exists is skipped without importing
 fonttools: `pnpm build:assets` runs this on every build, and only a changed source font needs
 design/tools/requirements.txt (fonttools with brotli). Older font files stay until scripts/hash-asset.ts, the last
@@ -113,11 +114,40 @@ def fallback_metrics(source, weight):
             "descent-override": pct(abs(descent) / upm / size_adjust), "line-gap-override": pct(gap / upm / size_adjust)}
 
 
+class MetricsError(ValueError):
+    pass
+
+
+def read_metrics(path):
+    """The stored fallback metrics, each entry checked (a fingerprint and every override as a number in 0 to 500), so a
+    damaged file stops the build with one line rather than writing bad CSS; an entry that fails is recomputed."""
+    if not path.exists():
+        return {}
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise MetricsError(f"{path.name} is not valid JSON ({e.msg}, line {e.lineno}); restore it from git or delete it "
+                           "and rebuild with design/tools/requirements.txt installed") from e
+    if not isinstance(stored, dict):
+        raise MetricsError(f"{path.name} must hold an object of families")
+    valid = {}
+    for family, entry in stored.items():
+        if (isinstance(entry, dict) and isinstance(entry.get("fingerprint"), str)
+                and all(isinstance(entry.get(k), (int, float)) and 0 <= entry[k] <= 500 for k in OVERRIDES)):
+            valid[family] = entry
+    return valid
+
+
 def build(fonts_dir, out_dir, css_path):
     """Builds every family; returns {served name: public URL path} and the names it converted."""
     faces, converted = [], []
     metrics_path = fonts_dir / METRICS
-    stored = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
+    # Temporary files a killed earlier run left (SIGKILL runs no cleanup) go first.
+    for folder in {fonts_dir, out_dir, css_path.parent}:
+        if folder.exists():
+            for leftover in folder.glob("*.tmp"):
+                leftover.unlink()
+    stored = read_metrics(metrics_path)
     metrics = {}
     for source_name, name, family, weight in FAMILIES:
         source = fonts_dir / source_name
@@ -151,6 +181,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         _, converted = build(args.fonts, args.out, args.css)
+    except MetricsError as e:
+        print(f"build-webfonts: {e}", file=sys.stderr)
+        return 1
     except ModuleNotFoundError as e:
         print(f"build-webfonts: a source font changed and converting it needs {e.name}: "
               "pip install -r design/tools/requirements.txt", file=sys.stderr)

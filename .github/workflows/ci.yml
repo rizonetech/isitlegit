@@ -40,7 +40,7 @@ jobs:
         run: pnpm build:assets
       - name: Generated files are committed
         # git status, not git diff: a generated file left out of the commit is untracked, and diff never sees it.
-        run: test -z "$(git status --porcelain -- src/web public)" || { git status --porcelain -- src/web public; exit 1; }
+        run: test -z "$(git status --porcelain -- src/web public design/fonts)" || { git status --porcelain -- src/web public design/fonts; exit 1; }
       - name: pnpm test
         run: pnpm test
         env:

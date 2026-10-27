@@ -115,6 +115,29 @@ class Build(unittest.TestCase):
         self.assertIn("fonttools==", pins)
         self.assertNotEqual(webfonts.fingerprint(source, pins), webfonts.fingerprint(source, pins.replace("brotli==", "brotli==9")))
 
+    def test_damaged_metrics_stop_the_build_with_one_line(self):
+        (self.fonts / webfonts.METRICS).write_text("<<<<<<< HEAD\n{}", encoding="utf-8")
+        result = self.build()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("fallback-metrics.json is not valid JSON", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_leftover_temporary_files_are_removed(self):
+        (self.out / "exo.123.woff2.tmp").write_bytes(b"half")
+        (self.fonts / "fallback-metrics.json.tmp").write_text("half", encoding="utf-8")
+        self.assertEqual(self.build().returncode, 0)
+        self.assertEqual([p.name for p in [*self.out.iterdir(), *self.fonts.iterdir()] if p.name.endswith(".tmp")], [])
+
+    @needs_font_tools
+    def test_an_entry_missing_an_override_is_recomputed_not_trusted(self):
+        import json
+
+        metrics = json.loads((self.fonts / webfonts.METRICS).read_text(encoding="utf-8"))
+        del metrics["Exo"]["size-adjust"]
+        (self.fonts / webfonts.METRICS).write_text(json.dumps(metrics), encoding="utf-8")
+        self.assertEqual(self.build().returncode, 0)
+        self.assertIn("size-adjust", json.loads((self.fonts / webfonts.METRICS).read_text(encoding="utf-8"))["Exo"])
+
     @needs_font_tools
     def test_fresh_and_stored_metrics_write_the_same_css(self):
         (self.fonts / webfonts.METRICS).unlink()  # first build computes the metrics, the second reads them back

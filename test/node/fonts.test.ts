@@ -81,8 +81,9 @@ const TEXT =
   );
 const SHIFT_PAGE = (
   css: string,
+  column: number,
 ) => `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${css}">
-<style>body{margin:0}main{width:640px;padding:24px}h1{font-family:var(--font-heading);font-weight:800;font-size:40px;line-height:1.15;margin:0 0 16px}
+<style>body{margin:0}main{width:${column}px;padding:24px}h1{font-family:var(--font-heading);font-weight:800;font-size:40px;line-height:1.15;margin:0 0 16px}
 p{font-family:var(--font-text);font-size:16px;line-height:1.5;margin:0 0 16px}#below{height:80px}</style></head>
 <body><main><h1>Is this invoice legit? Check before you pay</h1><p>${TEXT}</p><p>${TEXT}</p><div id="below"></div></main>
 <pre id="out"></pre><script>
@@ -99,7 +100,8 @@ beforeAll(async () => {
     const fixture = /^\/page(\/.*\.css)$/.exec(path);
     if (fixture) return res.writeHead(200, { "content-type": "text/html" }).end(page(fixture[1] as string));
     const shift = /^\/shift(\/.*\.css)$/.exec(path);
-    if (shift) return res.writeHead(200, { "content-type": "text/html" }).end(SHIFT_PAGE(shift[1] as string));
+    const column = Number(new URL(req.url ?? "/", "http://x").searchParams.get("column") ?? 640);
+    if (shift) return res.writeHead(200, { "content-type": "text/html" }).end(SHIFT_PAGE(shift[1] as string, column));
     // Fonts that never arrive, so the page lays out in its fallback: what a visitor sees before the swap.
     if (path.endsWith(".woff2") && blockFonts) return void res.writeHead(404).end();
     if (VARIANTS[path] !== undefined) return res.writeHead(200, { "content-type": "text/css" }).end(VARIANTS[path]);
@@ -118,7 +120,7 @@ function measure(css: string): Promise<Record<string, Record<string, number>>> {
 
 // Opens a page and returns the JSON it writes into <pre id="out">. The user font folder stays visible (XDG_DATA_HOME),
 // since the profile replaces HOME, so a locally installed Liberation Sans serves as the fallback.
-function open<T>(url: string): Promise<T> {
+function open<T>(url: string, window = "1200,900"): Promise<T> {
   const profile = mkdtempSync(join(tmpdir(), "fonts-profile-"));
   const fonts = process.env.XDG_DATA_HOME ?? join(process.env.HOME ?? "", ".local/share");
   return new Promise((resolve, reject) => {
@@ -130,7 +132,7 @@ function open<T>(url: string): Promise<T> {
         "--no-first-run",
         `--user-data-dir=${profile}`,
         "--virtual-time-budget=5000",
-        "--window-size=1200,900",
+        `--window-size=${window}`,
         "--dump-dom",
         url,
       ],
@@ -177,25 +179,33 @@ const HAS_FALLBACK = /Liberation Sans|Arial|Arimo/.test(
 
 describe.skipIf((!BROWSER || !HAS_FALLBACK) && !process.env.CI)("font swap", () => {
   // The block below the text moves by the difference between the fallback layout and the web-font layout when the fonts
-  // swap in; as a share of the 900 px viewport that distance bounds the layout shift (impact x distance <= distance).
+  // swap in; as a share of the viewport height that distance bounds the layout shift (impact x distance <= distance).
+  // Measured for mixed-case running text at desktop and phone width; upper-case eyebrows and tabular figures are not
+  // matched separately (the fallback is sized on lower-case prose, the method Capsize and next/font use).
   type Layout = { top: number; loaded: string[] };
-  it("moves the page by no more than 1% of the viewport when the web fonts replace the fallback", async () => {
-    expect(HAS_FALLBACK, "CI must have Liberation Sans (fonts-liberation)").toBe(true);
-    const webFonts = await open<Layout>(`${origin}/shift${APP_CSS}`);
-    blockFonts = true;
-    let fallback: Layout;
-    let bare: Layout;
-    try {
-      fallback = await open<Layout>(`${origin}/shift${APP_CSS}`);
-      bare = await open<Layout>(`${origin}/shift/no-fallback.css`);
-    } finally {
-      blockFonts = false;
-    }
-    expect(webFonts.loaded).toEqual(expect.arrayContaining(["Exo", "Exo 2"]));
-    expect(fallback.loaded).toEqual(expect.arrayContaining(["Exo Fallback", "Exo 2 Fallback"]));
-    const moved = (layout: Layout) => Math.abs(layout.top - webFonts.top) / 900;
-    // Without the metric-matched faces the system font moves the page measurably; with them it stays within 1%.
-    expect(moved(bare), `without the fallback faces: ${bare.top} vs ${webFonts.top}`).toBeGreaterThan(0.01);
-    expect(moved(fallback), `with the fallback faces: ${fallback.top} vs ${webFonts.top}`).toBeLessThanOrEqual(0.01);
-  }, 150_000);
+  const VIEWPORTS = [
+    { name: "desktop", window: "1200,900", height: 900, column: 640 },
+    { name: "phone", window: "360,740", height: 740, column: 312 },
+  ];
+  for (const viewport of VIEWPORTS)
+    it(`moves the page by no more than 1% of the viewport at ${viewport.name} width when the web fonts replace the fallback`, async () => {
+      expect(HAS_FALLBACK, "CI must have Liberation Sans (fonts-liberation)").toBe(true);
+      const at = (css: string) => open<Layout>(`${origin}/shift${css}?column=${viewport.column}`, viewport.window);
+      const webFonts = await at(APP_CSS);
+      blockFonts = true;
+      let fallback: Layout;
+      let bare: Layout;
+      try {
+        fallback = await at(APP_CSS);
+        bare = await at("/no-fallback.css");
+      } finally {
+        blockFonts = false;
+      }
+      expect(webFonts.loaded).toEqual(expect.arrayContaining(["Exo", "Exo 2"]));
+      expect(fallback.loaded).toEqual(expect.arrayContaining(["Exo Fallback", "Exo 2 Fallback"]));
+      const moved = (layout: Layout) => Math.abs(layout.top - webFonts.top) / viewport.height;
+      // Without the metric-matched faces the system font moves the page measurably; with them it stays within 1%.
+      expect(moved(bare), `without the fallback faces: ${bare.top} vs ${webFonts.top}`).toBeGreaterThan(0.01);
+      expect(moved(fallback), `with the fallback faces: ${fallback.top} vs ${webFonts.top}`).toBeLessThanOrEqual(0.01);
+    }, 150_000);
 });

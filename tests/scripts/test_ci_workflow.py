@@ -74,7 +74,7 @@ def problems(text, package):
     return out
 
 
-GENERATED_CHECK = 'test -z "$(git status --porcelain -- src/web public)" || { git status --porcelain -- src/web public; exit 1; }'
+GENERATED_CHECK = 'test -z "$(git status --porcelain -- src/web public design/fonts)" || { git status --porcelain -- src/web public design/fonts; exit 1; }'
 STYLES = ["pnpm build:assets", GENERATED_CHECK, "pnpm test"]
 
 
