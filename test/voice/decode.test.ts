@@ -261,7 +261,7 @@ describe("decodeToWavChunks", () => {
     expect(seen.total).toBe(29 * 60 * 16_000 - 104);
   });
 
-  it("refuses M4A by type until D01 T03 §8 decodes it, naming the formats it takes", async () => {
+  it("refuses M4A by type until D01 T03 §10 decodes it, naming the formats it takes", async () => {
     const m4a = Uint8Array.from([0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4d, 0x34, 0x41, 0x20]);
     const refusal = await decodeAll(m4a, "audio/mp4").catch((e: unknown) => e);
     expect(refusal).toBeInstanceOf(UnsupportedAudio);
