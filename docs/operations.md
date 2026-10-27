@@ -133,3 +133,16 @@ unset secret
 ```
 
 Cloudflare sets a secret only on the newest version, so do it while no rollback is in effect, and run the smoke check afterwards: `wrangler secret put` publishes a new version of the same code.
+
+## Settle an uncertain mail send
+
+A mail send is `uncertain` when SMTP2GO gave no answer, an unreadable one or a 5xx (D01 T02 §1): it may or may not have gone. Every 15 minutes the Worker's cron settles such sends from SMTP2GO's own record, by the send key each message carries in its `X-IsItLegit-Send` header (`src/mail/reconcile.ts`). It never sends a message again, and an empty search proves nothing, so a send SMTP2GO shows no record of stays uncertain. One still unresolved after 3 days comes to the operator once, as an alert mail naming its kind, case and send key.
+
+To settle it, open SMTP2GO's activity, search the send's time with the `X-IsItLegit-Send` header shown, and find the send key. Then record what SMTP2GO shows:
+
+```bash
+node scripts/mail-settle.ts <send key> sent     # SMTP2GO has the message
+node scripts/mail-settle.ts <send key> failed   # SMTP2GO has no record of it; the caller may send it again
+```
+
+The script changes only a row that is still uncertain or pending, so it never reopens a sent message; it refuses anything that is not a send key. Use `failed` only when SMTP2GO has no record, since it lets the message be sent again.

@@ -142,18 +142,18 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
     const at = now();
     const inserted = await db
       .prepare(
-        "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?) ON CONFLICT (send_key) DO NOTHING",
+        "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at, claimed_at) VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?) ON CONFLICT (send_key) DO NOTHING",
       )
-      .bind(ulid(), message.sendKey, message.caseId ?? null, message.kind, toHash, at, at)
+      .bind(ulid(), message.sendKey, message.caseId ?? null, message.kind, toHash, at, at, at)
       .run();
     claimed = inserted.meta.changes === 1;
     if (!claimed) {
       // Only a failed send may be tried again, and only by one caller at a time.
       const retried = await db
         .prepare(
-          "UPDATE mail_sends SET status = 'pending', error = NULL, updated_at = ? WHERE send_key = ? AND status = 'failed' RETURNING attempts",
+          "UPDATE mail_sends SET status = 'pending', error = NULL, updated_at = ?, claimed_at = ? WHERE send_key = ? AND status = 'failed' RETURNING attempts",
         )
-        .bind(now(), message.sendKey)
+        .bind(at, at, message.sendKey)
         .first<{ attempts: number }>();
       claimed = retried !== null;
       base = retried?.attempts ?? 0;

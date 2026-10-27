@@ -34,6 +34,10 @@
     // Local default; `wrangler dev --var` and the deploy (`--var COMMIT_SHA:$(git rev-parse HEAD)`) override it.
     "COMMIT_SHA": "dev",
     // The Meta Model API through AI Gateway's `meta` custom provider; the client appends /responses and the rest.
-    "META_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1"
-  }
+    "META_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1",
+    // The operator's mailbox (design spec section 11): alerts and unresolved sends go here (D01 T02 §5, §2).
+    "OPERATOR_EMAIL": "hostmaster@rizonetech.com"
+  },
+  // Every 15 minutes: settle uncertain mail sends from SMTP2GO's record (D01 T02 §5, src/mail/reconcile.ts).
+  "triggers": { "crons": ["*/15 * * * *"] }
 }

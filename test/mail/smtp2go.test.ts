@@ -313,6 +313,23 @@ describe("sendMail", () => {
     expect(count?.n).toBe(1);
   });
 
+  it("records each claim's own start, moving it when a failed send is tried again (D01 T02 §5)", async () => {
+    const later = message();
+    const first = new Date("2026-10-27T08:00:00Z");
+    const retry = new Date("2026-10-27T14:30:00Z");
+    await sendMail({ ...deps(smtp2go([new Response("{}", { status: 400 })]).stub), now: () => first }, later);
+    expect(await row(later.sendKey)).toMatchObject({
+      created_at: first.toISOString(),
+      claimed_at: first.toISOString(),
+    });
+    await sendMail({ ...deps(smtp2go([ok()]).stub), now: () => retry }, later);
+    expect(await row(later.sendKey)).toMatchObject({
+      status: "sent",
+      created_at: first.toISOString(),
+      claimed_at: retry.toISOString(),
+    });
+  });
+
   it("sends nothing when the send log cannot be written", async () => {
     const { stub, calls } = smtp2go([ok()]);
     const broken = { prepare: () => ({ bind: () => ({ run: async () => Promise.reject(new Error("D1 down")) }) }) };
