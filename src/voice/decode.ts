@@ -213,14 +213,20 @@ export function opusPacketSamples(packet: Uint8Array): number | null {
   return samples > 5_760 ? null : samples; // at most 120 ms
 }
 
-type OggPacket = { packet: Uint8Array; index: number };
+type OggPacket = { packet: Uint8Array; index: number; page: number };
 
-// The packets of a checked Ogg stream, in order. A packet within one page is a view of the input; one that runs on
-// into the next page is copied together.
+// The packets of a checked Ogg stream, in order, each with the page it ends on. A packet within one page is a view of
+// the input; one that runs on into the next page is copied together. A page must say it continues a packet exactly
+// when the page before it left one open (RFC 3533 6, RFC 7845 3): otherwise part of a packet is missing.
 function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
   let index = 0;
   let pending: Uint8Array[] = [];
-  for (let at = 0; at < bytes.length; ) {
+  for (let at = 0, page = 0; at < bytes.length; page++) {
+    const continued = ((bytes[at + 5] as number) & 0x01) !== 0;
+    if (continued && !pending.length)
+      throw new CorruptAudio(`Ogg page ${page} continues a packet the page before it did not leave open`);
+    if (!continued && pending.length)
+      throw new CorruptAudio(`Ogg page ${page} starts afresh while the page before it left a packet unfinished`);
     const segments = bytes[at + 26] as number;
     let start = at + 27 + segments;
     let size = 0;
@@ -240,7 +246,7 @@ function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
           }
           pending = [];
         }
-        yield { packet, index: index++ };
+        yield { packet, index: index++, page };
         start += size;
         size = 0;
       }
@@ -255,14 +261,17 @@ function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
 
 // Every page checked (capture pattern, sizes, checksum, sequence, one logical stream, end of stream) and every packet
 // (the OpusHead and OpusTags headers, then audio packets of a valid length and duration), before any decoding. The
-// length is the sum of the audio packets' durations, less the pre-skip.
-function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number } {
+// packets' durations bound how much audio there is; the last page's granule position, less the pre-skip, is how much
+// of it the recording keeps (RFC 7845 4.4: the end may be trimmed, only within the last page). `gain` is the OpusHead's
+// output gain (RFC 7845 5.1) as a factor.
+function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: number } {
   if (bytes.length === 0) throw new CorruptAudio("the Ogg file is empty");
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let page = 0;
   let serial = 0;
   let sequence = 0;
   let flags = 0;
+  let granule = 0n;
   for (let at = 0; at < bytes.length; page++) {
     if (at + 27 > bytes.length) throw new CorruptAudio(`the Ogg stream is cut short in page ${page}`);
     if (view.getUint32(at, false) !== 0x4f676753) throw new CorruptAudio(`Ogg page ${page} does not start with OggS`);
@@ -275,6 +284,7 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number } {
     if (pageCrc(bytes, at, end) !== view.getUint32(at + 22, true))
       throw new CorruptAudio(`Ogg page ${page} fails its checksum`);
     flags = bytes[at + 5] as number;
+    granule = view.getBigInt64(at + 6, true);
     const pageSerial = view.getUint32(at + 14, true);
     const pageSequence = view.getUint32(at + 18, true);
     if (page === 0) {
@@ -291,9 +301,12 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number } {
   }
   if (!(flags & 0x04)) throw new CorruptAudio("the Ogg stream is cut short (its last page does not end the stream)");
 
+  const lastPage = page - 1;
   let layout: OpusLayout | null = null;
+  let gain = 1;
   let total = 0;
-  for (const { packet, index } of oggPackets(bytes)) {
+  let onLastPage = 0;
+  for (const { packet, index, page: endsOn } of oggPackets(bytes)) {
     if (index === 0) {
       const magic = String.fromCharCode(...packet.subarray(0, 8));
       if (packet.length < 19 || magic !== "OpusHead")
@@ -303,6 +316,8 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number } {
       if (channels > 2 || packet[18] !== 0)
         throw new UnsupportedAudio(`audio/ogg with ${channels} channels (mapping family ${packet[18]})`);
       layout = { channels, preSkip: (packet[10] as number) | ((packet[11] as number) << 8) };
+      // Q7.8 decibels, signed.
+      gain = 10 ** (new DataView(packet.buffer, packet.byteOffset + 16, 2).getInt16(0, true) / 256 / 20);
     } else if (index === 1) {
       if (String.fromCharCode(...packet.subarray(0, 8)) !== "OpusTags")
         throw new CorruptAudio("the Opus stream has no OpusTags header");
@@ -312,12 +327,17 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number } {
       if (packet.length > MAX_PACKET_BYTES_PER_CHANNEL * (layout as OpusLayout).channels)
         throw new CorruptAudio(`Opus packet ${index - 2} is larger than any real recording's (${packet.length} bytes)`);
       total += samples;
+      if (endsOn === lastPage) onLastPage += samples;
     }
   }
   if (!layout) throw new CorruptAudio("the Ogg stream is not Opus (no OpusHead)");
-  const samples = total - layout.preSkip;
+  if (granule < 0n || granule > BigInt(total))
+    throw new CorruptAudio("the Ogg stream's last position claims more audio than its packets hold");
+  if (BigInt(total) - granule > BigInt(onLastPage))
+    throw new CorruptAudio("the Ogg stream trims more audio than its last page holds");
+  const samples = Number(granule) - layout.preSkip;
   if (samples <= 0) throw new CorruptAudio("the Ogg stream holds no audio");
-  return { ...layout, samples };
+  return { ...layout, samples, gain };
 }
 
 type WavLayout = { channels: number; rate: number; start: number; frames: number };
@@ -328,14 +348,17 @@ function scanWav(bytes: Uint8Array): WavLayout {
   const ascii = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4));
   if (bytes.length < 12 || ascii(0) !== "RIFF" || ascii(8) !== "WAVE")
     throw new CorruptAudio("the file is not a RIFF WAVE file");
+  // The RIFF chunk encloses all the others: its size says where the file ends.
+  const end = 8 + view.getUint32(4, true);
+  if (end > bytes.length)
+    throw new CorruptAudio("the WAV is cut short (its RIFF header claims more bytes than it has)");
   let fmt: { format: number; channels: number; rate: number; bits: number } | null = null;
   let data: { start: number; size: number } | null = null;
-  for (let at = 12; at + 8 <= bytes.length; ) {
+  for (let at = 12; at + 8 <= end; ) {
     const id = ascii(at);
     const size = view.getUint32(at + 4, true);
     const body = at + 8;
-    if (body + size > bytes.length)
-      throw new CorruptAudio(`the WAV's ${id.trim()} chunk runs past the end of the file`);
+    if (body + size > end) throw new CorruptAudio(`the WAV's ${id.trim()} chunk runs past the end of the file`);
     if (id === "fmt ") {
       if (size < 16) throw new CorruptAudio("the WAV's fmt chunk is too short");
       fmt = {
@@ -380,7 +403,9 @@ export async function* decodeToWavChunks(
 ): AsyncGenerator<Uint8Array> {
   const capacity = Math.round((options.chunkSeconds ?? CHUNK_SECONDS) * TARGET_RATE);
   if (OGG_TYPES.has(type)) {
-    const { channels, preSkip, samples } = scanOgg(bytes);
+    const { channels, preSkip, samples, gain } = scanOgg(bytes);
+    // What the recording keeps at 16 kHz: anything the decoder gives past it is end trimming.
+    const keep = Math.round((samples * TARGET_RATE) / OPUS_RATE);
     tooLong(samples / OPUS_RATE);
     const chunks = new ChunkWriter(capacity, Math.ceil((samples * TARGET_RATE) / OPUS_RATE));
     const decoder = (options.opusDecoder ?? createOpusDecoder)({ channels, preSkip });
@@ -403,7 +428,8 @@ export async function* decodeToWavChunks(
         if (out.errors.length > 0)
           throw new CorruptAudio(`the Opus stream has damaged frames (${out.errors[0]?.message ?? "decoder error"})`);
         const mono = mixdown(out.channelData);
-        for (let i = 0; i < out.samplesDecoded; i++) chunks.put(mono[i] as number);
+        const n = Math.min(out.samplesDecoded, keep - chunks.total);
+        for (let i = 0; i < n; i++) chunks.put((mono[i] as number) * gain);
       };
       for (const { packet, index } of oggPackets(bytes)) {
         if (index < 2) continue;

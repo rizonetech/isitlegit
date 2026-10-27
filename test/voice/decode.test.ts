@@ -10,11 +10,20 @@ import {
   UnsupportedAudio,
 } from "../../src/voice/decode";
 import { toneOgg, toneStereoOgg, toneWav } from "../fixtures/audio/load";
-import { BOS, oggCrc, oggPackets, oggPage, oggStream, tone, wavFile } from "../fixtures/audio/ogg";
+import {
+  BOS,
+  concat,
+  EOS,
+  oggCrc,
+  oggPackets,
+  oggPage,
+  oggRawPage,
+  oggStream,
+  tone,
+  wavFile,
+} from "../fixtures/audio/ogg";
 
 // D01 T03 §2: voice notes decoded to 16 kHz mono 16-bit WAV, checked by their sound, not only their headers.
-
-const PRE_SKIP = 312;
 
 type Wav = { format: number; channels: number; rate: number; bits: number; riffSize: number; samples: Int16Array };
 function readWav(chunk: Uint8Array): Wav {
@@ -57,8 +66,7 @@ const frequency = (s: Int16Array, rate: number) => {
 const fixture = oggPackets(toneOgg);
 const headers = fixture.slice(0, 2).map((p) => p.packet);
 const audio = fixture.slice(2).map((p) => p.packet);
-const repeated = (repeats: number) =>
-  oggStream(headers, Array.from({ length: repeats }, () => audio).flat(), PRE_SKIP, 960);
+const repeated = (repeats: number) => oggStream(headers, Array.from({ length: repeats }, () => audio).flat(), 960);
 
 // The real decoder, as decode.ts makes it, counting what it is asked to do.
 const counting = () => {
@@ -243,7 +251,7 @@ describe("decodeToWavChunks", () => {
     const stereoHead = (headers[0] as Uint8Array).slice();
     stereoHead[9] = 2;
     const packets = Array.from({ length: 14_500 }, () => Uint8Array.from([0xff, 0x06]));
-    const dense = oggStream([stereoHead, headers[1] as Uint8Array], packets, PRE_SKIP, 5_760);
+    const dense = oggStream([stereoHead, headers[1] as Uint8Array], packets, 5_760);
     expect(dense.length).toBeLessThan(500_000);
     const { seen, make } = counting();
     const lengths = (await decodeAll(dense, "audio/ogg", { opusDecoder: make })).map((c) => readWav(c).samples.length);
@@ -280,14 +288,14 @@ describe("decodeToWavChunks", () => {
       // Cut exactly at a page boundary: every page is whole, but the stream never ends.
       const pages = [oggPage(headers[0] as Uint8Array, BOS, 0n, 0), oggPage(headers[1] as Uint8Array, 0, 0n, 1)];
       audio.slice(0, 50).forEach((p, i) => {
-        pages.push(oggPage(p, 0, BigInt(PRE_SKIP + (i + 1) * 960), i + 2));
+        pages.push(oggPage(p, 0, BigInt((i + 1) * 960), i + 2));
       });
       const atBoundary = Uint8Array.from(pages.flatMap((p) => [...p]));
       expect(await refusal(atBoundary, "audio/ogg")).toMatch(/does not end the stream/);
-      expect(await refusal(oggStream(headers, [], PRE_SKIP, 960), "audio/ogg")).toMatch(/cut short|no audio/);
-      const tagsLast = oggStream([headers[0] as Uint8Array], [headers[1] as Uint8Array], 0, 0);
+      expect(await refusal(oggStream(headers, [], 960), "audio/ogg")).toMatch(/cut short|no audio/);
+      const tagsLast = oggStream([headers[0] as Uint8Array], [headers[1] as Uint8Array], 0);
       expect(await refusal(tagsLast, "audio/ogg")).toMatch(/no audio/);
-      const notOpus = oggStream([new TextEncoder().encode("OpusHeadless______")], audio.slice(0, 3), PRE_SKIP, 960);
+      const notOpus = oggStream([new TextEncoder().encode("OpusHeadless______")], audio.slice(0, 3), 960);
       expect(await refusal(notOpus, "audio/ogg")).toMatch(/OpusHead|not Opus/);
     });
 
@@ -303,7 +311,7 @@ describe("decodeToWavChunks", () => {
     it("an Opus frame the decoder reports as bad, in pages whose checksums are intact", async () => {
       // TOC code 1 (two frames of equal size) over an odd payload: a valid duration, but libopus refuses it.
       const bad = audio.map((p, i) => (i === 75 ? Uint8Array.from([0xf9, 0x00]) : p));
-      expect(await refusal(oggStream(headers, bad, PRE_SKIP, 960), "audio/ogg")).toMatch(/damaged frames/);
+      expect(await refusal(oggStream(headers, bad, 960), "audio/ogg")).toMatch(/damaged frames/);
     });
 
     it("a malformed Opus packet: no frames, too long, or larger than the decoder takes (completion review)", async () => {
@@ -311,7 +319,6 @@ describe("decodeToWavChunks", () => {
         oggStream(
           headers,
           audio.map((p, i) => (i === 75 ? packet : p)),
-          PRE_SKIP,
           960,
         );
       expect(await refusal(withPacket(Uint8Array.from([0x03, 0x00])), "audio/ogg")).toMatch(/packet 75 is malformed/);
@@ -357,6 +364,10 @@ describe("decodeToWavChunks", () => {
       expect(await refusal(long, "audio/wav")).toMatch(/runs past the end/);
       expect(await refusal(wavFile(samples, 16_000, 0), "audio/wav")).toMatch(/no channels/);
       expect(await refusal(new TextEncoder().encode("not a wave file at all"), "audio/wav")).toMatch(/RIFF WAVE/);
+      // The RIFF header says the file is longer than it is: cut short, though every inner chunk fits (round 1).
+      const cut = toneWav.slice();
+      new DataView(cut.buffer).setUint32(4, cut.length + 1_000, true);
+      expect(await refusal(cut, "audio/wav")).toMatch(/cut short/);
     });
 
     it("a WAV whose data ends partway through a sample or a frame (completion review)", async () => {
@@ -366,6 +377,80 @@ describe("decodeToWavChunks", () => {
       expect(await refusal(mono, "audio/wav")).toMatch(/partway through a sample frame/);
       const stereo = wavFile(tone(16_000, 0.2).slice(0, 1_601), 16_000, 2); // an odd count of samples in two channels
       expect(await refusal(stereo, "audio/wav")).toMatch(/partway through a sample frame/);
+    });
+  });
+
+  describe("Ogg Opus as RFC 7845 defines it (round 1)", () => {
+    const opusSamples = async (bytes: Uint8Array) =>
+      readWav((await decodeAll(bytes, "audio/ogg"))[0] as Uint8Array).samples;
+
+    it("keeps only what the last page's granule position keeps: end trimming", async () => {
+      // 150 packets of 960 samples hold 144,000; a final granule 480 lower trims the end: 143,520 less the
+      // 312-sample pre-skip is 143,208 at 48 kHz, 47,736 at 16 kHz.
+      expect((await opusSamples(oggStream(headers, audio, 960, 143_520n))).length).toBe(47_736);
+      // A position past the packets, or a trim larger than the last page, is damage.
+      await expect(decodeAll(oggStream(headers, audio, 960, 144_001n), "audio/ogg")).rejects.toThrow(
+        /claims more audio than its packets hold/,
+      );
+      await expect(decodeAll(oggStream(headers, audio, 960, 144_000n - 961n), "audio/ogg")).rejects.toThrow(
+        /trims more audio than its last page holds/,
+      );
+    });
+
+    it("takes a recording of exactly 30 minutes, end-trimmed to the sample", { timeout: 180_000 }, async () => {
+      // 90,001 packets of 20 ms, trimmed by 648 samples at the end: 1,800 s after the pre-skip.
+      const packets = Array.from({ length: 90_001 }, (_, i) => audio[i % audio.length] as Uint8Array);
+      const exact = oggStream(headers, packets, 960, 86_400_312n);
+      const lengths = (await decodeAll(exact, "audio/ogg")).map((c) => readWav(c).samples.length);
+      expect(lengths).toEqual([9_600_000, 9_600_000, 9_600_000]);
+    });
+
+    it("applies the OpusHead's output gain", async () => {
+      const quiet = (headers[0] as Uint8Array).slice();
+      new DataView(quiet.buffer).setInt16(16, -5_120, true); // -20 dB in Q7.8
+      const plain = await opusSamples(toneOgg);
+      const lowered = await opusSamples(oggStream([quiet, headers[1] as Uint8Array], audio, 960));
+      expect(rms(lowered, 4_000, 44_000) / rms(plain, 4_000, 44_000)).toBeCloseTo(0.1, 2);
+    });
+
+    it("joins a packet split across two pages, and refuses a page that misstates the split", async () => {
+      // The stereo fixture's packets are longer than 255 bytes, so one can be split after its first 255.
+      const stereo = oggPackets(toneStereoOgg);
+      const stereoHeaders = stereo.slice(0, 2).map((p) => p.packet);
+      const stereoAudio = stereo.slice(2).map((p) => p.packet);
+      const long = stereoAudio.findIndex((p) => p.length > 255 && p.length < 510);
+      expect(long).toBeGreaterThanOrEqual(0);
+      const pages: Uint8Array[] = stereoHeaders.map((h, i) => oggPage(h, i === 0 ? BOS : 0, 0n, i));
+      let sequence = 2;
+      stereoAudio.forEach((p, i) => {
+        const granule = BigInt((i + 1) * 960);
+        const flags = i === stereoAudio.length - 1 ? EOS : 0;
+        if (i !== long) {
+          pages.push(oggPage(p, flags, granule, sequence++));
+          return;
+        }
+        // The first 255 bytes on one page (no packet ends there: granule -1), the rest on the next, marked continued.
+        pages.push(oggRawPage([255], p.subarray(0, 255), 0, -1n, sequence++));
+        pages.push(oggRawPage([p.length - 255], p.subarray(255), 0x01 | flags, granule, sequence++));
+      });
+      const split = concat(pages);
+      expect(await opusSamples(split)).toEqual(await opusSamples(toneStereoOgg));
+      // The same pages with the continuation flag taken off the second half.
+      const unflagged = pages.map((page) => {
+        const rebuilt = page.slice();
+        if (rebuilt[5] === 0x01) {
+          rebuilt[5] = 0;
+          new DataView(rebuilt.buffer).setUint32(22, 0, true);
+          new DataView(rebuilt.buffer).setUint32(22, oggCrc(rebuilt), true);
+        }
+        return rebuilt;
+      });
+      await expect(decodeAll(concat(unflagged), "audio/ogg")).rejects.toThrow(/left a packet unfinished/);
+      // And a continuation flag on a page whose predecessor ended its packet.
+      const flagged = oggPackets(toneOgg).map((p, i) =>
+        oggPage(p.packet, i === 10 ? p.flags | 0x01 : p.flags, p.granule, i),
+      );
+      await expect(decodeAll(concat(flagged), "audio/ogg")).rejects.toThrow(/continues a packet/);
     });
   });
 
@@ -382,10 +467,9 @@ describe("decodeToWavChunks", () => {
     it("more than two channels", async () => {
       const head = (headers[0] as Uint8Array).slice();
       head[9] = 6;
-      const refusal = await decodeAll(
-        oggStream([head, headers[1] as Uint8Array], audio, PRE_SKIP, 960),
-        "audio/ogg",
-      ).catch((e: unknown) => e);
+      const refusal = await decodeAll(oggStream([head, headers[1] as Uint8Array], audio, 960), "audio/ogg").catch(
+        (e: unknown) => e,
+      );
       expect(refusal).toBeInstanceOf(UnsupportedAudio);
       expect((refusal as Error).message).toMatch(/6 channels/);
     });

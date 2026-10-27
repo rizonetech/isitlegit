@@ -46,7 +46,7 @@ export function oggOpusTone(channels: 1 | 2 = 1): Uint8Array {
     packets.push(new Uint8Array(encoder.encode(Buffer.from(frame.buffer), FRAME)));
   }
   encoder.delete();
-  return oggStream([head, tags], packets, PRE_SKIP, FRAME);
+  return oggStream([head, tags], packets, FRAME);
 }
 
 export function wavTone(): Uint8Array {

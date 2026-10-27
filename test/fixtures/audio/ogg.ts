@@ -60,21 +60,47 @@ export function oggPackets(stream: Uint8Array): OggPacket[] {
   return out;
 }
 
-// A stream of the given header packets followed by the audio packets, granules counted from `preSkip` in steps of
-// `frame` samples, the last page marked end of stream.
-export function oggStream(headers: Uint8Array[], audio: Uint8Array[], preSkip: number, frame: number): Uint8Array {
+// A stream of the given header packets followed by the audio packets of `frame` samples each, the granule of each
+// page counting every sample decoded so far, the pre-skip included (RFC 7845 4), the last page marked end of stream.
+export function oggStream(
+  headers: Uint8Array[],
+  audio: Uint8Array[],
+  frame: number,
+  finalGranule?: bigint,
+): Uint8Array {
   const pages = headers.map((h, i) => oggPage(h, i === 0 ? BOS : 0, 0n, i));
   audio.forEach((packet, i) => {
     const last = i === audio.length - 1;
-    pages.push(oggPage(packet, last ? EOS : 0, BigInt(preSkip + (i + 1) * frame), headers.length + i));
+    const granule = last && finalGranule !== undefined ? finalGranule : BigInt((i + 1) * frame);
+    pages.push(oggPage(packet, last ? EOS : 0, granule, headers.length + i));
   });
-  const out = new Uint8Array(pages.reduce((n, p) => n + p.length, 0));
+  return concat(pages);
+}
+
+export const concat = (parts: Uint8Array[]) => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let at = 0;
-  for (const p of pages) {
+  for (const p of parts) {
     out.set(p, at);
     at += p.length;
   }
   return out;
+};
+
+// A page from its parts as given: lacing values, body and flags, so a test can split a packet across pages.
+export function oggRawPage(lacing: number[], body: Uint8Array, flags: number, granule: bigint, sequence: number) {
+  const page = new Uint8Array(27 + lacing.length + body.length);
+  const view = new DataView(page.buffer);
+  page.set([0x4f, 0x67, 0x67, 0x53]);
+  view.setUint8(5, flags);
+  view.setBigInt64(6, granule, true);
+  view.setUint32(14, SERIAL, true);
+  view.setUint32(18, sequence, true);
+  view.setUint8(26, lacing.length);
+  page.set(lacing, 27);
+  page.set(body, 27 + lacing.length);
+  view.setUint32(22, oggCrc(page), true);
+  return page;
 }
 
 // A 16-bit PCM WAV file of the given interleaved samples.
