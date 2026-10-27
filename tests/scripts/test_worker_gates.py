@@ -1,7 +1,7 @@
 """The Worker's gate commands are documented where sessions and contributors read them, and the Node pin agrees.
 
 Every package.json script except the developer tools in TOOLS is a gate, so a script added later (lint, test) fails here
-until AGENTS.md "Validation" and CONTRIBUTING.md "Validation gates" both name it. Standard library only."""
+until AGENTS.md "Validation", CONTRIBUTING.md "Validation gates" and the README quickstart all name it. Standard library only."""
 import json
 import pathlib
 import re
@@ -9,7 +9,7 @@ import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 TOOLS = {"dev", "types"}  # run by hand, not gates: the local server and the type-file regenerator
-DOCS = (("AGENTS.md", "Validation"), ("CONTRIBUTING.md", "Validation gates"))
+DOCS = (("AGENTS.md", "## Validation"), ("CONTRIBUTING.md", "## Validation gates"), ("README.md", "### Run the Worker locally"))
 
 
 def gates(package):
@@ -17,12 +17,26 @@ def gates(package):
 
 
 def section_commands(text, heading):
-    """Every line of every fenced bash block under `## <heading>`, up to the next level-2 heading."""
-    match = re.search(rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text, re.M | re.S)
-    if not match:
-        return []
-    blocks = re.findall(r"^```bash\n(.*?)^```", match.group(1), re.M | re.S)
-    return [line.split("#", 1)[0].strip() for block in blocks for line in block.splitlines()]
+    """Every line of every fenced bash block under `heading` (written with its hashes), up to the next heading of the
+    same or a higher level outside a code fence (a `# comment` inside a bash block is not a heading)."""
+    level = len(heading) - len(heading.lstrip("#"))
+    commands, inside, fence = [], False, None
+    for line in text.splitlines():
+        if fence is None and line.startswith("```"):
+            fence = line[3:].strip()
+            continue
+        if fence is not None:
+            if line.startswith("```"):
+                fence = None
+            elif inside and fence == "bash":
+                commands.append(line.split("#", 1)[0].strip())
+            continue
+        hashes = len(line) - len(line.lstrip("#"))
+        if line == heading:
+            inside = True
+        elif inside and 0 < hashes <= level and line[hashes:hashes + 1] == " ":
+            break
+    return commands
 
 
 def missing_gates(package, text, heading):
@@ -57,27 +71,35 @@ class Repository(unittest.TestCase):
 class Defects(unittest.TestCase):
     PACKAGE = {"scripts": {"dev": "wrangler dev", "typecheck": "tsc", "build": "wrangler deploy --dry-run"}}
     DOC = "## Validation\n\n```bash\npnpm install --frozen-lockfile\npnpm typecheck   # types\npnpm build\n```\n\n## Next\n"
+    NESTED = "## Built\n\n### Run it\n\n```bash\npnpm install --frozen-lockfile\npnpm typecheck\n```\n\n### Later\n\n```bash\npnpm build\n```\n"
 
     def test_a_complete_section_passes(self):
-        self.assertEqual(missing_gates(self.PACKAGE, self.DOC, "Validation"), [])
+        self.assertEqual(missing_gates(self.PACKAGE, self.DOC, "## Validation"), [])
 
     def test_a_dropped_command_is_caught(self):
-        self.assertEqual(missing_gates(self.PACKAGE, self.DOC.replace("pnpm build\n", ""), "Validation"), ["pnpm build"])
+        self.assertEqual(missing_gates(self.PACKAGE, self.DOC.replace("pnpm build\n", ""), "## Validation"), ["pnpm build"])
 
     def test_a_new_script_is_caught_until_documented(self):
         package = {"scripts": dict(self.PACKAGE["scripts"], lint="biome check .")}
-        self.assertEqual(missing_gates(package, self.DOC, "Validation"), ["pnpm lint"])
+        self.assertEqual(missing_gates(package, self.DOC, "## Validation"), ["pnpm lint"])
 
     def test_a_command_outside_the_section_does_not_count(self):
         doc = self.DOC.replace("pnpm build\n", "") + "```bash\npnpm build\n```\n"
-        self.assertEqual(missing_gates(self.PACKAGE, doc, "Validation"), ["pnpm build"])
+        self.assertEqual(missing_gates(self.PACKAGE, doc, "## Validation"), ["pnpm build"])
 
     def test_a_commented_out_command_does_not_count(self):
         doc = self.DOC.replace("pnpm build\n", "# pnpm build\n")
-        self.assertEqual(missing_gates(self.PACKAGE, doc, "Validation"), ["pnpm build"])
+        self.assertEqual(missing_gates(self.PACKAGE, doc, "## Validation"), ["pnpm build"])
+
+    def test_a_level_3_section_ends_at_the_next_level_3_heading(self):
+        self.assertEqual(missing_gates(self.PACKAGE, self.NESTED, "### Run it"), ["pnpm build"])
+
+    def test_a_level_3_section_includes_its_own_blocks(self):
+        complete = self.NESTED.replace("pnpm typecheck\n", "pnpm typecheck\npnpm build\n")
+        self.assertEqual(missing_gates(self.PACKAGE, complete, "### Run it"), [])
 
     def test_a_missing_section_lists_every_gate(self):
-        self.assertEqual(missing_gates(self.PACKAGE, "## Other\n", "Validation"),
+        self.assertEqual(missing_gates(self.PACKAGE, "## Other\n", "## Validation"),
                          ["pnpm install --frozen-lockfile", "pnpm build", "pnpm typecheck"])
 
 

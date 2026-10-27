@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    // WORKAROUND: Miniflare's published declarations, reached through @cloudflare/vitest-plugin, import modules the
+    // package does not ship (`./shared`, `@cloudflare/workers-types`, TS2307), so library checks fail outside our code.
+    // This project checks only vitest.config.ts; the Worker's sources keep library checks on in tsconfig.json.
+    "skipLibCheck": true
+  },
+  "include": ["vitest.config.ts"]
+}

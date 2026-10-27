@@ -8,13 +8,13 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 7 | Checklist items: 70
+Sections: 7 | Checklist items: 74
 
 | Status | Reference  | Deliverable                           | Needs                | Items |
 | ------ | ---------- | ------------------------------------- | -------------------- | ----- |
 | [x]    | D00 T01 §1 | Git repository and public GitHub repo | attended             | 16    |
 | [x]    | D00 T01 §2 | Worker package and health route       | none                 | 16    |
-| [ ]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 11    |
+| [ ]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 15    |
 | [ ]    | D00 T01 §4 | GitHub Actions CI                     | none                 | 6     |
 | [ ]    | D00 T01 §5 | Cloudflare bindings and first deploy  | cloudflare           | 8     |
 | [ ]    | D00 T01 §6 | AI Gateway for the Meta Model API     | cloudflare           | 4     |
@@ -259,4 +259,4 @@ Sections: 12 | Checklist items: 54
 
 Progress: 4/188 verified sections, 2 ready to run now.
 
-Checklist: 95/879 items completed (includes Commit items).
+Checklist: 99/883 items completed (includes Commit items).

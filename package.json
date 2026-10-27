@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "wrangler dev --var COMMIT_SHA:$(git rev-parse HEAD)",
     "types": "wrangler types --strict-vars=false",
-    "typecheck": "wrangler types --strict-vars=false --check && tsc --noEmit && tsc --noEmit -p test",
+    "typecheck": "wrangler types --strict-vars=false --check && tsc --noEmit && tsc --noEmit -p test && tsc --noEmit -p tsconfig.config.json",
     "lint": "biome check .",
     "test": "vitest run",
     "build": "wrangler deploy --dry-run --outdir build/dry"

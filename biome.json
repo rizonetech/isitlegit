@@ -9,6 +9,7 @@
       "wrangler.jsonc",
       "package.json",
       "tsconfig.json",
+      "tsconfig.config.json",
       "biome.json"
     ]
   },
