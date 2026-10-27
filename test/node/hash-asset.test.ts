@@ -25,7 +25,10 @@ const args = () => [
   join(DIR, "assets.ts"),
   "--brand",
   join(DIR, "brand"),
+  "--motion",
+  join(DIR, "motion"),
 ];
+const MOTION_FILES = ["malicious.svg", "suspicious.svg", "safe.svg", "question.svg", "checking-animated.svg"];
 const LOGO_FILES = [
   "isitlegit-logo.svg",
   "isitlegit-logo-on-dark.svg",
@@ -46,6 +49,8 @@ beforeAll(() => {
   writeFileSync(join(DIR, "fonts.css"), FONTS_CSS);
   mkdirSync(join(DIR, "brand"), { recursive: true });
   for (const name of LOGO_FILES) writeFileSync(join(DIR, "brand", name), `<svg>${name}</svg>`);
+  mkdirSync(join(DIR, "motion"), { recursive: true });
+  for (const name of MOTION_FILES) writeFileSync(join(DIR, "motion", name), `<svg>${name}</svg>`);
 });
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
@@ -77,6 +82,35 @@ describe("hash-asset", () => {
       next.LOGO_MARK.split("/").pop(),
     ]);
     writeFileSync(join(DIR, "brand/isitlegit-mark.svg"), "<svg>isitlegit-mark.svg</svg>");
+  });
+
+  it("names the verdict art by its content, exports it as MOTION, keeps it, and replaces a changed one (D07 T01 §7)", () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    const { motion } = hashAssets(args());
+    expect(Object.keys(motion).sort()).toEqual(["checking", "malicious", "question", "safe", "suspicious"]);
+    for (const [key, url] of Object.entries(motion))
+      expect(url).toMatch(new RegExp(`^/static/brand/motion/${key}\\.[0-9a-f]{12}\\.svg$`));
+    // The checking art is the animated one.
+    expect(readFileSync(join(DIR, "public", motion.checking), "utf-8")).toBe("<svg>checking-animated.svg</svg>");
+    expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toContain(
+      `export const MOTION = ${JSON.stringify(motion)} as const;`,
+    );
+    writeFileSync(join(DIR, "motion/safe.svg"), "<svg>new safe</svg>");
+    const next = hashAssets(args()).motion;
+    expect(next.safe).not.toBe(motion.safe);
+    expect(readdirSync(join(DIR, "public/static/brand/motion")).sort()).toEqual(
+      Object.values(next)
+        .map((url) => url.split("/").pop())
+        .sort(),
+    );
+    writeFileSync(join(DIR, "motion/safe.svg"), "<svg>safe.svg</svg>");
+    // A missing art file stops the build with the old set in place.
+    const before = readFileSync(join(DIR, "assets.ts"), "utf-8");
+    rmSync(join(DIR, "motion/question.svg"));
+    writeFileSync(join(DIR, "app.css"), "c{}");
+    expect(() => hashAssets(args())).toThrow("question.svg");
+    expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toBe(before);
+    writeFileSync(join(DIR, "motion/question.svg"), "<svg>question.svg</svg>");
   });
 
   it("writes and prunes nothing when a logo is missing", () => {

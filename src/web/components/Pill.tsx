@@ -23,19 +23,19 @@ export type PillProps = PassThrough & {
   children: string;
 };
 
+// A pill's look, shared with the pills that are links (D07 T01 §7's `EvidenceRef`).
+export const pillClass = (variant: PillVariant, size: PillProps["size"] = "default") =>
+  cx(
+    "inline-flex items-center gap-8 px-12 rounded-pill text-13 weight-heading whitespace-nowrap",
+    size === "compact" ? "h-24" : "h-28",
+    VARIANT[variant],
+  );
+
 export function Pill(props: PillProps) {
   const { variant, size = "default", children } = props;
   if (!children.trim()) throw new Error("Pill: a pill needs words");
   return (
-    <span
-      {...passThrough(props as Record<string, unknown>)}
-      class={cx(
-        "inline-flex items-center gap-8 px-12 rounded-pill text-13 weight-heading whitespace-nowrap",
-        size === "compact" ? "h-24" : "h-28",
-        VARIANT[variant],
-        props.class,
-      )}
-    >
+    <span {...passThrough(props as Record<string, unknown>)} class={cx(pillClass(variant, size), props.class)}>
       {children}
     </span>
   );

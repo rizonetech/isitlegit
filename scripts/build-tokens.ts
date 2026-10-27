@@ -25,7 +25,8 @@ type Tokens = {
     scale: number[];
     radius: Record<string, number>;
     "control-height": Record<string, number>;
-    // Layout widths the boards draw outside the spacing scale (the 256 px sidebar), as `w-<name>`.
+    // Layout sizes the boards draw outside the spacing scale (the 256 px sidebar; the evidence figure, 150 px on the
+    // board, built 152 by the step-above rule), as `w-<name>` or `h-<name>`.
     layout: Record<string, number>;
     shadow: Record<string, string>;
   };
