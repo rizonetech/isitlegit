@@ -76,7 +76,8 @@ async function tabStops(page: Page, count: number): Promise<Focus[]> {
 }
 const keyOf = (focus: Focus) => focus.key.replace(/\s+/g, " ");
 
-describe.skipIf(!chromiumPath() && !process.env.CI)("frames from the keyboard", () => {
+// A real browser on a loaded CI runner can take longer than Vitest's 5 s default for one test (run 40481145558).
+describe.skipIf(!chromiumPath() && !process.env.CI)("frames from the keyboard", { timeout: 30_000 }, () => {
   for (const javaScriptEnabled of [true, false])
     for (const colorScheme of ["light", "dark"] as const)
       for (const frame of ["member", "admin", "public"] as const)

@@ -112,7 +112,8 @@ async function open(theme: "light" | "dark" = "light"): Promise<Page> {
 }
 const events = (page: Page) => page.evaluate(() => (window as unknown as { events: string[] }).events);
 
-describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () => {
+// A real browser on a loaded CI runner can take longer than Vitest's 5 s default for one test (run 40481145558).
+describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", { timeout: 30_000 }, () => {
   for (const theme of ["light", "dark"] as const)
     it(`shows a focus ring of 3:1 or more on every control reached with Tab, invalid fields included (${theme})`, async () => {
       const page = await open(theme);

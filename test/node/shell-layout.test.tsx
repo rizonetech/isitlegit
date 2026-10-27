@@ -70,7 +70,8 @@ const open = (frame: keyof typeof FRAMES, width: number) =>
 const overflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const shown = (page: Page, selector: string) => page.locator(selector).first().isVisible();
 
-describe.skipIf(!chromiumPath() && !process.env.CI)("frames at phone and desktop width", () => {
+// A real browser on a loaded CI runner can take longer than Vitest's 5 s default for one test (run 40481145558).
+describe.skipIf(!chromiumPath() && !process.env.CI)("frames at phone and desktop width", { timeout: 30_000 }, () => {
   for (const frame of ["member", "admin"] as const) {
     it(`${frame}: the sidebar hides behind Menu at 360 px, opens without a script and closes on Esc`, async () => {
       const page = await open(frame, 360);
