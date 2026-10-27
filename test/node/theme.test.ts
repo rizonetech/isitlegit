@@ -188,7 +188,9 @@ describe.skipIf(!BROWSER && !process.env.CI)("token classes measured in Chromium
     );
     light = measure(1);
     dark = measure(0);
-  });
+    // A Tailwind compile and two Chromium launches took about 8 s on the GitHub runner (run 40435635613) and passed
+    // Vitest's 10 s hook default by a little on the next run (40437530949); each launch is itself bounded at 60 s.
+  }, 150_000);
   afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
   it("follows the OS preference when data-theme is unset", () => {
