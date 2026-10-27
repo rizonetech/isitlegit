@@ -20,25 +20,28 @@ type Row = {
 type Report = { decoder: string; rows: Row[] };
 export type BenchReport = { at: string; ours: Report; ffmpeg: Report };
 
-// Times a process's 16-bit output: first output when `thresholdSamples` have come out on stdout (however long the
-// process lingers afterwards), done when it has exited.
+// Times a process's 16-bit output. First output is when `chunkSamples` have come out on stdout or, for a shorter
+// output, when its last sample came out (all of it, the same event our decoder's first chunk is), however long the
+// process lingers before exiting; done is when it has exited.
 export function timeOutput(
   command: string,
   args: string[],
-  thresholdSamples: number,
+  chunkSamples: number,
 ): Promise<{ firstMs: number | null; doneMs: number; samples: number; code: number | null }> {
   return new Promise((resolve, reject) => {
     const started = performance.now();
     const child = spawn(command, args);
     let bytes = 0;
-    let first: number | null = null;
+    let chunkAt: number | null = null;
+    let lastAt: number | null = null;
     child.stdout.on("data", (data: Buffer) => {
       bytes += data.length;
-      if (first === null && bytes >= thresholdSamples * 2) first = performance.now() - started;
+      lastAt = performance.now() - started;
+      if (chunkAt === null && bytes >= chunkSamples * 2) chunkAt = lastAt;
     });
     child.on("error", reject);
     child.on("close", (code) =>
-      resolve({ firstMs: first, doneMs: performance.now() - started, samples: bytes / 2, code }),
+      resolve({ firstMs: chunkAt ?? lastAt, doneMs: performance.now() - started, samples: bytes / 2, code }),
     );
   });
 }

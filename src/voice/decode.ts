@@ -108,7 +108,10 @@ type ResampleKernel = {
 const KERNEL_BLOCK = 16_384;
 
 export class Resampler {
-  private readonly step: number;
+  // The rate as p / q of 16 kHz in lowest terms: output k sits at input position k x p / q, compared in integers so a
+  // long recording's length never drifts by a sample.
+  private readonly p: number;
+  private readonly q: number;
   private readonly half: number; // the filter's half-width, in input samples
   private readonly kernel: (distance: number) => number;
   // The usual rates: the kernel module, its input and output views.
@@ -123,10 +126,11 @@ export class Resampler {
     sourceRate: number,
     private readonly emit: (sample: number) => void,
   ) {
-    this.step = sourceRate / TARGET_RATE;
     const g = gcd(sourceRate, TARGET_RATE);
     const p = sourceRate / g;
     const q = TARGET_RATE / g;
+    this.p = p;
+    this.q = q;
     this.passThrough = sourceRate === TARGET_RATE;
     const nyquist = Math.min(sourceRate, TARGET_RATE) / 2;
     const cutoff = (0.95 * nyquist) / sourceRate; // cycles per input sample
@@ -174,7 +178,7 @@ export class Resampler {
   }
   // The table path's output k, from the held samples within the half-width either side of its input position.
   private output(k: number): number {
-    const t = k * this.step;
+    const t = (k * this.p) / this.q;
     const whole = Math.floor(t);
     let sum = 0;
     for (let n = whole - this.half + 1; n <= whole + this.half; n++) sum += this.kernel(t - n) * this.sample(n);
@@ -200,7 +204,7 @@ export class Resampler {
       }
       return;
     }
-    const keepFrom = Math.max(this.base, Math.floor(this.k * this.step) - this.half);
+    const keepFrom = Math.max(this.base, Math.floor((this.k * this.p) / this.q) - this.half);
     const next = new Float32Array(this.base + this.held.length - keepFrom + mono.length);
     next.set(this.held.subarray(keepFrom - this.base));
     next.set(mono, this.base + this.held.length - keepFrom);
@@ -208,7 +212,7 @@ export class Resampler {
     this.base = keepFrom;
     this.consumed += mono.length;
     // Every output whose window lies wholly within what has arrived.
-    while (Math.floor(this.k * this.step) + this.half < this.consumed) this.emit(this.output(this.k++));
+    while (Math.floor((this.k * this.p) / this.q) + this.half < this.consumed) this.emit(this.output(this.k++));
   }
   // The outputs left before the input ends, their windows running into silence.
   end(): void {
@@ -217,7 +221,7 @@ export class Resampler {
       for (let count = this.native.kernel.finish(); count > 0; count = this.native.kernel.finish()) this.drain(count);
       return;
     }
-    while (this.k * this.step < this.consumed) this.emit(this.output(this.k++));
+    while (this.k * this.p < this.consumed * this.q) this.emit(this.output(this.k++));
   }
 }
 

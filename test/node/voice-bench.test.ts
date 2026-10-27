@@ -15,12 +15,14 @@ const CHUNK = 9_600_000;
 const REPEATS = 3;
 const median = (values: number[]) =>
   Math.round([...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] as number);
-// FFmpeg's length may differ from ours by up to 1 % (checked below), so its first output is taken at 99 % of a short file.
 
 describe("the bench's timer and report (D01 T03 §9's completion review)", () => {
   it("takes first output when the samples arrive, however long the process lingers after", async () => {
-    // 16,000 samples at once, then a second's wait before exiting.
+    // 16,000 samples at once, then a second's wait before exiting: reaching the chunk size, and as a shorter output.
     const timed = await timeOutput("sh", ["-c", "head -c 32000 /dev/zero; sleep 1"], 16_000);
+    const short = await timeOutput("sh", ["-c", "head -c 32000 /dev/zero; sleep 1"], 9_600_000);
+    expect(short.firstMs as number).toBeLessThan(500);
+    expect(short.doneMs).toBeGreaterThanOrEqual(1_000);
     expect(timed.samples).toBe(16_000);
     expect(timed.firstMs).not.toBeNull();
     expect(timed.firstMs as number).toBeLessThan(500);
@@ -63,11 +65,10 @@ describe.skipIf(!process.env.VOICE_BENCH)("FFmpeg timings", () => {
       const file = join(dir, `${i}.${{ "audio/mpeg": "mp3", "audio/wav": "wav" }[input.type] ?? "ogg"}`);
       writeFileSync(file, input.bytes);
       const args = ["-hide_banner", "-loglevel", "error", "-i", file, "-ar", "16000", "-ac", "1"];
-      const threshold = Math.min(CHUNK, Math.floor((input.samples ?? CHUNK) * 0.99));
       // Each input three times; the median of each event is reported (runners vary from run to run).
       const results = [];
       for (let repeat = 0; repeat < REPEATS; repeat++) {
-        const result = await timeOutput("ffmpeg", [...args, "-c:a", "pcm_s16le", "-f", "s16le", "-"], threshold);
+        const result = await timeOutput("ffmpeg", [...args, "-c:a", "pcm_s16le", "-f", "s16le", "-"], CHUNK);
         // FFmpeg conceals damage rather than refusing it: its outcome on the damaged files is recorded, not compared.
         if (!input.refused) {
           expect(result.code, input.name).toBe(0);

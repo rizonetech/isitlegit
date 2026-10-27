@@ -134,6 +134,18 @@ describe("Resampler", () => {
     }
   });
 
+  it("gives exactly ceil(N x 16000 / rate) outputs at an unusual rate, with no stray last sample (§9 round 1)", () => {
+    // 600 s at 8,008 Hz: 4,804,800 inputs, exactly 9,600,000 outputs (a floating-point position once made 9,600,001).
+    let count = 0;
+    const r = new Resampler(8_008, () => {
+      count++;
+    });
+    const block = new Float32Array(48_048);
+    for (let i = 0; i < 100; i++) r.push(block);
+    r.end();
+    expect(count).toBe(9_600_000);
+  });
+
   it("keeps every sample, the last included, when the rate is already 16 kHz", () => {
     const input = ramp(1_000);
     expect(run(16_000, split(input, [3, 1, 250]))).toEqual([...input]);
