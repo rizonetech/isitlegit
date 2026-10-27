@@ -203,7 +203,7 @@ Muse Glimmer is not on the Meta Model API; it runs through a hosted provider, Ba
 - [ ] Remove `third-party` from the Needs of D03 T04 §1 and §3 once the key is stored, so the unattended run can take them. Done when: `python3 scripts/todo-graph.py resolve 'D03 T04 §1'` no longer reports the Need. **Corrected 2026-10-27:** §2 is now the Spark screener and never needed the provider; the Glimmer comparison moved to §3.
 - [ ] Commit: `todo: record partner credits`
 
-Partner credit Baseten: granted, 2026-10-27
+Partner credit Baseten: applied, 2026-10-27 (an API key was issued; the operator stored it in the vault as reported at 10:06 SAST, not verified here because the 1Password CLI is not signed in for the session; no credit balance is confirmed yet)
 
 **Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
 
