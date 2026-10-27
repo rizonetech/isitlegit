@@ -1,0 +1,120 @@
+{
+  "ref": "D07 T01 \u00a75",
+  "title": "Hashed static assets and fonts",
+  "implementation_sha": "faa36b7d9190e31e2d6ae28e19e3984466481e6c",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T01-s5.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T01-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm build:assets twice -> git status --porcelain -- src/web public design/fonts empty",
+    "pnpm test -> 9 files, 50 tests (hashing, asset policy, failed build, serve via unstable_startWorker, fonts in Chromium, fallback layout desktop and phone)",
+    "REQUIRE_FONT_TOOLS=1 python3 -m unittest tests.scripts.test_build_webfonts -> 13 tests OK",
+    "unstable_startWorker: stylesheet and fonts 200 with Cache-Control public, max-age=31536000, immutable; /static/app.css 404; /health routed",
+    "CI on faa36b7d9190e31e2d6ae28e19e3984466481e6c -> success, run 40449792289; missing-font probe failed at Generated files are committed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s5.md",
+    "verdict": "filed",
+    "candidate": "45e444eb761081da06f26ebf622652c7722fb169",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T01 \u00a73"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s5.md",
+    "candidate": "fa61991980a8e0478d02db6c04aa32eec62947af",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/07-app/D07-T01-s5.md",
+    "verdict": "fixed",
+    "candidate": "901af8b39d809783016b39eb9539fc825173c4dc",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

@@ -35,7 +35,7 @@ Sections: 32 | Checklist items: 205
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
 | [x]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
-| [ ]    | D07 T01 §5 | Hashed static assets and fonts             | none                  | 16    |
+| [x]    | D07 T01 §5 | Hashed static assets and fonts             | none                  | 16    |
 | [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
 | [ ]    | D07 T02 §2 | Passkey sign-in                            | none                  | 3     |
 | [ ]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 6     |
@@ -259,6 +259,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 7/190 verified sections, 6 ready to run now.
+Progress: 8/190 verified sections, 6 ready to run now.
 
-Checklist: 142/922 items completed (includes Commit items).
+Checklist: 143/922 items completed (includes Commit items).
