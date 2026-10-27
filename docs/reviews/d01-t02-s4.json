@@ -1,0 +1,107 @@
+{
+  "ref": "D01 T02 \u00a74",
+  "title": "Test and demo mail aliases",
+  "implementation_sha": "54a60c80310a36f97edd4792d20df4d5295d5c64",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T02-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "Cloudflare API read-back 2026-10-27 19:23:11 UTC -> Email Routing ready; six rules enabled to the verified hostmaster@rizonetech.com; demo subdomain MX and SPF",
+    "dig +short MX demo.isitlegit.co.za @1.1.1.1 -> route1, route2, route3.mx.cloudflare.net",
+    "end-to-end: finance@, alerts@, owner@demo -> derick@rizonetech.com, three internetMessageIds recorded"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s4.md",
+    "verdict": "filed",
+    "candidate": "b6cd2757bf0748a0b73fccf17716f2020b39a284",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T02 \u00a76"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s4.md",
+    "candidate": "4eb31211133844bf5655e2d463fc45c70d05a8fd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

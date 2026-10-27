@@ -37,7 +37,7 @@ track: day-1
 | 1 | §1 | SMTP2GO client with retries and send log | D01 T01 §1 | [x] |
 | 2 | §2 | Recipient allowlist enforced in code | §1, D07 T02 §3 | [ ] |
 | 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §8 | [ ] |
-| 4 | §4 | Test and demo mail aliases | §1 | [ ] |
+| 4 | §4 | Test and demo mail aliases | §1 | [x] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [ ] |
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
 
@@ -140,13 +140,16 @@ The fictional demo businesses need registered contacts that reach a real inbox, 
 - [x] Create forward rules for `finance@demo.isitlegit.co.za`, `alerts@demo.isitlegit.co.za` and `owner@demo.isitlegit.co.za` to that destination, each named for its purpose; `conduct@isitlegit.co.za` already forwards (keep it). Done when: the rules list shows all four enabled, each forwarding to `hostmaster@rizonetech.com`.
 - [x] Prove each new alias end to end by `docs/live-checks.md`'s procedure: once the subdomain's MX records resolve publicly (`dig +short MX demo.isitlegit.co.za @1.1.1.1`), send one uniquely named mail from `rizonetech@gmail.com` to each of `finance@`, `alerts@` and `owner@demo.isitlegit.co.za`, find each in `derick@rizonetech.com`, and record its subject, sender, send time and the arriving `internetMessageId`. Done when: all three arrived and are recorded; a missing arrival leaves this item open. `conduct@`'s delivery of 2026-10-26 22:58 UTC stands, its rule unchanged. (**Corrected 2026-10-27**, plan review P1: rules and DNS alone cannot show that mail arrives.)
 - [x] Record the alias list and their purpose in `docs/live-checks.md`. Done when: the file lists the four aliases.
-- [ ] Commit: `mail: test and demo aliases on Email Routing`
+- [x] Commit: `mail: test and demo aliases on Email Routing`
 
 Evidence 2026-10-27 21:25 SAST (operator's go-ahead, 21:18 SAST). Email Routing for `demo.isitlegit.co.za` reads `ready` (19:19:10 UTC) with MX `route1` (56), `route2` (9) and `route3` (32) `.mx.cloudflare.net` and SPF `v=spf1 include:_spf.mx.cloudflare.net ~all`, resolving on 1.1.1.1; the apex keeps its three MX records. The rules read back enabled, each forwarding to `hostmaster@rizonetech.com`: `finance@demo` (`53c50578`), `alerts@demo` (`f76e3ed2`), `owner@demo` (`0eecf0c7`), beside `conduct@`, `hello@` and `dmarc@`. A first test sent 15 s after the rules were created was refused `550 5.1.1 Address does not exist` for all three (the rules were not live yet); the second, sent from `rizonetech@gmail.com` about a minute later, arrived in `derick@rizonetech.com`: `IsItLegit routing test 2 (finance@demo) 2026-10-27T19:24Z`, sent 19:20:11 UTC, received 19:20:22 UTC, `<CA+OCnvmKmcQ_BE=jkmo6Vi2qfR-ymniCp-4pHA1BbBr4UnEOug@mail.gmail.com>`; `IsItLegit routing test 2 (alerts@demo) 2026-10-27T19:24Z`, sent 19:20:12 UTC, received 19:20:21 UTC, `<CA+OCnvm4HsE0R7rSXBoLAFHgXK2bM+FUYRQTeCOO3Yp5=MYX0w@mail.gmail.com>`; `IsItLegit routing test 2 (owner@demo) 2026-10-27T19:24Z`, sent 19:20:13 UTC, received 19:20:22 UTC, `<CA+OCnvkzByH6ZX4-jeZTS6vKAqO_Zuaw+PyacfuWd08o8w09eA@mail.gmail.com>`. The subjects' timestamp was written before sending and is not the send time. `docs/live-checks.md` lists the three aliases with their proof times and the propagation note.
 
 > **Deferred:** detecting a forward that fails after Cloudflare accepted it, and telling the operator -> XREF: D01 T02 §6
 
 **Test checkpoint:** the Email Routing rules and the subdomain's MX records, read back through the Cloudflare API (`GET /zones/88aeec6df134bc59bfa16a25751241ef/email/routing/rules` and the zone's MX records), show the four aliases enabled, each forwarding to the verified operator destination, and `demo.isitlegit.co.za` routed to Cloudflare; the read-back is quoted in `docs/live-checks.md`, and each of the three demo aliases has a recorded arrival in `derick@rizonetech.com` (subject, sender, time, `internetMessageId`).
+
+> **Verified:** 2026-10-27 | §4 | 54a60c80310a36f97edd4792d20df4d5295d5c64
+> **Review:** `docs/reviews/d01-t02-s4.json`
 
 ## 5. Reconcile uncertain sends
 
