@@ -20,6 +20,7 @@ type World = {
   notMeta?: boolean; // a logged 401 for the Run token that is not Meta's answer
   malformed?: boolean; // settings answered 503 with null, providers with an object
   acceptsEmptyUpdate?: boolean; // an API that answers 200 to an update with no fields
+  oddEditErrors?: boolean; // an empty update answered 503 with errors that are not a list
 };
 const right: World = { runTokens: [RUN], readers: [ADMIN], writers: [ADMIN] };
 let server: Server | undefined;
@@ -54,6 +55,7 @@ async function stand(world: World) {
     if (req.method === "PUT") {
       if (!world.writers.includes(token)) return json(403, { errors: [{ code: 10000 }] });
       if (world.acceptsEmptyUpdate) return json(200, { result: { ...settings, ...JSON.parse(raw || "{}") } });
+      if (world.oddEditErrors) return json(503, { errors: { code: 7001 } });
       // Cloudflare's answer to an update with no fields, once the token's Edit is accepted.
       return json(400, { errors: [{ code: 7001, message: "Expected number, received nan" }] });
     }
@@ -151,6 +153,12 @@ describe("scripts/check-gateway-tokens.ts", () => {
     const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, acceptsEmptyUpdate: true }));
     expect(outcome.ok).toBe(false);
     expect(failure(outcome.lines, "the admin token holds Edit")).toMatch(/HTTP 200 to an empty update/);
+  });
+
+  it("names a malformed answer to the Edit probe as a failed check", async () => {
+    const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, oddEditErrors: true }));
+    expect(outcome.ok).toBe(false);
+    expect(failure(outcome.lines, "the admin token holds Edit")).toMatch(/HTTP 503 to an empty update/);
   });
 
   it("names a malformed answer as a failed check instead of crashing", async () => {

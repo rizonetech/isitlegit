@@ -161,7 +161,10 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
   const codes =
     typeof edit === "string" || !edit.body || typeof edit.body !== "object"
       ? []
-      : ((edit.body as { errors?: { code?: unknown }[] }).errors ?? []).map((e) => e?.code);
+      : (() => {
+          const errors = (edit.body as { errors?: unknown }).errors;
+          return Array.isArray(errors) ? errors.map((e) => (e as { code?: unknown })?.code) : [];
+        })();
   record(
     typeof edit !== "string" && edit.status === 400 && codes.includes(7001),
     "the admin token holds Edit",
