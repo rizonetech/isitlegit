@@ -62,10 +62,26 @@ describe("scripts/smoke.ts", () => {
   });
 
   it("refuses a redirect instead of following it with the token", async () => {
-    const base = await serve(() => ({ status: 302, body: "" }));
-    const outcome = await runSmoke(base, quick);
+    // A second endpoint the redirect points at: it must never see a request, let alone the token.
+    const seen: (string | undefined)[] = [];
+    const elsewhere = createServer((req, res) => {
+      seen.push(req.headers.authorization);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify(pass));
+    });
+    await new Promise<void>((resolve) => elsewhere.listen(0, "127.0.0.1", resolve));
+    const target = `http://127.0.0.1:${(elsewhere.address() as AddressInfo).port}/internal/smoke`;
+    const local = createServer((_req, res) => {
+      res.writeHead(302, { location: target });
+      res.end();
+    });
+    server = local;
+    await new Promise<void>((resolve) => local.listen(0, "127.0.0.1", resolve));
+    const outcome = await runSmoke(`http://127.0.0.1:${(local.address() as AddressInfo).port}`, quick);
+    elsewhere.close();
     expect(outcome.ok).toBe(false);
     expect(outcome.lines.join("\n")).toContain("answered HTTP 302");
+    expect(seen).toEqual([]);
   });
 
   it("kills a command still running at the deadline, with everything it started, and reports a failed one", async () => {
