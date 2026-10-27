@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -9,6 +9,7 @@ import {
   parseMetaArgs,
   type RunOptions,
   runMetaSmoke,
+  takeLock,
   USAGE,
 } from "../../scripts/meta-smoke.ts";
 
@@ -33,7 +34,15 @@ const samStream = (text: string, complete = true) =>
   sse([
     { type: "response.output_text.delta", ...lane, delta: text },
     { type: "response.output_text.done", ...lane, text },
-    ...(complete ? [{ type: "response.completed", response: { id: "r", status: "completed" } }] : []),
+    // As the live SAM stream does, the completed event carries Meta's usage.
+    ...(complete
+      ? [
+          {
+            type: "response.completed",
+            response: { id: "r", status: "completed", usage: { input_tokens: 0, output_tokens: 0 } },
+          },
+        ]
+      : []),
   ]);
 const message = (text: string, usage = { input_tokens: 100, output_tokens: 10 }, status = "completed") => ({
   id: "resp",
@@ -228,7 +237,8 @@ describe("scripts/meta-smoke.ts", () => {
     const cases: [string, string, RegExp][] = [
       ["none", samStream(""), /no logo found/],
       ["elsewhere", samStream(samRecord("x1=10;y1=10;x2=60;y2=60")), /none over the logo/],
-      ["malformed", samStream("<0f>0<|box;oops|>\n"), /could not be read|no logo found/],
+      ["malformed", samStream("<0f>0<|box;oops|>\n"), /malformed part\(s\) \(malformed_record\)/],
+      ["malformed beside a good box", samStream(`${samRecord()}<0f>0<|box;oops|>\n`), /1 malformed part\(s\)/],
       ["cut", samStream(samRecord(), false), /not completed|could not be read/],
     ];
     for (const [label, body, why] of cases) {
@@ -431,10 +441,26 @@ describe("scripts/meta-smoke.ts", () => {
     writeFileSync(join(DIR, "a-file"), "");
     const { fetchStub, sent } = world();
     const blocked = await live(fetchStub, { ledger: join(DIR, "a-file", "spend.json") }).run;
-    expect(blocked.code).toBe(1);
-    expect(blocked.lines.at(-1)).toMatch(
-      /stopped before Spark text: .*could not be written \(E[A-Z]+\); free space or fix its permissions/,
-    );
+    expect(blocked.code).toBe(2);
+    expect(blocked.lines.at(-1)).toMatch(/spend\.json\.lock could not be created \(E[A-Z]+\)/);
+    // Admitted, then the disk stops taking the ledger: the run stops before the first call is sent.
+    const dir = join(DIR, "ledger");
+    mkdirSync(dir);
+    try {
+      const stopped = await live(fetchStub, {
+        ledger: join(dir, "spend.json"),
+        readSecrets: async () => {
+          chmodSync(dir, 0o500);
+          return SECRETS;
+        },
+      }).run;
+      expect(stopped.code).toBe(1);
+      expect(stopped.lines.at(-1)).toMatch(
+        /stopped before Spark text: .*could not be written \(E[A-Z]+\); free space or fix its permissions/,
+      );
+    } finally {
+      chmodSync(dir, 0o700);
+    }
     expect(sent).toHaveLength(0);
   });
 
@@ -489,9 +515,7 @@ describe("scripts/meta-smoke.ts", () => {
       /\| 100 \/ 10 \| 200, success, 100 \/ 10, 900 ms \| US\$0\.000168 \| US\$0\.000168 \| 51 \|/,
     );
     expect(rows[1]).toContain(`| ${fx.code} |`);
-    expect(rows[2]).toMatch(
-      /not reported by Meta \| 200, success, 0 \/ 0, 900 ms .* \| 1 box\(es\), best overlap 0\.\d\d \|/,
-    );
+    expect(rows[2]).toMatch(/0 \/ 0 \| 200, success, 0 \/ 0, 900 ms .* \| 1 box\(es\), best overlap 0\.\d\d \|/);
     expect(rows[3]).toMatch(/\| click\(640, 450\) \|/);
   });
 
@@ -540,6 +564,70 @@ describe("scripts/meta-smoke.ts", () => {
     writeFileSync(report, midway[0] ?? "");
     const next = await live(world().fetchStub).run;
     expect(next.lines[0]).toMatch(/the previous run did not finish/);
+  });
+
+  it("lets one run at a time spend: a second run is refused, and a dead run's lock is taken over (round 1)", async () => {
+    const ledger = join(DIR, "spend.json");
+    const { fetchStub, sent } = world();
+    const holder = live(fetchStub, { model: "sam-3.1" });
+    const second = live(fetchStub, { model: "sam-3.1" });
+    const [first, other] = await Promise.all([holder.run, second.run]);
+    expect([first.code, other.code].sort()).toEqual([0, 2]);
+    expect([...first.lines, ...other.lines].join("\n")).toMatch(/another smoke run \(process \d+\) is running/);
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(readFileSync(ledger, "utf-8"))).toHaveLength(1);
+    expect(existsSync(`${ledger}.lock`)).toBe(false);
+    // A lock left by a process that is gone does not block the next run.
+    writeFileSync(`${ledger}.lock`, "999999999");
+    expect((await live(fetchStub, { model: "sam-3.1" }).run).code).toBe(0);
+    expect(existsSync(`${ledger}.lock`)).toBe(false);
+    const release = takeLock(join(DIR, "x.lock"));
+    expect(typeof release).toBe("function");
+    expect(takeLock(join(DIR, "x.lock"))).toMatch(/is running/);
+    (release as () => void)();
+    expect(existsSync(join(DIR, "x.lock"))).toBe(false);
+  });
+
+  it("compares SAM's token counts with the gateway's too (round 1)", async () => {
+    const json = (b: unknown, status = 200) =>
+      new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
+    const log = {
+      model: "sam-3.1",
+      success: true,
+      status_code: 200,
+      duration: 1,
+      tokens_in: 900,
+      tokens_out: 800,
+      cost: 0,
+    };
+    const outcome = await live(
+      world({ logs: (_id, part) => (part ? json({ errors: [{ code: 7002 }] }, 404) : json({ result: log })) })
+        .fetchStub,
+      { model: "sam-3.1" },
+    ).run;
+    expect(failure(outcome.lines, "SAM 3.1")).toMatch(/counted 900 in and 800 out; Meta reported 0 and 0/);
+  });
+
+  it("fails a run whose report cannot be saved (round 1)", async () => {
+    const report = join(DIR, "locked", "report.md");
+    mkdirSync(join(DIR, "locked"));
+    const { fetchStub } = world({
+      answers: {
+        wonder: () => {
+          // The disk stops taking the report once the run is under way.
+          chmodSync(join(DIR, "locked"), 0o500);
+          return new Response(JSON.stringify(click(640, 450)), { headers: { "content-type": "application/json" } });
+        },
+      },
+    });
+    try {
+      const outcome = await live(fetchStub, { report }).run;
+      expect(outcome.code).toBe(1);
+      expect(outcome.lines.join("\n")).toMatch(/the report could not be written .*free space or fix its permissions/);
+      expect(outcome.lines.at(-1)).toMatch(/^failed: 4 of 4 calls/);
+    } finally {
+      chmodSync(join(DIR, "locked"), 0o700);
+    }
   });
 
   it("has a help text and names a safe recovery for each failed stage (E2)", async () => {

@@ -19,7 +19,16 @@
 // from Conclave through conclave-op and are never printed.
 //
 //   node scripts/meta-smoke.ts --help
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
@@ -232,6 +241,10 @@ export async function judgeSegmentation(events: AsyncIterable<{ type: string }>,
     const outcome = result.outcome;
     if (outcome.status !== "completed")
       return { ok: false, detail: `the stream ended ${outcome.status} (${outcome.reason}), not completed` };
+    // An error diagnostic means the parser dropped malformed data, which completion alone does not show.
+    const errors = result.diagnostics.filter((d) => d.severity === "error");
+    if (errors.length > 0)
+      return { ok: false, detail: `the segmentation had ${errors.length} malformed part(s) (${errors[0]?.code})` };
     const boxes = recordsOfKind(result.records, "box");
     if (boxes.length === 0) return { ok: false, detail: "no logo found (a valid, empty answer)" };
     const best = Math.max(...boxes.map((x) => overlap([x.left, x.top, x.right, x.bottom], fx.logoBox)));
@@ -274,6 +287,60 @@ function writeAtomically(file: string, text: string): void {
   const tmp = `${file}.${process.pid}.tmp`;
   writeFileSync(tmp, text);
   renameSync(tmp, file);
+}
+
+// One run at a time per ledger: an exclusive lock file holding the run's process id, released when the run ends or
+// the process exits; a lock whose process is gone is taken over. Answers the release, or why the lock was refused.
+const alive = (pid: number) => {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
+export function takeLock(file: string): (() => void) | string {
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+  } catch (error) {
+    return `${file} could not be created (${(error as NodeJS.ErrnoException).code ?? (error as Error).message})`;
+  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = openSync(file, "wx");
+      writeFileSync(fd, String(process.pid));
+      closeSync(fd);
+      const release = () => {
+        try {
+          if (readFileSync(file, "utf-8") === String(process.pid)) unlinkSync(file);
+        } catch {
+          // already gone
+        }
+      };
+      process.once("exit", release);
+      return () => {
+        process.removeListener("exit", release);
+        release();
+      };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") return `${file} could not be created (${code ?? (error as Error).message})`;
+      let holder = Number.NaN;
+      try {
+        holder = Number(readFileSync(file, "utf-8").trim());
+      } catch {
+        // removed between the two calls: try again
+      }
+      if (alive(holder)) return `another smoke run (process ${holder}) is running; wait for it to finish`;
+      try {
+        unlinkSync(file);
+      } catch {
+        // another run took it over first; the next attempt sees its lock
+      }
+    }
+  }
+  return `${file} could not be taken; run again`;
 }
 
 // The gateway log's own record of the call, as Cloudflare's logs API returns it.
@@ -334,7 +401,6 @@ export async function checkLog(
           log,
         };
     }
-    if (call.model === "sam-3.1") return { ok: true, detail: "metadata kept, no body", log, gatewayCost: null };
     if (!usage) return { ok: false, detail: "Meta reported no usage to compare with the gateway's", log };
     if (log.tokens_in !== usage.input || log.tokens_out !== usage.output)
       return {
@@ -342,6 +408,9 @@ export async function checkLog(
         detail: `the gateway counted ${log.tokens_in} in and ${log.tokens_out} out; Meta reported ${usage.input} and ${usage.output}`,
         log,
       };
+    // SAM is priced per image, so the gateway holds no cost to compare.
+    if (call.model === "sam-3.1")
+      return { ok: true, detail: "metadata and Meta's counts kept, no body", log, gatewayCost: null };
     const gatewayCost = log.cost ?? null;
     if (gatewayCost === null) return { ok: false, detail: "a token-priced call has no gateway cost", log, gatewayCost };
     const expected = tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output, usage.cached);
@@ -426,8 +495,33 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
   if (!options.confirmCredit)
     return refuse("a live run spends Meta credit; pass --confirm-credit once the credit shows (D99 T01 §1)");
 
-  // The spend gate, before any secret is read or call is sent.
+  // The spend gate, before any secret is read or call is sent, under the ledger's lock: two runs at once cannot both
+  // pass it, or overwrite each other's entries.
   const ledgerFile = options.ledger ?? join(ROOT, "build/meta-smoke-spend.json");
+  const unlock = takeLock(`${ledgerFile}.lock`);
+  if (typeof unlock === "string") return refuse(unlock);
+  try {
+    return await spend({ options, fx, calls, partial, headers, ledgerFile, say, refuse, lines });
+  } finally {
+    unlock();
+  }
+}
+
+type Admitted = {
+  options: RunOptions;
+  fx: Fixtures;
+  calls: Planned[];
+  partial: boolean;
+  headers: (token: string) => Record<string, string>;
+  ledgerFile: string;
+  say: (line: string) => void;
+  refuse: (why: string) => RunOutcome;
+  lines: string[];
+};
+
+// The run once its ledger is locked.
+async function spend(admitted: Admitted): Promise<RunOutcome> {
+  const { options, fx, calls, partial, headers, ledgerFile, say, refuse, lines } = admitted;
   const now = options.now ?? (() => new Date());
   const today = now().toISOString().slice(0, 10);
   const runId = now().toISOString();
@@ -649,12 +743,16 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
     }
   }
 
-  const ok = rows.length === calls.length && calls.length > 0 && rows.every((r) => r.passed);
+  const passed = rows.length === calls.length && calls.length > 0 && rows.every((r) => r.passed);
+  // The report is the run's evidence: a run whose report cannot be saved has not passed.
+  let saved = true;
   try {
-    writeReport(ok ? "passed" : "failed");
+    writeReport(passed ? "passed" : "failed");
   } catch (error) {
-    say(`meta-smoke: the report could not be written (${(error as Error).message})`);
+    saved = false;
+    say(`meta-smoke: the report could not be written (${(error as Error).message}); free space or fix its permissions`);
   }
+  const ok = passed && saved;
   const spent = rows.reduce((sum, r) => sum + (r.cost ?? r.call.estimate), 0);
   say(
     `${ok ? "passed" : "failed"}: ${rows.filter((r) => r.passed).length} of ${calls.length} calls${partial ? ` (partial: ${options.model})` : ""}; US$${spent.toFixed(6)} counted`,
