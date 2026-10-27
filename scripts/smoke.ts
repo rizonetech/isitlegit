@@ -283,6 +283,20 @@ async function activeVersionWith(run: Runner, deadline: number): Promise<string>
   return live.version_id;
 }
 
+// The newest version uploaded (the highest number), which `wrangler secret put` builds on.
+async function newestVersionWith(run: Runner, deadline: number): Promise<string> {
+  const versions = JSON.parse(await run("pnpm", ["exec", "wrangler", "versions", "list", "--json"], "", deadline)) as {
+    id: string;
+    number: number;
+  }[];
+  const newest = versions.reduce(
+    (a, b) => (b.number > a.number ? b : a),
+    versions[0] as { id: string; number: number },
+  );
+  if (!newest) throw new Error("the Worker has no versions");
+  return newest.id;
+}
+
 export const activeVersionFromWrangler = (deadline: number) => activeVersionWith(runCommand, deadline);
 
 export async function tokenFromVault(deadline: number): Promise<string> {
@@ -305,6 +319,14 @@ function opWithInput(args: string[]): [string, string[]] {
 
 export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
   return async (deadline: number): Promise<{ token: string; version: string }> => {
+    // Wrangler refuses to set a secret while the version serving is not the newest (a rollback is in effect), so that
+    // is checked before the vault changes: a refusal then leaves the vault and the Worker agreeing.
+    const [active, newest] = [await activeVersionWith(run, deadline), await newestVersionWith(run, deadline)];
+    if (active !== newest)
+      throw new Error(
+        `a rollback is in effect (${active} serves, the newest version is ${newest}), and Cloudflare sets secrets only ` +
+          "on the newest; nothing was changed: rotate once a good commit is deployed again (docs/operations.md)",
+      );
     const token = randomBytes(32).toString("hex");
     const opEnvironment = env();
     const item = JSON.parse(

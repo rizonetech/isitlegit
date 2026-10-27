@@ -8,7 +8,7 @@ How the operator runs, checks and recovers the live IsItLegit Worker (`https://i
 node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev --commit <deployed commit>
 ```
 
-It reads the smoke token from the vault (Conclave, "IsItLegit Smoke token") and the version serving all traffic, uses every binding once (D1, R2, KV, the analysis Workflow, Browser Run), and passes only if that version answered with the expected commit and every check is `ok`, and the same version still serves afterwards. It publishes nothing. `--rotate` makes a new token, stores it in the vault first, then sets it on the Worker, which publishes a new version of the same code, and checks that version. If the Worker step fails or is interrupted, the vault holds a token the Worker does not, and plain runs fail with HTTP 404 until the next one: run `--rotate` again, and its passing check proves the two agree. Wrangler refuses to set a secret while a rollback is in effect (the newest version is not the one serving), so after a rollback rotate only once a good commit is deployed again.
+It reads the smoke token from the vault (Conclave, "IsItLegit Smoke token") and the version serving all traffic, uses every binding once (D1, R2, KV, the analysis Workflow, Browser Run), and passes only if that version answered with the expected commit and every check is `ok`, and the same version still serves afterwards. It publishes nothing. `--rotate` makes a new token, stores it in the vault first, then sets it on the Worker, which publishes a new version of the same code, and checks that version. If the Worker step fails or is interrupted, the vault holds a token the Worker does not, and plain runs fail with HTTP 404 until the next one: run `--rotate` again, and its passing check proves the two agree. Cloudflare sets a secret only on the newest version, so while a rollback is in effect `--rotate` refuses before changing anything; rotate once a good commit is deployed again.
 
 ## Roll back a broken deploy
 
@@ -31,10 +31,10 @@ When the incident is over and a good deploy is live, delete `build/rollback-reje
 
 ## Redeploy a known-good commit
 
-Cloudflare keeps only the 100 most recent versions, and every rotation of the smoke token or other secret publishes one. When no rollback target is left, redeploy from source:
+Cloudflare keeps only the 100 most recent versions, and every rotation of the smoke token or other secret publishes one. Redeploy from source when no rollback target is left, or when the rollback was refused because secrets changed. The old commit is built in a separate worktree, and today's `main` checks it: an older commit's own `scripts/smoke.ts` may mint a token or publish a version, which would leave the vault and the Worker disagreeing.
 
-1. `git checkout <known-good commit>` in a clean tree (`git status --porcelain` prints nothing).
-2. Run the gates: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `python3 scripts/check-publication.py`.
-3. `pnpm exec wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)`.
-4. `curl -s https://isitlegit.derick-f5a.workers.dev/health` reports that commit, and the smoke check passes for it.
-5. Return to `main` (`git checkout main`) and fix forward.
+1. `git worktree add ../isitlegit-recover <known-good commit>`, then `cd ../isitlegit-recover && pnpm install --frozen-lockfile`.
+2. Run the gates there: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `python3 scripts/check-publication.py`.
+3. Deploy from there: `pnpm exec wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)`. A deploy keeps today's secrets.
+4. Back in the main checkout, on `main`: `curl -s https://isitlegit.derick-f5a.workers.dev/health` reports that commit, and `node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev --commit <known-good commit>` passes.
+5. `git worktree remove ../isitlegit-recover`, and fix forward on `main`.

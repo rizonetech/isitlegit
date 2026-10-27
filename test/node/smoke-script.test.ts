@@ -160,6 +160,11 @@ describe("scripts/smoke.ts", () => {
         return "";
       }
       if (args.includes("status")) return JSON.stringify({ versions: [{ version_id: VERSION, percentage: 100 }] });
+      if (args.includes("list"))
+        return JSON.stringify([
+          { id: "v-old", number: 1 },
+          { id: VERSION, number: 2 },
+        ]);
       throw new Error(`unexpected ${command} ${args.join(" ")}`);
     };
     const rotate = rotateWith(run, () => ({}));
@@ -191,6 +196,24 @@ describe("scripts/smoke.ts", () => {
     expect(outcome.ok).toBe(false);
   });
 
+  it("refuses a rotation while a rollback is in effect, before the vault or the Worker changes", async () => {
+    const calls: string[] = [];
+    const run: Runner = async (command, args) => {
+      calls.push(`${command} ${args.join(" ")}`);
+      if (args.includes("status")) return JSON.stringify({ versions: [{ version_id: "v-good", percentage: 100 }] });
+      if (args.includes("list"))
+        return JSON.stringify([
+          { id: "v-good", number: 3 },
+          { id: "v-broken", number: 4 },
+        ]);
+      throw new Error(`unexpected ${command} ${args.join(" ")}`);
+    };
+    await expect(rotateWith(run, () => ({}))(Date.now() + 2_000)).rejects.toThrow(
+      /a rollback is in effect \(v-good serves, the newest version is v-broken\).*nothing was changed/,
+    );
+    expect(calls.some((c) => c.startsWith("op ") || c.includes("edit") || c.includes("secret"))).toBe(false);
+  });
+
   it("stops a rotation before the Worker changes when the vault did not take the token", async () => {
     const vault = { fields: [{ id: "credential", value: "a".repeat(64) }] };
     let put = false;
@@ -199,6 +222,8 @@ describe("scripts/smoke.ts", () => {
       if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
       if (command === "sh" && args.includes("edit")) return ""; // op answered, but stored nothing
       if (args.includes("secret")) put = true;
+      if (args.includes("status")) return JSON.stringify({ versions: [{ version_id: VERSION, percentage: 100 }] });
+      if (args.includes("list")) return JSON.stringify([{ id: VERSION, number: 2 }]);
       return "";
     };
     await expect(rotateWith(run, () => ({}))(Date.now() + 2_000)).rejects.toThrow(/vault did not take the new token/);
