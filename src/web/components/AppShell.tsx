@@ -70,10 +70,12 @@ export function initials(name: string): string {
 const SKIP =
   "sr-only focus:not-sr-only focus:fixed focus:top-8 focus:left-8 focus:z-50 focus:px-16 focus:py-12 focus:bg-surface focus:text-ink focus:rounded-control focus:shadow-card " +
   FOCUS;
-// The sidebar: in the page from `md`, a popover below it (the browser hides a closed popover; `open:` matches
-// `:popover-open`, and `md:flex` shows it in the page whatever its state).
+// The sidebar: fixed to the left edge at every width, a popover below `md` (the browser hides a closed popover; `open:`
+// matches `:popover-open`) and always shown from `md`, where the content keeps a sidebar-wide margin. It is placed the
+// same way open or closed, so a menu left open while the window widens past `md` (the top layer cannot be put back in
+// the page by CSS) still sits beside the content, and its backdrop turns clear.
 const SIDEBAR =
-  "open:flex md:flex flex-col w-sidebar shrink-0 box-border px-16 py-24 m-0 h-full md:h-auto md:min-h-screen fixed md:static inset-y-0 left-0 overflow-y-auto border-0 backdrop:bg-ink/40";
+  "open:flex md:flex flex-col w-sidebar box-border px-16 py-24 m-0 fixed inset-y-0 left-0 h-full overflow-y-auto border-0 backdrop:bg-ink/40 md:backdrop:bg-transparent";
 const MEMBER_LINK =
   "flex items-center gap-12 h-40 px-12 rounded-control-small text-15 weight-text-strong no-underline text-ink-2 hover:bg-light hover:text-ink aria-[current=page]:bg-light aria-[current=page]:text-ink";
 const ADMIN_LINK =
@@ -301,10 +303,10 @@ function AdminNav(props: AdminShellProps) {
   );
 }
 
-function Main(props: { children: Child }) {
+function Main(props: { besideSidebar?: boolean; children: Child }) {
   // tabindex -1 lets the skip link move focus here; a heading inside names the page.
   return (
-    <main id="content" tabindex={-1} class="flex-1 min-w-0 focus:outline-none">
+    <main id="content" tabindex={-1} class={cx("min-w-0 focus:outline-none", props.besideSidebar && "md:ml-sidebar")}>
       {props.children}
     </main>
   );
@@ -336,10 +338,8 @@ export function AppShell(props: AppShellProps) {
         home={member ? "/cases" : "/admin"}
         homeLabel={member ? "IsItLegit, cases" : "IsItLegit admin, overview"}
       />
-      <div class="md:flex md:min-h-screen">
-        {member ? <MemberNav {...props} /> : <AdminNav {...props} />}
-        <Main>{props.children}</Main>
-      </div>
+      {member ? <MemberNav {...props} /> : <AdminNav {...props} />}
+      <Main besideSidebar>{props.children}</Main>
     </>
   );
 }

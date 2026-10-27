@@ -99,6 +99,38 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("frames at phone and desktop
     });
   }
 
+  for (const frame of ["member", "admin"] as const)
+    it(`${frame}: a menu left open while the window widens past md sits beside the content`, async () => {
+      const page = await open(frame, 360);
+      await page.click('button[aria-label="Menu"]');
+      await page.setViewportSize({ width: 1280, height: 800 });
+      const nav = await page.locator("#nav").boundingBox();
+      const main = await page.locator("main").boundingBox();
+      expect(nav).toMatchObject({ x: 0, y: 0, width: 256, height: 800 });
+      expect(main?.x).toBeGreaterThanOrEqual(256);
+      expect(await overflow(page)).toBeLessThanOrEqual(0);
+      // The backdrop is clear from md: nothing dims the content beside the sidebar.
+      const dim = await page.evaluate(
+        () => getComputedStyle(document.getElementById("nav") as Element, "::backdrop").backgroundColor,
+      );
+      expect(dim).toBe("rgba(0, 0, 0, 0)");
+      await page.context().close();
+    });
+
+  it("member: the sidebar stays in place while a long page scrolls at 1280 px", async () => {
+    const tall = String(
+      <Document title="Cases">
+        <AppShell {...member({}, <div style="height: 3000px">Cases</div>)} />
+      </Document>,
+    );
+    const page = await openPage(browser, tall, { viewport: { width: 1280, height: 800 }, javaScriptEnabled: false });
+    await page.mouse.wheel(0, 1500);
+    await page.waitForFunction(() => window.scrollY > 0);
+    expect((await page.locator("#nav").boundingBox())?.y).toBe(0);
+    expect(await page.getByText("Sign out", { exact: true }).isVisible()).toBe(true);
+    await page.context().close();
+  });
+
   it("member: the sidebar's footer and user block stay inside it at 1280 px, and its logos load", async () => {
     const page = await open("member", 1280);
     const nav = await page.locator("#nav").boundingBox();
