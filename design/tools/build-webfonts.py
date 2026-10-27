@@ -39,6 +39,7 @@ FREQUENCIES = dict(zip(" abcdefghijklmnopqrstuvwxyz", (0.18, 0.0670, 0.0122, 0.0
                                                        0.0572, 0.0012, 0.0063, 0.0330, 0.0198, 0.0553, 0.0616, 0.0158, 0.0008,
                                                        0.0491, 0.0519, 0.0743, 0.0226, 0.0080, 0.0194, 0.0012, 0.0162,
                                                        0.0006)))
+OVERRIDES = ("size-adjust", "ascent-override", "descent-override", "line-gap-override")
 METRICS = "fallback-metrics.json"  # beside the fonts, so an unchanged rebuild needs no fonttools
 
 
@@ -134,7 +135,8 @@ def build(fonts_dir, out_dir, css_path):
     for family, url in faces:
         css += (f'\n@font-face {{\n  font-family: "{family}";\n  src: url("{url}") format("woff2");\n'
                 f"  font-weight: {WEIGHTS};\n  font-style: normal;\n  font-display: swap;\n}}\n")
-        overrides = "".join(f"  {key}: {value}%;\n" for key, value in metrics[family].items() if key != "fingerprint")
+        # A fixed order, so freshly computed and stored metrics write the same CSS.
+        overrides = "".join(f"  {key}: {metrics[family][key]}%;\n" for key in OVERRIDES)
         css += f'\n@font-face {{\n  font-family: "{family} Fallback";\n  src: {FALLBACK_SOURCES};\n{overrides}}}\n'
     if not css_path.exists() or css_path.read_text(encoding="utf-8") != css:
         write_atomic(css_path, css.encode("utf-8"))

@@ -57,6 +57,19 @@ describe("hash-asset", () => {
     rmSync(join(DIR, "public/static/robots.txt"));
   });
 
+  it("removes temporary files an interrupted earlier build left, and leaves none of its own on a failed write", () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    writeFileSync(join(DIR, "public/static/app.123456789abc.css.4242.tmp"), "half a stylesheet");
+    hashAssets(args());
+    expect(readdirSync(join(DIR, "public/static")).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+    // A module path whose folder is a file: the write fails, and its temporary file must not survive.
+    writeFileSync(join(DIR, "not-a-folder"), "");
+    const failing = [...args().slice(0, -2), "--module", join(DIR, "not-a-folder/assets.ts")];
+    expect(() => hashAssets(failing)).toThrow();
+    expect(readdirSync(DIR).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+    rmSync(join(DIR, "not-a-folder"));
+  });
+
   it("gives changed content a new name and removes the old file", () => {
     writeFileSync(join(DIR, "app.css"), "a{}");
     const before = hashAssets(args()).css;

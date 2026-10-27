@@ -116,6 +116,15 @@ class Build(unittest.TestCase):
         self.assertNotEqual(webfonts.fingerprint(source, pins), webfonts.fingerprint(source, pins.replace("brotli==", "brotli==9")))
 
     @needs_font_tools
+    def test_fresh_and_stored_metrics_write_the_same_css(self):
+        (self.fonts / webfonts.METRICS).unlink()  # first build computes the metrics, the second reads them back
+        self.assertEqual(self.build().returncode, 0)
+        fresh = self.css.read_text(encoding="utf-8")
+        self.assertTrue((self.fonts / webfonts.METRICS).exists())
+        self.assertEqual(self.build().returncode, 0)
+        self.assertEqual(self.css.read_text(encoding="utf-8"), fresh)
+
+    @needs_font_tools
     def test_the_same_inputs_give_the_same_bytes(self):
         for p in self.out.iterdir():
             p.unlink()

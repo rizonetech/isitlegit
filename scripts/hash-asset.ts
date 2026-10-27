@@ -14,8 +14,13 @@ function writeIfChanged(path: string, data: string | Buffer): void {
   if (existsSync(path) && readFileSync(path).equals(Buffer.from(data))) return;
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, data);
-  renameSync(tmp, path);
+  try {
+    writeFileSync(tmp, data);
+    renameSync(tmp, path);
+  } catch (error) {
+    rmSync(tmp, { force: true }); // a full disk or a failed rename leaves nothing behind for the retry to trip on
+    throw error;
+  }
 }
 
 function files(dir: string): string[] {
@@ -50,7 +55,8 @@ export function hashAssets(argv: string[]): { css: string; fonts: Record<string,
   const keep = new Set([`/static/${name}`, ...Object.values(fonts)]);
   for (const path of files(dir)) {
     const url = `/${relative(pub, path).replaceAll("\\", "/")}`;
-    if (/\.[0-9a-f]{12}\.(css|woff2)$/.test(url) && !keep.has(url)) rmSync(path);
+    // Also temporary files a killed earlier build left (`*.tmp`): nothing under /static/ may be unfingerprinted.
+    if ((/\.[0-9a-f]{12}\.(css|woff2)$/.test(url) && !keep.has(url)) || url.endsWith(".tmp")) rmSync(path);
   }
   return { css: `/static/${name}`, fonts };
 }
