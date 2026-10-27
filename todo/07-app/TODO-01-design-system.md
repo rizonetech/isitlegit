@@ -18,11 +18,12 @@ track: day-1
 - Design spec 4.7 (report page), 4.8 (tenancy, consoles, site), 5 (demo), 11 (Brand, Design, Pricing decisions); `docs/manifesto.md` (Experience standards: WCAG 2.2 AA, every state designed, tokens only).
 - `AGENTS.md` Interface rules.
 - -> XREF: D00 T01 §8 -- the README wordmark and social preview banner that come out of this session
+- -> XREF: D07 T06 §1 -- the marketing site reuses the token stylesheet and extends the raw-colour guard to `site/**/*.astro`
 
 ## Outcome
 
 - `design/SPEC.md` exists, operator-approved, with a section per surface, every control and state named, and mockups under `design/mockups/`.
-- `design/tokens/*.json` compile into `src/web/static/app.css`; a test fails if any page uses a raw colour.
+- `design/tokens/*.json` compile into the app stylesheet, served as `public/static/app.<hash>.css`; a test fails if any page uses a raw colour. **Corrected 2026-10-27:** was `src/web/static/app.css`, an unhashed path that cannot carry a long cache.
 - Every page renders inside one shell with the shared components.
 
 **Adjacency:** all=not-applicable (design system and shared chrome; each surface's own adjacency is declared in its TODO file)
@@ -35,8 +36,9 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Attended design session and design/SPEC.md | -- | [x] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [ ] |
-| 3 | §3 | App shell and shared components with every state | §2 | [ ] |
+| 3 | §3 | App shell and shared components with every state | §2, §5 | [ ] |
 | 4 | §4 | Design change comparison | §1 | [ ] |
+| 5 | §5 | Hashed static assets and fonts | §2 | [ ] |
 
 ## 1. Attended design session and design/SPEC.md
 
@@ -80,34 +82,36 @@ The operator chose an attended design session before any surface is built (desig
 
 > **Started:** 2026-10-27T01:49:23Z
 
-Colours, type and spacing come from tokens only (`AGENTS.md`, manifesto). Tailwind 4.3.3 builds one static stylesheet from the token files; pages reference token classes, never raw values.
+Colours, type and spacing come from tokens only (`AGENTS.md`, manifesto). Tailwind 4.3.3 builds one stylesheet from the token files; pages reference token classes, never raw values, and Tailwind's own default palette, fonts and type scale are removed so a non-token class produces nothing.
 
-**Corrected 2026-10-27** (validation before build): the section asked for `GET /static/app.css` with a long cache header and a content hash in its name, which contradict, and named no static-assets setup; its raw-colour test was a Vitest test, but Vitest runs inside workerd (D00 T01 §3), which cannot read the source tree; the entry stylesheet `src/web/styles/app.css` it compiles was never created; WOFF2 needs `brotli`, which `design/tools/requirements.txt` lacks; and `scripts/build-tokens.ts` needs Node types and a type check. The design SPEC does not say how the theme is chosen; the default taken is the operating-system preference (`prefers-color-scheme`) with a `data-theme` attribute on `<html>` that overrides it, the usual pattern, recorded in the stack doc; a visible theme switch would be a SPEC change first. Generated files (`tokens.css`, the hashed stylesheet, `src/web/assets.ts`, the WOFF2 fonts) are committed so a clean clone type-checks, and CI rebuilds them and fails on any difference, as with `worker-configuration.d.ts`.
+**Corrected 2026-10-27** (validation before build, then the plan review): the section first asked for `GET /static/app.css` with a long cache and a content hash, which contradict; serving, hashing, fonts and cache headers now form §5, and this section ends at the compiled stylesheet in `build/css/app.css`. Its raw-colour test was a Vitest test, but Vitest runs inside workerd (D00 T01 §3), which cannot read the source tree, so Node-side tests get their own Vitest project. The entry stylesheet `src/web/styles/app.css` was never created. Plan review P1s: Tailwind emits only the theme variables something uses, so tokens are declared with `@theme static`, and variable presence alone does not prove usable classes or theme switching, so a compiled fixture is measured in headless Chromium. Plan review P2s: Tailwind's default namespaces are reset, and the TypeScript projects get explicit boundaries. The design SPEC does not say how the theme is chosen; the default taken is the operating-system preference (`prefers-color-scheme`) with a `data-theme` attribute on `<html>` overriding it, recorded in the stack doc; a visible theme switch would be a SPEC change first.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+> **Deferred:** the raw-colour guard over `site/**/*.astro` -> XREF: D07 T06 §1
+
 **Build order:**
 
-1. Run Node-side tests beside the workerd ones. Done when: `pnpm test` runs a `node` project for `test/node/**` and the `worker` project for the rest.
-2. Generate the theme from `design/tokens/*.json` and compile it. Done when: `pnpm build:css` writes `public/static/app.<hash>.css` with every token variable and `src/web/assets.ts` naming it.
-3. Serve it as a long-cached static asset. Done when: under `wrangler dev`, the hashed path answers `200` `text/css` with `Cache-Control: public, max-age=31536000, immutable`, and `/health` still reaches the Worker.
+1. Run Node-side tests beside the workerd ones. Done when: `pnpm test` runs a `node` project for `test/node/**` and the `worker` project for the rest, and each TypeScript project refuses a planted error.
+2. Generate the theme from `design/tokens/*.json` and compile it. Done when: `pnpm build:css` writes `build/css/app.css` holding every token variable and none of Tailwind's defaults.
+3. Prove the classes and the theme selection. Done when: a compiled fixture shows token values as computed styles under both OS preferences, both overrides and with the override removed.
 4. Guard against raw colours. Done when: a test fails on a hex colour in `src/web/`.
 
 - [ ] Add exact dev dependencies `tailwindcss` and `@tailwindcss/cli` 4.3.3 (released 2026-07-16) and `@types/node` 24.19.2 (Node-side scripts and tests). Done when: `pnpm install` resolves them with no warning and writes no `minimumReleaseAgeExclude`. Cheaper substitute: a CDN Tailwind build, which the static-asset rule refuses.
-- [ ] Split `vitest.config.ts` into two `test.projects`: `worker` (the `cloudflareTest()` plugin, `test/**/*.test.ts` except `test/node/**`) and `node` (`environment: "node"`, `test/node/**/*.test.ts`), with `test/node/tsconfig.json` (`types: ["node"]`) added to `typecheck`. Done when: `pnpm test` reports both projects and `test/health.test.ts` still runs in workerd.
-- [ ] Write `scripts/build-tokens.ts` (run by Node 24 directly, `node scripts/build-tokens.ts`) turning `design/tokens/colors.json`, `spacing.json` and `typography.json` into `src/web/styles/tokens.css`: one `@theme` block with the light values, then the dark values under `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }` and `:root[data-theme="dark"] { ... }`; written to a temporary file and renamed into place. Done when: `test/node/build-tokens.test.ts` shows every colour role in both themes and every spacing, radius, control-height, shadow, family, weight and type-scale token as a variable with its JSON value, and fails when a token is dropped. Cheaper substitute: hand-written CSS variables that drift from the JSON.
-- [ ] Create `src/web/styles/app.css`: `@import "tailwindcss";`, `@import "./tokens.css";`, and `@font-face` rules for Exo and Exo 2 (variable weight, `font-display: swap`) from `/static/fonts/`. Done when: the compiled stylesheet holds the token variables, both `@font-face` rules and Tailwind's base layer.
-- [ ] Add `design/tools/build-webfonts.py` converting `design/fonts/Exo[wght].ttf` and `Exo2[wght].ttf` to `public/static/fonts/exo.woff2` and `exo2.woff2` with fonttools (temporary file, then rename), and pin `brotli` in `design/tools/requirements.txt`. Done when: both files begin with the `wOF2` signature and fonttools reads back the same glyph count as the source; `NOTICE.md`'s Exo row names the served files. Cheaper substitute: Google Fonts links, which leak visitors to a third party.
-- [ ] Add scripts `build:css` (`node scripts/build-tokens.ts`, then `tailwindcss -i src/web/styles/app.css -o build/css/app.css --minify`, then `node scripts/hash-asset.ts`) and `scripts/hash-asset.ts`, which copies the stylesheet to `public/static/app.<first 12 hex of its SHA-256>.css`, removes older `app.*.css` files, and writes `src/web/assets.ts` exporting `APP_CSS` with that path. Done when: running `pnpm build:css` twice leaves `git status` clean, and a changed token changes the hash and removes the old file (`test/node/hash-asset.test.ts`).
-- [ ] Serve `public/` as Workers static assets (`assets.directory` in `wrangler.jsonc`) with `public/_headers` giving `/static/*` `Cache-Control: public, max-age=31536000, immutable`. Done when: under `pnpm dev`, `curl -sI` on the hashed stylesheet and on `/static/fonts/exo.woff2` shows `200`, the right content type and that header, and `/health` still returns the commit.
+- [ ] Split `vitest.config.ts` into two `test.projects`: `worker` (the `cloudflareTest()` plugin, `test/**/*.test.ts` without `test/node/**`) and `node` (`environment: "node"`, `test/node/**/*.test.ts`). Done when: `pnpm test` reports both projects and `test/health.test.ts` still runs in workerd.
+- [ ] Give each TypeScript project an explicit boundary: `test/tsconfig.json` excludes `test/node/**`; a new `test/node/tsconfig.json` (`types: ["node"]`) includes `test/node/**/*.ts` and `scripts/**/*.ts`; `typecheck` adds it; Biome's `files.includes` adds `test/node/**` (already under `test/**`) and `scripts/**/*.ts`. Done when: a type error planted in `test/node/`, in `scripts/build-tokens.ts` and in `test/health.test.ts` each makes `pnpm typecheck` exit 1. Cheaper substitute: one project with every type set, which hides Node globals leaking into the Worker.
+- [ ] Write `scripts/build-tokens.ts` (Node 24 runs it directly, `node scripts/build-tokens.ts`) turning `design/tokens/colors.json`, `spacing.json` and `typography.json` into `src/web/styles/tokens.css`, written to a temporary file and renamed into place: one `@theme static` block that first resets Tailwind's defaults (`--color-*`, `--font-*`, `--text-*`, `--font-weight-*`, `--tracking-*`, `--leading-*`, `--radius-*`, `--shadow-*` set to `initial`) and then declares every colour role (light values) as `--color-<role>`, the spacing scale as `--spacing-<key>`, radii as `--radius-<key>`, control heights, shadows as `--shadow-<key>`, families as `--font-<key>`, weights as `--font-weight-<key>` and the type scale as `--text-<key>` with its line height; then the dark values under `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }` and `:root[data-theme="dark"] { ... }`, and the light values again under `:root[data-theme="light"]`; and one `@utility type-<role>` per typography role setting its family, size, weight, line height, letter spacing, text transform and numeric variant. Done when: `test/node/build-tokens.test.ts` finds every token, in both themes, with its JSON value in the compiled, minified `build/css/app.css`, and fails when a token is dropped from the generator. Cheaper substitute: hand-written CSS variables that drift from the JSON.
+- [ ] Create `src/web/styles/app.css` with `@import "tailwindcss";` and `@import "./tokens.css";` (fonts are named by family here; their `@font-face` rules come with §5). Done when: the compiled stylesheet holds the token variables and Tailwind's base layer.
+- [ ] Add script `build:css` = `node scripts/build-tokens.ts && tailwindcss -i src/web/styles/app.css -o build/css/app.css --minify`. Done when: running it twice leaves `git status` clean and `src/web/styles/tokens.css` unchanged.
+- [ ] Write `test/node/theme.test.ts`: compile a fixture page with Tailwind (token classes for colour, background, border, radius, shadow, spacing and every `type-<role>`), open it in headless Chromium (the browser `MOCKUP_CHROMIUM` names, else the one `design/tools/export-mockups.py` finds) under `--blink-settings=preferredColorScheme` light and dark, each with `data-theme` unset, `light` and `dark`, and read `getComputedStyle` back into the DOM. Done when: every case shows the expected theme's token values, removing the attribute restores the OS preference, and `bg-red-500`, `font-serif` and `text-9xl` in the fixture produce no rule. Cheaper substitute: asserting variable names in the CSS text, which passes broken selectors.
 - [ ] Write `test/node/no-raw-colours.test.ts` failing on any `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb(`, `rgba(`, `hsl(`, `hsla(` or `oklch(` in `src/web/**/*.{ts,tsx,css}` except the generated `src/web/styles/tokens.css`. Done when: the test passes now and fails on a planted `#ff0000` in a `src/web` file.
-- [ ] Run `pnpm build:css` in CI's Worker job followed by `git diff --exit-code -- src/web public`, and add `pnpm build:css` to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README quickstart. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass, and a stale committed stylesheet fails the CI step.
-- [ ] Record in `NOTICE.md` (`tailwindcss`, `@tailwindcss/cli`, `@types/node`; none ships in the Worker; the compiled CSS carries Tailwind's MIT notice) and in the stack doc (theme selection default, `public/` assets layout). Done when: each row matches the installed package's version and licence.
+- [ ] Run `pnpm build:css` in CI's Worker job before `pnpm test`, with Google Chrome for the theme test (`MOCKUP_CHROMIUM`, as for the mockup tests), followed by `git diff --exit-code -- src/web`; add `pnpm build:css` to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README quickstart. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass, and a stale committed `tokens.css` fails the CI step.
+- [ ] Record `tailwindcss`, `@tailwindcss/cli` and `@types/node` in `NOTICE.md` (none ships in the Worker; the compiled CSS keeps Tailwind's MIT notice) and the theme selection default in the stack doc's Styling row. Done when: each row matches the installed package's version and licence.
 - [ ] Commit: `web: design tokens compiled to the app stylesheet`
 
-**Test checkpoint:** in a clean clone, `pnpm build:css` leaves `git status` clean; `pnpm test` passes both projects (token coverage, hashing, no raw colours, health); `pnpm typecheck` and `pnpm lint` pass; under `pnpm dev` the hashed stylesheet and a font answer `200` with `Cache-Control: public, max-age=31536000, immutable`; and a planted `#ff0000` in `src/web/` fails `pnpm test`. **Corrected 2026-10-27:** the checkpoint was a build and one test that passes on an empty `src/web/`.
+**Test checkpoint:** in a clean clone, `pnpm build:css` leaves `git status` clean; `pnpm test` passes both projects (token coverage in the minified stylesheet, computed styles under both preferences and both overrides, defaults removed, no raw colours, health); `pnpm typecheck` refuses an error planted in each TypeScript project; and a planted `#ff0000` in `src/web/` fails `pnpm test`. **Corrected 2026-10-27:** the checkpoint was a build and one test that passes on an empty `src/web/`.
 
 ## 3. App shell and shared components with every state
 
@@ -154,6 +158,31 @@ When a board or a shared part changes, the operator and the build agents see wha
 - [ ] Commit: `design: visual change comparison for re-approval`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_export_mockups` passes and fails if a board importing a changed part is missing from the diff.
+
+## 5. Hashed static assets and fonts
+
+Split from §2 on 2026-10-27 (its plan review): serving the compiled stylesheet and the brand fonts is its own job. Every file under `/static/` carries a content hash in its name, so it can be cached for a year and still change the moment its content does (Cloudflare's own example assumes fingerprinted assets: developers.cloudflare.com/workers/static-assets/headers/).
+
+**Phase:** 1
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Build the fonts and fingerprint every static file. Done when: `pnpm build:assets` writes `public/static/app.<hash>.css`, `public/static/fonts/exo.<hash>.woff2` and `exo2.<hash>.woff2`, and `src/web/assets.ts` naming them.
+2. Serve them as long-cached Workers static assets. Done when: under `pnpm dev`, each answers `200` with its content type and `Cache-Control: public, max-age=31536000, immutable`, and `/health` still reaches the Worker.
+3. Keep the committed output current. Done when: CI rebuilds it and fails on any difference.
+
+- [ ] Add `design/tools/build-webfonts.py` converting `design/fonts/Exo[wght].ttf` and `Exo2[wght].ttf` to WOFF2 with fonttools (temporary file, then rename), naming each `<family>.<first 12 hex of its SHA-256>.woff2` in `public/static/fonts/`, removing older ones, and writing `src/web/styles/fonts.css` with `@font-face` rules (variable weight, `font-display: swap`) pointing at the hashed names; pin `brotli` in `design/tools/requirements.txt`. Done when: both files begin with `wOF2`, fonttools reads back the source's glyph count, and a changed source font changes the name and removes the old file (`tests/scripts/test_build_webfonts.py`). Cheaper substitute: Google Fonts links, which send every visitor to a third party.
+- [ ] Import `./fonts.css` from `src/web/styles/app.css`. Done when: the compiled stylesheet holds both `@font-face` rules with hashed URLs.
+- [ ] Add `scripts/hash-asset.ts`: copy `build/css/app.css` to `public/static/app.<first 12 hex of its SHA-256>.css`, remove older `app.*.css`, and write `src/web/assets.ts` exporting `APP_CSS` and the font paths (temporary file, then rename). Done when: `test/node/hash-asset.test.ts` shows a changed input changes the name and removes the old file, and an unchanged input leaves every file byte-identical.
+- [ ] Add script `build:assets` = `pnpm build:css && node scripts/hash-asset.ts` (the font converter runs on its own, `python3 design/tools/build-webfonts.py`, since its inputs change rarely and it needs the design tool requirements). Done when: running it twice leaves `git status` clean.
+- [ ] Serve `public/` as Workers static assets (`assets.directory` in `wrangler.jsonc`) with `public/_headers` giving `/static/*` `Cache-Control: public, max-age=31536000, immutable` and `X-Content-Type-Options: nosniff`. Done when: under `pnpm dev`, `curl -sI` on the stylesheet and both fonts shows `200`, `text/css` or `font/woff2`, and both headers; an unhashed `/static/app.css` answers `404`; `/health` still returns the commit.
+- [ ] Add CI steps: `pnpm build:assets` and `git diff --exit-code -- src/web public` in the Worker job, and in a job with `actions/setup-python` and the design tool requirements, `python3 design/tools/build-webfonts.py` followed by the same diff. Done when: `tests/scripts/test_ci_workflow.py` passes with both, and a stale committed font or stylesheet fails CI on a probe branch.
+- [ ] Add `pnpm build:assets` to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README quickstart, and name the served font files in `NOTICE.md`'s Exo row. Done when: `tests/scripts/test_worker_gates.py` passes and the NOTICE row lists `public/static/fonts/`.
+- [ ] Commit: `web: hashed static assets with self-hosted fonts`
+
+**Test checkpoint:** in a clean clone, `pnpm build:assets` and `python3 design/tools/build-webfonts.py` leave `git status` clean; `pnpm test` and `python3 -m unittest tests.scripts.test_build_webfonts` pass; under `pnpm dev` the hashed stylesheet and fonts answer `200` with `Cache-Control: public, max-age=31536000, immutable`, and `/static/app.css` answers `404`.
 
 ## Verification
 

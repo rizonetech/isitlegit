@@ -15,6 +15,7 @@ track: day-6
 
 ## Inputs
 
+- -> XREF: D07 T01 §2 -- the token stylesheet the site reuses, and the raw-colour guard this section extends to the site
 - Design spec 2b (business model), 4.8 (marketing site), 11 (Pricing, Brand); stack doc "Marketing site" (Astro 7.4.2, TypeScript 6.0.3 in `site/` only, Workers static assets, app on `app.isitlegit.co.za`).
 - `design/SPEC.md` marketing site section; the global writing rules for articles and marketing copy (no AI phrasing, E-E-A-T, sources).
 
@@ -54,6 +55,7 @@ track: day-6
 - [ ] Create `site/package.json` with exact `astro` 7.4.2, `@astrojs/check` 0.9.12 and `typescript` 6.0.3, and add `site` to `pnpm-workspace.yaml`. Done when: `pnpm install` resolves the workspace.
 - [ ] Import the generated token CSS and self-hosted fonts from the app build. Done when: the built CSS contains the token variables.
 - [ ] Add `pnpm --filter site check` (Astro check) to CI. Done when: CI runs it.
+- [ ] Extend the raw-colour guard to `site/**/*.astro` and `site/src/**/*.{ts,css}` (the token stylesheet from D07 T01 §2 is the only colour source), in `test/node/no-raw-colours.test.ts`. Done when: a planted `#ff0000` in a `site/` page fails `pnpm test`. (Assigned from D07 T01 §2's plan review, 2026-10-27.)
 - [ ] Commit: `site: Astro workspace with the design tokens`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check` exits 0.

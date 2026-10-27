@@ -22,7 +22,7 @@ Sections: 7 | Checklist items: 80
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 31 | Checklist items: 185
+Sections: 32 | Checklist items: 193
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -35,6 +35,7 @@ Sections: 31 | Checklist items: 185
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
 | [ ]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 11    |
+| [ ]    | D07 T01 §5 | Hashed static assets and fonts             | none                  | 8     |
 | [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
 | [ ]    | D07 T02 §2 | Passkey sign-in                            | none                  | 3     |
 | [ ]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 6     |
@@ -167,7 +168,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 56 | Checklist items: 206
+Sections: 56 | Checklist items: 207
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -195,7 +196,7 @@ Sections: 56 | Checklist items: 206
 | [ ]    | D07 T04 §4 | Domains and sending addresses page         | none                  | 3     |
 | [ ]    | D07 T05 §1 | Access application and JWT verification    | cloudflare            | 4     |
 | [ ]    | D07 T05 §2 | Overview, spend and invite codes           | none                  | 4     |
-| [ ]    | D07 T06 §1 | Astro workspace with the design tokens     | none                  | 4     |
+| [ ]    | D07 T06 §1 | Astro workspace with the design tokens     | none                  | 5     |
 | [ ]    | D07 T06 §2 | Home page                                  | none                  | 4     |
 | [ ]    | D07 T06 §3 | How it works and invoice fraud pages       | none                  | 3     |
 | [ ]    | D07 T06 §4 | Pricing page with launch prices            | none                  | 2     |
@@ -258,6 +259,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 6/189 verified sections, 5 ready to run now.
+Progress: 6/190 verified sections, 5 ready to run now.
 
-Checklist: 112/900 items completed (includes Commit items).
+Checklist: 112/909 items completed (includes Commit items).
