@@ -232,20 +232,25 @@ Cloudflare Workflows run the pipeline as durable steps (stack doc), so a failure
 
 ## 8. Signed expiring report links
 
+> **Started:** 2026-10-27T18:08Z
+
 Reply emails carry a link to the report that opens without a session: HMAC-signed with `REPORT_LINK_SECRET`, scoped to one case and organisation, expiring after 7 days (stack doc, spec 4.8). A tampered or expired link is refused, never served.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-27** (validation before build): there is no `ConfigError` in `src/` yet, so this section defines it; the Worker's secrets are typed in `src/types/secrets.d.ts`, which needs the new one; the stack doc already lists `REPORT_LINK_SECRET` (line 71); and the signature's input and the way the secret is set without being seen were not stated. The link must bind the case, the organisation and the expiry under a version label, so a signature made for another purpose or another link format can never pass.
+
 **Build order:**
 
 1. Write `src/web/report-link.ts` with `signReportLink` and `verifyReportLink`. Done when: round-trip, tamper, wrong-org and expiry tests pass.
 
-- [ ] Write `signReportLink(caseId, orgId, now)` producing `/r/<caseId>?o=<orgId>&e=<expiry>&s=<base64url HMAC-SHA256>` with WebCrypto and `REPORT_LINK_SECRET`. Done when: a test signs and verifies a link.
-- [ ] Write `verifyReportLink(url, now)` comparing signatures in constant time and refusing expiry in the past. Done when: tests refuse a changed case id, a changed org id, an expired link and a missing signature.
-- [ ] Refuse to sign when `REPORT_LINK_SECRET` is missing or shorter than 32 bytes. Done when: a test with a short secret throws `ConfigError`. Cheaper substitute: a default secret, which would make every link forgeable.
-- [ ] Add `REPORT_LINK_SECRET` to the secrets list in `docs/specs/2026-10-26-tech-stack-design.md` check and set it with `wrangler secret put` from a generated 32-byte value stored in the Conclave vault as "IsItLegit report link secret". Done when: `wrangler secret list` names it. 
+- [ ] Write `signReportLink(secret, caseId, orgId, now)` in `src/web/report-link.ts` producing `/r/<caseId>?o=<orgId>&e=<expiry>&s=<base64url HMAC-SHA256>` with WebCrypto, where the expiry is `now` plus 7 days in whole seconds and the signed text is `report-link:v1`, the case id, the organisation id and the expiry joined by newlines; both ids must be ULIDs (`isUlid`, `src/db/ulid.ts`). Done when: `test/web/report-link.test.ts` signs and verifies a link and refuses to sign a non-ULID id.
+- [ ] Write `verifyReportLink(secret, url, now)` answering `{ caseId, orgId, expires }` or a refusal reason, comparing signatures in constant time (`crypto.subtle.timingSafeEqual`, as `src/smoke.ts` does) and refusing an expiry in the past, an expiry more than 7 days ahead, a repeated or missing parameter, and a path other than `/r/<caseId>`. Done when: tests refuse a changed case id, a changed org id, a changed expiry, an expired link, a missing signature, a repeated parameter and a signature over another version label.
+- [ ] Define `ConfigError` in `src/web/report-link.ts` and refuse to sign or verify when the secret is missing or shorter than 32 bytes, and type `REPORT_LINK_SECRET?: string` in `src/types/secrets.d.ts`. Done when: a test with a missing and a 31-byte secret throws `ConfigError` for both calls. Cheaper substitute: a default secret, which would make every link forgeable.
+- [x] List `REPORT_LINK_SECRET` among the Worker's secrets in `docs/specs/2026-10-26-tech-stack-design.md`. Already true: line 71 names it (`REPORT_LINK_SECRET` (HMAC)).
+- [ ] Generate 32 random bytes as base64url, store them in Conclave as "IsItLegit report link secret" through `conclave-op`, read them back, and set them with `wrangler secret put REPORT_LINK_SECRET` from the vault, piping the value so it is never printed or passed as an argument; record in `docs/operations.md` that replacing it invalidates every report link already sent. Done when: `wrangler secret list` names it, the vault item's value is 43 characters (counted, not shown), and the operations page holds the note.
 - [ ] Commit: `web: signed, expiring report links`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-link.test.ts` passes and fails if the comparison ignores the org id.
