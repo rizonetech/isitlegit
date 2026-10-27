@@ -211,7 +211,10 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
         const history = await wrangler.deployments(deadline);
         const seen = new Set<string>();
         for (const deployment of [...history].reverse()) {
-          for (const { version_id: version } of deployment.versions) {
+          // Only a version that served traffic is a candidate: one deployed at 0% (staged for a gradual rollout)
+          // never ran for anyone, so restoring it would promote untested code.
+          for (const { version_id: version, percentage } of deployment.versions) {
+            if (!(percentage > 0)) continue;
             if (seen.has(version) || version === active || rejected.versions.includes(version)) continue;
             seen.add(version);
             const candidate = (await wrangler.view(version, deadline))?.commit;

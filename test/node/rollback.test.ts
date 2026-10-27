@@ -419,6 +419,35 @@ describe("scripts/rollback.ts", () => {
     expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: ["c"], commits: [COMMITS.c] });
   });
 
+  it("never chooses by default a version that only ever appeared at 0%", async () => {
+    // a served, then b2 served with x (commit X, never tested) staged at 0%: the default goes back to a, not x.
+    const commits: Record<string, string> = { a: COMMITS.a as string, b2: COMMITS.b as string, x: "X".repeat(40) };
+    const history: Deployment[] = [
+      deployment("a", 1),
+      {
+        created_on: new Date(2).toISOString(),
+        versions: [
+          { version_id: "b2", percentage: 100 },
+          { version_id: "x", percentage: 0 },
+        ],
+      },
+    ];
+    const { state, wrangler } = stage("b2", {
+      view: viewOf(commits, { a: 1, b2: 2, x: 3 }),
+      deployments: async () => history,
+    });
+    state.split = [
+      { version_id: "b2", percentage: 100 },
+      { version_id: "x", percentage: 0 },
+    ];
+    const outcome = await run(wrangler, {
+      ...passing(state),
+      health: async () => ({ commit: commits[state.active] as string }),
+    });
+    expect(outcome.ok).toBe(true);
+    expect(state.rollbacks).toEqual(["a"]);
+  });
+
   it("says a target without a COMMIT_SHA cannot be proven, rather than calling it gone", async () => {
     const { state, wrangler } = stage("c", {
       view: async (version) => (version === "x" ? { commit: null, number: 7 } : viewOf(COMMITS)(version)),
