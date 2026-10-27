@@ -190,11 +190,17 @@ Evidence after review rounds 1 to 4, 2026-10-27 22:03 SAST. Round 1 (`5cc220d`):
 
 ## 6. Forwarding failures detected and reported
 
+> **Started:** 2026-10-27T20:02Z
+
 Cloudflare accepts mail for an alias and then forwards it; a failure after that acceptance (the destination refusing it, a quota, a policy) is not reported to the original sender, because Cloudflare does not forward non-delivery reports (https://developers.cloudflare.com/email-service/reference/postmaster/#non-delivery-reports-ndrs). A judge or a demo contact's mail could then vanish with nobody told. Filed from §4's completion review (out-of-scope gap, 2026-10-27), which compared it with Exchange Online aliases, whose failures come back with a reason.
 
 **Phase:** 1
-**Needs:** none
+**Needs:** operator
 **Surface:** no
+
+**Corrected 2026-10-27** (Needs was `none`): the section cannot run unattended. Cloudflare's Email Routing events are in the GraphQL Analytics API (`emailRoutingAdaptive`, per zone, fields `datetime`, `sessionId`, `messageId`, `from`, `to`, `subject`, `status`, `action`, `errorDetail`, `isNDR`, `isSpam` and the authentication results; https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-email-routing/, read 2026-10-27), which publishes no list of `status` values and shows only `delivered`, so the failure values must be read from real events. Reading it needs an API token with Analytics Read; Wrangler's login has `email_routing (write)` but no analytics scope, and the Conclave vault holds no such token for this account. The live check also needs an Exchange Online mail flow rule set up by the operator.
+
+**Operator action (open):** (1) create a Cloudflare API token with Zone Analytics Read on `isitlegit.co.za` and store it in the Conclave vault as "IsItLegit Cloudflare analytics token"; (2) when the live check is due, add the Exchange Online mail flow rule rejecting the test subject, and remove it after. Recording `Operator ready: <what> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section; the 550 5.1.1 bounces of the first demo messages (D01 T02 §4, 2026-10-27, `docs/live-checks.md`) are real failures to read the status values from.
 
 **Build order:**
 
