@@ -1,10 +1,12 @@
+import { spawnSync } from "node:child_process";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { checkTokens } from "../../scripts/check-gateway-tokens.ts";
 
 // scripts/check-gateway-tokens.ts (D99 T01 §8) against a local stand-in for Cloudflare's API and the gateway: it passes
-// only when each token does exactly its job, and never prints a token.
+// only when each token does exactly its job, says what to do when not, and never prints a token.
 const RUN = "r".repeat(40);
 const ADMIN = "a".repeat(40);
 type World = {
@@ -12,6 +14,9 @@ type World = {
   readers: string[]; // tokens that may read the settings
   writers: string[]; // tokens that may write them
   gatewayOpen?: boolean; // a gateway that lets anything through
+  gatewayError?: boolean; // a gateway that fails the Run token's request itself, while logging it
+  stallAdmin?: boolean; // an API that never answers the admin token
+  notMeta?: boolean; // a logged 401 for the Run token that is not Meta's answer
 };
 const right: World = { runTokens: [RUN], readers: [ADMIN], writers: [ADMIN] };
 let server: Server | undefined;
@@ -29,11 +34,16 @@ async function stand(world: World) {
     const bearer = (h?: string) => h?.replace(/^Bearer /, "") ?? "";
     if (req.url?.startsWith("/gateway/")) {
       const token = bearer(req.headers["cf-aig-authorization"] as string | undefined);
+      if (world.gatewayError && world.runTokens.includes(token))
+        return json(502, { name: "AiGatewayError", error: [{ code: 2005 }] }, { "cf-aig-log-id": "log-2" });
+      if (world.notMeta && world.runTokens.includes(token))
+        return json(401, { message: "rejected upstream" }, { "cf-aig-log-id": "log-3" });
       if (world.gatewayOpen || world.runTokens.includes(token))
         return json(401, { error: { code: "invalid_api_key" } }, { "cf-aig-log-id": "log-1" });
       return json(401, { name: "AiGatewayError", error: [{ code: 2009, message: "Unauthorized" }] });
     }
     const token = bearer(req.headers.authorization);
+    if (world.stallAdmin && token === ADMIN) return; // never answers
     if (req.url?.endsWith("/custom-providers"))
       return world.readers.includes(token) ? json(200, { result: [{ slug: "meta" }] }) : json(403, { success: false });
     if (req.method === "PUT")
@@ -45,6 +55,7 @@ async function stand(world: World) {
   const base = `http://127.0.0.1:${(local.address() as AddressInfo).port}`;
   return { api: `${base}/api`, gateway: `${base}/gateway` };
 }
+const failure = (lines: string[], check: string) => lines.find((l) => l.startsWith(`failed: ${check}`));
 
 describe("scripts/check-gateway-tokens.ts", () => {
   it("passes when each token does exactly its job, naming every check and printing no token", async () => {
@@ -55,41 +66,86 @@ describe("scripts/check-gateway-tokens.ts", () => {
     expect(outcome.lines.join("\n")).not.toMatch(/r{40}|a{40}/);
   });
 
-  it("fails swapped tokens", async () => {
+  it("fails swapped tokens, saying which permission is missing", async () => {
     const outcome = await checkTokens({ run: ADMIN, admin: RUN }, await stand(right));
     expect(outcome.ok).toBe(false);
-    expect(outcome.lines).toContain(
-      "failed: the gateway lets the Run token through (HTTP 401, refused by the gateway)",
+    expect(failure(outcome.lines, "the gateway lets the Run token through to Meta")).toMatch(
+      /refused by the gateway; "IsItLegit AI Gateway token" needs AI Gateway Run/,
     );
   });
 
   it("fails a Run token that can read the settings", async () => {
     const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, readers: [ADMIN, RUN] }));
     expect(outcome.ok).toBe(false);
-    expect(outcome.lines).toContain("failed: the Run token cannot read the gateway's settings (HTTP 200)");
+    expect(failure(outcome.lines, "the Run token cannot read")).toMatch(/HTTP 200; .*Run-only token/);
   });
 
   it("fails an admin token that cannot write", async () => {
     const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, writers: [] }));
     expect(outcome.ok).toBe(false);
-    expect(outcome.lines).toContain("failed: the admin token writes the settings back unchanged (HTTP 403)");
+    expect(failure(outcome.lines, "the admin token writes")).toMatch(/HTTP 403; .*needs AI Gateway Edit/);
   });
 
   it("fails a gateway that lets a request with no token through", async () => {
     const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, gatewayOpen: true }));
     expect(outcome.ok).toBe(false);
-    expect(outcome.lines.slice(0, 2)).toEqual([
-      "failed: the gateway refuses a request with no token (HTTP 401)",
-      "failed: the gateway refuses a made-up token (HTTP 401)",
-    ]);
+    expect(outcome.lines.slice(0, 2).every((l) => /^failed: .*turn Authenticated Gateway on/.test(l))).toBe(true);
   });
 
-  it("fails, naming why, when the endpoints cannot be reached", async () => {
+  it("fails a gateway error that carries a log id: only Meta's own answer proves the token crossed", async () => {
+    const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, gatewayError: true }));
+    expect(outcome.ok).toBe(false);
+    expect(failure(outcome.lines, "the gateway lets the Run token through to Meta")).toMatch(
+      /HTTP 502 was not Meta's answer/,
+    );
+    const other = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, notMeta: true }));
+    expect(failure(other.lines, "the gateway lets the Run token through to Meta")).toMatch(
+      /HTTP 401 was not Meta's answer/,
+    );
+  });
+
+  it("refuses a malformed token before any request, printing none of it", async () => {
+    const leaky = `abc${"q".repeat(30)}\nsecret-tail-${"z".repeat(20)}`;
+    const outcome = await checkTokens({ run: leaky, admin: ADMIN }, await stand(right));
+    expect(outcome.ok).toBe(false);
+    expect(outcome.lines).toHaveLength(1);
+    expect(outcome.lines[0]).toMatch(/^failed: the run token is well formed .*paste the token again/);
+    expect(outcome.lines.join("\n")).not.toMatch(/q{30}|secret-tail|a{40}/);
+  });
+
+  it("fails, naming the endpoint and what to do, when nothing can be reached", async () => {
     const outcome = await checkTokens(
       { run: RUN, admin: ADMIN },
       { api: "http://127.0.0.1:1", gateway: "http://127.0.0.1:1" },
     );
     expect(outcome.ok).toBe(false);
-    expect(outcome.lines.at(-1)).toMatch(/^failed: the checks ran/);
+    expect(outcome.lines[0]).toBe(
+      "failed: the gateway refuses a request with no token (127.0.0.1:1 unreachable; check the network and run again)",
+    );
+  });
+
+  it("prints each check as it ends, so a stalled one leaves the earlier results shown", async () => {
+    const shown: string[] = [];
+    const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, stallAdmin: true }), {
+      log: (line) => shown.push(line),
+      timeoutMs: 300,
+    });
+    expect(outcome.ok).toBe(false);
+    expect(shown.indexOf("passed: the Run token cannot read the gateway's settings")).toBeGreaterThan(-1);
+    expect(shown.indexOf("passed: the Run token cannot read the gateway's settings")).toBeLessThan(
+      shown.indexOf("  checking: the admin token reading the gateway..."),
+    );
+    expect(failure(shown, "the admin token reads the gateway")).toMatch(/no answer within 0\.3 s; check the network/);
+  });
+
+  it("names the vault item when it cannot be read, from the real entry point", () => {
+    const run = spawnSync(process.execPath, ["scripts/check-gateway-tokens.ts"], {
+      cwd: join(import.meta.dirname, "../.."),
+      env: { PATH: "" },
+      encoding: "utf-8",
+      timeout: 20_000,
+    });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('failed: reading "IsItLegit AI Gateway token" from Conclave');
   });
 });
