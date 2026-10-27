@@ -475,6 +475,8 @@ Evidence after review round 2, 2026-10-27 19:26 SAST. Its two findings are fixed
 
 Evidence after review round 3, 2026-10-27 19:31 SAST. Its finding is fixed in `af8843d`: a live provider URL carrying a user name or password is refused by the preflight both commands run, before any value is shown. 24 passed; the mutation is caught. Live `restore --dry`: no change.
 
+Evidence after review round 4, 2026-10-27 19:36 SAST. Its finding is fixed in `0e22fe4`: an error answer that is not a JSON object (null, a list, a number, a null or non-list `errors`, or not JSON) still reaches the failure report with its inventory. 25 passed; the mutation is caught. Live `restore --dry`: no change.
+
 **Test checkpoint:** `pnpm exec vitest run test/node/gateway-config.test.ts` passes and fails if `restore` deletes anything or reports success when the read-back differs.
 
 ## 12. Rollback from a split deployment
