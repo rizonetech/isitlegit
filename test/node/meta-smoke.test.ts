@@ -50,7 +50,8 @@ const click = (x: number, y: number, name = "click") => ({
   output: [{ type: "function_call", call_id: "c1", name, arguments: JSON.stringify({ x, y }) }],
   usage: { input_tokens: 2000, output_tokens: 50 },
 });
-const price = { "muse-spark-1.3": [1.25, 4.25], "muse-wonder-1.0": [4, 20] } as const;
+// The gateway's pricing rules: input, cached input, output (US dollars per million tokens).
+const price = { "muse-spark-1.3": [1.25, 0.15, 4.25], "muse-wonder-1.0": [4, 0.2, 20] } as const;
 
 type Stub = {
   answers?: Partial<Record<string, () => Response>>; // by call: spark-text, spark-image, sam, wonder
@@ -60,7 +61,7 @@ function world(stub: Stub = {}) {
   const sent: { url: string; headers: Headers; body: Record<string, unknown> }[] = [];
   const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
-  const usageOf: Record<string, { model: string; input: number; output: number }> = {};
+  const usageOf: Record<string, { model: string; input: number; cached: number; output: number }> = {};
   const fetchStub = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
@@ -70,8 +71,9 @@ function world(stub: Stub = {}) {
       if (part) return json({ errors: [{ code: 7002, message: "Request body not available" }], success: false }, 404);
       const u = usageOf[id];
       if (!u) return json({ success: false }, 404);
-      const [pin, pout] = u.model === "sam-3.1" ? [0, 0] : (price[u.model as keyof typeof price] ?? [0, 0]);
-      const cost = u.model === "sam-3.1" ? undefined : (u.input * pin + u.output * pout) / 1e6;
+      const [pin, pcached, pout] = price[u.model as keyof typeof price] ?? [0, 0, 0];
+      const cost =
+        u.model === "sam-3.1" ? 0 : ((u.input - u.cached) * pin + u.cached * pcached + u.output * pout) / 1e6;
       return json({
         result: {
           id,
@@ -108,12 +110,13 @@ function world(stub: Stub = {}) {
     const replyText = await answer.text();
     const replyHeaders = new Headers(answer.headers);
     replyHeaders.set("cf-aig-log-id", id);
-    const usage = { input: 0, output: 0 };
+    const usage = { input: 0, cached: 0, output: 0 };
     if (key !== "sam") {
       try {
         const peek = JSON.parse(replyText);
         usage.input = peek.usage?.input_tokens ?? 0;
         usage.output = peek.usage?.output_tokens ?? 0;
+        usage.cached = peek.usage?.input_tokens_details?.cached_tokens ?? 0;
       } catch {
         // not JSON
       }
@@ -490,6 +493,34 @@ describe("scripts/meta-smoke.ts", () => {
       /not reported by Meta \| 200, success, 0 \/ 0, 900 ms .* \| 1 box\(es\), best overlap 0\.\d\d \|/,
     );
     expect(rows[3]).toMatch(/\| click\(640, 450\) \|/);
+  });
+
+  it("prices cached input at the gateway's cached rate, as the live gateway did (1652 of 1771 cached)", async () => {
+    const json = (b: unknown) => () =>
+      new Response(JSON.stringify(b), { headers: { "content-type": "application/json" } });
+    const cachedClick = {
+      ...click(640, 450),
+      usage: { input_tokens: 1771, input_tokens_details: { cached_tokens: 1652 }, output_tokens: 835 },
+    };
+    const outcome = await live(world({ answers: { wonder: json(cachedClick) } }).fetchStub).run;
+    expect(outcome.code).toBe(0);
+    const row = readFileSync(join(DIR, "report.md"), "utf-8")
+      .split("\n")
+      .find((l) => l.startsWith("| Wonder"));
+    // The live gateway's own figure for these counts: US$0.0175064.
+    expect(row).toMatch(/\| 1771 \(1652 cached\) \/ 835 \| .* \| US\$0\.017506 \| US\$0\.017506 \|/);
+  });
+
+  it("tells Wonder the screenshot's size, read from the PNG itself", async () => {
+    expect(fx.pageSize).toEqual({ width: 1280, height: 800 });
+    const { fetchStub, sent } = world();
+    await live(fetchStub, { model: "muse-wonder-1.0" }).run;
+    expect(sent).toHaveLength(1);
+    const tools = sent[0]?.body.tools as { description: string; parameters: { properties: Record<string, object> } }[];
+    const tool = tools[0];
+    expect(tool?.description).toContain("1280 by 800 pixels");
+    expect(tool?.parameters.properties.x).toMatchObject({ minimum: 0, maximum: 1279 });
+    expect(tool?.parameters.properties.y).toMatchObject({ minimum: 0, maximum: 799 });
   });
 
   it("keeps each finished call on disk while the run goes on, and names an interrupted run next time (E1)", async () => {

@@ -36,10 +36,11 @@ const VAULT = {
   run: "IsItLegit AI Gateway token",
   admin: "IsItLegit AI Gateway admin token",
 } as const;
-// US dollars per million tokens, as AI Gateway's pricing rules hold them (D00 T01 §6); SAM is priced per image.
+// US dollars per million tokens, as AI Gateway's pricing rules hold them (D00 T01 §6), cached input at its own rate;
+// SAM is priced per image.
 export const PRICES = {
-  "muse-spark-1.3": { input: 1.25, output: 4.25 },
-  "muse-wonder-1.0": { input: 4, output: 20 },
+  "muse-spark-1.3": { input: 1.25, cached: 0.15, output: 4.25 },
+  "muse-wonder-1.0": { input: 4, cached: 0.2, output: 20 },
 } as const;
 export const SAM_PER_IMAGE = 2.5 / 1000;
 export const RUN_CAP = 0.5;
@@ -64,16 +65,20 @@ export type Fixtures = {
   code: string;
   logoBox: [number, number, number, number];
   buttonBox: [number, number, number, number];
+  pageSize: { width: number; height: number }; // continue-page.png, from its PNG header
   images: { code: string; logo: string; page: string }; // data URLs
 };
 
 export function loadFixtures(dir = join(ROOT, "test/fixtures/meta-smoke")): Fixtures {
   const facts = JSON.parse(readFileSync(join(dir, "fixtures.json"), "utf-8"));
   const png = (name: string) => `data:image/png;base64,${readFileSync(join(dir, name)).toString("base64")}`;
+  const page = readFileSync(join(dir, "continue-page.png"));
   return {
     code: facts.code,
     logoBox: facts.logoBox,
     buttonBox: facts.buttonBox,
+    // The IHDR chunk follows the 8-byte signature: width and height are big-endian at bytes 16 and 20.
+    pageSize: { width: page.readUInt32BE(16), height: page.readUInt32BE(20) },
     images: { code: png("code-card.png"), logo: png("logo-card.png"), page: png("continue-page.png") },
   };
 }
@@ -93,20 +98,25 @@ const userInput = (text: string, image?: string) => [
     content: [{ type: "input_text", text }, ...(image ? [{ type: "input_image", image_url: image }] : [])],
   },
 ];
-const tokenCost = (model: keyof typeof PRICES, input: number, output: number) =>
-  (input * PRICES[model].input + output * PRICES[model].output) / 1_000_000;
+export type Usage = { input: number; cached: number; output: number }; // `input` includes `cached`
+const tokenCost = (model: keyof typeof PRICES, input: number, output: number, cached = 0) =>
+  ((input - cached) * PRICES[model].input + cached * PRICES[model].cached + output * PRICES[model].output) / 1_000_000;
 
-const CLICK_TOOL = {
+// A native computer tool declares the display's size; this function stands in for one, so it says the same.
+const clickTool = (size: Fixtures["pageSize"]) => ({
   type: "function",
   name: "click",
-  description: "Click the left mouse button at a point on the screenshot, in pixels from its top-left corner.",
+  description: `Click the left mouse button at a point on the screenshot, which is ${size.width} by ${size.height} pixels; x and y are pixels from its top-left corner.`,
   parameters: {
     type: "object",
-    properties: { x: { type: "integer" }, y: { type: "integer" } },
+    properties: {
+      x: { type: "integer", minimum: 0, maximum: size.width - 1 },
+      y: { type: "integer", minimum: 0, maximum: size.height - 1 },
+    },
     required: ["x", "y"],
     additionalProperties: false,
   },
-};
+});
 
 export function plannedCalls(fx: Fixtures): Planned[] {
   const spark = (name: string, text: string, image?: string): Planned => ({
@@ -136,7 +146,7 @@ export function plannedCalls(fx: Fixtures): Planned[] {
       stream: false,
       body: {
         model: "muse-wonder-1.0",
-        tools: [CLICK_TOOL],
+        tools: [clickTool(fx.pageSize)],
         // Meta allows only "auto" here.
         tool_choice: "auto",
         input: userInput("Click the Continue button.", fx.images.page),
@@ -286,7 +296,7 @@ export async function checkLog(
   get: (path: string) => Promise<{ status: number; body: unknown }>,
   logId: string,
   call: Planned,
-  usage: { input: number; output: number } | null,
+  usage: Usage | null,
   waitMs = 30_000,
   pause = (ms: number) => new Promise((r) => setTimeout(r, ms)),
 ): Promise<LogCheck> {
@@ -334,7 +344,7 @@ export async function checkLog(
       };
     const gatewayCost = log.cost ?? null;
     if (gatewayCost === null) return { ok: false, detail: "a token-priced call has no gateway cost", log, gatewayCost };
-    const expected = tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output);
+    const expected = tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output, usage.cached);
     return Math.abs(gatewayCost - expected) <= Math.max(1e-6, expected * 0.02)
       ? { ok: true, detail: "metadata and a matching cost kept, no body", log, gatewayCost }
       : {
@@ -486,7 +496,7 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
     detail: string;
     excerpt?: string | undefined;
     ms: number;
-    usage: { input: number; output: number } | null;
+    usage: Usage | null;
     log: LogCheck;
     cost: number | null;
   };
@@ -501,7 +511,9 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
         r.call.model === "sam-3.1"
           ? `unavailable from the gateway; US$${SAM_PER_IMAGE.toFixed(4)} per image`
           : money(r.log.gatewayCost);
-      const usage = r.usage ? `${r.usage.input} / ${r.usage.output}` : "not reported by Meta";
+      const usage = r.usage
+        ? `${r.usage.input}${r.usage.cached ? ` (${r.usage.cached} cached)` : ""} / ${r.usage.output}`
+        : "not reported by Meta";
       const gatewayFacts = g
         ? `${g.status_code}, ${g.success ? "success" : "failure"}, ${g.tokens_in} / ${g.tokens_out}, ${g.duration} ms`
         : "not read";
@@ -564,11 +576,22 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
     try {
       const { data, response } = await client.responses.create(call.body as never, { signal: deadline }).withResponse();
       logId = response.headers.get("cf-aig-log-id");
-      const usageOf = (answer: unknown) => {
-        const counts = (answer as { usage?: { input_tokens?: unknown; output_tokens?: unknown } } | null)?.usage;
+      const usageOf = (answer: unknown): Usage | null => {
+        const counts = (
+          answer as {
+            usage?: {
+              input_tokens?: unknown;
+              output_tokens?: unknown;
+              input_tokens_details?: { cached_tokens?: unknown };
+            };
+          } | null
+        )?.usage;
         const input = counts?.input_tokens;
         const output = counts?.output_tokens;
-        return typeof input === "number" && typeof output === "number" ? { input, output } : null;
+        const cached = counts?.input_tokens_details?.cached_tokens ?? 0;
+        return typeof input === "number" && typeof output === "number" && typeof cached === "number"
+          ? { input, cached, output }
+          : null;
       };
       if (call.stream) {
         // The stream's own `response.completed` event carries Meta's usage; it is read as the events pass.
@@ -610,7 +633,7 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
           ? SAM_PER_IMAGE
           : null
         : usage
-          ? tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output)
+          ? tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output, usage.cached)
           : null;
     entry.cost = cost;
     entry.state = cost === null ? "uncertain" : "settled";
