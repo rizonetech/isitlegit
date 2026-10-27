@@ -81,7 +81,7 @@ Raw mail and every artefact live in R2 under the case id; D1 holds only metadata
 1. Write `src/intake/store.ts` with key builders and put helpers that hash content. Done when: tests show the exact keys and the SHA-256 in the artefact row.
 2. Refuse writes outside the layout. Done when: a bad kind or case id throws before any R2 call.
 
-- [ ] Write `rawKey(caseId)` returning `raw/<caseId>/message.eml` and `artefactKey(caseId, kind, name)` returning `art/<caseId>/<kind>/<sha256>-<safeName>` in `src/intake/store.ts`. Done when: `test/intake/store.test.ts` asserts both formats.
+- [ ] Write `rawKey(caseId)` returning `raw/<caseId>/message.eml`, `attachmentKey(caseId, name)` returning `raw/<caseId>/attachments/<sha256>-<safeName>`, and `artefactKey(caseId, kind, name)` returning `art/<caseId>/<kind>/<sha256>-<safeName>` for derived artefacts (screenshots, crops, the parsed summary) in `src/intake/store.ts`. Done when: `test/intake/store.test.ts` asserts all three formats and fails if an attachment is written outside `raw/`. (**Corrected 2026-10-27**, D00 T01 §5 plan review: attachments were `art/` artefacts, outside the 30-day `raw/` lifecycle rule, though the design spec deletes raw messages and attachments after 30 days.)
 - [ ] Write `putRaw` and `putArtefact` that compute SHA-256 with WebCrypto, write to `ARTEFACTS` and insert the `artefacts` row in one step. Done when: a test with the R2 binding reads the object back and finds the matching row. Cheaper substitute: storing bodies in D1 blobs.
 - [ ] Sanitise attachment names (path separators, control characters, length cap 120) before they enter a key. Done when: a test with `../../x.eml` and a 500-character name yields a safe key.
 - [ ] Refuse a case id that is not a ULID and a kind outside the `artefacts.kind` list. Done when: both raise a typed `StoreError` in tests.
@@ -143,7 +143,7 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 **Build order:**
 
 1. Add `postal-mime` 4.1.4 and write `src/intake/parse.ts`. Done when: a fixture parses into headers, text, HTML and attachments.
-2. Store attachments and the parsed summary. Done when: R2 holds each attachment and `art/<case>/parsed/summary.json`.
+2. Store attachments and the parsed summary. Done when: R2 holds each attachment under `raw/<case>/attachments/` and `art/<case>/parsed/summary.json` (**Corrected 2026-10-27:** attachments sit under the 30-day `raw/` rule).
 
 - [ ] Add exact dependency `postal-mime` 4.1.4 to `package.json`. Done when: `pnpm install` resolves it.
 - [ ] Write `parseMessage(bytes)` returning headers (as an ordered list, duplicates kept), `text`, `html`, and attachments with filename, media type, content id and bytes. Done when: `test/intake/parse.test.ts` checks a multipart fixture with two attachments and an inline image.
