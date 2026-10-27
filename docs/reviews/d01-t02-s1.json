@@ -1,0 +1,113 @@
+{
+  "ref": "D01 T02 \u00a71",
+  "title": "SMTP2GO client with retries and send log",
+  "implementation_sha": "4b44c83d8b59711f5dcda779f712d42f56367395",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T02-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/mail/smtp2go.test.ts test/db/schema.test.ts -> 24 passed",
+    "pnpm db:migrate:local -> 0003_mail.sql applied",
+    "pnpm exec vitest run -> 368 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s1.md",
+    "verdict": "filed",
+    "candidate": "9779684697036265d3fcaa7b25c28937cf6a02a3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T02 \u00a72",
+      "D01 T02 \u00a73",
+      "D07 T08 \u00a76",
+      "D07 T08 \u00a77",
+      "D07 T02 \u00a79",
+      "D07 T03 \u00a75",
+      "D01 T02 \u00a75"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s1.md",
+    "candidate": "b268301a686322d87baecaa1eaf961c4e7df3154",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
