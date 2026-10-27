@@ -24,7 +24,7 @@ Sections: 9 | Checklist items: 108
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 32 | Checklist items: 209
+Sections: 32 | Checklist items: 210
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -54,7 +54,7 @@ Sections: 32 | Checklist items: 209
 | [ ]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 6     |
 | [ ]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 7     |
 | [ ]    | D03 T01 §2 | Budget guard with daily and total caps     | none                  | 7     |
-| [ ]    | D03 T01 §3 | Cost and latency events per model call     | none                  | 6     |
+| [ ]    | D03 T01 §3 | Cost and latency events per model call     | none                  | 7     |
 | [ ]    | D03 T01 §4 | Result cache by artefact hash              | none                  | 4     |
 | [ ]    | D03 T01 §5 | Structured output helper with zod          | none                  | 5     |
 | [ ]    | D03 T01 §6 | Untrusted content blocks                   | none                  | 4     |
@@ -175,13 +175,11 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 56 | Checklist items: 207
+Sections: 54 | Checklist items: 198
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [ ]    | D03 T04 §1 | Contributor client for public pages        | none                  | 4     |
-| [ ]    | D03 T04 §2 | Page screener on Muse Spark                | meta-api              | 5     |
-| [ ]    | D03 T04 §3 | Contributor measured against Spark         | meta-api              | 4     |
+| [ ]    | D03 T04 §1 | Page screener on Muse Spark                | meta-api              | 4     |
 | [ ]    | D04 T01 §1 | Deterministic floor from critical evidence | none                  | 4     |
 | [ ]    | D04 T01 §2 | Rule-based verdict                         | none                  | 3     |
 | [ ]    | D04 T01 §3 | Read-only agent tools with zod validation  | none                  | 5     |
@@ -268,6 +266,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 11/199 verified sections, 12 ready to run now.
+Progress: 11/197 verified sections, 12 ready to run now.
 
-Checklist: 210/1005 items completed (includes Commit items).
+Checklist: 210/997 items completed (includes Commit items).

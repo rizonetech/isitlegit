@@ -10,7 +10,7 @@ track: day-1
 
 # TODO-01 -- Meta Model Client, Budget Guard and Untrusted Content
 
-> **Goal:** Every call to a Meta model (Muse Spark, Muse Wonder, SAM 3.1, Muse Image, Muse Voice Transcribe, and Muse Spark 1.3 Contributor for public pages) goes through one client that sends `store: false`, refuses any `-contributor` model ID except `muse-spark-1.3-contributor` from `src/meta/contributor.ts` (operator decision 2026-10-27; was "and to the hosted Glimmer provider", and every `-contributor` ID refused), routes through the AI Gateway with payload logging off, enforces the operator's budget caps in code, records cost and latency per case step for the model trace, caches results by artefact hash, validates structured output with zod, and wraps every piece of hostile content in an untrusted block.
+> **Goal:** Every call to a Meta model (Muse Spark, Muse Wonder, SAM 3.1, Muse Image, Muse Voice Transcribe) goes through one client that sends `store: false`, refuses any `-contributor` model ID (corrected 2026-10-27: "and to the hosted Glimmer provider" removed with the outside providers), routes through the AI Gateway with payload logging off, enforces the operator's budget caps in code, records cost and latency per case step for the model trace, caches results by artefact hash, validates structured output with zod, and wraps every piece of hostile content in an untrusted block.
 
 > **Current state:** Measured 2026-10-26 20:00 SAST. No model code exists. D00 T01 §6 creates the AI Gateway custom provider and D00 T01 §7 the smoke test. The budget decision (US$120 Meta total, US$15 a day, US$30 reserve, Glimmer's US$10 cap removed with Glimmer by operator decision on 2026-10-27) is in design spec section 11.
 
@@ -24,7 +24,7 @@ track: day-1
 
 ## Outcome
 
-- A test fails if any source file or request names a `-contributor` model outside `src/meta/contributor.ts`, names one other than `muse-spark-1.3-contributor`, or omits `store: false` (corrected 2026-10-27, operator decision).
+- A test fails if any source file or request names a `-contributor` model or omits `store: false`.
 - When the daily or total cap is reached, the next call for that model is refused before the network, the case gets a marked partial report, and the operator is notified once.
 - Every model call leaves a `case_events` row with model, step, milliseconds and cost.
 
@@ -59,17 +59,17 @@ One module, `src/meta/client.ts`, is the only place that talks to `api.meta.ai` 
 
 - [ ] Add exact dependencies `openai` 7.43.0 and `zod` 4.6.7. Done when: `pnpm install` resolves them.
 - [ ] Define `MODELS` in `src/meta/models.ts` as the Standard IDs `muse-spark-1.3`, `muse-wonder-1.0`, `sam-3.1`, `muse-image-1.0`, `muse-voice-transcribe-1.0`, each with its price per unit from `https://dev.meta.ai/docs/pricing-rate-limits`. Done when: the file exports the map and the docs URL.
-- [ ] Write `metaResponses({ model, input, ...rest }, ctx)` that refuses a model not in `MODELS`, forces `store: false` (overriding any caller value), reaches the authenticated gateway through the Worker's `AI` binding (`env.AI.gateway("isitlegit")`, pre-authenticated, so no gateway token is stored; D00 T01 §6) at `META_GATEWAY_URL`'s `custom-meta` route, and sends `cf-aig-collect-log-payload: false`. Done when: `test/meta/client.test.ts` checks all four with a stubbed gateway, and a call that bypasses the binding is refused. Cheaper substitute: callers setting `store` themselves. (**Corrected 2026-10-27** (D00 T01 §6 plan review P2): the gateway now requires authentication; if the binding cannot route the custom provider's Responses call, the Worker sends a gateway `AI Gateway Run` token kept as the Worker secret `CF_AIG_TOKEN` instead, recorded here when built.)
+- [ ] Write `metaResponses({ model, input, ...rest }, ctx)` that refuses a model not in `MODELS`, forces `store: false` (overriding any caller value), and sends every request through AI Gateway `isitlegit`'s `custom-meta` route with `cf-aig-collect-log: true` and `cf-aig-collect-log-payload: false` (the gateway collects nothing by default, D00 T01 §6). It reaches the gateway through the Worker's `AI` binding, `env.AI.gateway("isitlegit").run(...)` on the `custom-meta` provider, which is pre-authenticated; if `run` cannot route the custom provider's Responses call, it sends a gateway `AI Gateway Run` token kept as the Worker secret `CF_AIG_TOKEN` to `META_GATEWAY_URL` instead, and records which in this item. Done when: `test/meta/client.test.ts` checks the model refusal, `store: false` and both headers with a stubbed gateway, and this section's checkpoint makes one live call through the chosen route and reads back its gateway log (no body, metadata present). Cheaper substitute: callers setting `store` themselves. (**Corrected 2026-10-27** (D00 T01 §6 plan and final reviews): the gateway requires authentication and collects no logs by default; the binding's `run` and a fetch to the static URL are different routes, and only a live call shows which works.)
 - [ ] Write `metaRaw(path, body, ctx)` for `/v1/asr/transcribe` and `/v1/images/edits` with the same model check and header. Done when: the test covers a transcribe call.
 - [ ] Map OpenAI-style error envelopes to typed `ModelError` (rate limit, invalid request, server, abuse flag) with retry for 429 and 5xx only. Done when: tests cover each class.
-- [ ] Write `test/meta/no-contributor.test.ts` scanning `src/`, `scripts/` and `eval/` for `-contributor`, allowing exactly `muse-spark-1.3-contributor` in `src/meta/contributor.ts`. Done when: it passes now and fails on a planted string anywhere else, or on another `-contributor` ID in that file. (**Corrected 2026-10-27**, operator decision approving a change to this frozen behaviour: Muse Spark 1.3 Contributor replaces the outside providers for public-page screening.)
+- [ ] Write `test/meta/no-contributor.test.ts` scanning `src/`, `scripts/` and `eval/` for `-contributor`. Done when: it passes now and fails on a planted string.
 - [ ] Commit: `meta: model client with store false, Standard IDs and the gateway`
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/client.test.ts test/meta/no-contributor.test.ts` passes, and fails if a caller's `store: true` reaches the request.
 
 ## 2. Budget guard with daily and total caps
 
-The operator's caps are enforced in code (design spec section 11): Meta Model API US$120 total and US$15 a day, with US$30 held back for demo and judging days (3 and 4 Nov may use the reserve); Muse Spark Contributor screening counts inside these caps (corrected 2026-10-27: the Glimmer provider's US$10 cap left with Glimmer). Spend is estimated before a call from the request size and settled after from the usage the response reports. A refused call ends the step as partial; it never silently degrades a verdict.
+The operator's caps are enforced in code (design spec section 11): Meta Model API US$120 total and US$15 a day, with US$30 held back for demo and judging days (3 and 4 Nov may use the reserve); the monitor's page screening counts inside these caps (corrected 2026-10-27: the Glimmer provider's US$10 cap left with Glimmer). Spend is estimated before a call from the request size and settled after from the usage the response reports. A refused call ends the step as partial; it never silently degrades a verdict.
 
 **Phase:** 1
 **Needs:** none
@@ -108,6 +108,7 @@ The model trace on the report (D07 T03 §5), the cost-per-case dashboard and the
 - [ ] Record failed calls with the error class and no prompt or response content. Done when: a failing stub leaves an event with `status = "error"` and no body.
 - [ ] Write `caseCost(caseId)` summing cost per case for the report and eval. Done when: a test with three calls sums them.
 - [ ] Tag every gateway request with opaque metadata (`cf-aig-metadata`: the case id and the pipeline step, no names, addresses or content), so filtering the gateway's logs by one case id returns every request for that case with no request id copied by hand. Done when: `test/meta/client.test.ts` finds the metadata on each request and no personal data in it. (Filed from the D00 T01 §6 completion review, excellence item 1.)
+- [ ] Record a call made before any case exists (the monitor's page screening, D03 T04 §1) against its monitor run and candidate host instead of a case, in the same events table and gateway metadata. Done when: a screening call's event and metadata carry the run and host and no case id. (Filed from the D00 T01 §6 final review.)
 - [ ] Label each model call's cost by its source (gateway pricing rule, or Meta's per-unit price for SAM 3.1, Muse Image and Muse Voice Transcribe) and keep an unavailable cost distinct from zero, so `caseCost` reconciles all five models. Done when: a synthetic case mixing all five models sums to the expected total and an unavailable cost is reported as such. (Filed from the D00 T01 §6 completion review, excellence item 3.)
 - [ ] Commit: `meta: cost and latency events per model call`
 

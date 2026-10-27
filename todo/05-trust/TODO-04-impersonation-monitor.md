@@ -9,7 +9,7 @@ track: day-6
 
 # TODO-04 -- Impersonation Monitor for Fake Websites
 
-> **Goal:** Every day the monitor generates lookalike domains for each protected business, checks which resolve, screens new or changed live pages cheaply (Muse Spark Contributor or Standard Spark, D03 T04; corrected 2026-10-27, was Glimmer or Spark), sends flagged pages through the full vision pipeline and, where a form exists, the walkthrough, and alerts the business with a takedown pack (domain, registrar and host from RDAP, screenshots, abuse contacts).
+> **Goal:** Every day the monitor generates lookalike domains for each protected business, checks which resolve, screens new or changed live pages cheaply (Muse Spark, D03 T04 §1; corrected 2026-10-27, was Glimmer or Spark), sends flagged pages through the full vision pipeline and, where a form exists, the walkthrough, and alerts the business with a takedown pack (domain, registrar and host from RDAP, screenshots, abuse contacts).
 
 > **Current state:** Measured 2026-10-26 20:00 SAST. The confusables module (D02 T03 §1), vision pipeline (D03) and walkthrough (D04 T02) are planned before this file. Certificate-transparency search is first on the cut list (spec section 8) and is after the event.
 
@@ -32,7 +32,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [ ] |
 | 2 | §2 | Daily run with DNS liveness checks | §1 | [ ] |
-| 3 | §3 | Screening new or changed live pages | §2, D03 T04 §2 | [ ] |
+| 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [ ] |
 | 4 | §4 | Full pipeline on flagged pages | §3, D04 T02 §6 | [ ] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
 | 6 | §6 | Demo lookalike site found by the monitor | §5 | [ ] |
@@ -79,7 +79,7 @@ A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, re
 
 ## 3. Screening new or changed live pages
 
-Each fetched page's screenshot and visible text go to `screenPage` with the screener `MONITOR_SCREENER` names (D03 T04 §2 ships Spark; D03 T04 §3 switches to Muse Spark Contributor only if it measures as good; corrected 2026-10-27, was Glimmer); only pages judged as lures go further (spec 4.11).
+Each fetched page's screenshot and visible text go to `screenPage` with the screener `MONITOR_SCREENER` names (D03 T04 §1, Muse Spark; corrected 2026-10-27: was D03 T04 §2 with a later switch to Glimmer, removed); only pages judged as lures go further (spec 4.11).
 
 **Phase:** 6
 **Needs:** meta-api

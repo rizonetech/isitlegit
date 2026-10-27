@@ -50,7 +50,7 @@ From the design spec sections 4.4a, 4.6, 4.6a and 2a. A change that needs to bre
 - **Untrusted content stays data.** Email, PDF, page and transcript text reaches a model only inside delimited untrusted blocks, after hidden text has been extracted as evidence. No model decides who receives mail: recipients, subjects and templates come from code; the model fills validated fields only.
 - **Every model output and tool argument passes a zod schema** before use; `tool_choice` is `auto` only.
 - **The walkthrough is contained by the driver, not the model.** Muse Wonder gets at most 8 steps and 60 seconds, http(s) only, no downloads, and types only per-case canary values; every action is logged.
-- **Meta Model API: Standard model IDs, `store: false` on every call.** The one exception is `muse-spark-1.3-contributor`, named only in `src/meta/contributor.ts`, for screening public lookalike pages: its input may be used for training and must contain no personal data, so it only ever sees a public page's screenshot and visible text with a generic question (operator decision, 2026-10-27). A `-contributor` ID anywhere else fails a test.
+- **Meta Model API: Standard model IDs only, `store: false` on every call.** A `-contributor` ID anywhere fails a test.
 - **Registered bank details are never revealed** to a checker: match or no match only. Counterparty checks are rate-limited per sender and per protected business.
 - **A blocklist hit never decides a verdict alone**, and an IP listing never raises severity alone (spec 4.3a).
 
@@ -66,7 +66,7 @@ From the design spec sections 4.4a, 4.6, 4.6a and 2a. A change that needs to bre
 - Email, page, PDF or transcript text placed in a prompt outside an untrusted block, or a model output used as a recipient, URL, subject or header.
 - A model output or tool argument used without zod validation, or a schema that silently coerces bad input.
 - A walkthrough limit enforced by prompt instead of by the driver, or a real-looking credential typed instead of a canary.
-- A Meta call without `store: false`, a `-contributor` model ID outside `src/meta/contributor.ts`, member data in a Contributor request, or a secret in code, logs, fixtures or arguments.
+- A Meta call without `store: false`, a `-contributor` model ID, or a secret in code, logs, fixtures or arguments.
 - A registered bank account number, or any other registered identity detail, shown to someone who is not that business.
 - Real client mail (anything under `samples/`, or any client's name, domain or address) in a fixture, eval file, screenshot, demo or log. `scripts/hooks/pre-commit` refuses a staged line or path that contains a name from the git-ignored `samples/client-names.txt`.
 - A tenant reading another tenant's case, report, supplier or identity data; an unsigned or non-expiring report link.

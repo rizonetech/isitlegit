@@ -57,12 +57,11 @@ IsItLegit is built by [Rizonetech](https://www.rizonetech.com/), a managed IT pr
 
 | Model | What it does in IsItLegit |
 | ----- | ------------------------- |
-| Muse Spark | Reads the mail, the headers and the evidence, and writes the cited verdict |
+| Muse Spark | Reads the mail, the headers and the evidence, writes the cited verdict, and screens lookalike sites for the impersonation monitor |
 | Muse Wonder | Walks a suspicious landing page in a contained browser, with canary values only |
 | SAM 3.1 | Finds and compares logos, stamps and signatures with the registered ones |
 | Muse Image | Builds the synthetic doctored-document test set |
 | Muse Voice Transcribe | Turns voice notes and voicemail lures into text for the same checks |
-| Muse Glimmer | Screens lookalike sites for the impersonation monitor (open weights, hosted) |
 
 Every call uses a Standard model ID with `store: false`. The full map is in section 9 of the [design spec](docs/specs/2026-10-26-phishing-invoice-analyser-design.md).
 

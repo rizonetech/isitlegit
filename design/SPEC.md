@@ -261,7 +261,7 @@ Controls:
 - protected identity: Register domains, logo and bank account. (ProtectSite)
 - website seal: Seal shown on the real domain, blocked on a copy. (ProtectSite)
 - signature badge: Badge that turns copies into evidence. (ProtectSite)
-- impersonation monitor: Daily lookalike watch with Muse Spark Contributor screening (corrected 2026-10-27, was Muse Glimmer). (ProtectSite)
+- impersonation monitor: Daily lookalike watch with Muse Spark screening (corrected 2026-10-27, was Muse Glimmer). (ProtectSite)
 - closed-loop verification: Finance contact confirms changed bank details; the buttons drawn are illustration of the email reply (N5). (ProtectSite)
 - Protect my business: Opens Sign up; See a verify page opens T1; See pricing opens S5. (ProtectSite)
 
@@ -296,7 +296,7 @@ Boards: [PNG](mockups/png/Privacy.png) · [source](mockups/source/Privacy.dc.htm
 
 Controls:
 
-- processors: Cloudflare, Meta Model API with store: false, SMTP2GO, Google Web Risk (corrected 2026-10-27: Baseten and Fireworks AI removed; Muse Spark Contributor on public lookalike pages runs on the Meta Model API). (Privacy)
+- processors: Cloudflare, Meta Model API with store: false, SMTP2GO, Google Web Risk (corrected 2026-10-27: Fireworks AI, which the Privacy board still lists, and Baseten are removed; this list wins over the board's copy). (Privacy)
 - purposes: Mail, account, supplier ledger, feedback. (Privacy)
 - retention: Retention table. (Privacy)
 - information officer: Responsible party and contact hello@isitlegit.co.za. (Privacy)

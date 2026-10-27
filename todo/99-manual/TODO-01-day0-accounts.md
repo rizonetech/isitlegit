@@ -26,7 +26,7 @@ track: day-0
 - The Meta Model API shows the US$150 under Billing, "free credits", with a card on file and a US$150 Spend Limit notification, and the key is in the vault.
 - `isitlegit.co.za` is out of `serverHold` and the Cloudflare zone is `active`.
 - The Rizonetech Cloudflare account is on Workers Paid.
-- SMTP2GO and Google Web Risk credentials are in the vault, each named in the stack doc's secrets list (**Corrected 2026-10-27:** the Fireworks, then Baseten, credential for Glimmer is no longer needed: the operator replaced the outside providers with Muse Spark 1.3 Contributor on the Meta Model API).
+- SMTP2GO and Google Web Risk credentials are in the vault, each named in the stack doc's secrets list (**Corrected 2026-10-27:** the Fireworks, then Baseten, credential for Glimmer is no longer needed: the operator removed the outside providers, and Muse Spark on the Meta Model API screens pages).
 - The operator's Rizonetech mailbox is a verified Email Routing destination, so the test-mailbox, demo-alert and `conduct@` aliases can forward to it.
 
 **Adjacency:** all=not-applicable (operator account tasks with no product records)
@@ -187,7 +187,7 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 
 ## 7. Partner credits for Glimmer
 
-The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-27 (operator decision, 10:47 SAST):** the outside providers are removed from the plan; Muse Spark 1.3 Contributor on the Meta Model API screens public pages instead (D03 T04), so no partner credit is used. This section now only records what each offer came to. Its earlier items (apply for the Fireworks, Baseten and Modal credits; store the provider key; lift `third-party` from D03 T04's Needs) are superseded: D03 T04 no longer names a provider or that Need.
+The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-27 (operator decision, 10:47 SAST):** the outside providers are removed from the plan, and Standard Muse Spark on the Meta Model API screens the monitor's pages (D03 T04; the operator first chose Muse Spark 1.3 Contributor and withdrew it at 11:05 SAST, as lure pages carry personal data), so no partner credit is used. This section now only records what each offer came to. Its earlier items (apply for the Fireworks, Baseten and Modal credits; store the provider key; lift `third-party` from D03 T04's Needs) are superseded: D03 T04 no longer names a provider or that Need.
 
 **Phase:** 99
 **Needs:** operator
