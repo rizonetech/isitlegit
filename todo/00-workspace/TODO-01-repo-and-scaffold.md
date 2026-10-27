@@ -473,6 +473,8 @@ Evidence after review round 1, 2026-10-27 19:20 SAST. Its three P1 findings are 
 
 Evidence after review round 2, 2026-10-27 19:26 SAST. Its two findings are fixed in `a374ed0`: a provider URL carrying a user name or password is refused in the file and in the account without printing it, and a file over 1 MiB is refused before it is read. `pnpm exec vitest run --project node test/node/gateway-config.test.ts`: 24 passed; both mutations caught. Live `restore --dry`: no change.
 
+Evidence after review round 3, 2026-10-27 19:31 SAST. Its finding is fixed in `af8843d`: a live provider URL carrying a user name or password is refused by the preflight both commands run, before any value is shown. 24 passed; the mutation is caught. Live `restore --dry`: no change.
+
 **Test checkpoint:** `pnpm exec vitest run test/node/gateway-config.test.ts` passes and fails if `restore` deletes anything or reports success when the read-back differs.
 
 ## 12. Rollback from a split deployment
