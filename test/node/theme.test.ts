@@ -135,12 +135,15 @@ function measure(preference: 0 | 1): Page {
     );
     const json = /<pre id="out">([^<]*)<\/pre>/.exec(run.stdout)?.[1];
     if (!json)
+      // What Chromium gave back, so a failure names its cause: no DOM at all (a crash or a timeout, with its signal),
+      // or a DOM dumped before the measuring script filled the result.
       throw new Error(
-        `Chromium measured nothing (exit ${run.status}): ${run.stderr
-          .split("\n")
-          .filter((l) => !l.includes("dbus"))
-          .slice(-3)
-          .join(" | ")}`,
+        `Chromium measured nothing (exit ${run.status}, signal ${run.signal}, ${run.error?.message ?? "no spawn error"}; ` +
+          `stdout ${run.stdout.length} chars, result element ${run.stdout.includes('<pre id="out">') ? "present" : "absent"}): ${run.stderr
+            .split("\n")
+            .filter((l) => !l.includes("dbus"))
+            .slice(-3)
+            .join(" | ")}`,
       );
     return JSON.parse(json.replaceAll("&quot;", '"').replaceAll("&amp;", "&"));
   } finally {
