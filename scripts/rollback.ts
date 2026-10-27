@@ -252,17 +252,38 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
       }
       return answer;
     });
-    if ("error" in health) return finish(false, changed, `rollback: /health gave no answer: ${health.error}`);
+    // Every later exit reports the deployment as it now reads against what served before, since something else may
+    // have changed it meanwhile (an unreadable deployment is uncertain).
+    const settle = async (ok: boolean, last: string) => {
+      let latest: RollbackOutcome["changed"] = "uncertain";
+      try {
+        latest = changedSince(await wrangler.deployment(end));
+      } catch {
+        // stays uncertain
+      }
+      return finish(ok, latest, last);
+    };
+    if ("error" in health) return settle(false, `rollback: /health gave no answer: ${health.error}`);
     if (health.commit !== expected)
-      return finish(false, changed, `rollback: /health reports commit ${health.commit}, expected ${expected}`);
+      return settle(false, `rollback: /health reports commit ${health.commit}, expected ${expected}`);
     log("Running the smoke check...");
     const smoke = await checks.smoke(expected, deadline);
     lines.push(...smoke.lines);
-    const after = await wrangler.deployment(end);
-    if (single(after) !== version) return finish(false, changed, `rollback: after the checks, ${notTarget(after)}`);
+    let after: Serving;
+    try {
+      after = await wrangler.deployment(end);
+    } catch (error) {
+      return finish(
+        false,
+        "uncertain",
+        `rollback: the deployment could not be read after the checks: ${(error as Error).message}`,
+      );
+    }
+    if (single(after) !== version)
+      return finish(false, changedSince(after), `rollback: after the checks, ${notTarget(after)}`);
     return smoke.ok
-      ? finish(true, changed, `rolled back to ${version}, verified`)
-      : finish(false, changed, "rollback: the smoke check failed");
+      ? finish(true, changedSince(after), `rolled back to ${version}, verified`)
+      : finish(false, changedSince(after), "rollback: the smoke check failed");
   } catch (error) {
     // Whether the deployment moved is read again inside the kept time; a failed read leaves it uncertain.
     let changed: RollbackOutcome["changed"] = "uncertain";
@@ -294,13 +315,27 @@ export function registerInterruptNotice(): void {
 
 // The command line, checked whole before anything runs: an unknown flag, a flag without its value or a stray word is
 // refused, so a mistyped `--to` can never become a default rollback.
-export function parseRollbackArgs(argv: string[]): { reason: string; target?: string } {
+export const USAGE = `node scripts/rollback.ts --reason "<why>" [--to <version id>]
+
+Rolls the live Worker back and verifies it (docs/operations.md).
+  --reason "<why>"     required; recorded on the deployment
+  --to <version id>    the version to put on 100% of traffic; without it, the newest earlier version with
+                       another commit that no earlier run rolled away from
+  --help               this text
+
+See what serves first:  pnpm exec wrangler deployments status
+A split deployment (two versions sharing traffic) is never guessed at: name the version to keep with --to.
+A rollback across changed secrets is refused; redeploy a known-good commit instead (docs/operations.md).
+It ends with "deployment changed: no | yes | uncertain"; when uncertain, read wrangler deployments status.`;
+
+export function parseRollbackArgs(argv: string[]): { reason: string; target?: string } | { help: true } {
   const { values } = parseArgs({
     args: argv,
-    options: { reason: { type: "string" }, to: { type: "string" } },
+    options: { reason: { type: "string" }, to: { type: "string" }, help: { type: "boolean", short: "h" } },
     strict: true,
     allowPositionals: false,
   });
+  if (values.help) return { help: true };
   if (!values.reason?.trim()) throw new Error('give the reason, --reason "<why>"');
   if (values.to !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(values.to))
     throw new Error(`--to needs a version id, got "${values.to}"`);
@@ -406,6 +441,10 @@ if (import.meta.filename === process.argv[1]) {
     console.error(`rollback: ${(error as Error).message}`);
     console.error("deployment changed: no");
     process.exit(2);
+  }
+  if ("help" in args) {
+    console.log(USAGE);
+    process.exit(0);
   }
   installSignalCleanup();
   registerInterruptNotice();

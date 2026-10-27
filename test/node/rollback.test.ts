@@ -211,6 +211,86 @@ describe("scripts/rollback.ts", () => {
     expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: ["c2"], commits: [] });
   });
 
+  it("reports every exit after the deployment call against the latest deployment", async () => {
+    const original = (): Serving => [
+      { version_id: "c", percentage: 90 },
+      { version_id: "b2", percentage: 10 },
+    ];
+    // Something restores the original split during the smoke check: the run fails, and nothing changed overall.
+    const restored = stage("c");
+    restored.state.split = original();
+    const outcome = await run(
+      restored.wrangler,
+      {
+        ...passing(restored.state),
+        smoke: async () => {
+          restored.state.split = original();
+          return { ok: true, lines: [] };
+        },
+      },
+      { target: "a" },
+    );
+    expect(outcome).toMatchObject({ ok: false, changed: "no" });
+    expect(outcome.lines.at(-2)).toBe(
+      "rollback: after the checks, the deployment is split (c 90%, b2 10%), not a at 100%",
+    );
+    // A /health failure reads the deployment again: still the target is yes, the original back is no.
+    for (const [restore, expected] of [
+      [false, "yes"],
+      [true, "no"],
+    ] as const) {
+      const failing = stage("c");
+      failing.state.split = original();
+      const result = await run(
+        failing.wrangler,
+        {
+          ...passing(failing.state),
+          health: async () => {
+            if (restore) failing.state.split = original();
+            return { error: "HTTP 500" };
+          },
+        },
+        { target: "a", waitMs: 400 },
+      );
+      expect(result).toMatchObject({ ok: false, changed: expected });
+    }
+    // Unreadable after the checks: uncertain.
+    let reads = 0;
+    const blind = stage("c", {
+      deployment: async () => {
+        if (++reads > 2) throw new Error("status unavailable");
+        return reads === 1 ? original() : all("a");
+      },
+    });
+    expect(await run(blind.wrangler, passing(blind.state), { target: "a" })).toMatchObject({
+      ok: false,
+      changed: "uncertain",
+    });
+  });
+
+  it("prints its help offline, changing nothing", async () => {
+    expect(parseRollbackArgs(["--help"])).toEqual({ help: true });
+    const record = join(DIR, "help-record.json");
+    const child = spawn(process.execPath, ["scripts/rollback.ts", "--help"], {
+      cwd: ROOT,
+      env: { PATH: "", ROLLBACK_RECORD: record },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    expect(await new Promise((resolve) => child.on("exit", resolve))).toBe(0);
+    for (const words of [
+      "--to <version id>",
+      "wrangler deployments status",
+      "split deployment",
+      "deployment changed: no | yes | uncertain",
+    ])
+      expect(stdout).toContain(words);
+    expect(existsSync(record)).toBe(false);
+  }, 15_000);
+
   it("records nothing when the named version is newer than every serving version", async () => {
     const { state, wrangler } = stage("b");
     state.split = [
