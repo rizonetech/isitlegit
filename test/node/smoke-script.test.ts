@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
@@ -44,6 +45,8 @@ describe("scripts/smoke.ts", () => {
     expect(destinationProblem("https://evil.example")).toMatch(/is not the IsItLegit Worker/);
     expect(destinationProblem("https://isitlegit.co.za.evil.example")).toMatch(/is not the IsItLegit Worker/);
     expect(destinationProblem("https://other.derick-f5a.workers.dev")).toMatch(/is not the IsItLegit Worker/);
+    // Another account's Worker of the same name: the subdomain is the account's.
+    expect(destinationProblem("https://isitlegit.attacker-account.workers.dev")).toMatch(/is not the IsItLegit Worker/);
     expect(destinationProblem("not a url")).toMatch(/is not a URL/);
     let set = false;
     const outcome = await runSmoke("http://isitlegit.derick-f5a.workers.dev", {
@@ -64,12 +67,16 @@ describe("scripts/smoke.ts", () => {
     expect(outcome.lines.join("\n")).toContain("answered HTTP 302");
   });
 
-  it("kills a command still running at the deadline, and reports a failed one", async () => {
+  it("kills a command still running at the deadline, with everything it started, and reports a failed one", async () => {
+    // The launcher chain the script uses: pnpm exec starts the real command as its child.
     const started = Date.now();
+    const marker = `smoke-test-${process.pid}-${Date.now()}`;
     await expect(
-      runCommand(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], "", Date.now() + 300),
+      runCommand("pnpm", ["exec", "node", "-e", `setTimeout(() => {}, 20000) // ${marker}`], "", Date.now() + 2_500),
     ).rejects.toThrow("did not finish before the deadline");
-    expect(Date.now() - started).toBeLessThan(3_000);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    const survivors = spawnSync("pgrep", ["-f", marker], { encoding: "utf-8" }).stdout.trim();
+    expect(survivors, "a process outlived the deadline").toBe("");
     await expect(runCommand(process.execPath, ["-e", "process.exit(3)"], "", Date.now() + 5_000)).rejects.toThrow(
       "exit 3",
     );
