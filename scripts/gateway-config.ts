@@ -97,22 +97,40 @@ const PROVIDER_FIELDS = [
 const RULE_FIELDS = ["model", "model_rule", "cost_type", "cost_in", "cost_out", "token_pricing", "enable"] as const;
 // Fields that can carry a credential; set, they are refused rather than recorded.
 const CREDENTIALS = { gateway: ["otel", "stripe"], provider: ["headers"] } as const;
+const RECORDED_GATEWAY_FIELDS = GATEWAY_FIELDS.filter((f) => !(CREDENTIALS.gateway as readonly string[]).includes(f));
 
-const nullableInt = z.number().int().nullable();
+// Each field typed as Cloudflare's API spec constrains it (read 2026-10-27), so a damaged file is refused before any
+// request rather than half-applied. A credential-bearing field is refused in the file as it is in the account.
+const count = z.number().int().min(0).nullable();
+const credential = z.never({ error: "can hold a credential, so a snapshot never carries it" }).optional();
+const settings = z.record(z.string(), z.unknown()).nullable().optional();
 const GatewaySettings = z
   .object({
     id: z.literal(GATEWAY),
-    rate_limiting_interval: nullableInt,
-    rate_limiting_limit: nullableInt,
+    rate_limiting_interval: count,
+    rate_limiting_limit: count,
     collect_logs: z.boolean(),
-    cache_ttl: nullableInt,
+    cache_ttl: count,
     cache_invalidate_on_update: z.boolean(),
-    ...Object.fromEntries(
-      GATEWAY_FIELDS.filter((f) => !(GATEWAY_REQUIRED as readonly string[]).includes(f)).map((f) => [
-        f,
-        z.unknown().optional(),
-      ]),
-    ),
+    authentication: z.boolean().optional(),
+    byok_only: z.boolean().optional(),
+    log_classification: z.boolean().optional(),
+    logpush: z.boolean().optional(),
+    zdr: z.boolean().optional(),
+    log_management: z.number().int().min(10_000).max(10_000_000).nullable().optional(),
+    log_management_strategy: z.enum(["STOP_INSERTING", "DELETE_OLDEST"]).nullable().optional(),
+    logpush_public_key: z.string().min(16).max(1024).nullable().optional(),
+    rate_limiting_technique: z.enum(["fixed", "sliding"]).nullable().optional(),
+    retry_backoff: z.enum(["constant", "linear", "exponential"]).nullable().optional(),
+    retry_delay: z.number().int().min(0).max(60_000).nullable().optional(),
+    retry_max_attempts: z.number().int().min(1).max(5).nullable().optional(),
+    store_id: z.string().optional(),
+    workers_ai_billing_mode: z.string().min(1).optional(),
+    dlp: settings,
+    guardrails: settings,
+    spend_limits: settings,
+    otel: credential,
+    stripe: credential,
   })
   .strict();
 const text = z.string().nullable();
@@ -120,7 +138,7 @@ const ProviderSettings = z
   .object({
     name: z.string().min(1),
     slug: z.literal(PROVIDER),
-    base_url: z.url(),
+    base_url: z.url({ protocol: /^https$/, error: "must be an https URL" }),
     enable: z.boolean(),
     beta: z.boolean(),
     description: text,
@@ -129,6 +147,7 @@ const ProviderSettings = z
     logo: text,
     curl_example: text,
     js_example: text,
+    headers: credential,
   })
   .strict();
 const PricingRule = z
@@ -136,9 +155,9 @@ const PricingRule = z
     model: z.string().min(1),
     model_rule: z.enum(["equals", "starts-with", "contains"]),
     cost_type: z.string().min(1),
-    cost_in: z.number(),
-    cost_out: z.number(),
-    token_pricing: z.record(z.string(), z.number()).nullable(),
+    cost_in: z.number().min(0),
+    cost_out: z.number().min(0),
+    token_pricing: z.record(z.string(), z.number().min(0)).nullable(),
     enable: z.boolean(),
   })
   .strict();
@@ -164,8 +183,29 @@ export type Options = {
   // Tests point the requests at a stand-in; anything else must be Cloudflare's own API.
   allowEndpoint?: boolean;
   timeoutMs?: number;
+  // How often a slow request says it is still waiting.
+  progressMs?: number;
   log?: (line: string) => void;
+  // Kept current while restore runs, so an interrupt can say what changed (see `interrupted`).
+  progress?: Progress;
 };
+export type Progress = { confirmed: string[]; inFlight: string | null; pending: string[] };
+export const newProgress = (): Progress => ({ confirmed: [], inFlight: null, pending: [] });
+const RERUN =
+  "  Run restore again once the cause is fixed: it finds what landed by id, slug and model, and creates nothing twice.";
+// What a stopped restore leaves behind: each change confirmed, uncertain (sent with no answer) and not tried.
+export function inventory(progress: Progress, uncertain: string | null): string[] {
+  return [
+    `  confirmed: ${progress.confirmed.join("; ") || "none"}`,
+    `  uncertain: ${uncertain ?? "none"}`,
+    `  not tried: ${progress.pending.join("; ") || "none"}`,
+    RERUN,
+  ];
+}
+// Said when Ctrl+C, a termination signal or a closed terminal stops a restore: a change in flight may have landed.
+export function interrupted(progress: Progress): string[] {
+  return ["gateway-config: interrupted", ...inventory(progress, progress.inFlight)];
+}
 export type Outcome = { code: 0 | 1 | 2; lines: string[] };
 type Raw = Record<string, unknown>;
 type Live = { gateway: Raw | null; provider: Raw | null; rules: Raw[] };
@@ -175,13 +215,26 @@ class Refused extends Error {}
 // A request that got no answer: it may or may not have landed.
 class NoAnswer extends Error {}
 
-function client(options: Options) {
+function client(options: Options, say: (line: string) => void) {
   const api = options.api ?? API;
+  const progressMs = options.progressMs ?? 10_000;
   const fetchImpl = options.fetch ?? fetch;
   const timeoutMs = options.timeoutMs ?? 30_000;
   const base = `${api}/accounts/${ACCOUNT_ID}/ai-gateway`;
   const safe = (message: string) => (options.token ? message.split(options.token).join("[token]") : message);
   async function call(method: string, path: string, body?: unknown): Promise<{ status: number; body: Raw }> {
+    const started = Date.now();
+    const waiting = setInterval(
+      () => say(`  still waiting for ${method} ${path} (${Math.round((Date.now() - started) / 1000)} s)`),
+      progressMs,
+    );
+    try {
+      return await send(method, path, body);
+    } finally {
+      clearInterval(waiting);
+    }
+  }
+  async function send(method: string, path: string, body?: unknown): Promise<{ status: number; body: Raw }> {
     let response: Response;
     try {
       response = await fetchImpl(`${base}${path}`, {
@@ -246,7 +299,8 @@ function client(options: Options) {
 }
 type Client = ReturnType<typeof client>;
 
-async function readLive(c: Client): Promise<Live> {
+async function readLive(c: Client, say: (line: string) => void): Promise<Live> {
+  say(`Reading gateway ${GATEWAY}, provider ${PROVIDER} and its pricing rules...`);
   const gateway = ((await c.read(`/gateways/${GATEWAY}`))?.result as Raw | undefined) ?? null;
   const providers = (await c.list("/custom-providers")).filter((p) => p.slug === PROVIDER);
   if (providers.length > 1)
@@ -281,7 +335,7 @@ function snapshotOf(live: Live): SnapshotData {
   if (!live.provider) throw new Refused(`custom provider ${PROVIDER} does not exist`);
   const data = {
     schema: 1,
-    gateway: { id: GATEWAY, ...pick(live.gateway, GATEWAY_FIELDS) },
+    gateway: { id: GATEWAY, ...pick(live.gateway, RECORDED_GATEWAY_FIELDS) },
     provider: Object.fromEntries(PROVIDER_FIELDS.map((f) => [f, live.provider?.[f] ?? null])),
     rules: live.rules.map(ruleOf).sort((a, b) => String(a.model).localeCompare(String(b.model))),
   };
@@ -336,10 +390,10 @@ export async function snapshot(options: Options): Promise<Outcome> {
     say(`gateway-config: refused: ${refused}`);
     return end(2);
   }
-  const c = client(options);
+  const c = client(options, say);
   let data: SnapshotData;
   try {
-    const live = await readLive(c);
+    const live = await readLive(c, say);
     const credentials = credentialsSet(live);
     if (credentials.length) throw new Refused(credentialRefusal(credentials));
     data = snapshotOf(live);
@@ -366,7 +420,18 @@ export async function snapshot(options: Options): Promise<Outcome> {
   return end(0);
 }
 
-type Change = { what: string; method: "POST" | "PUT" | "PATCH"; path: string; body: Raw };
+type Change = { what: string; method: "POST" | "PUT" | "PATCH"; path: string; body: Raw; details: string[] };
+
+// A value as the operator reads it: a logo by its size, prices with their units.
+function shownValue(field: string, value: unknown): string {
+  if (value === null || value === undefined) return "unset";
+  if (field === "logo") return `<logo, ${String(value).length} characters>`;
+  if (field === "token_pricing") return `${JSON.stringify(value)} (US$ per million tokens)`;
+  if (field === "cost_in" || field === "cost_out") return `${value} (US$ per token)`;
+  return JSON.stringify(value);
+}
+const changed = (fields: string[], from: Raw | null, to: Raw) =>
+  fields.map((f) => `    ${f}: ${from ? `${shownValue(f, from[f])} -> ` : ""}${shownValue(f, to[f])}`);
 
 export async function restore(options: Options & { dry?: boolean }): Promise<Outcome> {
   const { say, end, refused } = start(options);
@@ -391,10 +456,10 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
   } catch (error) {
     return refuse(`${shown(options.file)} cannot be read as JSON (${(error as Error).message}); restore it from git`);
   }
-  const c = client(options);
+  const c = client(options, say);
   let live: Live;
   try {
-    live = await readLive(c);
+    live = await readLive(c, say);
   } catch (error) {
     return refuse(c.safe((error as Error).message));
   }
@@ -412,9 +477,15 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
   const settings = Object.fromEntries(Object.entries(want.gateway).filter(([k]) => k !== "id"));
   const changes: (Change & { needsProvider?: boolean })[] = [];
   if (!live.gateway)
-    changes.push({ what: `create gateway ${GATEWAY}`, method: "POST", path: "/gateways", body: want.gateway });
+    changes.push({
+      what: `create gateway ${GATEWAY}`,
+      method: "POST",
+      path: "/gateways",
+      body: want.gateway,
+      details: changed(Object.keys(settings), null, settings),
+    });
   else {
-    const differ = Object.keys({ ...settings, ...pick(live.gateway, GATEWAY_FIELDS) }).filter(
+    const differ = Object.keys({ ...settings, ...pick(live.gateway, RECORDED_GATEWAY_FIELDS) }).filter(
       (k) => !same(settings[k], live.gateway?.[k]),
     );
     if (differ.length)
@@ -423,6 +494,7 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
         method: "PUT",
         path: `/gateways/${GATEWAY}`,
         body: settings,
+        details: changed(differ, live.gateway, settings),
       });
   }
   const { logo, ...providerBody } = want.provider;
@@ -433,6 +505,7 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
       method: "POST",
       path: "/custom-providers",
       body: withoutNulls(providerBody),
+      details: changed(Object.keys(withoutNulls(providerBody)), null, providerBody),
     });
     if (logo !== null)
       changes.push({
@@ -441,6 +514,7 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
         path: "/custom-providers/{provider}",
         body: { logo },
         needsProvider: true,
+        details: changed(["logo"], null, { logo }),
       });
   } else {
     const differ = PROVIDER_FIELDS.filter((f) => !same(want.provider[f], live.provider?.[f]));
@@ -450,6 +524,7 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
         method: "PATCH",
         path: `/custom-providers/${live.provider.id}`,
         body: Object.fromEntries(differ.map((f) => [f, want.provider[f]])),
+        details: changed(differ, live.provider, want.provider),
       });
   }
   for (const rule of want.rules) {
@@ -461,6 +536,11 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
         path: "/custom-providers/costs",
         body: withoutNulls({ account_provider_id: "{provider}", ...rule }),
         needsProvider: true,
+        details: changed(
+          [...RULE_FIELDS].filter((f) => f !== "model"),
+          null,
+          rule,
+        ),
       });
     else {
       const have = ruleOf(current);
@@ -471,6 +551,7 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
           method: "PATCH",
           path: `/custom-providers/costs/${current.id}`,
           body: Object.fromEntries(differ.map((f) => [f, rule[f]])),
+          details: changed(differ, have, rule),
         });
     }
   }
@@ -481,68 +562,78 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
     );
 
   if (options.dry) {
-    for (const change of changes) say(`would ${change.what}`);
+    for (const change of changes) {
+      say(`would ${change.what}`);
+      for (const line of change.details) say(line);
+    }
     say(changes.length ? `dry run: ${changes.length} change(s), none sent` : "dry run: no change");
     return end(0);
   }
 
-  const confirmed: string[] = [];
+  const progress = options.progress ?? newProgress();
+  progress.confirmed = [];
+  progress.inFlight = null;
+  progress.pending = changes.map((x) => x.what);
   let providerId = live.provider ? String(live.provider.id) : null;
-  for (const [index, change] of changes.entries()) {
+  for (const change of changes) {
     const fill = (value: string) => value.replace("{provider}", providerId ?? "{provider}");
     const path = fill(change.path);
     const body = change.needsProvider ? JSON.parse(fill(JSON.stringify(change.body))) : change.body;
     say(`${change.what}...`);
-    const stop = (why: string, uncertain: string | null) => {
+    for (const line of change.details) say(line);
+    // Landed or not: a refused change goes back to the front of what was not tried.
+    const stop = (why: string, landed: "unknown" | "no") => {
+      const uncertain = landed === "unknown" ? progress.inFlight : null;
+      if (landed === "no" && progress.inFlight) progress.pending.unshift(progress.inFlight);
+      progress.inFlight = null;
       say(`gateway-config: failed: ${why}`);
-      say(`  confirmed: ${confirmed.length ? confirmed.join("; ") : "none"}`);
-      say(`  uncertain: ${uncertain ?? "none"}`);
-      const rest = changes.slice(index + 1).map((x) => x.what);
-      say(`  not tried: ${(uncertain ? rest : [change.what, ...rest]).join("; ") || "none"}`);
-      say(
-        "  Run restore again once the cause is fixed: it finds what landed by id, slug and model, and creates nothing twice.",
-      );
+      for (const line of inventory(progress, uncertain)) say(line);
       return end(1);
     };
+    progress.pending.shift();
+    progress.inFlight = change.what;
     if (change.needsProvider && !providerId)
-      return stop(`the provider's id is unknown, so ${change.what} cannot be sent`, null);
+      return stop(`the provider's id is unknown, so ${change.what} cannot be sent`, "no");
     let answer: { status: number; body: Raw };
     try {
       answer = await c.call(change.method, path, body);
     } catch (error) {
-      return stop(c.safe((error as Error).message), change.what);
+      return stop(c.safe((error as Error).message), "unknown");
     }
-    if (answer.status >= 500) return stop(c.explain(change.method, path, answer.status, answer.body), change.what);
+    if (answer.status >= 500) return stop(c.explain(change.method, path, answer.status, answer.body), "unknown");
     if (answer.status < 200 || answer.status >= 300)
-      return stop(c.explain(change.method, path, answer.status, answer.body), null);
+      return stop(c.explain(change.method, path, answer.status, answer.body), "no");
     if (change.method === "POST" && change.path === "/custom-providers") {
       const id = (answer.body.result as Raw | undefined)?.id;
       providerId = typeof id === "string" ? id : null;
     }
-    confirmed.push(change.what);
+    progress.confirmed.push(change.what);
+    progress.inFlight = null;
   }
+  // After the writes, a failed check still names what changed: the changes stand, unverified.
+  const unverified = (why: string) => {
+    say(`gateway-config: failed: ${why}`);
+    say(`  confirmed: ${progress.confirmed.join("; ") || "none"}`);
+    say(
+      "  unverified: the read-back could not confirm the account matches the file; run restore --dry to see what differs",
+    );
+    return end(1);
+  };
 
   // Read back: the account must now match the file, with no credential field set.
   let after: Live;
   try {
-    after = await readLive(c);
+    after = await readLive(c, say);
   } catch (error) {
-    say(
-      `gateway-config: failed: the read-back failed (${c.safe((error as Error).message)}); ${confirmed.length} change(s) were confirmed`,
-    );
-    return end(1);
+    return unverified(`the read-back failed (${c.safe((error as Error).message)})`);
   }
   const left = credentialsSet(after);
-  if (left.length) {
-    say(`gateway-config: failed: after restoring, ${credentialRefusal(left)}`);
-    return end(1);
-  }
+  if (left.length) return unverified(`after restoring, ${credentialRefusal(left)}`);
   let now: SnapshotData;
   try {
     now = snapshotOf(after);
   } catch (error) {
-    say(`gateway-config: failed: the read-back ${(error as Error).message}`);
-    return end(1);
+    return unverified(`the read-back ${(error as Error).message}`);
   }
   const differ = [
     ...Object.keys({ ...want.gateway, ...now.gateway })
@@ -559,12 +650,8 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
       )
       .map((r) => `rule ${r.model}`),
   ];
-  if (differ.length) {
-    say(
-      `gateway-config: failed: the account still differs from ${shown(options.file)} after restoring: ${differ.join(", ")}`,
-    );
-    return end(1);
-  }
+  if (differ.length)
+    return unverified(`the account still differs from ${shown(options.file)} after restoring: ${differ.join(", ")}`);
   say(
     changes.length
       ? `restore: ${changes.length} change(s) made; the account matches ${shown(options.file)}`
@@ -605,6 +692,18 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(0);
   }
   installSignalCleanup("gateway-config");
+  // Said before the cleanup exits: what an interrupted restore changed, what was in flight and what was not tried.
+  const progress = newProgress();
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
+    process.prependOnceListener(signal, () => {
+      if (args.command === "restore" && !args.dry) for (const line of interrupted(progress)) console.error(line);
+    });
+  console.log(`Reading "${VAULT_ITEM}" from Conclave...`);
+  const started = Date.now();
+  const waiting = setInterval(
+    () => console.log(`  still waiting for conclave-op (${Math.round((Date.now() - started) / 1000)} s)`),
+    10_000,
+  );
   let token: string;
   try {
     token = (
@@ -615,11 +714,13 @@ if (import.meta.filename === process.argv[1]) {
       `gateway-config: refused, nothing changed: reading "${VAULT_ITEM}" from Conclave failed; check the item exists and that conclave-op can reach 1Password`,
     );
     process.exit(2);
+  } finally {
+    clearInterval(waiting);
   }
   const log = (line: string) => console.log(line);
   const outcome =
     args.command === "snapshot"
       ? await snapshot({ token, file: args.file, log })
-      : await restore({ token, file: args.file, dry: args.dry, log });
+      : await restore({ token, file: args.file, dry: args.dry, log, progress });
   process.exit(outcome.code);
 }

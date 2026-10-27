@@ -1,9 +1,11 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   ACCOUNT_ID,
+  interrupted,
+  newProgress,
   type Options,
   parseConfigArgs,
   restore,
@@ -294,7 +296,7 @@ describe("scripts/gateway-config.ts restore", () => {
     const outcome = await restore({ ...options(world.fetchStub), dry: true });
     expect(outcome.code).toBe(0);
     expect(world.writes()).toEqual([]);
-    expect(outcome.lines).toEqual([
+    expect(outcome.lines.filter((l) => l.startsWith("would ") || l.startsWith("dry run"))).toEqual([
       "would update gateway isitlegit (collect_logs)",
       "would create provider meta",
       "would set provider meta's logo",
@@ -302,6 +304,158 @@ describe("scripts/gateway-config.ts restore", () => {
       "would create pricing rule muse-wonder-1.0",
       "dry run: 5 change(s), none sent",
     ]);
+  });
+
+  it("--dry shows each change's old and new value, prices with their units, and a logo by its size (E1)", async () => {
+    const want = await take();
+    const world = cloudflare({
+      ...live(),
+      gateway: { ...gateway(), collect_logs: true },
+      providers: [{ ...provider(), logo: "short" }],
+      costs: [
+        {
+          ...rules()[0],
+          cost_out: 9e-6,
+          token_pricing: JSON.stringify({ input_tokens: 1.25, output_tokens: 9, input_cached_tokens: 0.15 }),
+        },
+        rules()[1] as Raw,
+      ],
+    });
+    const outcome = await restore({ ...options(world.fetchStub), dry: true });
+    expect(outcome.lines).toContain("    collect_logs: true -> false");
+    expect(outcome.lines).toContain(
+      `    logo: <logo, 5 characters> -> <logo, ${want.provider.logo?.length} characters>`,
+    );
+    expect(outcome.lines).toContain("    cost_out: 0.000009 (US$ per token) -> 0.00000425 (US$ per token)");
+    expect(outcome.lines).toContain(
+      '    token_pricing: {"input_tokens":1.25,"output_tokens":9,"input_cached_tokens":0.15} (US$ per million tokens) -> {"input_tokens":1.25,"output_tokens":4.25,"input_cached_tokens":0.15} (US$ per million tokens)',
+    );
+    expect(outcome.lines.join("\n")).not.toContain(want.provider.logo ?? "no logo");
+    expect(world.writes()).toEqual([]);
+  });
+
+  it("refuses a file whose fields break Cloudflare's constraints, or that carries a credential field, before any request (G1)", async () => {
+    const want = await take();
+    const cases: [string, unknown, RegExp][] = [
+      [
+        "a string for a boolean",
+        { ...want, gateway: { ...want.gateway, authentication: "false" } },
+        /gateway\.authentication/,
+      ],
+      [
+        "an object for a count",
+        { ...want, gateway: { ...want.gateway, retry_max_attempts: {} } },
+        /gateway\.retry_max_attempts/,
+      ],
+      [
+        "too many retries",
+        { ...want, gateway: { ...want.gateway, retry_max_attempts: 9 } },
+        /gateway\.retry_max_attempts/,
+      ],
+      [
+        "otel in the file",
+        { ...want, gateway: { ...want.gateway, otel: [{ authorization: "Bearer x" }] } },
+        /gateway\.otel: can hold a credential/,
+      ],
+      [
+        "headers in the file",
+        { ...want, provider: { ...want.provider, headers: '{"k":"v"}' } },
+        /provider\.headers: can hold a credential/,
+      ],
+      [
+        "an http provider",
+        { ...want, provider: { ...want.provider, base_url: "http://api.meta.ai" } },
+        /provider\.base_url: must be an https URL/,
+      ],
+      ["a negative price", { ...want, rules: [{ ...want.rules[0], cost_in: -1 }] }, /rules\.0\.cost_in/],
+    ];
+    const world = cloudflare(live());
+    for (const [label, file, why] of cases) {
+      writeFileSync(FILE, JSON.stringify(file));
+      const outcome = await restore(options(world.fetchStub));
+      expect(outcome.code, label).toBe(2);
+      expect(failed(outcome.lines), label).toMatch(why);
+      expect(failed(outcome.lines), label).not.toContain("Bearer x");
+    }
+    expect(world.requests).toEqual([]);
+  });
+
+  it("keeps an interrupt's inventory current: before, during and after a write (G2)", async () => {
+    await take();
+    const progress = newProgress();
+    const during: string[][] = [];
+    const world = cloudflare(
+      { ...live(), gateway: { ...gateway(), zdr: true }, costs: [{ ...rules()[0], enable: false }, rules()[1] as Raw] },
+      (r) => {
+        if (r.method !== "GET") during.push(interrupted(progress));
+        return undefined;
+      },
+    );
+    expect(interrupted(progress)).toEqual([
+      "gateway-config: interrupted",
+      "  confirmed: none",
+      "  uncertain: none",
+      "  not tried: none",
+      expect.stringMatching(/Run restore again/),
+    ]);
+    const outcome = await restore({ ...options(world.fetchStub), progress });
+    expect(outcome.code, failed(outcome.lines)).toBe(0);
+    // Stopped mid-write, the change in flight is uncertain and the rest not tried.
+    expect(during[0]).toEqual([
+      "gateway-config: interrupted",
+      "  confirmed: none",
+      "  uncertain: update gateway isitlegit (zdr)",
+      "  not tried: update pricing rule muse-spark-1.3 (enable)",
+      expect.stringMatching(/Run restore again/),
+    ]);
+    expect(during[1]?.slice(1, 4)).toEqual([
+      "  confirmed: update gateway isitlegit (zdr)",
+      "  uncertain: update pricing rule muse-spark-1.3 (enable)",
+      "  not tried: none",
+    ]);
+    expect(interrupted(progress).slice(1, 4)).toEqual([
+      "  confirmed: update gateway isitlegit (zdr); update pricing rule muse-spark-1.3 (enable)",
+      "  uncertain: none",
+      "  not tried: none",
+    ]);
+  });
+
+  it("names the confirmed changes when the read-back fails after them (G3)", async () => {
+    await take();
+    let writes = 0;
+    const world = cloudflare(
+      { ...live(), gateway: { ...gateway(), zdr: true }, costs: [{ ...rules()[0], enable: false }, rules()[1] as Raw] },
+      (r) => {
+        if (r.method !== "GET") writes++;
+        return r.method === "GET" && writes === 2 ? new Response("{}", { status: 503 }) : undefined;
+      },
+    );
+    const outcome = await restore(options(world.fetchStub));
+    expect(outcome.code).toBe(1);
+    const text = failed(outcome.lines);
+    expect(text).toMatch(/failed: the read-back failed \(GET \/gateways\/isitlegit answered HTTP 503\)/);
+    expect(text).toMatch(/confirmed: update gateway isitlegit \(zdr\); update pricing rule muse-spark-1.3 \(enable\)/);
+    expect(text).toMatch(/unverified: the read-back could not confirm .*; run restore --dry to see what differs/);
+  });
+
+  it("announces each stage at once and says it is still waiting during a slow answer (E2)", async () => {
+    await take();
+    const world = cloudflare(live());
+    const slow = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      await new Promise((r) => setTimeout(r, 250));
+      return world.fetchStub(input, init);
+    }) as typeof fetch;
+    const seen: [number, string][] = [];
+    const started = Date.now();
+    const outcome = await restore({
+      ...options(slow, { progressMs: 100 }),
+      dry: true,
+      log: (line) => seen.push([Date.now() - started, line]),
+    });
+    expect(outcome.code).toBe(0);
+    expect(seen[0]?.[1]).toBe("Reading gateway isitlegit, provider meta and its pricing rules...");
+    expect(seen[0]?.[0]).toBeLessThan(1_000);
+    expect(seen.some(([, l]) => /^ {2}still waiting for GET \/gateways\/isitlegit \(\d+ s\)$/.test(l))).toBe(true);
   });
 
   it("reports a refused write with its endpoint and permission, and what was and was not done", async () => {
@@ -443,6 +597,30 @@ describe("scripts/gateway-config.ts restore", () => {
 });
 
 describe("scripts/gateway-config.ts command line", () => {
+  it("prints the restore inventory when interrupted, as a real process (G2)", async () => {
+    // A conclave-op that never answers holds the run at its first stage, where Ctrl+C arrives.
+    const bin = join(DIR, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "conclave-op"), "#!/bin/sh\nsleep 30\n", { mode: 0o755 });
+    const child = spawn(process.execPath, [join(import.meta.dirname, "../../scripts/gateway-config.ts"), "restore"], {
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => {
+      out += d;
+    });
+    child.stderr.on("data", (d) => {
+      err += d;
+    });
+    while (!out.includes("from Conclave...")) await new Promise((r) => setTimeout(r, 25));
+    child.kill("SIGINT");
+    const code = await new Promise<number | null>((r) => child.on("exit", r));
+    expect(out).toMatch(/^Reading "IsItLegit AI Gateway admin token" from Conclave\.\.\./);
+    expect(code).toBe(130);
+    expect(err).toMatch(/gateway-config: interrupted\n {2}confirmed: none\n {2}uncertain: none\n {2}not tried: none/);
+  }, 20_000);
+
   it("--help works offline and names the commands, the vault item, the permissions and the exit codes", () => {
     const out = execFileSync(
       process.execPath,
