@@ -92,6 +92,37 @@ function textContrast(p: Page, selector: string): Promise<number> {
   }, selector);
 }
 
+// Every text slot holding the kind of unbroken token a finding carries: a long lookalike domain and a file name, with no
+// hyphen or space a browser could break at on its own.
+const LONG = "accountverificationnimbusmai1securelogin.portal.example";
+const FILE = "Invoice_INV-2026-10-27_NimbusMail_Account_Suspension_Notice_FINAL.pdf.html";
+function longPage(): string {
+  const body = String(
+    <main class="flex flex-col gap-24 p-16">
+      <VerdictBand state="partial" verdict="suspicious" confidence="medium" headline={`Do not open ${FILE}`}>
+        {`The attachment loads ${LONG} and asks for your password.`}
+      </VerdictBand>
+      <EvidenceCard
+        id="E7"
+        level="critical"
+        title={`Muse Wonder followed ${LONG}`}
+        meta={`6 steps · ${FILE}`}
+        footnote={`Captured from ${FILE}`}
+        layout="split"
+      >
+        <EvidenceFigure caption={`1. ${LONG}`}>
+          <EvidenceQuote>{LONG}</EvidenceQuote>
+        </EvidenceFigure>
+        <EvidenceFigure caption={`2. ${FILE}`} />
+      </EvidenceCard>
+      <EvidenceCard id="E4" level="high" title={`Lookalike domain ${LONG}`} footnote={FILE}>
+        <EvidenceQuote>{FILE}</EvidenceQuote>
+      </EvidenceCard>
+    </main>,
+  );
+  return `<!doctype html><html data-theme="light"><head><link rel="stylesheet" href="${APP_CSS}"></head><body class="bg-surface text-ink font-text">${body}</body></html>`;
+}
+
 type Box = { x: number; y: number; width: number; height: number };
 const box = async (p: Page, selector: string): Promise<Box> => {
   const found = await p.locator(selector).first().boundingBox();
@@ -182,4 +213,27 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("verdict and evidence in Chr
     expect(overflow).toEqual({ page: 0, parts: [] });
     await p.context().close();
   });
+
+  for (const scale of ["100%", "200%"])
+    it(`wraps long domains and file names in every slot at 360 px, text at ${scale}, clipping nothing`, async () => {
+      const p = await openPage(browser, longPage(), { viewport: { width: 360, height: 800 } });
+      await p.evaluate((size) => {
+        document.documentElement.style.fontSize = size;
+      }, scale);
+      const result = await p.evaluate(() => ({
+        page: document.documentElement.scrollWidth - innerWidth,
+        // Any element wider inside than its box, and any text that reaches past its card's edge.
+        wide: [...document.querySelectorAll("section, article, h2, h4, p, figcaption, blockquote")]
+          .filter((el) => el.scrollWidth > el.clientWidth + 1)
+          .map((el) => `${el.tagName.toLowerCase()} ${el.textContent?.slice(0, 30)}`),
+        clipped: [...document.querySelectorAll("article")].flatMap((card) => {
+          const edge = card.getBoundingClientRect().right;
+          return [...card.querySelectorAll("h4, p, figcaption, blockquote")]
+            .filter((el) => el.getBoundingClientRect().right > edge + 1)
+            .map((el) => `${el.tagName.toLowerCase()} ${el.textContent?.slice(0, 30)}`);
+        }),
+      }));
+      expect(result).toEqual({ page: 0, wide: [], clipped: [] });
+      await p.context().close();
+    });
 });

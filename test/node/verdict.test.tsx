@@ -85,8 +85,8 @@ describe("VerdictBand", () => {
     expect(markup).toMatch(/class="[^"]*w-56 h-56[^"]*md:w-88 md:h-88[^"]*"/);
     expect(tag(markup, "img")).toMatch(/w-40 h-40 md:w-72 md:h-72/);
     expect(tag(markup, "h2")).toMatch(/ text-24 .*md:text-32/);
-    expect(markup).toMatch(/<p class="[^"]*text-16 md:basis-auto md:text-17/);
-    expect(markup).toMatch(/<p class="[^"]*type-eyebrow md:flex-none md:text-14/);
+    expect(markup).toMatch(/<p class="[^"]*text-16 wrap-anywhere md:basis-auto md:text-17/);
+    expect(markup).toMatch(/<p class="[^"]*type-eyebrow wrap-anywhere md:flex-none md:text-14/);
   });
 
   it("takes the heading level the page sets", () => {
@@ -191,17 +191,19 @@ describe("EvidenceCard", () => {
     expect(split).toMatch(/<div class="[^"]*border-b border-line[^"]*">/);
     expect(text(split)).toContain("E7 · Critical");
     expect(split).toMatch(/<h4 [^>]*>Muse Wonder walked the link like a victim would<\/h4>/);
-    expect(split).toMatch(/<p class="text-14 text-muted">6 steps · 31 s · contained browser<\/p>/);
-    expect(split).toMatch(/<p class="text-13 text-muted">Canary values only; no real password was typed.<\/p>/);
+    expect(split).toMatch(/<p class="text-14 text-muted wrap-anywhere">6 steps · 31 s · contained browser<\/p>/);
+    expect(split).toMatch(
+      /<p class="text-13 text-muted wrap-anywhere">Canary values only; no real password was typed.<\/p>/,
+    );
     // Side by side from md, stacked below.
     expect(split).toMatch(/class="grid gap-16 md:grid-flow-col md:auto-cols-fr"/);
     expect(split.match(/<figure /g)).toHaveLength(3);
     expect(split).toMatch(/<div class="[^"]*h-evidence-figure[^"]*border-line bg-subtle[^"]*">/);
     expect(split).toMatch(
-      /<figcaption class="text-13 text-muted">1. Lure page: one button, &quot;View invoice&quot;<\/figcaption>/,
+      /<figcaption class="text-13 text-muted wrap-anywhere">1. Lure page: one button, &quot;View invoice&quot;<\/figcaption>/,
     );
     expect(split).toMatch(
-      /<blockquote class="font-mono text-14 text-ink wrap-anywhere">nimbusmai1-login.example\/inv<\/blockquote>/,
+      /<blockquote class="p-12 rounded-control-small bg-light font-mono text-14 text-ink wrap-anywhere">nimbusmai1-login.example\/inv<\/blockquote>/,
     );
   });
 

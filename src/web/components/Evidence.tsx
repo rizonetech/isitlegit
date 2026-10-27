@@ -61,7 +61,8 @@ export type EvidenceCardProps = {
 };
 
 // One finding: `split` (a header bar over a padded body, `Main` E7) for a finding with figures, `compact` (one padded
-// column, `Main` E4) for a short one. A split card's body puts its parts side by side from `md` and stacks them below.
+// column, `Main` E4) for a short one. Its words come from findings and may hold a long domain or file name, so every
+// line wraps anywhere rather than widening or clipping the card. A split card's body puts its parts side by side from `md` and stacks them below.
 export function EvidenceCard(props: EvidenceCardProps) {
   const { id, level, meta, footnote, layout = "compact", heading = 4, children } = props;
   const target = anchor("EvidenceCard", id);
@@ -71,11 +72,11 @@ export function EvidenceCard(props: EvidenceCardProps) {
   const head = (
     <div class="flex min-w-0 items-center gap-12">
       <SeverityPill id={id} level={level} />
-      <Heading class="min-w-0 font-heading weight-heading text-16">{title}</Heading>
+      <Heading class="min-w-0 font-heading weight-heading text-16 wrap-anywhere">{title}</Heading>
     </div>
   );
-  const metaLine = nonBlank(meta) && <p class="text-14 text-muted">{meta}</p>;
-  const foot = nonBlank(footnote) && <p class="text-13 text-muted">{footnote}</p>;
+  const metaLine = nonBlank(meta) && <p class="text-14 text-muted wrap-anywhere">{meta}</p>;
+  const foot = nonBlank(footnote) && <p class="text-13 text-muted wrap-anywhere">{footnote}</p>;
   // Scrolled into view below the page's top edge when its pill is followed.
   const card = "scroll-mt-24 bg-surface border border-line rounded-card-large";
   if (layout === "split")
@@ -113,14 +114,19 @@ export function EvidenceFigure(props: EvidenceFigureProps) {
       <div class="flex h-evidence-figure flex-col overflow-hidden rounded-control border border-line bg-subtle">
         {props.children}
       </div>
-      <figcaption class="text-13 text-muted">{caption}</figcaption>
+      <figcaption class="text-13 text-muted wrap-anywhere">{caption}</figcaption>
     </figure>
   );
 }
 
-// Text quoted from the message or the page (a subject line, a domain, a request), in the code style, wrapping anywhere
-// so a long domain never widens the card.
+// Text quoted from the message or the page (a subject line, a domain, a request) in the board's code panel (ui.css
+// `.code`: `light`, an 8 px radius, the cards' 10 px padding built 12), set apart from the report's own words. It wraps
+// anywhere, where the board scrolls sideways, so a long domain is read whole and never widens the card.
 export function EvidenceQuote(props: { children: string }) {
   if (!props.children.trim()) throw new Error("EvidenceQuote: a quote needs text");
-  return <blockquote class="font-mono text-14 text-ink wrap-anywhere">{props.children}</blockquote>;
+  return (
+    <blockquote class="p-12 rounded-control-small bg-light font-mono text-14 text-ink wrap-anywhere">
+      {props.children}
+    </blockquote>
+  );
 }

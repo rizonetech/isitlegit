@@ -85,11 +85,17 @@ export function VerdictBand(props: VerdictBandProps) {
         <img src={art} alt="" class="w-40 h-40 md:w-72 md:h-72" />
       </div>
       <div class="contents md:flex md:flex-col md:gap-4 md:min-w-0">
-        <p class={cx("flex-1 min-w-0 type-eyebrow md:flex-none md:text-14", running && "text-orange-text")}>
+        <p
+          class={cx("flex-1 min-w-0 type-eyebrow wrap-anywhere md:flex-none md:text-14", running && "text-orange-text")}
+        >
           {eyebrow}
         </p>
-        <Heading class="basis-full font-heading weight-heading text-24 md:basis-auto md:text-32">{headline}</Heading>
-        <p class={cx("basis-full text-16 md:basis-auto md:text-17", running && "text-ink-2")}>{children}</p>
+        <Heading class="basis-full min-w-0 font-heading weight-heading text-24 wrap-anywhere md:basis-auto md:text-32">
+          {headline}
+        </Heading>
+        <p class={cx("basis-full min-w-0 text-16 wrap-anywhere md:basis-auto md:text-17", running && "text-ink-2")}>
+          {children}
+        </p>
       </div>
     </section>
   );
