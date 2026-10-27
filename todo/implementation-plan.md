@@ -8,17 +8,18 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 7 | Checklist items: 83
+Sections: 8 | Checklist items: 92
 
-| Status | Reference  | Deliverable                           | Needs                | Items |
-| ------ | ---------- | ------------------------------------- | -------------------- | ----- |
-| [x]    | D00 T01 §1 | Git repository and public GitHub repo | attended             | 16    |
-| [x]    | D00 T01 §2 | Worker package and health route       | none                 | 16    |
-| [x]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 15    |
-| [x]    | D00 T01 §4 | GitHub Actions CI                     | none                 | 12    |
-| [ ]    | D00 T01 §5 | Cloudflare bindings and first deploy  | cloudflare           | 11    |
-| [ ]    | D00 T01 §6 | AI Gateway for the Meta Model API     | cloudflare           | 4     |
-| [ ]    | D00 T01 §7 | Meta smoke test                       | meta-api, cloudflare | 9     |
+| Status | Reference   | Deliverable                           | Needs                | Items |
+| ------ | ----------- | ------------------------------------- | -------------------- | ----- |
+| [x]    | D00 T01 §1  | Git repository and public GitHub repo | attended             | 16    |
+| [x]    | D00 T01 §2  | Worker package and health route       | none                 | 16    |
+| [x]    | D00 T01 §3  | Vitest workers pool and Biome         | none                 | 15    |
+| [x]    | D00 T01 §4  | GitHub Actions CI                     | none                 | 12    |
+| [ ]    | D00 T01 §5  | Cloudflare bindings and first deploy  | cloudflare           | 17    |
+| [ ]    | D00 T01 §6  | AI Gateway for the Meta Model API     | cloudflare           | 4     |
+| [ ]    | D00 T01 §7  | Meta smoke test                       | meta-api, cloudflare | 9     |
+| [ ]    | D00 T01 §10 | Deploy rollback and re-verification   | cloudflare           | 3     |
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
@@ -266,6 +267,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 10/197 verified sections, 10 ready to run now.
+Progress: 10/198 verified sections, 10 ready to run now.
 
-Checklist: 188/981 items completed (includes Commit items).
+Checklist: 194/990 items completed (includes Commit items).

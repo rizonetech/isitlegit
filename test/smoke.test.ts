@@ -24,6 +24,7 @@ describe("GET /internal/smoke", () => {
     for (const name of ["DB", "ARTEFACTS", "CACHE", "ANALYSIS", "BROWSER"] as const)
       expect(body.checks[name], name).toBe("ok");
     expect(body).toMatchObject({ ok: true, commit: "0123456789abcdef0123456789abcdef01234567" });
+    expect(body.version).toMatch(/\S/);
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
   }, 60_000);

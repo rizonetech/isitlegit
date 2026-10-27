@@ -20,9 +20,9 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `zod` | 4.6.7 | MIT | Yes, once imported |
 | `@cloudflare/puppeteer` | 1.4.0 | Apache-2.0 | Yes: drives Browser Run (the smoke route today, page rendering from D03) |
 | `typescript` | 7.0.2 | Apache-2.0 | No: type checking only |
-| `wrangler` | 4.152.0 | MIT OR Apache-2.0 | No: build and deploy tool |
+| `wrangler` | 4.153.0 | MIT OR Apache-2.0 | No: build and deploy tool |
 | `vitest` | 4.1.12 | MIT | No: test runner |
-| `@cloudflare/vitest-plugin` | 1.4.7 | MIT | No: runs the tests inside workerd |
+| `@cloudflare/vitest-plugin` | 1.4.8 | MIT | No: runs the tests inside workerd |
 | `@biomejs/biome` | 2.6.3 | MIT OR Apache-2.0 | No: lint and format |
 | `tailwindcss` | 4.3.3 | MIT | No: compiles the stylesheet, which keeps Tailwind's MIT notice |
 | `@tailwindcss/cli` | 4.3.3 | MIT | No: the stylesheet compiler's command line |

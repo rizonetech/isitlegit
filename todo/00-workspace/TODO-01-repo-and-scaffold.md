@@ -48,6 +48,7 @@ track: day-0
 | 7 | §7 | Meta smoke test | §6 | [ ] |
 | 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
 | 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
+| 10 | §10 | Deploy rollback and re-verification | §5 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -241,6 +242,12 @@ The Worker needs D1 for cases and tenants, R2 for raw mail and artefacts (with a
 - [x] Add `@cloudflare/puppeteer` 1.4.0 (the stack doc's Browser Run driver) and a smoke route `GET /internal/smoke` in `src/smoke.ts`, answering 404 unless the request's bearer token equals the `SMOKE_TOKEN` secret (compared in constant time; 404 too when the secret is unset), that runs each binding once with synthetic data and cleans up: `select 1` on `DB`; put, read and delete `smoke/<uuid>` in `ARTEFACTS`; put, read and delete a key in `CACHE`; create an `ANALYSIS` instance and wait up to 30 s for it to complete; launch and close a `BROWSER` session; it answers JSON naming each check `ok` or its error, with the commit, and `503` if any failed. Done when: `test/smoke.test.ts` (workerd) finds 404 without a token, with a wrong one and with a malformed header, and every check `ok` with the local bindings, Browser Run included (**Corrected 2026-10-27:** said every check but the browser; Miniflare simulates Browser Run with a local Chrome).
 - [x] Write `scripts/smoke.ts`: it mints a random token, sets it with `wrangler secret put SMOKE_TOKEN` (from standard input, never printed or stored), calls the deployed `/internal/smoke`, prints each check's result, and exits non-zero on a refused call or any failed check. Done when: `test/node/smoke-script.test.ts` proves it against a local stand-in (a fresh 64-hex token that never appears in its output, a failed check named, a Worker that never accepts the token, any other answer, and retrying a 404 while the secret propagates), and run against the deployment it reports every check `ok`.
 - [x] Deploy in this order: the gates green (`pnpm typecheck`, `pnpm test`, `wrangler types --check`), the work committed and pushed, the tree clean (`git status --porcelain` prints nothing), then `wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)`. Done when: `curl -s https://isitlegit.derick-f5a.workers.dev/health` answers 200 with that SHA, and `node scripts/smoke.ts` reports every binding `ok` on the deployed Worker. **Corrected 2026-10-27** (D00 T01 §2 final review P3): a deploy from a tree with uncommitted edits would report a commit that is not the code it serves.
+- [x] Fail closed in `scripts/smoke.ts`: it passes only on HTTP 200 with exactly the five checks all `ok`, `ok: true`, the expected commit (`--commit`, default `git rev-parse HEAD`) and the version the secret published; a non-JSON, incomplete or self-contradicting answer fails with its reason (`refusal`). Done when: `test/node/smoke-script.test.ts` refuses each of those and passes the clean answer. (Completion review 2026-10-27, gap 1.)
+- [x] Bound the script with one deadline covering every request's headers and body (`AbortSignal.timeout`), so a stalled connection or a half-sent body fails in time. Done when: the test fails a stalled-header and a stalled-body stand-in within 3 s. (Completion review 2026-10-27, gap 2.)
+- [x] Recover what a check leaves behind: each check's cleanup runs after the answer too (`waitUntil`), so a write landing after its time limit is still deleted; a failed cleanup fails its check; a Workflow instance not complete within the limit is terminated; KV keys expire after 60 s, and a lifecycle rule `smoke-1-day` expires anything left under `smoke/` in R2 after a day (read back). Done when: `test/smoke-failures.test.ts` delays a write past the limit and finds it deleted, fails a refused delete with "cleanup failed", and finds a never-ending instance terminated. (Completion review 2026-10-27, gap 3.)
+- [x] Prove the route's failure paths: one failed binding gives 503 with the other checks' results kept. Done when: `test/smoke-failures.test.ts` covers it. (Completion review 2026-10-27, gap 4.)
+- [x] Name the version tested: `wrangler secret put` publishes a new version, so the script reads it from `wrangler deployments status`, the route reports its own (`version_metadata` binding `CF_VERSION_METADATA`), and the run passes only when they match and the commit is the expected one. Done when: the test fails an answer from another version or commit, and waits while the old version still answers. (Completion review 2026-10-27, gap 6.)
+- [x] Report progress: the script prints each stage as it starts, the elapsed time every 10 s while it waits, and the total with the result, never the token. Done when: the test finds the stage lines and the total, and no token in any output. (Completion review 2026-10-27, gap 7.)
 - [ ] Commit: `infra: Cloudflare bindings, R2 lifecycle and first deploy`
 
 **Test checkpoint:** `curl -s https://isitlegit.derick-f5a.workers.dev/health` returns `"ok":true` with the SHA of `git rev-parse HEAD`, and `node scripts/smoke.ts` reports `DB`, `ARTEFACTS`, `CACHE`, `ANALYSIS` and `BROWSER` all `ok` on the deployed Worker (**Corrected 2026-10-27:** `/health` alone passes with no working binding).
@@ -341,6 +348,24 @@ Filed 2026-10-27 from the D00 T01 §4 completion review (gap 3, missing out of s
 - [ ] Commit: `todo: resolve refuses a new section while main is red`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including a red case that exits 5 and an unknown case that exits 0 with a warning.
+
+## 10. Deploy rollback and re-verification
+
+When a deploy breaks the live Worker, the operator returns to the last good version with one command and proves it, without deleting or recreating the D1, R2 or KV resources (completion review of D00 T01 §5, gap 5 and excellence item 8, compared with Cloudflare's own rollback).
+
+**Phase:** 0
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Package the rollback. Done when: one command rolls back to a named or the previous version and verifies it.
+
+- [ ] Write `scripts/rollback.ts`: it lists the recent versions (`wrangler deployments list`) with their commits, rolls back to the version named or the one before the live one (`wrangler rollback <version> --message <reason>`), then reads `/health` and runs `scripts/smoke.ts` with `--commit` set to that version's commit, and exits non-zero unless both pass. It never touches D1, R2 or KV. Done when: `test/node/rollback.test.ts` drives it against stand-ins for `wrangler` and the Worker (a good rollback, a refused one, a rolled-back version whose smoke run fails), and one real rollback to the current version and back is recorded in the evidence.
+- [ ] Document the procedure in `docs/operations.md` (when to roll back, the command, what it proves, and that a schema migration is not undone by a rollback). Done when: the page names the command and its checks.
+- [ ] Commit: `infra: one-command rollback with re-verification`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/rollback.test.ts` passes and fails if the script reports success when the rolled-back version's smoke run fails.
 
 ## Verification
 
