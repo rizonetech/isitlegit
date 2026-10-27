@@ -3,9 +3,9 @@
   "compilerOptions": {
     "types": ["@cloudflare/vitest-plugin/types"],
     // WORKAROUND: Vitest's bundled tinybench types declare an EventTarget subclass the Workers runtime types reject
-    // (TS2416). Only the tests skip library checks; the root tsconfig.json still checks them for the Worker.
+    // (TS2416). The root tsconfig.json skips library checks too, for @cloudflare/puppeteer's declarations.
     "skipLibCheck": true
   },
-  "include": ["./**/*.ts", "./**/*.tsx", "../worker-configuration.d.ts"],
+  "include": ["./**/*.ts", "./**/*.tsx", "../worker-configuration.d.ts", "../src/types/*.d.ts"],
   "exclude": ["./node/**"]
 }

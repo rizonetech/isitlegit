@@ -18,6 +18,7 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | --------- | ------- | ------- | -------------------- |
 | `hono` | 4.13.14 | MIT | Yes |
 | `zod` | 4.6.7 | MIT | Yes, once imported |
+| `@cloudflare/puppeteer` | 1.4.0 | Apache-2.0 | Yes: drives Browser Run (the smoke route today, page rendering from D03) |
 | `typescript` | 7.0.2 | Apache-2.0 | No: type checking only |
 | `wrangler` | 4.152.0 | MIT OR Apache-2.0 | No: build and deploy tool |
 | `vitest` | 4.1.12 | MIT | No: test runner |

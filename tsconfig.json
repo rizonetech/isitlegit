@@ -12,7 +12,11 @@
     "verbatimModuleSyntax": true,
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
-    "types": ["./worker-configuration.d.ts"]
+    "types": ["./worker-configuration.d.ts"],
+    // WORKAROUND: @cloudflare/puppeteer 1.4.0's declarations name DOM types (Node, HTMLElementTagNameMap) and repeat
+    // globals the Workers runtime types already declare, which the DOM library would conflict with further; library
+    // declarations are not checked, while every file of ours still is, against them.
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "worker-configuration.d.ts"]
 }

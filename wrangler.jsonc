@@ -6,6 +6,19 @@
   "compatibility_flags": ["nodejs_compat"],
   // Fingerprinted stylesheet and fonts (D07 T01 §5); public/_headers gives /static/* a year-long immutable cache.
   "assets": { "directory": "./public" },
+  // IsItLegit's own resources (D00 T01 §5), created under the operator's standing authorisation (AGENTS.md).
+  // Cases, tenants and every other record.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "isitlegit", "database_id": "7a393f34-f8be-4ba6-b0a8-fce35a34a0e7" }
+  ],
+  // Raw mail and attachments under raw/ (deleted after 30 days by the bucket's lifecycle rule, POPIA) and derived
+  // artefacts under art/.
+  "r2_buckets": [{ "binding": "ARTEFACTS", "bucket_name": "isitlegit-artefacts" }],
+  "kv_namespaces": [{ "binding": "CACHE", "id": "ea28d6e83ede4a83bfb06898d8791a16" }],
+  // The analysis pipeline (D02 onwards); a no-op step until then.
+  "workflows": [{ "name": "isitlegit-analysis", "binding": "ANALYSIS", "class_name": "AnalysisWorkflow" }],
+  // Browser Run, driven by @cloudflare/puppeteer.
+  "browser": { "binding": "BROWSER" },
   "vars": {
     // Local default; `wrangler dev --var` and the deploy (`--var COMMIT_SHA:$(git rev-parse HEAD)`) override it.
     "COMMIT_SHA": "dev"

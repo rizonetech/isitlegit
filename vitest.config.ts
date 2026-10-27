@@ -12,7 +12,8 @@ export default defineConfig({
         plugins: [
           cloudflareTest({
             wrangler: { configPath: "./wrangler.jsonc" },
-            miniflare: { bindings: { COMMIT_SHA: TEST_COMMIT_SHA } },
+            // A test-only smoke token; the deployed one is minted per run by scripts/smoke.ts.
+            miniflare: { bindings: { COMMIT_SHA: TEST_COMMIT_SHA, SMOKE_TOKEN: "test-smoke-token" } },
           }),
         ],
         test: { name: "worker", include: ["test/**/*.test.ts"], exclude: ["test/node/**"] },
