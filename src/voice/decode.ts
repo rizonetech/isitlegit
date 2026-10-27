@@ -64,41 +64,131 @@ export const createOpusDecoder = ({ channels, preSkip }: OpusLayout): OpusStream
     preSkip: Math.round((preSkip * TARGET_RATE) / OPUS_RATE),
   });
 
-// Linear interpolation from the source rate to 16 kHz over a stream of blocks: the position and the last sample carry
-// from one block to the next, so block boundaries leave no seam. Output k sits at source position k * rate / 16000,
-// computed from k rather than added up step by step, so rounding never drifts and N source samples always give
-// ceil(N * 16000 / rate) outputs, however the input is split.
+// Rate conversion to 16 kHz over a stream of blocks (D01 T03 §9): a Kaiser-windowed sinc low-pass filter evaluated at
+// each output's exact position in the input (any ratio, 44.1 kHz included), so energy above the lower Nyquist
+// frequency does not fold back as an alias and upsampling leaves no images. The cut-off is 0.95 of that Nyquist, the
+// transition band 0.3 of it (flat to 0.8, at least 60 dB down from 1.1; the window is designed for 70 dB, after
+// Kaiser). Output k sits at input position k x rate / 16000, computed from
+// k so rounding never drifts; samples beyond either end are silence, a lookahead of the filter's half-width is held
+// across blocks, and N input samples always give ceil(N x 16000 / rate) outputs, however the input is split. Input
+// already at 16 kHz passes through unchanged. For the usual rates each output phase's taps are computed once; an
+// unusual rate reads the kernel from a table instead.
+const STOPBAND_DB = 70;
+const TABLE_STEPS = 512; // kernel samples per input sample, linearly interpolated
+// Above this many output phases (an unusual sample rate), the kernel is read from the table instead of precomputed.
+const MAX_PHASES = 1_024;
+
+function besselI0(x: number): number {
+  let sum = 1;
+  let term = 1;
+  for (let k = 1; k < 50; k++) {
+    term *= (x / (2 * k)) ** 2;
+    sum += term;
+    if (term < sum * 1e-12) break;
+  }
+  return sum;
+}
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+
 export class Resampler {
   private readonly step: number;
+  private readonly half: number; // the filter's half-width, in input samples
+  private readonly kernel: (distance: number) => number;
+  // With the rate a ratio p/q of 16 kHz in lowest terms, output k sits at input position k x p / q: its phase is
+  // (k x p) mod q, and each phase's taps are computed once (`phases[phase][j]` weights input floor(t) - half + 1 + j).
+  private readonly p: number;
+  private readonly q: number;
+  private readonly phases: Float32Array[] | null;
   private k = 0;
   private consumed = 0;
-  private prev = 0;
+  // Input samples from global index `base` on: what the next outputs still need.
+  private held = new Float32Array(0);
+  private base = 0;
+  private readonly passThrough: boolean;
   constructor(
     sourceRate: number,
     private readonly emit: (sample: number) => void,
   ) {
     this.step = sourceRate / TARGET_RATE;
+    const g = gcd(sourceRate, TARGET_RATE);
+    this.p = sourceRate / g;
+    this.q = TARGET_RATE / g;
+    this.passThrough = sourceRate === TARGET_RATE;
+    const nyquist = Math.min(sourceRate, TARGET_RATE) / 2;
+    const cutoff = (0.95 * nyquist) / sourceRate; // cycles per input sample
+    const transition = (0.3 * nyquist) / sourceRate;
+    const beta = 0.1102 * (STOPBAND_DB - 8.7);
+    const half = Math.ceil((STOPBAND_DB - 8) / (2.285 * 2 * Math.PI * transition) / 2);
+    this.half = half;
+    const i0Beta = besselI0(beta);
+    const exact = (distance: number) => {
+      const t = Math.abs(distance);
+      if (t >= half) return 0;
+      const sinc = t === 0 ? 2 * cutoff : Math.sin(2 * Math.PI * cutoff * t) / (Math.PI * t);
+      const r = t / half;
+      return sinc * (besselI0(beta * Math.sqrt(1 - r * r)) / i0Beta);
+    };
+    if (this.passThrough || this.q > MAX_PHASES) {
+      const table = Float32Array.from({ length: half * TABLE_STEPS + 2 }, (_, i) => exact(i / TABLE_STEPS));
+      this.kernel = (distance) => {
+        const at = Math.abs(distance) * TABLE_STEPS;
+        const i = Math.floor(at);
+        const a = table[i] ?? 0;
+        return a + ((table[i + 1] ?? 0) - a) * (at - i);
+      };
+      this.phases = null;
+    } else {
+      this.kernel = exact;
+      this.phases = Array.from({ length: this.q }, (_, phase) =>
+        Float32Array.from({ length: 2 * half }, (_, j) => exact(phase / this.q + half - 1 - j)),
+      );
+    }
+  }
+  private sample(index: number): number {
+    const i = index - this.base;
+    return i >= 0 && i < this.held.length ? (this.held[i] as number) : 0;
+  }
+  // Output k, from the held samples within the half-width either side of its input position.
+  private output(k: number): number {
+    const whole = Math.floor((k * this.p) / this.q);
+    const first = whole - this.half + 1;
+    let sum = 0;
+    if (this.phases) {
+      const taps = this.phases[(k * this.p) % this.q] as Float32Array;
+      const at = first - this.base;
+      if (at >= 0 && at + taps.length <= this.held.length) {
+        for (let j = 0; j < taps.length; j++) sum += (taps[j] as number) * (this.held[at + j] as number);
+      } else {
+        for (let j = 0; j < taps.length; j++) sum += (taps[j] as number) * this.sample(first + j);
+      }
+      return sum;
+    }
+    const t = k * this.step;
+    for (let n = first; n <= whole + this.half; n++) sum += this.kernel(t - n) * this.sample(n);
+    return sum;
   }
   push(mono: Float32Array): void {
-    const n = mono.length;
-    if (n === 0) return;
-    const last = this.consumed + n - 1;
-    for (let t = this.k * this.step, i = Math.floor(t); i + 1 <= last; t = this.k * this.step, i = Math.floor(t)) {
-      const a = i < this.consumed ? this.prev : (mono[i - this.consumed] as number);
-      const b = mono[i + 1 - this.consumed] as number;
-      this.emit(a + (b - a) * (t - i));
-      this.k++;
+    if (mono.length === 0) return;
+    if (this.passThrough) {
+      for (const v of mono) this.emit(v);
+      this.consumed += mono.length;
+      this.k = this.consumed;
+      return;
     }
-    this.prev = mono[n - 1] as number;
-    this.consumed = last + 1;
+    const keepFrom = Math.max(this.base, Math.floor((this.k * this.p) / this.q) - this.half);
+    const next = new Float32Array(this.base + this.held.length - keepFrom + mono.length);
+    next.set(this.held.subarray(keepFrom - this.base));
+    next.set(mono, this.base + this.held.length - keepFrom);
+    this.held = next;
+    this.base = keepFrom;
+    this.consumed += mono.length;
+    // Every output whose window lies wholly within what has arrived.
+    while (Math.floor((this.k * this.p) / this.q) + this.half < this.consumed) this.emit(this.output(this.k++));
   }
-  // The outputs that fall after the last source sample but before the input ends hold that sample: there is nothing
-  // after it to interpolate towards.
+  // The outputs left before the input ends, their windows running into silence.
   end(): void {
-    while (this.consumed > 0 && this.k * this.step < this.consumed) {
-      this.emit(this.prev);
-      this.k++;
-    }
+    if (this.passThrough) return;
+    while (this.k * this.step < this.consumed) this.emit(this.output(this.k++));
   }
 }
 

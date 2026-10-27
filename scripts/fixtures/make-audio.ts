@@ -6,7 +6,8 @@
 // one packet per page). MP3 (D01 T03 §7) is encoded with LAME (`@breezystack/lamejs`, a development dependency that
 // never ships): `tone.mp3` (44.1 kHz mono, 64 kbit/s, MPEG-1), `tone-128k.mp3` (the same at 128 kbit/s, so two can
 // be joined into a variable-bitrate stream), `tone-stereo.mp3` (the tone left, silence right),
-// `tone-16k.mp3` (16 kHz, MPEG-2) and `tone-8k.mp3` (8 kHz, MPEG-2.5); LAME here writes no Xing/Info frame, so tests
+// `tone-16k.mp3` (16 kHz, MPEG-2), `tone-8k.mp3` (8 kHz, MPEG-2.5) and `tone-12k.mp3` (a 12 kHz tone, which the 16 kHz
+// output must not fold back, D01 T03 §9); LAME here writes no Xing/Info frame, so tests
 // add one where they need it. The output is the same on every run.
 //
 //   node scripts/fixtures/make-audio.ts [--out <dir>]
@@ -65,8 +66,8 @@ export function wavTone(): Uint8Array {
 }
 
 // The tone through LAME at `rate`, mono or with silence on the right, in frames of 1,152 input samples.
-export function mp3Tone(rate: number, kbps: number, channels: 1 | 2 = 1): Uint8Array {
-  const left = tone(rate, SECONDS);
+export function mp3Tone(rate: number, kbps: number, channels: 1 | 2 = 1, hz = 440): Uint8Array {
+  const left = tone(rate, SECONDS, hz);
   const encoder = new Mp3Encoder(channels, rate, kbps);
   const parts: Uint8Array[] = [];
   const silence = new Int16Array(1_152);
@@ -97,5 +98,6 @@ if (import.meta.filename === process.argv[1]) {
   atomic(join(out, "tone-stereo.mp3"), mp3Tone(44_100, 128, 2));
   atomic(join(out, "tone-16k.mp3"), mp3Tone(16_000, 32));
   atomic(join(out, "tone-8k.mp3"), mp3Tone(8_000, 16));
+  atomic(join(out, "tone-12k.mp3"), mp3Tone(44_100, 128, 1, 12_000));
   console.log(`make-audio: wrote the Ogg, WAV and MP3 tones in ${out}`);
 }

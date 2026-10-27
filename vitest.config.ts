@@ -21,7 +21,15 @@ export default defineConfig({
             // login CI does not have; no test calls env.AI.
             remoteBindings: false,
             // A test-only smoke token; the deployed one is long-lived in the vault (scripts/smoke.ts).
-            miniflare: { bindings: { COMMIT_SHA: TEST_COMMIT_SHA, SMOKE_TOKEN: "test-smoke-token", TEST_MIGRATIONS } },
+            // VOICE_BENCH turns on the voice decoder's timings (test/voice/bench.test.ts), set by scripts/voice-bench.ts.
+            miniflare: {
+              bindings: {
+                COMMIT_SHA: TEST_COMMIT_SHA,
+                SMOKE_TOKEN: "test-smoke-token",
+                TEST_MIGRATIONS,
+                VOICE_BENCH: process.env.VOICE_BENCH ?? "",
+              },
+            },
           }),
         ],
         // WORKAROUND: the test plugin does not read wrangler.jsonc's `alias`, so the voice decoder's Web Worker stub is

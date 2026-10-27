@@ -113,7 +113,7 @@ describe("Resampler", () => {
   };
 
   it("gives the same samples however the input is split into blocks", () => {
-    for (const rate of [48_000, 44_100, 22_050, 8_000]) {
+    for (const rate of [48_000, 44_100, 44_101, 22_050, 8_000]) {
       const input = ramp(rate);
       const whole = run(rate, [input]);
       expect(run(rate, split(input, [1, 7, 960, 13, 2]))).toEqual(whole);
@@ -121,9 +121,75 @@ describe("Resampler", () => {
     }
   });
 
+  it("runs into silence at both ends: a constant input's first output holds the window's centre and one side", () => {
+    for (const rate of [48_000, 44_100, 44_101]) {
+      const out = run(rate, [new Float32Array(rate).fill(0.5)]);
+      expect(out.every(Number.isFinite), `${rate}`).toBe(true);
+      // The taps sum to 1; at the first output only the centre tap, h(0) = 2 x cut-off (0.95 of 8 kHz, in cycles per
+      // input sample), and the side after it see the signal: (1 + h(0)) / 2 of it.
+      const centre = (2 * 0.95 * 8_000) / rate;
+      expect(out[0], `${rate} first`).toBeCloseTo(((1 + centre) / 2) * 0.5, 2);
+      expect(out[8_000], `${rate} middle`).toBeCloseTo(0.5, 3);
+      expect(out.at(-1), `${rate} last`).toBeGreaterThan(0.15);
+    }
+  });
+
   it("keeps every sample, the last included, when the rate is already 16 kHz", () => {
     const input = ramp(1_000);
     expect(run(16_000, split(input, [3, 1, 250]))).toEqual([...input]);
+  });
+});
+
+// A tone's amplitude at `hz` in 16 kHz output, by the Goertzel algorithm over the middle of the signal, as a fraction
+// of full scale.
+function amplitudeAt(samples: Int16Array, hz: number, rate = 16_000): number {
+  const from = Math.floor(samples.length * 0.2);
+  const to = Math.floor(samples.length * 0.8);
+  const w = (2 * Math.PI * hz) / rate;
+  const coeff = 2 * Math.cos(w);
+  let s1 = 0;
+  let s2 = 0;
+  for (let i = from; i < to; i++) {
+    const s0 = (samples[i] as number) / 32768 + coeff * s1 - s2;
+    s2 = s1;
+    s1 = s0;
+  }
+  const power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+  return (2 * Math.sqrt(Math.max(power, 0))) / (to - from);
+}
+const dB = (ratio: number) => 20 * Math.log10(ratio);
+const toneAt = (rate: number, hz: number) => wavFile(tone(rate, 1, hz, 0.5), rate, 1);
+async function resampled(rate: number, hz: number): Promise<Int16Array> {
+  const out: Uint8Array[] = [];
+  for await (const chunk of decodeToWavChunks(toneAt(rate, hz), "audio/wav")) out.push(chunk);
+  return new Int16Array((out[0] as Uint8Array).slice(44).buffer);
+}
+
+describe("the resampler's filter (D01 T03 §9)", () => {
+  // 44,101 Hz has 16,000 output phases, past what is precomputed: the table path.
+  for (const rate of [48_000, 44_100, 44_101])
+    it(`keeps the passband flat and folds nothing back from ${rate} Hz`, async () => {
+      // The passband, to 0.4 of the output rate: within 0.5 dB of the input's 0.5 amplitude.
+      for (const hz of [300, 1_000, 3_000, 6_400]) {
+        const level = dB(amplitudeAt(await resampled(rate, hz), hz) / 0.5);
+        expect(Math.abs(level), `${hz} Hz`).toBeLessThan(0.5);
+      }
+      // The stopband: what a tone above 8 kHz would fold into is at least 60 dB down.
+      for (const [hz, alias] of [
+        [9_000, 7_000],
+        [12_000, 4_000],
+        [20_000, 4_000],
+      ] as const) {
+        const leak = dB(amplitudeAt(await resampled(rate, hz), alias) / 0.5);
+        expect(leak, `${hz} Hz folding to ${alias} Hz`).toBeLessThan(-60);
+      }
+    });
+
+  it("upsamples 8 kHz with the passband kept and no image", async () => {
+    const out = await resampled(8_000, 3_000);
+    expect(Math.abs(dB(amplitudeAt(out, 3_000) / 0.5))).toBeLessThan(0.5);
+    // The image of 3 kHz around the input's 4 kHz Nyquist: 5 kHz.
+    expect(dB(amplitudeAt(out, 5_000) / 0.5)).toBeLessThan(-60);
   });
 });
 

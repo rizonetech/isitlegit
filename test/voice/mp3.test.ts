@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../../src/voice/decode";
 import { createMp3Decoder, type Mp3Stream, scanMp3 } from "../../src/voice/mp3";
-import { tone8kMp3, tone16kMp3, tone128kMp3, toneMp3, toneStereoMp3 } from "../fixtures/audio/load";
+import { tone8kMp3, tone12kMp3, tone16kMp3, tone128kMp3, toneMp3, toneStereoMp3 } from "../fixtures/audio/load";
 import { concat } from "../fixtures/audio/ogg";
 
 // D01 T03 §7: MP3 voice notes and voicemail attachments, walked frame by frame before minimp3 decodes them.
@@ -29,6 +29,15 @@ const frequency = (s: Int16Array) => {
   let crossings = 0;
   for (let i = from + 1; i < to; i++) if ((s[i - 1] as number) < 0 !== (s[i] as number) < 0) crossings++;
   return crossings / 2 / ((to - from) / 16_000);
+};
+const concatPcm = (blocks: Int16Array[]) => {
+  const out = new Int16Array(blocks.reduce((n, b) => n + b.length, 0));
+  let at = 0;
+  for (const b of blocks) {
+    out.set(b, at);
+    at += b.length;
+  }
+  return out;
 };
 // The tone at half of full scale, as 16-bit RMS.
 const TONE_RMS = 0.5 * 32768 * Math.SQRT1_2;
@@ -124,6 +133,32 @@ describe("MP3 decoding", () => {
     const layout = scanMp3(vbr);
     expect(layout.frames).toBe(scanMp3(toneMp3).frames + scanMp3(tone128kMp3).frames);
     expect(joined(await decodeAll(vbr)).length).toBe(Math.ceil((layout.keep * 16_000) / 44_100));
+  });
+
+  it("does not fold a 12 kHz tone back into the 16 kHz output (D01 T03 §9)", async () => {
+    // Goertzel amplitude at `hz` over the middle of a signal, as a fraction of full scale.
+    const amplitude = (pcm: Int16Array, hz: number, rate: number) => {
+      const from = Math.floor(pcm.length * 0.2);
+      const to = Math.floor(pcm.length * 0.8);
+      const coeff = 2 * Math.cos((2 * Math.PI * hz) / rate);
+      let s1 = 0;
+      let s2 = 0;
+      for (let i = from; i < to; i++) {
+        const s0 = (pcm[i] as number) / 32768 + coeff * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+      }
+      return (2 * Math.sqrt(Math.max(s1 * s1 + s2 * s2 - coeff * s1 * s2, 0))) / (to - from);
+    };
+    // The baseline: minimp3's own 44.1 kHz output still holds the tone, within 3 dB of the 0.5 amplitude encoded.
+    const decoder = createMp3Decoder(scanMp3(tone12kMp3).audio);
+    const blocks: Int16Array[] = [];
+    for (let block = decoder.decode(5); block.samples > 0; block = decoder.decode(5)) blocks.push(block.pcm);
+    const native = amplitude(concatPcm(blocks), 12_000, 44_100);
+    expect(Math.abs(20 * Math.log10(native / 0.5))).toBeLessThan(3);
+    // After resampling to 16 kHz, its alias at 4 kHz is at least 60 dB below that decoded level.
+    const out = joined(await decodeAll(tone12kMp3));
+    expect(20 * Math.log10(amplitude(out, 4_000, 16_000) / native)).toBeLessThan(-60);
   });
 
   it("sets tags aside: ID3v2.4 with its footer, ID3v1 and APE", async () => {
