@@ -70,6 +70,10 @@ Optional: one to three clients opt in in writing from day 6, covering processing
 - [ ] Ask up to three clients and keep each signed consent outside the repository, recording here only `Pilot consent: <count>, YYYY-MM-DD` (no names). Done when: the line is written, with count 0 if none.
 - [ ] Commit: `todo: record pilot consents`
 
+Pilot consent: 1, 2026-10-27
+
+Recorded 2026-10-27 11:26 SAST from the operator: the pilot is a client whose email security, Microsoft 365, websites and IT Rizonetech manages with permission to do what is needed to secure it, and who asked for this problem to be solved. The consent basis, the client's name and its account controller (a Rizonetech-controlled mailbox in the client's domain) are kept outside the repository in `samples/pilot-consent.md`; no mail is sent to the client's people (`AGENTS.md` Safety).
+
 **Test checkpoint:** `grep -cE '^Pilot consent: [0-3], 2026-' todo/99-manual/TODO-02-event-operator.md` prints `1`.
 
 ## 3. Record the demo footage
