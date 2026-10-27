@@ -268,7 +268,11 @@ Evidence 2026-10-27 08:55 SAST. Account "Derick@rizonetech.com's Account": D1 `i
 
 ## 6. AI Gateway for the Meta Model API
 
+> **Started:** 2026-10-27T08:05:46Z
+
 All Meta traffic goes through an AI Gateway custom provider in front of `https://api.meta.ai/v1`, for per-request cost and latency logs without storing prompt content (stack doc "Model traffic"). This section configures the gateway only; no Meta call is made until §7.
+
+**Corrected 2026-10-27** (validation against Cloudflare's docs and API before build): AI Gateway has no gateway setting that stops storing request and response bodies while keeping their metadata; that is the per-request header `cf-aig-collect-log-payload: false` (Cloudflare changelog 2026-03-17), which D03 T01's client already sends on every call, while the gateway-wide `collect_logs` switch would also drop the cost and latency logs this gateway exists for. A custom provider's `base_url` is the provider's domain only (`https://api.meta.ai`); the `/v1` goes in the request path, or calls reach `/v1/v1/...`. The custom provider is an account resource (`/ai-gateway/custom-providers`) used through the gateway as `custom-<slug>`. Wrangler's login has no AI Gateway scope (the API answered 403), so the gateway is created and read back through the Cloudflare connector of this session, and the checkpoint is that read-back, not a curl with a token this repository does not hold.
 
 **Phase:** 0
 **Needs:** cloudflare
@@ -279,12 +283,12 @@ All Meta traffic goes through an AI Gateway custom provider in front of `https:/
 1. Create gateway `isitlegit` with a custom provider for `https://api.meta.ai/v1`. Done when: the gateway shows in the Cloudflare dashboard API with the provider slug recorded in `wrangler.jsonc` vars.
 2. Configure payload logging off. Done when: the gateway settings read back with prompt and response logging disabled.
 
-- [ ] Create AI Gateway `isitlegit` on account `f5a529987f8dc7d52ce7aba3da25e226` through the Cloudflare API. Done when: a GET of the gateway returns it.
-- [ ] Add a custom provider with base URL `https://api.meta.ai/v1` (Cloudflare docs, AI Gateway custom providers). Done when: the provider's slug is recorded in `wrangler.jsonc` as var `META_GATEWAY_URL`.
-- [ ] Disable payload logging on the gateway and document the `cf-aig-collect-log-payload: false` header the client sends. Done when: the gateway settings read back with logging of bodies off. Cheaper substitute: relying on the header alone, which a client bug would drop.
+- [ ] Create AI Gateway `isitlegit` on account `f5a529987f8dc7d52ce7aba3da25e226` through the Cloudflare API, with logs collected (`collect_logs: true`, metadata for cost and latency), no gateway cache (`cache_ttl: 0`: the client caches by artefact hash) and no gateway rate limit. Done when: a GET of the gateway returns it with those settings.
+- [ ] Add the account custom provider `meta` (name "Meta Model API", `base_url` `https://api.meta.ai`, enabled; Cloudflare docs, AI Gateway custom providers) and record the client's base URL `https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1` in `wrangler.jsonc` as var `META_GATEWAY_URL`. Done when: a GET of the provider returns it enabled with that `base_url`, `wrangler types --check` passes with the var, and a request to `META_GATEWAY_URL` without a Meta key reaches Meta through the gateway (Meta's own 401, not a gateway 404). (**Corrected 2026-10-27:** the base URL was `https://api.meta.ai/v1`.)
+- [ ] Keep prompt and response bodies out of the logs: document in the stack doc's "Model traffic" row that the gateway stores metadata only because every request carries `cf-aig-collect-log-payload: false`, which D03 T01's `metaResponses` sets and tests (XREF: D03 T01 §2). Done when: the stack doc row says so and names the header and its owner. (**Corrected 2026-10-27:** was "disable payload logging on the gateway", a setting AI Gateway does not have; the header is the control, and a test in the client owns it.)
 - [ ] Commit: `infra: AI Gateway custom provider for the Meta Model API`
 
-**Test checkpoint:** `curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/accounts/f5a529987f8dc7d52ce7aba3da25e226/ai-gateway/gateways/isitlegit | jq .success` prints `true`.
+**Test checkpoint:** a GET of `/accounts/f5a529987f8dc7d52ce7aba3da25e226/ai-gateway/gateways/isitlegit` and of the `meta` custom provider through the Cloudflare API returns both with the settings above, and an unauthenticated request to `META_GATEWAY_URL/models` is answered by Meta, not by the gateway with a 404. (**Corrected 2026-10-27:** was a curl with `$CLOUDFLARE_API_TOKEN`, which this repository does not hold.)
 
 ## 7. Meta smoke test
 
