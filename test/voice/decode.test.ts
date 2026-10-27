@@ -266,7 +266,15 @@ describe("decodeToWavChunks", () => {
     const refusal = await decodeAll(m4a, "audio/mp4").catch((e: unknown) => e);
     expect(refusal).toBeInstanceOf(UnsupportedAudio);
     expect((refusal as UnsupportedAudio).type).toBe("audio/mp4");
-    expect((refusal as Error).message).toMatch(/audio\/mp4 .*Ogg Opus, WAV and MP3/);
+    // In the member's terms, with the next step and the formats taken (D01 T03 §8's completion review).
+    const message = (refusal as Error).message;
+    expect(message).toMatch(/^This recording is M4A \(AAC, as iPhone voice memos are\)/);
+    expect(message).toMatch(/Export it as MP3 or WAV, or send it as a WhatsApp voice note \(Ogg Opus\)/);
+    for (const type of ["audio/x-m4a", "audio/aac"])
+      expect(new UnsupportedAudio(type).message).toMatch(/^This recording is M4A/);
+    expect(new UnsupportedAudio("audio/flac").message).toBe(
+      "Audio of type audio/flac cannot be checked. Upload it as Ogg Opus, WAV or MP3.",
+    );
   });
 
   describe("damaged audio is refused, never passed on", () => {
