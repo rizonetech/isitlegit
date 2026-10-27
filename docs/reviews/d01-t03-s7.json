@@ -1,0 +1,110 @@
+{
+  "ref": "D01 T03 \u00a77",
+  "title": "MP3 decoding",
+  "implementation_sha": "b37cf3345ad30571681e20a70bd9b1740c3cfd5e",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T03-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T03-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/voice/decode.test.ts test/voice/mp3.test.ts test/node/opus-wasm.test.ts -> Tests  54 passed (54)",
+    "pnpm exec vitest run -> Tests 446 passed (446)",
+    "python3 scripts/build-minimp3-wasm.py --check -> matches a fresh build"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T03-s7.md",
+    "verdict": "filed",
+    "candidate": "d0a00faa9e94acf01d483cd4202632e93098fe53",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T03 \u00a76",
+      "D01 T03 \u00a71",
+      "D01 T03 \u00a73",
+      "D01 T03 \u00a79"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T03-s7.md",
+    "candidate": "e4b3808709f24c47e5f0075184c2f355c3a4ed32",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

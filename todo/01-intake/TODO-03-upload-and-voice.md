@@ -40,7 +40,7 @@ track: day-1
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [ ] |
-| 7 | §7 | MP3 decoding | §2 | [ ] |
+| 7 | §7 | MP3 decoding | §2 | [x] |
 | 8 | §8 | M4A decoding | §2 | [ ] |
 | 9 | §9 | Filtered resampling for WAV | §2 | [ ] |
 
@@ -232,9 +232,12 @@ Evidence after the completion review and rounds 1 and 2, 2026-10-28 00:31 SAST. 
 > **Deferred:** filtered resampling for MP3 and its timing against FFmpeg -> XREF: D01 T03 §9
 
 - [x] Close §2's MP3 deferral as `Resolved:`. Done when: §2's Deferred line reads resolved with this section's commit.
-- [ ] Commit: `voice: decode MP3 voice notes and voicemail attachments`
+- [x] Commit: `voice: decode MP3 voice notes and voicemail attachments`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts test/voice/mp3.test.ts test/node/opus-wasm.test.ts` passes (**corrected 2026-10-28**, completion review gap 2: the MP3 suite was missing) and fails if an MP3 is refused, if its decoded tone is not 440 Hz at its level and length, if damage passes the frame walk, or if a long MP3 is decoded at all.
+
+> **Verified:** 2026-10-28 | §7 | b37cf3345ad30571681e20a70bd9b1740c3cfd5e
+> **Review:** `docs/reviews/d01-t03-s7.json`
 
 ## 8. M4A decoding
 
