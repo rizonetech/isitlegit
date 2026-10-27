@@ -215,6 +215,8 @@ Evidence 2026-10-27 03:40 SAST, after the final review: push run https://github.
 
 ## 5. Cloudflare bindings and first deploy
 
+> **Started:** 2026-10-27T06:30:22Z
+
 The Worker needs D1 for cases and tenants, R2 for raw mail and artefacts (with a 30-day lifecycle on `raw/` for POPIA), KV for caches, a Workflow for the pipeline and Browser Run for rendering (stack doc "Platform services"). Resource creation and the first deploy are covered by the operator's standing authorisation for IsItLegit resources (design spec section 11, `AGENTS.md` Safety; **Corrected 2026-10-26:** this section needed `attended` before that authorisation).
 
 **Phase:** 0
@@ -231,8 +233,9 @@ The Worker needs D1 for cases and tenants, R2 for raw mail and artefacts (with a
 - [ ] Create R2 bucket `isitlegit-artefacts` with `wrangler r2 bucket create`. Done when: it is bound as `ARTEFACTS` in `wrangler.jsonc`.
 - [ ] Add an R2 lifecycle rule deleting objects under `raw/` after 30 days (design spec 4.8, POPIA). Done when: `wrangler r2 bucket lifecycle list isitlegit-artefacts` shows the rule. Cheaper substitute: a cleanup cron in the Worker, which fails silently when the Worker is broken.
 - [ ] Create KV namespace `isitlegit-cache` and bind it as `CACHE`. Done when: `wrangler kv namespace list` shows it and `wrangler.jsonc` holds its id.
-- [ ] Add a stub `AnalysisWorkflow` class in `src/pipeline/analysis-workflow.ts` with one no-op step, exported from `src/index.ts` and bound as `ANALYSIS`. Done when: `pnpm typecheck` passes with the binding type.
+- [ ] Add a stub `AnalysisWorkflow` class in `src/pipeline/analysis-workflow.ts` with one no-op step, exported from `src/index.ts` and bound as `ANALYSIS` (`workflows`: name `isitlegit-analysis`, `class_name` `AnalysisWorkflow`). Done when: `pnpm typecheck` passes with the binding type.
 - [ ] Add the Browser Run binding `BROWSER` to `wrangler.jsonc`. Done when: `wrangler types` emits `BROWSER: Fetcher`.
+- [ ] Prove each binding from inside the Worker: `test/bindings.test.ts` (the `worker` project, in workerd) runs `select 1` on `DB`, puts, reads and deletes an object under `test/` in `ARTEFACTS`, puts and reads a key in `CACHE`, and creates an `ANALYSIS` instance that completes its no-op step; `BROWSER` is typed as a `Fetcher` (it has no local simulation). Done when: the test passes and fails when a binding is removed from `wrangler.jsonc`. (**Corrected 2026-10-27:** the section proved the bindings only by listing commands, which pass for a binding the Worker cannot use.)
 - [ ] Deploy with `wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)`, only from a clean tree (`git status --porcelain` prints nothing) whose `HEAD` is pushed. Done when: `curl -s https://isitlegit.<account>.workers.dev/health` returns the same SHA. **Corrected 2026-10-27** (D00 T01 §2 final review P3): a deploy from a tree with uncommitted edits would report a commit that is not the code it serves.
 - [ ] Commit: `infra: Cloudflare bindings, R2 lifecycle and first deploy`
 
