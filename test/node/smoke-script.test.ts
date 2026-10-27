@@ -143,14 +143,17 @@ describe("scripts/smoke.ts", () => {
     expect(outcome.lines.join("\n")).not.toContain(token);
   });
 
-  it("reconciles an interrupted rotation: the vault first, the Worker failing, then a second --rotate", async () => {
+  it("puts the old token back in the vault when the Worker refuses, and says how to reconcile if that fails", async () => {
     const vault = { fields: [{ id: "credential", value: "a".repeat(64) }] };
     const worker = { token: "a".repeat(64), fail: true };
+    let edits = 0;
+    let failEdit = 0;
     const run: Runner = async (command, args, input) => {
       if (command === "op" && args[1] === "get") return JSON.stringify(vault);
       if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
       // The template reaches op through a real pipe (sh -c 'cat | exec op ...').
       if (command === "sh" && args.includes("edit")) {
+        if (++edits === failEdit) throw new Error("op: network error");
         vault.fields = JSON.parse(input).fields;
         return "";
       }
@@ -170,8 +173,13 @@ describe("scripts/smoke.ts", () => {
     const rotate = rotateWith(run, () => ({}));
     const first = await rotate(Date.now() + 2_000).catch((e: Error) => e);
     expect((first as Error).message).toMatch(
-      /vault has the new token but the Worker did not take it .* `--rotate` runs again/,
+      /Worker did not take the new token .* put back to the old one, so nothing changed/,
     );
+    expect(vault.fields[0]?.value).toBe(worker.token);
+    // Putting the old token back fails too: the vault and the Worker disagree, and the message says what reconciles them.
+    failEdit = edits + 2;
+    const second_ = await rotate(Date.now() + 2_000).catch((e: Error) => e);
+    expect((second_ as Error).message).toMatch(/putting the old token back failed.*`--rotate` runs again/);
     expect(vault.fields[0]?.value).not.toBe(worker.token);
     worker.fail = false;
     const second = await rotate(Date.now() + 2_000);
@@ -253,6 +261,26 @@ describe("scripts/smoke.ts", () => {
     expect(() => parseSmokeArgs(["https://x", "--commit", "abc"])).toThrow(/full 40-hex/);
     expect(() => parseSmokeArgs(["https://x", "--rotat"])).toThrow();
     expect(() => parseSmokeArgs([])).toThrow(/exactly one/);
+  });
+
+  it("runs a command that exits without reading its input, instead of crashing on the broken pipe", async () => {
+    for (let i = 0; i < 5; i++)
+      expect(await runCommand("sh", ["-c", "echo done"], "x".repeat(1_000_000), Date.now() + 5_000)).toBe("done\n");
+  });
+
+  it("waits through answers from another version, a 503 from the one being left included", async () => {
+    let calls = 0;
+    const base = await serve(() =>
+      ++calls === 1
+        ? {
+            status: 503,
+            body: JSON.stringify({ ok: false, commit: "old", version: "v-old", checks: { DB: "failed" } }),
+          }
+        : { status: 200, body: pass },
+    );
+    const outcome = await runSmoke(base, quick);
+    expect(outcome.ok).toBe(true);
+    expect(calls).toBe(2);
   });
 
   it("fails when the version serving all traffic changes during the run", async () => {

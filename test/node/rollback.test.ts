@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -47,13 +47,19 @@ const deployment = (version: string, at: number): Deployment => ({
   versions: [{ version_id: version, percentage: 100 }],
 });
 const HISTORY = [deployment("a", 1), deployment("b", 2), deployment("b2", 3), deployment("c", 4)];
+// Upload numbers: later versions are higher.
+const NUMBERS: Record<string, number> = { a: 1, b: 2, b2: 3, c: 4, c1: 3, c2: 4 };
+const viewOf =
+  (commits: Record<string, string>, numbers: Record<string, number> = NUMBERS) =>
+  async (version: string) =>
+    commits[version] ? { commit: commits[version] as string, number: numbers[version] ?? 0 } : null;
 
 function stage(active = "c", overrides: Partial<Wrangler> = {}) {
   const state = { active, rollbacks: [] as string[] };
   const wrangler: Wrangler = {
     activeVersion: async () => state.active,
     deployments: async () => HISTORY,
-    commitOf: async (version) => COMMITS[version] ?? null,
+    view: viewOf(COMMITS),
     rollback: async (version) => {
       state.rollbacks.push(version);
       state.active = version;
@@ -85,7 +91,7 @@ describe("scripts/rollback.ts", () => {
     const commits: Record<string, string> = { ...COMMITS, c2: COMMITS.c as string };
     const { state, wrangler } = stage("c2", {
       deployments: async () => [...HISTORY, deployment("c2", 5)],
-      commitOf: async (version) => commits[version] ?? null,
+      view: viewOf(commits, { ...NUMBERS, c2: 5 }),
     });
     const outcome = await run(wrangler, {
       ...passing(state),
@@ -117,7 +123,7 @@ describe("scripts/rollback.ts", () => {
     const wrangler: Wrangler = {
       activeVersion: async () => state.active,
       deployments: async () => history,
-      commitOf: async (version) => commits[version] ?? null,
+      view: viewOf(commits),
       rollback: async (version) => {
         state.rollbacks.push(version);
         state.active = version;
@@ -130,6 +136,21 @@ describe("scripts/rollback.ts", () => {
     expect((await run(wrangler, checks)).ok).toBe(true);
     expect((await run(wrangler, checks)).ok).toBe(true);
     expect(state.rollbacks).toEqual(["b", "a"]);
+  });
+
+  it("records the version it leaves on a rollback, and nothing on a roll-forward, which clears its target", async () => {
+    const { state, wrangler } = stage("c");
+    const back = await run(wrangler, passing(state));
+    expect(back.lines).toContain(
+      `recorded: c (commit ${COMMITS.c}) as rolled away from, in ${REJECTED}; delete it once a good deploy is live`,
+    );
+    const forward = await run(wrangler, passing(state), { target: "c" });
+    expect(forward.ok).toBe(true);
+    expect(forward.lines).toContain(`recorded: nothing (a roll-forward); c is cleared from ${REJECTED}`);
+    // The good version b2 that the roll-forward left is still eligible for the next rollback.
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: [], commits: [] });
+    const again = await run(wrangler, passing(state));
+    expect(again.lines).toContain(`chosen: b2 (commit ${COMMITS.b})`);
   });
 
   it("rolls back to an explicit target, even past the default", async () => {
@@ -371,20 +392,48 @@ describe("scripts/rollback.ts", () => {
     expect(outcome).toMatchObject({ ok: false, changed: "uncertain" });
   });
 
-  it("says the deployment state is uncertain when interrupted, then stops its commands", async () => {
-    // The script's own notice and cleanup, in a real process, interrupted while it waits.
-    const program = `import("./scripts/rollback.ts").then(async (r) => { const s = await import("./scripts/smoke.ts");
-      s.installSignalCleanup(); r.registerInterruptNotice(); setTimeout(() => {}, 20000); });`;
-    const child = spawn(process.execPath, ["-e", program], { cwd: ROOT, stdio: ["ignore", "ignore", "pipe"] });
+  it("says the deployment state is uncertain when interrupted during the deployment call, and stops that command", async () => {
+    // The real entry point against a stand-in pnpm: status, history and versions answer, and the deployment call
+    // (`wrangler auth token`, its first step) hangs until the interrupt.
+    const bin = join(DIR, "bin");
+    mkdirSync(bin, { recursive: true });
+    const pidFile = join(DIR, "stalled.pid");
+    writeFileSync(
+      join(bin, "pnpm"),
+      `#!/bin/sh
+case "$*" in
+  *"deployments status"*) echo '{"versions":[{"version_id":"c","percentage":100}]}' ;;
+  *"deployments list"*) echo '[{"created_on":"1","versions":[{"version_id":"b","percentage":100}]},{"created_on":"2","versions":[{"version_id":"c","percentage":100}]}]' ;;
+  *"versions view c"*) echo '{"number":2,"resources":{"bindings":[{"name":"COMMIT_SHA","text":"${"C".repeat(40)}"}]}}' ;;
+  *"versions view b"*) echo '{"number":1,"resources":{"bindings":[{"name":"COMMIT_SHA","text":"${"B".repeat(40)}"}]}}' ;;
+  *"auth token"*) echo $$ > "${pidFile}"; exec sleep 30 ;;
+  *) exit 9 ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+    const child = spawn(process.execPath, ["scripts/rollback.ts", "--reason", "interrupt test"], {
+      cwd: ROOT,
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, ROLLBACK_RECORD: REJECTED },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
     let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
-    // Long enough for the module to load and the listeners to be in place.
-    await new Promise((r) => setTimeout(r, 1_500));
     const exited = new Promise<number | null>((resolve) => child.on("exit", (code) => resolve(code)));
+    for (let waited = 0; !stdout.includes("Rolling back to b") || !existsSync(pidFile); waited += 100) {
+      if (waited > 10_000) throw new Error(`the rollback never reached the deployment call: ${stdout}${stderr}`);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const stalled = Number(readFileSync(pidFile, "utf-8"));
     child.kill("SIGINT");
     expect(await exited).toBe(130);
     expect(stderr).toContain("rollback: interrupted; whether the deployment changed is uncertain");
-  }, 15_000);
+    expect(() => process.kill(stalled, 0)).toThrow();
+  }, 20_000);
 });

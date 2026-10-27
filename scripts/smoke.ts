@@ -147,7 +147,9 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
       }
       try {
         const body = JSON.parse(text) as { version?: string; checks?: Record<string, string> };
-        if (body.version && body.version !== version && status === 200) {
+        // Any answer from another version (a 503 from the broken one being left, say) means the change has not
+        // reached this location yet.
+        if (body.version && body.version !== version) {
           await pause(2_000);
           continue;
         }
@@ -253,6 +255,11 @@ export function runCommand(
       if (code !== 0) return reject(new Error(`${what} failed (exit ${code}): ${stderr.slice(-400)}`));
       resolve(stdout);
     });
+    // A command may finish without reading its input; the broken pipe that leaves is not a failure (the exit code
+    // decides), and unhandled it would end this whole process.
+    child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE") reject(error);
+    });
     child.stdin.end(input);
   });
 }
@@ -340,6 +347,7 @@ export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
     );
     const field = (item.fields as { id: string; value?: string }[]).find((f) => f.id === "credential");
     if (!field) throw new Error(`the vault item "${VAULT_ITEM}" has no credential field`);
+    const old = field.value ?? "";
     field.value = token;
     await run(
       ...opWithInput(["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"]),
@@ -356,9 +364,31 @@ export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
     try {
       await run("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], token, deadline);
     } catch (error) {
+      // The Worker kept the old token (a rollback that landed after the check above, a network failure), so the vault
+      // goes back to it and the two agree again.
+      const why = (error as Error).message;
+      let restored = false;
+      try {
+        field.value = old;
+        await run(
+          ...opWithInput(["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"]),
+          JSON.stringify(item),
+          deadline,
+          opEnvironment,
+        );
+        restored =
+          (await run("op", ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline, opEnvironment)).trim() ===
+          old;
+      } catch {
+        // restored stays false
+      }
+      if (restored)
+        throw new Error(
+          `the Worker did not take the new token (${why}); the vault was put back to the old one, so nothing changed`,
+        );
       throw new Error(
-        `the vault has the new token but the Worker did not take it (${(error as Error).message}); plain smoke runs ` +
-          "will fail until `--rotate` runs again and passes (docs/operations.md)",
+        `the vault has the new token but the Worker did not take it (${why}), and putting the old token back failed; ` +
+          "plain smoke runs will fail until `--rotate` runs again and passes (docs/operations.md)",
       );
     }
     return { token, version: await activeVersionWith(run, deadline) };

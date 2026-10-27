@@ -27,7 +27,7 @@ After the change it reads back the active version, waits for `/health` to report
 
 A rollback changes only which code version serves traffic. It never changes D1, R2 or KV data. It does not undo a D1 schema migration either, so code older than a migration may meet a newer schema: check `migrations/` between the two commits before rolling back across one.
 
-When the incident is over and a good deploy is live, delete `build/rollback-rejected.json`, so later rollbacks may choose those versions again.
+Each run says what it recorded. A rollback records the version and commit it leaves; a roll-forward (`--to` a newer version) records nothing and clears its target, which you have just vouched for. When the incident is over and a good deploy is live, delete `build/rollback-rejected.json`, so later rollbacks may choose those versions again.
 
 ## Redeploy a known-good commit
 

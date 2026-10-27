@@ -30,8 +30,8 @@ export type Wrangler = {
   activeVersion: (deadline: number) => Promise<string>;
   // Oldest first, as `wrangler deployments list --json` answers.
   deployments: (deadline: number) => Promise<Deployment[]>;
-  // The version's commit, or null when the version is gone.
-  commitOf: (version: string, deadline: number) => Promise<string | null>;
+  // The version's commit (null when it carries none) and its upload number, or null when the version is gone.
+  view: (version: string, deadline: number) => Promise<{ commit: string | null; number: number } | null>;
   // Puts the version on 100% of traffic; throws SecretsChanged when Cloudflare refuses because secrets differ.
   rollback: (version: string, message: string, deadline: number) => Promise<void>;
 };
@@ -111,14 +111,19 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
   let rejected: Rejected;
   try {
     rejected = readRejected(rejectedFile);
-    const activeCommit = await withProgress("Reading the version serving all traffic", log, async () => {
+    const activeView = await withProgress("Reading the version serving all traffic", log, async () => {
       active = await wrangler.activeVersion(deadline);
-      return wrangler.commitOf(active, deadline);
+      return wrangler.view(active, deadline);
     });
+    const activeCommit = activeView?.commit ?? null;
+    let forward = false;
     lines.push(`active: ${active} (commit ${activeCommit ?? "unknown"})`);
     if (target) {
       if (target === active) return finish(false, "no", `rollback: ${target} already serves all traffic`);
-      commit = await wrangler.commitOf(target, deadline);
+      const targetView = await wrangler.view(target, deadline);
+      commit = targetView?.commit ?? null;
+      // A newer target is a roll-forward: the version being left is not judged broken.
+      forward = !!targetView && !!activeView && targetView.number > activeView.number;
       if (!commit)
         return finish(
           false,
@@ -134,7 +139,7 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
           for (const { version_id: version } of deployment.versions) {
             if (seen.has(version) || version === active || rejected.versions.includes(version)) continue;
             seen.add(version);
-            const candidate = await wrangler.commitOf(version, deadline);
+            const candidate = (await wrangler.view(version, deadline))?.commit;
             if (candidate && candidate !== activeCommit && !rejected.commits.includes(candidate)) {
               chosen = version;
               commit = candidate;
@@ -151,11 +156,24 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
         );
     }
     lines.push(`chosen: ${chosen} (commit ${commit})`);
-    // Recorded before the rollback, so a retry after this run never goes back to the code it is leaving.
-    writeRejected(rejectedFile, {
-      versions: [...new Set([...rejected.versions, active])],
-      commits: activeCommit ? [...new Set([...rejected.commits, activeCommit])] : rejected.commits,
-    });
+    // Recorded before the rollback, so a retry after this run never goes back to the code it is leaving. A roll-forward
+    // records nothing and clears its target, which the operator has just vouched for.
+    const goingTo = chosen as string;
+    const record = forward
+      ? {
+          versions: rejected.versions.filter((v) => v !== goingTo),
+          commits: rejected.commits.filter((c) => c !== commit),
+        }
+      : {
+          versions: [...new Set([...rejected.versions, active])],
+          commits: activeCommit ? [...new Set([...rejected.commits, activeCommit])] : rejected.commits,
+        };
+    writeRejected(rejectedFile, record);
+    lines.push(
+      forward
+        ? `recorded: nothing (a roll-forward); ${goingTo} is cleared from ${rejectedFile}`
+        : `recorded: ${active} (commit ${activeCommit ?? "unknown"}) as rolled away from, in ${rejectedFile}; delete it once a good deploy is live`,
+    );
   } catch (error) {
     return finish(false, "no", `rollback: ${(error as Error).message}`);
   }
@@ -282,11 +300,11 @@ const wrangler = (args: string[], deadline: number) => runCommand("pnpm", ["exec
 export const realWrangler: Wrangler = {
   activeVersion: activeVersionFromWrangler,
   deployments: async (deadline) => JSON.parse(await wrangler(["deployments", "list", "--json"], deadline)),
-  commitOf: async (version, deadline) => {
+  view: async (version, deadline) => {
     try {
       const view = JSON.parse(await wrangler(["versions", "view", version, "--json"], deadline));
       const binding = (view.resources?.bindings ?? []).find((b: { name: string }) => b.name === "COMMIT_SHA");
-      return binding?.text ?? null;
+      return { commit: binding?.text ?? null, number: view.number as number };
     } catch (error) {
       if (/not found|10007|does not exist/i.test((error as Error).message)) return null;
       throw error;
@@ -339,7 +357,8 @@ if (import.meta.filename === process.argv[1]) {
     ...args,
     wrangler: realWrangler,
     checks: checksFor(`https://${WORKER_HOST}`),
-    rejectedFile: join(process.cwd(), "build/rollback-rejected.json"),
+    // The checkout's own build/, wherever the script is run from; ROLLBACK_RECORD points elsewhere (the tests).
+    rejectedFile: process.env.ROLLBACK_RECORD ?? join(import.meta.dirname, "../build/rollback-rejected.json"),
     log: (line) => console.log(line),
   });
   for (const line of outcome.lines) console.log(line);
