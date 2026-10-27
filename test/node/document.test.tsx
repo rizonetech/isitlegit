@@ -61,7 +61,9 @@ describe("Document", () => {
     expect(() => html(<Document title=" ">x</Document>)).toThrow("needs a title");
   });
 
-  it("names only URLs the Worker serves, in every frame", async () => {
+  // Each URL is fetched from the Worker started above; with the voice decoder's long CPU-bound tests running beside it,
+  // those round trips can outlast the default 5 s, as starting and stopping it can (the hooks above).
+  it("names only URLs the Worker serves, in every frame", { timeout: 30_000 }, async () => {
     const pages = [
       html(
         <Document title="Cases">
