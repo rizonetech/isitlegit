@@ -124,8 +124,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("frames at phone and desktop
       </Document>,
     );
     const page = await openPage(browser, tall, { viewport: { width: 1280, height: 800 }, javaScriptEnabled: false });
-    await page.mouse.wheel(0, 1500);
-    await page.waitForFunction(() => window.scrollY > 0);
+    // Scroll the page itself: a wheel at the pointer's resting place (0, 0) lands on the sidebar's own scroll region.
+    await page.evaluate(() => window.scrollTo(0, 1500));
+    expect(await page.evaluate(() => window.scrollY)).toBe(1500);
     expect((await page.locator("#nav").boundingBox())?.y).toBe(0);
     expect(await page.getByText("Sign out", { exact: true }).isVisible()).toBe(true);
     await page.context().close();
