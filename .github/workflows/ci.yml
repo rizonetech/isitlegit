@@ -1,6 +1,7 @@
 # The Worker and TODO gates on every push and pull request. CI never deploys: deploys run from the build session with
 # the local Wrangler login after the same gates pass (tech stack spec, "CI"). Four jobs, so `gh run rerun --failed`
-# repeats only the group that failed; each timeout is about five times the job's measured time (run 40431354712).
+# repeats only the group that failed. Timeouts stop a hung install or Chromium long before the six-hour default; measured
+# on run 40432358282: Worker gates 29 s (10 min), TODO graph 4 s (5 min), project tests 2 min 14 s (15 min), kit 38 s (10 min).
 name: CI
 
 on:
@@ -45,6 +46,9 @@ jobs:
           persist-credentials: false
           # Full history: `todo-graph.py validate` checks that every stamp's commit exists (a shallow clone has only HEAD).
           fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
       - name: TODO graph validate
         run: python3 scripts/todo-graph.py validate
       - name: Implementation plan is current
@@ -59,6 +63,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
       - name: Project script tests
         run: python3 -m unittest discover -s tests/scripts
         env:
@@ -75,5 +82,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
       - name: Kit script tests
         run: python3 -m unittest discover -s scripts/tests
