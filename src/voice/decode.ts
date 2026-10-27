@@ -213,7 +213,7 @@ export function opusPacketSamples(packet: Uint8Array): number | null {
   return samples > 5_760 ? null : samples; // at most 120 ms
 }
 
-type OggPacket = { packet: Uint8Array; index: number; page: number; granule: bigint };
+type OggPacket = { packet: Uint8Array; index: number; from: number; page: number; granule: bigint };
 
 // The packets of a checked Ogg stream, in order, each with the page it ends on. A packet within one page is a view of
 // the input; one that runs on into the next page is copied together. A page must say it continues a packet exactly
@@ -221,6 +221,7 @@ type OggPacket = { packet: Uint8Array; index: number; page: number; granule: big
 function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
   let index = 0;
   let pending: Uint8Array[] = [];
+  let from = 0;
   for (let at = 0, page = 0; at < bytes.length; page++) {
     const continued = ((bytes[at + 5] as number) & 0x01) !== 0;
     if (continued && !pending.length)
@@ -247,12 +248,14 @@ function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
           }
           pending = [];
         }
-        yield { packet, index: index++, page, granule };
+        yield { packet, index: index++, from, page, granule };
         start += size;
         size = 0;
+        from = page;
       }
     }
     if (size > 0) pending.push(bytes.subarray(start, start + size));
+    else from = page + 1;
     let body = 0;
     for (let i = 0; i < segments; i++) body += bytes[at + 27 + i] as number;
     at += 27 + segments + body;
@@ -285,20 +288,27 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: numbe
     if (end > bytes.length) throw new CorruptAudio(`the Ogg stream is cut short in page ${page}`);
     if (pageCrc(bytes, at, end) !== view.getUint32(at + 22, true))
       throw new CorruptAudio(`Ogg page ${page} fails its checksum`);
-    flags = bytes[at + 5] as number;
-    granule = view.getBigInt64(at + 6, true);
+    // RFC 3533 6: version 0; flags only continued (0x01), first (0x02) and last (0x04); one logical stream, its first
+    // page marked first and a page marked last the last (a page marked first after it is a chained stream).
+    if (bytes[at + 4] !== 0) throw new CorruptAudio(`Ogg page ${page} has an unknown version (${bytes[at + 4]})`);
+    const pageFlags = bytes[at + 5] as number;
     const pageSerial = view.getUint32(at + 14, true);
     const pageSequence = view.getUint32(at + 18, true);
+    if (pageFlags & ~0x07) throw new CorruptAudio(`Ogg page ${page} sets flags Ogg does not define`);
     if (page === 0) {
+      if (!(pageFlags & 0x02)) throw new CorruptAudio("the Ogg stream's first page does not begin the stream");
       serial = pageSerial;
       sequence = pageSequence;
     } else {
-      if (pageSerial !== serial || flags & 0x02)
+      if (pageSerial !== serial || pageFlags & 0x02)
         throw new UnsupportedAudio("audio/ogg with chained or multiple streams");
+      if (flags & 0x04) throw new CorruptAudio(`the Ogg stream goes on after page ${page - 1}, which ended it`);
       if (pageSequence !== sequence + 1)
         throw new CorruptAudio(`Ogg page ${page} is missing (the stream skips a page)`);
       sequence = pageSequence;
     }
+    flags = pageFlags;
+    granule = view.getBigInt64(at + 6, true);
     at = end;
   }
   if (!(flags & 0x04)) throw new CorruptAudio("the Ogg stream is cut short (its last page does not end the stream)");
@@ -311,11 +321,23 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: numbe
   let firstPage = -1;
   let firstGranule = 0n;
   let onFirstPage = 0;
-  for (const { packet, index, page: endsOn, granule: pageGranule } of oggPackets(bytes)) {
+  let tagsPage = 0;
+  for (const { packet, index, from, page: endsOn, granule: pageGranule } of oggPackets(bytes)) {
+    // RFC 7845 3: the OpusHead alone on the first page, the OpusTags from the second page to the end of a page, the
+    // audio from the next page on, and the header pages at granule position 0.
+    if (index < 2 && pageGranule !== 0n)
+      throw new CorruptAudio("the Ogg stream's header pages are not at granule position 0");
+    if (index === 0 && (from !== 0 || endsOn !== 0))
+      throw new CorruptAudio("the Ogg stream's OpusHead is not alone on its first page");
+    if (index === 1 && from !== 1) throw new CorruptAudio("the Ogg stream's OpusTags does not start the second page");
+    if (index === 2 && from <= tagsPage)
+      throw new CorruptAudio("the Ogg stream's audio starts on the page its OpusTags ends");
     if (index === 0) {
       const magic = String.fromCharCode(...packet.subarray(0, 8));
       if (packet.length < 19 || magic !== "OpusHead")
         throw new CorruptAudio("the Ogg stream is not Opus (no OpusHead)");
+      // Version 0.x: a higher major version may change the header's layout (RFC 7845 5.1).
+      if ((packet[8] as number) >= 16) throw new UnsupportedAudio(`audio/ogg with Opus header version ${packet[8]}`);
       const channels = packet[9] as number;
       if (channels === 0) throw new CorruptAudio("the Opus stream has no channels");
       if (channels > 2 || packet[18] !== 0)
@@ -325,6 +347,7 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: numbe
       gain = 10 ** (new DataView(packet.buffer, packet.byteOffset + 16, 2).getInt16(0, true) / 256 / 20);
     } else if (index === 1) {
       checkOpusTags(packet);
+      tagsPage = endsOn;
     } else {
       const samples = opusPacketSamples(packet);
       if (samples === null) throw new CorruptAudio(`Opus packet ${index - 2} is malformed`);

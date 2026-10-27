@@ -451,6 +451,90 @@ describe("decodeToWavChunks", () => {
       ).rejects.toThrow(/OpusTags header is cut short/);
     });
 
+    it("follows RFC 3533's page rules and RFC 7845's header layout, each refused by name (round 4)", async () => {
+      const fixturePages = oggPackets(toneOgg);
+      // The fixture with one byte of page `index` set, checksums rebuilt.
+      const rebuilt = (index: number, offset: number, value: number) =>
+        concat(
+          fixturePages.map((p, i) => {
+            const page = oggPage(p.packet, p.flags, p.granule, i);
+            if (i === index) {
+              page[offset] = value;
+              new DataView(page.buffer).setUint32(22, 0, true);
+              new DataView(page.buffer).setUint32(22, oggCrc(page), true);
+            }
+            return page;
+          }),
+        );
+      // The error a decode ends with, or one saying it decoded.
+      const refused = (bytes: Uint8Array): Promise<Error> =>
+        decodeAll(bytes, "audio/ogg").then(
+          () => new Error("decoded"),
+          (e: unknown) => e as Error,
+        );
+      // Audio after a page that ended the stream.
+      const tenth = fixturePages[10] as { flags: number };
+      expect((await refused(rebuilt(10, 5, tenth.flags | EOS))).message).toMatch(
+        /goes on after page 10, which ended it/,
+      );
+      expect((await refused(rebuilt(5, 4, 1))).message).toMatch(/unknown version/);
+      expect((await refused(rebuilt(5, 5, 0x08))).message).toMatch(/does not define/);
+      expect((await refused(rebuilt(0, 5, 0))).message).toMatch(/does not begin the stream/);
+      // Header pages at a position other than 0.
+      expect((await refused(rebuilt(1, 6, 5))).message).toMatch(/granule position 0/);
+      // OpusHead version 1.0 (16): a layout this decoder does not know.
+      const v16 = (headers[0] as Uint8Array).slice();
+      v16[8] = 16;
+      const unknown = await refused(oggStream([v16, headers[1] as Uint8Array], audio, 960));
+      expect(unknown).toBeInstanceOf(UnsupportedAudio);
+      expect(unknown.message).toMatch(/header version 16/);
+      // OpusHead and OpusTags sharing the first page; OpusTags and the first audio packet sharing a page.
+      const [head, tags] = [headers[0] as Uint8Array, headers[1] as Uint8Array];
+      const shared = (pages: Uint8Array[]) => refused(concat(pages));
+      const audioPages = (from: number, sequence: number) =>
+        audio
+          .slice(from)
+          .map((p, i) =>
+            oggPage(p, from + i === audio.length - 1 ? EOS : 0, BigInt((from + i + 1) * 960), sequence + i),
+          );
+      expect(
+        (await shared([oggRawPage([head.length, tags.length], concat([head, tags]), BOS, 0n, 0), ...audioPages(0, 1)]))
+          .message,
+      ).toMatch(/OpusTags does not start the second page/);
+      // An OpusHead (with trailing bytes, 300 in all) split over the first two pages.
+      const longHead = new Uint8Array(300);
+      longHead.set(head);
+      expect(
+        (
+          await shared([
+            oggRawPage([255], longHead.subarray(0, 255), BOS, -1n, 0),
+            oggRawPage([45], longHead.subarray(255), 0x01, 0n, 1),
+            oggPage(tags, 0, 0n, 2),
+            ...audioPages(0, 3),
+          ])
+        ).message,
+      ).toMatch(/OpusHead is not alone on its first page/);
+      const first = audio[0] as Uint8Array;
+      expect(
+        (
+          await shared([
+            oggPage(head, BOS, 0n, 0),
+            oggRawPage([tags.length, first.length], concat([tags, first]), 0, 960n, 1),
+            ...audioPages(1, 2),
+          ])
+        ).message,
+      ).toMatch(/header pages are not at granule position 0|audio starts on the page its OpusTags ends/);
+      expect(
+        (
+          await shared([
+            oggPage(head, BOS, 0n, 0),
+            oggRawPage([tags.length, first.length], concat([tags, first]), 0, 0n, 1),
+            ...audioPages(1, 2),
+          ])
+        ).message,
+      ).toMatch(/audio starts on the page its OpusTags ends/);
+    });
+
     it("applies the OpusHead's output gain", async () => {
       const quiet = (headers[0] as Uint8Array).slice();
       new DataView(quiet.buffer).setInt16(16, -5_120, true); // -20 dB in Q7.8
