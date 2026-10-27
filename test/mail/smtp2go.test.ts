@@ -74,6 +74,8 @@ describe("sendMail", () => {
       custom_headers: [
         { header: "In-Reply-To", value: "<forward@example.com>" },
         { header: "References", value: "<orig@example.com> <forward@example.com>" },
+        // The send key, so an uncertain send can be matched to SMTP2GO's record later.
+        { header: "X-IsItLegit-Send", value: `test:${n}` },
       ],
     });
   });
@@ -102,17 +104,92 @@ describe("sendMail", () => {
       expect(stored).not.toContain(secret);
   });
 
-  it("retries a 503 and a 429, up to 3 attempts in all, and backs off between them", async () => {
-    const recovered = smtp2go([new Response("busy", { status: 503 }), ok()]);
-    expect(await sendMail(deps(recovered.stub), message())).toMatchObject({ status: "sent", attempts: 2 });
+  it("retries only a 429, up to 3 attempts in all, backing off and counting each attempt on the row as it ends", async () => {
+    const recovered = message();
+    const world = smtp2go([new Response("", { status: 429 }), ok()]);
+    const seen: unknown[] = [];
+    const watching = {
+      ...deps(world.stub),
+      pause: async (ms: number) => {
+        pauses.push(ms);
+        // During the backoff, as if the Worker stopped here: the first attempt is already on the row.
+        seen.push(await row(recovered.sendKey));
+      },
+    };
+    expect(await sendMail(watching, recovered)).toMatchObject({ status: "sent", attempts: 2 });
+    expect(seen[0]).toMatchObject({ status: "pending", attempts: 1, error: "SMTP2GO answered HTTP 429" });
+    expect(await row(recovered.sendKey)).toMatchObject({
+      status: "sent",
+      attempts: 2,
+      error: "sent after: SMTP2GO answered HTTP 429",
+    });
     expect(pauses).toEqual([1000]);
     pauses.length = 0;
     const limited = smtp2go([429, 429, 429, 429].map((s) => new Response("", { status: s })));
-    const gaveUp = await sendMail(deps(limited.stub), message());
-    expect(gaveUp).toMatchObject({ status: "failed", attempts: 3 });
-    expect(gaveUp.status === "failed" && gaveUp.reason).toMatch(/HTTP 429 3 times; gave up/);
+    const gaveUp = message();
+    const outcome = await sendMail(deps(limited.stub), gaveUp);
+    expect(outcome).toMatchObject({ status: "failed", attempts: 3 });
+    expect(outcome.status === "failed" && outcome.reason).toMatch(/HTTP 429 3 times; gave up/);
     expect(limited.calls).toHaveLength(3);
     expect(pauses).toEqual([1000, 2000]);
+    expect(await row(gaveUp.sendKey)).toMatchObject({ status: "failed", attempts: 3 });
+  });
+
+  it("records a 5xx as uncertain and never retries it, since it may follow acceptance", async () => {
+    for (const status of [500, 502, 503, 504]) {
+      const sent = message();
+      const world = smtp2go([new Response("gateway", { status }), ok()]);
+      const outcome = await sendMail(deps(world.stub), sent);
+      expect(outcome, String(status)).toMatchObject({ status: "uncertain", attempts: 1 });
+      expect(world.calls, String(status)).toHaveLength(1);
+      expect(await row(sent.sendKey), String(status)).toMatchObject({ status: "uncertain", attempts: 1 });
+    }
+  });
+
+  it("still returns and records an outcome when the error answer's stream breaks", async () => {
+    const sent = message();
+    const broken = new ReadableStream({
+      pull(controller) {
+        controller.error(new TypeError("connection reset"));
+      },
+      cancel() {
+        throw new TypeError("connection reset");
+      },
+    });
+    const world = smtp2go([new Response(broken, { status: 503 })]);
+    expect(await sendMail(deps(world.stub), sent)).toMatchObject({ status: "uncertain", attempts: 1 });
+    expect(await row(sent.sendKey)).toMatchObject({ status: "uncertain", attempts: 1 });
+  });
+
+  it("gives up on a request at its deadline, as uncertain", async () => {
+    const sent = message();
+    let aborted = false;
+    const hangs = (async (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) =>
+        init?.signal?.addEventListener("abort", () => {
+          aborted = true;
+          reject(init.signal?.reason);
+        }),
+      )) as typeof fetch;
+    const started = Date.now();
+    const outcome = await sendMail({ ...deps(hangs), timeoutMs: 100 }, sent);
+    expect(outcome).toMatchObject({ status: "uncertain", attempts: 1 });
+    expect(aborted).toBe(true);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("lets only one of two simultaneous callers send, for a new key and for a failed one", async () => {
+    const fresh = message();
+    const world = smtp2go([ok("one"), ok("two")]);
+    const both = await Promise.all([sendMail(deps(world.stub), fresh), sendMail(deps(world.stub), fresh)]);
+    expect(both.map((o) => o.status).sort()).toEqual(["duplicate", "sent"]);
+    expect(world.calls).toHaveLength(1);
+    const failed = message();
+    const again = smtp2go([new Response("{}", { status: 400 }), ok("three"), ok("four")]);
+    await sendMail(deps(again.stub), failed);
+    const retries = await Promise.all([sendMail(deps(again.stub), failed), sendMail(deps(again.stub), failed)]);
+    expect(retries.map((o) => o.status).sort()).toEqual(["duplicate", "sent"]);
+    expect(again.calls).toHaveLength(2);
   });
 
   it("fails a 400 and a 200 reporting a failure at once, without retrying", async () => {

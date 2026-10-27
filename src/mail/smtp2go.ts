@@ -4,12 +4,15 @@
 //   1. The caller names the send with a stable key (`reply:<caseId>`). Its `pending` row is written before any network
 //      call; a key that already has a row is not sent again (a `pending` row left by a stopped Worker is reported
 //      uncertain), except a `failed` one, which is tried again on the same row.
-//   2. The message goes to SMTP2GO with the key in `X-Smtp2go-Api-Key`. SMTP2GO answers 200 even when sending failed, so
-//      only a body with `data.succeeded` at least 1, `data.failed` 0 and a string `data.email_id` is `sent`. A 429 or
-//      5xx is tried again, 3 attempts in all; a 4xx or a reported failure is `failed` at once; no answer, or an answer
-//      that cannot be read, is `uncertain` and never tried again, since the message may have been delivered.
-//   3. The outcome is written to the row. If that write fails, the row stays `pending`, so a retry by the caller still
-//      sends nothing.
+//   2. The message goes to SMTP2GO with the key in `X-Smtp2go-Api-Key` and the send key in an `X-IsItLegit-Send` header
+//      (so an uncertain send can later be matched to SMTP2GO's record). SMTP2GO answers 200 even when sending failed,
+//      so only a body with `data.succeeded` at least 1, `data.failed` 0 and a string `data.email_id` is `sent`. Only a
+//      429 (rate-limited: the message was not taken) is tried again, 3 attempts in all, each attempt counted on the row
+//      as it ends. A 5xx, no answer, or an answer that cannot be read is `uncertain` and never tried again: SMTP2GO
+//      takes no idempotency key, and a gateway error can follow acceptance, so a retry could send twice. A 4xx or a
+//      reported failure is `failed` at once.
+//   3. The outcome is written to the row, keeping the last retry's reason. If that write fails, the row stays
+//      `pending`, so a retry by the caller still sends nothing.
 //
 // The caller always gets a typed outcome. Nothing stored holds the address (only a SHA-256 of it), a body or the key.
 import { ConfigError } from "../config";
@@ -84,8 +87,15 @@ async function attempt(deps: MailDeps, apiKey: string, payload: string): Promise
     return { kind: "uncertain", reason: `no answer from SMTP2GO (${(error as Error).name})` };
   }
   if (response.status === 429 || response.status >= 500) {
-    await response.body?.cancel();
-    return { kind: "retry", reason: `SMTP2GO answered HTTP ${response.status}` };
+    // Discarding the body can itself fail on a broken stream; the answer's status has already said what happened.
+    try {
+      await response.body?.cancel();
+    } catch {
+      // nothing more to read
+    }
+    return response.status === 429
+      ? { kind: "retry", reason: "SMTP2GO answered HTTP 429" }
+      : { kind: "uncertain", reason: `SMTP2GO answered HTTP ${response.status}, which may follow acceptance` };
   }
   let body: { data?: Record<string, unknown> } | null = null;
   try {
@@ -159,23 +169,41 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
     };
   }
 
-  // 2. The message, tried up to MAX_ATTEMPTS times on a 429 or 5xx.
+  // 2. The message, tried up to MAX_ATTEMPTS times on a 429.
   const payload = JSON.stringify({
     sender: message.from,
     to: [message.to.trim()],
     subject: message.subject,
     text_body: message.text,
     ...(message.html ? { html_body: message.html } : {}),
-    ...(message.headers && Object.keys(message.headers).length
-      ? { custom_headers: Object.entries(message.headers).map(([header, value]) => ({ header, value })) }
-      : {}),
+    custom_headers: [
+      ...Object.entries(message.headers ?? {}).map(([header, value]) => ({ header, value })),
+      { header: "X-IsItLegit-Send", value: message.sendKey },
+    ],
   });
+  // Each attempt is counted, with its reason, as it ends, so a Worker stopped during the backoff leaves the evidence.
+  const counted = async (reason: string | null) => {
+    try {
+      await db
+        .prepare("UPDATE mail_sends SET attempts = attempts + 1, error = ?, updated_at = ? WHERE send_key = ?")
+        .bind(reason?.slice(0, 300) ?? null, now(), message.sendKey)
+        .run();
+      return 1;
+    } catch {
+      // not counted here: the outcome write below counts it
+      return 0;
+    }
+  };
   let attempts = 0;
+  let recorded = 0;
+  let lastRetry: string | null = null;
   let result: Attempt;
   for (;;) {
     attempts++;
     result = await attempt(deps, deps.apiKey, payload);
     if (result.kind !== "retry") break;
+    lastRetry = result.reason;
+    recorded += await counted(result.reason);
     if (attempts >= MAX_ATTEMPTS) {
       result = { kind: "failed", reason: `${result.reason} ${attempts} times; gave up` };
       break;
@@ -196,8 +224,9 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
       .bind(
         outcome.status,
         outcome.status === "sent" ? outcome.providerId : null,
-        attempts,
-        outcome.status === "sent" ? null : outcome.reason.slice(0, 300),
+        attempts - recorded,
+        // A send that went through after a retry keeps the reason it was retried.
+        (outcome.status === "sent" ? lastRetry && `sent after: ${lastRetry}` : outcome.reason)?.slice(0, 300) ?? null,
         now(),
         message.sendKey,
       )

@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 32 | Checklist items: 223
+Sections: 33 | Checklist items: 228
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -35,6 +35,7 @@ Sections: 32 | Checklist items: 223
 | [x]    | D01 T01 §8 | Signed expiring report links               | none                  | 6     |
 | [ ]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 7     |
 | [ ]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 4     |
+| [ ]    | D01 T02 §5 | Reconcile uncertain sends                  | none                  | 5     |
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 6     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
@@ -178,7 +179,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 204
+Sections: 55 | Checklist items: 205
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -197,7 +198,7 @@ Sections: 55 | Checklist items: 204
 | [ ]    | D05 T04 §5 | Monitor alerts and takedown pack           | none                  | 4     |
 | [ ]    | D05 T04 §6 | Demo lookalike site found by the monitor   | cloudflare            | 4     |
 | [ ]    | D06 T01 §4 | Supplier ledger page and CSV import        | none                  | 5     |
-| [ ]    | D07 T03 §5 | Model trace panel                          | none                  | 4     |
+| [ ]    | D07 T03 §5 | Model trace panel                          | none                  | 5     |
 | [ ]    | D07 T04 §1 | Cases list with filters and search         | none                  | 4     |
 | [ ]    | D07 T04 §2 | Weekly stats, money at risk and CSV export | none                  | 4     |
 | [ ]    | D07 T04 §3 | Team and invites page                      | none                  | 3     |
@@ -271,6 +272,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 21/202 verified sections, 11 ready to run now.
+Progress: 21/203 verified sections, 11 ready to run now.
 
-Checklist: 297/1058 items completed (includes Commit items).
+Checklist: 297/1064 items completed (includes Commit items).

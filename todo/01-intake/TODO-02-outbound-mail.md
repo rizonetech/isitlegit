@@ -38,6 +38,7 @@ track: day-1
 | 2 | §2 | Recipient allowlist enforced in code | §1, D07 T02 §3 | [ ] |
 | 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §8 | [ ] |
 | 4 | §4 | Test and demo mail aliases | §1 | [ ] |
+| 5 | §5 | Reconcile uncertain sends | §1 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -60,11 +61,13 @@ One module owns delivery (stack doc). It calls the SMTP2GO HTTP API with `fetch`
 - [x] Write `sendMail({ kind, to, from, subject, text, html, headers, caseId })` in `src/mail/smtp2go.ts` posting to `https://api.smtp2go.com/v3/email/send` with the key in `X-Smtp2go-Api-Key`, a body of `sender`, `to` (an array), `subject`, `text_body`, `html_body` and `custom_headers` (`[{ header, value }]`, refusing `Content-Type`, `Content-Transfer-Encoding` and `MIME-Version`, which SMTP2GO forbids), and a bounded timeout; a missing `SMTP2GO_API_KEY` (typed in `src/types/secrets.d.ts`) is a `ConfigError`. Done when: `test/mail/smtp2go.test.ts` asserts the request URL, header and body against the field names of SMTP2GO's documented example.
 - [x] Record the intent before any network call: `sendMail` takes a stable `sendKey` from the caller (`reply:<caseId>` for a case's reply), inserts its `pending` row first, and sends nothing if the key already has a row that is `pending`, `sent` or `uncertain` (a pending row left by a stopped Worker is answered as uncertain, never sent again); only a `failed` row may be tried again, by the same row. Done when: tests show that SMTP2GO accepting the message and the outcome write then failing, followed by the caller calling again with the same key, makes exactly one provider call, and that a pending row from a stopped send is reported uncertain with no call. Cheaper substitute: checking for a row after sending, which loses the record when the write fails and mails twice. (**Corrected 2026-10-27**, plan review P1 1.)
 - [x] Return a typed outcome callers must read: `sent` (with the provider's `email_id`), `failed` (rejected, with the reason: retries exhausted, a 4xx, or `data.failed` above 0), `uncertain` (no answer, or an answer that cannot be read) or `duplicate` (the key's earlier outcome), never throwing for a provider outcome. `sent` needs a 200 whose body parses, with `data.succeeded` at least 1, `data.failed` 0 and a string `data.email_id`; a 200 that is truncated, not JSON or missing those fields is `uncertain` and not retried. Done when: tests read what the caller gets for success, exhausted retries, a provider rejection, a 200 with a failure, a malformed 200 and a truncated body. (**Corrected 2026-10-27**, plan review P2 4.)
-- [x] Retry 429 and 5xx, 3 attempts in all (**corrected 2026-10-27** at build: "up to 3 times" was read by its own test as three attempts, so that is the rule), with backoff (an injectable pause); never retry a 4xx, a 200 whose `data.failed` is above 0, or a request that got no answer (recorded `uncertain`, since it may have been delivered). Done when: tests cover a 503 then 200, a 429 three times then failed, a 400 that fails at once, a 200 with a failure reported, and a timeout recorded uncertain with one attempt.
+- [x] Retry a 429 only (**corrected 2026-10-27** by the completion review: a 5xx can follow SMTP2GO's acceptance, and SMTP2GO takes no idempotency key, so retrying it could send twice; a 5xx is now `uncertain`), 3 attempts in all ("up to 3 times" was read by its own test as three attempts), each attempt counted on the row as it ends, with backoff (an injectable pause); never retry a 4xx, a 200 whose `data.failed` is above 0, or a request that got no answer (recorded `uncertain`, since it may have been delivered). Done when: tests cover a 503 then 200, a 429 three times then failed, a 400 that fails at once, a 200 with a failure reported, and a timeout recorded uncertain with one attempt.
 - [x] Write the `mail_sends` row on every outcome with the provider's `email_id`, the attempts and a short error (never the address, the body or the key). Done when: tests find `sent`, `failed` and `uncertain` rows and no address, body or key in any of them. Cheaper substitute: console logging only.
 - [ ] Commit: `mail: SMTP2GO client with retries and a send log`
 
 Evidence 2026-10-27 20:45 SAST. `src/db/migrations/0003_mail.sql` (`mail_sends`, a unique `send_key`, `ON DELETE CASCADE` on `case_id`, statuses pending, sent, failed, uncertain and refused) applies with `pnpm db:migrate:local`; `test/db/schema.test.ts` round-trips every status and kind, refuses an unknown one, a repeated key and an address in `to_hash`, and deletes a case's sends with it while another case's and those with no case stay. `src/mail/smtp2go.ts` writes the pending row before any call, posts SMTP2GO's documented fields with the key in `X-Smtp2go-Api-Key`, and returns `sent`, `failed`, `uncertain` or `duplicate`; `ConfigError` moved to `src/config.ts` (re-exported from `src/web/report-link.ts`), and `SMTP2GO_API_KEY` is typed in `src/types/secrets.d.ts`. `pnpm exec vitest run test/mail/smtp2go.test.ts test/db/schema.test.ts`: 18 passed, including SMTP2GO accepting a message whose outcome write then fails, followed by two retries, with exactly one call. Seven mutations (a 400 retried, a timeout retried, the intent written too late, a pending row sent again, any 200 trusted, a reported failure ignored, the address stored unhashed) each fail it.
+
+Evidence after the completion review, 2026-10-27 20:56 SAST. Its three in-scope gaps and its retry conflict are closed in the commit that follows this line: a broken error stream still yields a typed, recorded outcome; each attempt and its reason are on the row as it ends, so a stop during the backoff keeps them, and a send that went through after a retry keeps the reason; tests now wait for the real deadline and send the same key from two callers at once (one call, for a new key and for a failed one); only a 429 is retried, a 5xx is `uncertain`; and every send carries its key in an `X-IsItLegit-Send` header for later reconciliation (§5). `pnpm exec vitest run test/mail/smtp2go.test.ts`: 13 passed; six more mutations (the stream failure escaping, a 5xx retried, attempts not counted as they end, a failed key claimed by two callers, no deadline, no send-key header) each fail it.
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/smtp2go.test.ts test/db/schema.test.ts` passes, and fails if a 400 or an unanswered request is retried, or if a send whose outcome write failed is sent again.
 
@@ -130,6 +133,27 @@ The fictional demo businesses need registered contacts that reach a real inbox, 
 - [ ] Commit: `mail: test and demo aliases on Email Routing`
 
 **Test checkpoint:** `pnpm exec tsx scripts/cf-email-routing.ts --list` prints the four aliases each with the operator destination.
+
+## 5. Reconcile uncertain sends
+
+A send recorded `uncertain` (no answer, an unreadable answer, or a 5xx, §1) may or may not have reached its recipient, and §1 rightly never sends it again blind. Left alone it stays uncertain for ever: a reply that was in fact delivered is reported as unknown, and one that never left is never sent. Every send carries its key in an `X-IsItLegit-Send` header (§1), so SMTP2GO's own record can settle it. Filed from §1's completion review (out-of-scope gap, 2026-10-27), which compared it with providers that replay an idempotent send's result.
+
+**Phase:** 1
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Learn whether SMTP2GO can find a send by its header. Done when: the answer and its source are recorded here.
+2. Settle uncertain sends from SMTP2GO's record. Done when: a delivered send becomes `sent` with its id and an absent one becomes `failed`, without any message sent twice.
+
+- [ ] Read SMTP2GO's API reference for searching sent mail (its email search or activity endpoints) and record here whether a send can be found by a custom header, by recipient and time, or not at all, with the reference's URL and the date read. Done when: the finding is recorded; if no lookup exists, the section records that and stops, and §1's uncertain rows stay for an operator.
+- [ ] Write `reconcileUncertain(deps, olderThanMinutes)` in `src/mail/reconcile.ts` that, for each `uncertain` or stale `pending` row past the given age, asks SMTP2GO once and settles the row: found means `sent` with the provider's id, a confident absence after SMTP2GO's processing delay means `failed` (which §1 may then retry), anything else stays as it is. Done when: `test/mail/reconcile.test.ts` settles a found send, a confirmed-absent send and leaves an unknown one, with a stubbed SMTP2GO and the real migration.
+- [ ] Never send from the reconciler: it only reads SMTP2GO and writes rows. Done when: the test fails if the reconciler makes a request to the send endpoint.
+- [ ] Run it from the Worker's scheduled handler every 15 minutes for rows younger than 3 days. Done when: a test of the scheduled handler calls it with those bounds.
+- [ ] Commit: `mail: reconcile uncertain sends with SMTP2GO's record`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reconcile.test.ts` passes, and fails if a settled row is wrong or the reconciler ever sends.
 
 ## Verification
 
