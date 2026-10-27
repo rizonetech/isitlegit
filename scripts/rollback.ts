@@ -35,6 +35,7 @@ export type RollbackOptions = {
   rejectedFile: string;
   waitMs?: number;
   log?: (line: string) => void;
+  pause?: (ms: number) => Promise<unknown>;
 };
 export type RollbackOutcome = { ok: boolean; changed: "no" | "yes" | "uncertain"; lines: string[] };
 
@@ -52,7 +53,16 @@ function writeRejected(file: string, versions: Set<string>): void {
 }
 
 export async function runRollback(options: RollbackOptions): Promise<RollbackOutcome> {
-  const { reason, target, wrangler, checks, rejectedFile, waitMs = 240_000, log = () => {} } = options;
+  const {
+    reason,
+    target,
+    wrangler,
+    checks,
+    rejectedFile,
+    waitMs = 240_000,
+    log = () => {},
+    pause = (ms) => new Promise((r) => setTimeout(r, ms)),
+  } = options;
   const deadline = Date.now() + waitMs;
   const lines: string[] = [];
   const refuse = (why: string): RollbackOutcome => ({
@@ -112,8 +122,14 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     changed = now === active ? "no" : "yes";
     if (now !== chosen)
       return { ok: false, changed, lines: [...lines, `rollback: ${now} serves all traffic, not ${chosen}`] };
+    // A rollback takes seconds to reach every Cloudflare location; until then /health still answers the old commit, so
+    // it is asked again until it reports the chosen commit or the deadline passes.
     log("Checking /health...");
-    const health = await checks.health(deadline);
+    let health = await checks.health(deadline);
+    while (("error" in health || health.commit !== commit) && Date.now() < deadline) {
+      await pause(Math.min(2_000, deadline - Date.now()));
+      health = await checks.health(deadline);
+    }
     if ("error" in health)
       return { ok: false, changed, lines: [...lines, `rollback: /health gave no answer: ${health.error}`] };
     if (health.commit !== commit)

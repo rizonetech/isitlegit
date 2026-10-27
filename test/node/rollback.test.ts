@@ -42,8 +42,9 @@ const passing = (state: { active: string }): Checks => ({
   health: async () => ({ commit: COMMITS[state.active] as string }),
   smoke: async () => ({ ok: true, lines: ["smoke passed"] }),
 });
+const fast = () => new Promise((r) => setTimeout(r, 10));
 const run = (wrangler: Wrangler, checks: Checks, extra: Partial<Parameters<typeof runRollback>[0]> = {}) =>
-  runRollback({ reason: "test", wrangler, checks, rejectedFile: REJECTED, waitMs: 2_000, ...extra });
+  runRollback({ reason: "test", wrangler, checks, rejectedFile: REJECTED, waitMs: 2_000, pause: fast, ...extra });
 
 describe("scripts/rollback.ts", () => {
   it("by default chooses the newest earlier version with another commit, rolls back, verifies, and records the version it left", async () => {
@@ -110,6 +111,18 @@ describe("scripts/rollback.ts", () => {
       const outcome = await run(wrangler, checks(state));
       expect(outcome).toMatchObject({ ok: false, changed: "yes" });
     }
+  });
+
+  it("waits while Cloudflare's locations still serve the old commit, then verifies", async () => {
+    const { state, wrangler } = stage("c");
+    let asks = 0;
+    const checks: Checks = {
+      ...passing(state),
+      health: async () => ({ commit: ++asks < 3 ? (COMMITS.c as string) : (COMMITS[state.active] as string) }),
+    };
+    const outcome = await run(wrangler, checks);
+    expect(outcome.ok).toBe(true);
+    expect(asks).toBe(3);
   });
 
   it("fails when another version serves after the rollback or after the checks", async () => {
