@@ -19,6 +19,10 @@ TOOL = REPO / "design/tools/export-mockups.py"
 
 
 def chromium():
+    """The browser design/tools/export-mockups.py would pick (find_chromium): MOCKUP_CHROMIUM first, so a host whose
+    `chromium` has no usable sandbox (the GitHub ubuntu-24.04 image) tests with the one the tool is told to use."""
+    if os.environ.get("MOCKUP_CHROMIUM"):
+        return os.environ["MOCKUP_CHROMIUM"]
     found = sorted(glob.glob(os.path.expanduser(
         "~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell")))
     return found[-1] if found else shutil.which("chromium") or shutil.which("google-chrome")

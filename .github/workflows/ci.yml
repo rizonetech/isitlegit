@@ -43,5 +43,9 @@ jobs:
         run: python3 scripts/todo-graph.py plan --check
       - name: Project script tests
         run: python3 -m unittest discover -s tests/scripts
+        env:
+          # The image's /usr/bin/chromium (/usr/local/share/chromium) aborts: it has no setuid sandbox and AppArmor blocks
+          # the user-namespace one. Google Chrome ships a working sandbox, which the mockup exporter keeps on.
+          MOCKUP_CHROMIUM: /usr/bin/google-chrome
       - name: Kit script tests
         run: python3 -m unittest discover -s scripts/tests
