@@ -91,6 +91,16 @@ type Row = { r2_key: string; case_id: string; kind: Kind; sha256: string; media_
 
 async function write(store: Store, wanted: Stored, body: Uint8Array): Promise<Stored> {
   let item = wanted;
+  // A row outlives its object under raw/ (the 30-day rule), so the row is checked before anything is written: other
+  // content recorded for this key is a conflict even when its object has gone.
+  let recorded: Row | null;
+  try {
+    recorded = await store.db.prepare("SELECT * FROM artefacts WHERE r2_key = ?").bind(item.key).first<Row>();
+  } catch (error) {
+    throw new StoreError("database", `reading the row for ${item.key}: ${(error as Error).message}`);
+  }
+  if (recorded && (recorded.sha256 !== item.sha256 || recorded.case_id !== item.caseId))
+    throw new StoreError("conflict", `${item.key} is recorded with other content`);
   let created: R2Object | null;
   try {
     created = await store.bucket.put(item.key, body, {

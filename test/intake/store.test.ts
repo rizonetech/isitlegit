@@ -202,7 +202,8 @@ describe("storing and reading", () => {
       refusal("storage"),
     );
     expect(await rows(caseId)).toHaveLength(0);
-    expect(failing.calls.prepare).toBe(0);
+    // Only the row check before the write; no insert followed the failed write.
+    expect(failing.calls.prepare).toBe(1);
     const stored = await putAttachment(failing.store, caseId, "r.txt", bytes("r2"), "text/plain");
     expect(await rows(caseId)).toHaveLength(1);
     expect(await readArtefact(store, caseId, stored.key)).toMatchObject({ stored });
@@ -278,6 +279,7 @@ describe("storing and reading", () => {
       times.read.push(performance.now() - start);
       expect(read && "body" in read && read.body.byteLength).toBe(big.byteLength);
       expect(stored.sha256).toBe(await hexOf(big));
+      expect(read && "body" in read && (await hexOf(read.body))).toBe(stored.sha256);
     }
     const p95 = (list: number[]) => [...list].sort((a, b) => a - b)[Math.ceil(list.length * 0.95) - 1] as number;
     console.info(
@@ -286,6 +288,18 @@ describe("storing and reading", () => {
     expect(p95(times.write)).toBeLessThan(15_000);
     expect(p95(times.read)).toBeLessThan(15_000);
   }, 120_000);
+
+  it("refuses other content for a fixed key whose object has expired, writing nothing", async () => {
+    const caseId = await newCase();
+    const first = await putRaw(store, caseId, bytes("message A"));
+    await env.ARTEFACTS.delete(first.key);
+    const counted = watched();
+    await expect(putRaw(counted.store, caseId, bytes("message B"))).rejects.toEqual(refusal("conflict"));
+    expect(counted.calls.put).toBe(0);
+    expect(await readArtefact(store, caseId, first.key)).toEqual({ stored: first, missing: true });
+    // The same content again restores the expired object under its row.
+    expect(await putRaw(store, caseId, bytes("message A"))).toEqual(first);
+  });
 
   it("reads an object that is gone as missing, and another case's key as not found", async () => {
     const caseId = await newCase();
