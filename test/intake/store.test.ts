@@ -89,7 +89,8 @@ describe("the R2 layout", () => {
     expect(rawKey(id)).toBe(`raw/${id}/message.eml`);
     expect(parsedKey(id)).toBe(`raw/${id}/parsed.json`);
     expect(attachmentKey(id, sha, "invoice.pdf")).toBe(`raw/${id}/attachments/${sha}-invoice.pdf`);
-    expect(artefactKey(id, "render", sha, "page.png")).toBe(`art/${id}/render/${sha}-page.png`);
+    for (const kind of ["render", "crop", "page", "audio"] as const)
+      expect(artefactKey(id, kind, sha, "x.bin")).toBe(`art/${id}/${kind}/${sha}-x.bin`);
     for (const key of [rawKey(id), parsedKey(id), attachmentKey(id, sha, "x")])
       expect(key.startsWith(`raw/${id}/`)).toBe(true);
   });
@@ -105,6 +106,13 @@ describe("the R2 layout", () => {
     expect(name.endsWith(".pdf")).toBe(true);
     expect(attachmentKey(id, sha, "a\u0000b\nc\\d:e")).toBe(`raw/${id}/attachments/${sha}-a_b_c_d_e`);
     expect(attachmentKey(id, sha, "...")).toBe(`raw/${id}/attachments/${sha}-file`);
+    // Cut by characters: an emoji at the limit is kept whole or left out, never halved.
+    const emoji = attachmentKey(id, sha, `${"a".repeat(119)}\u{1F600}${"b".repeat(10)}`).slice(
+      `raw/${id}/attachments/${sha}-`.length,
+    );
+    expect(Array.from(emoji)).toHaveLength(120);
+    expect(emoji.endsWith("\u{1F600}")).toBe(true);
+    expect(emoji.isWellFormed()).toBe(true);
   });
 
   it("refuses a case id that is not a ULID, a kind outside the derived list, and a malformed hash, before any call", async () => {
@@ -122,7 +130,23 @@ describe("the R2 layout", () => {
       refusal("invalid"),
     );
     await expect(putAttachment(counted, id, "x", bytes("x"), "")).rejects.toEqual(refusal("invalid"));
+    await expect(readArtefact(counted, "nope", "raw/x")).rejects.toEqual(refusal("invalid"));
     expect(calls).toEqual({ put: 0, head: 0, get: 0, prepare: 0 });
+  });
+
+  it("refuses a put for a case that does not exist, writing nothing", async () => {
+    const { store: counted, calls } = watched();
+    await expect(putAttachment(counted, ulid(), "x.txt", bytes("x"), "text/plain")).rejects.toEqual(refusal("invalid"));
+    expect(calls.put).toBe(0);
+  });
+
+  it("refuses a parsed summary that is not a JSON object", async () => {
+    const caseId = await newCase();
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    for (const bad of [undefined, null, [1, 2], "text", circular, { n: 10n }])
+      await expect(putParsed(store, caseId, bad as Record<string, unknown>)).rejects.toEqual(refusal("invalid"));
+    expect(await rows(caseId)).toHaveLength(0);
   });
 });
 
@@ -297,8 +321,39 @@ describe("storing and reading", () => {
     await expect(putRaw(counted.store, caseId, bytes("message B"))).rejects.toEqual(refusal("conflict"));
     expect(counted.calls.put).toBe(0);
     expect(await readArtefact(store, caseId, first.key)).toEqual({ stored: first, missing: true });
-    // The same content again restores the expired object under its row.
-    expect(await putRaw(store, caseId, bytes("message A"))).toEqual(first);
+    // The same content again restores the expired object under its row, with the row's media type.
+    expect(await putRaw(store, caseId, bytes("message A"), "text/plain")).toEqual(first);
+    expect((await env.ARTEFACTS.head(first.key))?.httpMetadata?.contentType).toBe("message/rfc822");
+  });
+
+  it("calls an object that vanishes mid-write a retryable storage failure, not a conflict", async () => {
+    const caseId = await newCase();
+    const stored = await putAttachment(store, caseId, "v.txt", bytes("vanish"), "text/plain");
+    const vanishing = new Proxy(env.ARTEFACTS, {
+      get(target, key) {
+        if (key === "put") return async () => null; // the object exists...
+        if (key === "head") return async () => null; // ...then is gone
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(
+      putAttachment({ bucket: vanishing, db: env.DB }, caseId, "v.txt", bytes("vanish"), "text/plain"),
+    ).rejects.toEqual(refusal("storage"));
+    expect(await putAttachment(store, caseId, "v.txt", bytes("vanish"), "text/plain")).toEqual(stored);
+  });
+
+  it("checks an existing object without a stored checksum by its bytes", async () => {
+    const caseId = await newCase();
+    const key = attachmentKey(caseId, await hexOf(bytes("unsummed")), "u.txt");
+    await env.ARTEFACTS.put(key, bytes("unsummed"), { httpMetadata: { contentType: "text/plain" } });
+    const stored = await putAttachment(store, caseId, "u.txt", bytes("unsummed"), "text/plain");
+    expect(stored.key).toBe(key);
+    const tampered = attachmentKey(caseId, await hexOf(bytes("expected")), "t.txt");
+    await env.ARTEFACTS.put(tampered, bytes("something else"));
+    await expect(putAttachment(store, caseId, "t.txt", bytes("expected"), "text/plain")).rejects.toEqual(
+      refusal("conflict"),
+    );
   });
 
   it("reads an object that is gone as missing, and another case's key as not found", async () => {

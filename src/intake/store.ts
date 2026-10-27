@@ -50,10 +50,12 @@ export function safeName(name: string): string {
     .replace(/^[.\s_]+/, "")
     .trim();
   if (!cleaned) return "file";
-  if (cleaned.length <= NAME_LIMIT) return cleaned;
-  const dot = cleaned.lastIndexOf(".");
-  const extension = dot > 0 && cleaned.length - dot <= 10 ? cleaned.slice(dot) : "";
-  return cleaned.slice(0, NAME_LIMIT - extension.length) + extension;
+  // Counted in characters (code points), so a cut never splits one in half.
+  const characters = Array.from(cleaned);
+  if (characters.length <= NAME_LIMIT) return cleaned;
+  const dot = characters.lastIndexOf(".");
+  const extension = dot > 0 && characters.length - dot <= 10 ? characters.slice(dot) : [];
+  return [...characters.slice(0, NAME_LIMIT - extension.length), ...extension].join("");
 }
 
 export function rawKey(caseId: string): string {
@@ -91,16 +93,25 @@ type Row = { r2_key: string; case_id: string; kind: Kind; sha256: string; media_
 
 async function write(store: Store, wanted: Stored, body: Uint8Array): Promise<Stored> {
   let item = wanted;
-  // A row outlives its object under raw/ (the 30-day rule), so the row is checked before anything is written: other
-  // content recorded for this key is a conflict even when its object has gone.
-  let recorded: Row | null;
+  // Before anything is written, one read checks that the case exists (an object for no case could never be swept by
+  // the purge, which lists the prefixes of cases that exist) and finds any row for this key: a row outlives its object
+  // under raw/ (the 30-day rule), so other content recorded for the key is a conflict even when its object has gone,
+  // and the same content takes the recorded media type, so a restored object matches its row.
+  let found: (Partial<Row> & { known: string }) | null;
   try {
-    recorded = await store.db.prepare("SELECT * FROM artefacts WHERE r2_key = ?").bind(item.key).first<Row>();
+    found = await store.db
+      .prepare("SELECT c.id AS known, a.* FROM cases c LEFT JOIN artefacts a ON a.r2_key = ? WHERE c.id = ?")
+      .bind(item.key, item.caseId)
+      .first<Partial<Row> & { known: string }>();
   } catch (error) {
     throw new StoreError("database", `reading the row for ${item.key}: ${(error as Error).message}`);
   }
-  if (recorded && (recorded.sha256 !== item.sha256 || recorded.case_id !== item.caseId))
-    throw new StoreError("conflict", `${item.key} is recorded with other content`);
+  if (!found) throw new StoreError("invalid", `there is no case ${item.caseId}`);
+  if (found.r2_key) {
+    if (found.sha256 !== item.sha256 || found.case_id !== item.caseId)
+      throw new StoreError("conflict", `${item.key} is recorded with other content`);
+    item = { ...item, mediaType: found.media_type as string };
+  }
   let created: R2Object | null;
   try {
     created = await store.bucket.put(item.key, body, {
@@ -119,11 +130,23 @@ async function write(store: Store, wanted: Stored, body: Uint8Array): Promise<St
     } catch (error) {
       throw new StoreError("storage", `reading ${item.key}: ${(error as Error).message}`);
     }
-    if (hex(existing?.checksums.sha256) !== item.sha256)
-      throw new StoreError("conflict", `${item.key} already holds other content`);
+    // Gone between the two calls (the lifecycle rule or the purge): nothing is wrong with the content, so a retry can
+    // complete it.
+    if (!existing) throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
+    // Objects this store wrote carry the SHA-256 it supplied; one written without it is checked by its bytes.
+    let stored = hex(existing.checksums.sha256);
+    if (stored === null) {
+      try {
+        const object = await store.bucket.get(item.key);
+        stored = object ? await sha256Hex(new Uint8Array(await object.arrayBuffer())) : null;
+      } catch (error) {
+        throw new StoreError("storage", `reading ${item.key}: ${(error as Error).message}`);
+      }
+    }
+    if (stored !== item.sha256) throw new StoreError("conflict", `${item.key} already holds other content`);
     // The stored object's media type wins: the same bytes declared differently by a later writer are recorded as the
     // object already holds them, so R2, D1 and the answer agree.
-    item = { ...item, mediaType: existing?.httpMetadata?.contentType ?? item.mediaType };
+    item = { ...item, mediaType: existing.httpMetadata?.contentType ?? item.mediaType };
   }
   let row: Row | null;
   try {
@@ -152,22 +175,31 @@ async function put(
 ) {
   checkCase(caseId);
   if (typeof mediaType !== "string" || !mediaType) throw new StoreError("invalid", "a media type is required");
-  const sha256 = await sha256Hex(body);
+  if (!(body instanceof Uint8Array)) throw new StoreError("invalid", "the content must be bytes");
+  let sha256: string;
+  try {
+    sha256 = await sha256Hex(body);
+  } catch (error) {
+    throw new StoreError("storage", `hashing the content: ${(error as Error).message}`);
+  }
   return write(store, { key: key(sha256), caseId, kind, sha256, mediaType, bytes: body.byteLength }, body);
 }
 
 export const putRaw = (store: Store, caseId: string, body: Uint8Array, mediaType = "message/rfc822") =>
   put(store, caseId, "raw", () => rawKey(caseId), body, mediaType);
 
-export const putParsed = (store: Store, caseId: string, summary: unknown) =>
-  put(
-    store,
-    caseId,
-    "raw",
-    () => parsedKey(caseId),
-    new TextEncoder().encode(JSON.stringify(summary)),
-    "application/json",
-  );
+// The summary must be a JSON object: anything JSON cannot hold (a cycle, a BigInt) or that is not an object is refused.
+export async function putParsed(store: Store, caseId: string, summary: Record<string, unknown>): Promise<Stored> {
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(summary);
+  } catch (error) {
+    throw new StoreError("invalid", `the summary cannot be written as JSON: ${(error as Error).message}`);
+  }
+  if (typeof summary !== "object" || summary === null || Array.isArray(summary) || text === undefined)
+    throw new StoreError("invalid", "the summary must be a JSON object");
+  return put(store, caseId, "raw", () => parsedKey(caseId), new TextEncoder().encode(text), "application/json");
+}
 
 export const putAttachment = (store: Store, caseId: string, name: string, body: Uint8Array, mediaType: string) =>
   put(store, caseId, "attachment", (sha) => attachmentKey(caseId, sha, name), body, mediaType);
@@ -186,8 +218,8 @@ export async function putArtefact(
   return put(store, caseId, kind, (sha) => artefactKey(caseId, kind, sha, name), body, mediaType);
 }
 
-// The row and the bytes, or the row and `missing` when the object is gone (a raw object past 30 days, or a write that
-// never completed); a key the case does not own is not found.
+// The row and the bytes, or the row and `missing` when the object is gone (a raw object past 30 days, or one deleted
+// outside this store); a key the case does not own, or a write that never reached its row, is not found.
 export async function readArtefact(
   store: Store,
   caseId: string,
