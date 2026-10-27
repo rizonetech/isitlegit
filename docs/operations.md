@@ -123,10 +123,13 @@ The events hold metadata only: the model, path, user agent, status, duration, to
 
 A reply's report link (`/r/<case>?o=…&e=…&s=…`) is signed with the Worker secret `REPORT_LINK_SECRET`, 32 random bytes as base64url kept in the vault as "IsItLegit report link secret" (`src/web/report-link.ts`). A link opens its one case for 7 days.
 
-Replacing the secret invalidates every report link already sent: recipients then open their report from the console instead. Replace it only when it may have leaked. To replace it, write a new value into the vault item first, read it back, then set it on the Worker from the vault so the value is never printed or passed as an argument:
+Replacing the secret invalidates every report link already sent: recipients then open their report from the console instead. Replace it only when it may have leaked. To replace it, write a new value into the vault item first, then set it on the Worker from the vault. The read finishes and is checked (43 characters) before Wrangler starts, so a failed or empty read never replaces the live secret with nothing; the value stays in a shell variable, never printed or passed as an argument:
 
 ```bash
-conclave-op read "op://Conclave/IsItLegit report link secret/credential" | tr -d '\n' | pnpm exec wrangler secret put REPORT_LINK_SECRET
+secret=$(conclave-op read "op://Conclave/IsItLegit report link secret/credential") && [ ${#secret} -eq 43 ] \
+  && printf %s "$secret" | pnpm exec wrangler secret put REPORT_LINK_SECRET \
+  || echo "not set: the vault read failed or the value is not 43 characters"
+unset secret
 ```
 
 Cloudflare sets a secret only on the newest version, so do it while no rollback is in effect, and run the smoke check afterwards: `wrangler secret put` publishes a new version of the same code.
