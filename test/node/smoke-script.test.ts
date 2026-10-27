@@ -29,9 +29,11 @@ async function serve(answer: (authorization: string | undefined) => Answer) {
 const allOk = { DB: "ok", ARTEFACTS: "ok", CACHE: "ok", ANALYSIS: "ok", BROWSER: "ok" };
 const pass = { ok: true, commit: COMMIT, version: VERSION, checks: allOk };
 // The stand-in is plain HTTP on loopback, so these runs lift the destination rule; its own test keeps it.
+const TOKEN = "b".repeat(64);
 const quick = {
   commit: COMMIT,
-  putSecret: async () => VERSION,
+  getToken: async () => TOKEN,
+  activeVersion: async () => VERSION,
   waitMs: 2_000,
   pause: async () => {},
   checkDestination: () => null,
@@ -49,16 +51,17 @@ describe("scripts/smoke.ts", () => {
     // Another account's Worker of the same name: the subdomain is the account's.
     expect(destinationProblem("https://isitlegit.attacker-account.workers.dev")).toMatch(/is not the IsItLegit Worker/);
     expect(destinationProblem("not a url")).toMatch(/is not a URL/);
-    let set = false;
+    let read = false;
     const outcome = await runSmoke("http://isitlegit.derick-f5a.workers.dev", {
       commit: COMMIT,
-      putSecret: async () => {
-        set = true;
-        return VERSION;
+      getToken: async () => {
+        read = true;
+        return TOKEN;
       },
+      activeVersion: async () => VERSION,
     });
     expect(outcome.ok).toBe(false);
-    expect(set).toBe(false);
+    expect(read).toBe(false);
   });
 
   it("refuses a redirect instead of following it with the token", async () => {
@@ -102,25 +105,44 @@ describe("scripts/smoke.ts", () => {
     ).toBe("echo");
   });
 
-  it("sets a fresh 64-hex token, passes on a clean answer from the new version, and reports progress and time", async () => {
-    let secret = "";
+  it("uses the vault's token and the active version, publishes nothing, and reports progress and time", async () => {
     const logged: string[] = [];
-    const base = await serve((auth) => (auth === `Bearer ${secret}` ? { status: 200, body: pass } : { status: 404 }));
-    const outcome = await runSmoke(base, {
-      ...quick,
-      putSecret: async (token: string) => {
-        secret = token;
-        return VERSION;
-      },
-      log: (line) => logged.push(line),
-    });
-    expect(secret).toMatch(/^[0-9a-f]{64}$/);
+    const base = await serve((auth) => (auth === `Bearer ${TOKEN}` ? { status: 200, body: pass } : { status: 404 }));
+    const outcome = await runSmoke(base, { ...quick, log: (line) => logged.push(line) });
     expect(outcome.ok).toBe(true);
     expect(outcome.lines).toEqual(expect.arrayContaining(["version: v-new", "BROWSER: ok"]));
     expect(outcome.lines.at(-1)).toMatch(/^passed in \d+ s$/);
-    expect(logged[0]).toMatch(/^Setting a fresh SMOKE_TOKEN/);
-    expect(logged).toContain("The secret is live in version v-new.");
-    expect([...logged, ...outcome.lines].join("\n")).not.toContain(secret);
+    expect(logged[0]).toMatch(/^Reading the smoke token and the version serving all traffic/);
+    expect(logged).toContain("Version v-new serves all traffic.");
+    expect([...logged, ...outcome.lines].join("\n")).not.toContain(TOKEN);
+  });
+
+  it("rotates only when asked: a new token, the version it published, and that version checked", async () => {
+    let token = "";
+    const base = await serve((auth) => (auth === `Bearer ${token}` ? { status: 200, body: pass } : { status: 404 }));
+    const outcome = await runSmoke(base, {
+      ...quick,
+      getToken: async () => {
+        throw new Error("a rotation does not read the old token");
+      },
+      rotate: async () => {
+        token = "c".repeat(64);
+        return { token, version: VERSION };
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(outcome.lines.join("\n")).not.toContain(token);
+  });
+
+  it("fails when the version serving all traffic changes during the run", async () => {
+    let reads = 0;
+    const base = await serve(() => ({ status: 200, body: pass }));
+    const outcome = await runSmoke(base, {
+      ...quick,
+      activeVersion: async () => (++reads === 1 ? VERSION : "v-other"),
+    });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.lines).toContain("smoke: the version serving all traffic changed during the run: v-new to v-other");
   });
 
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
