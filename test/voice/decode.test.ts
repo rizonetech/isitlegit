@@ -405,6 +405,42 @@ describe("decodeToWavChunks", () => {
       expect(lengths).toEqual([9_600_000, 9_600_000, 9_600_000]);
     });
 
+    it("starts a cropped or live recording where its first page says, not at zero (round 2)", async () => {
+      const shifted = oggPackets(toneOgg).map((p, i) =>
+        oggPage(p.packet, p.flags, i < 2 ? p.granule : p.granule + 48_000n, i),
+      );
+      expect((await opusSamples(concat(shifted))).length).toBe(47_896);
+      // A first audio page whose position is below the audio on it, with pages after it, is damage.
+      const below = oggPackets(toneOgg).map((p, i) => oggPage(p.packet, p.flags, i === 2 ? 100n : p.granule, i));
+      await expect(decodeAll(concat(below), "audio/ogg")).rejects.toThrow(/first audio page claims less audio/);
+    });
+
+    it("refuses an OpusTags header cut short (round 2)", async () => {
+      const tags = headers[1] as Uint8Array;
+      const view = new DataView(tags.buffer, tags.byteOffset, tags.byteLength);
+      const vendor = view.getUint32(8, true);
+      const comments = tags.slice();
+      new DataView(comments.buffer).setUint32(12 + vendor, 3, true); // three comments that are not there
+      for (const cut of [tags.slice(0, 8), tags.slice(0, 12 + vendor), comments]) {
+        await expect(decodeAll(oggStream([headers[0] as Uint8Array, cut], audio, 960), "audio/ogg")).rejects.toThrow(
+          /OpusTags header is cut short/,
+        );
+      }
+      // One comment whose stated length runs past the packet.
+      const overrun = new Uint8Array(tags.length + 4);
+      overrun.set(tags);
+      new DataView(overrun.buffer).setUint32(12 + vendor, 1, true);
+      new DataView(overrun.buffer).setUint32(16 + vendor, 10_000, true);
+      await expect(decodeAll(oggStream([headers[0] as Uint8Array, overrun], audio, 960), "audio/ogg")).rejects.toThrow(
+        /OpusTags header is cut short/,
+      );
+      const longVendor = tags.slice();
+      new DataView(longVendor.buffer).setUint32(8, 10_000, true);
+      await expect(
+        decodeAll(oggStream([headers[0] as Uint8Array, longVendor], audio, 960), "audio/ogg"),
+      ).rejects.toThrow(/OpusTags header is cut short/);
+    });
+
     it("applies the OpusHead's output gain", async () => {
       const quiet = (headers[0] as Uint8Array).slice();
       new DataView(quiet.buffer).setInt16(16, -5_120, true); // -20 dB in Q7.8

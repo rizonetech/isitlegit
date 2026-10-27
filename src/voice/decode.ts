@@ -213,7 +213,7 @@ export function opusPacketSamples(packet: Uint8Array): number | null {
   return samples > 5_760 ? null : samples; // at most 120 ms
 }
 
-type OggPacket = { packet: Uint8Array; index: number; page: number };
+type OggPacket = { packet: Uint8Array; index: number; page: number; granule: bigint };
 
 // The packets of a checked Ogg stream, in order, each with the page it ends on. A packet within one page is a view of
 // the input; one that runs on into the next page is copied together. A page must say it continues a packet exactly
@@ -228,6 +228,7 @@ function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
     if (!continued && pending.length)
       throw new CorruptAudio(`Ogg page ${page} starts afresh while the page before it left a packet unfinished`);
     const segments = bytes[at + 26] as number;
+    const granule = new DataView(bytes.buffer, bytes.byteOffset + at + 6, 8).getBigInt64(0, true);
     let start = at + 27 + segments;
     let size = 0;
     for (let i = 0; i < segments; i++) {
@@ -246,7 +247,7 @@ function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
           }
           pending = [];
         }
-        yield { packet, index: index++, page };
+        yield { packet, index: index++, page, granule };
         start += size;
         size = 0;
       }
@@ -261,9 +262,10 @@ function* oggPackets(bytes: Uint8Array): Generator<OggPacket> {
 
 // Every page checked (capture pattern, sizes, checksum, sequence, one logical stream, end of stream) and every packet
 // (the OpusHead and OpusTags headers, then audio packets of a valid length and duration), before any decoding. The
-// packets' durations bound how much audio there is; the last page's granule position, less the pre-skip, is how much
-// of it the recording keeps (RFC 7845 4.4: the end may be trimmed, only within the last page). `gain` is the OpusHead's
-// output gain (RFC 7845 5.1) as a factor.
+// packets' durations bound how much audio there is; the granule positions say how much of it the recording keeps: from
+// the first audio page's position less the audio ending on it (a cropped or live recording starts above zero, RFC 7845
+// 4.5) to the last page's (the end may be trimmed, only within the last page, 4.4), less the pre-skip. `gain` is the
+// OpusHead's output gain (5.1) as a factor.
 function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: number } {
   if (bytes.length === 0) throw new CorruptAudio("the Ogg file is empty");
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -306,7 +308,10 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: numbe
   let gain = 1;
   let total = 0;
   let onLastPage = 0;
-  for (const { packet, index, page: endsOn } of oggPackets(bytes)) {
+  let firstPage = -1;
+  let firstGranule = 0n;
+  let onFirstPage = 0;
+  for (const { packet, index, page: endsOn, granule: pageGranule } of oggPackets(bytes)) {
     if (index === 0) {
       const magic = String.fromCharCode(...packet.subarray(0, 8));
       if (packet.length < 19 || magic !== "OpusHead")
@@ -319,8 +324,7 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: numbe
       // Q7.8 decibels, signed.
       gain = 10 ** (new DataView(packet.buffer, packet.byteOffset + 16, 2).getInt16(0, true) / 256 / 20);
     } else if (index === 1) {
-      if (String.fromCharCode(...packet.subarray(0, 8)) !== "OpusTags")
-        throw new CorruptAudio("the Opus stream has no OpusTags header");
+      checkOpusTags(packet);
     } else {
       const samples = opusPacketSamples(packet);
       if (samples === null) throw new CorruptAudio(`Opus packet ${index - 2} is malformed`);
@@ -328,16 +332,47 @@ function scanOgg(bytes: Uint8Array): OpusLayout & { samples: number; gain: numbe
         throw new CorruptAudio(`Opus packet ${index - 2} is larger than any real recording's (${packet.length} bytes)`);
       total += samples;
       if (endsOn === lastPage) onLastPage += samples;
+      if (firstPage < 0) {
+        firstPage = endsOn;
+        firstGranule = pageGranule;
+      }
+      if (endsOn === firstPage) onFirstPage += samples;
     }
   }
   if (!layout) throw new CorruptAudio("the Ogg stream is not Opus (no OpusHead)");
-  if (granule < 0n || granule > BigInt(total))
+  if (firstPage < 0) throw new CorruptAudio("the Ogg stream holds no audio");
+  // Where the recording's first sample sits. Below zero is allowed only on a one-page stream, whose end trimming
+  // covers it (RFC 7845 4.5).
+  let origin = firstGranule - BigInt(onFirstPage);
+  if (origin < 0n) {
+    if (firstPage !== lastPage)
+      throw new CorruptAudio("the Ogg stream's first audio page claims less audio than it holds");
+    origin = 0n;
+  }
+  const span = granule - origin;
+  if (granule < 0n || span > BigInt(total))
     throw new CorruptAudio("the Ogg stream's last position claims more audio than its packets hold");
-  if (BigInt(total) - granule > BigInt(onLastPage))
+  if (BigInt(total) - span > BigInt(onLastPage))
     throw new CorruptAudio("the Ogg stream trims more audio than its last page holds");
-  const samples = Number(granule) - layout.preSkip;
+  const samples = Number(span) - layout.preSkip;
   if (samples <= 0) throw new CorruptAudio("the Ogg stream holds no audio");
   return { ...layout, samples, gain };
+}
+
+// The OpusTags header (RFC 7845 5.2): its vendor string and every comment within the packet's length.
+function checkOpusTags(packet: Uint8Array): void {
+  if (String.fromCharCode(...packet.subarray(0, 8)) !== "OpusTags")
+    throw new CorruptAudio("the Opus stream has no OpusTags header");
+  const view = new DataView(packet.buffer, packet.byteOffset, packet.byteLength);
+  const field = (at: number) => {
+    if (at + 4 > packet.length) throw new CorruptAudio("the Opus stream's OpusTags header is cut short");
+    return view.getUint32(at, true);
+  };
+  let at = 12 + field(8);
+  const comments = field(at);
+  at += 4;
+  for (let i = 0; i < comments; i++) at += 4 + field(at);
+  if (at > packet.length) throw new CorruptAudio("the Opus stream's OpusTags header is cut short");
 }
 
 type WavLayout = { channels: number; rate: number; start: number; frames: number };
