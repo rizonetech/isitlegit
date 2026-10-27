@@ -35,7 +35,7 @@ track: day-1
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Upload API for mail, documents and audio | D01 T01 §7, D07 T02 §1 | [ ] |
-| 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [ ] |
+| 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [x] |
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [ ] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
@@ -101,9 +101,12 @@ Evidence after review rounds 1 to 5, 2026-10-27 23:24 SAST. Round 1 (`33d4555`):
 > **Deferred:** decoding MP3 voice notes and voicemail attachments (refused with `UnsupportedAudio` until then) -> XREF: D01 T03 §7
 > **Deferred:** decoding M4A (AAC) voice notes, refused with `UnsupportedAudio` until then -> XREF: D01 T03 §8
 
-- [ ] Commit: `voice: decode voice notes to 16 kHz mono WAV`
+- [x] Commit: `voice: decode voice notes to 16 kHz mono WAV`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if the sample rate written to the header is not 16000, if the decoded tone is not 440 Hz at its level, if a 10-minute boundary drops or repeats samples, if a recording over 30 minutes is decoded at all, or if damaged audio is passed on.
+
+> **Verified:** 2026-10-27 | §2 | fcc92ad1a2c537a294c2b0c8c028a2cc58a96142
+> **Review:** `docs/reviews/d01-t03-s2.json`
 
 ## 3. Muse Voice Transcribe client with chunking
 

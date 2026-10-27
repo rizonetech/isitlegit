@@ -38,7 +38,7 @@ Sections: 38 | Checklist items: 260
 | [x]    | D01 T02 §5 | Reconcile uncertain sends                  | none                  | 8     |
 | [ ]    | D01 T02 §6 | Forwarding failures detected and reported  | operator              | 6     |
 | [ ]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | operator              | 4     |
-| [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
+| [x]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
 | [ ]    | D01 T03 §7 | MP3 decoding                               | none                  | 5     |
 | [ ]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
 | [ ]    | D01 T03 §9 | Filtered resampling for WAV                | none                  | 4     |
@@ -277,6 +277,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 24/208 verified sections, 11 ready to run now.
+Progress: 25/208 verified sections, 13 ready to run now.
 
-Checklist: 320/1096 items completed (includes Commit items).
+Checklist: 321/1096 items completed (includes Commit items).

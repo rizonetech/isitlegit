@@ -1,0 +1,125 @@
+{
+  "ref": "D01 T03 \u00a72",
+  "title": "Audio decoding to 16 kHz mono WAV",
+  "implementation_sha": "fcc92ad1a2c537a294c2b0c8c028a2cc58a96142",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T03-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T03-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T03-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/01-intake/D01-T03-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/01-intake/D01-T03-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/voice/decode.test.ts test/node/opus-wasm.test.ts -> Tests 33 passed (33)",
+    "pnpm exec vitest run -> Tests 425 passed (425)"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T03-s2.md",
+    "verdict": "filed",
+    "candidate": "ac6acaf3e438889b48ec9319369bbbe1de304fa4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T03 \u00a79",
+      "D01 T03 \u00a77",
+      "D01 T03 \u00a78",
+      "D01 T03 \u00a76",
+      "D01 T03 \u00a73"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T03-s2.md",
+    "candidate": "84227f9c2bc2e768fea15bbfe8fcfbb067ff0337",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
