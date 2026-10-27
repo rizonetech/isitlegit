@@ -70,3 +70,51 @@ Cloudflare keeps only the 100 most recent versions, and every rotation of the sm
 3. Deploy from there: `pnpm exec wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)`. A deploy keeps today's secrets.
 4. Back in the main checkout, on `main`: `curl -s https://isitlegit.derick-f5a.workers.dev/health` reports that commit, and `node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev --commit <known-good commit>` passes.
 5. `git worktree remove ../isitlegit-recover`, and fix forward on `main`.
+
+## Snapshot and restore the AI Gateway configuration
+
+Gateway `isitlegit`'s settings, its `meta` custom provider and the provider's pricing rules live in the Cloudflare account, so a Worker rollback does not bring them back. `infra/ai-gateway.json` is their committed snapshot. Both commands read the admin token from the vault (Conclave, "IsItLegit AI Gateway admin token", through `conclave-op`): a snapshot needs AI Gateway Read, a restore AI Gateway Write. `node scripts/gateway-config.ts --help` lists everything offline.
+
+```bash
+node scripts/gateway-config.ts snapshot        # after any change in the dashboard; commit infra/ai-gateway.json
+node scripts/gateway-config.ts restore --dry   # what a restore would change; sends nothing
+node scripts/gateway-config.ts restore         # put the account back to the file
+```
+
+A snapshot is written whole or not at all: if a read or the write fails, the previous file stays as it was. It leaves out ids, account fields and timestamps, which change when a resource is re-created, and names the gateway by its id, the provider by its slug and a pricing rule by its model.
+
+A restore checks the whole file before it sends anything, creates what is missing (the provider's logo is set after it is created), updates what differs and never deletes. Afterwards it reads the account back and passes only when it matches the file. Exit codes: 0 done or nothing to change, 1 failed, 2 refused before any change.
+
+To go back to an earlier configuration without touching the committed snapshot, write the old file somewhere else and restore that:
+
+```bash
+git log --oneline -- infra/ai-gateway.json
+git show <commit>:infra/ai-gateway.json > /tmp/ai-gateway-<commit>.json
+node scripts/gateway-config.ts restore --dry --file /tmp/ai-gateway-<commit>.json
+node scripts/gateway-config.ts restore --file /tmp/ai-gateway-<commit>.json
+```
+
+When it refuses or fails:
+
+- **"the token needs AI Gateway Read" or "AI Gateway Write"**: the admin token lost a permission or expired. It is an account API token (D99 T01 §8): check it in the dashboard (Manage Account, Account API Tokens), fix it, store any new value in the Conclave item, and run again.
+- **"the provider's headers is set" or "the gateway's otel / stripe is set"**: these fields can hold a credential, which must not enter git, so neither command handles them. Clear the field in the dashboard (AI, AI Gateway), or keep the credential in Cloudflare's Secrets Store, then run again. The message names the field, never its value.
+- **"is not a snapshot" or "cannot be read as JSON"**: the file is damaged. Restore it from git (`git checkout -- infra/ai-gateway.json`) or take a fresh snapshot. Nothing was sent.
+- **"uncertain"**: a change was sent and no answer came back, so it may have landed. Run restore again: it finds what landed by id, slug and model, and creates nothing twice.
+- **"the live pricing rule ... is not in the file; it is kept"**: a rule exists in the account that the snapshot lacks. Restore never deletes; remove it by hand in the dashboard if it should go, or take a snapshot if it should stay.
+- **"still differs ... after restoring"**: Cloudflare accepted the change but kept another value. The message names the field; set it in the dashboard and run `restore --dry` to confirm.
+
+## AI Gateway log retention
+
+This account's AI Gateway logs are kept in Workers Logs, not Legacy Logs. Read on 2026-10-27 from the Workers observability API: dataset `ai-gateway` holds gateway `isitlegit`'s `request-logs` events. Cloudflare's account settings do not name the log store, and the account (created 2023-08-28) has audit entries only from 2026-05-22, so the audit log cannot rule out an earlier gateway; the dataset is the deciding evidence. ([AI Gateway pricing: logs](https://developers.cloudflare.com/ai-gateway/reference/pricing/), [AI Gateway limits](https://developers.cloudflare.com/ai-gateway/reference/limits/).)
+
+The limits are those of Workers Logs ([Workers Logs limits](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#limits)):
+
+| Limit | Value |
+| --- | --- |
+| Retention | 7 days, then the log is gone |
+| Volume | 5 billion logs per account per day; past that, a 1% sample for the rest of the day |
+| Size | 256 KB per log; a larger one is truncated |
+
+The gateway's own `log_management` (10,000,000) and `log_management_strategy` (`DELETE_OLDEST`) are Legacy Logs settings and do not apply to this account. Nothing needs deleting by hand: a log older than 7 days is gone, so evidence that must last longer (such as `docs/meta-smoke-test.md`) is written to the repository at the time.
+
+The events hold metadata only: the model, path, user agent, status, duration, token counts and cost. All 22 events of 2026-10-27 were checked and none holds a request or response body, which matches the gateway's logs API answering 404 code 7002 for every body (D00 T01 §7).

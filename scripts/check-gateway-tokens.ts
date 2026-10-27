@@ -40,7 +40,7 @@ export type Options = {
 type Answer = { status: number; headers: Headers; body: unknown };
 
 // Reads at most `limit` bytes of a body; a larger one is refused rather than held in memory.
-async function boundedText(response: Response, limit: number): Promise<string | null> {
+export async function boundedText(response: Response, limit: number): Promise<string | null> {
   if (!response.body) return "";
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
