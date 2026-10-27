@@ -1,6 +1,7 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { destinationProblem, refusal, runCommand, runSmoke } from "../../scripts/smoke.ts";
 
@@ -105,6 +106,27 @@ describe("scripts/smoke.ts", () => {
     expect(logged).toContain("The secret is live in version v-new.");
     expect([...logged, ...outcome.lines].join("\n")).not.toContain(secret);
   });
+
+  it("stops every running command when the run is interrupted", async () => {
+    // A real run of the script's runCommand in its own Node process, interrupted with SIGINT mid-command.
+    const marker = `smoke-interrupt-${process.pid}-${Date.now()}`;
+    // The parent builds the marker at run time, so only the command's own line contains it, not the parent's.
+    const [head, tail] = [marker.slice(0, 6), marker.slice(6)];
+    const program = `import("./scripts/smoke.ts").then((m) => { m.installSignalCleanup();
+      m.runCommand("pnpm", ["exec", "node", "-e", "setTimeout(() => {}, 20000) // " + "${head}" + "${tail}"], "", Date.now() + 60000); });`;
+    const parent = spawn(process.execPath, ["-e", program], {
+      cwd: join(import.meta.dirname, "../.."),
+      stdio: "ignore",
+    });
+    const alive = () => spawnSync("pgrep", ["-f", marker], { encoding: "utf-8" }).stdout.trim();
+    for (let i = 0; i < 100 && !alive(); i++) await new Promise((r) => setTimeout(r, 100));
+    expect(alive(), "the command started").not.toBe("");
+    const exited = new Promise<number | null>((resolve) => parent.on("exit", (code) => resolve(code)));
+    parent.kill("SIGINT");
+    expect(await exited).toBe(130);
+    for (let i = 0; i < 20 && alive(); i++) await new Promise((r) => setTimeout(r, 100));
+    expect(alive(), "a command outlived the interrupt").toBe("");
+  }, 30_000);
 
   it("refuses every answer short of a clean pass, naming why", () => {
     const at = (status: number, body: unknown) =>

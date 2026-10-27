@@ -142,9 +142,32 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
 // Runs a command with `input` on standard input and answers its standard output, or fails when it exits non-zero or
 // is still running at `deadline` (epoch ms). It runs in a process group of its own, so the deadline kills everything it
 // started (`pnpm exec` starts wrangler as a child), not just the launcher. Asynchronous, so progress keeps printing.
+// The process groups of commands still running, so an interrupted run can stop them (installSignalCleanup).
+const running = new Set<number>();
+
+function killGroup(pid: number): void {
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // The group has already gone.
+  }
+}
+
+// On Ctrl+C or a termination signal, kills every command still running before exiting, so an interrupted run cannot
+// leave wrangler publishing with no deadline left to stop it.
+export function installSignalCleanup(): void {
+  for (const signal of ["SIGINT", "SIGTERM"] as const)
+    process.once(signal, () => {
+      for (const pid of running) killGroup(pid);
+      console.error(`smoke: interrupted (${signal}); stopped ${running.size} running command(s)`);
+      process.exit(130);
+    });
+}
+
 export function runCommand(command: string, args: string[], input: string, deadline: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"], detached: true });
+    if (child.pid) running.add(child.pid);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => {
@@ -157,20 +180,18 @@ export function runCommand(command: string, args: string[], input: string, deadl
     const timer = setTimeout(
       () => {
         expired = true;
-        try {
-          if (child.pid) process.kill(-child.pid, "SIGKILL");
-        } catch {
-          // The group has already gone.
-        }
+        if (child.pid) killGroup(child.pid);
       },
       Math.max(0, deadline - Date.now()),
     );
     child.on("error", (error) => {
       clearTimeout(timer);
+      if (child.pid) running.delete(child.pid);
       reject(error);
     });
     child.on("close", (code) => {
       clearTimeout(timer);
+      if (child.pid) running.delete(child.pid);
       const what = [command, ...args.slice(0, 3)].join(" ");
       if (expired) return reject(new Error(`${what} did not finish before the deadline`));
       if (code !== 0) return reject(new Error(`${what} failed (exit ${code}): ${stderr.slice(-400)}`));
@@ -205,6 +226,7 @@ if (import.meta.filename === process.argv[1]) {
     console.error("smoke: --commit needs a full 40-hex commit");
     process.exit(2);
   }
+  installSignalCleanup();
   try {
     const outcome = await runSmoke(base, { commit, putSecret: putWithWrangler, log: (line) => console.log(line) });
     for (const line of outcome.lines) console.log(line);
