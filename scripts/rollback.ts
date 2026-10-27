@@ -1,5 +1,6 @@
-// Rolls the live Worker back to a known-good version and proves it (D00 T01 §10). It reads the version serving all
-// traffic from `wrangler deployments status` and the deployment history from `wrangler deployments list` (never from
+// Rolls the live Worker back to a known-good version and proves it (D00 T01 §10, §12). It reads the versions serving
+// traffic from `wrangler deployments status` (a split deployment needs `--to`; whether anything changed is judged on
+// the whole deployment) and the deployment history from `wrangler deployments list` (never from
 // /health, which a broken version may not answer), each version's commit from `wrangler versions view` (`COMMIT_SHA`),
 // and chooses the version named, or the newest earlier deployment's version whose commit differs from the active one
 // and that no earlier run rolled away from, by version or by commit (`build/rollback-rejected.json`). It refuses before
@@ -27,7 +28,8 @@ import {
 
 export type Deployment = { created_on: string; versions: { version_id: string; percentage: number }[] };
 export type Wrangler = {
-  activeVersion: (deadline: number) => Promise<string>;
+  // Every version serving traffic and its percentage, from `wrangler deployments status`.
+  deployment: (deadline: number) => Promise<Serving>;
   // Oldest first, as `wrangler deployments list --json` answers.
   deployments: (deadline: number) => Promise<Deployment[]>;
   // The version's commit (null when it carries none) and its upload number, or null when the version is gone.
@@ -82,6 +84,22 @@ function writeRejected(file: string, rejected: Rejected): void {
 
 const seconds = (start: number) => `${Math.round((Date.now() - start) / 1000)} s`;
 
+// The deployment as served: every version and its share of traffic. One version at 100% is the usual case; a gradual
+// deployment splits traffic between two.
+export type Serving = { version_id: string; percentage: number }[];
+const single = (serving: Serving) =>
+  serving.length === 1 && serving[0]?.percentage === 100 ? (serving[0].version_id as string) : null;
+const describe = (serving: Serving) =>
+  single(serving) ?? serving.map((v) => `${v.version_id} ${v.percentage}%`).join(", ");
+const sameDeployment = (a: Serving, b: Serving) => {
+  const key = (s: Serving) =>
+    s
+      .map((v) => `${v.version_id}@${v.percentage}`)
+      .sort()
+      .join(",");
+  return key(a) === key(b);
+};
+
 export async function runRollback(options: RollbackOptions): Promise<RollbackOutcome> {
   const {
     reason,
@@ -105,25 +123,33 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
   });
 
   // Until the deployment call is made nothing has changed, whatever fails.
-  let active = "";
+  let before: Serving = [];
   let chosen: string | undefined;
   let commit: string | null = null;
   let rejected: Rejected;
   try {
     rejected = readRejected(rejectedFile);
-    const activeView = await withProgress("Reading the version serving all traffic", log, async () => {
-      active = await wrangler.activeVersion(deadline);
-      return wrangler.view(active, deadline);
+    const views = await withProgress("Reading the versions serving traffic", log, async () => {
+      before = await wrangler.deployment(deadline);
+      return Promise.all(before.map((v) => wrangler.view(v.version_id, deadline)));
     });
-    const activeCommit = activeView?.commit ?? null;
+    const active = single(before);
+    const servingCommits = views.map((v) => v?.commit ?? null);
+    lines.push(
+      active
+        ? `active: ${active} (commit ${servingCommits[0] ?? "unknown"})`
+        : `split: ${before.map((v, i) => `${v.version_id} ${v.percentage}% (commit ${servingCommits[i] ?? "unknown"})`).join(", ")}`,
+    );
     let forward = false;
-    lines.push(`active: ${active} (commit ${activeCommit ?? "unknown"})`);
     if (target) {
       if (target === active) return finish(false, "no", `rollback: ${target} already serves all traffic`);
       const targetView = await wrangler.view(target, deadline);
       commit = targetView?.commit ?? null;
-      // A newer target is a roll-forward: the version being left is not judged broken.
-      forward = !!targetView && !!activeView && targetView.number > activeView.number;
+      // A target newer than every serving version is a roll-forward: what it leaves is not judged broken.
+      forward =
+        !!targetView &&
+        views.every((v) => !!v) &&
+        views.every((v) => (targetView.number as number) > (v as { number: number }).number);
       if (!commit)
         return finish(
           false,
@@ -132,6 +158,13 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
         );
       chosen = target;
     } else {
+      if (!active)
+        return finish(
+          false,
+          "no",
+          `rollback: a split deployment serves (${describe(before)}); name the version to restore with --to (docs/operations.md)`,
+        );
+      const activeCommit = servingCommits[0];
       await withProgress("Choosing a version from the deployment history", log, async () => {
         const history = await wrangler.deployments(deadline);
         const seen = new Set<string>();
@@ -156,23 +189,32 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
         );
     }
     lines.push(`chosen: ${chosen} (commit ${commit})`);
-    // Recorded before the rollback, so a retry after this run never goes back to the code it is leaving. A roll-forward
-    // records nothing and clears its target, which the operator has just vouched for.
+    // Recorded before the rollback, so a retry after this run never goes back to the code it is leaving: every serving
+    // version other than the target, with its commit (unless it is the target's). A roll-forward records nothing and
+    // clears its target, which the operator has just vouched for.
     const goingTo = chosen as string;
+    const left = before
+      .map((v, i) => ({ version: v.version_id, commit: servingCommits[i] }))
+      .filter((v) => v.version !== goingTo);
     const record = forward
       ? {
           versions: rejected.versions.filter((v) => v !== goingTo),
           commits: rejected.commits.filter((c) => c !== commit),
         }
       : {
-          versions: [...new Set([...rejected.versions, active])],
-          commits: activeCommit ? [...new Set([...rejected.commits, activeCommit])] : rejected.commits,
+          versions: [...new Set([...rejected.versions, ...left.map((v) => v.version)])],
+          commits: [
+            ...new Set([
+              ...rejected.commits,
+              ...left.map((v) => v.commit).filter((c): c is string => !!c && c !== commit),
+            ]),
+          ],
         };
     writeRejected(rejectedFile, record);
     lines.push(
       forward
         ? `recorded: nothing (a roll-forward); ${goingTo} is cleared from ${rejectedFile}`
-        : `recorded: ${active} (commit ${activeCommit ?? "unknown"}) as rolled away from, in ${rejectedFile}; delete it once a good deploy is live`,
+        : `recorded: ${left.map((v) => `${v.version} (commit ${v.commit ?? "unknown"})`).join(", ")} as rolled away from, in ${rejectedFile}; delete it once a good deploy is live`,
     );
   } catch (error) {
     return finish(false, "no", `rollback: ${(error as Error).message}`);
@@ -180,13 +222,19 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
 
   const version = chosen as string;
   const expected = commit as string;
+  // What serves now against what served before: the same deployment is `no`, any other is `yes`.
+  const changedSince = (now: Serving) => (sameDeployment(now, before) ? "no" : "yes");
+  const notTarget = (now: Serving) =>
+    single(now)
+      ? `${single(now)} serves all traffic, not ${version}`
+      : `the deployment is split (${describe(now)}), not ${version} at 100%`;
   try {
     await withProgress(`Rolling back to ${version} (commit ${expected})`, log, () =>
       wrangler.rollback(version, reason, deadline),
     );
-    const now = await wrangler.activeVersion(deadline);
-    const changed = now === active ? "no" : "yes";
-    if (now !== version) return finish(false, changed, `rollback: ${now} serves all traffic, not ${version}`);
+    const now = await wrangler.deployment(deadline);
+    const changed = changedSince(now);
+    if (single(now) !== version) return finish(false, changed, `rollback: ${notTarget(now)}`);
     // A rollback takes seconds to reach every Cloudflare location; until then /health still answers the old commit, so
     // it is asked again until it reports the chosen commit or the deadline passes.
     const health = await withProgress("Waiting for /health to report the chosen commit", log, async () => {
@@ -204,9 +252,8 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     log("Running the smoke check...");
     const smoke = await checks.smoke(expected, deadline);
     lines.push(...smoke.lines);
-    const after = await wrangler.activeVersion(end);
-    if (after !== version)
-      return finish(false, changed, `rollback: ${after} serves all traffic after the checks, not ${version}`);
+    const after = await wrangler.deployment(end);
+    if (single(after) !== version) return finish(false, changed, `rollback: after the checks, ${notTarget(after)}`);
     return smoke.ok
       ? finish(true, changed, `rolled back to ${version}, verified`)
       : finish(false, changed, "rollback: the smoke check failed");
@@ -214,9 +261,9 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     // Whether the deployment moved is read again inside the kept time; a failed read leaves it uncertain.
     let changed: RollbackOutcome["changed"] = "uncertain";
     try {
-      const now = await wrangler.activeVersion(end);
-      changed = now === active ? "no" : "yes";
-      lines.push(`active after the failure: ${now}`);
+      const now = await wrangler.deployment(end);
+      changed = changedSince(now);
+      lines.push(`active after the failure: ${describe(now)}`);
     } catch {
       // stays uncertain
     }
@@ -298,7 +345,10 @@ export async function deployVersion(
 const wrangler = (args: string[], deadline: number) => runCommand("pnpm", ["exec", "wrangler", ...args], "", deadline);
 
 export const realWrangler: Wrangler = {
-  activeVersion: activeVersionFromWrangler,
+  deployment: async (deadline) =>
+    (JSON.parse(await wrangler(["deployments", "status", "--json"], deadline)) as { versions: Serving }).versions.map(
+      ({ version_id, percentage }) => ({ version_id, percentage }),
+    ),
   deployments: async (deadline) => JSON.parse(await wrangler(["deployments", "list", "--json"], deadline)),
   view: async (version, deadline) => {
     try {

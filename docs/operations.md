@@ -29,6 +29,17 @@ A rollback changes only which code version serves traffic. It never changes D1, 
 
 Each run says what it recorded. A rollback records the version and commit it leaves; a roll-forward (`--to` a newer version) records nothing and clears its target, which you have just vouched for. When the incident is over and a good deploy is live, delete `build/rollback-rejected.json`, so later rollbacks may choose those versions again.
 
+### A split deployment
+
+A gradual deployment serves two versions at once (say 90% and 10%). `wrangler deployments status` lists every serving version and its percentage. The script will not guess which side is good: without `--to` it refuses a split before changing anything and names it. Choose the version to restore and name it:
+
+```bash
+pnpm exec wrangler deployments status                     # the serving versions and their percentages
+node scripts/rollback.ts --reason "<what broke>" --to <id>  # one side of the split, or an older version
+```
+
+It moves the named version to 100%, then verifies it as for any rollback. The record follows the same rules: a rollback records every serving version other than the target, with its commit; when the target is newer than every serving version, it is a roll-forward and records nothing. Whether the deployment changed is judged on the whole deployment (every version and its percentage): `no` when the split is as it was (a refused or failed call), `yes` when anything moved, and `uncertain` only when the deployment cannot be read.
+
 ## Redeploy a known-good commit
 
 Cloudflare keeps only the 100 most recent versions, and every rotation of the smoke token or other secret publishes one. Redeploy from source when no rollback target is left, or when the rollback was refused because secrets changed. The old commit is built in a separate worktree, and today's `main` checks it: an older commit's own `scripts/smoke.ts` may mint a token or publish a version, which would leave the vault and the Worker disagreeing.

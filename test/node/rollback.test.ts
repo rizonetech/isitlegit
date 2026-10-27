@@ -11,6 +11,7 @@ import {
   parseRollbackArgs,
   runRollback,
   SecretsChanged,
+  type Serving,
   type Wrangler,
 } from "../../scripts/rollback.ts";
 
@@ -54,15 +55,17 @@ const viewOf =
   async (version: string) =>
     commits[version] ? { commit: commits[version] as string, number: numbers[version] ?? 0 } : null;
 
+const all = (version: string): Serving => [{ version_id: version, percentage: 100 }];
 function stage(active = "c", overrides: Partial<Wrangler> = {}) {
-  const state = { active, rollbacks: [] as string[] };
+  const state = { active, rollbacks: [] as string[], split: undefined as Serving | undefined };
   const wrangler: Wrangler = {
-    activeVersion: async () => state.active,
+    deployment: async () => state.split ?? all(state.active),
     deployments: async () => HISTORY,
     view: viewOf(COMMITS),
     rollback: async (version) => {
       state.rollbacks.push(version);
       state.active = version;
+      state.split = undefined;
     },
     ...overrides,
   };
@@ -121,7 +124,7 @@ describe("scripts/rollback.ts", () => {
     const history = [deployment("a", 1), deployment("b", 2), deployment("c1", 3), deployment("c2", 4)];
     const state = { active: "c2", rollbacks: [] as string[] };
     const wrangler: Wrangler = {
-      activeVersion: async () => state.active,
+      deployment: async () => all(state.active),
       deployments: async () => history,
       view: viewOf(commits),
       rollback: async (version) => {
@@ -151,6 +154,112 @@ describe("scripts/rollback.ts", () => {
     expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: [], commits: [] });
     const again = await run(wrangler, passing(state));
     expect(again.lines).toContain(`chosen: b2 (commit ${COMMITS.b})`);
+  });
+
+  it("refuses a split deployment without --to before any deployment call, naming the split", async () => {
+    const { state, wrangler } = stage("c");
+    state.split = [
+      { version_id: "c", percentage: 90 },
+      { version_id: "b2", percentage: 10 },
+    ];
+    const outcome = await run(wrangler, passing(state));
+    expect(outcome).toMatchObject({ ok: false, changed: "no" });
+    expect(outcome.lines.at(-2)).toBe(
+      "rollback: a split deployment serves (c 90%, b2 10%); name the version to restore with --to (docs/operations.md)",
+    );
+    expect(state.rollbacks).toEqual([]);
+  });
+
+  it("restores a named version from a split, either side or older, recording every other serving version", async () => {
+    for (const target of ["c", "b2", "a"]) {
+      rmSync(REJECTED, { force: true });
+      const { state, wrangler } = stage("c");
+      state.split = [
+        { version_id: "c", percentage: 90 },
+        { version_id: "b2", percentage: 10 },
+      ];
+      const outcome = await run(wrangler, passing(state), { target });
+      expect(outcome).toMatchObject({ ok: true, changed: "yes" });
+      expect(outcome.lines[0]).toBe(`split: c 90% (commit ${COMMITS.c}), b2 10% (commit ${COMMITS.b})`);
+      expect(state.rollbacks).toEqual([target]);
+      const record = JSON.parse(readFileSync(REJECTED, "utf-8"));
+      expect(record.versions).toEqual(["c", "b2"].filter((v) => v !== target));
+      expect(record.commits).toEqual([COMMITS.c, COMMITS.b].filter((c) => c !== COMMITS[target]));
+    }
+  });
+
+  it("records nothing when the named version is newer than every serving version", async () => {
+    const { state, wrangler } = stage("b");
+    state.split = [
+      { version_id: "b", percentage: 90 },
+      { version_id: "b2", percentage: 10 },
+    ];
+    const outcome = await run(wrangler, passing(state), { target: "c" });
+    expect(outcome.ok).toBe(true);
+    expect(outcome.lines).toContain(`recorded: nothing (a roll-forward); c is cleared from ${REJECTED}`);
+    // Newer than one side only: a rollback relative to the newer side, so both others are recorded.
+    rmSync(REJECTED, { force: true });
+    const mixed = stage("a");
+    mixed.state.split = [
+      { version_id: "a", percentage: 90 },
+      { version_id: "c", percentage: 10 },
+    ];
+    const back = await run(mixed.wrangler, passing(mixed.state), { target: "b2" });
+    expect(back.ok).toBe(true);
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8")).versions).toEqual(["a", "c"]);
+  });
+
+  it("judges a split's change by the whole deployment: intact is no, moved is yes, unreadable is uncertain", async () => {
+    const split = (): Serving => [
+      { version_id: "c", percentage: 90 },
+      { version_id: "b2", percentage: 10 },
+    ];
+    // Refused (changed secrets): the split is intact.
+    const refused = stage("c", {
+      rollback: async () => {
+        throw new SecretsChanged(["SMOKE_TOKEN"]);
+      },
+    });
+    refused.state.split = split();
+    expect(await run(refused.wrangler, passing(refused.state), { target: "a" })).toMatchObject({
+      ok: false,
+      changed: "no",
+    });
+    // The call failed after Cloudflare moved the percentages: changed, and not the target at 100%.
+    const moved = stage("c", {
+      rollback: async () => {
+        moved.state.split = [
+          { version_id: "c", percentage: 50 },
+          { version_id: "b2", percentage: 50 },
+        ];
+        throw new Error("connection reset");
+      },
+    });
+    moved.state.split = split();
+    const outcome = await run(moved.wrangler, passing(moved.state), { target: "a" });
+    expect(outcome).toMatchObject({ ok: false, changed: "yes" });
+    expect(outcome.lines).toContain("active after the failure: c 50%, b2 50%");
+    // Still split after the call returned: a failure that says so.
+    const stuck = stage("c", { rollback: async () => {} });
+    stuck.state.split = split();
+    const still = await run(stuck.wrangler, passing(stuck.state), { target: "a" });
+    expect(still).toMatchObject({ ok: false, changed: "no" });
+    expect(still.lines.at(-2)).toBe("rollback: the deployment is split (c 90%, b2 10%), not a at 100%");
+    // Unreadable after a failed call.
+    let reads = 0;
+    const blind = stage("c", {
+      deployment: async () => {
+        if (++reads > 1) throw new Error("status unavailable");
+        return split();
+      },
+      rollback: async () => {
+        throw new Error("connection reset");
+      },
+    });
+    expect(await run(blind.wrangler, passing(blind.state), { target: "a" })).toMatchObject({
+      ok: false,
+      changed: "uncertain",
+    });
   });
 
   it("rolls back to an explicit target, even past the default", async () => {
@@ -215,7 +324,7 @@ describe("scripts/rollback.ts", () => {
       },
     };
     expect((await run(moved.wrangler, checks)).lines.at(-2)).toBe(
-      "rollback: a serves all traffic after the checks, not b2",
+      "rollback: after the checks, a serves all traffic, not b2",
     );
   });
 
@@ -238,7 +347,7 @@ describe("scripts/rollback.ts", () => {
     const stall = (deadline: number) =>
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("stalled")), deadline - Date.now()));
     const { state, wrangler } = stage("c", {
-      activeVersion: async (deadline) => (++reads === 1 ? "c" : stall(deadline)),
+      deployment: async (deadline) => (++reads === 1 ? all("c") : stall(deadline)),
       rollback: (_v, _m, deadline) => stall(deadline),
     });
     const started = Date.now();
@@ -249,7 +358,7 @@ describe("scripts/rollback.ts", () => {
 
   it("refuses before changing anything when preflight or its record fails", async () => {
     const down = stage("c", {
-      activeVersion: async () => {
+      deployment: async () => {
         throw new Error("wrangler: not logged in");
       },
     });
@@ -292,7 +401,7 @@ describe("scripts/rollback.ts", () => {
     const outcome = await run(wrangler, checks, { log: (line) => logged.push(line) });
     expect(logged).toEqual(
       expect.arrayContaining([
-        "Reading the version serving all traffic...",
+        "Reading the versions serving traffic...",
         "Choosing a version from the deployment history...",
         `Rolling back to b2 (commit ${COMMITS.b})...`,
         "Waiting for /health to report the chosen commit...",
@@ -383,9 +492,9 @@ describe("scripts/rollback.ts", () => {
   it("calls a deployment it cannot read back uncertain", async () => {
     let reads = 0;
     const { state, wrangler } = stage("c", {
-      activeVersion: async () => {
+      deployment: async () => {
         if (++reads > 1) throw new Error("status unavailable");
-        return "c";
+        return all("c");
       },
     });
     const outcome = await run(wrangler, passing(state));
