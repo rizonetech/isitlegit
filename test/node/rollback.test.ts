@@ -182,10 +182,33 @@ describe("scripts/rollback.ts", () => {
       expect(outcome).toMatchObject({ ok: true, changed: "yes" });
       expect(outcome.lines[0]).toBe(`split: c 90% (commit ${COMMITS.c}), b2 10% (commit ${COMMITS.b})`);
       expect(state.rollbacks).toEqual([target]);
+      if (target === "c")
+        expect(outcome.lines).toContain(
+          `recorded: b2 (commit ${COMMITS.b}) as rolled away from, in ${REJECTED}; delete it once a good deploy is live`,
+        );
       const record = JSON.parse(readFileSync(REJECTED, "utf-8"));
       expect(record.versions).toEqual(["c", "b2"].filter((v) => v !== target));
       expect(record.commits).toEqual([COMMITS.c, COMMITS.b].filter((c) => c !== COMMITS[target]));
     }
+  });
+
+  it("says when a version it leaves shares the target's commit, which stays eligible", async () => {
+    const commits: Record<string, string> = { ...COMMITS, c2: COMMITS.c as string };
+    const { state, wrangler } = stage("c", { view: viewOf(commits, { ...NUMBERS, c2: 5 }) });
+    state.split = [
+      { version_id: "c", percentage: 90 },
+      { version_id: "c2", percentage: 10 },
+    ];
+    const outcome = await run(
+      wrangler,
+      { ...passing(state), health: async () => ({ commit: COMMITS.c as string }) },
+      { target: "c" },
+    );
+    expect(outcome.ok).toBe(true);
+    expect(outcome.lines).toContain(
+      `recorded: c2 (its commit is the target's, so only the version) as rolled away from, in ${REJECTED}; delete it once a good deploy is live`,
+    );
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: ["c2"], commits: [] });
   });
 
   it("records nothing when the named version is newer than every serving version", async () => {

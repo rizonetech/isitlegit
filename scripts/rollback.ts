@@ -214,7 +214,13 @@ export async function runRollback(options: RollbackOptions): Promise<RollbackOut
     lines.push(
       forward
         ? `recorded: nothing (a roll-forward); ${goingTo} is cleared from ${rejectedFile}`
-        : `recorded: ${left.map((v) => `${v.version} (commit ${v.commit ?? "unknown"})`).join(", ")} as rolled away from, in ${rejectedFile}; delete it once a good deploy is live`,
+        : `recorded: ${left
+            .map((v) =>
+              v.commit && v.commit === commit
+                ? `${v.version} (its commit is the target's, so only the version)`
+                : `${v.version} (commit ${v.commit ?? "unknown"})`,
+            )
+            .join(", ")} as rolled away from, in ${rejectedFile}; delete it once a good deploy is live`,
     );
   } catch (error) {
     return finish(false, "no", `rollback: ${(error as Error).message}`);
