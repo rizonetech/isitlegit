@@ -3,6 +3,7 @@ fonttools and changes nothing, and a changed source font gets a new name with th
 
 tests/scripts runs on the standard library, so the checks that read fonts need fonttools (design/tools/requirements.txt):
 they skip without it locally and are required in CI, which sets REQUIRE_FONT_TOOLS=1."""
+import hashlib
 import importlib.util
 import os
 import pathlib
@@ -84,6 +85,25 @@ class Build(unittest.TestCase):
         result = run("-S", str(TOOL), "--fonts", str(self.fonts), "--out", str(self.out), "--css", str(self.css), env=env)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("pip install -r design/tools/requirements.txt", result.stderr)
+
+    def test_a_converter_upgrade_changes_every_fingerprint(self):
+        source = REPO / "design/fonts/Exo[wght].ttf"
+        pins = webfonts.converter_pins()
+        self.assertIn("brotli==", pins)
+        self.assertIn("fonttools==", pins)
+        self.assertNotEqual(webfonts.fingerprint(source, pins), webfonts.fingerprint(source, pins.replace("brotli==", "brotli==9")))
+
+    @needs_font_tools
+    def test_the_same_inputs_give_the_same_bytes(self):
+        for p in self.out.iterdir():
+            p.unlink()
+        self.assertEqual(self.build().returncode, 0)
+        # Digests, not bytes: a failure then prints two short lines instead of diffing 100 KB of font data.
+        first = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.out.iterdir()}
+        for p in self.out.iterdir():
+            p.unlink()
+        self.assertEqual(self.build().returncode, 0)
+        self.assertEqual({p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.out.iterdir()}, first)
 
     @needs_font_tools
     def test_a_changed_font_gets_a_new_name_and_the_old_file_goes(self):

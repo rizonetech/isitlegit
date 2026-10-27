@@ -4,8 +4,8 @@
     python3 design/tools/build-webfonts.py [--fonts <dir>] [--out <dir>] [--css <file>]
 
 Converts the vendored variable fonts (design/fonts/, SIL OFL 1.1) to WOFF2 in public/static/fonts/, named
-`<family>.<first 12 hex of the source TTF's SHA-256>.woff2`, and writes src/web/styles/fonts.css with their @font-face
-rules. The name follows the source font, so a family whose current file already exists is skipped without importing
+`<family>.<first 12 hex of the SHA-256 of the source TTF and the converter pins>.woff2`, and writes src/web/styles/fonts.css with their @font-face
+rules. The name follows the source font and the pinned fonttools and brotli, so a family whose current file already exists is skipped without importing
 fonttools: `pnpm build:assets` runs this on every build, and only a changed source font needs
 design/tools/requirements.txt (fonttools with brotli). Older files of a converted family are removed. Every file is
 written to a temporary file and then moved into place.
@@ -23,8 +23,17 @@ FAMILIES = (("Exo[wght].ttf", "exo", "Exo"), ("Exo2[wght].ttf", "exo2", "Exo 2")
 WEIGHTS = "100 900"  # the variable fonts' weight axis
 
 
-def fingerprint(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+def converter_pins(requirements=REPO / "design/tools/requirements.txt"):
+    """The pinned converter versions (`fonttools==`, `brotli==` lines): part of each fingerprint, so upgrading the
+    converter renames, and so rebuilds, every font rather than shipping new bytes under a year-cached URL."""
+    lines = requirements.read_text(encoding="utf-8").splitlines()
+    return "\n".join(sorted(l.split("#")[0].strip() for l in lines if l.startswith(("fonttools==", "brotli=="))))
+
+
+def fingerprint(path, pins=None):
+    digest = hashlib.sha256(path.read_bytes())
+    digest.update((converter_pins() if pins is None else pins).encode("utf-8"))
+    return digest.hexdigest()[:12]
 
 
 def write_atomic(path, data):
@@ -44,7 +53,8 @@ def convert(source, target):
     """WOFF2 of `source` into `target`, through a temporary file (fonttools with brotli)."""
     from fontTools.ttLib import TTFont  # only when a font actually changed
 
-    font = TTFont(source)
+    # recalcTimestamp=False keeps the source head.modified, so the same inputs give the same bytes.
+    font = TTFont(source, recalcTimestamp=False)
     font.flavor = "woff2"
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(dir=target.parent, suffix=".woff2.tmp")
