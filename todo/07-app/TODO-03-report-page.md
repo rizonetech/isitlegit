@@ -18,6 +18,7 @@ track: day-2
 - Design spec 4.7 (report page), 4.3a (listings show source, date, delisting page), 4.6 (verdict output), 5 (demo), section 11; `docs/manifesto.md` (Experience standards); plan Day 8 (model-trace panel fed by real pipeline events).
 - `design/SPEC.md` report and reply sections.
 - -> XREF: D02 T06 §4 -- the reputation listings whose disputes the feedback records by provider
+- -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 
 ## Outcome
 
@@ -62,6 +63,7 @@ track: day-2
 - [ ] Load the case, verdict and evidence with one query each, scoped to the organisation. Done when: the test counts queries.
 - [ ] Add a print stylesheet hiding navigation and expanding evidence cards. Done when: a Browser Run PDF render of a fixture has no navigation text.
 - [ ] Set `Cache-Control: private, no-store` and `X-Robots-Tag: noindex`. Done when: the test reads both headers.
+- [ ] Add the report's phone back link to Cases per `Report-Mobile` (a link to `/cases` above the report title at phone width, for a signed-in member only; the public frame shows none). Done when: a test renders the report at 360 px for a member and finds the link to `/cases`, and renders the signed-link view and finds none. (Assigned by D07 T01 §3's plan review, 2026-10-27.)
 - [ ] Commit: `web: report route with signed-link and session access`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if another organisation's member can open the case.

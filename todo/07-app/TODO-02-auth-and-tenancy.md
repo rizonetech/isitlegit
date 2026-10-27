@@ -62,6 +62,7 @@ Better Auth 1.7.13 owns users and sessions in D1 (stack doc). The magic-link ema
 - [ ] Generate the Better Auth schema into `src/db/migrations/0003_auth.sql` with its CLI and review it. Done when: the migration applies locally.
 - [ ] Enable the magic-link plugin with `sendMagicLink` calling `sendMail({ kind: "signin" })`, link expiry 15 minutes. Done when: a test sees the send and an expired link is refused. Cheaper substitute: a password field.
 - [ ] Mount the auth handler at `/api/auth/*` in the Hono app. Done when: `GET /api/auth/ok` (Better Auth health) returns 200.
+- [ ] Add the browser sign-out route the app shell's Sign out form posts to (D07 T01 §3): `POST /auth/sign-out` with `application/x-www-form-urlencoded`, refused unless the request's `Origin` is the app's own, ends the session (cookie cleared, session row removed) and answers `303` to `/sign-in`; a request with no session also lands on `/sign-in`. Done when: a test submits the form as a browser would, then finds the session gone on a read-back and a request to `/cases` redirected to `/sign-in`, and a cross-origin post refused with `403` and the session intact. (D07 T01 §3 plan review P1, 2026-10-27.)
 - [ ] Commit: `auth: Better Auth on D1 with email magic links`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/auth.test.ts` passes and fails if an expired magic link signs in.
@@ -102,6 +103,7 @@ One organisation per client company, roles owner, admin and member (spec 4.8). I
 - [ ] Allow invite and removal for owners and admins only. Done when: a member's attempt gets 403.
 - [ ] Revoke an invite and remove a member, deleting the member's sessions for that organisation. Done when: the removed member's next request to an organisation route gets 403.
 - [ ] Write `requireOrg(c)` middleware putting the active organisation id on the context for every app route. Done when: every later route test can use it, and a request for another organisation's case gets 404. Cheaper substitute: reading the organisation id from a query parameter.
+- [ ] Add the browser organisation-switch route the app shell's switcher posts to (D07 T01 §3): `POST /orgs/switch` with `application/x-www-form-urlencoded` field `organizationId`, refused unless the request's `Origin` is the app's own, sets the session's active organisation only when the member belongs to it, and answers `303` to `/cases`; a non-member's request answers `403` with the active organisation unchanged. Done when: a test switches between two organisations and reads the active one back from the session and from `/cases`, and a switch to a foreign organisation is refused with the active one unchanged. (D07 T01 §3 plan review P1, 2026-10-27.)
 - [ ] Commit: `auth: organisations, roles, invites and removal`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/org.test.ts` passes and fails if `requireOrg` trusts a query parameter.

@@ -22,7 +22,7 @@ Sections: 7 | Checklist items: 80
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 32 | Checklist items: 205
+Sections: 32 | Checklist items: 207
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -36,9 +36,9 @@ Sections: 32 | Checklist items: 205
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
 | [x]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
 | [x]    | D07 T01 §5 | Hashed static assets and fonts             | none                  | 16    |
-| [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
+| [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 7     |
 | [ ]    | D07 T02 §2 | Passkey sign-in                            | none                  | 3     |
-| [ ]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 6     |
+| [ ]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 7     |
 | [ ]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 4     |
 | [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 6     |
 | [ ]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 6     |
@@ -61,7 +61,7 @@ Sections: 32 | Checklist items: 205
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 33 | Checklist items: 147
+Sections: 33 | Checklist items: 151
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -81,7 +81,7 @@ Sections: 33 | Checklist items: 147
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 5     |
 | [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
-| [ ]    | D07 T01 §3  | App shell and its three frames                        | none     | 8     |
+| [ ]    | D07 T01 §3  | App shell and its three frames                        | none     | 11    |
 | [ ]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 4     |
 | [ ]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 4     |
 | [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
@@ -89,7 +89,7 @@ Sections: 33 | Checklist items: 147
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 5     |
-| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 5     |
+| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 6     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 5     |
 | [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 4     |
@@ -266,4 +266,4 @@ Sections: 12 | Checklist items: 54
 
 Progress: 8/195 verified sections, 8 ready to run now.
 
-Checklist: 143/942 items completed (includes Commit items).
+Checklist: 143/948 items completed (includes Commit items).
