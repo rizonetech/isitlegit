@@ -71,11 +71,11 @@ Sections: 38 | Checklist items: 263
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 35 | Checklist items: 187
+Sections: 35 | Checklist items: 188
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
-| [ ]    | D01 T03 §10 | M4A with libxaac                                      | operator | 5     |
+| [ ]    | D01 T03 §10 | M4A with libxaac                                      | operator | 6     |
 | [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 5     |
 | [ ]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
@@ -280,4 +280,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 26/209 verified sections, 12 ready to run now.
 
-Checklist: 330/1104 items completed (includes Commit items).
+Checklist: 330/1105 items completed (includes Commit items).
