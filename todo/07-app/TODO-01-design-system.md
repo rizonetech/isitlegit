@@ -36,7 +36,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Attended design session and design/SPEC.md | -- | [x] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [x] |
-| 3 | §3 | App shell and its three frames | §2, §5 | [ ] |
+| 3 | §3 | App shell and its three frames | §2, §5, §6 | [ ] |
 | 4 | §4 | Design change comparison | §1 | [ ] |
 | 5 | §5 | Hashed static assets and fonts | §2 | [x] |
 | 6 | §6 | Buttons, fields and pills | §2, §5 | [ ] |
@@ -143,7 +143,7 @@ One page frame for every app page (`AGENTS.md`: a second toolbar or panel shape 
 **Fidelity:** `design/SPEC.md` 1 (P1 App navigation, P2 Admin navigation), boards `AppNav`, `AdminNav`, `Report-Counterparty` (public header), `Report-Mobile` (phone header and Menu button); values from `design/mockups/source/ui.css`
 **Job:** every app page sits in the same frame, with the navigation and the signed-in context in the same place
 **Treatment:** the approved frames, tokens only, phone layout per the phone boards
-**Chrome:** this section defines the frames: `AppShell` (`variant` member, admin or public)
+**Chrome:** this section defines the frames: `AppShell` (`variant` member, admin or public), built from `Button` and `Pill` (§6). **Corrected 2026-10-27:** §3 now depends on §6, since the board's Check a file, switcher and copy buttons and its count and trial pills are §6's controls; drawing them here would be the second control shape `AGENTS.md` calls a defect.
 
 > **Deferred:** switching the active organisation (`POST /orgs/switch`, whose contract and tests D07 T02 §3 owns) -> XREF: D07 T02 §3
 > **Deferred:** signing out (`POST /auth/sign-out`, whose contract and tests D07 T02 §1 owns) -> XREF: D07 T02 §1
@@ -154,11 +154,10 @@ One page frame for every app page (`AGENTS.md`: a second toolbar or panel shape 
 
 **Build order:**
 
-1. Configure JSX and the document. Done when: a `.tsx` test runs, fails on a broken assertion, and a rendered document loads the shipped stylesheet and logo.
+1. Build the document. Done when: a rendered document loads the shipped stylesheet and logo. (**Corrected 2026-10-27:** the Hono JSX configuration moved to §6, the first section that renders JSX.)
 2. Build the three frames from their boards, every link to its production route. Done when: each renders with its landmarks, states and destinations.
 3. Make every frame work at phone width and from the keyboard. Done when: Chromium at 360 px shows no overflow, and keyboard tests reach every control with visible focus, with and without JavaScript.
 
-- [ ] Configure Hono JSX: `jsx: "react-jsx"` and `jsxImportSource: "hono/jsx"` in `tsconfig.json`, `.tsx` in the root, `test` and `test/node` TypeScript projects, and `test/node/**/*.test.{ts,tsx}` in the Vitest `node` project. Done when: `pnpm typecheck` checks a `.tsx` file and refuses a planted type error in it, and a deliberately failing assertion in `test/node/shell.test.tsx` fails `pnpm test`.
 - [ ] Serve the brand logos: `scripts/hash-asset.ts` copies `design/brand/logo-svg/isitlegit-logo.svg` and `isitlegit-logo-on-dark.svg` to `public/static/brand/logo.<hash>.svg` and `logo-on-dark.<hash>.svg`, exported from `src/web/assets.ts` as `LOGO` and `LOGO_ON_DARK`. Done when: `test/node/assets.test.ts` and `test/node/serve.test.ts` cover both (fingerprinted, `image/svg+xml`, immutable cache).
 - [ ] Write `src/web/components/Document.tsx`: `<!doctype html>`, `<html lang="en">`, a per-page `<title>` ("<page> · IsItLegit"), `<meta charset>`, `<meta name="viewport" content="width=device-width, initial-scale=1">`, the stylesheet from `APP_CSS`, and a `scripts` slot §9 fills (htmx and the app script). Done when: `test/node/document.test.ts` renders a page through the Worker (`unstable_startWorker`) and finds each element, and the stylesheet and logo URLs in it answer `200` from the same Worker. Cheaper substitute: a hard-coded stylesheet path that goes stale at the next build.
 - [ ] Write `src/web/components/AppShell.tsx` with `variant: "member"` rendering the P1 navigation as a `<nav aria-label="Main">` sidebar beside `<main id="content">`, after a "Skip to content" link: the logo (`LOGO`, alt "IsItLegit, cases", to `/cases`), the organisation switcher, the primary "Check a file" (`/upload`), the main links Cases `/cases`, Suppliers `/suppliers`, Protect `/protect`, Monitor `/monitor`, Team `/team`, the "Settings" group with Domains and addresses `/settings/domains`, Account `/settings/account` and Plan `/settings/plan`, the footer card "Forward suspicious mail as an attachment to" with the check address and its copy button, and the user block (initials, name, role) with Sign out. Done when: `test/node/shell.test.tsx` finds the landmarks, the skip link, every label and every `href` above, and the token utilities that carry `AppNav.dc.html`'s values. Cheaper substitute: per-page headers. Source: `design/SPEC.md` 0.4 routes, 1 P1.
@@ -236,6 +235,8 @@ Evidence 2026-10-27 06:21 SAST, at `1d9d254` after the final review, CI run http
 
 ## 6. Buttons, fields and pills
 
+> **Started:** 2026-10-27T04:38:06Z
+
 The controls every page uses, as the SPEC's shared parts and `design/mockups/source/ui.css` define them.
 
 **Phase:** 2
@@ -248,8 +249,9 @@ The controls every page uses, as the SPEC's shared parts and `design/mockups/sou
 
 **Build order:**
 
-1. Build the controls in `src/web/components/`. Done when: each renders every variant with its token classes.
+1. Configure Hono JSX, then build the controls in `src/web/components/`. Done when: a `.tsx` test runs and fails on a broken assertion, and each control renders every variant with its token classes.
 
+- [ ] Configure Hono JSX: `jsx: "react-jsx"` and `jsxImportSource: "hono/jsx"` in `tsconfig.json`, `.tsx` in the root, `test` and `test/node` TypeScript projects, and `test/node/**/*.test.{ts,tsx}` in the Vitest `node` project. Done when: `pnpm typecheck` checks a `.tsx` file and refuses a planted type error in it, and a deliberately failing assertion in `test/node/controls.test.tsx` fails `pnpm test`. (Moved from §3, 2026-10-27: §6 is the first section to render JSX, and §3 now builds on it.)
 - [ ] Build `Button` (`primary`, `dark`, `ghost`, `danger`, `link`; `size` default 48 px or small 36 px; renders `<button>` or, with `href`, `<a>`; an icon-only button requires `label`, its accessible name). Done when: `test/node/controls.test.tsx` renders each variant and size with the radius, height and colours of `.btn` in `ui.css` as token utilities, and refuses an icon-only button without a label at the type level and at run time. Cheaper substitute: per-page button classes.
 - [ ] Build `Field` (label, hint, error, a 48 px input; the error state sets `aria-invalid` and links the error text with `aria-describedby`) and `Checkbox`. Done when: the test renders the plain, hinted and error states and finds the label tied to its input. Cheaper substitute: placeholder text as the label.
 - [ ] Build `Pill` (`safe`, `suspicious`, `malicious`, `partial`, `running`, `neutral`), each with an icon and text, never colour alone. Done when: the test finds the text in every variant and the icon hidden from assistive technology. Source: SPEC 1 and board `Badges`.
