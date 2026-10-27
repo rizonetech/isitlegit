@@ -44,6 +44,7 @@ track: day-0
 | 5 | §5 | WhatsApp test number | -- | [ ] |
 | 6 | §6 | Google Web Risk API key | -- | [ ] |
 | 7 | §7 | Partner credits for Glimmer | -- | [ ] |
+| 8 | §8 | AI Gateway tokens | -- | [ ] |
 
 ## 1. Meta API billing and API key
 
@@ -203,6 +204,24 @@ The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-
 Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decision 2026-10-27; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
 
 **Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
+
+## 8. AI Gateway tokens
+
+Two Cloudflare API tokens only the operator can create: Wrangler's login offers no AI Gateway scope, and the Cloudflare connector cannot create tokens. D00 T01 §7 (the Meta smoke test through the authenticated gateway) and D00 T01 §11 (the gateway configuration snapshot and restore) wait on them.
+
+**Phase:** 0
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Create both tokens and store them in Conclave. Done when: both vault items exist with a filled credential.
+
+- [ ] Create the gateway's authentication token in the Cloudflare dashboard (AI, AI Gateway, `isitlegit`, Settings, Create authentication token; AI Gateway Run only, no expiry) and store it in Conclave as "IsItLegit AI Gateway token" (API Credential, value in `credential`). Done when: `conclave-op item get "IsItLegit AI Gateway token" --vault Conclave --fields credential --reveal | wc -c` prints more than 1.
+- [ ] Create an account API token (My Profile, API Tokens, Create Token, Custom: Account, AI Gateway, Read and Edit, this account only, no expiry) and store it in Conclave as "IsItLegit AI Gateway admin token". Done when: the same count for that item prints more than 1.
+- [ ] Commit: `todo: AI Gateway tokens in the vault`
+
+**Test checkpoint:** `for t in "IsItLegit AI Gateway token" "IsItLegit AI Gateway admin token"; do conclave-op item get "$t" --vault Conclave --fields credential --reveal | wc -c; done` prints two counts above 1 (the values are never shown).
 
 ## Verification
 

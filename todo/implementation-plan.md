@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 10 | Checklist items: 119
+Sections: 11 | Checklist items: 122
 
 | Status | Reference   | Deliverable                            | Needs                | Items |
 | ------ | ----------- | -------------------------------------- | -------------------- | ----- |
@@ -18,10 +18,11 @@ Sections: 10 | Checklist items: 119
 | [x]    | D00 T01 §4  | GitHub Actions CI                      | none                 | 12    |
 | [x]    | D00 T01 §5  | Cloudflare bindings and first deploy   | cloudflare           | 24    |
 | [x]    | D00 T01 §6  | AI Gateway for the Meta Model API      | cloudflare           | 9     |
-| [ ]    | D00 T01 §7  | Meta smoke test                        | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §10 | Deploy rollback and re-verification    | cloudflare           | 11    |
-| [ ]    | D00 T01 §11 | AI Gateway config snapshot and restore | cloudflare           | 3     |
 | [ ]    | D00 T01 §12 | Rollback from a split deployment       | cloudflare           | 3     |
+| [ ]    | D99 T01 §8  | AI Gateway tokens                      | operator             | 3     |
+| [ ]    | D00 T01 §7  | Meta smoke test                        | meta-api, cloudflare | 10    |
+| [ ]    | D00 T01 §11 | AI Gateway config snapshot and restore | cloudflare           | 3     |
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
@@ -267,6 +268,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 13/198 verified sections, 13 ready to run now.
+Progress: 13/199 verified sections, 11 ready to run now.
 
-Checklist: 222/1008 items completed (includes Commit items).
+Checklist: 222/1011 items completed (includes Commit items).

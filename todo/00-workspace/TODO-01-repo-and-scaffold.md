@@ -45,11 +45,11 @@ track: day-0
 | 4 | §4 | GitHub Actions CI | §3 | [x] |
 | 5 | §5 | Cloudflare bindings and first deploy | §4 | [x] |
 | 6 | §6 | AI Gateway for the Meta Model API | §5 | [x] |
-| 7 | §7 | Meta smoke test | §6 | [ ] |
+| 7 | §7 | Meta smoke test | §6, D99 T01 §8 | [ ] |
 | 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
 | 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
 | 10 | §10 | Deploy rollback and re-verification | §5 | [x] |
-| 11 | §11 | AI Gateway config snapshot and restore | §6 | [ ] |
+| 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [ ] |
 | 12 | §12 | Rollback from a split deployment | §10 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -315,6 +315,8 @@ One small script proves each Meta capability the product depends on before anyth
 **Needs:** meta-api, cloudflare
 **Surface:** no
 
+**Corrected 2026-10-27 (operator wait):** depends on D99 T01 §8, where the operator creates "IsItLegit AI Gateway token" (AI Gateway Run only), since neither Wrangler's login nor the Cloudflare connector can create one.
+
 **Build order:**
 
 1. Write `scripts/meta-smoke.ts` with one call per capability through the gateway, `store: false` on each. Done when: `pnpm exec tsx scripts/meta-smoke.ts --dry` prints the four planned requests without sending them.
@@ -432,6 +434,8 @@ The gateway's settings, the `meta` custom provider and its pricing rules live in
 **Phase:** 0
 **Needs:** cloudflare
 **Surface:** no
+
+**Corrected 2026-10-27 (operator wait):** depends on D99 T01 §8, where the operator creates "IsItLegit AI Gateway admin token", an account API token with AI Gateway Read and Edit (separate from §7's Run-only token, which the Worker carries), since Wrangler's login offers no AI Gateway scope and the Cloudflare connector cannot create tokens.
 
 **Build order:**
 
