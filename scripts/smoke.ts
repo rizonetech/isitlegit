@@ -296,6 +296,13 @@ export async function tokenFromVault(deadline: number): Promise<string> {
 // A new token goes into the vault first (so it is never lost), then onto the Worker through `wrangler secret put` on
 // standard input, which publishes the version answered. If the Worker step fails or is interrupted, the vault holds a
 // token the Worker does not: running `--rotate` again reconciles them, and its smoke run proves it.
+// WORKAROUND: `op` reads an item template from standard input only when that is a pipe, and Node gives a child a
+// socket, so `op item edit` given the template that way silently changes nothing. `cat` hands it on through a real pipe;
+// the value stays in memory and off the command line.
+function opWithInput(args: string[]): [string, string[]] {
+  return ["sh", ["-c", 'cat | exec op "$@"', "sh", ...args]];
+}
+
 export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
   return async (deadline: number): Promise<{ token: string; version: string }> => {
     const token = randomBytes(32).toString("hex");
@@ -313,12 +320,17 @@ export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
     if (!field) throw new Error(`the vault item "${VAULT_ITEM}" has no credential field`);
     field.value = token;
     await run(
-      "op",
-      ["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"],
+      ...opWithInput(["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"]),
       JSON.stringify(item),
       deadline,
       opEnvironment,
     );
+    // Read back before the Worker changes: a vault that did not take the token must stop the rotation here, while the
+    // two still agree.
+    const stored = (
+      await run("op", ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline, opEnvironment)
+    ).trim();
+    if (stored !== token) throw new Error("the vault did not take the new token; the Worker was not changed");
     try {
       await run("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], token, deadline);
     } catch (error) {

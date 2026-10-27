@@ -2,7 +2,7 @@ import puppeteer from "@cloudflare/puppeteer";
 
 // GET /internal/smoke (D00 T01 §5): proves every binding works on the deployed Worker by using each once with
 // synthetic data and cleaning up. It answers 404, as if it were not there, unless the bearer token equals the
-// SMOKE_TOKEN secret, which scripts/smoke.ts mints for each run. Each check has a time limit; whatever a check left
+// SMOKE_TOKEN secret, which scripts/smoke.ts reads from the vault (and replaces with `--rotate`). Each check has a time limit; whatever a check left
 // behind is still cleaned up after the answer has gone (`waitUntil`), and what cleanup cannot remove expires on its
 // own: KV keys after 60 s, R2 objects under smoke/ after a day (the bucket's smoke-1-day rule), Browser Run sessions
 // after their idle timeout, and a Workflow instance past its limit is terminated.

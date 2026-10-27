@@ -148,7 +148,9 @@ describe("scripts/smoke.ts", () => {
     const worker = { token: "a".repeat(64), fail: true };
     const run: Runner = async (command, args, input) => {
       if (command === "op" && args[1] === "get") return JSON.stringify(vault);
-      if (command === "op" && args[1] === "edit") {
+      if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
+      // The template reaches op through a real pipe (sh -c 'cat | exec op ...').
+      if (command === "sh" && args.includes("edit")) {
         vault.fields = JSON.parse(input).fields;
         return "";
       }
@@ -187,6 +189,20 @@ describe("scripts/smoke.ts", () => {
     });
     expect(Date.now() - started).toBeLessThan(1_000);
     expect(outcome.ok).toBe(false);
+  });
+
+  it("stops a rotation before the Worker changes when the vault did not take the token", async () => {
+    const vault = { fields: [{ id: "credential", value: "a".repeat(64) }] };
+    let put = false;
+    const run: Runner = async (command, args) => {
+      if (command === "op" && args[1] === "get") return JSON.stringify(vault);
+      if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
+      if (command === "sh" && args.includes("edit")) return ""; // op answered, but stored nothing
+      if (args.includes("secret")) put = true;
+      return "";
+    };
+    await expect(rotateWith(run, () => ({}))(Date.now() + 2_000)).rejects.toThrow(/vault did not take the new token/);
+    expect(put).toBe(false);
   });
 
   it("reports a failed setup as a failed run, never an exception", async () => {
