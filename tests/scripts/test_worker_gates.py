@@ -8,9 +8,10 @@ import re
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-# Run by hand or by another script, not gates: the local server, the type-file regenerator, and build:css, which
-# build:assets runs first.
-TOOLS = {"dev", "types", "build:css"}
+# Run by hand or by another script, not gates: the local server, the type-file regenerator, build:css, which
+# build:assets runs first, and the D1 migration commands (D01 T01 §1), which the operator runs: the remote one changes
+# the live database and must never run in CI.
+TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote"}
 DOCS = (("AGENTS.md", "## Validation"), ("CONTRIBUTING.md", "## Validation gates"), ("README.md", "### Run the Worker locally"))
 
 
@@ -62,6 +63,15 @@ class Repository(unittest.TestCase):
         for path, heading in DOCS:
             with self.subTest(path=path):
                 self.assertEqual(missing_gates(self.package, (REPO / path).read_text(encoding="utf-8"), heading), [])
+
+    def test_no_gate_touches_the_live_database(self):
+        # A gate runs in CI and in every session's checks; one that applied migrations or deployed would change
+        # production on every run.
+        for name in gates(self.package):
+            command = self.package["scripts"][name]
+            with self.subTest(gate=name):
+                self.assertNotIn("--remote", command)
+                self.assertNotRegex(command, r"wrangler (deploy|versions deploy|rollback|secret put)(?! --dry-run)(?!.*--dry-run)")
 
     def test_node_and_pnpm_pins_match_the_stack_doc(self):
         node, pnpm = stack_node_pin((REPO / "docs/specs/2026-10-26-tech-stack-design.md").read_text(encoding="utf-8"))
