@@ -22,3 +22,7 @@ engineStrict: true
 # past pnpm's 24-hour minimum release age (2026-10-27 14:30 UTC); remove this override with that upgrade.
 overrides:
   undici@7.29.1: 7.30.1
+  # WORKAROUND: @cloudflare/puppeteer 1.4.0 declares @puppeteer/browsers, the browser downloader its Node launcher
+  # uses, which brings basic-ftp and extract-zip (Dependabot alerts 60 to 62, extract-zip with no fixed release). On
+  # Workers, Browser Run supplies the browser and the Worker bundle never loads the downloader, so it is removed.
+  "@cloudflare/puppeteer>@puppeteer/browsers": "-"

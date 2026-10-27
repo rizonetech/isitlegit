@@ -14,7 +14,8 @@ let worker: Awaited<ReturnType<typeof unstable_startWorker>>;
 beforeAll(async () => {
   worker = await unstable_startWorker({
     config: join(ROOT, "wrangler.jsonc"),
-    dev: { server: { port: 0 }, inspector: false, logLevel: "error" },
+    // In-memory bindings: the Worker tests run in parallel, and a shared .wrangler/state would lock D1's SQLite file.
+    dev: { server: { port: 0 }, inspector: false, logLevel: "error", persist: false },
   });
   await worker.ready;
 }, 120_000);
