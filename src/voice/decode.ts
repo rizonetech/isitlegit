@@ -394,6 +394,10 @@ function scanWav(bytes: Uint8Array): WavLayout {
     const size = view.getUint32(at + 4, true);
     const body = at + 8;
     if (body + size > end) throw new CorruptAudio(`the WAV's ${id.trim()} chunk runs past the end of the file`);
+    // One of each: a second would describe audio the checks above never saw (its length past the 30-minute limit,
+    // say), so it is refused rather than read.
+    if ((id === "fmt " && fmt) || (id === "data" && data))
+      throw new CorruptAudio(`the WAV has more than one ${id.trim()} chunk`);
     if (id === "fmt ") {
       if (size < 16) throw new CorruptAudio("the WAV's fmt chunk is too short");
       fmt = {

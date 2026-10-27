@@ -364,6 +364,16 @@ describe("decodeToWavChunks", () => {
       expect(await refusal(long, "audio/wav")).toMatch(/runs past the end/);
       expect(await refusal(wavFile(samples, 16_000, 0), "audio/wav")).toMatch(/no channels/);
       expect(await refusal(new TextEncoder().encode("not a wave file at all"), "audio/wav")).toMatch(/RIFF WAVE/);
+      // A second data chunk after 31 minutes of audio at 1 Hz (round 3): read as the only one, it would hide the length
+      // and drop the rest, so it is refused; a second fmt chunk too.
+      const thirtyOne = wavFile(tone(1, 1_860, 0.1), 1, 1);
+      const extra = Uint8Array.from([0x64, 0x61, 0x74, 0x61, 2, 0, 0, 0, 1, 0]); // "data", 2 bytes, one sample
+      const twoData = concat([thirtyOne, extra]);
+      new DataView(twoData.buffer).setUint32(4, twoData.length - 8, true);
+      expect(await refusal(twoData, "audio/wav")).toMatch(/more than one data chunk/);
+      const fmtAgain = concat([thirtyOne.subarray(0, 36), thirtyOne.subarray(12, 36), thirtyOne.subarray(36)]);
+      new DataView(fmtAgain.buffer).setUint32(4, fmtAgain.length - 8, true);
+      expect(await refusal(fmtAgain, "audio/wav")).toMatch(/more than one fmt chunk/);
       // The RIFF header says the file is longer than it is: cut short, though every inner chunk fits (round 1).
       const cut = toneWav.slice();
       new DataView(cut.buffer).setUint32(4, cut.length + 1_000, true);
