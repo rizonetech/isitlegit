@@ -46,7 +46,7 @@ track: day-0
 | 5 | §5 | Cloudflare bindings and first deploy | §4 | [ ] |
 | 6 | §6 | AI Gateway for the Meta Model API | §5 | [ ] |
 | 7 | §7 | Meta smoke test | §6 | [ ] |
-| 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [ ] |
+| 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -255,6 +255,9 @@ The reference repositories open with a brand image (Recto's `design/brand/github
 - [x] Commit: `brand: README wordmark and social preview banner`
 
 **Test checkpoint:** `LIVE_CHECKS=1 python3 -m unittest tests.scripts.test_readme_brand` passes with no test skipped. **Corrected 2026-10-27 (plan review P2):** it was a PNG header read and a filename count.
+
+> **Verified:** 2026-10-27 | §8 | 716e9ef5301c3aa1d1ad22f54cda4fc269a060a9
+> **Review:** `docs/reviews/d00-t01-s8.json`
 
 ## Verification
 

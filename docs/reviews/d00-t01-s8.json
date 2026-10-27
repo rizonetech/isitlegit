@@ -1,0 +1,106 @@
+{
+  "ref": "D00 T01 \u00a78",
+  "title": "README banner and social preview",
+  "implementation_sha": "716e9ef5301c3aa1d1ad22f54cda4fc269a060a9",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 3,
+      "report": "docs/reviews/00-workspace/D00-T01-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "LIVE_CHECKS=1 python3 -m unittest tests.scripts.test_readme_brand -> Ran 17 tests, OK, none skipped",
+    "python3 -m unittest discover -s tests/scripts -> Ran 359 tests, OK (skipped=1, the live test)",
+    "python3 scripts/todo-graph.py validate -> valid: 188 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s8.md",
+    "verdict": "complete",
+    "candidate": "8219f9b3f9ec17fa04e7f2784b5872d185c19230",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s8.md",
+    "candidate": "a961dd719a5237f5c0014335e637b14b2c58e935",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/00-workspace/D00-T01-s8.md",
+    "verdict": "fixed",
+    "candidate": "4b9ec583b232e8c51c58f78839297dc3dbc3cb45",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

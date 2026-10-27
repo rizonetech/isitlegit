@@ -33,7 +33,7 @@ Sections: 31 | Checklist items: 180
 | [ ]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 4     |
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 6     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
-| [ ]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
+| [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
 | [ ]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 6     |
 | [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
 | [ ]    | D07 T02 §2 | Passkey sign-in                            | none                  | 3     |
@@ -257,6 +257,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 2/188 verified sections, 3 ready to run now.
+Progress: 3/188 verified sections, 2 ready to run now.
 
 Checklist: 69/868 items completed (includes Commit items).
