@@ -1,24 +1,24 @@
 // The Meta smoke test (D00 T01 §7): one call per capability the product relies on, through AI Gateway `isitlegit`,
-// each judged by what it returns, and each call's gateway log read back to prove the gateway kept metadata and cost
-// but no body. A run passes only when every check passes; anything else exits non-zero.
+// each judged by what it returns, and each call's gateway log read back to prove the gateway kept the call's metadata
+// and cost but no body. A run passes only when every check passes; anything else exits non-zero.
 //
-//   Spark text      muse-spark-1.3 answers a fixed sum.
+//   Spark text      muse-spark-1.3 answers a fixed sum with exactly the number.
 //   Spark image     muse-spark-1.3 reads a random code printed only on test/fixtures/meta-smoke/code-card.png.
 //   SAM 3.1         sam-3.1, streamed to `response.completed` and parsed with @meta-sam/parser, finds the logo on
 //                   logo-card.png (a box overlapping its known area).
-//   Wonder          muse-wonder-1.0, given a `click(x, y)` function, clicks Continue on continue-page.png (a screenshot;
-//                   no browser is driven and no URL is opened). Meta's native computer tool is refused for our key, so
-//                   function tools are the design (operator, 2026-10-27; D04 T02).
+//   Wonder          muse-wonder-1.0, given a `click(x, y)` function, makes exactly one click inside Continue on
+//                   continue-page.png (a screenshot; no browser is driven and no URL is opened). Meta's native computer
+//                   tool is refused for our key, so function tools are the design (operator, 2026-10-27; D04 T02).
 //
 // Every request carries `store: false`, an output ceiling, the gateway's Run token and `cf-aig-collect-log: true` with
-// `cf-aig-collect-log-payload: false`; no `-contributor` model is ever sent (Meta's terms, spec 4.8). Before any call
-// the run's worst-case cost is estimated and refused above US$0.50, or above US$2 of smoke spend that day
-// (build/meta-smoke-spend.json), inside spec 11's caps. Secrets come from Conclave through conclave-op and are never
-// printed. `--dry` prints the four requests and sends nothing; a live run needs `--confirm-credit` and writes
-// docs/meta-smoke-test.md.
+// `cf-aig-collect-log-payload: false`; no `-contributor` model is ever sent (Meta's terms, spec 4.8); one deadline
+// bounds each call from request to the end of its stream. Spend: the run's worst case is refused above US$0.50 or
+// above US$2 of smoke spend that day; each call's estimate is reserved in build/meta-smoke-spend.json before it is
+// sent and settled with its real cost after, so an interrupted or failed run never loses a charge. The report,
+// docs/meta-smoke-test.md, is rewritten after each call, so an interrupted run shows as in progress. Secrets come
+// from Conclave through conclave-op and are never printed.
 //
-//   node scripts/meta-smoke.ts --dry
-//   node scripts/meta-smoke.ts --confirm-credit
+//   node scripts/meta-smoke.ts --help
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
@@ -44,8 +44,21 @@ export const PRICES = {
 export const SAM_PER_IMAGE = 2.5 / 1000;
 export const RUN_CAP = 0.5;
 export const DAY_CAP = 2;
+export const MODELS = ["muse-spark-1.3", "sam-3.1", "muse-wonder-1.0"] as const;
 // A generous worst case for an image's input tokens, so the estimate never undercounts.
 const IMAGE_TOKENS = 4000;
+
+export const USAGE = `node scripts/meta-smoke.ts [--dry | --confirm-credit] [--model <id>]
+
+Calls each Meta capability the product relies on through AI Gateway isitlegit and checks the answers and the
+gateway's logs (D00 T01 §7).
+  --dry              print the requests and send nothing (no credit, no secrets needed)
+  --confirm-credit   send them; spends Meta credit, so only once "Meta credit visible:" is recorded (D99 T01 §1)
+  --model <id>       only the calls for one model: ${MODELS.join(", ")} (the report says the coverage is partial)
+  --help             this text
+
+Spend: refused above US$${RUN_CAP} a run or US$${DAY_CAP} a day; build/meta-smoke-spend.json records it.
+Report: docs/meta-smoke-test.md. Exit codes: 0 every check passed, 1 a check failed, 2 refused before sending.`;
 
 export type Fixtures = {
   code: string;
@@ -68,7 +81,7 @@ export function loadFixtures(dir = join(ROOT, "test/fixtures/meta-smoke")): Fixt
 type Check = { ok: boolean; detail: string; excerpt?: string | undefined };
 export type Planned = {
   name: string;
-  model: keyof typeof PRICES | "sam-3.1";
+  model: (typeof MODELS)[number];
   body: Record<string, unknown>;
   stream: boolean;
   estimate: number; // worst-case US dollars
@@ -82,6 +95,18 @@ const userInput = (text: string, image?: string) => [
 ];
 const tokenCost = (model: keyof typeof PRICES, input: number, output: number) =>
   (input * PRICES[model].input + output * PRICES[model].output) / 1_000_000;
+
+const CLICK_TOOL = {
+  type: "function",
+  name: "click",
+  description: "Click the left mouse button at a point on the screenshot, in pixels from its top-left corner.",
+  parameters: {
+    type: "object",
+    properties: { x: { type: "integer" }, y: { type: "integer" } },
+    required: ["x", "y"],
+    additionalProperties: false,
+  },
+};
 
 export function plannedCalls(fx: Fixtures): Planned[] {
   const spark = (name: string, text: string, image?: string): Planned => ({
@@ -138,40 +163,36 @@ const overlap = (a: number[], b: number[]) => {
   return union > 0 ? (w * h) / union : 0;
 };
 
-const CLICK_TOOL = {
-  type: "function",
-  name: "click",
-  description: "Click the left mouse button at a point on the screenshot, in pixels from its top-left corner.",
-  parameters: {
-    type: "object",
-    properties: { x: { type: "integer" }, y: { type: "integer" } },
-    required: ["x", "y"],
-    additionalProperties: false,
-  },
-};
-const ClickArguments = z.object({ x: z.number(), y: z.number() }).strict();
+const ClickArguments = z.object({ x: z.number().int(), y: z.number().int() }).strict();
+// Output items that carry a tool call: the Wonder probe allows exactly one, a click.
+const TOOL_CALLS = new Set(["function_call", "computer_call", "custom_tool_call", "mcp_call"]);
+const bounded = (text: string) => text.replace(/\s+/g, " ").slice(0, 60);
 
-// What each call's answer must show, given the fixtures' known facts.
+// What each call's answer must show, given the fixtures' known facts. The response must have completed.
 export function judge(name: string, fx: Fixtures, answer: unknown): Check {
-  const text = (answer as { output_text?: unknown })?.output_text;
-  const excerpt = typeof text === "string" ? text.slice(0, 80) : undefined;
+  const envelope = answer as { status?: unknown; output_text?: unknown; output?: unknown };
+  if (envelope?.status !== "completed")
+    return { ok: false, detail: `the response's status is ${JSON.stringify(envelope?.status ?? null)}, not completed` };
+  const text = typeof envelope.output_text === "string" ? envelope.output_text : "";
+  const excerpt = bounded(text);
   if (name === "Spark text")
-    return /\b51\b/.test(String(text ?? ""))
+    return /^\s*51\.?\s*$/.test(text)
       ? { ok: true, detail: "answered 51", excerpt }
-      : { ok: false, detail: `expected 51, got ${JSON.stringify(excerpt ?? null)}`, excerpt };
+      : { ok: false, detail: `expected exactly 51, got ${JSON.stringify(excerpt)}`, excerpt };
   if (name === "Spark image") {
     const squash = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    return squash(String(text ?? "")).includes(squash(fx.code))
-      ? { ok: true, detail: "read the code printed only on the fixture", excerpt }
-      : { ok: false, detail: `did not read the fixture's code, got ${JSON.stringify(excerpt ?? null)}`, excerpt };
+    return squash(text) === squash(fx.code)
+      ? { ok: true, detail: "read exactly the code printed only on the fixture", excerpt }
+      : { ok: false, detail: `expected exactly the fixture's code, got ${JSON.stringify(excerpt)}`, excerpt };
   }
   if (name === "Wonder") {
-    const items = (answer as { output?: unknown[] })?.output ?? [];
-    const call = items.find((i) => (i as { type?: unknown })?.type === "function_call") as
-      | { name?: unknown; arguments?: unknown }
-      | undefined;
-    if (!call) return { ok: false, detail: `no function call; returned ${JSON.stringify(excerpt ?? null)}` };
-    if (call.name !== "click") return { ok: false, detail: `called ${String(call.name)}, not click` };
+    const items = Array.isArray(envelope.output) ? envelope.output : [];
+    const calls = items.filter((i) => TOOL_CALLS.has(String((i as { type?: unknown })?.type)));
+    if (calls.length === 0) return { ok: false, detail: `no function call; returned ${JSON.stringify(excerpt)}` };
+    if (calls.length > 1) return { ok: false, detail: `${calls.length} tool calls; exactly one click is allowed` };
+    const call = calls[0] as { type?: unknown; name?: unknown; arguments?: unknown };
+    if (call.type !== "function_call" || call.name !== "click")
+      return { ok: false, detail: `called ${String(call.name ?? call.type)}, not click` };
     let args: unknown;
     try {
       args = JSON.parse(String(call.arguments));
@@ -183,7 +204,7 @@ export function judge(name: string, fx: Fixtures, answer: unknown): Check {
     const { x, y } = parsed.data;
     const [l, t, r, b] = fx.buttonBox;
     return x >= l && x <= r && y >= t && y <= b
-      ? { ok: true, detail: `clicked Continue at (${x}, ${y})` }
+      ? { ok: true, detail: `clicked Continue at (${x}, ${y})`, excerpt: `click(${x}, ${y})` }
       : { ok: false, detail: `clicked (${x}, ${y}), outside the button (${l}, ${t})-(${r}, ${b})` };
   }
   return { ok: false, detail: `no judge for ${name}` };
@@ -204,22 +225,40 @@ export async function judgeSegmentation(events: AsyncIterable<{ type: string }>,
     const boxes = recordsOfKind(result.records, "box");
     if (boxes.length === 0) return { ok: false, detail: "no logo found (a valid, empty answer)" };
     const best = Math.max(...boxes.map((x) => overlap([x.left, x.top, x.right, x.bottom], fx.logoBox)));
+    const excerpt = `${boxes.length} box(es), best overlap ${best.toFixed(2)}`;
     return best >= 0.3
-      ? { ok: true, detail: `${boxes.length} box(es); best overlap with the logo ${best.toFixed(2)}` }
+      ? { ok: true, detail: `${boxes.length} box(es); best overlap with the logo ${best.toFixed(2)}`, excerpt }
       : { ok: false, detail: `${boxes.length} box(es), none over the logo (best overlap ${best.toFixed(2)})` };
   } catch (error) {
-    return { ok: false, detail: `the segmentation stream could not be read: ${(error as Error).name}` };
+    const e = error as Error;
+    return {
+      ok: false,
+      detail:
+        e.name === "AbortError" || e.name === "TimeoutError" || /abort/i.test(e.message)
+          ? "the segmentation stream did not finish before the deadline"
+          : `the segmentation stream could not be read: ${e.name}`,
+    };
   }
 }
 
-// The spend ledger, one entry per run; refused when it is not a list of entries.
-type Spend = { date: string; estimate: number; cost: number | null };
+// The spend ledger: one entry per call, written before the call (reserved, at its estimate) and after it (settled at
+// the cost Meta reported, or left uncertain at the estimate). A day's spend counts every entry's cost, else its
+// estimate (an entry from before reservations has a cost and no state), so nothing charged is lost or counted as zero.
+export type Spend = {
+  date: string;
+  run: string;
+  call: string;
+  estimate: number;
+  cost: number | null;
+  state: "reserved" | "settled" | "uncertain";
+};
 export function readLedger(file: string): Spend[] {
   if (!existsSync(file)) return [];
   const data = JSON.parse(readFileSync(file, "utf-8"));
-  if (!Array.isArray(data)) throw new Error(`${file} is not a spend ledger`);
+  if (!Array.isArray(data)) throw new Error("not a list of spend entries");
   return data;
 }
+const counted = (entry: Partial<Spend>) => (typeof entry.cost === "number" ? entry.cost : Number(entry.estimate ?? 0));
 function writeAtomically(file: string, text: string): void {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
@@ -227,10 +266,22 @@ function writeAtomically(file: string, text: string): void {
   renameSync(tmp, file);
 }
 
-// Each call's gateway log, read back within a bounded wait: metadata and (for token-priced models) a cost matching
-// Meta's usage at the gateway's prices, and no stored body.
-type LogFacts = Record<string, unknown>;
-type LogCheck = Check & { log?: LogFacts; gatewayCost?: number | null | undefined; gatewayMs?: number | undefined };
+// The gateway log's own record of the call, as Cloudflare's logs API returns it.
+const GatewayLog = z.object({
+  model: z.string(),
+  success: z.boolean(),
+  status_code: z.number(),
+  duration: z.number(),
+  tokens_in: z.number(),
+  tokens_out: z.number(),
+  cost: z.number().optional(),
+});
+type LogFacts = z.infer<typeof GatewayLog>;
+type LogCheck = Check & { log?: LogFacts | undefined; gatewayCost?: number | null | undefined };
+
+// Each call's gateway log, read back within a bounded wait: it must be this call's model, successful, carry Meta's
+// token counts, (for token-priced models) a cost matching that usage at the gateway's prices, and no stored body. A
+// body counts as absent only on Cloudflare's own answer for that, 404 with code 7002; any other answer is unverified.
 export async function checkLog(
   get: (path: string) => Promise<{ status: number; body: unknown }>,
   logId: string,
@@ -239,43 +290,62 @@ export async function checkLog(
   waitMs = 30_000,
   pause = (ms: number) => new Promise((r) => setTimeout(r, ms)),
 ): Promise<LogCheck> {
-  let log: LogFacts | undefined;
-  const start = Date.now();
-  for (; Date.now() - start < waitMs; await pause(Math.min(2_000, Math.max(0, waitMs - (Date.now() - start))))) {
-    const answer = await get(`/${logId}`);
-    const result = (answer.body as { result?: unknown })?.result;
-    if (answer.status === 200 && result && typeof result === "object") {
-      log = result as LogFacts;
-      break;
+  try {
+    let raw: unknown;
+    const start = Date.now();
+    for (; Date.now() - start < waitMs; await pause(Math.min(2_000, Math.max(0, waitMs - (Date.now() - start))))) {
+      const answer = await get(`/${logId}`);
+      const result = (answer.body as { result?: unknown })?.result;
+      if (answer.status === 200 && result && typeof result === "object") {
+        raw = result;
+        break;
+      }
     }
-  }
-  if (!log) return { ok: false, detail: `the gateway log ${logId} did not appear within ${waitMs / 1000} s` };
-  for (const field of ["model", "duration", "tokens_in", "tokens_out"])
-    if (log[field] === undefined || log[field] === null)
-      return { ok: false, detail: `the gateway log has no ${field}`, log };
-  for (const part of ["request", "response"]) {
-    const stored = await get(`/${logId}/${part}`);
-    const body = (stored.body as { result?: unknown })?.result ?? null;
-    const empty = body === null || body === "" || (typeof body === "object" && Object.keys(body).length === 0);
-    if (stored.status === 200 && !empty)
-      return { ok: false, detail: `the gateway stored the ${part} body, which it must not`, log };
-  }
-  const gatewayCost = typeof log.cost === "number" ? log.cost : null;
-  const gatewayMs = typeof log.duration === "number" ? log.duration : undefined;
-  if (call.model === "sam-3.1")
-    return { ok: true, detail: "metadata kept, no body", log, gatewayCost: null, gatewayMs };
-  if (gatewayCost === null || !usage)
-    return { ok: false, detail: "a token-priced call has no gateway cost", log, gatewayCost, gatewayMs };
-  const expected = tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output);
-  return Math.abs(gatewayCost - expected) <= Math.max(1e-6, expected * 0.02)
-    ? { ok: true, detail: "metadata and a matching cost kept, no body", log, gatewayCost, gatewayMs }
-    : {
+    if (!raw) return { ok: false, detail: `the gateway log ${logId} did not appear within ${waitMs / 1000} s` };
+    const parsed = GatewayLog.safeParse(raw);
+    if (!parsed.success)
+      return { ok: false, detail: `the gateway log is malformed (${parsed.error.issues[0]?.path.join(".")})` };
+    const log = parsed.data;
+    if (log.model !== call.model)
+      return { ok: false, detail: `the gateway logged ${log.model}, not ${call.model}`, log };
+    if (!log.success || log.status_code !== 200)
+      return { ok: false, detail: `the gateway logged a failure (HTTP ${log.status_code})`, log };
+    for (const part of ["request", "response"]) {
+      const stored = await get(`/${logId}/${part}`);
+      const codes = ((stored.body as { errors?: unknown })?.errors as { code?: unknown }[] | undefined) ?? [];
+      const absent = stored.status === 404 && Array.isArray(codes) && codes.some((e) => e?.code === 7002);
+      if (!absent)
+        return {
+          ok: false,
+          detail:
+            stored.status === 200
+              ? `the gateway stored the ${part} body, which it must not`
+              : `the ${part} body's absence could not be verified (HTTP ${stored.status})`,
+          log,
+        };
+    }
+    if (call.model === "sam-3.1") return { ok: true, detail: "metadata kept, no body", log, gatewayCost: null };
+    if (!usage) return { ok: false, detail: "Meta reported no usage to compare with the gateway's", log };
+    if (log.tokens_in !== usage.input || log.tokens_out !== usage.output)
+      return {
         ok: false,
-        detail: `the gateway cost ${gatewayCost} does not match Meta's usage at the gateway's prices (${expected.toFixed(8)})`,
+        detail: `the gateway counted ${log.tokens_in} in and ${log.tokens_out} out; Meta reported ${usage.input} and ${usage.output}`,
         log,
-        gatewayCost,
-        gatewayMs,
       };
+    const gatewayCost = log.cost ?? null;
+    if (gatewayCost === null) return { ok: false, detail: "a token-priced call has no gateway cost", log, gatewayCost };
+    const expected = tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output);
+    return Math.abs(gatewayCost - expected) <= Math.max(1e-6, expected * 0.02)
+      ? { ok: true, detail: "metadata and a matching cost kept, no body", log, gatewayCost }
+      : {
+          ok: false,
+          detail: `the gateway cost ${gatewayCost} does not match Meta's usage at the gateway's prices (${expected.toFixed(8)})`,
+          log,
+          gatewayCost,
+        };
+  } catch (error) {
+    return { ok: false, detail: `the gateway log could not be read (${(error as Error).name}); try again later` };
+  }
 }
 
 export type Secrets = { meta: string; run: string; admin: string };
@@ -284,6 +354,7 @@ export type RunOptions = {
   confirmCredit: boolean;
   model?: string;
   fixtures?: Fixtures;
+  fixturesDir?: string;
   readSecrets?: () => Promise<Secrets>;
   fetch?: typeof fetch;
   ledger?: string;
@@ -303,14 +374,25 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
     lines.push(line);
     options.log?.(line);
   };
-  const fx = options.fixtures ?? loadFixtures();
+  const refuse = (why: string): RunOutcome => {
+    say(`meta-smoke: refused: ${why}`);
+    return { code: 2, lines };
+  };
+  let fx: Fixtures;
+  try {
+    fx = options.fixtures ?? loadFixtures(options.fixturesDir);
+  } catch (error) {
+    return refuse(
+      `the fixtures in test/fixtures/meta-smoke could not be read (${(error as Error).message}); restore them from git, or regenerate them with python3 test/fixtures/meta-smoke/make-fixtures.py`,
+    );
+  }
   let calls = plannedCalls(fx);
-  if (options.model) {
+  const partial = options.model !== undefined;
+  if (options.model !== undefined) {
     const refused = refuseContributor(options.model);
-    if (refused) {
-      say(`meta-smoke: refused: ${refused}`);
-      return { code: 2, lines };
-    }
+    if (refused) return refuse(refused);
+    if (!(MODELS as readonly string[]).includes(options.model))
+      return refuse(`${options.model} is not one of the models this test calls: ${MODELS.join(", ")}`);
     calls = calls.filter((c) => c.model === options.model);
   }
   const preview = (body: Record<string, unknown>) =>
@@ -324,52 +406,62 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
   });
   if (options.dry) {
     for (const call of calls) {
-      const shown = headers("<redacted>");
       say(`${call.name} -> POST ${GATEWAY_URL}/responses`);
-      say(`  headers: ${JSON.stringify({ authorization: "Bearer <redacted>", ...shown })}`);
+      say(`  headers: ${JSON.stringify({ authorization: "Bearer <redacted>", ...headers("<redacted>") })}`);
       say(`  body: ${preview(call.body)}`);
       say(`  worst case: US$${call.estimate.toFixed(4)}`);
     }
     return { code: 0, lines };
   }
-  if (!options.confirmCredit) {
-    say("meta-smoke: refused: a live run spends Meta credit; pass --confirm-credit once the credit shows (D99 T01 §1)");
-    return { code: 2, lines };
-  }
+  if (!options.confirmCredit)
+    return refuse("a live run spends Meta credit; pass --confirm-credit once the credit shows (D99 T01 §1)");
+
   // The spend gate, before any secret is read or call is sent.
   const ledgerFile = options.ledger ?? join(ROOT, "build/meta-smoke-spend.json");
-  const today = (options.now?.() ?? new Date()).toISOString().slice(0, 10);
+  const now = options.now ?? (() => new Date());
+  const today = now().toISOString().slice(0, 10);
+  const runId = now().toISOString();
   const estimate = calls.reduce((sum, c) => sum + c.estimate, 0);
   let ledger: Spend[];
   try {
     ledger = readLedger(ledgerFile);
   } catch (error) {
-    say(`meta-smoke: refused: ${(error as Error).message}; fix or delete it`);
-    return { code: 2, lines };
+    return refuse(
+      `${ledgerFile} is unreadable (${(error as Error).message}); it records Meta spend, so repair it (a list of { date, run, call, estimate, cost, state }) rather than delete it`,
+    );
   }
-  const spentToday = ledger.filter((e) => e.date === today).reduce((sum, e) => sum + (e.cost ?? e.estimate), 0);
+  const spentToday = ledger.filter((e) => e.date === today).reduce((sum, e) => sum + counted(e), 0);
   const runCap = options.runCap ?? RUN_CAP;
   const dayCap = options.dayCap ?? DAY_CAP;
-  if (estimate > runCap) {
-    say(`meta-smoke: refused: the run could cost US$${estimate.toFixed(4)}, over the US$${runCap} cap`);
-    return { code: 2, lines };
-  }
-  if (spentToday + estimate > dayCap) {
-    say(
-      `meta-smoke: refused: US$${spentToday.toFixed(4)} spent on smoke runs today; this run's US$${estimate.toFixed(4)} would pass the US$${dayCap} a day`,
+  if (estimate > runCap) return refuse(`the run could cost US$${estimate.toFixed(4)}, over the US$${runCap} cap`);
+  if (spentToday + estimate > dayCap)
+    return refuse(
+      `US$${spentToday.toFixed(4)} spent on smoke runs today; this run's US$${estimate.toFixed(4)} would pass the US$${dayCap} a day`,
     );
-    return { code: 2, lines };
-  }
+  const saveLedger = (): string | null => {
+    try {
+      writeAtomically(ledgerFile, `${JSON.stringify(ledger, null, 1)}\n`);
+      return null;
+    } catch (error) {
+      return `${ledgerFile} could not be written (${(error as NodeJS.ErrnoException).code ?? (error as Error).message}); free space or fix its permissions, then run again`;
+    }
+  };
 
-  const secrets = await (options.readSecrets ?? readSecretsFromVault)();
+  let secrets: Secrets;
+  try {
+    secrets = await (options.readSecrets ?? readSecretsFromVault)();
+  } catch (error) {
+    return refuse((error as Error).message);
+  }
   const fetchImpl = options.fetch ?? fetch;
+  const timeoutMs = options.timeoutMs ?? 120_000;
   const client = new OpenAI({
     apiKey: secrets.meta,
     baseURL: GATEWAY_URL,
     defaultHeaders: headers(secrets.run),
     fetch: fetchImpl,
     maxRetries: 0,
-    timeout: options.timeoutMs ?? 120_000,
+    timeout: timeoutMs,
   });
   const safe = (text: string) => Object.values(secrets).reduce((t, s) => (s ? t.split(s).join("[secret]") : t), text);
   const getLog = async (path: string) => {
@@ -395,32 +487,102 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
     excerpt?: string | undefined;
     ms: number;
     usage: { input: number; output: number } | null;
-    log?: LogCheck;
+    log: LogCheck;
     cost: number | null;
   };
   const rows: Row[] = [];
+  const reportFile = options.report ?? join(ROOT, "docs/meta-smoke-test.md");
+  const writeReport = (state: "in progress" | "passed" | "failed") => {
+    const cell = (s: string) => s.replace(/\|/g, "/").replace(/\n/g, " ");
+    const money = (n: number | null | undefined) => (typeof n === "number" ? `US$${n.toFixed(6)}` : "?");
+    const table = rows.map((r) => {
+      const g = r.log.log;
+      const gatewayCost =
+        r.call.model === "sam-3.1"
+          ? `unavailable from the gateway; US$${SAM_PER_IMAGE.toFixed(4)} per image`
+          : money(r.log.gatewayCost);
+      const usage = r.usage ? `${r.usage.input} / ${r.usage.output}` : "not reported by Meta";
+      const gatewayFacts = g
+        ? `${g.status_code}, ${g.success ? "success" : "failure"}, ${g.tokens_in} / ${g.tokens_out}, ${g.duration} ms`
+        : "not read";
+      return `| ${r.call.name} | \`${r.call.model}\` | ${r.passed ? "passed" : "failed"} | ${r.ms} | ${usage} | ${gatewayFacts} | ${money(r.cost)} | ${gatewayCost} | ${cell(r.excerpt ?? "")} | ${cell(r.detail)}; ${cell(r.log.detail)} |`;
+    });
+    const spent = rows.reduce((sum, r) => sum + (r.cost ?? r.call.estimate), 0);
+    const coverage = partial ? ` Partial coverage: only \`${options.model}\`.` : "";
+    const result =
+      state === "in progress"
+        ? `**in progress** (${rows.length} of ${calls.length} calls done; if this stays, the run was interrupted)`
+        : state === "passed"
+          ? "**every check passed**"
+          : "**failed**";
+    writeAtomically(
+      reportFile,
+      [
+        "# Meta smoke test",
+        "",
+        `Run ${runId} by \`node scripts/meta-smoke.ts --confirm-credit\` (D00 T01 §7), through AI Gateway \`isitlegit\` with \`store: false\` and payload logging off. Result: ${result}.${coverage} Spend so far US$${spent.toFixed(6)} (estimate US$${estimate.toFixed(4)}). No keys and no bodies are recorded here; excerpts are of answers about synthetic fixtures.`,
+        "",
+        "| Call | Model | Result | Wall ms | Meta tokens in / out | Gateway log: status, outcome, tokens in / out, duration | Cost (Meta usage) | Gateway cost | Excerpt | Detail |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        ...table,
+        "",
+      ].join("\n"),
+    );
+  };
+  try {
+    if (existsSync(reportFile) && readFileSync(reportFile, "utf-8").includes("**in progress**"))
+      say("note: the previous run did not finish (its report still says in progress); its reserved spend is counted");
+    writeReport("in progress");
+  } catch (error) {
+    return refuse(`${reportFile} could not be written (${(error as Error).message})`);
+  }
+
   for (const call of calls) {
+    // Reserved before the call is sent, so an interrupted run still counts it.
+    const entry: Spend = {
+      date: today,
+      run: runId,
+      call: call.name,
+      estimate: call.estimate,
+      cost: null,
+      state: "reserved",
+    };
+    ledger.push(entry);
+    const unsaved = saveLedger();
+    if (unsaved) {
+      ledger.pop();
+      say(`meta-smoke: stopped before ${call.name}: ${unsaved}`);
+      return { code: 1, lines };
+    }
     say(`Calling ${call.name} (${call.model})...`);
     const started = Date.now();
     let check: Check;
     let logId: string | null = null;
     let usage: Row["usage"] = null;
+    // One deadline from request to the end of the stream.
+    const deadline = AbortSignal.timeout(timeoutMs);
     try {
+      const { data, response } = await client.responses.create(call.body as never, { signal: deadline }).withResponse();
+      logId = response.headers.get("cf-aig-log-id");
+      const usageOf = (answer: unknown) => {
+        const counts = (answer as { usage?: { input_tokens?: unknown; output_tokens?: unknown } } | null)?.usage;
+        const input = counts?.input_tokens;
+        const output = counts?.output_tokens;
+        return typeof input === "number" && typeof output === "number" ? { input, output } : null;
+      };
       if (call.stream) {
-        const { data, response } = await client.responses.create(call.body as never).withResponse();
-        logId = response.headers.get("cf-aig-log-id");
-        check = await judgeSegmentation(data as unknown as AsyncIterable<{ type: string }>, fx);
+        // The stream's own `response.completed` event carries Meta's usage; it is read as the events pass.
+        const events = data as unknown as AsyncIterable<{ type: string; response?: unknown }>;
+        const watched = async function* () {
+          for await (const event of events) {
+            if (event.type === "response.completed") usage = usageOf(event.response);
+            yield event;
+          }
+        };
+        check = await judgeSegmentation(watched(), fx);
       } else {
-        const { data, response } = await client.responses.create(call.body as never).withResponse();
-        logId = response.headers.get("cf-aig-log-id");
-        const answer = data as { status?: string; usage?: { input_tokens?: number; output_tokens?: number } };
-        usage = answer.usage
-          ? { input: answer.usage.input_tokens ?? 0, output: answer.usage.output_tokens ?? 0 }
-          : null;
-        check =
-          answer.status && answer.status !== "completed"
-            ? { ok: false, detail: `the response ended ${answer.status}, not completed` }
-            : judge(call.name, fx, data);
+        usage = usageOf(data);
+        check = judge(call.name, fx, data);
       }
     } catch (error) {
       const e = error as { status?: number; name?: string; message?: string };
@@ -429,61 +591,66 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
         detail: safe(
           e.status
             ? `Meta or the gateway answered HTTP ${e.status}`
-            : `${e.name ?? "Error"}: ${e.message ?? "no answer"}`,
+            : deadline.aborted
+              ? `no complete answer within ${timeoutMs / 1000} s`
+              : `${e.name ?? "Error"}: ${e.message ?? "no answer"}`,
         ),
       };
     }
+    // The SDK ends an aborted stream as if it had finished, so the deadline is named here, where it is known.
+    if (deadline.aborted && !check.ok) check = { ok: false, detail: `no complete answer within ${timeoutMs / 1000} s` };
     const ms = Date.now() - started;
-    const logCheck = logId
+    const logCheck: LogCheck = logId
       ? await checkLog(getLog, logId, call, usage, options.logWaitMs ?? 30_000)
       : { ok: false, detail: "no cf-aig-log-id came back, so the gateway did not log the call" };
+    // Settled at Meta's reported cost when there is one; otherwise the reservation stands at the estimate.
     const cost =
       call.model === "sam-3.1"
-        ? SAM_PER_IMAGE
+        ? logCheck.log?.success
+          ? SAM_PER_IMAGE
+          : null
         : usage
           ? tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output)
           : null;
+    entry.cost = cost;
+    entry.state = cost === null ? "uncertain" : "settled";
     const passed = check.ok && logCheck.ok;
     rows.push({ call, passed, detail: check.detail, excerpt: check.excerpt, ms, usage, log: logCheck, cost });
     say(`${passed ? "passed" : "failed"}: ${call.name} (${check.detail}; log: ${logCheck.detail})`);
+    const unsettled = saveLedger();
+    if (unsettled) say(`meta-smoke: ${unsettled}; the reservation for ${call.name} stands at its estimate`);
+    try {
+      writeReport("in progress");
+    } catch (error) {
+      say(`meta-smoke: the report could not be updated (${(error as Error).message})`);
+    }
   }
 
-  const spent = rows.reduce((sum, r) => sum + (r.cost ?? 0), 0);
-  writeAtomically(ledgerFile, `${JSON.stringify([...ledger, { date: today, estimate, cost: spent }], null, 1)}\n`);
-  const reportFile = options.report ?? join(ROOT, "docs/meta-smoke-test.md");
-  const ok = rows.length === calls.length && rows.every((r) => r.passed);
-  const cell = (s: string) => s.replace(/\|/g, "/").replace(/\n/g, " ");
-  const table = rows.map((r) => {
-    const gatewayCost =
-      r.call.model === "sam-3.1"
-        ? `unavailable from the gateway; US$${SAM_PER_IMAGE.toFixed(4)} per image`
-        : r.log?.gatewayCost === undefined || r.log.gatewayCost === null
-          ? "none"
-          : `US$${r.log.gatewayCost.toFixed(6)}`;
-    return `| ${r.call.name} | \`${r.call.model}\` | ${r.passed ? "passed" : "failed"} | ${r.ms} | ${r.log?.gatewayMs ?? "?"} | ${r.usage?.input ?? "?"} | ${r.usage?.output ?? "?"} | ${r.cost === null ? "?" : `US$${r.cost.toFixed(6)}`} | ${gatewayCost} | ${cell(r.detail)}; ${cell(r.log?.detail ?? "")} |`;
-  });
-  writeAtomically(
-    reportFile,
-    [
-      "# Meta smoke test",
-      "",
-      `Run ${(options.now?.() ?? new Date()).toISOString()} by \`node scripts/meta-smoke.ts --confirm-credit\` (D00 T01 §7), through AI Gateway \`isitlegit\` with \`store: false\` and payload logging off. Result: **${ok ? "every check passed" : "failed"}**. Total cost US$${spent.toFixed(6)} (estimate US$${estimate.toFixed(4)}). No keys and no bodies are recorded here.`,
-      "",
-      "| Call | Model | Result | Wall ms | Gateway ms | Tokens in | Tokens out | Cost (Meta usage) | Gateway cost | Detail |",
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-      ...table,
-      "",
-    ].join("\n"),
-  );
+  const ok = rows.length === calls.length && calls.length > 0 && rows.every((r) => r.passed);
+  try {
+    writeReport(ok ? "passed" : "failed");
+  } catch (error) {
+    say(`meta-smoke: the report could not be written (${(error as Error).message})`);
+  }
+  const spent = rows.reduce((sum, r) => sum + (r.cost ?? r.call.estimate), 0);
   say(
-    `${ok ? "passed" : "failed"}: ${rows.filter((r) => r.passed).length} of ${calls.length} calls; US$${spent.toFixed(6)} spent`,
+    `${ok ? "passed" : "failed"}: ${rows.filter((r) => r.passed).length} of ${calls.length} calls${partial ? ` (partial: ${options.model})` : ""}; US$${spent.toFixed(6)} counted`,
   );
   return { code: ok ? 0 : 1, lines };
 }
 
 async function readSecretsFromVault(): Promise<Secrets> {
-  const read = async (title: string) =>
-    (await runCommand("conclave-op", ["read", `op://Conclave/${title}/credential`], "", Date.now() + 60_000)).trim();
+  const read = async (title: string) => {
+    try {
+      return (
+        await runCommand("conclave-op", ["read", `op://Conclave/${title}/credential`], "", Date.now() + 60_000)
+      ).trim();
+    } catch {
+      throw new Error(
+        `reading "${title}" from Conclave failed; check the item exists and that conclave-op can reach 1Password`,
+      );
+    }
+  };
   return { meta: await read(VAULT.meta), run: await read(VAULT.run), admin: await read(VAULT.admin) };
 }
 
@@ -494,11 +661,17 @@ export function parseMetaArgs(argv: string[]) {
       dry: { type: "boolean", default: false },
       "confirm-credit": { type: "boolean", default: false },
       model: { type: "string" },
+      help: { type: "boolean", short: "h", default: false },
     },
     strict: true,
     allowPositionals: false,
   });
-  return { dry: values.dry, confirmCredit: values["confirm-credit"], ...(values.model ? { model: values.model } : {}) };
+  return {
+    help: values.help,
+    dry: values.dry,
+    confirmCredit: values["confirm-credit"],
+    ...(values.model !== undefined ? { model: values.model } : {}),
+  };
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -506,10 +679,15 @@ if (import.meta.filename === process.argv[1]) {
   try {
     args = parseMetaArgs(process.argv.slice(2));
   } catch (error) {
-    console.error(`meta-smoke: ${(error as Error).message}`);
+    console.error(`meta-smoke: ${(error as Error).message}\n\n${USAGE}`);
     process.exit(2);
   }
+  if (args.help) {
+    console.log(USAGE);
+    process.exit(0);
+  }
   installSignalCleanup("meta-smoke");
-  const outcome = await runMetaSmoke({ ...args, log: (line) => console.log(line) });
+  const { help: _help, ...run } = args;
+  const outcome = await runMetaSmoke({ ...run, log: (line) => console.log(line) });
   process.exit(outcome.code);
 }

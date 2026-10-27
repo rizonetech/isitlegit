@@ -1,7 +1,16 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { GATEWAY_URL, LOGS_URL, loadFixtures, type RunOptions, runMetaSmoke } from "../../scripts/meta-smoke.ts";
+import {
+  GATEWAY_URL,
+  LOGS_URL,
+  loadFixtures,
+  MODELS,
+  parseMetaArgs,
+  type RunOptions,
+  runMetaSmoke,
+  USAGE,
+} from "../../scripts/meta-smoke.ts";
 
 // scripts/meta-smoke.ts (D00 T01 §7) against a stubbed transport: the real dispatch path carries the gateway headers
 // and `store: false`, the spend is bounded before any call, a failed probe never passes, and no secret is printed.
@@ -58,12 +67,23 @@ function world(stub: Stub = {}) {
     if (url.startsWith(LOGS_URL)) {
       const [id, part] = url.slice(LOGS_URL.length + 1).split("/") as [string, string | undefined];
       if (stub.logs) return stub.logs(id, part);
-      if (part) return json({ success: false }, 404);
+      if (part) return json({ errors: [{ code: 7002, message: "Request body not available" }], success: false }, 404);
       const u = usageOf[id];
       if (!u) return json({ success: false }, 404);
       const [pin, pout] = u.model === "sam-3.1" ? [0, 0] : (price[u.model as keyof typeof price] ?? [0, 0]);
       const cost = u.model === "sam-3.1" ? undefined : (u.input * pin + u.output * pout) / 1e6;
-      return json({ result: { id, model: u.model, duration: 900, tokens_in: u.input, tokens_out: u.output, cost } });
+      return json({
+        result: {
+          id,
+          model: u.model,
+          success: true,
+          status_code: 200,
+          duration: 900,
+          tokens_in: u.input,
+          tokens_out: u.output,
+          cost,
+        },
+      });
     }
     const body = JSON.parse(String(init?.body ?? (input instanceof Request ? await input.text() : "{}")));
     sent.push({ url, headers, body });
@@ -193,11 +213,11 @@ describe("scripts/meta-smoke.ts", () => {
     const json = (b: unknown) => new Response(JSON.stringify(b), { headers: { "content-type": "application/json" } });
     const wrong = await live(world({ answers: { "spark-image": () => json(message("ABC-123-XYZ")) } }).fetchStub).run;
     expect(wrong.code).toBe(1);
-    expect(failure(wrong.lines, "Spark image")).toMatch(/did not read the fixture's code/);
+    expect(failure(wrong.lines, "Spark image")).toMatch(/expected exactly the fixture's code/);
     const cut = await live(
       world({ answers: { "spark-text": () => json(message("51", undefined, "incomplete")) } }).fetchStub,
     ).run;
-    expect(failure(cut.lines, "Spark text")).toMatch(/ended incomplete, not completed/);
+    expect(failure(cut.lines, "Spark text")).toMatch(/status is "incomplete", not completed/);
   });
 
   it("tells SAM's outcomes apart: no logo, a box elsewhere, malformed text, a stream cut off", async () => {
@@ -265,20 +285,253 @@ describe("scripts/meta-smoke.ts", () => {
       new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
     const missing = await live(world({ logs: () => json({}, 404) }).fetchStub).run;
     expect(failure(missing.lines, "Spark text")).toMatch(/did not appear/);
-    const full = { model: "m", duration: 1, tokens_in: 100, tokens_out: 10, cost: (100 * 1.25 + 10 * 4.25) / 1e6 };
+    const full = {
+      model: "muse-spark-1.3",
+      success: true,
+      status_code: 200,
+      duration: 1,
+      tokens_in: 100,
+      tokens_out: 10,
+      cost: (100 * 1.25 + 10 * 4.25) / 1e6,
+    };
+    const absent = () => json({ errors: [{ code: 7002 }] }, 404);
     const stored = await live(
       world({ logs: (_id, part) => (part ? json({ result: { body: "the prompt" } }) : json({ result: full })) })
         .fetchStub,
     ).run;
     expect(failure(stored.lines, "Spark text")).toMatch(/stored the request body/);
     const noCost = await live(
-      world({ logs: (_id, part) => (part ? json({}, 404) : json({ result: { ...full, cost: undefined } })) }).fetchStub,
+      world({ logs: (_id, part) => (part ? absent() : json({ result: { ...full, cost: undefined } })) }).fetchStub,
     ).run;
     expect(failure(noCost.lines, "Spark text")).toMatch(/no gateway cost/);
     const wrongCost = await live(
-      world({ logs: (_id, part) => (part ? json({}, 404) : json({ result: { ...full, cost: 9 } })) }).fetchStub,
+      world({ logs: (_id, part) => (part ? absent() : json({ result: { ...full, cost: 9 } })) }).fetchStub,
     ).run;
     expect(failure(wrongCost.lines, "Spark text")).toMatch(/does not match/);
+  });
+
+  it("certifies no stored body only on Cloudflare's own 'not available' answer (G1)", async () => {
+    const json = (b: unknown, status = 200) =>
+      new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
+    const full = {
+      model: "muse-spark-1.3",
+      success: true,
+      status_code: 200,
+      duration: 1,
+      tokens_in: 100,
+      tokens_out: 10,
+    };
+    const cases: [string, () => Response, RegExp][] = [
+      ["forbidden", () => json({ errors: [{ code: 10000 }] }, 403), /could not be verified \(HTTP 403\)/],
+      ["server error", () => json({}, 500), /could not be verified \(HTTP 500\)/],
+      ["a 404 of another kind", () => json({ errors: [{ code: 7001 }] }, 404), /could not be verified \(HTTP 404\)/],
+      ["a raw body", () => new Response("the prompt", { status: 200 }), /stored the request body/],
+      ["a raw JSON body", () => json({ input: "the prompt" }), /stored the request body/],
+    ];
+    for (const [label, body, why] of cases) {
+      const outcome = await live(world({ logs: (_id, part) => (part ? body() : json({ result: full })) }).fetchStub)
+        .run;
+      expect(outcome.code, label).toBe(1);
+      expect(failure(outcome.lines, "Spark text"), label).toMatch(why);
+    }
+  });
+
+  it("holds each gateway log to its call: model, success, types and Meta's token counts (G6)", async () => {
+    const json = (b: unknown, status = 200) =>
+      new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
+    const absent = () => json({ errors: [{ code: 7002 }] }, 404);
+    const full = {
+      model: "muse-spark-1.3",
+      success: true,
+      status_code: 200,
+      duration: 1,
+      tokens_in: 100,
+      tokens_out: 10,
+    };
+    const cases: [string, object, RegExp][] = [
+      ["another model", { ...full, model: "muse-wonder-1.0" }, /logged muse-wonder-1\.0, not muse-spark-1\.3/],
+      ["a failure", { ...full, success: false, status_code: 502 }, /logged a failure \(HTTP 502\)/],
+      ["a string count", { ...full, tokens_in: "100" }, /malformed \(tokens_in\)/],
+      ["no outcome", { ...full, success: undefined }, /malformed \(success\)/],
+      ["other counts", { ...full, tokens_in: 99 }, /counted 99 in and 10 out; Meta reported 100 and 10/],
+    ];
+    for (const [label, log, why] of cases) {
+      const outcome = await live(world({ logs: (_id, part) => (part ? absent() : json({ result: log })) }).fetchStub)
+        .run;
+      expect(outcome.code, label).toBe(1);
+      expect(failure(outcome.lines, "Spark text"), label).toMatch(why);
+    }
+  });
+
+  it("ends a SAM stream that starts and then stalls at the deadline (G2)", async () => {
+    const { fetchStub } = world();
+    const stalls = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = String(init?.body ?? "");
+      if (!String(input).startsWith(GATEWAY_URL) || !body.includes('"sam-3.1"')) return fetchStub(input, init);
+      const first = new TextEncoder().encode(sse([{ type: "response.output_text.delta", ...lane, delta: "<0f>0" }]));
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(first);
+          init?.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")));
+        },
+      });
+      return new Response(stream, { headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-sam" } });
+    }) as typeof fetch;
+    const started = Date.now();
+    const outcome = await live(stalls, { timeoutMs: 300 }).run;
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(failure(outcome.lines, "SAM 3.1")).toMatch(/no complete answer within 0\.3 s/);
+  }, 20_000);
+
+  it("reserves each call before it is sent and settles it after, never counting an unknown cost as zero (G3)", async () => {
+    const ledger = join(DIR, "spend.json");
+    const seen: { calls: number; reserved: number }[] = [];
+    const { fetchStub } = world({
+      answers: {
+        wonder: () => {
+          const entries = JSON.parse(readFileSync(ledger, "utf-8")) as { state: string }[];
+          seen.push({ calls: entries.length, reserved: entries.filter((e) => e.state === "reserved").length });
+          // Meta reports no usage for this call.
+          const { usage: _usage, ...rest } = click(640, 450);
+          return new Response(JSON.stringify(rest), { headers: { "content-type": "application/json" } });
+        },
+      },
+    });
+    const outcome = await live(fetchStub).run;
+    expect(seen).toEqual([{ calls: 4, reserved: 1 }]);
+    const entries = JSON.parse(readFileSync(ledger, "utf-8")) as { call: string; state: string; cost: number | null }[];
+    expect(entries.map((e) => [e.call, e.state])).toEqual([
+      ["Spark text", "settled"],
+      ["Spark image", "settled"],
+      ["SAM 3.1", "settled"],
+      ["Wonder", "uncertain"],
+    ]);
+    expect(entries[3]?.cost).toBeNull();
+    expect(failure(outcome.lines, "Wonder")).toMatch(/Meta reported no usage/);
+    // The next run counts the uncertain call at its estimate, not zero.
+    const next = await live(world().fetchStub, { dayCap: 0.1 }).run;
+    expect(next.code).toBe(2);
+    expect(next.lines.at(-1)).toMatch(/spent on smoke runs today/);
+  });
+
+  it("keeps the spend when the log read throws, and stops before sending when the ledger cannot be written (G3)", async () => {
+    const thrown = await live(
+      world({
+        logs: () => {
+          throw new TypeError("fetch failed");
+        },
+      }).fetchStub,
+    ).run;
+    expect(failure(thrown.lines, "Spark text")).toMatch(/gateway log could not be read \(TypeError\)/);
+    const entries = JSON.parse(readFileSync(join(DIR, "spend.json"), "utf-8")) as { state: string }[];
+    expect(entries.map((e) => e.state)).toEqual(["settled", "settled", "uncertain", "settled"]);
+    writeFileSync(join(DIR, "a-file"), "");
+    const { fetchStub, sent } = world();
+    const blocked = await live(fetchStub, { ledger: join(DIR, "a-file", "spend.json") }).run;
+    expect(blocked.code).toBe(1);
+    expect(blocked.lines.at(-1)).toMatch(
+      /stopped before Spark text: .*could not be written \(E[A-Z]+\); free space or fix its permissions/,
+    );
+    expect(sent).toHaveLength(0);
+  });
+
+  it("refuses an unknown model before anything is read or written, and labels a filtered run as partial (G4)", async () => {
+    const { fetchStub, sent } = world();
+    const typo = live(fetchStub, { model: "muse-spark-typo" });
+    const refused = await typo.run;
+    expect(refused.code).toBe(2);
+    expect(refused.lines[0]).toMatch(/muse-spark-typo is not one of the models this test calls/);
+    expect(typo.secretsRead()).toBe(0);
+    expect(existsSync(join(DIR, "report.md"))).toBe(false);
+    const dryTypo = await runMetaSmoke({ dry: true, confirmCredit: false, model: "muse-spark-typo", fixtures: fx });
+    expect(dryTypo.code).toBe(2);
+    const partial = await live(fetchStub, { model: "sam-3.1" }).run;
+    expect(partial.code).toBe(0);
+    expect(sent).toHaveLength(1);
+    expect(partial.lines.at(-1)).toMatch(/1 of 1 calls \(partial: sam-3\.1\)/);
+    expect(readFileSync(join(DIR, "report.md"), "utf-8")).toMatch(/Partial coverage: only `sam-3\.1`/);
+  });
+
+  it("rejects a contradicting answer, extra tool calls, fractional coordinates and an absent status (G5)", async () => {
+    const json = (b: unknown) => () =>
+      new Response(JSON.stringify(b), { headers: { "content-type": "application/json" } });
+    const contradicted = await live(
+      world({ answers: { "spark-text": json(message("The answer is 52, not 51")) } }).fetchStub,
+    ).run;
+    expect(failure(contradicted.lines, "Spark text")).toMatch(/expected exactly 51/);
+    const twice = click(640, 450);
+    twice.output.push({ type: "function_call", call_id: "c2", name: "click", arguments: '{"x":1,"y":1}' });
+    const fractional = click(640, 450);
+    (fractional.output[0] as { arguments: string }).arguments = '{"x":640.5,"y":450}';
+    const noStatus: Record<string, unknown> = { ...click(640, 450) };
+    delete noStatus.status;
+    const cases: [object, RegExp][] = [
+      [twice, /2 tool calls; exactly one click is allowed/],
+      [fractional, /malformed click arguments/],
+      [noStatus, /status is null, not completed/],
+    ];
+    for (const [answer, why] of cases) {
+      const outcome = await live(world({ answers: { wonder: json(answer) } }).fetchStub).run;
+      expect(failure(outcome.lines, "Wonder")).toMatch(why);
+    }
+  });
+
+  it("records the gateway's fields, Meta's usage and a bounded excerpt for every call (G7)", async () => {
+    await live(world().fetchStub).run;
+    const rows = readFileSync(join(DIR, "report.md"), "utf-8")
+      .split("\n")
+      .filter((l) => l.startsWith("| ") && !l.startsWith("| Call") && !l.startsWith("| ---"));
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatch(
+      /\| 100 \/ 10 \| 200, success, 100 \/ 10, 900 ms \| US\$0\.000168 \| US\$0\.000168 \| 51 \|/,
+    );
+    expect(rows[1]).toContain(`| ${fx.code} |`);
+    expect(rows[2]).toMatch(
+      /not reported by Meta \| 200, success, 0 \/ 0, 900 ms .* \| 1 box\(es\), best overlap 0\.\d\d \|/,
+    );
+    expect(rows[3]).toMatch(/\| click\(640, 450\) \|/);
+  });
+
+  it("keeps each finished call on disk while the run goes on, and names an interrupted run next time (E1)", async () => {
+    const report = join(DIR, "report.md");
+    const midway: string[] = [];
+    const { fetchStub } = world({
+      answers: {
+        wonder: () => {
+          midway.push(readFileSync(report, "utf-8"));
+          return new Response("{}", { status: 503 });
+        },
+      },
+    });
+    await live(fetchStub).run;
+    expect(midway[0]).toMatch(/\*\*in progress\*\* \(3 of 4 calls done; if this stays, the run was interrupted\)/);
+    expect(midway[0]?.match(/\| passed \|/g)).toHaveLength(3);
+    writeFileSync(report, midway[0] ?? "");
+    const next = await live(world().fetchStub).run;
+    expect(next.lines[0]).toMatch(/the previous run did not finish/);
+  });
+
+  it("has a help text and names a safe recovery for each failed stage (E2)", async () => {
+    expect(parseMetaArgs(["--help"]).help).toBe(true);
+    for (const model of MODELS) expect(USAGE).toContain(model);
+    for (const fact of ["--confirm-credit", "build/meta-smoke-spend.json", "docs/meta-smoke-test.md", "Exit codes"])
+      expect(USAGE).toContain(fact);
+    expect(() => parseMetaArgs(["--nope"])).toThrow();
+    const noFixtures = await runMetaSmoke({ dry: true, confirmCredit: false, fixturesDir: join(DIR, "absent") });
+    expect(noFixtures.code).toBe(2);
+    expect(noFixtures.lines[0]).toMatch(/fixtures .* could not be read .* restore them from git, or regenerate them/);
+    writeFileSync(join(DIR, "spend.json"), "not json");
+    const broken = await live(world().fetchStub).run;
+    expect(broken.code).toBe(2);
+    expect(broken.lines.at(-1)).toMatch(/repair it .* rather than delete it/);
+    const vault = await live(world().fetchStub, {
+      ledger: join(DIR, "fresh.json"),
+      readSecrets: async () => {
+        throw new Error('reading "IsItLegit Meta Model API" from Conclave failed; check the item exists');
+      },
+    }).run;
+    expect(vault.code).toBe(2);
+    expect(vault.lines.at(-1)).toMatch(/from Conclave failed; check the item exists/);
   });
 
   it("refuses an over-cap run and an exhausted day before reading secrets or sending anything", async () => {
@@ -286,6 +539,7 @@ describe("scripts/meta-smoke.ts", () => {
     const over = live(fetchStub, { runCap: 0.01 });
     expect((await over.run).lines.at(-1)).toMatch(/over the US\$0\.01 cap/);
     expect(over.secretsRead()).toBe(0);
+    // An entry from before reservations: a cost and no state.
     writeFileSync(join(DIR, "spend.json"), JSON.stringify([{ date: "2026-10-27", estimate: 1, cost: 1.99 }]));
     const day = live(fetchStub);
     const outcome = await day.run;
