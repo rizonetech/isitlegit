@@ -581,11 +581,37 @@ describe("scripts/meta-smoke.ts", () => {
     writeFileSync(`${ledger}.lock`, "999999999");
     expect((await live(fetchStub, { model: "sam-3.1" }).run).code).toBe(0);
     expect(existsSync(`${ledger}.lock`)).toBe(false);
-    const release = takeLock(join(DIR, "x.lock"));
+    // A lock is created whole, never empty, and leaves no private file behind.
+    const lock = join(DIR, "x.lock");
+    const release = takeLock(lock);
+    expect(readFileSync(lock, "utf-8")).toBe(String(process.pid));
+    expect(existsSync(`${lock}.${process.pid}.tmp`)).toBe(false);
     expect(typeof release).toBe("function");
-    expect(takeLock(join(DIR, "x.lock"))).toMatch(/is running/);
+    expect(takeLock(lock)).toMatch(/is running/);
     (release as () => void)();
-    expect(existsSync(join(DIR, "x.lock"))).toBe(false);
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it("clears a gone run's lock only under the reclaim guard (round 2)", () => {
+    const lock = join(DIR, "y.lock");
+    writeFileSync(lock, "999999999");
+    // Another run is clearing it right now: this one waits, and the lock is untouched.
+    writeFileSync(`${lock}.reclaim`, String(process.pid));
+    expect(takeLock(lock)).toMatch(/another smoke run is starting/);
+    expect(readFileSync(lock, "utf-8")).toBe("999999999");
+    // A guard left by a gone process is named, not silently broken.
+    writeFileSync(`${lock}.reclaim`, "999999998");
+    expect(takeLock(lock)).toMatch(/y\.lock\.reclaim was left by process 999999998, which is gone; delete it/);
+    rmSync(`${lock}.reclaim`);
+    // Unguarded, a gone run's lock and a garbled one are each cleared and claimed, and the guard is gone after.
+    for (const left of ["999999999", "garbled"]) {
+      writeFileSync(lock, left);
+      const release = takeLock(lock);
+      expect(typeof release, left).toBe("function");
+      expect(readFileSync(lock, "utf-8")).toBe(String(process.pid));
+      expect(existsSync(`${lock}.reclaim`)).toBe(false);
+      (release as () => void)();
+    }
   });
 
   it("compares SAM's token counts with the gateway's too (round 1)", async () => {

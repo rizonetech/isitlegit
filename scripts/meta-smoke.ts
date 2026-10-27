@@ -19,16 +19,7 @@
 // from Conclave through conclave-op and are never printed.
 //
 //   node scripts/meta-smoke.ts --help
-import {
-  closeSync,
-  existsSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
@@ -289,8 +280,10 @@ function writeAtomically(file: string, text: string): void {
   renameSync(tmp, file);
 }
 
-// One run at a time per ledger: an exclusive lock file holding the run's process id, released when the run ends or
-// the process exits; a lock whose process is gone is taken over. Answers the release, or why the lock was refused.
+// One run at a time per ledger: a lock file holding the run's process id, released when the run ends or the process
+// exits. It is created whole (the id is written to a private file, then hard-linked into place, which fails if a lock
+// exists), so no run ever sees an empty lock. A lock whose process is gone is cleared under a second lock, and re-read
+// there first, so two runs cannot both clear it and both start. Answers the release, or why the lock was refused.
 const alive = (pid: number) => {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -300,47 +293,71 @@ const alive = (pid: number) => {
     return (error as NodeJS.ErrnoException).code === "EPERM";
   }
 };
+const contents = (file: string) => {
+  try {
+    return readFileSync(file, "utf-8");
+  } catch {
+    return null;
+  }
+};
+// True when this process now holds `file`, false when another holds it.
+function claim(file: string): boolean {
+  const mine = `${file}.${process.pid}.tmp`;
+  writeFileSync(mine, String(process.pid));
+  try {
+    linkSync(mine, file);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  } finally {
+    unlinkSync(mine);
+  }
+}
+function releaser(file: string): () => void {
+  const release = () => {
+    if (contents(file) !== String(process.pid)) return;
+    try {
+      unlinkSync(file);
+    } catch {
+      // already gone
+    }
+  };
+  process.once("exit", release);
+  return () => {
+    process.removeListener("exit", release);
+    release();
+  };
+}
 export function takeLock(file: string): (() => void) | string {
+  const failed = (error: unknown) =>
+    `${file} could not be created (${(error as NodeJS.ErrnoException).code ?? (error as Error).message})`;
+  const busy = (pid: string | null) =>
+    `another smoke run (process ${pid?.trim() || "unknown"}) is running; wait for it to finish`;
   try {
     mkdirSync(dirname(file), { recursive: true });
-  } catch (error) {
-    return `${file} could not be created (${(error as NodeJS.ErrnoException).code ?? (error as Error).message})`;
-  }
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const fd = openSync(file, "wx");
-      writeFileSync(fd, String(process.pid));
-      closeSync(fd);
-      const release = () => {
-        try {
-          if (readFileSync(file, "utf-8") === String(process.pid)) unlinkSync(file);
-        } catch {
-          // already gone
-        }
-      };
-      process.once("exit", release);
-      return () => {
-        process.removeListener("exit", release);
-        release();
-      };
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "EEXIST") return `${file} could not be created (${code ?? (error as Error).message})`;
-      let holder = Number.NaN;
-      try {
-        holder = Number(readFileSync(file, "utf-8").trim());
-      } catch {
-        // removed between the two calls: try again
-      }
-      if (alive(holder)) return `another smoke run (process ${holder}) is running; wait for it to finish`;
-      try {
-        unlinkSync(file);
-      } catch {
-        // another run took it over first; the next attempt sees its lock
-      }
+    if (claim(file)) return releaser(file);
+    const holder = contents(file);
+    if (alive(Number(holder))) return busy(holder);
+    const guard = `${file}.reclaim`;
+    if (!claim(guard)) {
+      const other = contents(guard);
+      return alive(Number(other))
+        ? "another smoke run is starting; run again in a moment"
+        : `${guard} was left by process ${other?.trim()}, which is gone; delete it and run again`;
     }
+    try {
+      // Re-read under the guard: only a lock still held by the same gone process is cleared.
+      const now = contents(file);
+      if (now !== null && now !== holder) return busy(now);
+      if (now !== null) unlinkSync(file);
+      return claim(file) ? releaser(file) : busy(contents(file));
+    } finally {
+      unlinkSync(guard);
+    }
+  } catch (error) {
+    return failed(error);
   }
-  return `${file} could not be taken; run again`;
 }
 
 // The gateway log's own record of the call, as Cloudflare's logs API returns it.
