@@ -285,20 +285,24 @@ Evidence after round 1, 2026-10-28 00:49 SAST: adversarial, integration and sour
 
 ## 9. Filtered resampling for WAV
 
+> **Started:** 2026-10-27T22:50Z
+
 §2 resamples WAV input linearly, which passes energy above 8 kHz through as aliases: measured in §2's completion review, a half-scale 12 kHz tone at 48 kHz comes out as a full-strength 4 kHz alias. Ogg Opus no longer has this problem, because libopus decodes it straight to 16 kHz with its own filter. The strongest alternative for this job, FFmpeg's libswresample, filters by default (https://ffmpeg.org/ffmpeg-resampler.html). Filed from §2's completion review (2026-10-27), with its request for timings compared with FFmpeg, which needs FFmpeg (installed on GitHub's Ubuntu runners, not on the build machine).
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-28** (validation before building). A windowed-sinc filter needs samples on both sides of each output, so the resampler must hold a lookahead across blocks and pad the end with silence, keeping §2's exact output lengths (ceil(N x 16000 / rate)) and identical output however the input is split; 44.1 kHz input needs an arbitrary-ratio (fractional-phase) filter, not a fixed polyphase bank; going up (8 kHz to 16 kHz) the cut-off is the input's Nyquist. The decoder cannot run in plain Node (its WebAssembly is a `?module` import the bundler resolves), so the timing of our decoder runs in the Workers test pool and a Node script times FFmpeg on the same files, CI printing both.
+
 **Build order:**
 
 1. Filter before decimating. Done when: a 12 kHz tone in a 48 kHz WAV comes out at least 60 dB down, with §2's tone, level and continuity tests unchanged.
 2. Measure against FFmpeg. Done when: the decoder's first-chunk and completion times are recorded beside FFmpeg's for the same inputs.
 
-- [ ] Replace `Resampler`'s linear interpolation in `src/voice/decode.ts` with a windowed-sinc (or polyphase) low-pass resampler that keeps its state across blocks, cut off below 8 kHz. Done when: `test/voice/decode.test.ts` finds a 12 kHz tone in a 48 kHz WAV at least 60 dB below its input level and a 3 kHz tone within 0.5 dB, and the existing block-split test still gives identical output however the input is split.
+- [ ] Replace `Resampler`'s linear interpolation in `src/voice/decode.ts` with a Kaiser-windowed sinc low-pass resampler at an arbitrary ratio, centred on each output (a lookahead held across blocks, silence past the end), cut off below the lower of the two Nyquist frequencies. Done when: `test/voice/decode.test.ts` finds a 12 kHz tone in a 48 kHz WAV at least 60 dB below its input level, the same in a 44.1 kHz WAV, a 3 kHz tone within 0.5 dB at 48 kHz, 44.1 kHz and 8 kHz input, and the existing block-split and length tests unchanged.
 - [ ] Keep §2's guarantees: 440 Hz at its level, exact output lengths, no seam at chunk boundaries. Done when: §2's tests pass unchanged.
-- [ ] Add `scripts/voice-bench.ts`, which times the decoder (first chunk and completion) on a 3-second note, a 25-minute recording, a dense low-bitrate stream and a damaged file, and runs `ffmpeg -ar 16000 -ac 1 -c:a pcm_s16le` on the same inputs when FFmpeg is installed, printing both. Done when: a CI job on `ubuntu-latest` runs it and its output is recorded here with the FFmpeg version.
+- [ ] Time our decoder in the Workers pool (`test/voice/bench.test.ts`, run only when `VOICE_BENCH` is set: first chunk and completion for a 3-second note, a 25-minute recording, a dense low-bitrate stream and a damaged file, written as JSON to `build/voice-bench.json`) and FFmpeg on the same files in Node (`scripts/voice-bench.ts`: `ffmpeg -ar 16000 -ac 1 -c:a pcm_s16le`, its version, the same timings), printing both side by side. Done when: a CI job on `ubuntu-latest` (which has FFmpeg) runs both and its output is recorded here with the FFmpeg version. (**Corrected 2026-10-28**, as above.)
 - [ ] Use the same filtered resampler for MP3 (§7 decodes it at its own rate, 44.1 kHz and below, then resamples linearly), and time MP3 in `scripts/voice-bench.ts` beside FFmpeg too. Done when: a 12 kHz tone in a 44.1 kHz MP3 comes out at least 60 dB down and the bench prints MP3 rows. (Added 2026-10-28 from D01 T03 §7's completion review, out-of-scope items 6 and 7.)
 - [ ] Commit: `voice: filtered resampling for WAV, timed against FFmpeg`
 
