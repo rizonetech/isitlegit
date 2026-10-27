@@ -42,7 +42,7 @@ track: day-1
 | 5 | §5 | MIME parsing and attachment extraction | §4 | [ ] |
 | 6 | §6 | Outlook .msg parsing | §5 | [ ] |
 | 7 | §7 | AnalysisWorkflow skeleton, partial reports | §5 | [ ] |
-| 8 | §8 | Signed expiring report links | §1 | [ ] |
+| 8 | §8 | Signed expiring report links | §1 | [x] |
 | 9 | §9 | Email Routing for check@ and live smoke | §7, D01 T02 §3 | [ ] |
 
 ## 1. Core D1 schema and migration runner
@@ -251,13 +251,16 @@ Reply emails carry a link to the report that opens without a session: HMAC-signe
 - [x] Define `ConfigError` in `src/web/report-link.ts` and refuse to sign or verify when the secret is missing or shorter than 32 bytes, and type `REPORT_LINK_SECRET?: string` in `src/types/secrets.d.ts`. Done when: a test with a missing and a 31-byte secret throws `ConfigError` for both calls. Cheaper substitute: a default secret, which would make every link forgeable.
 - [x] List `REPORT_LINK_SECRET` among the Worker's secrets in `docs/specs/2026-10-26-tech-stack-design.md`. Already true: line 71 names it (`REPORT_LINK_SECRET` (HMAC)).
 - [x] Generate 32 random bytes as base64url, store them in Conclave as "IsItLegit report link secret" through `conclave-op`, read them back, and set them with `wrangler secret put REPORT_LINK_SECRET` from the vault, piping the value so it is never printed or passed as an argument; record in `docs/operations.md` that replacing it invalidates every report link already sent. Done when: `wrangler secret list` names it, the vault item's value is 43 characters (counted, not shown), and the operations page holds the note.
-- [ ] Commit: `web: signed, expiring report links`
+- [x] Commit: `web: signed, expiring report links`
 
 Evidence 2026-10-27 20:16 SAST. `src/web/report-link.ts` signs `/r/<caseId>?o=&e=&s=` with HMAC-SHA256 over `["report-link:v1", caseId, orgId, expiry]` and verifies in constant time; `ConfigError` refuses a missing or short secret; `REPORT_LINK_SECRET` is typed in `src/types/secrets.d.ts`. `pnpm exec vitest run --project worker test/web/report-link.test.ts`: 7 passed, including a case created through `createCase` with organisation `org-a`, the HMAC vector computed in Python (`7CS0TcXh...`), a different secret refused, organisation ids with `&`, `/`, a newline and 200 characters, and every refusal (changed case, organisation or expiry, another version label, expired, more than 7 days ahead, wrong path, eleven malformed shapes). Five mutations (the organisation not signed, an unkeyed hash, no expiry check, no distance check, a short secret allowed) each fail it; a sixth, the decoded-length check, survived because the 43-character pattern already guarantees 32 bytes, so the check was removed as unreachable. The vault item "IsItLegit report link secret" holds a 43-character value (counted, not shown), set on the Worker by a pipe from the vault; `wrangler secret list` names `REPORT_LINK_SECRET`, the new version `93c66446` serves 100%, and `node scripts/smoke.ts` passed on every binding in 14 s. `docs/operations.md` says replacing it invalidates every link sent.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-link.test.ts` passes, and fails if the comparison ignores the org id or if the signature is not keyed (the independent test vector and the different-secret refusal).
 
 The absolute `https://` link a reply carries is built by D01 T02 §3 from a trusted origin, never from a request's host (plan review P2 4).
+
+> **Verified:** 2026-10-27 | §8 | 7c100e4770a4a24c45b47b2b3c0a479f7e3161ff
+> **Review:** `docs/reviews/d01-t01-s8.json`
 
 ## 9. Email Routing for check@ and live smoke
 

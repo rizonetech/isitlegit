@@ -32,7 +32,7 @@ Sections: 32 | Checklist items: 221
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
 | [x]    | D01 T01 §1 | Core D1 schema and migration runner        | none                  | 12    |
 | [x]    | D01 T01 §2 | Case store and R2 artefact layout          | none                  | 9     |
-| [ ]    | D01 T01 §8 | Signed expiring report links               | none                  | 6     |
+| [x]    | D01 T01 §8 | Signed expiring report links               | none                  | 6     |
 | [ ]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 5     |
 | [ ]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 4     |
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 6     |
@@ -271,6 +271,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 20/202 verified sections, 12 ready to run now.
+Progress: 21/202 verified sections, 11 ready to run now.
 
-Checklist: 290/1056 items completed (includes Commit items).
+Checklist: 291/1056 items completed (includes Commit items).

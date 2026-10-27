@@ -1,0 +1,112 @@
+{
+  "ref": "D01 T01 \u00a78",
+  "title": "Signed expiring report links",
+  "implementation_sha": "7c100e4770a4a24c45b47b2b3c0a479f7e3161ff",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T01-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T01-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web/report-link.test.ts -> 7 passed",
+    "wrangler secret list -> names REPORT_LINK_SECRET; version 93c66446 serves 100%",
+    "node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev --commit ed58723998d397ae1d4f4250f51407db164fe127 -> passed in 14 s",
+    "pnpm exec vitest run -> 350 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T01-s8.md",
+    "verdict": "filed",
+    "candidate": "75f8d3fe5d1a34a515567747957f39d25e8b0038",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T02 \u00a73",
+      "D07 T03 \u00a71",
+      "D07 T03 \u00a73",
+      "D07 T08 \u00a71",
+      "D07 T08 \u00a77"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T01-s8.md",
+    "candidate": "d0a91ca966a7f01aa11ed345f32bdc1f2a190db6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
