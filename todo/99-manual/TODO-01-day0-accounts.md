@@ -207,19 +207,25 @@ Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minu
 
 ## 8. AI Gateway tokens
 
+> **Started:** 2026-10-27T13:44Z
+
 Two Cloudflare API tokens only the operator can create: Wrangler's login offers no AI Gateway scope, and the Cloudflare connector cannot create tokens. D00 T01 §7 (the Meta smoke test through the authenticated gateway) and D00 T01 §11 (the gateway configuration snapshot and restore) wait on them.
 
 **Phase:** 0
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Recorded 2026-10-27** (operator, 15:41 SAST): both tokens created in the Cloudflare dashboard and stored in Conclave; the `operator` Need is removed. Placeholders were created by Claude first (13:27 UTC) with the steps in their notes, and the operator pasted each value. The Worker may not need the Run token at all: requests through its `AI` binding are authenticated by the binding (the Settings page says so, and `env.AI.gateway(id).run` is documented for any provider); D00 T01 §7 decides that, while scripts outside the Worker still need the token.
 
 **Build order:**
 
 1. Create both tokens and store them in Conclave. Done when: both vault items exist with a filled credential.
 
-- [ ] Create the gateway's authentication token in the Cloudflare dashboard (AI, AI Gateway, `isitlegit`, Settings, Create authentication token; AI Gateway Run only, no expiry) and store it in Conclave as "IsItLegit AI Gateway token" (API Credential, value in `credential`). Done when: `conclave-op item get "IsItLegit AI Gateway token" --vault Conclave --fields credential --reveal | wc -c` prints more than 1.
-- [ ] Create an account API token (My Profile, API Tokens, Create Token, Custom: Account, AI Gateway, Read and Edit, this account only, no expiry) and store it in Conclave as "IsItLegit AI Gateway admin token". Done when: the same count for that item prints more than 1.
+- [x] Create the gateway's authentication token in the Cloudflare dashboard (AI, AI Gateway, `isitlegit`, Settings, Create authentication token; AI Gateway Run only, no expiry) and store it in Conclave as "IsItLegit AI Gateway token" (API Credential, value in `credential`). Done when: `conclave-op item get "IsItLegit AI Gateway token" --vault Conclave --fields credential --reveal | wc -c` prints more than 1.
+- [x] Create an account API token (My Profile, API Tokens, Create Token, Custom: Account, AI Gateway, Read and Edit, this account only, no expiry) and store it in Conclave as "IsItLegit AI Gateway admin token". Done when: the same count for that item prints more than 1.
 - [ ] Commit: `todo: AI Gateway tokens in the vault`
+
+Evidence 2026-10-27 15:50 SAST, values never printed: the two credentials are filled (53 and more characters) and differ; `user/tokens/verify` reads both `active`. The admin token reads gateway `isitlegit` (`authentication: true`, `collect_logs: false`, `cache_ttl: 0`) and its custom provider `meta`, and a no-op `PUT` of the gateway's own settings returned 200 with every value unchanged. The Run token is refused reading the gateway's settings (403, `Authentication error`), so it holds no Read; at `gateway.ai.cloudflare.com/.../isitlegit/custom-meta/v1/models` a request with no token or a made-up one gets the gateway's own `AiGatewayError 2009 Unauthorized`, while one with the Run token passes the gateway (it is logged with a `cf-aig-log-id`) and is answered by Meta (`invalid_api_key`, as no Meta key was sent), so no model ran and nothing was charged. (A first attempt from Python's default user agent met Cloudflare's bot rule, error 1010; the check sets its own user agent.)
 
 **Test checkpoint:** `for t in "IsItLegit AI Gateway token" "IsItLegit AI Gateway admin token"; do conclave-op item get "$t" --vault Conclave --fields credential --reveal | wc -c; done` prints two counts above 1 (the values are never shown).
 
