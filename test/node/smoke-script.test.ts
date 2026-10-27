@@ -149,9 +149,9 @@ describe("scripts/smoke.ts", () => {
     let edits = 0;
     let failEdit = 0;
     const run: Runner = async (command, args, input) => {
-      if (command === "op" && args[1] === "get") return JSON.stringify(vault);
-      if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
-      // The template reaches op through a real pipe (sh -c 'cat | exec op ...').
+      if (command === "conclave-op" && args[1] === "get") return JSON.stringify(vault);
+      if (command === "conclave-op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
+      // The template reaches op through a real pipe (sh -c 'cat | exec conclave-op ...').
       if (command === "sh" && args.includes("edit")) {
         if (++edits === failEdit) throw new Error("op: network error");
         vault.fields = JSON.parse(input).fields;
@@ -170,7 +170,7 @@ describe("scripts/smoke.ts", () => {
         ]);
       throw new Error(`unexpected ${command} ${args.join(" ")}`);
     };
-    const rotate = rotateWith(run, () => ({}));
+    const rotate = rotateWith(run);
     const first = await rotate(Date.now() + 2_000).catch((e: Error) => e);
     expect((first as Error).message).toMatch(
       /Worker did not take the new token .* put back to the old one, so nothing changed/,
@@ -208,8 +208,8 @@ describe("scripts/smoke.ts", () => {
     const vault = { fields: [{ id: "credential", value: "a".repeat(64) }] };
     const worker = { token: "a".repeat(64), newest: VERSION, listFails: false };
     const run: Runner = async (command, args, input) => {
-      if (command === "op" && args[1] === "get") return JSON.stringify(vault);
-      if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
+      if (command === "conclave-op" && args[1] === "get") return JSON.stringify(vault);
+      if (command === "conclave-op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
       if (command === "sh" && args.includes("edit")) {
         vault.fields = JSON.parse(input).fields;
         return "";
@@ -228,7 +228,7 @@ describe("scripts/smoke.ts", () => {
       }
       throw new Error(`unexpected ${command} ${args.join(" ")}`);
     };
-    const rotate = rotateWith(run, () => ({}));
+    const rotate = rotateWith(run);
     expect(await rotate(Date.now() + 2_000)).toEqual({ token: worker.token, version: "v-rotated" });
     expect(vault.fields[0]?.value).toBe(worker.token);
     // When the versions cannot be read after the failure, it neither restores the vault nor claims nothing changed.
@@ -242,7 +242,7 @@ describe("scripts/smoke.ts", () => {
       }
       return run(command, args, input, deadline, env);
     };
-    const uncertain = await rotateWith(run2, () => ({}))(Date.now() + 2_000).catch((e: Error) => e);
+    const uncertain = await rotateWith(run2)(Date.now() + 2_000).catch((e: Error) => e);
     expect((uncertain as Error).message).toMatch(
       /could not tell whether the Worker took the new token.*`--rotate` again/,
     );
@@ -262,25 +262,25 @@ describe("scripts/smoke.ts", () => {
         ]);
       throw new Error(`unexpected ${command} ${args.join(" ")}`);
     };
-    await expect(rotateWith(run, () => ({}))(Date.now() + 2_000)).rejects.toThrow(
+    await expect(rotateWith(run)(Date.now() + 2_000)).rejects.toThrow(
       /a rollback is in effect \(v-good serves, the newest version is v-broken\).*nothing was changed/,
     );
-    expect(calls.some((c) => c.startsWith("op ") || c.includes("edit") || c.includes("secret"))).toBe(false);
+    expect(calls.some((c) => c.startsWith("conclave-op ") || c.includes("edit") || c.includes("secret"))).toBe(false);
   });
 
   it("stops a rotation before the Worker changes when the vault did not take the token", async () => {
     const vault = { fields: [{ id: "credential", value: "a".repeat(64) }] };
     let put = false;
     const run: Runner = async (command, args) => {
-      if (command === "op" && args[1] === "get") return JSON.stringify(vault);
-      if (command === "op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
+      if (command === "conclave-op" && args[1] === "get") return JSON.stringify(vault);
+      if (command === "conclave-op" && args[0] === "read") return `${vault.fields[0]?.value}\n`;
       if (command === "sh" && args.includes("edit")) return ""; // op answered, but stored nothing
       if (args.includes("secret")) put = true;
       if (args.includes("status")) return JSON.stringify({ versions: [{ version_id: VERSION, percentage: 100 }] });
       if (args.includes("list")) return JSON.stringify([{ id: VERSION, number: 2 }]);
       return "";
     };
-    await expect(rotateWith(run, () => ({}))(Date.now() + 2_000)).rejects.toThrow(/vault did not take the new token/);
+    await expect(rotateWith(run)(Date.now() + 2_000)).rejects.toThrow(/vault did not take the new token/);
     expect(put).toBe(false);
   });
 

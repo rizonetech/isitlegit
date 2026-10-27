@@ -11,9 +11,6 @@
 //   (--commit defaults to git rev-parse HEAD)
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 export const CHECKS = ["DB", "ARTEFACTS", "CACHE", "ANALYSIS", "BROWSER"];
@@ -266,14 +263,9 @@ export function runCommand(
 
 const VAULT_ITEM = "IsItLegit Smoke token";
 
-// `op` with the 1Password service account the operator's shell profile uses (its token file, read here, never printed).
-function opEnv(): NodeJS.ProcessEnv {
-  if (process.env.OP_SERVICE_ACCOUNT_TOKEN) return process.env;
-  const file = join(homedir(), ".conclave/secrets/op-service-account-token.env");
-  const token = /^OP_SERVICE_ACCOUNT_TOKEN=(.+)$/m.exec(readFileSync(file, "utf-8"))?.[1]?.trim();
-  if (!token) throw new Error(`no OP_SERVICE_ACCOUNT_TOKEN in ${file}`);
-  return { ...process.env, OP_SERVICE_ACCOUNT_TOKEN: token };
-}
+// The operator's 1Password wrapper: it loads the service account's token from its file after checking the file's
+// owner and mode, then runs `op`, so this script never reads or passes the token itself.
+const OP = "conclave-op";
 
 export type Runner = (
   command: string,
@@ -307,9 +299,7 @@ async function newestVersionWith(run: Runner, deadline: number): Promise<string>
 export const activeVersionFromWrangler = (deadline: number) => activeVersionWith(runCommand, deadline);
 
 export async function tokenFromVault(deadline: number): Promise<string> {
-  const token = (
-    await runCommand("op", ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline, opEnv())
-  ).trim();
+  const token = (await runCommand(OP, ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline)).trim();
   if (!/^[0-9a-f]{64}$/.test(token)) throw new Error(`the vault item "${VAULT_ITEM}" holds no 64-hex token`);
   return token;
 }
@@ -321,10 +311,10 @@ export async function tokenFromVault(deadline: number): Promise<string> {
 // socket, so `op item edit` given the template that way silently changes nothing. `cat` hands it on through a real pipe;
 // the value stays in memory and off the command line.
 function opWithInput(args: string[]): [string, string[]] {
-  return ["sh", ["-c", 'cat | exec op "$@"', "sh", ...args]];
+  return ["sh", ["-c", `cat | exec ${OP} "$@"`, "sh", ...args]];
 }
 
-export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
+export function rotateWith(run: Runner) {
   return async (deadline: number): Promise<{ token: string; version: string }> => {
     // Wrangler refuses to set a secret while the version serving is not the newest (a rollback is in effect), so that
     // is checked before the vault changes: a refusal then leaves the vault and the Worker agreeing.
@@ -335,15 +325,8 @@ export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
           "on the newest; nothing was changed: rotate once a good commit is deployed again (docs/operations.md)",
       );
     const token = randomBytes(32).toString("hex");
-    const opEnvironment = env();
     const item = JSON.parse(
-      await run(
-        "op",
-        ["item", "get", VAULT_ITEM, "--vault", "Conclave", "--format", "json"],
-        "",
-        deadline,
-        opEnvironment,
-      ),
+      await run(OP, ["item", "get", VAULT_ITEM, "--vault", "Conclave", "--format", "json"], "", deadline),
     );
     const field = (item.fields as { id: string; value?: string }[]).find((f) => f.id === "credential");
     if (!field) throw new Error(`the vault item "${VAULT_ITEM}" has no credential field`);
@@ -353,13 +336,10 @@ export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
       ...opWithInput(["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"]),
       JSON.stringify(item),
       deadline,
-      opEnvironment,
     );
     // Read back before the Worker changes: a vault that did not take the token must stop the rotation here, while the
     // two still agree.
-    const stored = (
-      await run("op", ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline, opEnvironment)
-    ).trim();
+    const stored = (await run(OP, ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline)).trim();
     if (stored !== token) throw new Error("the vault did not take the new token; the Worker was not changed");
     try {
       await run("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], token, deadline);
@@ -387,11 +367,8 @@ export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
           ...opWithInput(["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"]),
           JSON.stringify(item),
           deadline,
-          opEnvironment,
         );
-        restored =
-          (await run("op", ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline, opEnvironment)).trim() ===
-          old;
+        restored = (await run(OP, ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline)).trim() === old;
       } catch {
         // restored stays false
       }
