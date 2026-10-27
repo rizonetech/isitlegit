@@ -448,6 +448,21 @@ describe("decodeToWavChunks", () => {
       expect(await refusal(cut, "audio/wav")).toMatch(/cut short/);
     });
 
+    it("a WAV whose sample rate no recording has, before any filter is built (§9's completion review)", async () => {
+      // A header can claim 4,294,967,295 Hz: a filter for that would need gigabytes.
+      for (const rate of [4_294_967_295, 192_001, 7_999, 1]) {
+        const file = wavFile(tone(8_000, 0.01), 8_000, 1);
+        new DataView(file.buffer).setUint32(24, rate, true);
+        const error = await decodeAll(file, "audio/wav").catch((e: unknown) => e as Error);
+        expect(error, `${rate}`).toBeInstanceOf(UnsupportedAudio);
+        expect((error as Error).message, `${rate}`).toMatch(new RegExp(`audio/wav at ${rate} Hz`));
+      }
+      for (const rate of [8_000, 192_000]) {
+        const file = wavFile(tone(rate, 0.05), rate, 1);
+        expect((await decodeAll(file, "audio/wav")).length, `${rate}`).toBe(1);
+      }
+    });
+
     it("a WAV whose data ends partway through a sample or a frame (completion review)", async () => {
       const mono = wavFile(tone(16_000, 0.1), 16_000, 1);
       const view = new DataView(mono.buffer);

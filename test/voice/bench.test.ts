@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { CorruptAudio, decodeToWavChunks } from "../../src/voice/decode";
 import { benchInputs } from "../fixtures/audio/bench-inputs";
-import { toneMp3, toneOgg } from "../fixtures/audio/load";
+import { toneMp3, toneOgg, toneWav } from "../fixtures/audio/load";
 
 // D01 T03 §9: our decoder's timings for scripts/voice-bench.ts, which sets VOICE_BENCH and prints them beside FFmpeg's.
 // First output is the first chunk (10 minutes of samples, or all of a shorter file); completion is everything drained;
@@ -10,7 +10,7 @@ import { toneMp3, toneOgg } from "../fixtures/audio/load";
 describe.skipIf(!(env as unknown as { VOICE_BENCH?: string }).VOICE_BENCH)("voice decoder timings", () => {
   it("times each bench input", { timeout: 600_000 }, async () => {
     const rows = [];
-    for (const input of benchInputs(toneOgg, toneMp3)) {
+    for (const input of benchInputs(toneOgg, toneMp3, toneWav)) {
       const started = performance.now();
       let first: number | null = null;
       let samples = 0;

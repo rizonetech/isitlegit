@@ -17,7 +17,7 @@ describe("the voice decoder's build inputs", () => {
   });
 
   it("commits an MP3 decoder with no imports and the binding's exports (D01 T03 §7)", () => {
-    // That it is native/minimp3 built with the pinned Zig is CI's check (scripts/build-minimp3-wasm.py --check).
+    // That it is native/minimp3 built with the pinned Zig is CI's check (scripts/build-wasm.py --check).
     const module = new WebAssembly.Module(readFileSync(join(ROOT, "src/voice/minimp3.wasm")));
     expect(WebAssembly.Module.imports(module)).toEqual([]);
     expect(WebAssembly.Module.exports(module).map((e) => e.name)).toEqual([

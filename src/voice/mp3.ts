@@ -11,7 +11,7 @@
 // length or checksum.
 //
 // Decoding is minimp3 (CC0), vendored in native/minimp3 with a binding of our own that decodes one frame per call and
-// reports minimp3's result for it, compiled to WebAssembly by scripts/build-minimp3-wasm.py and imported as a module,
+// reports minimp3's result for it, compiled to WebAssembly by scripts/build-wasm.py and imported as a module,
 // so nothing is compiled at runtime and a frame minimp3 refuses is never passed on as silence. Licence:
 // `minimp3.wasm.LICENSE`.
 import { CorruptAudio, UnsupportedAudio } from "./errors";
@@ -199,7 +199,8 @@ export function createMp3Decoder(audio: Uint8Array): Mp3Stream {
   let frame = 0;
   return {
     decode: (seconds) => {
-      const parts: Int16Array[] = [];
+      // Room for `seconds` of the largest frames (1,152 samples, two channels), filled frame by frame in place.
+      let pcm = new Int16Array((Math.ceil((seconds * 48_000) / 1_152) + 1) * 1_152 * 2);
       let total = 0;
       let channels = 0;
       let rate = 0;
@@ -211,18 +212,18 @@ export function createMp3Decoder(audio: Uint8Array): Mp3Stream {
         frameSamples = samples;
         channels = wasm.frame_channels();
         rate = wasm.frame_rate();
-        parts.push(Int16Array.from(new Int16Array(wasm.memory.buffer, wasm.pcm_offset(), samples * channels)));
+        const values = samples * channels;
+        if ((total + samples) * channels > pcm.length) {
+          const grown = new Int16Array(pcm.length * 2);
+          grown.set(pcm);
+          pcm = grown;
+        }
+        pcm.set(new Int16Array(wasm.memory.buffer, wasm.pcm_offset(), values), total * channels);
         total += samples;
         offset += wasm.frame_bytes();
         frame++;
       }
-      const pcm = new Int16Array(total * channels);
-      let at = 0;
-      for (const part of parts) {
-        pcm.set(part, at);
-        at += part.length;
-      }
-      return { pcm, channels, samples: total };
+      return { pcm: pcm.subarray(0, total * channels), channels, samples: total };
     },
   };
 }

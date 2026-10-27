@@ -1,7 +1,9 @@
-import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { saveReport, timeOutput } from "../../scripts/voice-bench.ts";
 import { benchInputs } from "../fixtures/audio/bench-inputs";
 
 // D01 T03 §9: FFmpeg's timings on the same inputs as test/voice/bench.test.ts, for scripts/voice-bench.ts (which sets
@@ -10,33 +12,38 @@ import { benchInputs } from "../fixtures/audio/bench-inputs";
 const ROOT = join(import.meta.dirname, "../..");
 const AUDIO = join(ROOT, "test/fixtures/audio");
 const CHUNK = 9_600_000;
+// FFmpeg's length may differ from ours by up to 1 % (checked below), so its first output is taken at 99 % of a short file.
 
-function run(file: string): Promise<{ firstMs: number | null; doneMs: number; samples: number; code: number | null }> {
-  return new Promise((resolve, reject) => {
-    const started = performance.now();
-    const ffmpeg = spawn(
-      "ffmpeg",
-      ["-hide_banner", "-loglevel", "error", "-i", file, "-ar", "16000", "-ac", "1"].concat([
-        "-c:a",
-        "pcm_s16le",
-        "-f",
-        "s16le",
-        "-",
-      ]),
-    );
-    let bytes = 0;
-    let first: number | null = null;
-    ffmpeg.stdout.on("data", (data: Buffer) => {
-      bytes += data.length;
-      if (first === null && bytes >= CHUNK * 2) first = performance.now() - started;
-    });
-    ffmpeg.on("error", reject);
-    ffmpeg.on("close", (code) => {
-      const doneMs = performance.now() - started;
-      resolve({ firstMs: first ?? doneMs, doneMs, samples: bytes / 2, code });
-    });
+describe("the bench's timer and report (D01 T03 §9's completion review)", () => {
+  it("takes first output when the samples arrive, however long the process lingers after", async () => {
+    // 16,000 samples at once, then a second's wait before exiting.
+    const timed = await timeOutput("sh", ["-c", "head -c 32000 /dev/zero; sleep 1"], 16_000);
+    expect(timed.samples).toBe(16_000);
+    expect(timed.firstMs).not.toBeNull();
+    expect(timed.firstMs as number).toBeLessThan(500);
+    expect(timed.doneMs).toBeGreaterThanOrEqual(1_000);
   });
-}
+
+  it("saves the report through a temporary file and reads it back", () => {
+    const dir = mkdtempSync(join(tmpdir(), "voice-bench-"));
+    try {
+      const path = join(dir, "voice-bench.json");
+      const report = {
+        at: "2026-10-28T00:00:00.000Z",
+        ours: {
+          decoder: "IsItLegit (Worker)",
+          rows: [{ name: "x", firstMs: 1, doneMs: 2, refusedMs: null, samples: 3 }],
+        },
+        ffmpeg: { decoder: "ffmpeg", rows: [{ name: "x", firstMs: 4, doneMs: 5, refusedMs: null, samples: 3 }] },
+      };
+      expect(saveReport(path, report)).toEqual(report);
+      expect(JSON.parse(readFileSync(path, "utf-8"))).toEqual(report);
+      expect(readdirSync(dir)).toEqual(["voice-bench.json"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe.skipIf(!process.env.VOICE_BENCH)("FFmpeg timings", () => {
   it("times each bench input", { timeout: 600_000 }, async () => {
@@ -46,12 +53,18 @@ describe.skipIf(!process.env.VOICE_BENCH)("FFmpeg timings", () => {
     const inputs = benchInputs(
       new Uint8Array(readFileSync(join(AUDIO, "tone.ogg"))),
       new Uint8Array(readFileSync(join(AUDIO, "tone.mp3"))),
+      new Uint8Array(readFileSync(join(AUDIO, "tone.wav"))),
     );
     const rows = [];
     for (const [i, input] of inputs.entries()) {
-      const file = join(dir, `${i}.${input.type === "audio/mpeg" ? "mp3" : "ogg"}`);
+      const file = join(dir, `${i}.${{ "audio/mpeg": "mp3", "audio/wav": "wav" }[input.type] ?? "ogg"}`);
       writeFileSync(file, input.bytes);
-      const result = await run(file);
+      const args = ["-hide_banner", "-loglevel", "error", "-i", file, "-ar", "16000", "-ac", "1"];
+      const result = await timeOutput(
+        "ffmpeg",
+        [...args, "-c:a", "pcm_s16le", "-f", "s16le", "-"],
+        Math.min(CHUNK, Math.floor((input.samples ?? CHUNK) * 0.99)),
+      );
       // FFmpeg conceals damage rather than refusing it: its outcome on the damaged file is recorded, not compared.
       if (!input.refused) {
         expect(result.code, input.name).toBe(0);
@@ -62,7 +75,7 @@ describe.skipIf(!process.env.VOICE_BENCH)("FFmpeg timings", () => {
       }
       rows.push({
         name: input.name,
-        firstMs: Math.round(result.firstMs ?? result.doneMs),
+        firstMs: result.firstMs === null ? null : Math.round(result.firstMs),
         doneMs: Math.round(result.doneMs),
         refusedMs: null,
         samples: result.samples,

@@ -1,7 +1,7 @@
 // The voice decoder's benchmark inputs (D01 T03 §9), built from the committed fixtures by plain functions so the Workers
 // test (our decoder) and scripts/voice-bench.ts (FFmpeg, in Node) time exactly the same bytes. Each input carries the
 // output it must give: `samples` at 16 kHz, or `refused` for a damaged file.
-import { oggPackets, oggStream } from "./ogg";
+import { oggPackets, oggStream, tone, wavFile } from "./ogg";
 
 export type BenchInput = { name: string; type: string; bytes: Uint8Array; samples?: number; refused?: true };
 
@@ -28,7 +28,13 @@ const join = (parts: Uint8Array[]) => {
   return out;
 };
 
-export function benchInputs(toneOgg: Uint8Array, toneMp3: Uint8Array): BenchInput[] {
+// A mono 16-bit WAV of the tone filling the 25 MiB upload limit (D01 T03 §1) at `rate`: the largest WAV taken.
+function uploadSizedWav(rate: number): { bytes: Uint8Array; frames: number } {
+  const frames = Math.floor((25 * 1024 * 1024 - 44) / 2);
+  return { bytes: wavFile(tone(rate, frames / rate), rate, 1), frames };
+}
+
+export function benchInputs(toneOgg: Uint8Array, toneMp3: Uint8Array, toneWav: Uint8Array): BenchInput[] {
   const packets = oggPackets(toneOgg);
   const headers = packets.slice(0, 2).map((p) => p.packet);
   const audio = packets.slice(2).map((p) => p.packet);
@@ -47,6 +53,11 @@ export function benchInputs(toneOgg: Uint8Array, toneMp3: Uint8Array): BenchInpu
   const longFrames = Math.ceil((25 * 60 * 44_100) / 1_152);
   const longMp3 = join(Array.from({ length: longFrames }, (_, i) => frames[i % frames.length] as Uint8Array));
   const mp3Samples = (count: number) => Math.ceil((count * 1_152 * 16_000) / 44_100);
+  const wav48 = uploadSizedWav(48_000);
+  const wav44 = uploadSizedWav(44_100);
+  // A WAV whose data chunk claims more than the file holds.
+  const badWav = toneWav.slice();
+  new DataView(badWav.buffer).setUint32(40, badWav.length * 2, true);
   return [
     { name: "note (3 s, Ogg Opus)", type: "audio/ogg", bytes: toneOgg, samples: 48_000 - 104 },
     { name: "recording (25 min, Ogg Opus)", type: "audio/ogg", bytes: long, samples: 24_000_000 - 104 },
@@ -54,5 +65,19 @@ export function benchInputs(toneOgg: Uint8Array, toneMp3: Uint8Array): BenchInpu
     { name: "damaged (Ogg Opus)", type: "audio/ogg", bytes: damaged, refused: true },
     { name: "note (3 s, MP3)", type: "audio/mpeg", bytes: toneMp3, samples: mp3Samples(frames.length) },
     { name: "recording (25 min, MP3)", type: "audio/mpeg", bytes: longMp3, samples: mp3Samples(longFrames) },
+    { name: "note (3 s, WAV 44.1 kHz stereo)", type: "audio/wav", bytes: toneWav, samples: 48_000 },
+    {
+      name: "upload-sized (25 MiB, WAV 48 kHz)",
+      type: "audio/wav",
+      bytes: wav48.bytes,
+      samples: Math.ceil((wav48.frames * 16_000) / 48_000),
+    },
+    {
+      name: "upload-sized (25 MiB, WAV 44.1 kHz)",
+      type: "audio/wav",
+      bytes: wav44.bytes,
+      samples: Math.ceil((wav44.frames * 16_000) / 44_100),
+    },
+    { name: "malformed (WAV)", type: "audio/wav", bytes: badWav, refused: true },
   ];
 }

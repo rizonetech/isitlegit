@@ -1,4 +1,4 @@
-// The Worker's binding to minimp3 (D01 T03 §7), compiled to WebAssembly by scripts/build-minimp3-wasm.py. It decodes
+// The Worker's binding to minimp3 (D01 T03 §7), compiled to WebAssembly by scripts/build-wasm.py. It decodes
 // one frame per call and reports minimp3's own result for it, so a frame minimp3 refuses (invalid side information,
 // a bit reservoir it cannot restore) is seen as 0 samples instead of being hidden behind a count taken from the frame
 // headers alone. The caller copies the MP3 into memory at input_offset() after set_input_size(), then calls

@@ -41,11 +41,11 @@ jobs:
       - name: Generated files are committed
         # git status, not git diff: a generated file left out of the commit is untracked, and diff never sees it.
         run: test -z "$(git status --porcelain -- src/web public design/fonts)" || { git status --porcelain -- src/web public design/fonts; exit 1; }
-      - name: The MP3 decoder's WebAssembly matches its source
-        # src/voice/minimp3.wasm is built from native/minimp3 with the pinned Zig (D01 T03 §7).
+      - name: The voice decoder's WebAssembly matches its sources
+        # src/voice/minimp3.wasm and resample.wasm are built from native/ with the pinned Zig (D01 T03 §7, §9).
         run: |
-          pip install -r native/minimp3/requirements.txt
-          python3 scripts/build-minimp3-wasm.py --check
+          pip install -r native/requirements.txt
+          python3 scripts/build-wasm.py --check
       - name: pnpm test
         run: pnpm test
         env:

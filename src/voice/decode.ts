@@ -18,6 +18,7 @@ import { OpusDecoder } from "opus-decoder";
 import { AudioTooLong, CorruptAudio, MAX_SECONDS, UnsupportedAudio } from "./errors";
 import { createMp3Decoder, type Mp3Stream, scanMp3 } from "./mp3";
 import opusModule from "./opus-decoder.wasm?module";
+import resampleModule from "./resample.wasm?module";
 
 export { AudioTooLong, CorruptAudio, MAX_SECONDS, UnsupportedAudio };
 
@@ -29,6 +30,8 @@ const OPUS_RATE = 48_000;
 // Opus packets decoded at a time, by their duration at 48 kHz, and WAV frames read at a time.
 const BATCH_SAMPLES = 5 * OPUS_RATE;
 const WAV_BLOCK_FRAMES = 64 * 1024;
+const MIN_WAV_RATE = 8_000;
+const MAX_WAV_RATE = 192_000;
 // opus-decoder 0.7.12 copies each packet into an input buffer of 3,840 bytes per channel (256 kbit/s for 120 ms).
 const MAX_PACKET_BYTES_PER_CHANNEL = 3_840;
 
@@ -72,7 +75,8 @@ export const createOpusDecoder = ({ channels, preSkip }: OpusLayout): OpusStream
 // k so rounding never drifts; samples beyond either end are silence, a lookahead of the filter's half-width is held
 // across blocks, and N input samples always give ceil(N x 16000 / rate) outputs, however the input is split. Input
 // already at 16 kHz passes through unchanged. For the usual rates each output phase's taps are computed once; an
-// unusual rate reads the kernel from a table instead.
+// unusual rate reads the kernel from a table instead. The usual rates' sums run in native/resample/resample.c, four taps
+// at a time (WebAssembly SIMD), which is most of the time a long recording takes.
 const STOPBAND_DB = 70;
 const TABLE_STEPS = 512; // kernel samples per input sample, linearly interpolated
 // Above this many output phases (an unusual sample rate), the kernel is read from the table instead of precomputed.
@@ -90,18 +94,28 @@ function besselI0(x: number): number {
 }
 const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 
+// native/resample/resample.c's exports: the polyphase kernel, four taps at a time.
+type ResampleKernel = {
+  memory: WebAssembly.Memory;
+  init: (phases: number, p: bigint, width: number, half: number, block: number) => number;
+  taps_offset: () => number;
+  input_offset: () => number;
+  out_offset: () => number;
+  push: (n: number) => number;
+  finish: () => number;
+};
+// Input samples handed to the kernel at a time.
+const KERNEL_BLOCK = 16_384;
+
 export class Resampler {
   private readonly step: number;
   private readonly half: number; // the filter's half-width, in input samples
   private readonly kernel: (distance: number) => number;
-  // With the rate a ratio p/q of 16 kHz in lowest terms, output k sits at input position k x p / q: its phase is
-  // (k x p) mod q, and each phase's taps are computed once (`phases[phase][j]` weights input floor(t) - half + 1 + j).
-  private readonly p: number;
-  private readonly q: number;
-  private readonly phases: Float32Array[] | null;
+  // The usual rates: the kernel module, its input and output views.
+  private readonly native: { kernel: ResampleKernel; input: Float32Array; out: Float32Array } | null = null;
   private k = 0;
   private consumed = 0;
-  // Input samples from global index `base` on: what the next outputs still need.
+  // The table path's input samples from global index `base` on: what the next outputs still need.
   private held = new Float32Array(0);
   private base = 0;
   private readonly passThrough: boolean;
@@ -111,8 +125,8 @@ export class Resampler {
   ) {
     this.step = sourceRate / TARGET_RATE;
     const g = gcd(sourceRate, TARGET_RATE);
-    this.p = sourceRate / g;
-    this.q = TARGET_RATE / g;
+    const p = sourceRate / g;
+    const q = TARGET_RATE / g;
     this.passThrough = sourceRate === TARGET_RATE;
     const nyquist = Math.min(sourceRate, TARGET_RATE) / 2;
     const cutoff = (0.95 * nyquist) / sourceRate; // cycles per input sample
@@ -128,7 +142,7 @@ export class Resampler {
       const r = t / half;
       return sinc * (besselI0(beta * Math.sqrt(1 - r * r)) / i0Beta);
     };
-    if (this.passThrough || this.q > MAX_PHASES) {
+    if (this.passThrough || q > MAX_PHASES) {
       const table = Float32Array.from({ length: half * TABLE_STEPS + 2 }, (_, i) => exact(i / TABLE_STEPS));
       this.kernel = (distance) => {
         const at = Math.abs(distance) * TABLE_STEPS;
@@ -136,36 +150,39 @@ export class Resampler {
         const a = table[i] ?? 0;
         return a + ((table[i + 1] ?? 0) - a) * (at - i);
       };
-      this.phases = null;
-    } else {
-      this.kernel = exact;
-      this.phases = Array.from({ length: this.q }, (_, phase) =>
-        Float32Array.from({ length: 2 * half }, (_, j) => exact(phase / this.q + half - 1 - j)),
-      );
+      return;
     }
+    // Each phase's taps, computed once (`taps[phase x width + j]` weights input floor(t) - half + 1 + j), padded with
+    // zeros to a multiple of 4 for the kernel's four-wide sums.
+    this.kernel = exact;
+    const width = Math.ceil((2 * half) / 4) * 4;
+    const kernel = new WebAssembly.Instance(resampleModule, {}).exports as unknown as ResampleKernel;
+    if (!kernel.init(q, BigInt(p), width, half, KERNEL_BLOCK))
+      throw new CorruptAudio("the resampler could not allocate its filter");
+    const taps = new Float32Array(kernel.memory.buffer, kernel.taps_offset(), q * width);
+    for (let phase = 0; phase < q; phase++)
+      for (let j = 0; j < 2 * half; j++) taps[phase * width + j] = exact(phase / q + half - 1 - j);
+    this.native = {
+      kernel,
+      input: new Float32Array(kernel.memory.buffer, kernel.input_offset(), KERNEL_BLOCK),
+      out: new Float32Array(kernel.memory.buffer, kernel.out_offset()),
+    };
   }
   private sample(index: number): number {
     const i = index - this.base;
     return i >= 0 && i < this.held.length ? (this.held[i] as number) : 0;
   }
-  // Output k, from the held samples within the half-width either side of its input position.
+  // The table path's output k, from the held samples within the half-width either side of its input position.
   private output(k: number): number {
-    const whole = Math.floor((k * this.p) / this.q);
-    const first = whole - this.half + 1;
-    let sum = 0;
-    if (this.phases) {
-      const taps = this.phases[(k * this.p) % this.q] as Float32Array;
-      const at = first - this.base;
-      if (at >= 0 && at + taps.length <= this.held.length) {
-        for (let j = 0; j < taps.length; j++) sum += (taps[j] as number) * (this.held[at + j] as number);
-      } else {
-        for (let j = 0; j < taps.length; j++) sum += (taps[j] as number) * this.sample(first + j);
-      }
-      return sum;
-    }
     const t = k * this.step;
-    for (let n = first; n <= whole + this.half; n++) sum += this.kernel(t - n) * this.sample(n);
+    const whole = Math.floor(t);
+    let sum = 0;
+    for (let n = whole - this.half + 1; n <= whole + this.half; n++) sum += this.kernel(t - n) * this.sample(n);
     return sum;
+  }
+  private drain(count: number): void {
+    const out = (this.native as { out: Float32Array }).out;
+    for (let i = 0; i < count; i++) this.emit(out[i] as number);
   }
   push(mono: Float32Array): void {
     if (mono.length === 0) return;
@@ -175,7 +192,15 @@ export class Resampler {
       this.k = this.consumed;
       return;
     }
-    const keepFrom = Math.max(this.base, Math.floor((this.k * this.p) / this.q) - this.half);
+    if (this.native) {
+      for (let at = 0; at < mono.length; at += KERNEL_BLOCK) {
+        const block = mono.subarray(at, at + KERNEL_BLOCK);
+        this.native.input.set(block);
+        this.drain(this.native.kernel.push(block.length));
+      }
+      return;
+    }
+    const keepFrom = Math.max(this.base, Math.floor(this.k * this.step) - this.half);
     const next = new Float32Array(this.base + this.held.length - keepFrom + mono.length);
     next.set(this.held.subarray(keepFrom - this.base));
     next.set(mono, this.base + this.held.length - keepFrom);
@@ -183,11 +208,15 @@ export class Resampler {
     this.base = keepFrom;
     this.consumed += mono.length;
     // Every output whose window lies wholly within what has arrived.
-    while (Math.floor((this.k * this.p) / this.q) + this.half < this.consumed) this.emit(this.output(this.k++));
+    while (Math.floor(this.k * this.step) + this.half < this.consumed) this.emit(this.output(this.k++));
   }
   // The outputs left before the input ends, their windows running into silence.
   end(): void {
     if (this.passThrough) return;
+    if (this.native) {
+      for (let count = this.native.kernel.finish(); count > 0; count = this.native.kernel.finish()) this.drain(count);
+      return;
+    }
     while (this.k * this.step < this.consumed) this.emit(this.output(this.k++));
   }
 }
@@ -215,9 +244,11 @@ export function wavHeader(samples: number): Uint8Array {
 }
 
 // 16 kHz samples gathered into WAV chunks of at most `capacity` samples, each written in place behind its header.
+// The samples are written through an Int16Array over the chunk, past its 44-byte header: little-endian, as WAV is and
+// as WebAssembly and every platform a Worker runs on are.
 class ChunkWriter {
   private buffer: Uint8Array | null = null;
-  private view: DataView | null = null;
+  private samples: Int16Array | null = null;
   private n = 0;
   readonly ready: Uint8Array[] = [];
   total = 0;
@@ -230,9 +261,7 @@ class ChunkWriter {
       if (this.buffer && this.n === this.capacity) this.finish();
       this.grow();
     }
-    const v = Math.max(-32768, Math.min(32767, Math.round(sample * 32768)));
-    (this.view as DataView).setInt16(44 + 2 * this.n, v, true);
-    this.n++;
+    (this.samples as Int16Array)[this.n++] = Math.max(-32768, Math.min(32767, Math.round(sample * 32768)));
     this.total++;
   };
   private size(): number {
@@ -245,14 +274,14 @@ class ChunkWriter {
     const next = new Uint8Array(44 + 2 * wanted);
     if (this.buffer) next.set(this.buffer.subarray(0, 44 + 2 * this.n));
     this.buffer = next;
-    this.view = new DataView(next.buffer);
+    this.samples = new Int16Array(next.buffer, 44, wanted);
   }
   finish(): void {
     if (!this.buffer || this.n === 0) return;
     this.buffer.set(wavHeader(this.n));
     this.ready.push(this.buffer.subarray(0, 44 + 2 * this.n));
     this.buffer = null;
-    this.view = null;
+    this.samples = null;
     this.n = 0;
   }
   *drain(): Generator<Uint8Array> {
@@ -523,6 +552,10 @@ function scanWav(bytes: Uint8Array): WavLayout {
     throw new CorruptAudio(`the WAV is format ${fmt.format} at ${fmt.bits} bits; only PCM 16-bit is read`);
   if (fmt.channels === 0) throw new CorruptAudio("the WAV has no channels");
   if (fmt.rate === 0) throw new CorruptAudio("the WAV has no sample rate");
+  // The resampler's filter grows with the rate; recordings are 8 to 192 kHz, and anything outside is refused before a
+  // filter is built (a header can claim up to 4,294,967,295 Hz).
+  if (fmt.rate < MIN_WAV_RATE || fmt.rate > MAX_WAV_RATE)
+    throw new UnsupportedAudio(`audio/wav at ${fmt.rate} Hz (8,000 to 192,000 Hz are taken)`);
   if (data.size % (fmt.channels * 2) !== 0)
     throw new CorruptAudio("the WAV's data ends partway through a sample frame (cut short or mislabelled)");
   const frames = data.size / (fmt.channels * 2);
