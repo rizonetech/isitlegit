@@ -41,6 +41,7 @@ track: day-1
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [ ] |
 | 7 | §7 | MP3 decoding | §2 | [ ] |
+| 8 | §8 | M4A decoding | §2 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -79,20 +80,22 @@ Muse Voice Transcribe accepts WAV only, 16 kHz mono 16-bit, at most 10 minutes (
 **Build order:**
 
 1. Prove `ogg-opus-decoder` 1.7.5 in the workers pool. Done when: a synthetic Opus fixture decodes to PCM in a Vitest workers test, with the WASM loaded as a precompiled module and nothing compiled at runtime.
-2. Resample and encode WAV. Done when: the output header reads 16000 Hz, 1 channel, 16 bits.
+2. Decode, resample and chunk as a stream. Done when: a 25-minute compressed recording yields three 16 kHz mono 16-bit WAV chunks holding the right sound, with only the input, one chunk and the decoder's buffers held at once.
 
 - [ ] Add exact dependencies `ogg-opus-decoder` 1.7.5 and `opus-decoder` 0.7.12 (the class whose static `module` takes the precompiled WASM; the version `ogg-opus-decoder` 1.7.5 pins), and dev dependency `opusscript` 0.1.1. Done when: `pnpm install` resolves them, `pnpm why opus-decoder` lists one version, and the WASM loads in the workers pool.
 - [ ] Extract the Opus decoder's WASM with `scripts/build-opus-wasm.ts` (runs the installed decoder once in Node and writes the module it compiles) to `src/voice/opus-decoder.wasm`, committed, and import it in `src/voice/decode.ts` as a module (`?module`) set on `OpusDecoder.module` before the first decode. Done when: a workers test decodes with runtime compilation impossible (a `WebAssembly.compile` call would throw), and `test/node/opus-wasm.test.ts` fails when the committed file differs from what the installed package produces. Source: `@wasm-audio-decoders/common` 9.0.7 `WASMAudioDecoderCommon.js` (`instantiate`, `setModule`).
 - [ ] Alias `@eshaz/web-worker` to `src/voice/no-web-worker.ts` (a class that throws if constructed) in `wrangler.jsonc` and in the workers project of `vitest.config.ts`, marked as a workaround (the package's index needs a Web Worker class at import, which a Cloudflare Worker has no use for). Done when: `test/node/opus-wasm.test.ts` fails if the two aliases differ, and `wrangler deploy --dry-run` bundles the decoder.
 - [ ] Generate synthetic fixtures `test/fixtures/audio/tone.ogg` and `tone.wav` (a 3-second tone, no voice) with `scripts/fixtures/make-audio.ts`. Done when: both files and the generator are committed.
-- [ ] Write `decodeToPcm(bytes, type)` in `src/voice/decode.ts` for Ogg Opus and WAV (PCM 16-bit, any rate and channel count), and refuse other types, and a WAV it cannot read (a compressed format, a missing `fmt ` or `data` chunk), with `UnsupportedAudio` naming the type. Done when: tests decode both fixtures, refuse an MP3 header and an M4A `ftyp` header with the typed error naming the type, and refuse a truncated Ogg with a typed error, never a crash.
-- [ ] Write `toWav16kMono(pcm, sampleRate, channels)` with linear resampling and channel mixdown. Done when: a test reads the WAV header fields 16000, 1 and 16.
-- [ ] Cap at 10 minutes per chunk by splitting longer audio into 10-minute WAV chunks, and refuse audio over 30 minutes. Done when: a synthetic 25-minute PCM buffer yields three chunks and a 31-minute one is refused.
+- [ ] Write `decodeToWavChunks(bytes, type)` in `src/voice/decode.ts`, an async generator yielding 16 kHz mono 16-bit WAV chunks of at most 10 minutes, for Ogg Opus (fed to `OggOpusDecoder.decode` in slices of at most 64 KiB, then `flush`) and WAV (PCM 16-bit, any rate and channel count, read in slices from the `data` chunk). Each decoded block is mixed down and resampled at once into the current chunk, which is yielded when full, so memory holds the input, one chunk (at most 19.2 MB) and the decoder's buffers, never the whole recording; the decoder is freed in a `finally`, also when the caller stops early. Refuse other types (an MP3 header, an M4A `ftyp` header) with `UnsupportedAudio` naming the type. Done when: `test/voice/decode.test.ts` decodes both fixtures to chunks, refuses MP3 and M4A with the typed error naming each, and finds the decoder freed after a caller that stops after the first chunk. (**Corrected 2026-10-27**, plan review P1 1: decoding whole recordings would need 288 MB for 25 minutes at 48 kHz, past a Worker's 128 MB.)
+- [ ] Write the streaming resampler `Resampler` in `src/voice/decode.ts` (linear interpolation that carries its position and last sample across blocks, and channel mixdown by averaging) and `wavHeader(samples)`. Done when: tests check the sound, not only the header: the 3-second 440 Hz fixtures come out as 48,000 samples (within one 20 ms Opus frame for Ogg, which drops its 312-sample pre-skip), at 440 Hz (zero crossings, within 2 Hz), at the tone's level (RMS within 5% of the source's, measured on the WAV fixture), a stereo input of the tone on the left and its inverse on the right mixes down to near silence, and the header reads PCM, 16000 Hz, 1 channel, 16 bits, with sizes matching the data. (**Corrected 2026-10-27**, plan review P1 2.)
+- [ ] Refuse audio over 30 minutes before decoding, from the container's own length (an Ogg's last granule position less its pre-skip, a WAV's `data` size over its byte rate), and split the rest into 10-minute chunks with no sample lost or repeated at a boundary. Done when: a workers test builds a 25-minute Ogg Opus recording from the fixture's packets (repeated, with granules and CRCs rewritten by `test/fixtures/audio/ogg.ts`, a few MB, within the 25 MiB upload limit) and gets three chunks of 9,600,000, 9,600,000 and 4,800,000 samples within a frame, with the tone's phase continuous across each boundary; and a 31-minute one is refused with `AudioTooLong` before a single packet is decoded. (**Corrected 2026-10-27**, plan review P1 1 and 2.)
+- [ ] Refuse damaged audio, never pass it on as complete: a decode that reports `errors` (the Ogg decoder returns them beside its PCM instead of throwing), a decode with no samples, an Ogg without an `OpusHead`, and a WAV whose `fmt ` is not PCM 16-bit, whose chunk sizes run past the file, or whose channel count or rate is zero, each with `CorruptAudio` naming what was wrong, checked before any allocation the header sizes. Done when: tests refuse a truncated Ogg, an Ogg with one page's bytes flipped (decoder errors, no throw), an empty Ogg, and WAV files with a bad format code, a `data` size past the end and zero channels, each with the typed error. (**Corrected 2026-10-27**, plan review P2 4.)
 > **Deferred:** decoding MP3 voice notes and voicemail attachments (refused with `UnsupportedAudio` until then) -> XREF: D01 T03 §7
+> **Deferred:** decoding M4A (AAC) voice notes, refused with `UnsupportedAudio` until then -> XREF: D01 T03 §8
 
 - [ ] Commit: `voice: decode voice notes to 16 kHz mono WAV`
 
-**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if the sample rate written to the header is not 16000.
+**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if the sample rate written to the header is not 16000, if the decoded tone is not 440 Hz at its level, if a 10-minute boundary drops or repeats samples, if a recording over 30 minutes is decoded at all, or if damaged audio is passed on.
 
 ## 3. Muse Voice Transcribe client with chunking
 
@@ -201,7 +204,28 @@ Spec 4.2a lists `.mp3` among voice-note uploads and as the usual format of a voi
 - [ ] Close §2's deferral as `Resolved:`. Done when: §2's Deferred line reads resolved with this section's commit.
 - [ ] Commit: `voice: decode MP3 voice notes and voicemail attachments`
 
-**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if an MP3 is refused or its WAV header is not 16000 Hz, 1 channel, 16 bits.
+**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if an MP3 is refused, if its decoded tone is not 440 Hz at its level and length, or if its WAV header is not 16000 Hz, 1 channel, 16 bits.
+
+## 8. M4A decoding
+
+Spec 4.2a lists `.m4a` among voice-note uploads (iPhone voice memos are AAC in an MP4 container). §2 found no AAC decoder in the WASM family that runs in a Worker, so M4A is refused there with `UnsupportedAudio`. Filed from §2's plan review (P1 3, 2026-10-27) so the refusal has an owner.
+
+**Phase:** 1
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find a decoder. Done when: an AAC decoder that runs in a Worker (WASM loadable as a precompiled module, no runtime compilation, no Web Worker) is chosen with its licence and version, or none is found and the governing contract is corrected.
+2. Decode or refuse for good. Done when: an M4A voice note yields 16 kHz mono WAV chunks through §2, or spec 4.2a, this file's Goal and §1's accepted types no longer list M4A and the upload refuses it with a clear message.
+
+- [ ] Survey AAC decoders for Workers (a WASM build of FAAD2 or FDK AAC, a demuxer for MP4's `moov` and `mdat`) and record each candidate's licence (FDK AAC's licence restricts redistribution), version, release date and whether it loads in the workers pool. Done when: the finding is recorded here with sources.
+- [ ] If one qualifies: add it exactly pinned, extract its WASM the way §2 does, generate `test/fixtures/audio/tone.m4a`, and decode M4A in `decodeToWavChunks`. Done when: `test/voice/decode.test.ts` decodes the fixture to the tone (440 Hz, its level, its length) and refuses a truncated one with `CorruptAudio`.
+- [ ] If none qualifies: correct spec 4.2a and the Goal of this file to drop `.m4a` (dated, with the reason), and make §1 refuse it by type with a message naming the formats it takes. Done when: the spec and Goal are corrected and `test/intake/upload.test.ts` (§1) refuses an M4A with that message.
+- [ ] Close §2's M4A deferral as `Resolved:`. Done when: §2's Deferred line reads resolved with this section's commit.
+- [ ] Commit: `voice: M4A voice notes decoded or refused by design`
+
+**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes, and fails if an M4A is silently accepted without being decoded.
 
 ## Verification
 

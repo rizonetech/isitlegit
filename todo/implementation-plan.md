@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 36 | Checklist items: 250
+Sections: 37 | Checklist items: 256
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -38,8 +38,9 @@ Sections: 36 | Checklist items: 250
 | [x]    | D01 T02 §5 | Reconcile uncertain sends                  | none                  | 8     |
 | [ ]    | D01 T02 §6 | Forwarding failures detected and reported  | operator              | 6     |
 | [ ]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | operator              | 4     |
-| [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 8     |
+| [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
 | [ ]    | D01 T03 §7 | MP3 decoding                               | none                  | 5     |
+| [ ]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
 | [x]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
@@ -275,6 +276,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 24/206 verified sections, 11 ready to run now.
+Progress: 24/207 verified sections, 11 ready to run now.
 
-Checklist: 312/1086 items completed (includes Commit items).
+Checklist: 312/1092 items completed (includes Commit items).
