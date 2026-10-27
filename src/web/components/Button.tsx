@@ -1,5 +1,5 @@
 import type { Child } from "hono/jsx";
-import { cx, type PassThrough, passThrough } from "./attrs";
+import { cx, ids, type PassThrough, passThrough } from "./attrs";
 
 // The app's buttons (design/SPEC.md 1, design/mockups/source/ui.css `.btn`): primary, dark, ghost, danger and link, at
 // the 48 px control height or the 36 px small one. Token classes only; a board value between two scale steps is built
@@ -55,12 +55,14 @@ export function Button(props: ButtonProps) {
   if (!children && !label) throw new Error("Button: an icon-only button needs a label");
   if (disabledReason && !id) throw new Error("Button: a disabled reason needs an id to describe the control");
   const reasonId = disabledReason && id ? `${id}-reason` : undefined;
+  const given = passThrough(props as Record<string, unknown>);
   const common = {
-    ...passThrough(props as Record<string, unknown>),
+    ...given,
     id,
     class: cx(buttonClass(variant, size), props.class),
-    "aria-label": label,
-    "aria-describedby": reasonId,
+    // A caller's contextual name ("Remove Alice") wins over the generic label; descriptions merge with the reason.
+    "aria-label": (given["aria-label"] as string | undefined) ?? label,
+    "aria-describedby": ids(given["aria-describedby"], reasonId),
   };
   const body = (
     <>

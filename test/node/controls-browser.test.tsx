@@ -37,6 +37,7 @@ const BODY = String(
     </Button>
     <form id="form">
       <Field id="email" name="email" label="Email" value="a@b.example" />
+      <Field id="bad" name="bad" label="Bad" error="Enter a value" />
       <Checkbox id="consent" name="consent" value="yes" required>
         I agree
       </Checkbox>
@@ -88,25 +89,41 @@ async function open(theme: "light" | "dark" = "light"): Promise<Page> {
 const events = (page: Page) => page.evaluate(() => (window as unknown as { events: string[] }).events);
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () => {
-  it("shows a visible focus ring on every control reached with Tab", async () => {
-    const page = await open();
-    const reached: Record<string, string> = {};
-    for (let i = 0; i < 10; i++) {
-      await page.keyboard.press("Tab");
-      const focus = await page.evaluate(() => {
-        const el = document.activeElement as HTMLElement;
-        const s = getComputedStyle(el);
-        return { id: el.id, outline: `${s.outlineStyle} ${s.outlineWidth}` };
-      });
-      if (focus.id) reached[focus.id] = focus.outline;
-    }
-    for (const id of ["primary", "ghost", "dark", "go", "email", "consent", "plain", "submit"]) {
-      expect(reached[id], `${id} reached`).toBeDefined();
-      expect(reached[id], `${id} focus ring`).toMatch(/^solid [1-9]/);
-    }
-    expect(Object.keys(reached)).not.toContain("off");
-    await page.close();
-  });
+  for (const theme of ["light", "dark"] as const)
+    it(`shows a focus ring of 3:1 or more on every control reached with Tab, invalid fields included (${theme})`, async () => {
+      const page = await open(theme);
+      const reached: Record<string, { outline: string; contrast: number }> = {};
+      for (let i = 0; i < 12; i++) {
+        await page.keyboard.press("Tab");
+        const focus = await page.evaluate(() => {
+          const luminance = (rgb: string) => {
+            const [r, g, b] = (rgb.match(/[\d.]+/g) ?? []).slice(0, 3).map((v) => {
+              const c = Number(v) / 255;
+              return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
+          };
+          const el = document.activeElement as HTMLElement;
+          const s = getComputedStyle(el);
+          const ring = luminance(s.outlineColor);
+          const page = luminance(
+            getComputedStyle(document.body).backgroundColor === "rgba(0, 0, 0, 0)"
+              ? getComputedStyle(document.documentElement).backgroundColor
+              : getComputedStyle(document.body).backgroundColor,
+          );
+          const [hi, lo] = ring > page ? [ring, page] : [page, ring];
+          return { id: el.id, outline: `${s.outlineStyle} ${s.outlineWidth}`, contrast: (hi + 0.05) / (lo + 0.05) };
+        });
+        if (focus.id) reached[focus.id] = { outline: focus.outline, contrast: focus.contrast };
+      }
+      for (const id of ["primary", "ghost", "dark", "go", "email", "bad", "consent", "plain", "submit"]) {
+        expect(reached[id], `${id} reached`).toBeDefined();
+        expect(reached[id]?.outline, `${id} focus ring`).toMatch(/^solid [1-9]/);
+        expect(reached[id]?.contrast, `${id} focus contrast`).toBeGreaterThanOrEqual(3);
+      }
+      expect(Object.keys(reached)).not.toContain("off");
+      await page.close();
+    });
 
   it("activates buttons with Enter and Space, follows a link with Enter, and does nothing when disabled", async () => {
     const page = await open();
@@ -119,8 +136,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
     expect(await page.evaluate(() => location.hash)).toBe("#arrived");
     await page.click("#off", { force: true });
     await page.click("#offlink", { force: true });
+    // The keyboard cannot reach them either: focus stays where it was, and Enter and Space do nothing.
+    for (const id of ["off", "offlink"]) {
+      await page.focus("#go");
+      expect(
+        await page.evaluate(
+          (i) => (document.getElementById(i) as HTMLElement).focus() ?? document.activeElement?.id,
+          id,
+        ),
+      ).toBe("go");
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("Space");
+    }
     expect(await page.evaluate(() => location.hash)).toBe("#arrived");
     expect(await events(page)).toEqual(["primary", "ghost"]);
+    expect(await page.evaluate(() => location.hash)).toBe("#arrived");
     expect(await page.getAttribute("#off", "aria-describedby")).toBe("off-reason");
     expect(await page.textContent("#off-reason")).toBe("The last owner cannot be removed");
     await page.close();
@@ -140,7 +170,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
     await page.click("text=Locked", { force: true });
     expect(await page.isChecked("#locked")).toBe(false);
     await page.click("#submit");
-    expect(await events(page)).toEqual(["plain", "submit:email=a%40b.example&consent=yes"]);
+    expect(await events(page)).toEqual(["plain", "submit:email=a%40b.example&bad=&consent=yes"]);
     await page.close();
   });
 

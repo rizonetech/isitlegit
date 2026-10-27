@@ -12,3 +12,9 @@ export function passThrough(props: Record<string, unknown>): PassThrough {
 }
 
 export const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
+
+// Space-separated id lists merged without repeats (aria-describedby from the caller and from the control), or undefined.
+export function ids(...lists: (string | boolean | undefined)[]): string | undefined {
+  const all = lists.flatMap((list) => (typeof list === "string" ? list.split(/\s+/) : [])).filter(Boolean);
+  return all.length ? [...new Set(all)].join(" ") : undefined;
+}

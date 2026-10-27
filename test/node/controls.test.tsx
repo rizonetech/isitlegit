@@ -75,6 +75,18 @@ describe("Button", () => {
       expect(markup).toContain(attribute);
   });
 
+  it("keeps a caller's contextual name and merges a caller's description with the disabled reason", () => {
+    expect(
+      tag(html(<Button aria-label="Remove Alice" label="Remove" icon={<svg aria-hidden="true" />} />), "button"),
+    ).toContain('aria-label="Remove Alice"');
+    const markup = html(
+      <Button id="rm" aria-describedby="owner-note" disabled disabledReason="The last owner cannot be removed">
+        Remove
+      </Button>,
+    );
+    expect(tag(markup, "button")).toContain('aria-describedby="owner-note rm-reason"');
+  });
+
   it("names an icon-only button by its label and refuses one without", () => {
     expect(tag(html(<Button icon={<svg aria-hidden="true" />} label="Copy the check address" />), "button")).toContain(
       'aria-label="Copy the check address"',
@@ -188,6 +200,20 @@ describe("Field", () => {
       '<p id="email-error" class="text-13 text-mal weight-text-strong">Enter an email address</p>',
     );
     expect(input).toContain("aria-invalid:border-mal");
+  });
+
+  it("keeps a caller's descriptions after its own, and a caller's invalid state unless its own error decides", () => {
+    const own = tag(
+      html(<Field id="iban" name="iban" label="Account" hint="h" aria-describedby="bank-help" />),
+      "input",
+    );
+    expect(own).toContain('aria-describedby="iban-hint bank-help"');
+    expect(tag(html(<Field id="a" name="a" label="A" aria-invalid="true" />), "input")).toContain(
+      'aria-invalid="true"',
+    );
+    const withError = tag(html(<Field id="b" name="b" label="B" aria-invalid="false" error="Wrong" />), "input");
+    expect(withError).toContain('aria-invalid="true"');
+    expect(withError).toContain('aria-describedby="b-error"');
   });
 
   it("gives two fields on one page distinct ids for every relationship", () => {
