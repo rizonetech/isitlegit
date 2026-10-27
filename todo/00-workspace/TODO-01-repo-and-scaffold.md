@@ -309,6 +309,8 @@ Evidence 2026-10-27 10:35 SAST, through the Cloudflare API (this session's Cloud
 
 ## 7. Meta smoke test
 
+> **Started:** 2026-10-27T14:41Z
+
 One small script proves each Meta capability the product depends on before anything is built on it. It runs only once the hackathon credit shows under Billing, "free credits" (`sources/cerebralvalley/2026-10-26-credit-claim.md`); before then every call is charged to the card.
 
 **Phase:** 0
@@ -317,13 +319,15 @@ One small script proves each Meta capability the product depends on before anyth
 
 **Corrected 2026-10-27 (operator wait):** depends on D99 T01 §8, where the operator creates "IsItLegit AI Gateway token" (AI Gateway Run only), since neither Wrangler's login nor the Cloudflare connector can create one.
 
+**Corrected 2026-10-27** (validation before build): the repository runs its scripts with Node's own TypeScript stripping (`node scripts/smoke.ts`), so `tsx` is not added and the checkpoint runs `node scripts/meta-smoke.ts`; the Meta key ("IsItLegit Meta Model API") and the gateway's Run token ("IsItLegit AI Gateway token", D99 T01 §8, stamped) are read from Conclave through `conclave-op`, as `scripts/smoke.ts` and `scripts/check-gateway-tokens.ts` do, never printed or passed as an argument, instead of from environment variables; the gateway logs are read back with "IsItLegit AI Gateway admin token" (Read). This script runs outside the Worker, so it carries the Run token; the Worker's own client (D03 T01 §1) may instead call through its `AI` binding, which the gateway authenticates without a token (Cloudflare's authenticated-gateway docs), and decides that there.
+
 **Build order:**
 
-1. Write `scripts/meta-smoke.ts` with one call per capability through the gateway, `store: false` on each. Done when: `pnpm exec tsx scripts/meta-smoke.ts --dry` prints the four planned requests without sending them.
+1. Write `scripts/meta-smoke.ts` with one call per capability through the gateway, `store: false` on each. Done when: `node scripts/meta-smoke.ts --dry` prints the four planned requests without sending them.
 2. Run it once and record the results. Done when: `docs/meta-smoke-test.md` holds each model's status, latency and token counts (**Corrected 2026-10-26:** was under `sources/`, which is now git-ignored and local only).
 
-- [ ] Add exact dev dependencies `openai` 7.43.0 and `tsx` 4.23.15. Done when: `pnpm install` resolves both.
-- [ ] Write `scripts/meta-smoke.ts` reading `META_API_KEY` and `CF_AIG_TOKEN` (the gateway token, §6) from the environment only, refusing to run without `--confirm-credit`, and sending every request through `META_GATEWAY_URL` with `cf-aig-authorization`, `cf-aig-collect-log: true` and `cf-aig-collect-log-payload: false` (the gateway collects nothing by default, §6). Done when: running without the flag exits 2 with the reason, and `--dry` prints each request's headers with both (the token shown as `<redacted>`) and refuses to print a request missing any of them. Cheaper substitute: a key pasted into the script. (**Corrected 2026-10-27** (D00 T01 §6 plan review P1): the first real calls go through an authenticated gateway, and keeping bodies out of its logs must be proven here, before D03 T01 exists.)
+- [ ] Add exact dev dependencies `openai` 7.43.0 (released 2026-10-22, the stack doc's client) and `@meta-sam/parser` 0.1.0. Done when: `pnpm install` resolves both with no release-age exception. (**Corrected 2026-10-27:** `tsx` dropped, see above; the SAM parser named below is added here.)
+- [ ] Write `scripts/meta-smoke.ts` reading the Meta key and the gateway's Run token from Conclave through `conclave-op` (never printed, never an argument; **corrected 2026-10-27**, was `META_API_KEY` and `CF_AIG_TOKEN` from the environment), refusing to run without `--confirm-credit`, and sending every request through `META_GATEWAY_URL` with `cf-aig-authorization`, `cf-aig-collect-log: true` and `cf-aig-collect-log-payload: false` (the gateway collects nothing by default, §6). Done when: running without the flag exits 2 with the reason, and `--dry` prints each request's headers with both (the token shown as `<redacted>`) and refuses to print a request missing any of them. Cheaper substitute: a key pasted into the script. (**Corrected 2026-10-27** (D00 T01 §6 plan review P1): the first real calls go through an authenticated gateway, and keeping bodies out of its logs must be proven here, before D03 T01 exists.)
 - [ ] Add a `muse-spark-1.3` text call and an image call on a synthetic image in `test/fixtures/` to the script, both with `store: false`. Done when: `--dry` prints both request bodies with `store: false`.
 - [ ] Add a `sam-3.1` call with the text prompt `logo` on a synthetic branded image, parsed with `@meta-sam/parser` 0.1.0 (Meta docs, SAM reading segmentation). Done when: `--dry` prints the request with one `input_text` and one `input_image` part.
 - [ ] Add a `muse-wonder-1.0` call with the computer tool for one step against `about:blank`. Done when: `--dry` prints the request with the computer tool declared.
@@ -333,7 +337,7 @@ One small script proves each Meta capability the product depends on before anyth
 - [ ] Read back each call's gateway log (by its `cf-aig-log-id`, through the Cloudflare API): it holds the model, status, duration and token counts and no request or response body; for a token-priced model (`muse-spark-1.3`, `muse-wonder-1.0`) it also holds a cost from §6's pricing rule that matches Meta's reported usage times that rule; for SAM 3.1 the gateway has no rule, so its cost is recorded as unavailable from the gateway (never as zero) and the script costs it from Meta's per-image price. Record each call's gateway duration beside the script's own wall time. Done when: `docs/meta-smoke-test.md` records each log's fields, the cost comparison or the unavailable-cost line with the per-image cost, and both durations, and a call whose log holds a body, or a token-priced call with no or a mismatched cost, is a recorded failure, not a pass. (**Corrected 2026-10-27** (D00 T01 §6 completion review): every call had to carry a gateway cost, which SAM, priced per image, cannot.) (**Corrected 2026-10-27** (D00 T01 §6 plan review P1 and P2): the gateway's privacy and cost logging were otherwise unproven on a real request.)
 - [ ] Commit: `meta: smoke test of Spark, SAM 3.1 and Wonder through the gateway`
 
-**Test checkpoint:** `pnpm exec tsx scripts/meta-smoke.ts --dry` exits 0 printing four requests each with `"store": false`, and `docs/meta-smoke-test.md` exists with four result rows.
+**Test checkpoint:** `node scripts/meta-smoke.ts --dry` exits 0 printing four requests each with `"store": false`, and `docs/meta-smoke-test.md` exists with four result rows.
 
 ## 8. README banner and social preview
 
