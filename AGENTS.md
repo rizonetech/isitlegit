@@ -140,7 +140,7 @@ python3 scripts/check-publication.py                # before every push: nothing
 pnpm install --frozen-lockfile                      # the Worker's exact pins (Node 24.18.0 from .nvmrc, pnpm 11)
 pnpm typecheck                                      # worker-configuration.d.ts matches wrangler.jsonc, then tsc --noEmit
 pnpm lint                                           # Biome over the Worker's own files; unused variables are errors
-pnpm build:css                                      # design tokens -> src/web/styles/tokens.css -> build/css/app.css
+pnpm build:assets                                   # web fonts, tokens, stylesheet, fingerprints -> public/static/, src/web/assets.ts
 pnpm test                                           # Vitest: the Worker in workerd, build scripts and style checks in Node
 pnpm build                                          # bundles the Worker (dry-run deploy into build/dry)
 ```

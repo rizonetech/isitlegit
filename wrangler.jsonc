@@ -4,6 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-26",
   "compatibility_flags": ["nodejs_compat"],
+  // Fingerprinted stylesheet and fonts (D07 T01 §5); public/_headers gives /static/* a year-long immutable cache.
+  "assets": { "directory": "./public" },
   "vars": {
     // Local default; `wrangler dev --var` and the deploy (`--var COMMIT_SHA:$(git rev-parse HEAD)`) override it.
     "COMMIT_SHA": "dev"

@@ -14,6 +14,7 @@
     "lint": "biome check .",
     "test": "vitest run",
     "build:css": "node scripts/build-css.ts",
+    "build:assets": "python3 design/tools/build-webfonts.py && pnpm build:css && node scripts/hash-asset.ts",
     "build": "wrangler deploy --dry-run --outdir build/dry"
   },
   "dependencies": {

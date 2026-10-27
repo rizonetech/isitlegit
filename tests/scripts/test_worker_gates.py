@@ -8,7 +8,9 @@ import re
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-TOOLS = {"dev", "types"}  # run by hand, not gates: the local server and the type-file regenerator
+# Run by hand or by another script, not gates: the local server, the type-file regenerator, and build:css, which
+# build:assets runs first.
+TOOLS = {"dev", "types", "build:css"}
 DOCS = (("AGENTS.md", "## Validation"), ("CONTRIBUTING.md", "## Validation gates"), ("README.md", "### Run the Worker locally"))
 
 

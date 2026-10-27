@@ -69,17 +69,18 @@ def problems(text, package):
         out.append("deploys or serves")
     if "build" in package.get("scripts", {}) and not BUILD.fullmatch(package["scripts"]["build"]):
         out.append("pnpm build is not only a dry run")
-    if "build:css" in package.get("scripts", {}):
+    if "build:assets" in package.get("scripts", {}):
         out.extend(stylesheet_problems(jobs(text).get("worker", [])))
     return out
 
 
-STYLES = ["pnpm build:css", "git diff --exit-code -- src/web", "pnpm test"]
+GENERATED_CHECK = 'test -z "$(git status --porcelain -- src/web public)" || { git status --porcelain -- src/web public; exit 1; }'
+STYLES = ["pnpm build:assets", GENERATED_CHECK, "pnpm test"]
 
 
 def stylesheet_problems(worker):
-    """The Worker job must rebuild the styles, refuse a stale committed tokens.css, then test with a working Chromium
-    (D07 T01 §2): the steps in that order, and MOCKUP_CHROMIUM on the test step."""
+    """The Worker job must rebuild the generated assets, refuse any changed or untracked generated file, then test with a
+    working Chromium (D07 T01 §2 and §5): the steps in that order, and MOCKUP_CHROMIUM on the test step."""
     steps, current = [], None
     for line in worker:
         if re.match(r"^      - ", line):
@@ -198,23 +199,26 @@ jobs:
         deploy = self.GOOD.replace("      - run: pnpm build\n", "      - run: pnpm build\n      - run: pnpm exec wrangler deploy\n")
         self.assertEqual(self.check(deploy), ["deploys or serves"])
 
-    STYLED = {"scripts": dict(PACKAGE["scripts"], **{"build:css": "node scripts/build-css.ts"})}
-    STYLED_GOOD = GOOD.replace("      - run: pnpm test\n", "      - run: pnpm build:css\n      - run: git diff --exit-code -- src/web\n"
+    STYLED = {"scripts": dict(PACKAGE["scripts"], **{"build:assets": "pnpm build:css && node scripts/hash-asset.ts"})}
+    STYLED_GOOD = GOOD.replace("      - run: pnpm test\n", "      - run: pnpm build:assets\n      - run: " + GENERATED_CHECK + "\n"
                                "      - run: pnpm test\n        env:\n          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n")
 
     def test_the_styles_steps_pass_in_order(self):
         self.assertEqual(self.check(self.STYLED_GOOD, self.STYLED), [])
 
     def test_a_dropped_stale_styles_check_is_caught(self):
-        bad = self.STYLED_GOOD.replace("      - run: git diff --exit-code -- src/web\n", "")
-        self.assertEqual(self.check(bad, self.STYLED), ["worker job lacks git diff --exit-code -- src/web"])
+        bad = self.STYLED_GOOD.replace("      - run: " + GENERATED_CHECK + "\n", "")
+        self.assertEqual(self.check(bad, self.STYLED), ["worker job lacks " + GENERATED_CHECK])
 
     def test_styles_built_after_the_tests_are_caught(self):
-        bad = self.STYLED_GOOD.replace("      - run: pnpm build:css\n", "").replace(
+        bad = self.STYLED_GOOD.replace("      - run: pnpm build:assets\n", "").replace(
             "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n",
-            "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n      - run: pnpm build:css\n")
-        self.assertEqual(self.check(bad, self.STYLED),
-                         ["worker job does not run pnpm build:css -> git diff --exit-code -- src/web -> pnpm test in that order"])
+            "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n      - run: pnpm build:assets\n")
+        self.assertEqual(self.check(bad, self.STYLED), ["worker job does not run " + " -> ".join(STYLES) + " in that order"])
+
+    def test_a_diff_only_check_that_misses_untracked_files_is_caught(self):
+        bad = self.STYLED_GOOD.replace(GENERATED_CHECK, "git diff --exit-code -- src/web public")
+        self.assertEqual(self.check(bad, self.STYLED), ["worker job lacks " + GENERATED_CHECK])
 
     def test_a_test_step_without_chrome_is_caught(self):
         bad = self.STYLED_GOOD.replace("        env:\n          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n", "")

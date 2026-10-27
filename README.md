@@ -86,7 +86,7 @@ You need Node 24.18.0 or newer (`.nvmrc`; `pnpm install` refuses an older Node) 
 pnpm install --frozen-lockfile   # exact pins from pnpm-lock.yaml
 pnpm typecheck                   # checks worker-configuration.d.ts against wrangler.jsonc, then tsc --noEmit
 pnpm lint                        # Biome: format and lint the Worker's own files
-pnpm build:css                   # design tokens compiled into the app stylesheet
+pnpm build:assets                # self-hosted fonts and the fingerprinted app stylesheet (Python 3.11+; a changed font needs design/tools/requirements.txt)
 pnpm test                        # Vitest: the Worker inside workerd, build scripts and style checks in Node
 pnpm build                       # bundles the Worker with a dry-run deploy into build/dry
 pnpm dev                         # serves http://localhost:8787 with COMMIT_SHA set to your checkout's commit

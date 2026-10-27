@@ -1,5 +1,6 @@
 @import "tailwindcss" source(none);
 @import "./tokens.css";
+@import "./fonts.css";
 
 /* Only the app's own sources decide which utilities ship: tests, fixtures and documentation never do. */
 @source "../";

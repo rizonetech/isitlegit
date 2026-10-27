@@ -2,3 +2,4 @@
 fonttools==4.63.0
 uharfbuzz==0.53.3
 pillow==13.0.0
+brotli==1.2.0

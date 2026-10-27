@@ -12,7 +12,9 @@
       "tsconfig.json",
       "tsconfig.config.json",
       "biome.json",
-      "!src/web/styles/tokens.css"
+      "!src/web/styles/tokens.css",
+      "!src/web/styles/fonts.css",
+      "!src/web/assets.ts"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },
