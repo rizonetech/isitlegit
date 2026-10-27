@@ -39,7 +39,7 @@ track: day-1
 | 3 | §3 | App shell and its three frames | §2, §5, §6 | [ ] |
 | 4 | §4 | Design change comparison | §1 | [ ] |
 | 5 | §5 | Hashed static assets and fonts | §2 | [x] |
-| 6 | §6 | Buttons, fields and pills | §2, §5 | [ ] |
+| 6 | §6 | Buttons, fields and pills | §2, §5 | [x] |
 | 7 | §7 | Verdict band, evidence card and severity | §6 | [ ] |
 | 8 | §8 | Empty, loading, error and partial states | §6 | [ ] |
 | 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [ ] |
@@ -265,11 +265,14 @@ The controls every page uses, as the SPEC's shared parts and `design/mockups/sou
 - [x] Close the final review's gaps (2026-10-27): a disabled control drops htmx in both spellings (`hx-*` and `data-hx-*`), on `Button` and `Checkbox` alike, through `passThrough` in `src/web/components/attrs.ts`; a caller's `aria-disabled="true"` disables the control fully (`isDisabled`); the disabled link carries `role="link"` and `pointer-events-none`, so no pointer reaches its data hooks; a button whose content has no text outside `aria-hidden` (an svg or an icon component as children), or whose label or caller name is blank, is refused (`hasText`, `nonBlank`). Done when: `test/node/controls.test.tsx` covers each, and putting back the old filter, the old disabled test, the old link class or a `hasText` that always says yes fails it.
 - [x] Measure focus against what is really beside each control, in both themes: every control's ring is the shared `FOCUS` (a 2 px `orange-text` outline), and `test/node/controls-browser.test.tsx` composites every painted ancestor's background, places every variant and size (primary, danger, small, link as a button) on the subtle, light and orange-wash backgrounds, and asserts the disabled button, link, `aria-disabled` button and box are never reached. Done when: putting back the `orange` ring fails it on the light background (2.98:1).
 - [x] Follow the SPEC's rounding rule without exception: the small button's 14 px padding is built 16, and the two §6 deviations in `design/SPEC.md` 1 state the real contrasts and every control they cover. Done when: `test/node/controls.test.tsx` checks `px-16` on the small button.
-- [ ] Commit: `web: buttons, fields and pills`
+- [x] Commit: `web: buttons, fields and pills`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/controls.test.tsx test/node/controls-browser.test.tsx` passes, covering every variant and state in markup and in Chromium. **Corrected 2026-10-27:** named only `test/node/controls.test.tsx`, although the focus, keyboard, disabled and hover items are proven in the browser file (final review).
 
 Evidence 2026-10-27 06:58 SAST. `pnpm test`: 11 files, 68 tests, including `test/node/controls.test.tsx` (12: every variant and size with its token classes, the form contract, forwarded `aria-*`, `data-*` and `hx-*`, icon-only refusal at the type level and at run time, disabled buttons and links with their reason, `Field` relationships with distinct ids, `Checkbox` states) and `test/node/controls-browser.test.tsx` (6, in headless Chromium through `playwright-core` 1.64.1: Tab reaches every control with a visible ring and skips the disabled one, Enter and Space activate buttons, Enter follows a link, disabled controls do nothing on click or key, only the submit button submits, the required checkbox blocks submission until checked and submits `consent=yes`, the label and Space toggle it, a disabled box cannot change, a checked re-render shows checked, and the hover colours of `ui.css` in both themes). Reverted once each, with the test failing: the buttons' focus classes (focus test), their hover classes (both theme tests). A type error planted in `Pill.tsx` fails `pnpm typecheck` (`TS2322`); a wrong class expectation in `controls.test.tsx` fails `pnpm test`. Found while building: hono's JSX types name thirteen browser event types the Workers runtime types lack, and adding the DOM library conflicts with the runtime types in over 170 declarations, so `src/types/hono-jsx-events.d.ts` declares them over the runtime's `Event` (marked `WORKAROUND`); the colour guard now accepts token colours with an opacity modifier (`outline-orange/25`) and ignores names inside `var(...)`; the build-css tests use an arbitrary-value utility no source uses, since `h-control` is now real. Board values exactly between two scale steps are built as the step above, recorded as a Deviation in `design/SPEC.md` 1.
+
+> **Verified:** 2026-10-27 | §6 | 6b192a015cfb6594153839eff0d34554c328a453
+> **Review:** `docs/reviews/d07-t01-s6.json`
 
 ## 7. Verdict band, evidence card and severity
 

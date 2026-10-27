@@ -81,7 +81,7 @@ Sections: 33 | Checklist items: 161
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 5     |
 | [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
-| [ ]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
+| [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [ ]    | D07 T01 §3  | App shell and its three frames                        | none     | 10    |
 | [ ]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 4     |
 | [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
@@ -264,6 +264,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 8/195 verified sections, 7 ready to run now.
+Progress: 9/195 verified sections, 9 ready to run now.
 
-Checklist: 157/958 items completed (includes Commit items).
+Checklist: 158/958 items completed (includes Commit items).
