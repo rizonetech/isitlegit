@@ -44,7 +44,7 @@ track: day-0
 | 3 | §3 | Vitest workers pool and Biome | §2 | [x] |
 | 4 | §4 | GitHub Actions CI | §3 | [x] |
 | 5 | §5 | Cloudflare bindings and first deploy | §4 | [x] |
-| 6 | §6 | AI Gateway for the Meta Model API | §5 | [ ] |
+| 6 | §6 | AI Gateway for the Meta Model API | §5 | [x] |
 | 7 | §7 | Meta smoke test | §6 | [ ] |
 | 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
 | 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
@@ -293,7 +293,7 @@ All Meta traffic goes through an AI Gateway custom provider in front of `https:/
 - [x] Keep the tests local now that the Worker has an `AI` binding, which has no local simulation and opens a remote session that needs a Cloudflare login CI lacks: `remoteBindings: false` in `vitest.config.ts` and `remote: false` for the two `unstable_startWorker` tests. Done when: the `worker` project and `serve`/`document` tests pass with an empty Wrangler configuration folder (no login), and fail there without the setting. (Found at build, 2026-10-27.)
 - [x] Follow the operator's screening decisions of 2026-10-27: a `muse-spark-1.3-contributor` pricing rule added at 10:47 SAST for a Contributor page screener was deleted at 11:05, when the operator chose Standard Muse Spark instead (lure pages carry personal data, which Meta forbids in Contributor input); the rule "Standard model IDs only, never `-contributor`" is restored in `AGENTS.md`, the design spec, D03 T01 and §7. Done when: a GET of the pricing rules returns only `muse-spark-1.3` and `muse-wonder-1.0`, and no governing document allows a `-contributor` ID.
 - [x] Hand §7 a cost check it can pass: strict for the token-priced calls, and for SAM 3.1 (no gateway rule) a cost recorded as unavailable from the gateway, never zero, beside the per-image cost; and both durations per call. Done when: §7's log read-back item says so. (Completion review 2026-10-27, gap 1.)
-- [ ] Commit: `infra: AI Gateway custom provider for the Meta Model API`
+- [x] Commit: `infra: AI Gateway custom provider for the Meta Model API`
 
 Evidence 2026-10-27 11:10 SAST, read back through the Cloudflare API after the final review: gateway `isitlegit` `collect_logs: false`, `authentication: true`, `cache_ttl: 0`, `rate_limiting_limit: 0`; pricing rules only `muse-spark-1.3` (per million 1.25 in, 0.15 cached, 4.25 out; per token 0.00000125 and 0.00000425) and `muse-wonder-1.0` (4, 0.2, 20; per token 0.000004 and 0.00002); the `muse-spark-1.3-contributor` rule (0.10, 0.002, 0.20 per million; per token 0.0000001 and 0.0000002) existed from 10:47 to 11:05 SAST. The paragraph below is the first build's.
 
@@ -302,6 +302,9 @@ Evidence 2026-10-27 10:35 SAST, through the Cloudflare API (this session's Cloud
 **Test checkpoint:** a GET of `/accounts/f5a529987f8dc7d52ce7aba3da25e226/ai-gateway/gateways/isitlegit` and of the `meta` custom provider through the Cloudflare API returns both with the settings above (authentication on, logs off by default) and the pricing rules, and an unauthenticated request to `META_GATEWAY_URL/models` is refused by the gateway. (**Corrected 2026-10-27** (final review P2): it also required the authenticated request to reach Meta, which runs in §7.)
 
 > **Deferred:** a request with the gateway token reaching Meta through `custom-meta` (Meta's own answer, not a gateway 404), which needs the operator's gateway token -> XREF: D00 T01 §7 (**Corrected 2026-10-27:** was a curl with `$CLOUDFLARE_API_TOKEN`, which this repository does not hold.)
+
+> **Verified:** 2026-10-27 | §6 | 471b9ffe0b96492d16396c18632e83d133825dae
+> **Review:** `docs/reviews/d00-t01-s6.json`
 
 ## 7. Meta smoke test
 
