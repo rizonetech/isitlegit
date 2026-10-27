@@ -107,5 +107,8 @@ describe("a changed source font, end to end", () => {
       ).toBe(false);
       expect(existsSync(join(COPY, "public", APP_CSS)), "the old stylesheet is pruned").toBe(false);
     },
+    // A real fonttools conversion and two builds: about 4 s locally, 7.5 s on the runner (run 40449236082), over Vitest's
+    // 5 s default; each step is itself bounded at 300 s.
+    120_000,
   );
 });
