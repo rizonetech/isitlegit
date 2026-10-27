@@ -203,12 +203,12 @@ export function killGroup(
 
 // On Ctrl+C, a termination signal or a hangup, kills every command still running before exiting, so an interrupted run cannot
 // leave wrangler publishing with no deadline left to stop it.
-export function installSignalCleanup(): void {
+export function installSignalCleanup(name = "smoke"): void {
   // SIGHUP too: a closed terminal or SSH session reaches this process but not the commands' own groups.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
     process.once(signal, () => {
       for (const pid of running) killGroup(pid);
-      console.error(`smoke: interrupted (${signal}); stopped ${running.size} running command(s)`);
+      console.error(`${name}: interrupted (${signal}); stopped ${running.size} running command(s)`);
       process.exit(130);
     });
 }

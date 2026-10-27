@@ -509,7 +509,7 @@ if (import.meta.filename === process.argv[1]) {
     console.log(USAGE);
     process.exit(0);
   }
-  installSignalCleanup();
+  installSignalCleanup("rollback");
   registerInterruptNotice();
   const outcome = await runRollback({
     ...args,
