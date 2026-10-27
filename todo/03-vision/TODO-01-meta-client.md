@@ -107,6 +107,8 @@ The model trace on the report (D07 T03 §5), the cost-per-case dashboard and the
 - [ ] Pass `{ caseId, step }` in the client context and write `case_events` with `model`, `ms`, `cost_usd`, input and output token counts (in `detail_json`), and the gateway's request id. Done when: `test/meta/events.test.ts` finds the row.
 - [ ] Record failed calls with the error class and no prompt or response content. Done when: a failing stub leaves an event with `status = "error"` and no body.
 - [ ] Write `caseCost(caseId)` summing cost per case for the report and eval. Done when: a test with three calls sums them.
+- [ ] Tag every gateway request with opaque metadata (`cf-aig-metadata`: the case id and the pipeline step, no names, addresses or content), so filtering the gateway's logs by one case id returns every request for that case with no request id copied by hand. Done when: `test/meta/client.test.ts` finds the metadata on each request and no personal data in it. (Filed from the D00 T01 §6 completion review, excellence item 1.)
+- [ ] Label each model call's cost by its source (gateway pricing rule, or Meta's per-unit price for SAM 3.1, Muse Image and Muse Voice Transcribe) and keep an unavailable cost distinct from zero, so `caseCost` reconciles all five models. Done when: a synthetic case mixing all five models sums to the expected total and an unavailable cost is reported as such. (Filed from the D00 T01 §6 completion review, excellence item 3.)
 - [ ] Commit: `meta: cost and latency events per model call`
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/events.test.ts` passes and fails if a prompt string is written into `detail_json`.

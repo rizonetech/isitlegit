@@ -49,6 +49,7 @@ track: day-0
 | 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
 | 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
 | 10 | §10 | Deploy rollback and re-verification | §5 | [ ] |
+| 11 | §11 | AI Gateway config snapshot and restore | §6 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -290,6 +291,7 @@ All Meta traffic goes through an AI Gateway custom provider in front of `https:/
 - [x] Require authentication on the gateway (`authentication: true`), so a published gateway URL cannot fill its logs with outside traffic. The Worker reaches it through an `AI` binding added to `wrangler.jsonc` (calls through a binding are pre-authenticated, so the Worker stores no gateway token; Cloudflare docs, Authenticated Gateway); the operator's §7 script uses a gateway token with `AI Gateway Run`, created in the gateway's settings and kept in the vault as "IsItLegit AI Gateway token". Done when: the gateway reads back with authentication on, `wrangler types` emits the `AI` binding, and a request to `META_GATEWAY_URL` without `cf-aig-authorization` is refused by the gateway itself (its own 401, not Meta's). (**Corrected 2026-10-27** (plan review P2): the gateway was open.)
 - [x] Price every Meta model on the custom provider (`/ai-gateway/custom-providers/costs`), one rule per model ID in D03 T01's `MODELS` with the units and prices Meta's pricing page gives (`https://dev.meta.ai/docs/pricing-rate-limits`; Muse Spark US$1.25 in and US$4.25 out per million tokens, design spec 11), so the gateway's logs carry a cost; a model Meta prices in a unit the rules cannot express is named in the stack doc as costed by D03 T01's D1 events only. The rule's `token_pricing` is in US dollars per million tokens (the API stores the per-token figure: US$1.25 reads back as `cost_in` 0.00000125). Done when: a GET of the pricing rules returns one per token-priced model with those prices. (**Corrected 2026-10-27** at build: only `muse-spark-1.3` and `muse-wonder-1.0` are priced per token; SAM 3.1, Muse Image and Muse Voice Transcribe are priced per image, per generated image and per hour, and are costed by the D1 events.) (**Corrected 2026-10-27** (plan review P2): a custom provider's requests carry no cost without rules.)
 - [x] Keep the tests local now that the Worker has an `AI` binding, which has no local simulation and opens a remote session that needs a Cloudflare login CI lacks: `remoteBindings: false` in `vitest.config.ts` and `remote: false` for the two `unstable_startWorker` tests. Done when: the `worker` project and `serve`/`document` tests pass with an empty Wrangler configuration folder (no login), and fail there without the setting. (Found at build, 2026-10-27.)
+- [x] Hand §7 a cost check it can pass: strict for the token-priced calls, and for SAM 3.1 (no gateway rule) a cost recorded as unavailable from the gateway, never zero, beside the per-image cost; and both durations per call. Done when: §7's log read-back item says so. (Completion review 2026-10-27, gap 1.)
 - [ ] Commit: `infra: AI Gateway custom provider for the Meta Model API`
 
 Evidence 2026-10-27 10:35 SAST, through the Cloudflare API (this session's Cloudflare connector; Wrangler's login has no AI Gateway scope): gateway `isitlegit` reads back `collect_logs: true`, `cache_ttl: 0`, `authentication: true`, no rate limit; custom provider `meta` (`8a225cb8-a9b0-4c73-811a-e3745774910b`) reads back enabled with `base_url` `https://api.meta.ai`; pricing rules `muse-spark-1.3` (1.25 / 0.15 cached / 4.25 per million) and `muse-wonder-1.0` (4 / 0.2 / 20 per million), stored per token as 0.00000125 and 0.000004. `curl .../isitlegit/custom-meta/v1/models` without a token: `401 AiGatewayError 2009 Unauthorized` from the gateway. `wrangler types` emits `AI: Ai` and `META_GATEWAY_URL`. A first rule sent `cost_in` per token and was stored a million times too small; it was deleted and the rules were rebuilt from `token_pricing` in per-million units.
@@ -317,7 +319,7 @@ One small script proves each Meta capability the product depends on before anyth
 - [ ] Add a guard that refuses any model ID ending in `-contributor`. Done when: passing `--model muse-spark-1.3-contributor` exits 2.
 - [ ] Confirm the credit gate before any call: `grep -E '^Meta credit visible: 2026-' todo/99-manual/TODO-01-day0-accounts.md` matches (the operator records it in D99 T01 §1); without it park the section. Done when: the grep matches.
 - [ ] Run the script once with `--confirm-credit` and write `docs/meta-smoke-test.md` (model, status, latency, input and output tokens, cost; no keys, no response bodies beyond a short excerpt). Done when: the file lists all four calls with results or a named fallback.
-- [ ] Read back each call's gateway log (by its `cf-aig-log-id`, through the Cloudflare API): it holds the model, status, duration, token counts and a cost from §6's pricing rule that matches Meta's reported usage times that rule, and no request or response body. Done when: `docs/meta-smoke-test.md` records each log's fields and the cost comparison, and a call whose log holds a body or no cost is a recorded failure, not a pass. (**Corrected 2026-10-27** (D00 T01 §6 plan review P1 and P2): the gateway's privacy and cost logging were otherwise unproven on a real request.)
+- [ ] Read back each call's gateway log (by its `cf-aig-log-id`, through the Cloudflare API): it holds the model, status, duration and token counts and no request or response body; for a token-priced model (`muse-spark-1.3`, `muse-wonder-1.0`) it also holds a cost from §6's pricing rule that matches Meta's reported usage times that rule; for SAM 3.1 the gateway has no rule, so its cost is recorded as unavailable from the gateway (never as zero) and the script costs it from Meta's per-image price. Record each call's gateway duration beside the script's own wall time. Done when: `docs/meta-smoke-test.md` records each log's fields, the cost comparison or the unavailable-cost line with the per-image cost, and both durations, and a call whose log holds a body, or a token-priced call with no or a mismatched cost, is a recorded failure, not a pass. (**Corrected 2026-10-27** (D00 T01 §6 completion review): every call had to carry a gateway cost, which SAM, priced per image, cannot.) (**Corrected 2026-10-27** (D00 T01 §6 plan review P1 and P2): the gateway's privacy and cost logging were otherwise unproven on a real request.)
 - [ ] Commit: `meta: smoke test of Spark, SAM 3.1 and Wonder through the gateway`
 
 **Test checkpoint:** `pnpm exec tsx scripts/meta-smoke.ts --dry` exits 0 printing four requests each with `"store": false`, and `docs/meta-smoke-test.md` exists with four result rows.
@@ -389,6 +391,24 @@ When a deploy breaks the live Worker, the operator returns to the last good vers
 - [ ] Commit: `infra: one-command rollback with re-verification`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/rollback.test.ts` passes and fails if the script reports success when the rolled-back version's smoke run fails.
+
+## 11. AI Gateway config snapshot and restore
+
+The gateway's settings, the `meta` custom provider and its pricing rules live in the Cloudflare account, not in git, so a deploy rollback cannot restore them (completion review of D00 T01 §6, gap 5). The operator can snapshot them, restore them without deleting logs, and know how long logs are kept.
+
+**Phase:** 0
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Snapshot and restore the remote configuration. Done when: one command records it and another restores it, each read back.
+
+- [ ] Write `scripts/gateway-config.ts` with `snapshot` (the gateway's settings, the custom provider and its pricing rules, read through the Cloudflare API into `infra/ai-gateway.json`, with no token or key in it) and `restore` (creates or updates each from the file, never deletes a gateway or its logs, then reads back and compares). Done when: `test/node/gateway-config.test.ts` drives both against a stand-in API (a missing provider recreated, a changed price restored, a permission failure reported by the endpoint and permission it needs), and a real snapshot is committed.
+- [ ] Record the logs' retention and capacity for this account in `docs/operations.md`, read from Cloudflare (whether the account is on Workers Logs or legacy logs decides the limits; the gateway's creation date alone does not), with what happens when the limit is reached. Done when: the page names the retention, the limit and the source it was read from.
+- [ ] Commit: `infra: AI Gateway configuration snapshot and restore`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/gateway-config.test.ts` passes and fails if `restore` deletes anything or reports success when the read-back differs.
 
 ## Verification
 
