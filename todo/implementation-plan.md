@@ -34,7 +34,7 @@ Sections: 32 | Checklist items: 197
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 6     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
-| [ ]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
+| [x]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
 | [ ]    | D07 T01 §5 | Hashed static assets and fonts             | none                  | 8     |
 | [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
 | [ ]    | D07 T02 §2 | Passkey sign-in                            | none                  | 3     |
@@ -259,6 +259,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 6/190 verified sections, 5 ready to run now.
+Progress: 7/190 verified sections, 6 ready to run now.
 
-Checklist: 126/914 items completed (includes Commit items).
+Checklist: 127/914 items completed (includes Commit items).

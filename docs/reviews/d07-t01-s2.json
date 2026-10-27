@@ -1,0 +1,121 @@
+{
+  "ref": "D07 T01 \u00a72",
+  "title": "Design tokens compiled to the stylesheet",
+  "implementation_sha": "7b230a4977e86df5c3f9ee05c3eaac94a7380b2f",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T01-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T01-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm test -> 5 files, 28 tests pass (token coverage, defaults removed, validation, atomic build, sources, Chromium theme test 10 cases, colour guard over compiled CSS and sources)",
+    "pnpm typecheck -> exit 0; planted TS2322 in each of the four projects -> exit 1",
+    "pnpm build:css twice -> tokens.css byte-identical; CI stale-styles probe -> failure at Generated styles are committed",
+    "reverted fixes (role defaults, weight utilities, auto sources, in-place write, dark variant, color-scheme) -> each fails its test",
+    "CI on 7b230a4977e86df5c3f9ee05c3eaac94a7380b2f -> success, run 40440388568"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s2.md",
+    "verdict": "filed",
+    "candidate": "495dc39508f3c0c55e2d1bd32d54724fdb662d29",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T01 \u00a75",
+      "D07 T06 \u00a71"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s2.md",
+    "candidate": "d39e9fbaf4eeaaabd63307759ccd57ac5acc6128",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/07-app/D07-T01-s2.md",
+    "verdict": "fixed",
+    "candidate": "effbcad5426c6f1d04ca0840fb3c42f8d400ce31",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}
