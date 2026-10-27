@@ -47,23 +47,28 @@ track: day-1
 
 ## 1. Core D1 schema and migration runner
 
+> **Started:** 2026-10-27T12:05Z
+
 Every later domain stores rows against a case. This section creates the first migration and the typed query layer, so cases, artefacts, evidence and step events have one owner (spec 4.8). Auth tables are owned by Better Auth (D07 T02) and are not created here.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-27** (validation before build): Wrangler looks for migrations in `migrations/` unless the D1 binding names `migrations_dir`, so `wrangler.jsonc` sets it to `src/db/migrations`; the worker tests start from an empty in-memory D1, so they apply the migrations first (`readD1Migrations` in `vitest.config.ts`, `applyD1Migrations` in a setup file, the `@cloudflare/vitest-plugin` way); the tables enforce the spec's values with `CHECK` constraints (verdict `safe`, `suspicious` or `malicious`, the design spec's three verdicts in its opening section; severity `info` to `critical` per 4.3) and their ties with foreign keys (`ON DELETE CASCADE`, so deleting a case deletes its rows, which the POPIA deletion in 4.8 relies on); `case_events` gets an autoincrement `id` so "in order" has a key; the status transitions are named (`received` to `running`, `running` to `done` or `partial`, nothing else); and applying migrations to the live database becomes a written step of the deploy in `docs/operations.md`.
+
 **Build order:**
 
 1. Write `src/db/migrations/0001_core.sql` with `cases`, `artefacts`, `evidence`, `case_events`. Done when: `wrangler d1 migrations apply DB --local` applies it cleanly on an empty database.
 2. Write typed helpers in `src/db/cases.ts`. Done when: tests create, read and update a case through them.
 
-- [ ] Create `src/db/migrations/0001_core.sql` with table `cases` (`id` text primary key, `org_id`, `channel` email or upload, `status` received, running, done or partial, `verdict` nullable, `headers_available` integer, `created_at`, `updated_at`) and indexes on `org_id, created_at`. Done when: `wrangler d1 migrations apply DB --local` reports the migration applied.
-- [ ] Add table `artefacts` (`case_id`, `kind` raw, attachment, render, crop, page, audio, `r2_key`, `sha256`, `media_type`, `bytes`) to the same migration. Done when: a test inserts and reads one row back.
-- [ ] Add table `evidence` (`id`, `case_id`, `check`, `severity` info to critical, `summary`, `detail_json`, `artefact_keys_json`, `created_at`) per spec 4.3. Done when: a test round-trips one evidence row with its JSON fields intact.
-- [ ] Add table `case_events` (`case_id`, `step`, `status`, `model` nullable, `started_at`, `ms`, `cost_usd` nullable, `error` nullable) for the audit trail and the model trace. Done when: a test inserts two events and reads them in order.
-- [ ] Write `src/db/cases.ts` with `createCase`, `getCase`, `setStatus` and `setVerdict`, each validating input with zod. Done when: `test/db/cases.test.ts` covers create, read, both status transitions and a refused invalid status. Cheaper substitute: raw SQL strings at each call site.
-- [ ] Add the `pnpm db:migrate:local` and `pnpm db:migrate:remote` scripts to `package.json`. Done when: both scripts print the migration list.
+- [ ] Set `migrations_dir` to `src/db/migrations` on the `DB` binding in `wrangler.jsonc`, and create `src/db/migrations/0001_core.sql` with table `cases` (`id` text primary key, `org_id` text not null, `channel` `CHECK` email or upload, `status` `CHECK` received, running, done or partial, `verdict` nullable `CHECK` safe, suspicious or malicious, `headers_available` integer 0 or 1, `created_at`, `updated_at`) and an index on `org_id, created_at`. Done when: `wrangler d1 migrations apply DB --local` reports the migration applied.
+- [ ] Add table `artefacts` (`case_id` referencing `cases` with `ON DELETE CASCADE`, `kind` `CHECK` raw, attachment, render, crop, page or audio, `r2_key` primary key, `sha256`, `media_type`, `bytes`) to the same migration. Done when: a test inserts and reads one row back, and deleting its case deletes it.
+- [ ] Add table `evidence` (`id` primary key, `case_id` referencing `cases` with `ON DELETE CASCADE`, `check`, `severity` `CHECK` info, low, medium, high or critical, `summary`, `detail_json`, `artefact_keys_json`, `created_at`) per spec 4.3. Done when: a test round-trips one evidence row with its JSON fields intact, and a row with severity `severe` is refused by the database.
+- [ ] Add table `case_events` (`id` integer primary key autoincrement, `case_id` referencing `cases` with `ON DELETE CASCADE`, `step`, `status`, `model` nullable, `started_at`, `ms`, `cost_usd` nullable, `error` nullable) for the audit trail and the model trace. Done when: a test inserts two events and reads them in `id` order.
+- [ ] Apply the migrations in the worker tests: `vitest.config.ts` reads them with `readD1Migrations("src/db/migrations")` into a `TEST_MIGRATIONS` binding, and a setup file runs `applyD1Migrations(env.DB, env.TEST_MIGRATIONS)` before each test file. Done when: the tests above run against the migrated schema, and removing the setup file fails them.
+- [ ] Write `src/db/cases.ts` with `createCase`, `getCase`, `setStatus` and `setVerdict`, each validating input with zod; `setStatus` allows only `received` to `running` and `running` to `done` or `partial`, and refuses any other transition or value with a typed error. Done when: `test/db/cases.test.ts` covers create, read, the allowed transitions, a refused transition (`done` to `running`) and a refused value (`bogus`). Cheaper substitute: raw SQL strings at each call site.
+- [ ] Add the `pnpm db:migrate:local` and `pnpm db:migrate:remote` scripts to `package.json` (`wrangler d1 migrations apply DB --local` and `--remote`), apply `0001_core` to the live database (additive: four new tables), and add a "Database migrations" step to `docs/operations.md` (apply before deploying code that needs a new migration; a rollback never reverts one). Done when: `wrangler d1 migrations list DB --remote` reports no migrations to apply, and the page names the step.
 - [ ] Commit: `db: core schema for cases, artefacts, evidence and step events`
 
 **Test checkpoint:** `pnpm exec vitest run test/db/cases.test.ts` passes, and fails when `setStatus` accepts `"bogus"`.
