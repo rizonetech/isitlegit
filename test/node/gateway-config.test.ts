@@ -650,6 +650,23 @@ describe("scripts/gateway-config.ts restore", () => {
     expect(state.costs).toHaveLength(2);
   });
 
+  it("keeps the inventory when an error answer is not a JSON object (round 4)", async () => {
+    await take();
+    for (const body of ["null", "[1]", "42", '{"errors":[null]}', '{"errors":"x"}', "not json"]) {
+      const state = { gateway: null as Raw | null, providers: [] as Raw[], costs: [] as Raw[] };
+      const world = cloudflare(state, (r) =>
+        r.method === "POST" && r.path === "/custom-providers" ? new Response(body, { status: 503 }) : undefined,
+      );
+      const outcome = await restore(options(world.fetchStub));
+      expect(outcome.code, body).toBe(1);
+      const text = failed(outcome.lines);
+      expect(text, body).toMatch(/POST \/custom-providers answered HTTP 503/);
+      expect(text, body).toMatch(/confirmed: create gateway isitlegit/);
+      expect(text, body).toMatch(/uncertain: create provider meta/);
+      expect(text, body).toMatch(/not tried: set provider meta's logo/);
+    }
+  });
+
   it("stops midway on a server error, naming the change it cannot vouch for", async () => {
     await take();
     const world = cloudflare(

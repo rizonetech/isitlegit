@@ -326,17 +326,20 @@ function client(options: Options, say: (line: string) => void) {
       throw new NoAnswer(safe(`${method} ${path}: the answer was cut off (${(error as Error).name})`));
     }
     if (text === null) throw new NoAnswer(`${method} ${path}: the answer is over 1 MiB`);
-    let parsed: Raw = {};
+    // Only a JSON object is a body; anything else (null, a list, a number, not JSON) is judged by its status alone.
+    let parsed: unknown = null;
     try {
-      parsed = text ? JSON.parse(text) : {};
+      parsed = text ? JSON.parse(text) : null;
     } catch {
-      // not JSON: judged by its status below
+      // not JSON
     }
-    return { status: response.status, body: parsed };
+    const answer = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Raw) : {};
+    return { status: response.status, body: answer };
   }
   const explain = (method: string, path: string, status: number, body: Raw) => {
-    const errors = Array.isArray(body.errors) ? (body.errors as { code?: unknown; message?: unknown }[]) : [];
-    const first = errors[0] ? ` (${errors[0].code}: ${String(errors[0].message).slice(0, 160)})` : "";
+    const error = Array.isArray(body.errors) ? (body.errors[0] as { code?: unknown; message?: unknown } | null) : null;
+    const first =
+      error !== null && typeof error === "object" ? ` (${error.code}: ${String(error.message).slice(0, 160)})` : "";
     const needs = method === "GET" ? "AI Gateway Read" : "AI Gateway Write";
     return safe(
       status === 401 || status === 403
