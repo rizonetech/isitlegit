@@ -13,7 +13,7 @@ Every surface is built to look and behave like its approved board, judged by a p
 - Every control and state its `design/mockups/coverage.json` entry names, present and working, or the deferral it names.
 - The structure: the same regions in the same order and hierarchy, the same shared parts (navigation, header, footer), the same component for each job (a band for the verdict, a card for each piece of evidence, a pill for a status).
 - The wording of headings, labels, buttons, empty and error messages, unless the plan, a spec or this file sets other words.
-- Values from the tokens only: colour, type role, spacing step, radius, control height. No raw colour on a surface (`test/web/no-raw-colours.test.ts`).
+- Values from the tokens only: colour, type role, spacing step, radius, control height. No raw colour on a surface (`test/node/no-raw-colours.test.ts`, which checks the compiled stylesheet and the app's sources).
 - Accessibility: contrast from the token pairs, keyboard order, focus visible, an accessible name on every control, phone width per the phone boards.
 
 ### May differ, and is never a finding by itself

@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildTokens } from "../../scripts/build-tokens.ts";
 
 type Box = { backgroundColor: string; color: string; borderTopColor: string };
-type Snapshot = { dark: boolean; box: Box };
+type Snapshot = { dark: boolean; box: Box; variant: string; scheme: string };
 type TypeStyle = {
   fontFamily: string;
   fontSize: string;
@@ -77,6 +77,7 @@ const WEIGHTS = Object.keys(type.weights);
 // Elements the fixture measures: token classes, then Tailwind defaults that must produce nothing.
 const FIXTURE = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="out.css"></head><body>
 <div id="box" class="bg-surface text-ink border border-line rounded-card shadow-card p-16 h-control">box</div>
+<div id="variant" class="bg-surface dark:bg-mal">v</div>
 ${ROLES.map((r) => `<p id="type-${r}" class="type-${r}">x</p>`).join("\n")}
 ${WEIGHTS.map((w) => `<b id="weight-${w}" class="weight-${w}">w</b>`).join("\n")}
 <p id="responsive" class="type-eyebrow md:type-body">r</p>
@@ -86,7 +87,12 @@ ${WEIGHTS.map((w) => `<b id="weight-${w}" class="weight-${w}">w</b>`).join("\n")
 <pre id="out"></pre>
 <script>
 const read = (id, props) => Object.fromEntries(props.map((p) => [p, getComputedStyle(document.getElementById(id))[p]]));
-const snap = () => ({ dark: matchMedia("(prefers-color-scheme: dark)").matches, box: read("box", ["backgroundColor", "color", "borderTopColor"]) });
+const snap = () => ({
+  dark: matchMedia("(prefers-color-scheme: dark)").matches,
+  box: read("box", ["backgroundColor", "color", "borderTopColor"]),
+  variant: read("variant", ["backgroundColor"]).backgroundColor,
+  scheme: getComputedStyle(document.documentElement).colorScheme,
+});
 const out = { unset: snap() };
 document.documentElement.dataset.theme = "light"; out.light = snap();
 document.documentElement.dataset.theme = "dark"; out.darkTheme = snap();
@@ -204,6 +210,20 @@ describe.skipIf(!BROWSER && !process.env.CI)("token classes measured in Chromium
       expect(page.light.box).toEqual(boxIn(colors.themes.light));
       expect(page.darkTheme.box).toEqual(boxIn(colors.themes.dark));
     }
+  });
+
+  it("makes dark: and color-scheme agree with the colours in every case", () => {
+    const light_ = { variant: rgb(colors.themes.light.surface), scheme: "light" };
+    const dark_ = { variant: rgb(colors.themes.dark.mal), scheme: "dark" };
+    const pick = (snap: Snapshot) => ({ variant: snap.variant, scheme: snap.scheme });
+    expect(pick(light.unset)).toEqual(light_);
+    expect(pick(dark.unset)).toEqual(dark_);
+    for (const page of [light, dark]) {
+      expect(pick(page.light)).toEqual(light_);
+      expect(pick(page.darkTheme)).toEqual(dark_);
+    }
+    expect(pick(light.removed)).toEqual(light_);
+    expect(pick(dark.removed)).toEqual(dark_);
   });
 
   it("returns to the OS preference when data-theme is removed", () => {
