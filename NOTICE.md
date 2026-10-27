@@ -23,3 +23,6 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `vitest` | 4.1.12 | MIT | No: test runner |
 | `@cloudflare/vitest-plugin` | 1.4.7 | MIT | No: runs the tests inside workerd |
 | `@biomejs/biome` | 2.6.3 | MIT OR Apache-2.0 | No: lint and format |
+| `tailwindcss` | 4.3.3 | MIT | No: compiles the stylesheet, which keeps Tailwind's MIT notice |
+| `@tailwindcss/cli` | 4.3.3 | MIT | No: the stylesheet compiler's command line |
+| `@types/node` | 24.19.2 | MIT | No: types for the Node-side build scripts and tests |

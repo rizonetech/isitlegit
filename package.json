@@ -10,9 +10,10 @@
   "scripts": {
     "dev": "wrangler dev --var COMMIT_SHA:$(git rev-parse HEAD)",
     "types": "wrangler types --strict-vars=false",
-    "typecheck": "wrangler types --strict-vars=false --check && tsc --noEmit && tsc --noEmit -p test && tsc --noEmit -p tsconfig.config.json",
+    "typecheck": "wrangler types --strict-vars=false --check && tsc --noEmit && tsc --noEmit -p test && tsc --noEmit -p test/node && tsc --noEmit -p tsconfig.config.json",
     "lint": "biome check .",
     "test": "vitest run",
+    "build:css": "node scripts/build-tokens.ts && tailwindcss -i src/web/styles/app.css -o build/css/app.css --minify",
     "build": "wrangler deploy --dry-run --outdir build/dry"
   },
   "dependencies": {
@@ -22,6 +23,9 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
     "@cloudflare/vitest-plugin": "1.4.7",
+    "@tailwindcss/cli": "4.3.3",
+    "@types/node": "24.19.2",
+    "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
     "vitest": "4.1.12",
     "wrangler": "4.152.0"

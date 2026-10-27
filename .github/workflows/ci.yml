@@ -31,8 +31,16 @@ jobs:
         run: pnpm typecheck
       - name: pnpm lint
         run: pnpm lint
+      - name: pnpm build:css
+        run: pnpm build:css
+      - name: Generated styles are committed
+        run: git diff --exit-code -- src/web
       - name: pnpm test
         run: pnpm test
+        env:
+          # test/node/theme.test.ts measures the compiled styles in Chromium; the image's /usr/bin/chromium has no
+          # usable sandbox (see the project-scripts job), Google Chrome does.
+          MOCKUP_CHROMIUM: /usr/bin/google-chrome
       - name: pnpm build
         run: pnpm build
 

@@ -5,14 +5,17 @@
     "includes": [
       "src/**",
       "test/**",
+      "scripts/**/*.ts",
       "vitest.config.ts",
       "wrangler.jsonc",
       "package.json",
       "tsconfig.json",
       "tsconfig.config.json",
-      "biome.json"
+      "biome.json",
+      "!src/web/styles/tokens.css"
     ]
   },
+  "css": { "parser": { "tailwindDirectives": true } },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "linter": {
     "enabled": true,

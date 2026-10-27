@@ -5,12 +5,22 @@ import { defineConfig } from "vitest/config";
 const TEST_COMMIT_SHA = "0123456789abcdef0123456789abcdef01234567";
 
 export default defineConfig({
-  plugins: [
-    cloudflareTest({
-      wrangler: { configPath: "./wrangler.jsonc" },
-      miniflare: { bindings: { COMMIT_SHA: TEST_COMMIT_SHA } },
-    }),
-  ],
-  // Only the Worker's tests: design tools and kit fixtures elsewhere in the tree have their own runners.
-  test: { include: ["test/**/*.test.ts"] },
+  test: {
+    projects: [
+      {
+        // The Worker's own tests, inside workerd.
+        plugins: [
+          cloudflareTest({
+            wrangler: { configPath: "./wrangler.jsonc" },
+            miniflare: { bindings: { COMMIT_SHA: TEST_COMMIT_SHA } },
+          }),
+        ],
+        test: { name: "worker", include: ["test/**/*.test.ts"], exclude: ["test/node/**"] },
+      },
+      {
+        // Build scripts and source checks, which read the repository, in Node.
+        test: { name: "node", include: ["test/node/**/*.test.ts"], environment: "node" },
+      },
+    ],
+  },
 });

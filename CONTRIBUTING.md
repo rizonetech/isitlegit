@@ -40,6 +40,7 @@ The Worker gates (Node 24, pnpm 11; the full local run is under "Run the Worker 
 pnpm install --frozen-lockfile
 pnpm typecheck   # refuses a worker-configuration.d.ts that no longer matches wrangler.jsonc: run pnpm types and commit it
 pnpm lint
+pnpm build:css   # regenerates src/web/styles/tokens.css from design/tokens; commit it when it changes
 pnpm test
 pnpm build
 ```

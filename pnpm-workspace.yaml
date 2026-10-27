@@ -3,8 +3,10 @@ packages:
   - "."
   - "site"
 
-# pnpm 11 refuses to install while a dependency's build script is unapproved; Wrangler needs these two.
+# pnpm 11 refuses to install while a dependency's build script is unapproved. Wrangler needs esbuild and workerd;
+# @parcel/watcher (Tailwind's --watch) only builds from source when its prebuilt platform package is missing.
 allowBuilds:
+  '@parcel/watcher': false
   esbuild: true
   workerd: true
 
