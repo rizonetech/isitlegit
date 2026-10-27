@@ -175,6 +175,8 @@ Evidence 2026-10-27 02:50 SAST, at `a7c04c0` in a clean clone: `pnpm install --f
 
 ## 4. GitHub Actions CI
 
+> **Started:** 2026-10-27T01:03:29Z
+
 Every push runs the Worker gates and the TODO gates, so a stale plan or a failing test cannot reach `main` unnoticed. Actions are pinned to full commit SHAs.
 
 **Phase:** 0
@@ -183,12 +185,12 @@ Every push runs the Worker gates and the TODO gates, so a stale plan or a failin
 
 **Build order:**
 
-1. Create `.github/workflows/ci.yml` running install, typecheck, lint, test and the TODO and tooling checks. Done when: the workflow passes on GitHub for the pushed commit.
+1. Create `.github/workflows/ci.yml` running install, typecheck, lint, test, build and the TODO and tooling checks. Done when: the workflow passes on GitHub for the pushed commit.
 2. Record the watched workflow for `scripts/ci_status.py` in `.conclave/ci.json`. Done when: `python3 scripts/ci_status.py` reports the workflow's latest verdict.
 
-- [ ] Create `.github/workflows/ci.yml` on `push` and `pull_request` with `actions/checkout`, `pnpm/action-setup` and `actions/setup-node` (Node 24) pinned to full SHAs. Done when: `grep -E 'uses: .+@[0-9a-f]{40}' .github/workflows/ci.yml | wc -l` equals the number of `uses:` lines. Cheaper substitute: `@v4` tags, which can move under us.
-- [ ] Add steps `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, `pnpm test` to `ci.yml`. Done when: each step appears and the run log shows each one green.
-- [ ] Add steps `python3 scripts/todo-graph.py validate`, `python3 scripts/todo-graph.py plan --check`, `python3 -m unittest discover -s tests/scripts` and `python3 -m unittest discover -s scripts/tests` to `ci.yml`. Done when: a deliberately stale `todo/implementation-plan.md` fails the run.
+- [ ] Create `.github/workflows/ci.yml` on `push` and `pull_request`, `runs-on: ubuntu-24.04` (Python 3.12 preinstalled, AGENTS.md needs 3.11 or newer), `permissions: contents: read`, with `actions/checkout` v7.0.1 (`persist-credentials: false`), `pnpm/action-setup` v6.1.0 (pnpm from `packageManager`) and `actions/setup-node` v7.1.0 (`node-version-file: .nvmrc`, pnpm cache) pinned to full SHAs, each with its tag in a comment. Done when: `grep -E 'uses: .+@[0-9a-f]{40}' .github/workflows/ci.yml | wc -l` equals the number of `uses:` lines. Cheaper substitute: `@v4` tags, which can move under us. **Corrected 2026-10-27:** "Node 24" would install the newest 24.x, but `engineStrict` with `engines.node` `>=24.18.0` (D00 T01 §2) makes `.nvmrc` the one source; the runner image and token scope were unpinned.
+- [ ] Add steps `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm build` to `ci.yml`. Done when: each step appears and the run log shows each one green. **Corrected 2026-10-27:** `pnpm build` (the dry-run bundle, a documented gate since D00 T01 §2) was missing.
+- [ ] Add steps `python3 scripts/todo-graph.py validate`, `python3 scripts/todo-graph.py plan --check`, `python3 -m unittest discover -s tests/scripts` and `python3 -m unittest discover -s scripts/tests` to `ci.yml`. Done when: the run log shows each step green on `main`; `python3 scripts/todo-graph.py plan --check` exits 1 on a stale plan in a scratch copy; and a throwaway branch `ci-probe-red` whose only change is a failing assertion in `test/health.test.ts` makes the run conclude `failure` at `pnpm test` with the later steps skipped, after which the branch is deleted. **Corrected 2026-10-27:** a stale plan cannot be committed without bypassing `scripts/hooks/pre-commit`, which `AGENTS.md` forbids; the probe proves a red step fails the run, and the scratch copy proves `plan --check` goes red on staleness.
 - [ ] Create `.conclave/ci.json` with `{"workflows": ["ci.yml"]}`. Done when: `python3 scripts/ci_status.py` exits 0 on a green run.
 - [ ] Add the CI badge for `.github/workflows/ci.yml` to the badge row in `README.md`, first in the row as in Isotone. Done when: the badge renders the workflow's status on GitHub. Cheaper substitute: a badge for a workflow that does not exist yet.
 - [ ] Commit: `ci: run Worker and TODO gates on every push`
