@@ -1,0 +1,229 @@
+import { describe, expect, it } from "vitest";
+import { Button, type ButtonVariant } from "../../src/web/components/Button";
+import { Checkbox } from "../../src/web/components/Checkbox";
+import { Field } from "../../src/web/components/Field";
+import { Pill, type PillVariant } from "../../src/web/components/Pill";
+
+// The shared controls (D07 T01 §6) render the board's structure with token classes, refuse what the SPEC forbids, and
+// pass through the attributes forms and htmx need. Browser behaviour (focus, keyboard, hover, submission) is
+// controls-browser.test.ts.
+const html = (node: unknown) => String(node);
+// The element's opening tag, for attribute assertions.
+const tag = (markup: string, name: string) => new RegExp(`<${name}\\b[^>]*>`).exec(markup)?.[0] ?? "";
+
+describe("Button", () => {
+  const variants: Record<ButtonVariant, string[]> = {
+    primary: ["bg-accent", "text-on-accent", "hover:bg-accent-hover"],
+    dark: ["bg-dark", "text-on-dark", "hover:bg-dark-active"],
+    ghost: ["bg-surface", "text-ink", "border-line-strong", "hover:border-ink"],
+    danger: ["bg-surface", "text-mal", "border-mal"],
+    link: ["text-orange-text", "underline", "hover:text-ink"],
+  };
+
+  it("renders every variant with the token classes of ui.css .btn", () => {
+    for (const [variant, classes] of Object.entries(variants)) {
+      const markup = html(<Button variant={variant as ButtonVariant}>Go</Button>);
+      for (const name of classes) expect(markup, `${variant} ${name}`).toContain(name);
+      if (variant !== "link") expect(markup).toContain("h-control ");
+      expect(markup).toContain("focus-visible:outline-orange");
+    }
+  });
+
+  it("renders the 48 px and the small 36 px size", () => {
+    expect(html(<Button>Go</Button>)).toMatch(/h-control px-20 rounded-control text-16/);
+    expect(html(<Button size="small">Go</Button>)).toMatch(/h-control-small px-12 rounded-control-small text-14/);
+  });
+
+  it("is a button of type button by default, a submit button when asked, and a link with href", () => {
+    expect(tag(html(<Button>Go</Button>), "button")).toContain('type="button"');
+    expect(
+      tag(
+        html(
+          <Button type="submit" name="intent" value="save">
+            Save
+          </Button>,
+        ),
+        "button",
+      ),
+    ).toMatch(/type="submit".*name="intent".*value="save"/);
+    const link = tag(
+      html(
+        <Button href="/upload" variant="primary">
+          Check a file
+        </Button>,
+      ),
+      "a",
+    );
+    expect(link).toContain('href="/upload"');
+  });
+
+  it("passes aria, data and htmx attributes through to the element", () => {
+    const markup = tag(
+      html(
+        <Button aria-controls="list" data-copy="check@isitlegit.co.za" hx-post="/x" hx-target="#list">
+          Copy
+        </Button>,
+      ),
+      "button",
+    );
+    for (const attribute of [
+      'aria-controls="list"',
+      'data-copy="check@isitlegit.co.za"',
+      'hx-post="/x"',
+      'hx-target="#list"',
+    ])
+      expect(markup).toContain(attribute);
+  });
+
+  it("names an icon-only button by its label and refuses one without", () => {
+    expect(tag(html(<Button icon={<svg aria-hidden="true" />} label="Copy the check address" />), "button")).toContain(
+      'aria-label="Copy the check address"',
+    );
+    // A type-level test, not a suppression: it fails if the types ever stop refusing a label-less icon-only button.
+    // @ts-expect-error an icon-only button without a label is refused by the types as well
+    expect(() => html(<Button icon={<svg aria-hidden="true" />} />)).toThrow("needs a label");
+  });
+
+  it("disables a button natively and a link without its href, and describes the reason", () => {
+    const button = html(
+      <Button id="remove" variant="danger" disabled disabledReason="The last owner cannot be removed">
+        Remove
+      </Button>,
+    );
+    expect(tag(button, "button")).toMatch(/disabled/);
+    expect(tag(button, "button")).toContain('aria-describedby="remove-reason"');
+    expect(button).toContain(
+      '<span id="remove-reason" class="text-13 text-muted">The last owner cannot be removed</span>',
+    );
+    const link = tag(
+      html(
+        <Button href="/cases?page=0" disabled>
+          Previous
+        </Button>,
+      ),
+      "a",
+    );
+    expect(link).toContain('aria-disabled="true"');
+    expect(link).not.toContain("href=");
+    expect(() =>
+      html(
+        <Button disabled disabledReason="why">
+          Remove
+        </Button>,
+      ),
+    ).toThrow("needs an id");
+  });
+});
+
+describe("Pill", () => {
+  const variants: Record<PillVariant, string> = {
+    safe: "bg-safe-wash text-safe",
+    suspicious: "bg-sus-wash text-sus",
+    malicious: "bg-mal-wash text-mal",
+    partial: "bg-partial-wash text-partial",
+    running: "bg-orange-wash text-orange-text",
+    neutral: "bg-light text-ink-2",
+  };
+
+  it("renders every variant with its words and token colours, at both sizes", () => {
+    for (const [variant, classes] of Object.entries(variants)) {
+      const markup = html(<Pill variant={variant as PillVariant}>E7 · Critical</Pill>);
+      expect(markup).toContain(classes);
+      expect(markup).toContain(">E7 · Critical</span>");
+      expect(markup).toContain("h-28");
+    }
+    expect(
+      html(
+        <Pill variant="malicious" size="compact">
+          1 new
+        </Pill>,
+      ),
+    ).toContain("h-24");
+  });
+
+  it("refuses a pill without words", () => {
+    expect(() => html(<Pill variant="safe"> </Pill>)).toThrow("needs words");
+  });
+});
+
+describe("Field", () => {
+  it("ties the label to its input and forwards the form attributes", () => {
+    const markup = html(
+      <Field
+        id="email"
+        name="email"
+        label="Work email"
+        type="email"
+        required
+        autocomplete="email"
+        inputmode="email"
+        hx-get="/check"
+      />,
+    );
+    expect(markup).toContain('<label for="email"');
+    const input = tag(markup, "input");
+    for (const attribute of [
+      'id="email"',
+      'name="email"',
+      'type="email"',
+      "required",
+      'autocomplete="email"',
+      'inputmode="email"',
+      'hx-get="/check"',
+    ])
+      expect(input).toContain(attribute);
+    expect(input).not.toMatch(/\saria-invalid=/);
+    expect(input).not.toMatch(/\saria-describedby=/);
+  });
+
+  it("describes the input by its hint and its error, by ids that exist, and marks it invalid", () => {
+    const markup = html(
+      <Field id="email" name="email" label="Work email" hint="Your work address" error="Enter an email address" />,
+    );
+    const input = tag(markup, "input");
+    expect(input).toContain('aria-invalid="true"');
+    expect(input).toContain('aria-describedby="email-hint email-error"');
+    expect(markup).toContain('<p id="email-hint" class="text-13 text-muted">Your work address</p>');
+    expect(markup).toContain(
+      '<p id="email-error" class="text-13 text-mal weight-text-strong">Enter an email address</p>',
+    );
+    expect(input).toContain("aria-invalid:border-mal");
+  });
+
+  it("gives two fields on one page distinct ids for every relationship", () => {
+    const markup = html(
+      <>
+        <Field id="first" name="first" label="First" hint="h" error="e" />
+        <Field id="second" name="second" label="Second" hint="h" error="e" />
+      </>,
+    );
+    const ids = [...markup.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toEqual(["first-hint", "first", "first-error", "second-hint", "second", "second-error"]);
+  });
+});
+
+describe("Checkbox", () => {
+  it("is a native checkbox inside its label, with name, value and states", () => {
+    const markup = html(
+      <Checkbox name="consent" value="yes" checked required>
+        I agree to the privacy notice
+      </Checkbox>,
+    );
+    expect(markup.startsWith("<label")).toBe(true);
+    const input = tag(markup, "input");
+    for (const attribute of ['type="checkbox"', 'name="consent"', 'value="yes"', "checked", "required"])
+      expect(input).toContain(attribute);
+    expect(
+      tag(
+        html(
+          <Checkbox name="c" disabled>
+            x
+          </Checkbox>,
+        ),
+        "input",
+      ),
+    ).toContain("disabled");
+    expect(tag(html(<Checkbox name="c">x</Checkbox>), "input")).not.toMatch(/\schecked/);
+  });
+});

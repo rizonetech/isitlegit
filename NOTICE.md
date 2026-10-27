@@ -26,6 +26,7 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `tailwindcss` | 4.3.3 | MIT | No: compiles the stylesheet, which keeps Tailwind's MIT notice |
 | `@tailwindcss/cli` | 4.3.3 | MIT | No: the stylesheet compiler's command line |
 | `@types/node` | 24.19.2 | MIT | No: types for the Node-side build scripts and tests |
+| `playwright-core` | 1.64.1 | Apache-2.0 | No: drives the browser tests with real keyboard and mouse input |
 | `fonttools` (Python) | 4.63.0 | MIT | No: converts the fonts to WOFF2 and computes the fallback metrics (`design/tools/`) |
 | `brotli` (Python) | 1.2.1 | MIT | No: WOFF2 compression for fonttools |
 | `uharfbuzz` (Python) | 0.53.3 | Apache-2.0 | No: shapes the brand text in `design/tools/build-brand.py` |

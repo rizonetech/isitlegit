@@ -47,7 +47,12 @@ const COLOUR_PROPERTY = new RegExp(`(?<![\\w-])(?:${KEBAB}|${CAMEL})\\s*[:=]\\s*
 const ARBITRARY = /\[([^\]\s]*)\]/g;
 
 function named(value: string): string[] {
-  return (value.toLowerCase().match(/[a-z]+/g) ?? []).filter((word) => NAMED.has(word));
+  // Token references are what is allowed: `var(--color-orange-wash)` names no colour, though it contains "orange".
+  const literal = value
+    .toLowerCase()
+    .replace(/var\([^)]*\)/g, " ")
+    .replace(/--[\w-]+/g, " ");
+  return (literal.match(/[a-z]+/g) ?? []).filter((word) => NAMED.has(word));
 }
 
 // Every literal colour in source text, as `line: match`.
@@ -124,7 +129,10 @@ function strayColours(css: string, allowed: Set<string>): string[] {
     .replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""')
     .replace(/@supports[^{]*\{/g, "@supports{");
   const stray: string[] = [];
-  for (const m of body.matchAll(HEX)) if (!allowed.has(hex(m[0]))) stray.push(m[0]);
+  // A token colour with an opacity modifier (`outline-orange/25` compiles to #ff4a1440) is still the token.
+  const isToken = (colour: string) =>
+    allowed.has(colour) || (/^#[0-9a-f]{8}$/.test(colour) && allowed.has(colour.slice(0, 7)));
+  for (const m of body.matchAll(HEX)) if (!isToken(hex(m[0]))) stray.push(m[0]);
   for (const m of body.matchAll(new RegExp(`\\b(${FUNCTIONS})\\(((?:[^()]|\\([^()]*\\))*)\\)`, "gi"))) {
     const [whole, name = "", args = ""] = m;
     if (/^color-mix$/i.test(name)) {
@@ -175,7 +183,7 @@ describe("raw colours", () => {
       "hsl(1 2% 3%) oklch(0.5 0.1 30) lab(5 1 2) hwb(1 2% 3%) oklab(1 0 0) color-mix(in srgb, x, y)",
       "a{color:red} b{background:navy none}",
       '<p class="bg-[red] [color:tomato] text-[#abc]">',
-      "bg-ink var(--color-ink) #fade-in tan-line mark",
+      "bg-ink var(--color-ink) #fade-in tan-line mark a{background-color:var(--color-orange-wash)}",
       "const P = () => <p style={{ color: \"red\", backgroundColor: 'navy' }}>x</p>;",
       '<svg><path fill="red" stroke=\'tomato\' stop-color="white" /></svg>',
     ].join("\n");
@@ -207,9 +215,11 @@ describe("raw colours", () => {
     const css =
       ".a{color:#181519}.b{color:#fff}.c{color:red}.d{background:color-mix(in oklab,currentcolor 50%,transparent)}" +
       "@supports (color:color-mix(in lab, red, red)){.e{color:currentColor}}.f{color:oklch(.5 .1 30)}" +
-      ".g{box-shadow:0 1px 2px #1815190f}.h{color:#123456}.i{color:color-mix(in srgb,red 50%,#fff)}";
+      ".g{box-shadow:0 1px 2px #1815190f}.h{color:#123456}.i{color:color-mix(in srgb,red 50%,#fff)}" +
+      ".j{outline-color:#ff4a1440}.k{outline-color:#12345640}";
     expect(strayColours(css, allowed)).toEqual([
       "#123456",
+      "#12345640",
       "oklch(.5 .1 30)",
       "color-mix(in srgb,red 50%,#fff)",
       "color:red",

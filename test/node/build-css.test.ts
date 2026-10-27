@@ -42,8 +42,8 @@ describe("build:css", () => {
     // Replaced by renaming a finished file over it (a new inode), never written in place, where an interrupted write
     // would leave a truncated stylesheet.
     expect(statSync(out).ino).not.toBe(before);
-    // `h-control` appears only in test/node/theme.test.ts's fixture: a test must not decide what ships.
-    expect(css).not.toContain(".h-control");
+    // `mt-[13px]` appears only in this test's own source: a test must not decide what ships.
+    expect(css).not.toContain("mt-\\[13px\\]");
     expect(statSync(TOKENS).mtimeMs, "--no-tokens must not touch tokens.css").toBe(tokensBefore);
   });
 
@@ -51,13 +51,13 @@ describe("build:css", () => {
     const web = join(DIR, "probe/web");
     cpSync(join(ROOT, "src/web"), web, { recursive: true });
     writeFileSync(join(web, "page.tsx"), 'export const Page = () => <p class="rounded-pill">p</p>;\n');
-    writeFileSync(join(DIR, "probe/notes.md"), '<p class="rounded-control-small">only in notes</p>\n');
+    writeFileSync(join(DIR, "probe/notes.md"), '<p class="mt-[13px]">only in notes</p>\n');
     const out = join(DIR, "probe/out.css");
     const run = buildCss("--no-tokens", "--input", join(web, "styles/app.css"), "--out", out);
     expect(run.status, run.stderr).toBe(0);
     const css = readFileSync(out, "utf-8");
     expect(css).toContain(".rounded-pill");
-    expect(css).not.toContain(".rounded-control-small");
+    expect(css).not.toContain("mt-\\[13px\\]");
   });
 
   it("names the failing step and its cause, and refuses a flag with no path", () => {

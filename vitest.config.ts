@@ -19,7 +19,7 @@ export default defineConfig({
       },
       {
         // Build scripts and source checks, which read the repository, in Node.
-        test: { name: "node", include: ["test/node/**/*.test.ts"], environment: "node" },
+        test: { name: "node", include: ["test/node/**/*.test.{ts,tsx}"], environment: "node" },
       },
     ],
   },

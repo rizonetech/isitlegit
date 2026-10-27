@@ -6,6 +6,6 @@
     // (TS2416). Only the tests skip library checks; the root tsconfig.json still checks them for the Worker.
     "skipLibCheck": true
   },
-  "include": ["./**/*.ts", "../worker-configuration.d.ts"],
+  "include": ["./**/*.ts", "./**/*.tsx", "../worker-configuration.d.ts"],
   "exclude": ["./node/**"]
 }

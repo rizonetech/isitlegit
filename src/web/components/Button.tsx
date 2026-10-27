@@ -1,0 +1,104 @@
+import type { Child } from "hono/jsx";
+import { cx, type PassThrough, passThrough } from "./attrs";
+
+// The app's buttons (design/SPEC.md 1, design/mockups/source/ui.css `.btn`): primary, dark, ghost, danger and link, at
+// the 48 px control height or the 36 px small one. Token classes only; a board value between two scale steps is built
+// as the step above (see the SPEC's shared parts).
+export type ButtonVariant = "primary" | "dark" | "ghost" | "danger" | "link";
+
+type Content =
+  | { children: Child; icon?: Child; label?: string }
+  // An icon-only button must carry a label, its accessible name.
+  | { children?: undefined; icon: Child; label: string };
+
+type Target =
+  | { href: string; type?: never; name?: never; value?: never; form?: never }
+  | { href?: undefined; type?: "button" | "submit"; name?: string; value?: string; form?: string };
+
+export type ButtonProps = PassThrough &
+  Content &
+  Target & {
+    variant?: ButtonVariant;
+    size?: "default" | "small";
+    id?: string;
+    class?: string;
+    disabled?: boolean;
+    // Why the control is disabled, shown beside it and given as its description (needs `id`).
+    disabledReason?: string;
+  };
+
+const FOCUS = "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-orange";
+const DISABLED =
+  "disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+const BOX =
+  "inline-flex items-center justify-center gap-8 border border-transparent font-text weight-text-strong leading-none no-underline cursor-pointer whitespace-nowrap box-border";
+const SIZE = {
+  default: "h-control px-20 rounded-control text-16",
+  small: "h-control-small px-12 rounded-control-small text-14",
+};
+const VARIANT: Record<ButtonVariant, string> = {
+  primary: "bg-accent text-on-accent hover:bg-accent-hover",
+  dark: "bg-dark text-on-dark hover:bg-dark-active",
+  ghost: "bg-surface text-ink border-line-strong hover:border-ink",
+  danger: "bg-surface text-mal border-mal",
+  link: "",
+};
+const LINK =
+  "inline-flex items-center gap-8 bg-transparent border-0 p-0 font-text weight-text-strong text-orange-text underline underline-offset-2 cursor-pointer hover:text-ink";
+
+export function buttonClass(variant: ButtonVariant = "ghost", size: "default" | "small" = "default"): string {
+  return variant === "link" ? cx(LINK, FOCUS, DISABLED) : cx(BOX, SIZE[size], VARIANT[variant], FOCUS, DISABLED);
+}
+
+export function Button(props: ButtonProps) {
+  const { variant = "ghost", size = "default", id, disabled, disabledReason, icon, label, children } = props;
+  if (!children && !label) throw new Error("Button: an icon-only button needs a label");
+  if (disabledReason && !id) throw new Error("Button: a disabled reason needs an id to describe the control");
+  const reasonId = disabledReason && id ? `${id}-reason` : undefined;
+  const common = {
+    ...passThrough(props as Record<string, unknown>),
+    id,
+    class: cx(buttonClass(variant, size), props.class),
+    "aria-label": label,
+    "aria-describedby": reasonId,
+  };
+  const body = (
+    <>
+      {icon}
+      {children}
+    </>
+  );
+  const control =
+    props.href !== undefined ? (
+      disabled ? (
+        <a {...common} aria-disabled="true">
+          {body}
+        </a>
+      ) : (
+        <a {...common} href={props.href}>
+          {body}
+        </a>
+      )
+    ) : (
+      <button
+        {...common}
+        type={props.type ?? "button"}
+        name={props.name}
+        value={props.value}
+        form={props.form}
+        disabled={disabled}
+      >
+        {body}
+      </button>
+    );
+  return reasonId ? (
+    <>
+      {control}
+      <span id={reasonId} class="text-13 text-muted">
+        {disabledReason}
+      </span>
+    </>
+  ) : (
+    control
+  );
+}
