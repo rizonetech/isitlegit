@@ -1,0 +1,116 @@
+{
+  "ref": "D01 T01 \u00a72",
+  "title": "Case store and R2 artefact layout",
+  "implementation_sha": "d8e4d99612b1ecaf355a289c08e42bcb52068652",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T01-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T01-s2.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/intake -> Tests  20 passed (20)",
+    "pnpm test -> Test Files 23 passed (23), Tests 252 passed (252)",
+    "Miniflare R2 probe: create-only put answers null when present, a mismatched sha256 is rejected, head returns the stored checksum"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T01-s2.md",
+    "verdict": "filed",
+    "candidate": "f78bd2d160ff087b8ece6cf7f92372c5e9568367",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T01 \u00a73",
+      "D07 T03 \u00a73",
+      "D07 T02 \u00a79"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "cap_outcome": "Round 2 declared HIGHEST: P3 (the checksum fallback calling a vanished object a conflict), fixed in d8e4d99 with a test that fails without it; nothing is left open",
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T01-s2.md",
+    "candidate": "d005c31e353643fd501f7d2ba1750a438fbf737a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T01-s2.md",
+    "verdict": "fixed",
+    "candidate": "ed06ebe0b92e2085fb5617af13c9a35000fdbd42",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}
