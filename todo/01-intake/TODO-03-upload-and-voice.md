@@ -57,7 +57,7 @@ track: day-1
 - [ ] Write `POST /api/upload` (Hono) requiring a session from D07 T02 and the organisation's daily case cap from D07 T02 §4. Done when: an anonymous request gets 401 and a capped organisation gets 429 in `test/intake/upload.test.ts`.
 - [ ] Sniff the type from magic bytes (`%PDF`, PNG, JPEG, WebP, OggS, RIFF/WAVE, ID3 or MPEG frame, `ftyp` M4A, OLE header for `.msg`, RFC 5322 header block for `.eml`). Done when: a renamed PDF uploaded as `x.png` is treated as PDF. Cheaper substitute: trusting the extension.
 - [ ] Refuse anything else with 415 and files over 25 MiB with 413, storing nothing. Done when: both tests pass and R2 holds no object.
-- [ ] Store the file with `putArtefact` (kind `raw` for mail, `attachment` otherwise), create the case with `channel = "upload"` and a `source_kind` of mail, document, image or audio, and start the Workflow. Done when: each accepted fixture creates one case and one Workflow instance.
+- [ ] Store the file with `putRaw` for mail and `putAttachment` otherwise (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only derived kinds), create the case with `channel = "upload"` and a `source_kind` of mail, document, image or audio, and start the Workflow. Done when: each accepted fixture creates one case and one Workflow instance.
 - [ ] Make the Workflow's `parse` step branch on `source_kind`. Done when: a PDF case skips MIME parsing and records the document artefact.
 - [ ] Commit: `intake: upload API for mail, documents, images and audio`
 

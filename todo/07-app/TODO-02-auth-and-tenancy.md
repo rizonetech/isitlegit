@@ -231,7 +231,7 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 1. Close an account and purge it on schedule. Done when: a closed organisation's cases, rows and R2 objects are gone within 30 days, and another organisation's are untouched.
 
 - [ ] Record an organisation's closure (`closed_at`) when its owner closes the account, and refuse new cases for it from then on. Done when: a test closes an organisation and its next case is refused.
-- [ ] Write the purge: a scheduled Worker run deletes, for each organisation closed 30 days or more, its R2 objects under each case's keys and then its cases (the child rows cascade), in batches that resume after a failure. Done when: a test with two organisations purges only the closed one's cases, rows and objects, and a purge interrupted halfway finishes on the next run.
+- [ ] Write the purge: a scheduled Worker run deletes, for each organisation closed 30 days or more, its R2 objects listed by each case's prefixes (`raw/<caseId>/` and `art/<caseId>/`, so an object whose row was never written goes too; D01 T01 §2) and then its cases (the child rows cascade), in batches that resume after a failure. Done when: a test with two organisations purges only the closed one's cases, rows and objects, and a purge interrupted halfway finishes on the next run.
 - [ ] State the period on the privacy page and in `docs/operations.md`. Done when: both name 30 days from closure.
 - [ ] Commit: `app: account closure and the 30-day purge`
 
