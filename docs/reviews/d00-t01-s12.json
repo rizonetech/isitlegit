@@ -1,0 +1,121 @@
+{
+  "ref": "D00 T01 \u00a712",
+  "title": "Rollback from a split deployment",
+  "implementation_sha": "8d3c602062e5419d41286396cd0800c926ea08f6",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s12.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s12.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/00-workspace/D00-T01-s12.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/00-workspace/D00-T01-s12.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/rollback.test.ts -> Tests  36 passed (36)",
+    "pnpm test -> Test Files 20 passed (20), Tests 214 passed (214)",
+    "live: 90/10 split of bec88674 (34f5046) and c52022bb (a7a3aee) refused without --to and recovered with --to, verified in 30 s; roll-forward by code ancestry to c52022bb verified in 31 s and cleared its record"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s12.md",
+    "verdict": "completed",
+    "candidate": "128731a3ea8fbd4bd1b6b8c6e47aba16f9917e46",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s12.md",
+    "candidate": "58355b1dec1138829ff0c18291538923b0808b6d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/00-workspace/D00-T01-s12.md",
+    "verdict": "fixed",
+    "candidate": "c35028b2b93c21c9affd31e4bac103d04d300027",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

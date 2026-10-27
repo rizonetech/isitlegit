@@ -50,7 +50,7 @@ track: day-0
 | 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
 | 10 | §10 | Deploy rollback and re-verification | §5 | [x] |
 | 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [ ] |
-| 12 | §12 | Rollback from a split deployment | §10 | [ ] |
+| 12 | §12 | Rollback from a split deployment | §10 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -472,13 +472,16 @@ The gateway's settings, the `meta` custom provider and its pricing rules live in
 - [x] Prove a split of two different commits live: upload the tip's code as a second version (its own `COMMIT_SHA`), split the deployed version 90 and it 10, recover with `--to` the deployed version, and read back the record (the second version and its commit). Done when: the evidence quotes the split, the recovery and the record.
 - [x] Close round 2's finding: the active commit is looked up by the active version's id, not taken from the first entry, which may be a version listed at 0%. Done when: `test/node/rollback.test.ts` passes both entry orders and the reviewer's `[b 0%, c2 100%]` case (back to `b`, not `c1`), and fails when the first entry is used (checked by mutation).
 - [x] Close round 3's finding: the default choice considers only versions that served traffic (above 0%) in an earlier deployment, so a version staged at 0% for a gradual rollout is never promoted untested. Done when: `test/node/rollback.test.ts` passes a history with a version staged at 0% (back to the earlier served version) and fails without the filter (checked by mutation).
-- [ ] Commit: `infra: rollback from a split deployment`
+- [x] Commit: `infra: rollback from a split deployment`
 
 Evidence 2026-10-27 13:55 SAST. A clean worktree of the deployed commit `34f5046` uploaded `d00d822a` with `wrangler versions upload --var COMMIT_SHA:34f5046...` (nothing deployed); `wrangler versions view` read `34f5046` as both its and the serving `bec88674`'s `COMMIT_SHA`. `wrangler versions deploy bec88674@90% d00d822a@10% --yes` gave `before: bec88674 90, d00d822a 10`. A plain `node scripts/rollback.ts --reason ...` stopped in 4 s with `rollback: a split deployment serves (bec88674 90%, d00d822a 10%); name the version to restore with --to` and `deployment changed: no`. `--to bec88674` recorded `d00d822a`, moved `bec88674` to 100%, `/health` reported `34f5046`, the smoke check passed (10 s), `rolled back to bec88674, verified` in 26 s, `deployment changed: yes`, and `wrangler deployments status` read `after: bec88674 100`. The record held `d00d822a` and no commit (it shares the target's); the run's wording for that case was corrected afterwards. `pnpm test`: 20 files, 204 tests (commit `f8362a7`'s message says 207; the run that preceded it gave 203).
 
 Evidence 2026-10-27 14:05 SAST, after the final review's fixes (commit `a7a3aee`). A clean worktree of `a7a3aee` uploaded `c52022bb` with its own `COMMIT_SHA`; `versions view` read `34f5046` for `bec88674` and `a7a3aee` for `c52022bb`. The split read `before: bec88674 90, c52022bb 10`; `--to bec88674` printed `recorded: c52022bb (commit a7a3aee...) as rolled away from`, passed the smoke check (9 s), `rolled back to bec88674, verified` in 30 s, `deployment changed: yes`, `after: bec88674 100`, and the record held `c52022bb` and `a7a3aee`. With that record, `--to c52022bb` (code descending from `34f5046`) printed `recorded: nothing (a roll-forward) ... once verified`, passed (13 s), then `cleared: c52022bb (commit a7a3aee...)`, verified in 31 s; the record read empty and `/health` reports `a7a3aee`, which now serves. Mutation runs, each failing the test named: no re-read before acting, clearing before verifying, forward by upload number, 0% counted as serving, status shape unchecked (final review); reconciliation against the latest deployment twice (completion review); the split refusal, whole-deployment change, one-side-newer and record-every-other rules (build). `pnpm test` at `a7a3aee`: 20 files, 213 tests.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/rollback.test.ts` passes, and fails if a split deployment without `--to` reaches the deployment call.
+
+> **Verified:** 2026-10-27 | §12 | 8d3c602062e5419d41286396cd0800c926ea08f6
+> **Review:** `docs/reviews/d00-t01-s12.json`
 
 ## Verification
 
