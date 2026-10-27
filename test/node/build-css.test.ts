@@ -60,6 +60,18 @@ describe("build:css", () => {
     expect(css).not.toContain("mt-\\[13px\\]");
   });
 
+  it("compiles the zero utilities from the spacing scale's 0 step, which the theme reset otherwise removes", () => {
+    const web = join(DIR, "zero/web");
+    cpSync(join(ROOT, "src/web"), web, { recursive: true });
+    const zero = ["p-0", "px-0", "m-0", "inset-y-0", "left-0", "min-w-0"];
+    writeFileSync(join(web, "zero.tsx"), `export const Zero = () => <p class="${zero.join(" ")}">z</p>;\n`);
+    const out = join(DIR, "zero/out.css");
+    const run = buildCss("--no-tokens", "--input", join(web, "styles/app.css"), "--out", out);
+    expect(run.status, run.stderr).toBe(0);
+    const css = readFileSync(out, "utf-8");
+    for (const name of zero) expect(css, name).toContain(`.${name}{`);
+  });
+
   it("names the failing step and its cause, and refuses a flag with no path", () => {
     const tokens = buildCss("--tokens-out", join(DIR, "no-such-folder/tokens.css"), "--out", join(DIR, "never.css"));
     expect(tokens.status).not.toBe(0);

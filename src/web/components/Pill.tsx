@@ -2,7 +2,8 @@ import { cx, type PassThrough, passThrough } from "./attrs";
 
 // Status pills (design/SPEC.md 1, ui.css `.pill`), carrying their meaning in words, never colour alone: "Malicious",
 // "Checking", "E7 · Critical", "Owner". 26 px on the boards, built 28 (the step above); the 22 px navigation size 24.
-export type PillVariant = "safe" | "suspicious" | "malicious" | "partial" | "running" | "neutral";
+// `brand` and `alert` are the admin sidebar's ("Rizonetech admin", the open feedback count; board `AdminNav`).
+export type PillVariant = "safe" | "suspicious" | "malicious" | "partial" | "running" | "neutral" | "brand" | "alert";
 
 const VARIANT: Record<PillVariant, string> = {
   safe: "bg-safe-wash text-safe",
@@ -11,6 +12,8 @@ const VARIANT: Record<PillVariant, string> = {
   partial: "bg-partial-wash text-partial",
   running: "bg-orange-wash text-orange-text",
   neutral: "bg-light text-ink-2",
+  brand: "bg-orange text-dark",
+  alert: "bg-mal-band text-on-band",
 };
 
 export type PillProps = PassThrough & {

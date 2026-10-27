@@ -25,6 +25,8 @@ type Tokens = {
     scale: number[];
     radius: Record<string, number>;
     "control-height": Record<string, number>;
+    // Layout widths the boards draw outside the spacing scale (the 256 px sidebar), as `w-<name>`.
+    layout: Record<string, number>;
     shadow: Record<string, string>;
   };
   type: {
@@ -86,11 +88,15 @@ export function readTokens(dir = join(ROOT, TOKENS)): Tokens {
   if (Object.keys(colors.themes.dark).sort().join() !== light)
     fail("colors.themes", "light and dark", "the same set of roles");
   if (!Array.isArray(spacing.scale)) fail("spacing.scale", spacing.scale, "a list");
-  for (const [i, px] of spacing.scale.entries()) positive(`spacing.scale[${i}]`, px, 1000);
-  for (const group of ["radius", "control-height"] as const) {
+  // 0 is a step (p-0, m-0, inset-0); every other step is a positive size.
+  for (const [i, px] of spacing.scale.entries()) if (px !== 0) positive(`spacing.scale[${i}]`, px, 1000);
+  for (const group of ["radius", "control-height", "layout"] as const) {
     names(`spacing.${group}`, spacing[group]);
     for (const [key, px] of Object.entries(spacing[group])) positive(`spacing.${group}.${key}`, px);
   }
+  // A layout width shares the --spacing- namespace with the scale and the control heights, so it may not shadow them.
+  for (const key of Object.keys(spacing.layout))
+    if (/^\d|^control/.test(key)) fail(`spacing.layout key`, key, "a name no scale step or control height uses");
   names("spacing.shadow", spacing.shadow);
   for (const [key, value] of Object.entries(spacing.shadow))
     text(`spacing.shadow.${key}`, value, SHADOW, "offsets, blur and an rgba() colour per layer");
@@ -140,6 +146,7 @@ export function buildTokens(dir?: string): string {
     ...Object.entries(spacing["control-height"]).map(
       ([key, px]) => `--spacing-control${key === "default" ? "" : `-${key}`}: ${px}px;`,
     ),
+    ...Object.entries(spacing.layout).map(([key, px]) => `--spacing-${key}: ${px}px;`),
     ...Object.entries(spacing.radius).map(([key, px]) => `--radius-${key}: ${px}px;`),
     ...Object.entries(spacing.shadow).map(([key, value]) => `--shadow-${key}: ${value};`),
     ...Object.entries(type.families).map(([key, name]) => `--font-${key}: ${family(name)};`),

@@ -43,6 +43,7 @@
   --color-on-dark-soft: #F1F1F2;
   --color-on-dark-muted: #D2CFD7;
   --color-orange-on-dark: #FF8A65;
+  --spacing-0: 0px;
   --spacing-2: 2px;
   --spacing-4: 4px;
   --spacing-8: 8px;
@@ -64,6 +65,7 @@
   --spacing-120: 120px;
   --spacing-control: 48px;
   --spacing-control-small: 36px;
+  --spacing-sidebar: 256px;
   --radius-small: 6px;
   --radius-control-small: 8px;
   --radius-control: 10px;

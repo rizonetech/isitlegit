@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Button } from "../../src/web/components/Button";
 import { Checkbox } from "../../src/web/components/Checkbox";
 import { Field } from "../../src/web/components/Field";
-import { chromiumPath, launch } from "./browser";
+import { chromiumPath, focused, launch } from "./browser";
 
 // The controls in a real browser (D07 T01 §6): focus is visible, the keyboard activates what a mouse does, disabled
 // controls do nothing, forms submit what they should, and the hover states are the board's, in both themes.
@@ -119,45 +119,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
       const reached: Record<string, { outline: string; contrast: number }> = {};
       for (let i = 0; i < 30; i++) {
         await page.keyboard.press("Tab");
-        const focus = await page.evaluate(() => {
-          // The ring composited over what is really beside it (every painted ancestor's background, page first) on a
-          // 1x1 canvas, so any colour syntax and any alpha count as a viewer sees them; then the WCAG contrast ratio.
-          const pixel = (fill: string[]) => {
-            const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d");
-            if (!ctx) throw new Error("no canvas");
-            for (const colour of fill) {
-              ctx.fillStyle = colour;
-              ctx.fillRect(0, 0, 1, 1);
-            }
-            return [...ctx.getImageData(0, 0, 1, 1).data];
-          };
-          const luminance = (rgb: number[]) => {
-            const [r, g, b] = rgb.map((v) => {
-              const c = v / 255;
-              return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-            });
-            return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
-          };
-          const el = document.activeElement as HTMLElement;
-          const s = getComputedStyle(el);
-          const behind: string[] = [];
-          for (let node = el.parentElement; node; node = node.parentElement)
-            behind.unshift(getComputedStyle(node).backgroundColor);
-          const beside = pixel(behind);
-          const ring = luminance(pixel([...behind, s.outlineColor]));
-          const page = luminance(beside);
-          const [hi, lo] = ring > page ? [ring, page] : [page, ring];
-          return {
-            id: el.id,
-            outline: `${s.outlineStyle} ${s.outlineWidth}`,
-            contrast: (hi + 0.05) / (lo + 0.05),
-            opaque: beside[3] === 255,
-          };
-        });
+        const focus = await focused(page);
         // Past the last control focus returns to the document itself, which has nothing behind it to measure.
-        if (!focus.id) continue;
-        expect(focus.opaque, `an opaque background behind ${focus.id}`).toBe(true);
-        reached[focus.id] = { outline: focus.outline, contrast: focus.contrast };
+        if (!focus) continue;
+        const id = focus.key;
+        expect(focus.opaque, `an opaque background behind ${id}`).toBe(true);
+        reached[id] = { outline: focus.outline, contrast: focus.contrast };
       }
       const placed = BACKGROUNDS.flatMap((bg) => ["primary", "danger", "small", "link"].map((v) => `${bg}-${v}`));
       for (const id of ["primary", "ghost", "dark", "go", ...placed, "email", "bad", "consent", "plain", "submit"]) {

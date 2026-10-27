@@ -21,6 +21,9 @@ export const isDisabled = (props: Record<string, unknown>) =>
 // The focus indicator of every control: a solid 2 px outline 2 px outside it in `orange-text`, 4.7:1 or more against
 // every background the boards place controls on, in both themes (a SPEC deviation, design/SPEC.md 1).
 export const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text";
+// The same ring on the dark admin sidebar, where `orange-text` measures 3.41:1 and `orange-on-dark` 6.17:1 or more.
+export const FOCUS_ON_DARK =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-on-dark";
 
 // A string with something in it, or undefined: a blank name is no name.
 export const nonBlank = (value: unknown) => (typeof value === "string" && value.trim() ? value : undefined);

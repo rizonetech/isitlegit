@@ -1,6 +1,7 @@
 {
- "$comment": "IsItLegit spacing tokens (design/SPEC.md): a 4 px scale with a 2 px hairline step. Board spacings between steps round to the nearest step (at most 2 px away).",
+ "$comment": "IsItLegit spacing tokens (design/SPEC.md): a 4 px scale with a 2 px hairline step and 0 (for p-0, m-0, inset-0 and the other zero utilities, which the theme reset otherwise removes). Board spacings between steps round to the nearest step (at most 2 px away).",
  "scale": [
+  0,
   2,
   4,
   8,
@@ -32,6 +33,9 @@
  "control-height": {
   "default": 48,
   "small": 36
+ },
+ "layout": {
+  "sidebar": 256
  },
  "shadow": {
   "card": "0 1px 2px rgba(24, 21, 25, 0.06), 0 8px 24px rgba(24, 21, 25, 0.06)"

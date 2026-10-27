@@ -5,6 +5,9 @@ import { cx, FOCUS, hasText, ids, isDisabled, nonBlank, type PassThrough, passTh
 // the 48 px control height or the 36 px small one. Token classes only; a board value between two scale steps is built
 // as the step above (the 14 px padding of `.btn-sm` is 16; see the SPEC's shared parts).
 export type ButtonVariant = "primary" | "dark" | "ghost" | "danger" | "link";
+// `icon` is the 32 px square of the sidebar's copy button (board `AppNav`, 30 px built 32); `small-icon` the 36 by 40 px
+// Menu button of the phone header (board `Report-Mobile`).
+export type ButtonSize = "default" | "small" | "icon" | "small-icon";
 
 type Content =
   | { children: Child; icon?: Child; label?: string }
@@ -13,13 +16,21 @@ type Content =
 
 type Target =
   | { href: string; type?: never; name?: never; value?: never; form?: never }
-  | { href?: undefined; type?: "button" | "submit"; name?: string; value?: string; form?: string };
+  | {
+      href?: undefined;
+      type?: "button" | "submit";
+      name?: string;
+      value?: string;
+      form?: string;
+      // The id of a popover this button opens and closes, with no script (the phone menu).
+      popovertarget?: string;
+    };
 
 export type ButtonProps = PassThrough &
   Content &
   Target & {
     variant?: ButtonVariant;
-    size?: "default" | "small";
+    size?: ButtonSize;
     id?: string;
     class?: string;
     disabled?: boolean;
@@ -31,9 +42,11 @@ const DISABLED =
   "disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 const BOX =
   "inline-flex items-center justify-center gap-8 border border-transparent font-text weight-text-strong leading-none no-underline cursor-pointer whitespace-nowrap box-border";
-const SIZE = {
+const SIZE: Record<ButtonSize, string> = {
   default: "h-control px-20 rounded-control text-16",
   small: "h-control-small px-16 rounded-control-small text-14",
+  icon: "h-32 w-32 px-0 rounded-control-small text-14",
+  "small-icon": "h-control-small w-40 px-0 rounded-control-small text-14",
 };
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "bg-accent text-on-accent hover:bg-accent-hover",
@@ -45,7 +58,7 @@ const VARIANT: Record<ButtonVariant, string> = {
 const LINK =
   "inline-flex items-center gap-8 bg-transparent border-0 p-0 font-text weight-text-strong text-orange-text underline underline-offset-2 cursor-pointer hover:text-ink";
 
-export function buttonClass(variant: ButtonVariant = "ghost", size: "default" | "small" = "default"): string {
+export function buttonClass(variant: ButtonVariant = "ghost", size: ButtonSize = "default"): string {
   return variant === "link" ? cx(LINK, FOCUS, DISABLED) : cx(BOX, SIZE[size], VARIANT[variant], FOCUS, DISABLED);
 }
 
@@ -92,6 +105,7 @@ export function Button(props: ButtonProps) {
         name={props.name}
         value={props.value}
         form={props.form}
+        popovertarget={props.popovertarget}
         disabled={disabled}
       >
         {body}

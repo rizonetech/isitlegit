@@ -195,6 +195,8 @@ describe("Pill", () => {
     partial: "bg-partial-wash text-partial",
     running: "bg-orange-wash text-orange-text",
     neutral: "bg-light text-ink-2",
+    brand: "bg-orange text-dark",
+    alert: "bg-mal-band text-on-band",
   };
 
   it("renders every variant with its words and token colours, at both sizes", () => {

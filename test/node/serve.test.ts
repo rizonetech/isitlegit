@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { unstable_startWorker } from "wrangler";
-import { APP_CSS, FONTS } from "../../src/web/assets.ts";
+import { APP_CSS, FONTS, LOGO, LOGO_MARK, LOGO_ON_DARK } from "../../src/web/assets.ts";
 
 // The Worker as `wrangler dev` runs it, from wrangler.jsonc with its static assets and public/_headers, answers the
 // fingerprinted files with the year-long immutable cache and the right types, refuses unhashed or missing ones, and
@@ -41,6 +41,16 @@ describe("static assets as wrangler.jsonc serves them", () => {
       expect(res.headers.get("content-type"), path).toBe("font/woff2");
       expect(res.headers.get("cache-control"), path).toBe(IMMUTABLE);
       expect(new Uint8Array(await res.arrayBuffer()).slice(0, 4)).toEqual(new TextEncoder().encode("wOF2"));
+    }
+  });
+
+  it("serves the three fingerprinted logos as image/svg+xml with the immutable cache", async () => {
+    for (const path of [LOGO, LOGO_ON_DARK, LOGO_MARK]) {
+      const res = await get(path);
+      expect(res.status, path).toBe(200);
+      expect(res.headers.get("content-type"), path).toMatch(/^image\/svg\+xml/);
+      expect(res.headers.get("cache-control"), path).toBe(IMMUTABLE);
+      expect(await res.text(), path).toContain("<svg");
     }
   });
 

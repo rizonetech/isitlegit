@@ -23,7 +23,10 @@ const args = () => [
   join(DIR, "fonts.css"),
   "--module",
   join(DIR, "assets.ts"),
+  "--brand",
+  join(DIR, "brand"),
 ];
+const LOGO_FILES = ["isitlegit-logo.svg", "isitlegit-logo-on-dark.svg", "isitlegit-mark.svg"];
 
 // The two served fonts every fixture keeps, so the set always names files that exist.
 function keepFonts(): void {
@@ -36,6 +39,8 @@ beforeAll(() => {
   mkdirSync(join(DIR, "public/static"), { recursive: true });
   keepFonts();
   writeFileSync(join(DIR, "fonts.css"), FONTS_CSS);
+  mkdirSync(join(DIR, "brand"), { recursive: true });
+  for (const name of LOGO_FILES) writeFileSync(join(DIR, "brand", name), `<svg>${name}</svg>`);
 });
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
@@ -47,6 +52,38 @@ describe("hash-asset", () => {
     expect(fonts).toEqual({ Exo: EXO, "Exo 2": EXO2 });
     expect(readFileSync(join(DIR, "public", css), "utf-8")).toBe("a{}");
     expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toContain(`export const APP_CSS = "${css}";`);
+  });
+
+  it("names the three logos by their content, exports them, and replaces a changed one", () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    const { logos } = hashAssets(args());
+    expect(Object.keys(logos).sort()).toEqual(["LOGO", "LOGO_MARK", "LOGO_ON_DARK"]);
+    expect(logos.LOGO).toMatch(/^\/static\/brand\/logo\.[0-9a-f]{12}\.svg$/);
+    expect(logos.LOGO_ON_DARK).toMatch(/^\/static\/brand\/logo-on-dark\.[0-9a-f]{12}\.svg$/);
+    expect(logos.LOGO_MARK).toMatch(/^\/static\/brand\/mark\.[0-9a-f]{12}\.svg$/);
+    expect(readFileSync(join(DIR, "public", logos.LOGO), "utf-8")).toBe("<svg>isitlegit-logo.svg</svg>");
+    for (const [key, url] of Object.entries(logos))
+      expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toContain(`export const ${key} = "${url}";`);
+    writeFileSync(join(DIR, "brand/isitlegit-mark.svg"), "<svg>new mark</svg>");
+    const next = hashAssets(args()).logos;
+    expect(next.LOGO_MARK).not.toBe(logos.LOGO_MARK);
+    expect(readdirSync(join(DIR, "public/static/brand")).filter((f) => f.startsWith("mark."))).toEqual([
+      next.LOGO_MARK.split("/").pop(),
+    ]);
+    writeFileSync(join(DIR, "brand/isitlegit-mark.svg"), "<svg>isitlegit-mark.svg</svg>");
+  });
+
+  it("writes and prunes nothing when a logo is missing", () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    hashAssets(args());
+    const before = readFileSync(join(DIR, "assets.ts"), "utf-8");
+    const served = readdirSync(join(DIR, "public/static/brand")).sort();
+    rmSync(join(DIR, "brand/isitlegit-logo-on-dark.svg"));
+    writeFileSync(join(DIR, "app.css"), "b{}");
+    expect(() => hashAssets(args())).toThrow("isitlegit-logo-on-dark.svg");
+    expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toBe(before);
+    expect(readdirSync(join(DIR, "public/static/brand")).sort()).toEqual(served);
+    writeFileSync(join(DIR, "brand/isitlegit-logo-on-dark.svg"), "<svg>isitlegit-logo-on-dark.svg</svg>");
   });
 
   it("leaves every file byte-identical and untouched when nothing changed", () => {
@@ -80,7 +117,8 @@ describe("hash-asset", () => {
     // the temporary file must not survive.
     mkdirSync(join(DIR, "assets-folder"), { recursive: true });
     writeFileSync(join(DIR, "assets-folder/keep"), "");
-    const failing = [...args().slice(0, -2), "--module", join(DIR, "assets-folder")];
+    const failing = args();
+    failing[failing.indexOf("--module") + 1] = join(DIR, "assets-folder");
     expect(() => hashAssets(failing)).toThrow();
     expect(readdirSync(DIR).filter((name) => name.endsWith(".tmp"))).toEqual([]);
     rmSync(join(DIR, "assets-folder"), { recursive: true });

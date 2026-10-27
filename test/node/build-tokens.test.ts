@@ -91,6 +91,8 @@ describe("tokens in the minified app stylesheet", () => {
     for (const px of spacing.scale) has(css, `--spacing-${px}`, `${px}px`);
     for (const [key, px] of Object.entries<number>(spacing["control-height"]))
       has(css, `--spacing-control${key === "default" ? "" : `-${key}`}`, `${px}px`);
+    for (const [key, px] of Object.entries<number>(spacing.layout)) has(css, `--spacing-${key}`, `${px}px`);
+    has(css, "--spacing-sidebar", "256px");
     for (const [key, px] of Object.entries<number>(spacing.radius)) has(css, `--radius-${key}`, `${px}px`);
     for (const key of Object.keys(spacing.shadow)) expect(css).toContain(`--shadow-${key}:`);
     for (const key of Object.keys(type.families)) expect(css).toContain(`--font-${key}:`);
@@ -138,6 +140,7 @@ describe("token validation", () => {
     scale: unknown[];
     radius: Record<string, number>;
     shadow: Record<string, string>;
+    layout: Record<string, number>;
     families: Record<string, string>;
     roles: Record<"h1" | "eyebrow", Record<string, unknown>>;
   };
@@ -164,6 +167,8 @@ describe("token validation", () => {
     expect(brokenBy("colors.json", (j) => delete j.themes.dark.ink)).toContain("the same set of roles");
     expect(brokenBy("spacing.json", (j) => (j.scale[2] = "8"))).toContain("spacing.scale[2]");
     expect(brokenBy("spacing.json", (j) => (j.radius.card = -1))).toContain("spacing.radius.card");
+    expect(brokenBy("spacing.json", (j) => (j.layout.sidebar = 0))).toContain("spacing.layout.sidebar");
+    expect(brokenBy("spacing.json", (j) => (j.layout["8"] = 300))).toContain("spacing.layout key");
     expect(brokenBy("typography.json", (j) => (j.roles.h1.family = "serif"))).toContain("typography.roles.h1.family");
     expect(brokenBy("typography.json", (j) => (j.roles.eyebrow.case = "shout"))).toContain(
       "typography.roles.eyebrow.case",
