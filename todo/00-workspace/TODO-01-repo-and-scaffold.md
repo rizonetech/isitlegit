@@ -41,7 +41,7 @@ track: day-0
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Git repository and public GitHub repo | -- | [x] |
 | 2 | §2 | Worker package and health route | §1 | [x] |
-| 3 | §3 | Vitest workers pool and Biome | §2 | [ ] |
+| 3 | §3 | Vitest workers pool and Biome | §2 | [x] |
 | 4 | §4 | GitHub Actions CI | §3 | [ ] |
 | 5 | §5 | Cloudflare bindings and first deploy | §4 | [ ] |
 | 6 | §6 | AI Gateway for the Meta Model API | §5 | [ ] |
@@ -164,11 +164,14 @@ Tests run inside the Workers runtime through Cloudflare's Vitest integration. Bi
 - [x] Extend `tests/scripts/test_worker_gates.py` to the README quickstart (`### Run the Worker locally`), reading sections line by line so a `# comment` inside a bash block never ends one. Done when: deleting `pnpm lint` and `pnpm test` from the README quickstart fails the test (`path='README.md'`, `['pnpm lint', 'pnpm test']`), and the level-3 and commented-command unit tests pass. (Final review 2026-10-27, P3; the first regex version ended a section at `# pnpm build`, caught by its own unit test.)
 - [x] Prove the unused-import half of the lint rule. Done when: `import { z } from "zod";` planted at the top of `src/index.ts` makes `pnpm lint` exit 1 with `lint/correctness/noUnusedImports`. (Final review 2026-10-27, P3.)
 - [x] Remove the old pool name from the stack doc: the repository layout's `test/` line names `@cloudflare/vitest-plugin`, and the Tests row's note describes the rename without the deprecated package's name. Done when: `grep -cE "workers pool|vitest-pool-workers" docs/specs/2026-10-26-tech-stack-design.md` prints `0`. (Final review 2026-10-27, two P3s.)
-- [ ] Commit: `test: Vitest workers pool and Biome lint for the Worker`
+- [x] Commit: `test: Vitest workers pool and Biome lint for the Worker`
 
 **Test checkpoint:** in a clean clone, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint` and `pnpm test` exit 0 with `test/health.test.ts` passing; `pnpm test` exits 1 when `/health` returns `500` or hard-codes `"dev"` as the commit; `pnpm lint` exits 1 on an unused variable in `src/index.ts`; `python3 -m unittest tests.scripts.test_worker_gates` passes. **Corrected 2026-10-27:** the checkpoint named only the passing runs, which a test asserting nothing also gives.
 
 Evidence 2026-10-27 02:50 SAST, at `a7c04c0` in a clean clone: `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint` (8 files), `pnpm test` (1 file, 1 test, in workerd) and `pnpm build` exit 0, the tree stays clean, and `python3 -m unittest tests.scripts.test_worker_gates` passes. Planted in the working tree and reverted: `/health` returning `500` fails `pnpm test` (`expected 500 to be 200`); a hard-coded `commit: "dev"` fails it (`expected { ok: true, commit: 'dev' } to deeply equal ...`); `const unusedThing = 1;` in `src/index.ts` fails `pnpm lint` (`lint/correctness/noUnusedVariables`, 1 error); `const n: number = "x";` in `test/health.test.ts` fails `pnpm typecheck` (`TS2322`). `pnpm add` wrote no `minimumReleaseAgeExclude`, and `pnpm-lock.yaml` holds one `wrangler@4.152.0` and one `miniflare@5.20261019.2-beta`. `vitest.config.ts` limits `test.include` to `test/**/*.test.ts`: without it Vitest collected 28 files from the design tools and kit fixtures.
+
+> **Verified:** 2026-10-27 | §3 | 654540ec56df05a03ea42ced1b95ad2baf0db89c
+> **Review:** `docs/reviews/d00-t01-s3.json`
 
 ## 4. GitHub Actions CI
 

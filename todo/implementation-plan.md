@@ -14,7 +14,7 @@ Sections: 7 | Checklist items: 74
 | ------ | ---------- | ------------------------------------- | -------------------- | ----- |
 | [x]    | D00 T01 §1 | Git repository and public GitHub repo | attended             | 16    |
 | [x]    | D00 T01 §2 | Worker package and health route       | none                 | 16    |
-| [ ]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 15    |
+| [x]    | D00 T01 §3 | Vitest workers pool and Biome         | none                 | 15    |
 | [ ]    | D00 T01 §4 | GitHub Actions CI                     | none                 | 6     |
 | [ ]    | D00 T01 §5 | Cloudflare bindings and first deploy  | cloudflare           | 8     |
 | [ ]    | D00 T01 §6 | AI Gateway for the Meta Model API     | cloudflare           | 4     |
@@ -257,6 +257,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 4/188 verified sections, 2 ready to run now.
+Progress: 5/188 verified sections, 4 ready to run now.
 
-Checklist: 99/883 items completed (includes Commit items).
+Checklist: 100/883 items completed (includes Commit items).
