@@ -42,7 +42,7 @@ track: day-0
 | 1 | §1 | Git repository and public GitHub repo | -- | [x] |
 | 2 | §2 | Worker package and health route | §1 | [x] |
 | 3 | §3 | Vitest workers pool and Biome | §2 | [x] |
-| 4 | §4 | GitHub Actions CI | §3 | [ ] |
+| 4 | §4 | GitHub Actions CI | §3 | [x] |
 | 5 | §5 | Cloudflare bindings and first deploy | §4 | [ ] |
 | 6 | §6 | AI Gateway for the Meta Model API | §5 | [ ] |
 | 7 | §7 | Meta smoke test | §6 | [ ] |
@@ -200,7 +200,7 @@ Every push runs the Worker gates and the TODO gates, so a stale plan or a failin
 - [x] Pin Python 3.12 with `actions/setup-python` v7.1.0 (`6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`) in the three Python jobs. Done when: a push run on `main` shows all four jobs `success` with the pinned interpreter. (Final review 2026-10-27, P3.)
 - [x] Prove the red path on the four-job layout. Done when: a throwaway `ci-probe-red` branch failing `test/health.test.ts` concludes `failure` with `Worker gates` failing at `pnpm test` and `pnpm build` skipped, `python3 scripts/ci_status.py --json --branch ci-probe-red` exits 1 naming `Worker gates`, and the branch is deleted. (Final review 2026-10-27, P2: the first probe ran on the superseded single job.)
 - [x] Stop git auto maintenance in the git fixtures of `tests/scripts/test_todo_graph.py`, `tests/scripts/test_campaign_guard.py` and `tests/scripts/test_pre_commit_hook.py` (`maintenance.auto false` after `init`). Done when: `GIT_TRACE=1` on a fixture-style commit shows no `git maintenance run`, and the three suites pass. Found by the four-job red probe: `Project script tests` also failed there, in `test_todo_graph.Stamp.test_the_schedule_check_needs_no_temporary_directory` (`OSError: Directory not empty: .git/objects/pack` in `tearDown`), because the runner's newer git detaches auto maintenance after a commit and it can still be repacking when the temporary repository is removed; local git 2.43 runs it in the foreground, so the race never showed here.
-- [ ] Commit: `ci: run Worker and TODO gates on every push`
+- [x] Commit: `ci: run Worker and TODO gates on every push`
 
 **Test checkpoint:** `gh run list --workflow ci.yml --branch main --event push --limit 5 --json headSha,status,conclusion,url` holds a run whose `headSha` is the section's pushed commit with `status` `completed` and `conclusion` `success` (its URL recorded here), and the `ci-probe-red` run concluded `failure`. **Corrected 2026-10-27** (plan review P2): the latest run on any branch, for any commit, could pass the check while the candidate stayed untested.
 
@@ -209,6 +209,9 @@ Evidence 2026-10-27 03:19 SAST. Green: push run https://github.com/rizonetech/is
 Evidence 2026-10-27 03:27 SAST, after the completion review: push run https://github.com/rizonetech/isitlegit/actions/runs/40432358282 on `main` at `80329ce6010407c91303e0078736129d6cdd4b7c` concluded `success` with four jobs, each `success` (Worker gates 29 s, TODO graph 4 s, Kit script tests 38 s, Project script tests 2 min 14 s, run in parallel); `python3 scripts/ci_status.py --json` exits 0 with `ci.yml` `green` at that SHA; `tests/scripts/test_ci_workflow.py` failed on the single untimed job and passes on the four timed ones.
 
 Evidence 2026-10-27 03:40 SAST, after the final review: push run https://github.com/rizonetech/isitlegit/actions/runs/40433218172 at `637bfa2e82d3b3a41fe754505c7e5a0218dd4325`, four jobs `success` with Python pinned. Red probe on the four-job layout: https://github.com/rizonetech/isitlegit/actions/runs/40433479224, `failure`, `Worker gates` failed at `pnpm test` with `pnpm build` skipped, `Kit script tests` and `TODO graph` green, `Project script tests` red from the maintenance race fixed above; `ci_status.py --json --branch ci-probe-red` exited 1, `verdict` `red`, `failed_jobs` naming `Project script tests` and `Worker gates`; branch deleted.
+
+> **Verified:** 2026-10-27 | §4 | 7e61fa40c8f8ba2e7ba15488f4b2ff079fed07cc
+> **Review:** `docs/reviews/d00-t01-s4.json`
 
 ## 5. Cloudflare bindings and first deploy
 

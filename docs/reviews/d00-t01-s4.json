@@ -1,0 +1,115 @@
+{
+  "ref": "D00 T01 \u00a74",
+  "title": "GitHub Actions CI",
+  "implementation_sha": "7e61fa40c8f8ba2e7ba15488f4b2ff079fed07cc",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s4.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "gh run list --workflow ci.yml --branch main --event push (headSha 7e61fa4) -> completed success, https://github.com/rizonetech/isitlegit/actions/runs/40434262734, four jobs",
+    "python3 scripts/ci_status.py --json -> exit 0, ci.yml green at 7e61fa40c8f8",
+    "ci-probe-red (failing test/health.test.ts) -> run 40433479224 failure, Worker gates failed at pnpm test, pnpm build skipped; ci_status --branch ci-probe-red exit 1 naming Worker gates; branch deleted",
+    "python3 -m unittest tests.scripts.test_ci_workflow -> OK (14 tests; skipped, ignored and narrowed gates refused)",
+    "plan --check on a stale plan in a scratch clone -> exit 2"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s4.md",
+    "verdict": "filed",
+    "candidate": "09103fcb3a4eeef82a4da6ff57ab22ef9356aeed",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D00 T01 \u00a79"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s4.md",
+    "candidate": "6a88d1cb8369d914a6f6f95cddc2ae8c9db35617",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/00-workspace/D00-T01-s4.md",
+    "verdict": "fixed",
+    "candidate": "2883fe0f620c2dd7636142fdc0f2ae386ffedaec",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}
