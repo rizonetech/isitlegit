@@ -135,6 +135,47 @@ describe("sendMail", () => {
     expect(await row(gaveUp.sendKey)).toMatchObject({ status: "failed", attempts: 3 });
   });
 
+  it("counts each attempt once even when a counter write commits and its acknowledgement is lost (round 1)", async () => {
+    const sent = message();
+    const world = smtp2go([new Response("", { status: 429 }), ok()]);
+    // The attempt counter's UPDATE runs, then its promise rejects, as when D1's answer is lost after the commit.
+    const lossy = new Proxy(db, {
+      get(target, prop) {
+        if (prop !== "prepare") return Reflect.get(target, prop);
+        return (sql: string) => {
+          const statement = target.prepare(sql);
+          // The per-attempt counter, whatever form its arithmetic takes.
+          if (!sql.startsWith("UPDATE mail_sends SET attempts")) return statement;
+          return {
+            bind: (...args: unknown[]) => ({
+              run: async () => {
+                await statement.bind(...args).run();
+                throw new Error("network error after commit");
+              },
+            }),
+          };
+        };
+      },
+    }) as D1Database;
+    expect(await sendMail({ ...deps(world.stub), db: lossy }, sent)).toMatchObject({ status: "sent", attempts: 2 });
+    expect(world.calls).toHaveLength(2);
+    expect(await row(sent.sendKey)).toMatchObject({ status: "sent", attempts: 2 });
+  });
+
+  it("counts only SMTP2GO's documented 200 as sent, not another status with a confirming body (round 1)", async () => {
+    for (const status of [201, 202, 302]) {
+      const sent = message();
+      const confirming = new Response(
+        JSON.stringify({ data: { succeeded: 1, failed: 0, failures: [], email_id: "synthetic-id" } }),
+        { status, headers: { "content-type": "application/json" } },
+      );
+      expect(await sendMail(deps(smtp2go([confirming]).stub), sent), String(status)).toMatchObject({
+        status: "uncertain",
+      });
+      expect((await row(sent.sendKey))?.status, String(status)).toBe("uncertain");
+    }
+  });
+
   it("records a 5xx as uncertain and never retries it, since it may follow acceptance", async () => {
     for (const status of [500, 502, 503, 504]) {
       const sent = message();

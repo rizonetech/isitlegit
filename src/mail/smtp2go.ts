@@ -114,7 +114,9 @@ async function attempt(deps: MailDeps, apiKey: string, payload: string): Promise
   const failures = Array.isArray(data.failures) ? data.failures.length : 0;
   if ((typeof data.failed === "number" && data.failed > 0) || failures > 0)
     return { kind: "failed", reason: "SMTP2GO accepted the request but reported the message failed" };
+  // Only SMTP2GO's documented success, a 200, confirms the send; any other 2xx is not a known answer.
   if (
+    response.status === 200 &&
     typeof data.succeeded === "number" &&
     data.succeeded >= 1 &&
     data.failed === 0 &&
@@ -134,6 +136,8 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
   // 1. The intent, durable before any network call.
   const toHash = await recipientHash(message.to);
   let claimed: boolean;
+  // The attempts the row held when this send claimed it (a failed send tried again keeps its earlier ones).
+  let base = 0;
   try {
     const at = now();
     const inserted = await db
@@ -147,11 +151,12 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
       // Only a failed send may be tried again, and only by one caller at a time.
       const retried = await db
         .prepare(
-          "UPDATE mail_sends SET status = 'pending', error = NULL, updated_at = ? WHERE send_key = ? AND status = 'failed'",
+          "UPDATE mail_sends SET status = 'pending', error = NULL, updated_at = ? WHERE send_key = ? AND status = 'failed' RETURNING attempts",
         )
         .bind(now(), message.sendKey)
-        .run();
-      claimed = retried.meta.changes === 1;
+        .first<{ attempts: number }>();
+      claimed = retried !== null;
+      base = retried?.attempts ?? 0;
     }
     if (!claimed) {
       const row = await db
@@ -182,20 +187,19 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
     ],
   });
   // Each attempt is counted, with its reason, as it ends, so a Worker stopped during the backoff leaves the evidence.
-  const counted = async (reason: string | null) => {
+  // Counts are written as totals (`MAX`, never `+ 1`), so a write whose acknowledgement was lost after it committed, or
+  // written twice, cannot count an attempt twice (Cloudflare: D1 writes must be safe to repeat after a network error).
+  const counted = async (total: number, reason: string | null) => {
     try {
       await db
-        .prepare("UPDATE mail_sends SET attempts = attempts + 1, error = ?, updated_at = ? WHERE send_key = ?")
-        .bind(reason?.slice(0, 300) ?? null, now(), message.sendKey)
+        .prepare("UPDATE mail_sends SET attempts = MAX(attempts, ?), error = ?, updated_at = ? WHERE send_key = ?")
+        .bind(total, reason?.slice(0, 300) ?? null, now(), message.sendKey)
         .run();
-      return 1;
     } catch {
-      // not counted here: the outcome write below counts it
-      return 0;
+      // the outcome write below carries the same total
     }
   };
   let attempts = 0;
-  let recorded = 0;
   let lastRetry: string | null = null;
   let result: Attempt;
   for (;;) {
@@ -203,7 +207,7 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
     result = await attempt(deps, deps.apiKey, payload);
     if (result.kind !== "retry") break;
     lastRetry = result.reason;
-    recorded += await counted(result.reason);
+    await counted(base + attempts, result.reason);
     if (attempts >= MAX_ATTEMPTS) {
       result = { kind: "failed", reason: `${result.reason} ${attempts} times; gave up` };
       break;
@@ -219,12 +223,12 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
   try {
     await db
       .prepare(
-        "UPDATE mail_sends SET status = ?, provider_id = ?, attempts = attempts + ?, error = ?, updated_at = ? WHERE send_key = ?",
+        "UPDATE mail_sends SET status = ?, provider_id = ?, attempts = MAX(attempts, ?), error = ?, updated_at = ? WHERE send_key = ?",
       )
       .bind(
         outcome.status,
         outcome.status === "sent" ? outcome.providerId : null,
-        attempts - recorded,
+        base + attempts,
         // A send that went through after a retry keeps the reason it was retried.
         (outcome.status === "sent" ? lastRetry && `sent after: ${lastRetry}` : outcome.reason)?.slice(0, 300) ?? null,
         now(),

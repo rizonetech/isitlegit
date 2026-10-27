@@ -21,3 +21,6 @@ competitors/
 
 # Windows download metadata (the colon in the name cannot be checked out on Windows)
 *:Zone.Identifier
+
+# Brainstorming notes from local sessions
+.conclave/brainstorming/
