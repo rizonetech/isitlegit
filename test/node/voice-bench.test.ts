@@ -12,6 +12,9 @@ import { benchInputs } from "../fixtures/audio/bench-inputs";
 const ROOT = join(import.meta.dirname, "../..");
 const AUDIO = join(ROOT, "test/fixtures/audio");
 const CHUNK = 9_600_000;
+const REPEATS = 3;
+const median = (values: number[]) =>
+  Math.round([...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] as number);
 // FFmpeg's length may differ from ours by up to 1 % (checked below), so its first output is taken at 99 % of a short file.
 
 describe("the bench's timer and report (D01 T03 §9's completion review)", () => {
@@ -60,26 +63,27 @@ describe.skipIf(!process.env.VOICE_BENCH)("FFmpeg timings", () => {
       const file = join(dir, `${i}.${{ "audio/mpeg": "mp3", "audio/wav": "wav" }[input.type] ?? "ogg"}`);
       writeFileSync(file, input.bytes);
       const args = ["-hide_banner", "-loglevel", "error", "-i", file, "-ar", "16000", "-ac", "1"];
-      const result = await timeOutput(
-        "ffmpeg",
-        [...args, "-c:a", "pcm_s16le", "-f", "s16le", "-"],
-        Math.min(CHUNK, Math.floor((input.samples ?? CHUNK) * 0.99)),
-      );
-      // FFmpeg conceals damage rather than refusing it: its outcome on the damaged file is recorded, not compared.
-      if (!input.refused) {
-        expect(result.code, input.name).toBe(0);
-        expect(
-          Math.abs(result.samples - (input.samples as number)) / (input.samples as number),
-          input.name,
-        ).toBeLessThan(0.01);
+      const threshold = Math.min(CHUNK, Math.floor((input.samples ?? CHUNK) * 0.99));
+      // Each input three times; the median of each event is reported (runners vary from run to run).
+      const results = [];
+      for (let repeat = 0; repeat < REPEATS; repeat++) {
+        const result = await timeOutput("ffmpeg", [...args, "-c:a", "pcm_s16le", "-f", "s16le", "-"], threshold);
+        // FFmpeg conceals damage rather than refusing it: its outcome on the damaged files is recorded, not compared.
+        if (!input.refused) {
+          expect(result.code, input.name).toBe(0);
+          const off = Math.abs(result.samples - (input.samples as number)) / (input.samples as number);
+          expect(off, input.name).toBeLessThan(0.01);
+        }
+        results.push(result);
       }
+      const firsts = results.map((r) => r.firstMs);
       rows.push({
         name: input.name,
-        firstMs: result.firstMs === null ? null : Math.round(result.firstMs),
-        doneMs: Math.round(result.doneMs),
+        firstMs: firsts.includes(null) ? null : median(firsts as number[]),
+        doneMs: median(results.map((r) => r.doneMs)),
         refusedMs: null,
-        samples: result.samples,
-        exit: result.code,
+        samples: results[0]?.samples ?? null,
+        exit: results[0]?.code ?? null,
       });
     }
     console.log(`VOICE_BENCH ${JSON.stringify({ decoder: version, rows })}`);
