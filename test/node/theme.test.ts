@@ -142,6 +142,23 @@ function measure(preference: 0 | 1): Page {
   }
 }
 
+// A shadow token as Chrome reports it: each layer's colour first, then offsets, blur and spread, all in px.
+function computedShadow(token: string): string {
+  return token
+    .split(/,(?![^(]*\))/)
+    .map((layer) => {
+      const colour = /rgba?\([^)]*\)/.exec(layer)?.[0] ?? "";
+      const lengths = layer
+        .replace(colour, "")
+        .trim()
+        .split(/\s+/)
+        .map((n) => (n === "0" ? "0px" : n));
+      while (lengths.length < 4) lengths.push("0px");
+      return `${colour.replace(/\s*,\s*/g, ", ")} ${lengths.join(" ")}`;
+    })
+    .join(", ");
+}
+
 // The first family in a computed font-family list, unquoted (Chrome quotes only names that need it).
 const firstFamily = (list: string) => (list.split(",")[0] as string).trim().replaceAll('"', "");
 
@@ -196,7 +213,14 @@ describe.skipIf(!BROWSER && !process.env.CI)("token classes measured in Chromium
     expect(light.layout.paddingTop).toBe("16px");
     expect(light.layout.height).toBe(`${spacing["control-height"].default}px`);
     expect(light.layout.borderTopLeftRadius).toBe(`${spacing.radius.card}px`);
-    expect(light.layout.boxShadow).not.toBe("none");
+    // Tailwind composes inset, ring and ring-offset layers ahead of the shadow; unused, each is transparent and empty.
+    const expected = computedShadow(spacing.shadow.card);
+    const layers = light.layout.boxShadow
+      .slice(0, -expected.length)
+      .split(/,(?![^(]*\))/)
+      .filter((l) => l.trim());
+    expect(light.layout.boxShadow.endsWith(expected), light.layout.boxShadow).toBe(true);
+    for (const layer of layers) expect(layer.trim()).toBe("rgba(0, 0, 0, 0) 0px 0px 0px 0px");
   });
 
   it("gives every typography role its family, size, line height, weight, tracking, case and numerals", () => {
