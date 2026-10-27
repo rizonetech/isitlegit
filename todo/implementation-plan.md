@@ -22,7 +22,7 @@ Sections: 11 | Checklist items: 138
 | [x]    | D00 T01 §12 | Rollback from a split deployment       | cloudflare           | 10    |
 | [x]    | D99 T01 §8  | AI Gateway tokens                      | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                        | meta-api, cloudflare | 10    |
-| [ ]    | D00 T01 §11 | AI Gateway config snapshot and restore | cloudflare           | 6     |
+| [x]    | D00 T01 §11 | AI Gateway config snapshot and restore | cloudflare           | 6     |
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
@@ -269,6 +269,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 18/200 verified sections, 14 ready to run now.
+Progress: 19/200 verified sections, 13 ready to run now.
 
-Checklist: 277/1041 items completed (includes Commit items).
+Checklist: 278/1041 items completed (includes Commit items).

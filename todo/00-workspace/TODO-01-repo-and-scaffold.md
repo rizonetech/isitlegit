@@ -49,7 +49,7 @@ track: day-0
 | 8 | §8 | README banner and social preview | §1, D07 T01 §1 | [x] |
 | 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
 | 10 | §10 | Deploy rollback and re-verification | §5 | [x] |
-| 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [ ] |
+| 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [x] |
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
 
 ## 1. Git repository and public GitHub repo
@@ -463,7 +463,7 @@ The gateway's settings, the `meta` custom provider and its pricing rules live in
 - [x] Give `scripts/gateway-config.ts` a `--help` that works offline (no vault read, no network) and lists `snapshot`, `restore`, `--dry`, `--file`, the admin token's vault item and permission, and the exit codes. Done when: a test runs the entry point with `--help` and no credentials and gets the usage and exit 0. (**Corrected 2026-10-27**, plan review P2 1.)
 - [x] Write the operator's steps in `docs/operations.md`: the exact snapshot, `restore --dry` and `restore` commands, the vault prerequisite (`conclave-op` and "IsItLegit AI Gateway admin token"), restoring a known-good earlier snapshot without overwriting the committed one (`git show <commit>:infra/ai-gateway.json` to a scratch file, then `restore --file`), and what to do for each refusal (permission, provider `headers`, malformed file), an uncertain change (rerun) and an extra live pricing rule (deleting it by hand in the dashboard, if wanted). Done when: the page holds each, and the commands in it are the ones the tests run. (**Corrected 2026-10-27**, plan review P2 1.)
 - [x] Record the logs' retention and capacity for this account in `docs/operations.md`, read from Cloudflare (whether the account is on Workers Logs or legacy logs decides the limits; the gateway's creation date alone does not), with what happens when the limit is reached. Done when: the page names the retention, the limit and the source it was read from. (**Corrected 2026-10-27**, validation: Cloudflare's account settings do not name the log store, and the account (created 2023-08-28) has audit entries only from 2026-05-22, so an earlier gateway cannot be ruled out from the audit log. The Workers observability API answers it: dataset `ai-gateway` holds this gateway's `request-logs` events (22 on 2026-10-27, the oldest 14:54 UTC), so the account is on Workers Logs: 7 days' retention, 5 billion logs per account per day before 1% sampling, 256 KB per log (Cloudflare's Workers Logs limits). The gateway's `log_management` 10,000,000 and `DELETE_OLDEST` are Legacy Logs settings and do not apply. Those 22 events hold metadata only (model, path, user agent, status, duration, token counts, cost), no body: the page records that too, since it is where D00 T01 §7's "no body" also has to hold.)
-- [ ] Commit: `infra: AI Gateway configuration snapshot and restore`
+- [x] Commit: `infra: AI Gateway configuration snapshot and restore`
 
 Evidence 2026-10-27 19:00 SAST. `pnpm exec vitest run --project node test/node/gateway-config.test.ts`: 13 passed against a stand-in API that keeps state and records every request; eleven mutations (`--dry` sending, a lost answer or a 5xx not reported uncertain, restore's credential preflight, snapshot's credential refusal, the read-back comparison, the read-back credential check, a non-atomic write, the file's schema check, the endpoint guard, an extra rule deleted) each fail it. Live, with the admin token: `node scripts/gateway-config.ts snapshot` wrote `infra/ai-gateway.json` (gateway `isitlegit`, provider `meta`, rules `muse-spark-1.3` and `muse-wonder-1.0`; no id, account field, timestamp or token), then `restore --dry` printed "dry run: no change" and `restore` printed "restore: no change; the account matches infra/ai-gateway.json", each exit 0. `docs/operations.md` gained the snapshot and restore steps and the log retention, read from the Workers observability API (dataset `ai-gateway`). `pnpm exec vitest run`: 307 passed; `python3 -m unittest discover -s tests/scripts`: 408 OK.
 
@@ -478,6 +478,9 @@ Evidence after review round 3, 2026-10-27 19:31 SAST. Its finding is fixed in `a
 Evidence after review round 4, 2026-10-27 19:36 SAST. Its finding is fixed in `0e22fe4`: an error answer that is not a JSON object (null, a list, a number, a null or non-list `errors`, or not JSON) still reaches the failure report with its inventory. 25 passed; the mutation is caught. Live `restore --dry`: no change.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/gateway-config.test.ts` passes and fails if `restore` deletes anything or reports success when the read-back differs.
+
+> **Verified:** 2026-10-27 | §11 | 556c918a8f3ae9d39371039ce5f46f2b4e993087
+> **Review:** `docs/reviews/d00-t01-s11.json`
 
 ## 12. Rollback from a split deployment
 
