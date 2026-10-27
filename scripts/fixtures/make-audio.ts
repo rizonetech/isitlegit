@@ -3,12 +3,17 @@
 // silence on the right (`tone-stereo.ogg`, so mixing down must average the channels), and as a WAV attachment
 // (`tone.wav`, stereo, 44.1 kHz, 16-bit, so decoding must both resample and mix down). Opus is encoded with libopus
 // (`opusscript`) and wrapped in Ogg pages by `test/fixtures/audio/ogg.ts` (RFC 7845: OpusHead, OpusTags, then audio,
-// one packet per page). The output is the same on every run.
+// one packet per page). MP3 (D01 T03 §7) is encoded with LAME (`@breezystack/lamejs`, a development dependency that
+// never ships): `tone.mp3` (44.1 kHz mono, 64 kbit/s, MPEG-1), `tone-128k.mp3` (the same at 128 kbit/s, so two can
+// be joined into a variable-bitrate stream), `tone-stereo.mp3` (the tone left, silence right),
+// `tone-16k.mp3` (16 kHz, MPEG-2) and `tone-8k.mp3` (8 kHz, MPEG-2.5); LAME here writes no Xing/Info frame, so tests
+// add one where they need it. The output is the same on every run.
 //
 //   node scripts/fixtures/make-audio.ts [--out <dir>]
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+import { Mp3Encoder } from "@breezystack/lamejs";
 import OpusScript from "opusscript";
 import { oggStream, tone, wavFile } from "../../test/fixtures/audio/ogg.ts";
 
@@ -59,6 +64,22 @@ export function wavTone(): Uint8Array {
   return wavFile(stereo, WAV_RATE, 2);
 }
 
+// The tone through LAME at `rate`, mono or with silence on the right, in frames of 1,152 input samples.
+export function mp3Tone(rate: number, kbps: number, channels: 1 | 2 = 1): Uint8Array {
+  const left = tone(rate, SECONDS);
+  const encoder = new Mp3Encoder(channels, rate, kbps);
+  const parts: Uint8Array[] = [];
+  const silence = new Int16Array(1_152);
+  for (let at = 0; at < left.length; at += 1_152) {
+    const block = left.subarray(at, at + 1_152);
+    const out =
+      channels === 1 ? encoder.encodeBuffer(block) : encoder.encodeBuffer(block, silence.subarray(0, block.length));
+    if (out.length) parts.push(new Uint8Array(out));
+  }
+  parts.push(new Uint8Array(encoder.flush()));
+  return Buffer.concat(parts);
+}
+
 const atomic = (path: string, bytes: Uint8Array) => {
   writeFileSync(`${path}.tmp`, bytes);
   renameSync(`${path}.tmp`, path);
@@ -71,5 +92,10 @@ if (import.meta.filename === process.argv[1]) {
   atomic(join(out, "tone.ogg"), oggOpusTone());
   atomic(join(out, "tone-stereo.ogg"), oggOpusTone(2));
   atomic(join(out, "tone.wav"), wavTone());
-  console.log(`make-audio: wrote tone.ogg, tone-stereo.ogg and tone.wav in ${out}`);
+  atomic(join(out, "tone.mp3"), mp3Tone(44_100, 64));
+  atomic(join(out, "tone-128k.mp3"), mp3Tone(44_100, 128));
+  atomic(join(out, "tone-stereo.mp3"), mp3Tone(44_100, 128, 2));
+  atomic(join(out, "tone-16k.mp3"), mp3Tone(16_000, 32));
+  atomic(join(out, "tone-8k.mp3"), mp3Tone(8_000, 16));
+  console.log(`make-audio: wrote the Ogg, WAV and MP3 tones in ${out}`);
 }

@@ -27,6 +27,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.6.3
         version: 2.6.3
+      '@breezystack/lamejs':
+        specifier: 1.2.7
+        version: 1.2.7
       '@cloudflare/vitest-plugin':
         specifier: 1.4.8
         version: 1.4.8(@types/node@24.19.2)(vitest@4.1.12(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)))
@@ -39,6 +42,9 @@ importers:
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
+      minimp3-wasm:
+        specifier: 0.1.0
+        version: 0.1.0
       openai:
         specifier: 7.43.0
         version: 7.43.0(undici@7.30.1)(ws@8.21.0)(zod@4.6.7)
@@ -131,6 +137,9 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@breezystack/lamejs@1.2.7':
+    resolution: {integrity: sha512-6wc7ck65ctA75Hq7FYHTtTvGnYs6msgdxiSUICQ+A01nVOWg6rqouZB8IdyteRlfpYYiFovkf67dIeOgWIUzTA==}
 
   '@cloudflare/kv-asset-handler@0.5.0':
     resolution: {integrity: sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg==}
@@ -1273,6 +1282,9 @@ packages:
     resolution: {integrity: sha512-SHY8A98gCvmrnBLqABHRTSh3duAL1z+tHPRZu/tqxHFqVARrZ4oQis/ALYwp3XvzHvs6B/ff/CdcCafqP+cOFA==}
     engines: {node: '>=22.0.0'}
 
+  minimp3-wasm@0.1.0:
+    resolution: {integrity: sha512-eWQFfEZ2OyygrJe4iHpNkBw2keuEhUM/h8/rYssUs84+Ht31Vhb8KjBl3VwJXxC69d2cCGHs+/14pcjifh+KHw==}
+
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
     engines: {node: '>=4'}
@@ -1606,6 +1618,8 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.6.3':
     optional: true
+
+  '@breezystack/lamejs@1.2.7': {}
 
   '@cloudflare/kv-asset-handler@0.5.0': {}
 
@@ -2410,6 +2424,8 @@ snapshots:
       - '@types/node'
       - bufferutil
       - utf-8-validate
+
+  minimp3-wasm@0.1.0: {}
 
   mri@1.2.0: {}
 

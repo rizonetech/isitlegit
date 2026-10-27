@@ -261,18 +261,12 @@ describe("decodeToWavChunks", () => {
     expect(seen.total).toBe(29 * 60 * 16_000 - 104);
   });
 
-  it("refuses MP3 and M4A by type until D01 T03 §7 and §8 decode them", async () => {
-    const mp3 = Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0, 0xff, 0xfb, 0x90, 0x64]);
+  it("refuses M4A by type until D01 T03 §8 decodes it, naming the formats it takes", async () => {
     const m4a = Uint8Array.from([0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4d, 0x34, 0x41, 0x20]);
-    for (const [bytes, type] of [
-      [mp3, "audio/mpeg"],
-      [m4a, "audio/mp4"],
-    ] as const) {
-      const refusal = await decodeAll(bytes, type).catch((e: unknown) => e);
-      expect(refusal).toBeInstanceOf(UnsupportedAudio);
-      expect((refusal as UnsupportedAudio).type).toBe(type);
-      expect((refusal as Error).message).toContain(type);
-    }
+    const refusal = await decodeAll(m4a, "audio/mp4").catch((e: unknown) => e);
+    expect(refusal).toBeInstanceOf(UnsupportedAudio);
+    expect((refusal as UnsupportedAudio).type).toBe("audio/mp4");
+    expect((refusal as Error).message).toMatch(/audio\/mp4 .*Ogg Opus, WAV and MP3/);
   });
 
   describe("damaged audio is refused, never passed on", () => {

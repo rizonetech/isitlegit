@@ -1,6 +1,6 @@
 // Voice notes and voicemail attachments to the audio Muse Voice Transcribe takes (D01 T03 §2; spec 4.2a): 16 kHz mono
 // 16-bit PCM WAV, at most 10 minutes per request. Ogg Opus (as WhatsApp saves voice notes) and PCM 16-bit WAV are
-// decoded in the Worker; MP3 and M4A are refused until D01 T03 §7 and §8 decode them.
+// decoded in the Worker, and MP3 through `./mp3` (D01 T03 §7); M4A is refused until D01 T03 §8 decodes it.
 //
 // Decoding is a stream, so memory holds the input, one chunk and a few seconds of decoded audio, never the whole
 // recording (25 minutes at 48 kHz as 32-bit floats would be 288 MB, past a Worker's 128 MB). An Ogg file is checked
@@ -15,13 +15,16 @@
 // The Opus decoder's WebAssembly is imported as a module, compiled at deploy (a Worker refuses to compile it at
 // runtime, which is what the package does by default), and handed to the decoder through `OpusDecoder.module`.
 import { OpusDecoder } from "opus-decoder";
+import { AudioTooLong, CorruptAudio, MAX_SECONDS, UnsupportedAudio } from "./errors";
+import { createMp3Decoder, type Mp3Stream, scanMp3 } from "./mp3";
 import opusModule from "./opus-decoder.wasm?module";
+
+export { AudioTooLong, CorruptAudio, MAX_SECONDS, UnsupportedAudio };
 
 (OpusDecoder as unknown as { module?: WebAssembly.Module }).module = opusModule;
 
 export const TARGET_RATE = 16_000;
 export const CHUNK_SECONDS = 600;
-export const MAX_SECONDS = 1_800;
 const OPUS_RATE = 48_000;
 // Opus packets decoded at a time, by their duration at 48 kHz, and WAV frames read at a time.
 const BATCH_SAMPLES = 5 * OPUS_RATE;
@@ -31,22 +34,9 @@ const MAX_PACKET_BYTES_PER_CHANNEL = 3_840;
 
 const OGG_TYPES = new Set(["audio/ogg", "audio/opus"]);
 const WAV_TYPES = new Set(["audio/wav", "audio/wave", "audio/x-wav", "audio/vnd.wave"]);
-
-export class UnsupportedAudio extends Error {
-  override name = "UnsupportedAudio";
-  constructor(readonly type: string) {
-    super(`audio of type ${type} cannot be decoded yet; Ogg Opus and WAV voice notes can`);
-  }
-}
-export class CorruptAudio extends Error {
-  override name = "CorruptAudio";
-}
-export class AudioTooLong extends Error {
-  override name = "AudioTooLong";
-  constructor(readonly seconds: number) {
-    super(`the recording is ${Math.round(seconds / 60)} minutes long; at most ${MAX_SECONDS / 60} minutes are taken`);
-  }
-}
+const MP3_TYPES = new Set(["audio/mpeg", "audio/mp3"]);
+// MP3 decoded at most this many seconds at a time.
+const MP3_BATCH_SECONDS = 5;
 
 type Decoded = { channelData: Float32Array[]; samplesDecoded: number; errors: { message: string }[] };
 export type OpusLayout = { channels: number; preSkip: number };
@@ -55,7 +45,12 @@ export type OpusStream = {
   decodeFrames: (packets: Uint8Array[]) => Decoded;
   free: () => void;
 };
-export type DecodeOptions = { chunkSeconds?: number; opusDecoder?: (layout: OpusLayout) => OpusStream };
+export type DecodeOptions = {
+  chunkSeconds?: number;
+  opusDecoder?: (layout: OpusLayout) => OpusStream;
+  mp3Decoder?: (audio: Uint8Array) => Mp3Stream;
+  mp3BatchSeconds?: number;
+};
 
 // libopus decoding straight to 16 kHz. The OpusHead's pre-skip counts 48 kHz samples (RFC 7845 5.1), while
 // opus-decoder 0.7.12 skips that many samples of its output, so it is scaled to the output rate.
@@ -529,6 +524,50 @@ export async function* decodeToWavChunks(
       resampler.push(block.subarray(0, n));
       yield* chunks.drain();
     }
+    resampler.end();
+    chunks.finish();
+    yield* chunks.drain();
+    return;
+  }
+  if (MP3_TYPES.has(type)) {
+    const { audio, frames, frameSamples, rate, channels, skip, keep } = scanMp3(bytes);
+    tooLong(keep / rate);
+    const chunks = new ChunkWriter(capacity, Math.ceil((keep * TARGET_RATE) / rate));
+    const resampler = new Resampler(rate, chunks.put);
+    let decoder: Mp3Stream;
+    try {
+      decoder = (options.mp3Decoder ?? createMp3Decoder)(audio);
+    } catch (error) {
+      throw new CorruptAudio(`the MP3 decoder failed (${(error as Error).name}: ${(error as Error).message})`);
+    }
+    // Every frame decodes to its samples (the walk counted them); the LAME tag's delay and padding are dropped.
+    const expected = frames * frameSamples;
+    let position = 0;
+    while (position < expected) {
+      let block: ReturnType<Mp3Stream["decode"]>;
+      try {
+        block = decoder.decode(options.mp3BatchSeconds ?? MP3_BATCH_SECONDS);
+      } catch (error) {
+        throw new CorruptAudio(`the MP3 decoder failed (${(error as Error).name}: ${(error as Error).message})`);
+      }
+      if (block.samples === 0)
+        throw new CorruptAudio(`the MP3 decoder stopped after ${position} of ${expected} samples`);
+      if (block.channels !== channels) throw new CorruptAudio("the MP3 decoded to a different channel count");
+      const from = Math.max(0, skip - position);
+      const to = Math.min(block.samples, skip + keep - position);
+      if (to > from) {
+        const mono = new Float32Array(to - from);
+        for (let i = from; i < to; i++) {
+          let sum = 0;
+          for (let c = 0; c < channels; c++) sum += block.pcm[i * channels + c] as number;
+          mono[i - from] = sum / channels / 32768;
+        }
+        resampler.push(mono);
+      }
+      position += block.samples;
+      yield* chunks.drain();
+    }
+    if (position !== expected) throw new CorruptAudio(`the MP3 decoded to ${position} samples, not ${expected}`);
     resampler.end();
     chunks.finish();
     yield* chunks.drain();
