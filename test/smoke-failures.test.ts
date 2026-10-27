@@ -74,8 +74,21 @@ describe("smoke route failures", () => {
       }),
     } as unknown as Env["ANALYSIS"];
     const { body } = await run({ ANALYSIS }, 1_500);
-    expect(body.checks.ANALYSIS).toBe("instance did not complete within 0.5 s; terminated");
+    expect(body.checks.ANALYSIS).toBe("instance did not complete within 0.5 s");
     expect(terminated).toBe(true);
+  });
+
+  it("terminates an instance whose status cannot be read, and reports a termination that fails", async () => {
+    let terminations = 0;
+    const failing = (terminate: () => Promise<void>) =>
+      ({
+        create: async () => ({ status: () => Promise.reject(new Error("status unavailable")), terminate }),
+      }) as unknown as Env["ANALYSIS"];
+    const unread = await run({ ANALYSIS: failing(async () => void terminations++) }, 2_000);
+    expect(unread.body.checks.ANALYSIS).toBe("status unavailable");
+    expect(terminations).toBe(1);
+    const refused = await run({ ANALYSIS: failing(() => Promise.reject(new Error("terminate refused"))) }, 2_000);
+    expect(refused.body.checks.ANALYSIS).toBe("status unavailable; cleanup failed: terminate refused");
   });
 
   it("reports the Worker's version and commit with every run", async () => {

@@ -12,11 +12,13 @@ export const CHECKS = ["DB", "ARTEFACTS", "CACHE", "ANALYSIS", "BROWSER"];
 export type Outcome = { ok: boolean; lines: string[] };
 export type SmokeOptions = {
   commit: string;
-  // Sets the secret and answers the id of the version that now serves the Worker.
-  putSecret: (token: string, log: (line: string) => void) => Promise<string>;
+  // Sets the secret and answers the id of the version that now serves the Worker, by `deadline` (epoch ms).
+  putSecret: (token: string, deadline: number) => Promise<string>;
   waitMs?: number;
   log?: (line: string) => void;
   pause?: (ms: number) => Promise<unknown>;
+  // Where the token may go; the default is destinationProblem (HTTPS to the IsItLegit Worker only).
+  checkDestination?: (base: string) => string | null;
 };
 
 const seconds = (since: number) => `${Math.round((Date.now() - since) / 1000)} s`;
@@ -54,6 +56,26 @@ export function refusal(status: number, text: string, commit: string, version: s
   return null;
 }
 
+// The token goes only over HTTPS to the IsItLegit Worker: its workers.dev name or the isitlegit.co.za zone. Checked
+// before the secret is set, so a mistyped or plain-HTTP address never receives, or even causes, a live token.
+export function destinationProblem(base: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return `${base} is not a URL`;
+  }
+  if (url.protocol !== "https:") return `${base} is not HTTPS; the token is never sent in the clear`;
+  const host = url.hostname;
+  if (
+    !/^isitlegit\.[a-z0-9-]+\.workers\.dev$/.test(host) &&
+    host !== "isitlegit.co.za" &&
+    !host.endsWith(".isitlegit.co.za")
+  )
+    return `${host} is not the IsItLegit Worker (isitlegit.<subdomain>.workers.dev or isitlegit.co.za)`;
+  return null;
+}
+
 export async function runSmoke(base: string, options: SmokeOptions): Promise<Outcome> {
   const {
     commit,
@@ -62,12 +84,14 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
     log = () => {},
     pause = (ms) => new Promise((r) => setTimeout(r, ms)),
   } = options;
+  const refused = (options.checkDestination ?? destinationProblem)(base);
+  if (refused) return { ok: false, lines: [`smoke: ${refused}`] };
   const start = Date.now();
   const deadline = start + waitMs;
   const lines: string[] = [];
   const token = randomBytes(32).toString("hex");
   const version = await withProgress("Setting a fresh SMOKE_TOKEN (Cloudflare publishes a new version)", log, () =>
-    putSecret(token, log),
+    putSecret(token, deadline),
   );
   log(`The secret is live in version ${version}.`);
   const url = new URL("/internal/smoke", base);
@@ -79,7 +103,9 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
       let text: string;
       try {
         // The signal bounds the headers and the body alike.
+        // A redirect is refused rather than followed: the token goes to this address only.
         const response = await fetch(url, {
+          redirect: "manual",
           headers: { authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(left),
         });
@@ -113,30 +139,52 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
   return { ok: outcome.ok, lines: [...outcome.lines, `${outcome.ok ? "passed" : "failed"} in ${seconds(start)}`] };
 }
 
-// `wrangler secret put SMOKE_TOKEN` with the token on standard input, then the version `deployments status` names.
-function putWithWrangler(token: string): Promise<string> {
+// Runs a command with `input` on standard input and answers its standard output, or fails when it exits non-zero or
+// is still running at `deadline` (epoch ms), when it is killed. Asynchronous, so progress keeps printing meanwhile.
+export function runCommand(command: string, args: string[], input: string, deadline: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], {
-      stdio: ["pipe", "ignore", "pipe"],
-    });
+    const child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
     let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
     child.stderr.on("data", (chunk) => {
       stderr = (stderr + chunk).slice(-2_000);
     });
-    const timer = setTimeout(() => child.kill("SIGTERM"), 120_000);
-    child.on("error", reject);
+    let expired = false;
+    const timer = setTimeout(
+      () => {
+        expired = true;
+        child.kill("SIGKILL");
+      },
+      Math.max(0, deadline - Date.now()),
+    );
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (code !== 0) return reject(new Error(`wrangler secret put failed (exit ${code}): ${stderr.slice(-400)}`));
-      const status = JSON.parse(
-        execFileSync("pnpm", ["exec", "wrangler", "deployments", "status", "--json"], { encoding: "utf-8" }),
-      );
-      const live = (status.versions as { version_id: string; percentage: number }[]).find((v) => v.percentage === 100);
-      if (!live) return reject(new Error("no version serves all traffic after the secret was set"));
-      resolve(live.version_id);
+      const what = [command, ...args.slice(0, 3)].join(" ");
+      if (expired) return reject(new Error(`${what} did not finish before the deadline`));
+      if (code !== 0) return reject(new Error(`${what} failed (exit ${code}): ${stderr.slice(-400)}`));
+      resolve(stdout);
     });
-    child.stdin.end(token);
+    child.stdin.end(input);
   });
+}
+
+// `wrangler secret put SMOKE_TOKEN` with the token on standard input, then the version `deployments status` names,
+// both within the run's deadline.
+async function putWithWrangler(token: string, deadline: number): Promise<string> {
+  await runCommand("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], token, deadline);
+  const status = JSON.parse(
+    await runCommand("pnpm", ["exec", "wrangler", "deployments", "status", "--json"], "", deadline),
+  );
+  const live = (status.versions as { version_id: string; percentage: number }[]).find((v) => v.percentage === 100);
+  if (!live) throw new Error("no version serves all traffic after the secret was set");
+  return live.version_id;
 }
 
 if (import.meta.filename === process.argv[1]) {

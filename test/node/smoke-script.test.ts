@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { refusal, runSmoke } from "../../scripts/smoke.ts";
+import { destinationProblem, refusal, runCommand, runSmoke } from "../../scripts/smoke.ts";
 
 // scripts/smoke.ts against a local stand-in for the deployed Worker (D00 T01 §5): it passes only on HTTP 200 from the
 // version the secret published, at the expected commit, with exactly the five checks all ok; it fails on anything
@@ -26,16 +26,65 @@ async function serve(answer: (authorization: string | undefined) => Answer) {
 }
 const allOk = { DB: "ok", ARTEFACTS: "ok", CACHE: "ok", ANALYSIS: "ok", BROWSER: "ok" };
 const pass = { ok: true, commit: COMMIT, version: VERSION, checks: allOk };
-const quick = { commit: COMMIT, putSecret: async () => VERSION, waitMs: 2_000, pause: async () => {} };
+// The stand-in is plain HTTP on loopback, so these runs lift the destination rule; its own test keeps it.
+const quick = {
+  commit: COMMIT,
+  putSecret: async () => VERSION,
+  waitMs: 2_000,
+  pause: async () => {},
+  checkDestination: () => null,
+};
 
 describe("scripts/smoke.ts", () => {
+  it("sends the token only over HTTPS to the IsItLegit Worker, refused before any secret is set", async () => {
+    expect(destinationProblem("https://isitlegit.derick-f5a.workers.dev")).toBeNull();
+    expect(destinationProblem("https://isitlegit.co.za")).toBeNull();
+    expect(destinationProblem("https://app.isitlegit.co.za")).toBeNull();
+    expect(destinationProblem("http://isitlegit.derick-f5a.workers.dev")).toMatch(/not HTTPS/);
+    expect(destinationProblem("https://evil.example")).toMatch(/is not the IsItLegit Worker/);
+    expect(destinationProblem("https://isitlegit.co.za.evil.example")).toMatch(/is not the IsItLegit Worker/);
+    expect(destinationProblem("https://other.derick-f5a.workers.dev")).toMatch(/is not the IsItLegit Worker/);
+    expect(destinationProblem("not a url")).toMatch(/is not a URL/);
+    let set = false;
+    const outcome = await runSmoke("http://isitlegit.derick-f5a.workers.dev", {
+      commit: COMMIT,
+      putSecret: async () => {
+        set = true;
+        return VERSION;
+      },
+    });
+    expect(outcome.ok).toBe(false);
+    expect(set).toBe(false);
+  });
+
+  it("refuses a redirect instead of following it with the token", async () => {
+    const base = await serve(() => ({ status: 302, body: "" }));
+    const outcome = await runSmoke(base, quick);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.lines.join("\n")).toContain("answered HTTP 302");
+  });
+
+  it("kills a command still running at the deadline, and reports a failed one", async () => {
+    const started = Date.now();
+    await expect(
+      runCommand(process.execPath, ["-e", "setTimeout(() => {}, 10000)"], "", Date.now() + 300),
+    ).rejects.toThrow("did not finish before the deadline");
+    expect(Date.now() - started).toBeLessThan(3_000);
+    await expect(runCommand(process.execPath, ["-e", "process.exit(3)"], "", Date.now() + 5_000)).rejects.toThrow(
+      "exit 3",
+    );
+    expect(
+      await runCommand(process.execPath, ["-e", "process.stdin.pipe(process.stdout)"], "echo", Date.now() + 5_000),
+    ).toBe("echo");
+  });
+
   it("sets a fresh 64-hex token, passes on a clean answer from the new version, and reports progress and time", async () => {
     let secret = "";
     const logged: string[] = [];
     const base = await serve((auth) => (auth === `Bearer ${secret}` ? { status: 200, body: pass } : { status: 404 }));
     const outcome = await runSmoke(base, {
       ...quick,
-      putSecret: async (token) => {
+      putSecret: async (token: string) => {
         secret = token;
         return VERSION;
       },

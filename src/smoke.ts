@@ -82,17 +82,29 @@ const RUNS: Record<Check, (env: Env, run: Run) => Promise<void>> = {
   },
   async ANALYSIS(env, run) {
     const instance = await env.ANALYSIS.create({ id: `smoke-${run.id}`, params: { caseId: `smoke-${run.id}` } });
-    // Stops polling before the check's limit, and terminates an instance that has not finished by then.
-    const deadline = Date.now() + run.limitMs - 1_000;
-    while (Date.now() < deadline) {
-      const { status, error } = await instance.status();
-      if (status === "complete") return;
-      if (status === "errored" || status === "terminated")
-        throw new Error(`instance ${status}: ${error?.message ?? ""}`);
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    run.ctx.waitUntil(instance.terminate().catch(() => undefined));
-    throw new Error(`instance did not complete within ${(run.limitMs - 1_000) / 1000} s; terminated`);
+    let complete = false;
+    // An instance that did not complete (past the limit, or its status could not be read) is terminated, and a
+    // termination that fails is reported as a failed cleanup.
+    return trip(
+      run,
+      async () => {
+        const deadline = Date.now() + run.limitMs - 1_000;
+        while (Date.now() < deadline) {
+          const { status, error } = await instance.status();
+          if (status === "complete") {
+            complete = true;
+            return;
+          }
+          if (status === "errored" || status === "terminated")
+            throw new Error(`instance ${status}: ${error?.message ?? ""}`);
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        throw new Error(`instance did not complete within ${(run.limitMs - 1_000) / 1000} s`);
+      },
+      async () => {
+        if (!complete) await instance.terminate();
+      },
+    );
   },
   BROWSER(env, run) {
     let session: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;
