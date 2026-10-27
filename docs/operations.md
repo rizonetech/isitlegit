@@ -34,7 +34,7 @@ When the incident is over and a good deploy is live, delete `build/rollback-reje
 Cloudflare keeps only the 100 most recent versions, and every rotation of the smoke token or other secret publishes one. Redeploy from source when no rollback target is left, or when the rollback was refused because secrets changed. The old commit is built in a separate worktree, and today's `main` checks it: an older commit's own `scripts/smoke.ts` may mint a token or publish a version, which would leave the vault and the Worker disagreeing.
 
 1. `git worktree add ../isitlegit-recover <known-good commit>`, then `cd ../isitlegit-recover && pnpm install --frozen-lockfile`.
-2. Run the gates there: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `python3 scripts/check-publication.py`.
+2. Run the gates there: `pnpm typecheck`, `pnpm lint`, `pnpm test`. (The publication check ran when that commit was made; its client list is git-ignored and stays in the main checkout.)
 3. Deploy from there: `pnpm exec wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)`. A deploy keeps today's secrets.
 4. Back in the main checkout, on `main`: `curl -s https://isitlegit.derick-f5a.workers.dev/health` reports that commit, and `node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev --commit <known-good commit>` passes.
 5. `git worktree remove ../isitlegit-recover`, and fix forward on `main`.
