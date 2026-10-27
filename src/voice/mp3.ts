@@ -10,8 +10,10 @@
 // without that count, cut exactly at a frame boundary, cannot be told from a shorter recording: MP3 carries no other
 // length or checksum.
 //
-// Decoding is minimp3 (CC0), compiled to WebAssembly by minimp3-wasm 0.1.0 (Apache-2.0) and imported as a module, so
-// nothing is compiled at runtime; its own `fetch`-based loader is not used. Licences: `minimp3.wasm.LICENSE`.
+// Decoding is minimp3 (CC0), vendored in native/minimp3 with a binding of our own that decodes one frame per call and
+// reports minimp3's result for it, compiled to WebAssembly by scripts/build-minimp3-wasm.py and imported as a module,
+// so nothing is compiled at runtime and a frame minimp3 refuses is never passed on as silence. Licence:
+// `minimp3.wasm.LICENSE`.
 import { CorruptAudio, UnsupportedAudio } from "./errors";
 import minimp3Module from "./minimp3.wasm?module";
 
@@ -172,34 +174,50 @@ export function scanMp3(bytes: Uint8Array): Mp3Layout {
   };
 }
 
-// minimp3-wasm's exports, as its own binding (dist/minimp3-wasm.js) uses them.
+// The binding's exports (native/minimp3/decoder.c): one frame decoded per call, with minimp3's own result.
 type Minimp3 = {
   memory: WebAssembly.Memory;
-  decoder_init: () => void;
-  decoder_set_mp3_data_size: (size: number) => void;
-  decoder_mp3_data_offset: () => number;
-  decoder_seek: (seconds: number) => void;
-  decoder_decode: (seconds: number) => void;
-  decoder_pcm_data_offset: () => number;
-  decode_results_num_channels: () => number;
-  decode_results_num_samples: () => number;
+  input_offset: () => number;
+  set_input_size: (size: number) => number;
+  decode_frame: (offset: number) => number;
+  frame_bytes: () => number;
+  frame_channels: () => number;
+  frame_rate: () => number;
+  pcm_offset: () => number;
 };
 
-// A decoder over the audio frames, one instance per recording: each `decode` gives the next stretch of interleaved
-// PCM, a view of the module's memory that the next call overwrites.
+// A decoder over the audio frames, one instance per recording: each `decode` gives the next stretch of at most
+// `seconds` (whole frames) as interleaved PCM. A frame minimp3 refuses (invalid side information, a bit reservoir it
+// cannot restore) is `CorruptAudio`, never silence.
 export function createMp3Decoder(audio: Uint8Array): Mp3Stream {
   const wasm = new WebAssembly.Instance(minimp3Module, {}).exports as unknown as Minimp3;
-  wasm.decoder_init();
-  wasm.decoder_set_mp3_data_size(audio.length);
-  new Uint8Array(wasm.memory.buffer, wasm.decoder_mp3_data_offset(), audio.length).set(audio);
-  wasm.decoder_seek(0);
+  if (!wasm.set_input_size(audio.length)) throw new CorruptAudio("the MP3 is too large for the decoder's memory");
+  new Uint8Array(wasm.memory.buffer, wasm.input_offset(), audio.length).set(audio);
+  let offset = 0;
+  let frame = 0;
   return {
     decode: (seconds) => {
-      wasm.decoder_decode(seconds);
-      const channels = wasm.decode_results_num_channels();
-      const values = wasm.decode_results_num_samples();
-      const pcm = new Int16Array(wasm.memory.buffer, wasm.decoder_pcm_data_offset(), values);
-      return { pcm, channels, samples: channels ? values / channels : 0 };
+      const parts: Int16Array[] = [];
+      let total = 0;
+      let channels = 0;
+      let rate = 0;
+      while (offset < audio.length && (rate === 0 || total < seconds * rate)) {
+        const samples = wasm.decode_frame(offset);
+        if (samples === 0) throw new CorruptAudio(`MP3 frame ${frame} does not decode (minimp3 refuses its contents)`);
+        channels = wasm.frame_channels();
+        rate = wasm.frame_rate();
+        parts.push(Int16Array.from(new Int16Array(wasm.memory.buffer, wasm.pcm_offset(), samples * channels)));
+        total += samples;
+        offset += wasm.frame_bytes();
+        frame++;
+      }
+      const pcm = new Int16Array(total * channels);
+      let at = 0;
+      for (const part of parts) {
+        pcm.set(part, at);
+        at += part.length;
+      }
+      return { pcm, channels, samples: total };
     },
   };
 }

@@ -42,9 +42,6 @@ importers:
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
-      minimp3-wasm:
-        specifier: 0.1.0
-        version: 0.1.0
       openai:
         specifier: 7.43.0
         version: 7.43.0(undici@7.30.1)(ws@8.21.0)(zod@4.6.7)
@@ -1282,9 +1279,6 @@ packages:
     resolution: {integrity: sha512-SHY8A98gCvmrnBLqABHRTSh3duAL1z+tHPRZu/tqxHFqVARrZ4oQis/ALYwp3XvzHvs6B/ff/CdcCafqP+cOFA==}
     engines: {node: '>=22.0.0'}
 
-  minimp3-wasm@0.1.0:
-    resolution: {integrity: sha512-eWQFfEZ2OyygrJe4iHpNkBw2keuEhUM/h8/rYssUs84+Ht31Vhb8KjBl3VwJXxC69d2cCGHs+/14pcjifh+KHw==}
-
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
     engines: {node: '>=4'}
@@ -2424,8 +2418,6 @@ snapshots:
       - '@types/node'
       - bufferutil
       - utf-8-validate
-
-  minimp3-wasm@0.1.0: {}
 
   mri@1.2.0: {}
 

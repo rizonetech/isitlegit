@@ -548,6 +548,7 @@ export async function* decodeToWavChunks(
       try {
         block = decoder.decode(options.mp3BatchSeconds ?? MP3_BATCH_SECONDS);
       } catch (error) {
+        if (error instanceof CorruptAudio) throw error;
         throw new CorruptAudio(`the MP3 decoder failed (${(error as Error).name}: ${(error as Error).message})`);
       }
       if (block.samples === 0)

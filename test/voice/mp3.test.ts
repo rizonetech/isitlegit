@@ -251,6 +251,27 @@ describe("MP3 decoding", () => {
         expect(error.message).toMatch(message);
       });
 
+    it("frames whose contents minimp3 refuses, with every header intact (completion review)", async () => {
+      // The 17 bytes of mono MPEG-1 side information after each 4-byte header, set to 0xff: headers and lengths are
+      // whole, so only the real decoder can tell.
+      const damaged = (which: (index: number) => boolean) =>
+        concat(
+          toneFrames.map((frame, index) => {
+            if (!which(index)) return frame;
+            const copy = frame.slice();
+            copy.fill(0xff, 4, 4 + 17);
+            return copy;
+          }),
+        );
+      const everywhere = await refusal(damaged(() => true));
+      expect(everywhere).toBeInstanceOf(CorruptAudio);
+      expect(everywhere.message).toMatch(/^MP3 frame 0 does not decode/);
+      // Damage after valid audio: frame 50 alone.
+      const later = await refusal(damaged((index) => index === 50));
+      expect(later).toBeInstanceOf(CorruptAudio);
+      expect(later.message).toMatch(/^MP3 frame 50 does not decode/);
+    });
+
     it("Layer II and free-format files as unsupported", async () => {
       const layer2 = toneMp3.slice();
       layer2[1] = ((layer2[1] as number) & ~0x06) | 0x04; // layer bits 10: Layer II

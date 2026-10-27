@@ -16,11 +16,20 @@ describe("the voice decoder's build inputs", () => {
     expect(WebAssembly.validate(committed)).toBe(true);
   });
 
-  it("commits minimp3-wasm's WebAssembly unchanged (D01 T03 §7)", () => {
-    const committed = readFileSync(join(ROOT, "src/voice/minimp3.wasm"));
-    // Copy node_modules/minimp3-wasm/dist/decoder.opt.wasm again after upgrading minimp3-wasm.
-    expect(committed.equals(readFileSync(join(ROOT, "node_modules/minimp3-wasm/dist/decoder.opt.wasm")))).toBe(true);
-    expect(WebAssembly.Module.imports(new WebAssembly.Module(committed))).toEqual([]);
+  it("commits an MP3 decoder with no imports and the binding's exports (D01 T03 §7)", () => {
+    // That it is native/minimp3 built with the pinned Zig is CI's check (scripts/build-minimp3-wasm.py --check).
+    const module = new WebAssembly.Module(readFileSync(join(ROOT, "src/voice/minimp3.wasm")));
+    expect(WebAssembly.Module.imports(module)).toEqual([]);
+    expect(WebAssembly.Module.exports(module).map((e) => e.name)).toEqual([
+      "memory",
+      "input_offset",
+      "set_input_size",
+      "decode_frame",
+      "frame_bytes",
+      "frame_channels",
+      "frame_rate",
+      "pcm_offset",
+    ]);
   });
 
   it("aliases the decoder's Web Worker import to the same stub in both configs", () => {
