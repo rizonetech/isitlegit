@@ -39,6 +39,7 @@ track: day-1
 | 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §8 | [ ] |
 | 4 | §4 | Test and demo mail aliases | §1 | [ ] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [ ] |
+| 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -143,6 +144,8 @@ The fictional demo businesses need registered contacts that reach a real inbox, 
 
 Evidence 2026-10-27 21:25 SAST (operator's go-ahead, 21:18 SAST). Email Routing for `demo.isitlegit.co.za` reads `ready` (19:19:10 UTC) with MX `route1` (56), `route2` (9) and `route3` (32) `.mx.cloudflare.net` and SPF `v=spf1 include:_spf.mx.cloudflare.net ~all`, resolving on 1.1.1.1; the apex keeps its three MX records. The rules read back enabled, each forwarding to `hostmaster@rizonetech.com`: `finance@demo` (`53c50578`), `alerts@demo` (`f76e3ed2`), `owner@demo` (`0eecf0c7`), beside `conduct@`, `hello@` and `dmarc@`. A first test sent 15 s after the rules were created was refused `550 5.1.1 Address does not exist` for all three (the rules were not live yet); the second, sent from `rizonetech@gmail.com` about a minute later, arrived in `derick@rizonetech.com`: `IsItLegit routing test 2 (finance@demo) 2026-10-27T19:24Z`, sent 19:20:11 UTC, received 19:20:22 UTC, `<CA+OCnvmKmcQ_BE=jkmo6Vi2qfR-ymniCp-4pHA1BbBr4UnEOug@mail.gmail.com>`; `IsItLegit routing test 2 (alerts@demo) 2026-10-27T19:24Z`, sent 19:20:12 UTC, received 19:20:21 UTC, `<CA+OCnvm4HsE0R7rSXBoLAFHgXK2bM+FUYRQTeCOO3Yp5=MYX0w@mail.gmail.com>`; `IsItLegit routing test 2 (owner@demo) 2026-10-27T19:24Z`, sent 19:20:13 UTC, received 19:20:22 UTC, `<CA+OCnvkzByH6ZX4-jeZTS6vKAqO_Zuaw+PyacfuWd08o8w09eA@mail.gmail.com>`. The subjects' timestamp was written before sending and is not the send time. `docs/live-checks.md` lists the three aliases with their proof times and the propagation note.
 
+> **Deferred:** detecting a forward that fails after Cloudflare accepted it, and telling the operator -> XREF: D01 T02 §6
+
 **Test checkpoint:** the Email Routing rules and the subdomain's MX records, read back through the Cloudflare API (`GET /zones/88aeec6df134bc59bfa16a25751241ef/email/routing/rules` and the zone's MX records), show the four aliases enabled, each forwarding to the verified operator destination, and `demo.isitlegit.co.za` routed to Cloudflare; the read-back is quoted in `docs/live-checks.md`, and each of the three demo aliases has a recorded arrival in `derick@rizonetech.com` (subject, sender, time, `internetMessageId`).
 
 ## 5. Reconcile uncertain sends
@@ -165,6 +168,28 @@ A send recorded `uncertain` (no answer, an unreadable answer, or a 5xx, §1) may
 - [ ] Commit: `mail: reconcile uncertain sends with SMTP2GO's record`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reconcile.test.ts` passes, and fails if a settled row is wrong or the reconciler ever sends.
+
+## 6. Forwarding failures detected and reported
+
+Cloudflare accepts mail for an alias and then forwards it; a failure after that acceptance (the destination refusing it, a quota, a policy) is not reported to the original sender, because Cloudflare does not forward non-delivery reports (https://developers.cloudflare.com/email-service/reference/postmaster/#non-delivery-reports-ndrs). A judge or a demo contact's mail could then vanish with nobody told. Filed from §4's completion review (out-of-scope gap, 2026-10-27), which compared it with Exchange Online aliases, whose failures come back with a reason.
+
+**Phase:** 1
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find where Cloudflare reports a forwarding failure. Done when: the source, its fields and the permission it needs are recorded here.
+2. Detect and report each failure. Done when: a failed forward produces one operator alert naming the alias and the message within five minutes of its detection.
+
+- [ ] Read Cloudflare's Email Routing analytics (its GraphQL dataset for routing events, or the dashboard's activity log API) and record here how a forward that failed after acceptance appears (status, the alias, the message id, the time), the token permission that reads it, and the delay before an event is visible, with the reference URL and the date read. Done when: the finding is recorded, and a vault item for that read-only token is named (created by the operator if none exists, D99 T01).
+- [ ] Write `checkForwarding(deps, since)` in `src/mail/forwarding.ts` that reads the failures since the last check for this zone's aliases and sends the operator one `alert` through `sendMail` per failed message, with the alias, the time, the reason and the sender's domain (never the body), under the send key `forward-failure:<message id>` so a repeated check alerts once. Done when: `test/mail/forwarding.test.ts` turns a stubbed failure into one alert, sends nothing for a successful forward, and alerts once when checked twice.
+- [ ] Run it from the Worker's scheduled handler every 5 minutes. Done when: a test of the scheduled handler calls it.
+- [ ] Prove it live once: make a forward fail on purpose (a test rule to an unverified destination, removed afterwards) and confirm the alert arrives in `derick@rizonetech.com`, recording its time and `internetMessageId`. Done when: the alert is recorded and the test rule is gone.
+- [ ] Add to `docs/live-checks.md` what the operator does with such an alert: check the destination's mailbox health, then ask the sender to resend. Done when: the page holds the steps.
+- [ ] Commit: `mail: forwarding failures detected and reported to the operator`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and fails if a failure produces no alert or a repeated check alerts twice.
 
 ## Verification
 
