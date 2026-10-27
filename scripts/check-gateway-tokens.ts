@@ -1,27 +1,18 @@
 // Proves the two AI Gateway tokens in the vault do what their consumers need (D99 T01 §8), never printing either: the
 // gateway refuses a request with no token and with a made-up one, and lets the Run token through to Meta (Meta then
 // refuses the missing provider key, so no model runs and nothing is charged); the Run token cannot read the gateway's
-// settings; and the admin token reads gateway `isitlegit` and its `meta` provider and writes the settings back
-// unchanged. Any other answer fails, naming the check, the capability it needs and what to do. Swapped tokens fail
+// settings; and the admin token reads gateway `isitlegit` and its `meta` provider and holds Edit, shown by an update
+// with no fields, which Cloudflare refuses as invalid (400) only after accepting the token's permission (a token
+// without Edit gets 403), so the probe can never change a setting someone set meanwhile. Any other answer fails, naming the check, the capability it needs and what to do. Swapped tokens fail
 // too: the admin token holds no Run, and the Run token holds no Read. Each check is announced before it waits and
 // printed as soon as it ends, so a slow or interrupted run still shows what it learned.
 //
 //   node scripts/check-gateway-tokens.ts
-import { runCommand } from "./smoke.ts";
+import { installSignalCleanup, runCommand } from "./smoke.ts";
 
 const ACCOUNT_ID = "f5a529987f8dc7d52ce7aba3da25e226";
 const GATEWAY = "isitlegit";
 const VAULT = { run: "IsItLegit AI Gateway token", admin: "IsItLegit AI Gateway admin token" } as const;
-// The settings a no-op update writes back, as the gateway reports them.
-const SETTINGS = [
-  "authentication",
-  "cache_invalidate_on_update",
-  "cache_ttl",
-  "collect_logs",
-  "rate_limiting_interval",
-  "rate_limiting_limit",
-  "rate_limiting_technique",
-] as const;
 // A Cloudflare token: letters, digits and a few separators, nothing that could break a header or a line.
 const TOKEN = /^[A-Za-z0-9._-]{20,200}$/;
 
@@ -87,7 +78,9 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
     a.status === 401 &&
     a.headers.has("cf-aig-log-id") &&
     (a.body as { error?: { code?: string } })?.error?.code === "invalid_api_key";
-  const result = <T>(a: Answer) => (a.body as { result?: T }).result;
+  // The `result` of a Cloudflare answer, or undefined when the body is not the expected shape.
+  const result = (a: Answer): unknown =>
+    a.body && typeof a.body === "object" ? (a.body as { result?: unknown }).result : undefined;
 
   const probe = `${endpoints.gateway}/${ACCOUNT_ID}/${GATEWAY}/custom-meta/v1/models`;
   const settings = `${endpoints.api}/accounts/${ACCOUNT_ID}/ai-gateway/gateways/${GATEWAY}`;
@@ -130,7 +123,11 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
       : `HTTP ${runReads.status}; "${VAULT.run}" holds more than AI Gateway Run: replace it with a Run-only token`,
   );
   const read = await ask("the admin token reading the gateway", settings, { headers: bearer(tokens.admin) });
-  const gateway = typeof read === "string" ? undefined : result<Record<string, unknown>>(read);
+  const settingsRead = typeof read === "string" ? undefined : result(read);
+  const gateway =
+    settingsRead && typeof settingsRead === "object" && !Array.isArray(settingsRead)
+      ? (settingsRead as Record<string, unknown>)
+      : undefined;
   record(
     typeof read !== "string" && read.status === 200 && gateway?.id === GATEWAY,
     "the admin token reads the gateway",
@@ -143,7 +140,8 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
       headers: bearer(tokens.admin),
     },
   );
-  const slugs = typeof providers === "string" ? [] : (result<{ slug?: string }[]>(providers) ?? []).map((p) => p.slug);
+  const listed = typeof providers === "string" ? undefined : result(providers);
+  const slugs = Array.isArray(listed) ? listed.map((p) => (p as { slug?: unknown })?.slug) : [];
   record(
     typeof providers !== "string" && providers.status === 200 && slugs.includes("meta"),
     "the admin token reads the meta provider",
@@ -153,24 +151,26 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
         ? "the gateway has no meta provider; restore it (D00 T01 §6, §11)"
         : `HTTP ${providers.status}; "${VAULT.admin}" needs AI Gateway Read on this account`,
   );
-  if (gateway) {
-    const unchanged = Object.fromEntries(SETTINGS.filter((k) => k in gateway).map((k) => [k, gateway[k]]));
-    const write = await ask("the admin token writing the settings back", settings, {
-      method: "PUT",
-      headers: bearer(tokens.admin),
-      body: JSON.stringify(unchanged),
-    });
-    const after = typeof write === "string" ? {} : (result<Record<string, unknown>>(write) ?? {});
-    record(
-      typeof write !== "string" && write.status === 200 && Object.entries(unchanged).every(([k, v]) => after[k] === v),
-      "the admin token writes the settings back unchanged",
-      typeof write === "string"
-        ? write
-        : write.status === 200
-          ? "a setting changed on the way back; read the gateway's settings in the dashboard"
-          : `HTTP ${write.status}; "${VAULT.admin}" needs AI Gateway Edit on this account`,
-    );
-  } else record(false, "the admin token writes the settings back unchanged", "skipped: the settings could not be read");
+  // An update with no fields: refused as invalid (400, Cloudflare's validation code 7001) once the token's Edit is
+  // accepted, refused as forbidden (403) without it; it cannot change anything either way.
+  const edit = await ask("the admin token's Edit permission", settings, {
+    method: "PUT",
+    headers: bearer(tokens.admin),
+    body: "{}",
+  });
+  const codes =
+    typeof edit === "string" || !edit.body || typeof edit.body !== "object"
+      ? []
+      : ((edit.body as { errors?: { code?: unknown }[] }).errors ?? []).map((e) => e?.code);
+  record(
+    typeof edit !== "string" && edit.status === 400 && codes.includes(7001),
+    "the admin token holds Edit",
+    typeof edit === "string"
+      ? edit
+      : edit.status === 403 || edit.status === 401
+        ? `HTTP ${edit.status}; "${VAULT.admin}" needs AI Gateway Edit on this account`
+        : `HTTP ${edit.status} to an empty update; read the gateway's settings in the dashboard before relying on this token`,
+  );
   return { ok, lines };
 }
 
@@ -187,6 +187,8 @@ if (import.meta.filename === process.argv[1]) {
       process.exit(1);
     }
   };
+  // Ctrl+C, a termination signal or a closed terminal stops a vault read still running before this exits.
+  installSignalCleanup();
   console.log("Reading both tokens from Conclave...");
   const tokens = { run: await read("run"), admin: await read("admin") };
   const outcome = await checkTokens(

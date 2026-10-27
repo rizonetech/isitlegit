@@ -1,4 +1,5 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -17,6 +18,8 @@ type World = {
   gatewayError?: boolean; // a gateway that fails the Run token's request itself, while logging it
   stallAdmin?: boolean; // an API that never answers the admin token
   notMeta?: boolean; // a logged 401 for the Run token that is not Meta's answer
+  malformed?: boolean; // settings answered 503 with null, providers with an object
+  acceptsEmptyUpdate?: boolean; // an API that answers 200 to an update with no fields
 };
 const right: World = { runTokens: [RUN], readers: [ADMIN], writers: [ADMIN] };
 let server: Server | undefined;
@@ -44,10 +47,16 @@ async function stand(world: World) {
     }
     const token = bearer(req.headers.authorization);
     if (world.stallAdmin && token === ADMIN) return; // never answers
+    if (world.malformed && req.method === "GET")
+      return req.url?.endsWith("/custom-providers") ? json(200, { result: {} }) : json(503, null);
     if (req.url?.endsWith("/custom-providers"))
       return world.readers.includes(token) ? json(200, { result: [{ slug: "meta" }] }) : json(403, { success: false });
-    if (req.method === "PUT")
-      return world.writers.includes(token) ? json(200, { result: { ...settings, ...JSON.parse(raw) } }) : json(403, {});
+    if (req.method === "PUT") {
+      if (!world.writers.includes(token)) return json(403, { errors: [{ code: 10000 }] });
+      if (world.acceptsEmptyUpdate) return json(200, { result: { ...settings, ...JSON.parse(raw || "{}") } });
+      // Cloudflare's answer to an update with no fields, once the token's Edit is accepted.
+      return json(400, { errors: [{ code: 7001, message: "Expected number, received nan" }] });
+    }
     return world.readers.includes(token) ? json(200, { result: settings }) : json(403, { success: false });
   });
   server = local;
@@ -83,7 +92,7 @@ describe("scripts/check-gateway-tokens.ts", () => {
   it("fails an admin token that cannot write", async () => {
     const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, writers: [] }));
     expect(outcome.ok).toBe(false);
-    expect(failure(outcome.lines, "the admin token writes")).toMatch(/HTTP 403; .*needs AI Gateway Edit/);
+    expect(failure(outcome.lines, "the admin token holds Edit")).toMatch(/HTTP 403; .*needs AI Gateway Edit/);
   });
 
   it("fails a gateway that lets a request with no token through", async () => {
@@ -137,6 +146,51 @@ describe("scripts/check-gateway-tokens.ts", () => {
     );
     expect(failure(shown, "the admin token reads the gateway")).toMatch(/no answer within 0\.3 s; check the network/);
   });
+
+  it("fails an empty update that is accepted, rather than trusting it", async () => {
+    const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, acceptsEmptyUpdate: true }));
+    expect(outcome.ok).toBe(false);
+    expect(failure(outcome.lines, "the admin token holds Edit")).toMatch(/HTTP 200 to an empty update/);
+  });
+
+  it("names a malformed answer as a failed check instead of crashing", async () => {
+    const outcome = await checkTokens({ run: RUN, admin: ADMIN }, await stand({ ...right, malformed: true }));
+    expect(outcome.ok).toBe(false);
+    expect(failure(outcome.lines, "the admin token reads the gateway")).toMatch(/HTTP 503/);
+    expect(failure(outcome.lines, "the admin token reads the meta provider")).toMatch(/no meta provider/);
+  });
+
+  it("stops a stalled vault read when interrupted, from the real entry point", async () => {
+    const dir = join(import.meta.dirname, `../../build/test-check-tokens-${process.pid}`);
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    const pidFile = join(dir, "vault.pid");
+    writeFileSync(join(dir, "conclave-op"), `#!/bin/sh\necho $$ > "${pidFile}"\nexec sleep 30\n`, { mode: 0o755 });
+    const child = spawn(process.execPath, ["scripts/check-gateway-tokens.ts"], {
+      cwd: join(import.meta.dirname, "../.."),
+      env: { PATH: `${dir}:${process.env.PATH}` },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const exited = new Promise<number | null>((resolve) => child.on("exit", (code) => resolve(code)));
+    for (let waited = 0; !existsSync(pidFile); waited += 50) {
+      if (waited > 10_000) throw new Error("the vault read never started");
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const stalled = Number(readFileSync(pidFile, "utf-8"));
+    child.kill("SIGINT");
+    expect(await exited).toBe(130);
+    const alive = () => {
+      try {
+        process.kill(stalled, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (let waited = 0; alive() && waited < 2_000; waited += 50) await new Promise((r) => setTimeout(r, 50));
+    expect(alive()).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  }, 20_000);
 
   it("names the vault item when it cannot be read, from the real entry point", () => {
     const run = spawnSync(process.execPath, ["scripts/check-gateway-tokens.ts"], {
