@@ -302,7 +302,7 @@ Evidence 2026-10-27 10:35 SAST, through the Cloudflare API (this session's Cloud
 
 **Test checkpoint:** a GET of `/accounts/f5a529987f8dc7d52ce7aba3da25e226/ai-gateway/gateways/isitlegit` and of the `meta` custom provider through the Cloudflare API returns both with the settings above (authentication on, logs off by default) and the pricing rules, and an unauthenticated request to `META_GATEWAY_URL/models` is refused by the gateway. (**Corrected 2026-10-27** (final review P2): it also required the authenticated request to reach Meta, which runs in §7.)
 
-> **Deferred:** a request with the gateway token reaching Meta through `custom-meta` (Meta's own answer, not a gateway 404), which needs the operator's gateway token -> XREF: D00 T01 §7 (**Corrected 2026-10-27:** was a curl with `$CLOUDFLARE_API_TOKEN`, which this repository does not hold.)
+> **Resolved:** a request with the gateway token reaching Meta through `custom-meta` (Meta's own answer, not a gateway 404), which needs the operator's gateway token -> XREF: D00 T01 §7 (**Corrected 2026-10-27:** was a curl with `$CLOUDFLARE_API_TOKEN`, which this repository does not hold.) Resolved 2026-10-27 by D00 T01 §7: `node scripts/meta-smoke.ts --confirm-credit` sent four calls with the Run token through `custom-meta`, each answered by Meta and logged by the gateway (`docs/meta-smoke-test.md`).
 
 > **Verified:** 2026-10-27 | §6 | 471b9ffe0b96492d16396c18632e83d133825dae
 > **Review:** `docs/reviews/d00-t01-s6.json`
