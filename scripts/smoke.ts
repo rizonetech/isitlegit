@@ -112,6 +112,9 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
         status = response.status;
         text = await response.text();
       } catch (error) {
+        // The run's own deadline, whether it struck between requests or during one, is one failure with one name.
+        if ((error as Error).name === "TimeoutError")
+          return { ok: false, lines: [`smoke: no passing answer within ${waitMs / 1000} s`] };
         return { ok: false, lines: [`smoke: ${url} gave no answer: ${(error as Error).message}`] };
       }
       // The new version can take a few seconds to reach every location: until then the old one answers 404.

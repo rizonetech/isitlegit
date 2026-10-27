@@ -175,7 +175,7 @@ describe("scripts/smoke.ts", () => {
       const started = Date.now();
       const outcome = await runSmoke(base, { ...quick, waitMs: 500 });
       expect(outcome.ok, stall).toBe(false);
-      expect(outcome.lines[0]).toMatch(/gave no answer/);
+      expect(outcome.lines[0]).toBe("smoke: no passing answer within 0.5 s");
       expect(Date.now() - started).toBeLessThan(3_000);
       server?.closeAllConnections();
       server?.close();
@@ -187,6 +187,13 @@ describe("scripts/smoke.ts", () => {
       pause: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 50))),
     });
     expect(outcome.lines[0]).toBe("smoke: no passing answer within 0.3 s");
+  });
+
+  it("names a refused connection apart from the deadline", async () => {
+    const base = await serve(() => ({ status: 404 }));
+    server?.close();
+    const outcome = await runSmoke(base, quick);
+    expect(outcome.lines[0]).toMatch(/^smoke: http:\/\/127\.0\.0\.1:\d+\/internal\/smoke gave no answer: /);
   });
 
   it("waits out the old version while the new one propagates", async () => {
