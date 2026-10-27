@@ -22,6 +22,15 @@ pnpm exec wrangler d1 migrations list DB --remote        # reads back "No migrat
 
 Write migrations that only add (new tables, new nullable columns), so code one deploy behind still runs. A rollback never reverts a migration (below).
 
+When `pnpm db:migrate:remote` fails or is cut off (an SQL error, a lost connection, Ctrl+C), do not deploy. D1 runs each migration as a unit: one that fails is rolled back whole, the ones before it stay applied with their data, and the failed one stays pending. So:
+
+1. `pnpm exec wrangler d1 migrations list DB --remote` shows which migrations are still to apply.
+2. Fix the migration file that failed (it was never recorded as applied, so editing it is safe), and try it with `pnpm db:migrate:local` first.
+3. Run `pnpm db:migrate:remote` again; it applies only what is pending.
+4. Deploy only once `migrations list --remote` reads "No migrations to apply".
+
+Rehearsed 2026-10-27 on a local database: a second migration that created a table and then failed left the first migration's table and its row in place, created nothing, and stayed pending; fixed and applied again, it applied alone and the row was still there.
+
 ## Roll back a broken deploy
 
 Roll back when a deploy breaks the live Worker: `/health` fails or reports the wrong commit, the smoke check fails, or members see errors.

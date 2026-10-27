@@ -10,6 +10,7 @@ import {
   setVerdict,
   type Verdict,
 } from "../../src/db/cases";
+import { isUlid, ulid } from "../../src/db/ulid";
 
 // src/db/cases.ts (D01 T01 §1): typed, organisation-scoped case queries whose refusals change nothing.
 const db = env.DB;
@@ -93,6 +94,61 @@ describe("the case store", () => {
     expect(await setStatus(db, "org-a", "nope", "running")).toMatchObject({ ok: false, error: { code: "not_found" } });
     expect(await setVerdict(db, "org-a", "nope", "safe")).toMatchObject({ ok: false, error: { code: "not_found" } });
     expect(await getCaseForPipeline(db, "nope")).toMatchObject({ ok: false, error: { code: "not_found" } });
+  });
+
+  it("gives each case a ULID, the id the artefact store requires", async () => {
+    const c = await created();
+    expect(isUlid(c.id)).toBe(true);
+    expect(ulid(1_000) < ulid(2_000)).toBe(true);
+    expect(ulid(0).slice(0, 10)).toBe("0000000000");
+    const many = new Set(Array.from({ length: 1_000 }, () => ulid()));
+    expect(many.size).toBe(1_000);
+    for (const id of many) expect(isUlid(id)).toBe(true);
+    for (const bad of [
+      "",
+      "not-a-ulid",
+      crypto.randomUUID(),
+      `8${"0".repeat(25)}`,
+      "0".repeat(25),
+      `${"0".repeat(25)}I`,
+    ])
+      expect(isUlid(bad), bad).toBe(false);
+  });
+
+  it("answers each change with the row as stored, a change made meanwhile included", async () => {
+    const c = await created();
+    await setStatus(db, c.orgId, c.id, "running");
+    // Another writer finishes the case between this caller's reads.
+    await db.prepare("UPDATE cases SET status = 'done' WHERE id = ?").bind(c.id).run();
+    const verdict = await setVerdict(db, c.orgId, c.id, "malicious");
+    expect(verdict).toMatchObject({ ok: true, value: { status: "done", verdict: "malicious" } });
+    const d = await created();
+    await db.prepare("UPDATE cases SET verdict = 'safe' WHERE id = ?").bind(d.id).run();
+    expect(await setStatus(db, d.orgId, d.id, "running")).toMatchObject({
+      ok: true,
+      value: { status: "running", verdict: "safe" },
+    });
+  });
+
+  it("makes a successful change in one statement", async () => {
+    const c = await created();
+    let statements = 0;
+    const counted = new Proxy(db, {
+      get(target, key) {
+        const value = Reflect.get(target, key);
+        if (key === "prepare")
+          return (sql: string) => {
+            statements++;
+            return target.prepare(sql);
+          };
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await setVerdict(counted, c.orgId, c.id, "safe");
+    expect(statements).toBe(1);
+    statements = 0;
+    await setStatus(counted, c.orgId, c.id, "running");
+    expect(statements).toBe(1);
   });
 
   it("keeps organisations apart: another organisation cannot read or change a case", async () => {

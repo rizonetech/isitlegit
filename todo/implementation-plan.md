@@ -26,11 +26,11 @@ Sections: 11 | Checklist items: 129
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 32 | Checklist items: 212
+Sections: 32 | Checklist items: 213
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [ ]    | D01 T01 §1 | Core D1 schema and migration runner        | none                  | 9     |
+| [ ]    | D01 T01 §1 | Core D1 schema and migration runner        | none                  | 10    |
 | [ ]    | D01 T01 §2 | Case store and R2 artefact layout          | none                  | 5     |
 | [ ]    | D01 T01 §8 | Signed expiring report links               | none                  | 5     |
 | [ ]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 5     |
@@ -238,7 +238,7 @@ Sections: 54 | Checklist items: 198
 
 ### Phase 7: After the event
 
-Sections: 6 | Checklist items: 23
+Sections: 7 | Checklist items: 27
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -247,6 +247,7 @@ Sections: 6 | Checklist items: 23
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
+| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
 
 ### Phase 99: Manual, operator only
@@ -268,6 +269,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 14/199 verified sections, 10 ready to run now.
+Progress: 14/200 verified sections, 10 ready to run now.
 
-Checklist: 240/1020 items completed (includes Commit items).
+Checklist: 241/1025 items completed (includes Commit items).

@@ -1,9 +1,12 @@
 import { z } from "zod";
+import { ulid } from "./ulid";
 
 // The case store's typed queries (D01 T01 §1). Every member-facing read and change names the organisation and matches
 // it in SQL, so another organisation's case reads as missing and is never changed; the one lookup by id alone,
 // `getCaseForPipeline`, is for the analysis workflow, which holds no member session. Refusals come back as values, and a
-// refused change leaves the row as it was.
+// refused change leaves the row as it was. A successful change is one statement that returns the row as stored, so the
+// answer is never an earlier read with one field patched. Case ids are ULIDs (`./ulid`), which the artefact store
+// requires.
 
 export const Channel = z.enum(["email", "upload"]);
 export const CaseStatus = z.enum(["received", "running", "done", "partial"]);
@@ -68,7 +71,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
   if (!parsed.success) return invalid(parsed.error);
   const now = new Date().toISOString();
   const row: Row = {
-    id: crypto.randomUUID(),
+    id: ulid(),
     org_id: parsed.data.orgId,
     channel: parsed.data.channel,
     status: "received",
@@ -110,6 +113,16 @@ export async function getCaseForPipeline(db: D1Database, id: string): Promise<Ca
   return row ? { ok: true, value: toCase(row) } : fail("not_found", `no case ${id}`);
 }
 
+// Which statuses a case may move to `status` from.
+const FROM = (status: CaseStatus) => (Object.keys(NEXT) as CaseStatus[]).filter((from) => NEXT[from].includes(status));
+
+// Why a change matched no row: the case is missing (or another organisation's), or its status refuses the move.
+async function refusal(db: D1Database, orgId: string, id: string, status?: CaseStatus): Promise<CaseResult<never>> {
+  const current = await getCase(db, orgId, id);
+  if (!current.ok) return current;
+  return fail("transition", `a case cannot go from ${current.value.status} to ${status}`);
+}
+
 export async function setStatus(
   db: D1Database,
   orgId: string,
@@ -118,18 +131,16 @@ export async function setStatus(
 ): Promise<CaseResult<Case>> {
   const parsed = CaseStatus.safeParse(status);
   if (!parsed.success) return invalid(parsed.error);
-  const current = await getCase(db, orgId, id);
-  if (!current.ok) return current;
-  const from = current.value.status;
-  if (!NEXT[from].includes(parsed.data)) return fail("transition", `a case cannot go from ${from} to ${parsed.data}`);
-  // The status read above is part of the condition, so a change made meanwhile is refused rather than overwritten.
-  const now = new Date().toISOString();
-  const changed = await db
-    .prepare("UPDATE cases SET status = ?, updated_at = ? WHERE id = ? AND org_id = ? AND status = ?")
-    .bind(parsed.data, now, id, orgId, from)
-    .run();
-  if (changed.meta.changes !== 1) return fail("transition", `case ${id} changed while moving from ${from}`);
-  return { ok: true, value: { ...current.value, status: parsed.data, updatedAt: now } };
+  const from = FROM(parsed.data);
+  if (from.length === 0) return refusal(db, orgId, id, parsed.data);
+  // The allowed previous statuses are part of the condition, so the move and its check are one statement.
+  const row = await db
+    .prepare(
+      `UPDATE cases SET status = ?, updated_at = ? WHERE id = ? AND org_id = ? AND status IN (${from.map(() => "?").join(", ")}) RETURNING *`,
+    )
+    .bind(parsed.data, new Date().toISOString(), id, orgId, ...from)
+    .first<Row>();
+  return row ? { ok: true, value: toCase(row) } : refusal(db, orgId, id, parsed.data);
 }
 
 export async function setVerdict(
@@ -140,13 +151,9 @@ export async function setVerdict(
 ): Promise<CaseResult<Case>> {
   const parsed = Verdict.safeParse(verdict);
   if (!parsed.success) return invalid(parsed.error);
-  const current = await getCase(db, orgId, id);
-  if (!current.ok) return current;
-  const now = new Date().toISOString();
-  const changed = await db
-    .prepare("UPDATE cases SET verdict = ?, updated_at = ? WHERE id = ? AND org_id = ?")
-    .bind(parsed.data, now, id, orgId)
-    .run();
-  if (changed.meta.changes !== 1) return fail("not_found", `no case ${id} in this organisation`);
-  return { ok: true, value: { ...current.value, verdict: parsed.data, updatedAt: now } };
+  const row = await db
+    .prepare("UPDATE cases SET verdict = ?, updated_at = ? WHERE id = ? AND org_id = ? RETURNING *")
+    .bind(parsed.data, new Date().toISOString(), id, orgId)
+    .first<Row>();
+  return row ? { ok: true, value: toCase(row) } : fail("not_found", `no case ${id} in this organisation`);
 }
