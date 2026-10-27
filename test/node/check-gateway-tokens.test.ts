@@ -24,6 +24,7 @@ type World = {
   provider?: { enable: boolean; base_url: string } | null; // the meta provider, or none
   providerOnPage?: number; // meta listed on this page of two
   deleteFails?: boolean;
+  createLost?: boolean; // the create is committed, then its answer is lost
   redirectTo?: string; // the gateway redirects the Run token's request here
   huge?: boolean; // the gateway answers the Run token with 2 MiB
 };
@@ -90,6 +91,7 @@ async function stand(world: World) {
       if (!writes) return json(403, { errors: [{ code: 10000 }] });
       const body = JSON.parse(raw);
       made.add(body.id);
+      if (world.createLost) return req.socket.destroy();
       return json(200, { result: { id: body.id } });
     }
     if (req.method === "DELETE") {
@@ -145,8 +147,29 @@ describe("scripts/check-gateway-tokens.ts", () => {
     expect(failure(noEdit.lines, "the admin token holds Edit")).toMatch(/HTTP 403; .*needs AI Gateway Edit/);
     const stuck = await check({ ...right, deleteFails: true });
     expect(failure(stuck.lines, "the admin token holds Edit")).toMatch(
-      new RegExp(`gateway ${PROBE} was created but may not be deleted; delete it in the dashboard`),
+      new RegExp(`gateway ${PROBE} may exist: delete it in the dashboard`),
     );
+  });
+
+  it("removes a throwaway gateway whose create answer was lost, and tells who may need to delete one", async () => {
+    const pending: (string | null)[] = [];
+    const { endpoints, made } = await stand({ ...right, createLost: true });
+    const outcome = await checkTokens({ run: RUN, admin: ADMIN }, endpoints, {
+      allowEndpoints: true,
+      probeId: PROBE,
+      onPending: (id) => pending.push(id),
+    });
+    expect(made.size).toBe(0);
+    expect(failure(outcome.lines, "the admin token holds Edit")).toMatch(/unreachable/);
+    expect(pending.at(-1)).toBeNull();
+    expect(pending).toContain(PROBE);
+    // A lost answer and a failed removal: the gateway is named.
+    const stuck = await stand({ ...right, createLost: true, deleteFails: true });
+    const named = await checkTokens({ run: RUN, admin: ADMIN }, stuck.endpoints, {
+      allowEndpoints: true,
+      probeId: PROBE,
+    });
+    expect(failure(named.lines, "the admin token holds Edit")).toMatch(new RegExp(`gateway ${PROBE} may exist`));
   });
 
   it("checks the meta provider is enabled at Meta's address, on whichever page it is listed", async () => {

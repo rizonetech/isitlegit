@@ -32,6 +32,9 @@ export type Options = {
   // Tests point the checks at a local stand-in; anything else must be Cloudflare's own hosts.
   allowEndpoints?: boolean;
   probeId?: string;
+  // Told the throwaway gateway that may exist while it is being created and removed, and null once it is gone, so an
+  // interrupted run can name it.
+  onPending?: (id: string | null) => void;
 };
 
 type Answer = { status: number; headers: Headers; body: unknown };
@@ -56,7 +59,7 @@ async function boundedText(response: Response, limit: number): Promise<string | 
 }
 
 export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options: Options = {}): Promise<Outcome> {
-  const { log = () => {}, timeoutMs = 30_000, allowEndpoints = false } = options;
+  const { log = () => {}, timeoutMs = 30_000, allowEndpoints = false, onPending = () => {} } = options;
   const probeId = options.probeId ?? `isitlegit-token-check-${crypto.randomUUID().slice(0, 8)}`;
   const lines: string[] = [];
   const say = (line: string) => {
@@ -184,23 +187,32 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
       rate_limiting_limit: 0,
       rate_limiting_technique: "fixed",
     });
+  // A create whose answer was lost may still have happened, so after anything but a clear refusal the throwaway
+  // gateway is deleted and read back as gone; one that cannot be confirmed gone is named for the operator.
+  async function removeProbe(id: string): Promise<boolean> {
+    await ask(`removing gateway ${id}`, `${gateways}/${id}`, { method: "DELETE", headers: bearer(tokens.admin) });
+    const gone = await ask(`reading gateway ${id} back`, `${gateways}/${id}`, { headers: bearer(tokens.admin) });
+    const removed = typeof gone !== "string" && gone.status === 404;
+    if (removed) onPending(null);
+    return removed;
+  }
+  const leftover = (id: string) => `; gateway ${id} may exist: delete it in the dashboard (AI, AI Gateway)`;
+  onPending(`${probeId}-run`);
   const runCreates = await ask("the Run token creating a gateway", gateways, {
     method: "POST",
     headers: bearer(tokens.run),
     body: throwaway(`${probeId}-run`),
   });
-  if (typeof runCreates !== "string" && runCreates.status === 200)
-    await ask("removing the gateway the Run token should not have made", `${gateways}/${probeId}-run`, {
-      method: "DELETE",
-      headers: bearer(tokens.admin),
-    });
+  const runRefused = typeof runCreates !== "string" && isForbidden(runCreates);
+  if (runRefused) onPending(null);
+  const runLeft = !runRefused && !(await removeProbe(`${probeId}-run`));
   record(
-    typeof runCreates !== "string" && isForbidden(runCreates),
+    runRefused && !runLeft,
     "the Run token cannot change the gateways",
     why(
       runCreates,
       `HTTP ${(runCreates as Answer).status}; "${VAULT.run}" holds AI Gateway Edit: replace it with a Run-only token`,
-    ),
+    ) + (runLeft ? leftover(`${probeId}-run`) : ""),
   );
 
   // The admin token: Read and Edit. (The gateway also lets it send requests: on Cloudflare a token with AI Gateway
@@ -242,26 +254,26 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
     ),
   );
   // Edit, by the documented API: a throwaway gateway created and deleted, and read back as gone.
+  onPending(probeId);
   const created = await ask("the admin token creating a throwaway gateway", gateways, {
     method: "POST",
     headers: bearer(tokens.admin),
     body: throwaway(probeId),
   });
+  const adminRefused = typeof created !== "string" && isForbidden(created);
+  const madeIt =
+    typeof created !== "string" &&
+    created.status === 200 &&
+    (result(created) as { id?: unknown } | undefined)?.id === probeId;
+  // Removed after a success and after any uncertain answer; only a clear refusal created nothing.
+  if (adminRefused) onPending(null);
+  const left = !adminRefused && !(await removeProbe(probeId));
   let editProblem = "";
-  if (typeof created === "string") editProblem = created;
-  else if (created.status !== 200 || (result(created) as { id?: unknown } | undefined)?.id !== probeId)
-    editProblem = isForbidden(created)
-      ? `HTTP ${created.status}; "${VAULT.admin}" needs AI Gateway Edit on this account`
-      : `HTTP ${created.status} creating gateway ${probeId}`;
-  else {
-    const removed = await ask("the admin token deleting it", `${gateways}/${probeId}`, {
-      method: "DELETE",
-      headers: bearer(tokens.admin),
-    });
-    const gone = await ask("reading it back", `${gateways}/${probeId}`, { headers: bearer(tokens.admin) });
-    if (typeof removed === "string" || removed.status !== 200 || typeof gone === "string" || gone.status !== 404)
-      editProblem = `gateway ${probeId} was created but may not be deleted; delete it in the dashboard (AI, AI Gateway)`;
-  }
+  if (left) editProblem = `gateway ${probeId} may exist: delete it in the dashboard (AI, AI Gateway)`;
+  else if (adminRefused)
+    editProblem = `HTTP ${(created as Answer).status}; "${VAULT.admin}" needs AI Gateway Edit on this account`;
+  else if (!madeIt)
+    editProblem = typeof created === "string" ? created : `HTTP ${created.status} creating gateway ${probeId}`;
   record(editProblem === "", "the admin token holds Edit", editProblem);
   return { ok, lines };
 }
@@ -269,6 +281,15 @@ export async function checkTokens(tokens: Tokens, endpoints: Endpoints, options:
 if (import.meta.filename === process.argv[1]) {
   // Ctrl+C, a termination signal or a closed terminal stops a vault read still running before this exits.
   installSignalCleanup("check-gateway-tokens");
+  // Said before the cleanup exits: a throwaway gateway being created or removed when the run stopped may remain.
+  let pending: string | null = null;
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
+    process.prependOnceListener(signal, () => {
+      if (pending)
+        console.error(
+          `check-gateway-tokens: gateway ${pending} may exist; delete it in the dashboard (AI, AI Gateway)`,
+        );
+    });
   const read = async (name: keyof Tokens) => {
     try {
       return (
@@ -283,6 +304,11 @@ if (import.meta.filename === process.argv[1]) {
   };
   console.log("Reading both tokens from Conclave...");
   const tokens = { run: await read("run"), admin: await read("admin") };
-  const outcome = await checkTokens(tokens, CLOUDFLARE, { log: (line) => console.log(line) });
+  const outcome = await checkTokens(tokens, CLOUDFLARE, {
+    log: (line) => console.log(line),
+    onPending: (id) => {
+      pending = id;
+    },
+  });
   process.exit(outcome.ok ? 0 : 1);
 }
