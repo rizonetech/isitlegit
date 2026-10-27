@@ -19,6 +19,7 @@ track: day-1
 - `AGENTS.md` Interface rules.
 - -> XREF: D00 T01 §8 -- the README wordmark and social preview banner that come out of this session
 - -> XREF: D07 T06 §1 -- the marketing site reuses the token stylesheet and extends the raw-colour guard to `site/**/*.astro`
+- -> XREF: D07 T03 §8 -- the full-size viewer that opens a §7 `EvidenceFigure` preview
 
 ## Outcome
 
@@ -327,6 +328,10 @@ How a verdict and its evidence look on every report.
 - [ ] Commit: `web: verdict band, evidence card and severity`
 
 Evidence 2026-10-27 19:50 SAST. `scripts/hash-asset.ts` fingerprints the five verdict art files into `public/static/brand/motion/` and exports them as `MOTION` from `src/web/assets.ts` (the checking art is the animated one, whose own stylesheet stops it under reduced motion); `test/node/hash-asset.test.ts`, `assets.test.ts` and `serve.test.ts` cover them (22 passed). `src/web/components/Verdict.tsx` holds `VerdictBand` and `VerdictBadge`; `src/web/components/Evidence.tsx` holds `SeverityPill`, `EvidenceRef`, `EvidenceCard`, `EvidenceFigure` and `EvidenceQuote`; `Pill` now exports `pillClass`, so the link pill shares its look. The figure's 150 px is built 152 as a named layout token, `evidence-figure` in `design/tokens/spacing.json` (the board value is a tie on the 4 px scale, so the step above, as design/SPEC.md's D07 T01 §6 rule says). `pnpm exec vitest run test/node/verdict.test.tsx test/node/verdict-browser.test.tsx`: 20 passed (14 rendering, 6 in Chromium in both themes: Tab reaches "Evidence E7, critical", its ring measures 3:1 or more against the reason, Enter makes `#e7` the `:target` in view; every band's eyebrow, headline and sentence 4.5:1 or more on all six states; 88/72 px row at 1280 px; at 360 px the 56 px tile with 40 px art beside the eyebrow, headline and sentence below, no overflow). Five mutations (the pill made untabbable, its focus ring removed, the phone stacking removed, the phone art enlarged, the quote not wrapping) each fail it. `pnpm build:assets` leaves nothing uncommitted; `pnpm exec vitest run`: 341 passed.
+
+Evidence after the completion review, 2026-10-27 20:00 SAST. Its two in-scope gaps are closed in `ff4122e`: `EvidenceQuote` is the board's code panel (`bg-light`, `rounded-control-small`, `p-12`), and every finding's text wraps anywhere; `test/node/verdict-browser.test.tsx` puts hyphen-free long domains and file names in every slot at 360 px with text at 100% and 200% and finds no overflow or clipping (8 passed; six mutations, one per slot, caught). Its out-of-scope gap is filed as D07 T03 §8.
+
+> **Deferred:** opening a figure's capture at full resolution from its 152 px preview, with an unavailable state -> XREF: D07 T03 §8
 
 **Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/node/verdict-browser.test.tsx` passes: every verdict, severity and card layout from the boards, the jump from a reason to its card, contrast in both themes, and the phone width.
 

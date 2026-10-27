@@ -19,6 +19,7 @@ track: day-2
 - `design/SPEC.md` report and reply sections.
 - -> XREF: D02 T06 §4 -- the reputation listings whose disputes the feedback records by provider
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
+- -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
 
 ## Outcome
 
@@ -41,6 +42,7 @@ track: day-2
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
 | 6 | §6 | This-was-wrong feedback | §2 | [ ] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
+| 8 | §8 | Full-size evidence viewer | §3 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -210,6 +212,35 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 - [ ] Commit: `mail: reply email matched to the report design`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes.
+
+## 8. Full-size evidence viewer
+
+A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T01 §7's `EvidenceFigure`), so a screenshot scaled into it can hide the small domain or form field the finding rests on. The reader opens the full-resolution capture with one activation, reads it, and returns to the same card; an artefact that is gone says so instead of opening nothing. Filed from D07 T01 §7's completion review (out-of-scope gap, 2026-10-27), which compared it with Microsoft Defender for Office 365's email entity page, where a captured screenshot opens from the finding.
+
+**Phase:** 2
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the viewer, once drawn), a new board `Report-EvidenceViewer` (desktop and `Report-Mobile` width), the preview from board `Main` E7
+**Job:** a sceptical reader checks the proof at full size without losing their place in the report
+**Treatment:** the approved preview layout unchanged; the full capture at its natural size, scrollable, on the page's own surface; tokens only; the capture's alt text names what it shows
+**Chrome:** `EvidenceFigure` (D07 T01 §7), the native `<dialog>` with the shared `Button` (D07 T01 §6) to close it
+
+**Owner decision (open):** the viewer's design (an in-page dialog over the report, or the capture opened in place of the page with a back link) is drawn as a board and approved by the operator first, since it is a new surface (design/SPEC.md: a change to the approved look goes back to the operator). Recording `Viewer approved: YYYY-MM-DD (<board>)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Draw and approve the viewer. Done when: the board and the SPEC entry exist and the approval line is recorded.
+2. Open the capture from its preview and come back. Done when: one activation opens the full-resolution capture and closing returns focus to the same figure.
+3. Show a missing or failed capture honestly. Done when: an expired capture says so and offers nothing to open.
+
+- [ ] Draw `design/mockups/source/Report-EvidenceViewer.dc.html` (desktop and 360 px) with its PNG export, and add the viewer to `design/SPEC.md` M3 (what opens it, the close control, the unavailable and retry states). Done when: the board and the SPEC entry are committed and the operator's `Viewer approved:` line is recorded here. Cheaper substitute: opening the raw file in a new tab with no way back to the card.
+- [ ] Give `EvidenceFigure` in `src/web/components/Evidence.tsx` an optional `full` (the artefact's `/a/:caseId/:key` URL from §3 and the capture's alt text) that makes the preview one native control named "Open full size: <caption>", keeping the preview's look. Done when: `test/node/verdict.test.tsx` renders a figure with and without `full` and finds the control's name and target only when it is given. Cheaper substitute: a click handler on a `div`, which the keyboard cannot reach.
+- [ ] Build the viewer as the board draws it, from `src/web/components/EvidenceViewer.tsx`: the capture at its natural size inside a scrollable frame, a `Button` to close, Escape closing it, and focus returning to the figure that opened it; without the app script the control is a plain link to the artefact, so the proof still opens. Done when: `test/node/evidence-viewer-browser.test.tsx` opens it with Enter in Chromium, finds the image at its natural width, closes it with Escape and finds focus back on the same figure, in both themes. Cheaper substitute: a scaled image that is no larger than the preview.
+- [ ] Show an artefact that is gone (`readArtefact` answers `missing`, §3) as "Original deleted after 30 days for privacy" with no control to open, and a `storage` failure as a temporary failure with a retry. Done when: the browser test renders both and neither offers a control that opens nothing. Cheaper substitute: a broken-image icon.
+- [ ] Prove the viewer at 360 px: the capture scrolls in both directions inside the frame, the close control stays in view, and the page behind does not scroll. Done when: the browser test measures all three at 360 px.
+- [ ] Commit: `web: full-size evidence viewer`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/node/evidence-viewer-browser.test.tsx` passes, and fails when the viewer leaves focus anywhere but the figure that opened it.
 
 ## Verification
 
