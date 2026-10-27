@@ -1,0 +1,139 @@
+{
+  "ref": "D07 T01 \u00a73",
+  "title": "App shell and its three frames",
+  "implementation_sha": "548cb8ff043469eaf886111a1628853c6fd01565",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T01-s3.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T01-s3.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/document.test.tsx test/node/shell.test.tsx test/node/shell-layout.test.tsx test/node/shell-keyboard.test.tsx -> 4 files passed (document 5, shell 15, shell-layout 20, shell-keyboard 22)",
+    "pnpm test -> Test Files 15 passed (15), Tests 140 passed (140)",
+    "python3 -m unittest discover -s tests/scripts -> Ran 401 tests, OK (skipped=1)",
+    "pnpm lint -> Checked 39 files, no errors",
+    "pnpm typecheck -> exit 0",
+    "python3 scripts/todo-graph.py validate -> valid: 197 sections",
+    "CI ci.yml at 548cb8f -> success (https://github.com/rizonetech/isitlegit/actions/runs/40459844118)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s3.md",
+    "verdict": "filed",
+    "candidate": "fbf37303dba50c826eeb24ee4786a0629caf4f62",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T01 \u00a79",
+      "D07 T02 \u00a73",
+      "D07 T02 \u00a71",
+      "D07 T04 \u00a71",
+      "D01 T03 \u00a76",
+      "D06 T01 \u00a74",
+      "D05 T01 \u00a73",
+      "D05 T04 \u00a75",
+      "D07 T04 \u00a73",
+      "D07 T04 \u00a74",
+      "D07 T08 \u00a73",
+      "D07 T08 \u00a74",
+      "D07 T05 \u00a72",
+      "D07 T08 \u00a75",
+      "D08 T02 \u00a74",
+      "D07 T03 \u00a71",
+      "D07 T01 \u00a711",
+      "D07 T01 \u00a712"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s3.md",
+    "candidate": "ef7a1917d45b748e1fafd4604b79ba08f8e20231",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/07-app/D07-T01-s3.md",
+    "verdict": "fixed",
+    "candidate": "29299621391445d64d637e6bd1a29f7b383b4794",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}
