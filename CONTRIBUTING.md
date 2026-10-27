@@ -38,7 +38,7 @@ The Worker gates (Node 24, pnpm 11; the full local run is under "Run the Worker 
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm typecheck
+pnpm typecheck   # refuses a worker-configuration.d.ts that no longer matches wrangler.jsonc: run pnpm types and commit it
 pnpm build
 ```
 

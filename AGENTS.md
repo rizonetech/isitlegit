@@ -137,6 +137,9 @@ python3 -m unittest discover -s scripts/tests      # review dispatcher
 node scripts/verify-agent-tiers.mjs                # subagent model tiers
 python3 scripts/meta-docs.py sync                   # refresh the local Meta docs and cookbook mirror
 python3 scripts/check-publication.py                # before every push: nothing private in the index (exit 2: cannot run)
+pnpm install --frozen-lockfile                      # the Worker's exact pins (Node 24.18.0 from .nvmrc, pnpm 11)
+pnpm typecheck                                      # worker-configuration.d.ts matches wrangler.jsonc, then tsc --noEmit
+pnpm build                                          # bundles the Worker (dry-run deploy into build/dry)
 ```
 
-Worker commands (typecheck, Biome, Vitest, `wrangler deploy`) are added here by the scaffold section that creates them. Report only commands actually run, and distinguish static evidence, test output and review proof.
+Worker commands are added here by the scaffold section that creates them: Biome and Vitest with D00 T01 §3, `wrangler deploy` with D00 T01 §5; `tests/scripts/test_worker_gates.py` fails while a `package.json` gate script is missing here or from `CONTRIBUTING.md`. After changing `wrangler.jsonc`, run `pnpm types` and commit the regenerated `worker-configuration.d.ts`. Report only commands actually run, and distinguish static evidence, test output and review proof.

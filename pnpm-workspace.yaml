@@ -10,3 +10,6 @@ allowBuilds:
 
 # Package scripts run in pnpm's own shell on every platform, so `$(git rev-parse HEAD)` in `dev` works under Windows cmd too.
 shellEmulator: true
+
+# Refuse to install on a Node outside package.json `engines` (the stack doc pins Node 24.18.0; `.nvmrc` names it).
+engineStrict: true
