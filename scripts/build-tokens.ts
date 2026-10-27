@@ -72,18 +72,22 @@ export function buildTokens(): string {
     // Tailwind's base layer reads these for unstyled text and code; the reset above removed their defaults.
     "--default-font-family: var(--font-text);",
     "--default-mono-font-family: var(--font-mono);",
-    ...Object.entries(type.weights).map(([key, weight]) => `--font-weight-${key}: ${weight};`),
     ...type.scale.map((px) => `--text-${px}: ${rem(px)};`),
   ];
+  // Weight tokens share names with families (`text`, `heading`), and Tailwind reads `font-<name>` as a family first, so
+  // weights get their own `weight-<name>` utilities over plain custom properties instead of the `--font-weight-*` theme.
+  const weights = Object.entries(type.weights);
   const roles = Object.entries(type.roles).map(([name, role]) =>
     block(`@utility type-${name}`, [
       `font-family: var(--font-${role.family});`,
       `font-size: ${rem(role.size)};`,
       `line-height: ${role.line};`,
       `font-weight: ${role.weight};`,
-      ...(role.tracking ? [`letter-spacing: ${role.tracking};`] : []),
-      ...(role.case ? [`text-transform: ${role.case};`] : []),
-      ...(role.numeric ? [`font-variant-numeric: ${role.numeric};`] : []),
+      // Every role sets every property, so a role replaces another (`type-eyebrow md:type-body`) and nested text does
+      // not inherit an outer role's tracking, case or numerals.
+      `letter-spacing: ${role.tracking ?? "normal"};`,
+      `text-transform: ${role.case ?? "none"};`,
+      `font-variant-numeric: ${role.numeric ?? "normal"};`,
     ]),
   );
   return [
@@ -94,6 +98,11 @@ export function buildTokens(): string {
     ]),
     block(':root[data-theme="dark"]', colours(colors.themes.dark)),
     block(':root[data-theme="light"]', colours(colors.themes.light)),
+    block(
+      ":root",
+      weights.map(([key, weight]) => `--weight-${key}: ${weight};`),
+    ),
+    ...weights.map(([key]) => block(`@utility weight-${key}`, [`font-weight: var(--weight-${key});`])),
     ...roles,
     "",
   ].join("\n\n");

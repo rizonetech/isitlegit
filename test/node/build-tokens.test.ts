@@ -71,7 +71,7 @@ describe("tokens in the minified app stylesheet", () => {
     for (const [key, px] of Object.entries<number>(spacing.radius)) has(css, `--radius-${key}`, `${px}px`);
     for (const key of Object.keys(spacing.shadow)) expect(css).toContain(`--shadow-${key}:`);
     for (const key of Object.keys(type.families)) expect(css).toContain(`--font-${key}:`);
-    for (const [key, weight] of Object.entries<number>(type.weights)) has(css, `--font-weight-${key}`, weight);
+    for (const [key, weight] of Object.entries<number>(type.weights)) has(rule(":root"), `--weight-${key}`, weight);
     for (const px of type.scale) has(css, `--text-${px}`, `${px / 16}rem`);
     expect(css).toContain("--default-font-family:var(--font-text)");
     expect(css).toContain("--default-mono-font-family:var(--font-mono)");

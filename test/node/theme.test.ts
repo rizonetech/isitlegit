@@ -24,7 +24,10 @@ type Page = {
   removed: Snapshot;
   layout: { paddingTop: string; height: string; borderTopLeftRadius: string; boxShadow: string };
   type: Record<string, TypeStyle>;
-  defaults: { backgroundColor: string; fontFamily: string; fontSize: string };
+  defaults: { backgroundColor: string; fontFamily: string; fontSize: string; fontWeight: string };
+  weights: Record<string, string>;
+  responsive: Partial<TypeStyle>;
+  nested: Partial<TypeStyle>;
   base: { fontFamily: string; fontSize: string };
 };
 type Role = {
@@ -70,11 +73,15 @@ function chromium(): string | undefined {
 
 const BROWSER = chromium();
 const ROLES = Object.keys(type.roles);
+const WEIGHTS = Object.keys(type.weights);
 // Elements the fixture measures: token classes, then Tailwind defaults that must produce nothing.
 const FIXTURE = `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="out.css"></head><body>
 <div id="box" class="bg-surface text-ink border border-line rounded-card shadow-card p-16 h-control">box</div>
 ${ROLES.map((r) => `<p id="type-${r}" class="type-${r}">x</p>`).join("\n")}
-<p id="defaults" class="bg-red-500 font-serif text-9xl">d</p>
+${WEIGHTS.map((w) => `<b id="weight-${w}" class="weight-${w}">w</b>`).join("\n")}
+<p id="responsive" class="type-eyebrow md:type-body">r</p>
+<div class="type-eyebrow"><span id="nested" class="type-body">n</span></div>
+<p id="defaults" class="bg-red-500 font-serif text-9xl font-bold">d</p>
 <p id="plain">p</p>
 <pre id="out"></pre>
 <script>
@@ -86,7 +93,10 @@ document.documentElement.dataset.theme = "dark"; out.darkTheme = snap();
 delete document.documentElement.dataset.theme; out.removed = snap();
 out.layout = read("box", ["paddingTop", "height", "borderTopLeftRadius", "boxShadow"]);
 out.type = Object.fromEntries(${JSON.stringify(ROLES)}.map((r) => [r, read("type-" + r, ["fontFamily", "fontSize", "lineHeight", "fontWeight", "letterSpacing", "textTransform", "fontVariantNumeric"])]));
-out.defaults = read("defaults", ["backgroundColor", "fontFamily", "fontSize"]);
+out.defaults = read("defaults", ["backgroundColor", "fontFamily", "fontSize", "fontWeight"]);
+out.weights = Object.fromEntries(${JSON.stringify(WEIGHTS)}.map((w) => [w, read("weight-" + w, ["fontWeight"]).fontWeight]));
+out.responsive = read("responsive", ["fontSize", "fontWeight", "letterSpacing", "textTransform", "fontVariantNumeric"]);
+out.nested = read("nested", ["fontSize", "fontWeight", "letterSpacing", "textTransform", "fontVariantNumeric"]);
 out.base = read("plain", ["fontFamily", "fontSize"]);
 document.getElementById("out").textContent = JSON.stringify(out);
 </script></body></html>`;
@@ -109,6 +119,7 @@ function measure(preference: 0 | 1): Page {
         "--proxy-bypass-list=<-loopback>",
         "--no-first-run",
         `--user-data-dir=${profile}`,
+        "--window-size=1200,900",
         `--blink-settings=preferredColorScheme=${preference}`,
         "--virtual-time-budget=3000",
         "--dump-dom",
@@ -207,9 +218,29 @@ describe.skipIf(!BROWSER && !process.env.CI)("token classes measured in Chromium
     expect(firstFamily(light.base.fontFamily)).toBe(type.families.text);
   });
 
+  it("gives every weight token its own class, which also undoes inherited bold", () => {
+    for (const [key, weight] of Object.entries<number>(type.weights))
+      expect(light.weights[key], key).toBe(String(weight));
+  });
+
+  it("lets one role replace another at a breakpoint and inside nested text", () => {
+    const body = type.roles.body as Role;
+    for (const [where, got] of [
+      ["md:type-body at 1200px", light.responsive],
+      ["type-body inside type-eyebrow", light.nested],
+    ] as const) {
+      expect(got.fontSize, where).toBe(`${body.size}px`);
+      expect(got.fontWeight, where).toBe(String(body.weight));
+      expect(got.letterSpacing, where).toBe("normal");
+      expect(got.textTransform, where).toBe("none");
+      expect(got.fontVariantNumeric, where).toBe("normal");
+    }
+  });
+
   it("produces nothing for Tailwind's default palette, fonts and type scale", () => {
     expect(light.defaults.backgroundColor).toBe("rgba(0, 0, 0, 0)");
     expect(light.defaults.fontFamily).toBe(light.base.fontFamily);
     expect(light.defaults.fontSize).toBe(light.base.fontSize);
+    expect(light.defaults.fontWeight).toBe("400");
   });
 });

@@ -80,13 +80,6 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --default-font-family: var(--font-text);
   --default-mono-font-family: var(--font-mono);
-  --font-weight-text: 400;
-  --font-weight-text-medium: 500;
-  --font-weight-text-strong: 600;
-  --font-weight-heading-semibold: 600;
-  --font-weight-heading: 700;
-  --font-weight-heading-strong: 800;
-  --font-weight-display: 900;
   --text-12: 0.75rem;
   --text-13: 0.8125rem;
   --text-14: 0.875rem;
@@ -227,12 +220,52 @@
   --color-orange-on-dark: #FF8A65;
 }
 
+:root {
+  --weight-text: 400;
+  --weight-text-medium: 500;
+  --weight-text-strong: 600;
+  --weight-heading-semibold: 600;
+  --weight-heading: 700;
+  --weight-heading-strong: 800;
+  --weight-display: 900;
+}
+
+@utility weight-text {
+  font-weight: var(--weight-text);
+}
+
+@utility weight-text-medium {
+  font-weight: var(--weight-text-medium);
+}
+
+@utility weight-text-strong {
+  font-weight: var(--weight-text-strong);
+}
+
+@utility weight-heading-semibold {
+  font-weight: var(--weight-heading-semibold);
+}
+
+@utility weight-heading {
+  font-weight: var(--weight-heading);
+}
+
+@utility weight-heading-strong {
+  font-weight: var(--weight-heading-strong);
+}
+
+@utility weight-display {
+  font-weight: var(--weight-display);
+}
+
 @utility type-display {
   font-family: var(--font-heading);
   font-size: 4rem;
   line-height: 1.04;
   font-weight: 900;
   letter-spacing: -0.02em;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-h1 {
@@ -241,6 +274,8 @@
   line-height: 1.15;
   font-weight: 800;
   letter-spacing: -0.01em;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-h2 {
@@ -249,6 +284,8 @@
   line-height: 1.2;
   font-weight: 800;
   letter-spacing: -0.01em;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-h3 {
@@ -257,6 +294,8 @@
   line-height: 1.3;
   font-weight: 700;
   letter-spacing: -0.01em;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-h4 {
@@ -265,6 +304,8 @@
   line-height: 1.4;
   font-weight: 700;
   letter-spacing: -0.01em;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-body {
@@ -272,6 +313,9 @@
   font-size: 1rem;
   line-height: 1.5;
   font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-small {
@@ -279,6 +323,9 @@
   font-size: 0.875rem;
   line-height: 1.5;
   font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-tiny {
@@ -286,6 +333,9 @@
   font-size: 0.8125rem;
   line-height: 1.5;
   font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-label {
@@ -293,6 +343,9 @@
   font-size: 0.875rem;
   line-height: 1.5;
   font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-button {
@@ -300,6 +353,9 @@
   font-size: 1rem;
   line-height: 1;
   font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-button-small {
@@ -307,6 +363,9 @@
   font-size: 0.875rem;
   line-height: 1;
   font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-pill {
@@ -314,6 +373,9 @@
   font-size: 0.8125rem;
   line-height: 1;
   font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-table {
@@ -321,6 +383,9 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-table-header {
@@ -328,6 +393,9 @@
   font-size: 0.8125rem;
   line-height: 1.5;
   font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-eyebrow {
@@ -337,6 +405,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  font-variant-numeric: normal;
 }
 
 @utility type-mono {
@@ -344,6 +413,9 @@
   font-size: 0.875rem;
   line-height: 1.5;
   font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: normal;
 }
 
 @utility type-figure {
@@ -352,6 +424,7 @@
   line-height: 1.1;
   font-weight: 800;
   letter-spacing: -0.02em;
+  text-transform: none;
   font-variant-numeric: tabular-nums;
 }
 
