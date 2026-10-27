@@ -119,23 +119,28 @@ The member gets the answer as a reply in the same thread (spec 4.1): verdict, to
 
 ## 4. Test and demo mail aliases
 
+> **Started:** 2026-10-27T19:08Z
+
 The fictional demo businesses need registered contacts that reach a real inbox, and `CODE_OF_CONDUCT.md` names `conduct@isitlegit.co.za`. All forward to the operator's Rizonetech mailbox once the operator has verified it as an Email Routing destination (D99 T01 §2).
 
 **Phase:** 1
 **Needs:** cloudflare
 **Surface:** no
 
+**Corrected 2026-10-27** (validation against the live zone, read through the Cloudflare API): the operator's mailbox `hostmaster@rizonetech.com` is already a destination and verified (D99 T01 §2, 2026-10-26 23:02 UTC), and `conduct@isitlegit.co.za` already forwards to it, beside `dmarc@` and `hello@`. The three `@demo.isitlegit.co.za` aliases need Email Routing enabled for that subdomain first (its own MX and SPF records); the zone has MX records for the apex only. No vault token can read Email Routing (the Cloudflare connector cannot create one, D99 T01 §8), and the repository has no `tsx`, so the checkpoint is the rules and DNS read back through the Cloudflare API and recorded, as D99 T01 §2's evidence was, rather than a script nobody here can run.
+
 **Build order:**
 
 1. Add the operator's mailbox as an Email Routing destination address. Done when: the API lists it (verification is the operator's click in D99 T01 §2).
 2. Create the alias rules. Done when: each alias reads back with the operator mailbox as its forward target.
 
-- [ ] Create the destination address `OPERATOR_EMAIL` on account `f5a529987f8dc7d52ce7aba3da25e226` through the Email Routing API. Done when: it is listed (pending or verified).
-- [ ] Create forward rules for `conduct@isitlegit.co.za`, `finance@demo.isitlegit.co.za`, `alerts@demo.isitlegit.co.za` and `owner@demo.isitlegit.co.za` to that destination. Done when: the rules list shows all four enabled.
+- [x] Create the destination address `OPERATOR_EMAIL` on account `f5a529987f8dc7d52ce7aba3da25e226` through the Email Routing API. Done when: it is listed (pending or verified). Already true: `hostmaster@rizonetech.com` is listed, verified 2026-10-26 23:02 UTC (D99 T01 §2).
+- [ ] Enable Email Routing for `demo.isitlegit.co.za` (`POST /zones/88aeec6df134bc59bfa16a25751241ef/email/routing/dns` with that name), so mail to its addresses is accepted. Done when: the zone's DNS holds the subdomain's Cloudflare MX records and SPF, read back through the API.
+- [ ] Create forward rules for `finance@demo.isitlegit.co.za`, `alerts@demo.isitlegit.co.za` and `owner@demo.isitlegit.co.za` to that destination, each named for its purpose; `conduct@isitlegit.co.za` already forwards (keep it). Done when: the rules list shows all four enabled, each forwarding to `hostmaster@rizonetech.com`.
 - [ ] Record the alias list and their purpose in `docs/live-checks.md`. Done when: the file lists the four aliases.
 - [ ] Commit: `mail: test and demo aliases on Email Routing`
 
-**Test checkpoint:** `pnpm exec tsx scripts/cf-email-routing.ts --list` prints the four aliases each with the operator destination.
+**Test checkpoint:** the Email Routing rules and the subdomain's MX records, read back through the Cloudflare API (`GET /zones/88aeec6df134bc59bfa16a25751241ef/email/routing/rules` and the zone's MX records), show the four aliases enabled, each forwarding to the verified operator destination, and `demo.isitlegit.co.za` routed to Cloudflare; the read-back is quoted in `docs/live-checks.md`.
 
 ## 5. Reconcile uncertain sends
 
