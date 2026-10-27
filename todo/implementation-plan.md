@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 32 | Checklist items: 220
+Sections: 32 | Checklist items: 221
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -44,7 +44,7 @@ Sections: 32 | Checklist items: 220
 | [ ]    | D07 T02 §2 | Passkey sign-in                            | none                  | 3     |
 | [ ]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 7     |
 | [ ]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 4     |
-| [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 6     |
+| [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 7     |
 | [ ]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 6     |
 | [ ]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 7     |
 | [ ]    | D01 T01 §3 | Email handler for verified members         | none                  | 7     |
@@ -272,4 +272,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 20/201 verified sections, 12 ready to run now.
 
-Checklist: 286/1048 items completed (includes Commit items).
+Checklist: 286/1049 items completed (includes Commit items).
