@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "types": ["node"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    // WORKAROUND: serve.test.ts imports wrangler, whose types reach Miniflare's published declarations, and those import
+    // modules the package does not ship (`@cloudflare/workers-types/experimental`, TS2307), as in tsconfig.config.json.
+    // Library checks only; this project's own files are still checked, and the Worker's sources keep library checks on.
+    "skipLibCheck": true
   },
   "include": ["./**/*.ts", "../../scripts/**/*.ts"]
 }

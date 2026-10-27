@@ -43,7 +43,7 @@ describe("a changed source font, end to end", () => {
   afterAll(() => rmSync(COPY, { recursive: true, force: true }));
 
   it.skipIf(!process.env.CI && spawnSync("python3", ["-c", "import fontTools, brotli"]).status !== 0)(
-    "moves through the font name, fonts.css, the stylesheet hash and assets.ts",
+    "moves through the font name, fonts.css, the stylesheet hash and assets.ts, and survives a failed build",
     () => {
       mkdirSync(COPY, { recursive: true });
       for (const path of ["design/fonts", "public", "src/web"])
@@ -63,6 +63,18 @@ describe("a changed source font, end to end", () => {
         "--css",
         join(COPY, "src/web/styles/fonts.css"),
       ]);
+      // A stylesheet build that fails after the fonts changed: the previous set must still be whole and named.
+      const before = readFileSync(join(COPY, "src/web/assets.ts"), "utf-8");
+      const failed = spawnSync(
+        process.execPath,
+        ["scripts/build-css.ts", "--no-tokens", "--input", join(COPY, "missing.css"), "--out", join(COPY, "app.css")],
+        { cwd: ROOT, encoding: "utf-8" },
+      );
+      expect(failed.status).not.toBe(0);
+      expect(readFileSync(join(COPY, "src/web/assets.ts"), "utf-8")).toBe(before);
+      for (const path of [APP_CSS, ...Object.values(FONTS)])
+        expect(existsSync(join(COPY, "public", path)), path).toBe(true);
+      // The retry:
       step(process.execPath, [
         "scripts/build-css.ts",
         "--no-tokens",
@@ -89,7 +101,11 @@ describe("a changed source font, end to end", () => {
       expect(exo).not.toBe(FONTS.Exo);
       expect(css).not.toBe(APP_CSS);
       expect(readFileSync(join(COPY, "public", css as string), "utf-8")).toContain(exo);
-      expect(existsSync(join(COPY, "public", FONTS.Exo as string))).toBe(false);
+      expect(
+        existsSync(join(COPY, "public", FONTS.Exo as string)),
+        "the old font is pruned once the new set is named",
+      ).toBe(false);
+      expect(existsSync(join(COPY, "public", APP_CSS)), "the old stylesheet is pruned").toBe(false);
     },
   );
 });

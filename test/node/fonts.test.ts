@@ -41,6 +41,8 @@ const shipped = readFileSync(join(PUBLIC, APP_CSS), "utf-8");
 const VARIANTS: Record<string, string> = {
   "/broken.css": shipped.replaceAll("/static/fonts/", "/static/fonts/missing-"),
   // The minifier writes `Exo` unquoted and `"Exo 2"` quoted; either spelling is renamed.
+  // The shipped stylesheet with the metric-matched fallback faces left out of the font stacks.
+  "/no-fallback.css": shipped.replaceAll('"Exo Fallback",', "").replaceAll('"Exo 2 Fallback",', ""),
   "/misspelt.css": shipped
     .replace(/font-family:"?Exo"?(?=[;}])/g, "font-family:Exo1")
     .replace(/font-family:"Exo 2"(?=[;}])/g, 'font-family:"Exo3"'),
@@ -63,6 +65,32 @@ const page = (
 </script></body></html>`;
 
 let server: Server;
+let blockFonts = false;
+
+function serve(path: string, res: import("node:http").ServerResponse): void {
+  const file = normalize(join(PUBLIC, path));
+  if (!file.startsWith(PUBLIC) || !existsSync(file)) return void res.writeHead(404).end();
+  res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
+}
+
+// A page set in the token families: a heading in Exo, running text in Exo 2 in a fixed column, and a block below them
+// that moves when the web fonts replace the fallback and the text above changes size. It reports where that block sits.
+const TEXT =
+  "A forwarded invoice asks you to pay a new account today. Before anyone pays, the sender, the domain and the bank details are checked against what the supplier has used before, and every finding is cited. ".repeat(
+    3,
+  );
+const SHIFT_PAGE = (
+  css: string,
+) => `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${css}">
+<style>body{margin:0}main{width:640px;padding:24px}h1{font-family:var(--font-heading);font-weight:800;font-size:40px;line-height:1.15;margin:0 0 16px}
+p{font-family:var(--font-text);font-size:16px;line-height:1.5;margin:0 0 16px}#below{height:80px}</style></head>
+<body><main><h1>Is this invoice legit? Check before you pay</h1><p>${TEXT}</p><p>${TEXT}</p><div id="below"></div></main>
+<pre id="out"></pre><script>
+document.fonts.ready.then(() => {
+  const loaded = [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family);
+  document.getElementById("out").textContent = JSON.stringify({ top: document.getElementById("below").offsetTop, loaded });
+});
+</script></body></html>`;
 let origin = "";
 
 beforeAll(async () => {
@@ -70,10 +98,12 @@ beforeAll(async () => {
     const path = new URL(req.url ?? "/", "http://x").pathname;
     const fixture = /^\/page(\/.*\.css)$/.exec(path);
     if (fixture) return res.writeHead(200, { "content-type": "text/html" }).end(page(fixture[1] as string));
+    const shift = /^\/shift(\/.*\.css)$/.exec(path);
+    if (shift) return res.writeHead(200, { "content-type": "text/html" }).end(SHIFT_PAGE(shift[1] as string));
+    // Fonts that never arrive, so the page lays out in its fallback: what a visitor sees before the swap.
+    if (path.endsWith(".woff2") && blockFonts) return void res.writeHead(404).end();
     if (VARIANTS[path] !== undefined) return res.writeHead(200, { "content-type": "text/css" }).end(VARIANTS[path]);
-    const file = normalize(join(PUBLIC, path));
-    if (!file.startsWith(PUBLIC) || !existsSync(file)) return res.writeHead(404).end();
-    res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
+    serve(path, res);
   });
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -83,7 +113,14 @@ afterAll(() => new Promise<void>((done) => server.close(() => done())));
 // Opens the page for one stylesheet and returns {family: {weight: loaded faces}}. Asynchronous, so this process keeps
 // serving while Chromium fetches.
 function measure(css: string): Promise<Record<string, Record<string, number>>> {
+  return open(`${origin}/page${css}`);
+}
+
+// Opens a page and returns the JSON it writes into <pre id="out">. The user font folder stays visible (XDG_DATA_HOME),
+// since the profile replaces HOME, so a locally installed Liberation Sans serves as the fallback.
+function open<T>(url: string): Promise<T> {
   const profile = mkdtempSync(join(tmpdir(), "fonts-profile-"));
+  const fonts = process.env.XDG_DATA_HOME ?? join(process.env.HOME ?? "", ".local/share");
   return new Promise((resolve, reject) => {
     const child = spawn(
       BROWSER as string,
@@ -93,10 +130,11 @@ function measure(css: string): Promise<Record<string, Record<string, number>>> {
         "--no-first-run",
         `--user-data-dir=${profile}`,
         "--virtual-time-budget=5000",
+        "--window-size=1200,900",
         "--dump-dom",
-        `${origin}/page${css}`,
+        url,
       ],
-      { env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: profile } },
+      { env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: profile, XDG_DATA_HOME: fonts } },
     );
     let stdout = "";
     let stderr = "";
@@ -130,5 +168,34 @@ describe.skipIf(!BROWSER && !process.env.CI)("self-hosted fonts in Chromium", ()
       for (const family of Object.keys(FONTS))
         for (const weight of WEIGHTS) expect(loaded[family]?.[weight], `${css} ${family} ${weight}`).toBe(0);
     }
+  }, 150_000);
+});
+
+const HAS_FALLBACK = /Liberation Sans|Arial|Arimo/.test(
+  spawnSync("fc-match", ["-f", "%{family}", "Liberation Sans"], { encoding: "utf-8" }).stdout ?? "",
+);
+
+describe.skipIf((!BROWSER || !HAS_FALLBACK) && !process.env.CI)("font swap", () => {
+  // The block below the text moves by the difference between the fallback layout and the web-font layout when the fonts
+  // swap in; as a share of the 900 px viewport that distance bounds the layout shift (impact x distance <= distance).
+  type Layout = { top: number; loaded: string[] };
+  it("moves the page by no more than 1% of the viewport when the web fonts replace the fallback", async () => {
+    expect(HAS_FALLBACK, "CI must have Liberation Sans (fonts-liberation)").toBe(true);
+    const webFonts = await open<Layout>(`${origin}/shift${APP_CSS}`);
+    blockFonts = true;
+    let fallback: Layout;
+    let bare: Layout;
+    try {
+      fallback = await open<Layout>(`${origin}/shift${APP_CSS}`);
+      bare = await open<Layout>(`${origin}/shift/no-fallback.css`);
+    } finally {
+      blockFonts = false;
+    }
+    expect(webFonts.loaded).toEqual(expect.arrayContaining(["Exo", "Exo 2"]));
+    expect(fallback.loaded).toEqual(expect.arrayContaining(["Exo Fallback", "Exo 2 Fallback"]));
+    const moved = (layout: Layout) => Math.abs(layout.top - webFonts.top) / 900;
+    // Without the metric-matched faces the system font moves the page measurably; with them it stays within 1%.
+    expect(moved(bare), `without the fallback faces: ${bare.top} vs ${webFonts.top}`).toBeGreaterThan(0.01);
+    expect(moved(fallback), `with the fallback faces: ${fallback.top} vs ${webFonts.top}`).toBeLessThanOrEqual(0.01);
   }, 150_000);
 });

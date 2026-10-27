@@ -1,0 +1,16 @@
+{
+  "Exo": {
+    "ascent-override": 93.69,
+    "descent-override": 30.58,
+    "fingerprint": "09f3b8d9e7a1",
+    "line-gap-override": 0.0,
+    "size-adjust": 106.94
+  },
+  "Exo 2": {
+    "ascent-override": 97.01,
+    "descent-override": 19.52,
+    "fingerprint": "9b3873eacc0f",
+    "line-gap-override": 0.0,
+    "size-adjust": 102.98
+  }
+}

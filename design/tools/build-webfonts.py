@@ -5,22 +5,41 @@
 
 Converts the vendored variable fonts (design/fonts/, SIL OFL 1.1) to WOFF2 in public/static/fonts/, named
 `<family>.<first 12 hex of the SHA-256 of the source TTF and the converter pins>.woff2`, and writes src/web/styles/fonts.css with their @font-face
-rules. The name follows the source font and the pinned fonttools and brotli, so a family whose current file already exists is skipped without importing
+rules, plus an "<family> Fallback" face over Arial (or the metric-compatible Liberation Sans or Arimo) scaled to the same
+space, so the swap shifts no layout. The fallback metrics are computed with fonttools when a font converts and kept in
+design/fonts/fallback-metrics.json. The name follows the source font and the pinned fonttools and brotli, so a family whose current file already exists is skipped without importing
 fonttools: `pnpm build:assets` runs this on every build, and only a changed source font needs
-design/tools/requirements.txt (fonttools with brotli). Older files of a converted family are removed. Every file is
-written to a temporary file and then moved into place.
+design/tools/requirements.txt (fonttools with brotli). Older font files stay until scripts/hash-asset.ts, the last
+step of `pnpm build:assets`, has written src/web/assets.ts naming the new set, so a build that fails part way leaves the
+previous set whole. Every file is written to a temporary file and then moved into place.
 """
 import argparse
 import hashlib
+import json
 import os
 import pathlib
 import sys
 import tempfile
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-# Source file, served name, CSS family: the families typography.json names.
-FAMILIES = (("Exo[wght].ttf", "exo", "Exo"), ("Exo2[wght].ttf", "exo2", "Exo 2"))
+# Source file, served name, CSS family (the families typography.json names), and the weight it is mostly set at, which
+# the fallback is matched to: Exo sets the headings (700 to 900, mostly 800), Exo 2 the body text (400).
+FAMILIES = (("Exo[wght].ttf", "exo", "Exo", 800), ("Exo2[wght].ttf", "exo2", "Exo 2", 400))
 WEIGHTS = "100 900"  # the variable fonts' weight axis
+# The fallback shown while a web font loads: Arial, or the metric-compatible Liberation Sans or Arimo, scaled and shifted
+# so text takes the same space before and after the swap (no layout shift).
+FALLBACK_SOURCES = 'local("Arial"), local("Liberation Sans"), local("Arimo")'
+# Arial's advance widths (units per em 2048) for the space and a to z, and English letter frequencies (space included)
+# to weight them: the average width a line of running text has.
+ARIAL_UPM = 2048
+ARIAL_WIDTHS = dict(zip(" abcdefghijklmnopqrstuvwxyz", (569, 1139, 1139, 1024, 1139, 1139, 569, 1139, 1139, 455, 455, 1024,
+                                                         455, 1706, 1139, 1139, 1139, 1139, 682, 1024, 569, 1139, 1024, 1479,
+                                                         1024, 1024, 1024)))
+FREQUENCIES = dict(zip(" abcdefghijklmnopqrstuvwxyz", (0.18, 0.0670, 0.0122, 0.0228, 0.0349, 0.1042, 0.0183, 0.0166, 0.0499,
+                                                       0.0572, 0.0012, 0.0063, 0.0330, 0.0198, 0.0553, 0.0616, 0.0158, 0.0008,
+                                                       0.0491, 0.0519, 0.0743, 0.0226, 0.0080, 0.0194, 0.0012, 0.0162,
+                                                       0.0006)))
+METRICS = "fallback-metrics.json"  # beside the fonts, so an unchanged rebuild needs no fonttools
 
 
 def converter_pins(requirements=REPO / "design/tools/requirements.txt"):
@@ -68,23 +87,55 @@ def convert(source, target):
         raise
 
 
+def average_width(widths, upm):
+    total = sum(FREQUENCIES.values())
+    return sum(widths[c] * f for c, f in FREQUENCIES.items()) / total / upm
+
+
+def fallback_metrics(source, weight):
+    """size-adjust and the ascent, descent and line-gap overrides (percentages) that make Arial take the space this
+    font takes at `weight` (fonttools; the method next/font and Capsize use)."""
+    from fontTools.ttLib import TTFont
+    from fontTools.varLib.instancer import instantiateVariableFont
+
+    font = instantiateVariableFont(TTFont(source, recalcTimestamp=False), {"wght": weight})
+    upm = font["head"].unitsPerEm
+    cmap, hmtx = font.getBestCmap(), font["hmtx"]
+    widths = {c: hmtx[cmap[ord(c)]][0] for c in FREQUENCIES}
+    size_adjust = average_width(widths, upm) / average_width(ARIAL_WIDTHS, ARIAL_UPM)
+    os2, hhea = font["OS/2"], font["hhea"]
+    typo = bool(os2.fsSelection & (1 << 7))  # USE_TYPO_METRICS
+    ascent, descent, gap = ((os2.sTypoAscender, os2.sTypoDescender, os2.sTypoLineGap) if typo
+                            else (hhea.ascent, hhea.descent, hhea.lineGap))
+    pct = lambda value: round(100 * value, 2)
+    return {"size-adjust": pct(size_adjust), "ascent-override": pct(ascent / upm / size_adjust),
+            "descent-override": pct(abs(descent) / upm / size_adjust), "line-gap-override": pct(gap / upm / size_adjust)}
+
+
 def build(fonts_dir, out_dir, css_path):
     """Builds every family; returns {served name: public URL path} and the names it converted."""
     faces, converted = [], []
-    for source_name, name, family in FAMILIES:
+    metrics_path = fonts_dir / METRICS
+    stored = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
+    metrics = {}
+    for source_name, name, family, weight in FAMILIES:
         source = fonts_dir / source_name
-        target = out_dir / f"{name}.{fingerprint(source)}.woff2"
+        print_ = fingerprint(source)
+        target = out_dir / f"{name}.{print_}.woff2"
         if not target.exists():
             convert(source, target)
             converted.append(target.name)
-        for old in out_dir.glob(f"{name}.*.woff2"):
-            if old != target:
-                old.unlink()
+        known = stored.get(family, {})
+        metrics[family] = known if known.get("fingerprint") == print_ else {"fingerprint": print_, **fallback_metrics(source, weight)}
         faces.append((family, f"/static/fonts/{target.name}"))
+    if metrics != stored:
+        write_atomic(metrics_path, (json.dumps(metrics, indent=2, sort_keys=True) + "\n").encode("utf-8"))
     css = "/* Generated by design/tools/build-webfonts.py from design/fonts/. Do not edit: run pnpm build:assets. */\n"
     for family, url in faces:
         css += (f'\n@font-face {{\n  font-family: "{family}";\n  src: url("{url}") format("woff2");\n'
                 f"  font-weight: {WEIGHTS};\n  font-style: normal;\n  font-display: swap;\n}}\n")
+        overrides = "".join(f"  {key}: {value}%;\n" for key, value in metrics[family].items() if key != "fingerprint")
+        css += f'\n@font-face {{\n  font-family: "{family} Fallback";\n  src: {FALLBACK_SOURCES};\n{overrides}}}\n'
     if not css_path.exists() or css_path.read_text(encoding="utf-8") != css:
         write_atomic(css_path, css.encode("utf-8"))
     return dict(faces), converted

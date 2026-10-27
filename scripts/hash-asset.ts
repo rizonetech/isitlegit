@@ -1,13 +1,13 @@
 // Fingerprints the compiled stylesheet for long-lived caching (D07 T01 §5): copies build/css/app.css to
-// public/static/app.<first 12 hex of its SHA-256>.css, removes older app.*.css files, and writes src/web/assets.ts naming
-// the stylesheet and the fonts (as src/web/styles/fonts.css names them), so pages link the current files.
+// public/static/app.<first 12 hex of its SHA-256>.css, writes src/web/assets.ts naming the stylesheet and the fonts (as
+// src/web/styles/fonts.css names them), and only then removes fingerprinted files the new set no longer names.
 //
 //   node scripts/hash-asset.ts [--css <compiled css>] [--public <dir>] [--fonts-css <css>] [--module <ts>]
 //
 // Every write goes to a temporary file and is renamed into place; unchanged output is left byte-identical.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { option } from "./build-tokens.ts";
 
 function writeIfChanged(path: string, data: string | Buffer): void {
@@ -18,6 +18,12 @@ function writeIfChanged(path: string, data: string | Buffer): void {
   renameSync(tmp, path);
 }
 
+function files(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? files(join(dir, entry.name)) : [join(dir, entry.name)],
+  );
+}
+
 export function hashAssets(argv: string[]): { css: string; fonts: Record<string, string> } {
   const compiled = readFileSync(option(argv, "--css", "build/css/app.css"));
   const pub = option(argv, "--public", "public");
@@ -25,7 +31,6 @@ export function hashAssets(argv: string[]): { css: string; fonts: Record<string,
   const name = `app.${hash}.css`;
   const dir = join(pub, "static");
   writeIfChanged(join(dir, name), compiled);
-  for (const old of readdirSync(dir)) if (/^app\.[0-9a-f]{12}\.css$/.test(old) && old !== name) rmSync(join(dir, old));
   const fontsCss = readFileSync(option(argv, "--fonts-css", "src/web/styles/fonts.css"), "utf-8");
   const fonts = Object.fromEntries(
     [...fontsCss.matchAll(/font-family: "([^"]+)";\s*src: url\("([^"]+)"\)/g)].map((m) => [
@@ -40,6 +45,13 @@ export function hashAssets(argv: string[]): { css: string; fonts: Record<string,
     "",
   ].join("\n");
   writeIfChanged(option(argv, "--module", "src/web/assets.ts"), module);
+  // Only now, with assets.ts naming the new set, are files the set no longer names removed: a build that failed before
+  // this point left the previous stylesheet, fonts and assets.ts in place together.
+  const keep = new Set([`/static/${name}`, ...Object.values(fonts)]);
+  for (const path of files(dir)) {
+    const url = `/${relative(pub, path).replaceAll("\\", "/")}`;
+    if (/\.[0-9a-f]{12}\.(css|woff2)$/.test(url) && !keep.has(url)) rmSync(path);
+  }
   return { css: `/static/${name}`, fonts };
 }
 

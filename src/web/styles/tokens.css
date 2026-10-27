@@ -71,8 +71,8 @@
   --radius-card-large: 16px;
   --radius-pill: 999px;
   --shadow-card: 0 1px 2px rgba(24, 21, 25, 0.06), 0 8px 24px rgba(24, 21, 25, 0.06);
-  --font-heading: "Exo", ui-sans-serif, system-ui, sans-serif;
-  --font-text: "Exo 2", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Exo", "Exo Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-text: "Exo 2", "Exo 2 Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --default-font-family: var(--font-text);
   --default-mono-font-family: var(--font-mono);

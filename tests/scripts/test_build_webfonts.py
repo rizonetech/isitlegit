@@ -1,5 +1,5 @@
 """design/tools/build-webfonts.py: the committed WOFF2 fonts are sound and current, a rebuild of unchanged fonts needs no
-fonttools and changes nothing, and a changed source font gets a new name with the old file removed.
+fonttools and changes nothing, and a changed source font gets a new name (the old file is pruned by the last build step).
 
 tests/scripts runs on the standard library, so the checks that read fonts need fonttools (design/tools/requirements.txt):
 they skip without it locally and are required in CI, which sets REQUIRE_FONT_TOOLS=1."""
@@ -32,19 +32,41 @@ def run(*args, env=None):
 class Committed(unittest.TestCase):
     def test_the_css_names_the_current_fonts_and_they_exist(self):
         css = (REPO / "src/web/styles/fonts.css").read_text(encoding="utf-8")
-        for source, name, family in webfonts.FAMILIES:
+        for source, name, family, _ in webfonts.FAMILIES:
             served = f"{name}.{webfonts.fingerprint(REPO / 'design/fonts' / source)}.woff2"
             self.assertIn(f'font-family: "{family}";', css)
             self.assertIn(f'url("/static/fonts/{served}")', css)
             self.assertEqual((REPO / "public/static/fonts" / served).read_bytes()[:4], b"wOF2", served)
         self.assertEqual(sorted(p.name for p in (REPO / "public/static/fonts").iterdir()),
-                         sorted(f"{n}.{webfonts.fingerprint(REPO / 'design/fonts' / s)}.woff2" for s, n, _ in webfonts.FAMILIES))
+                         sorted(f"{n}.{webfonts.fingerprint(REPO / 'design/fonts' / s)}.woff2" for s, n, _, _ in webfonts.FAMILIES))
+
+    def test_each_family_has_a_metric_matched_fallback_from_the_current_metrics(self):
+        import json
+
+        css = (REPO / "src/web/styles/fonts.css").read_text(encoding="utf-8")
+        metrics = json.loads((REPO / "design/fonts" / webfonts.METRICS).read_text(encoding="utf-8"))
+        for source, _, family, _ in webfonts.FAMILIES:
+            stored = metrics[family]
+            self.assertEqual(stored["fingerprint"], webfonts.fingerprint(REPO / "design/fonts" / source), family)
+            self.assertIn(f'font-family: "{family} Fallback";\n  src: {webfonts.FALLBACK_SOURCES};', css)
+            for key in ("size-adjust", "ascent-override", "descent-override", "line-gap-override"):
+                self.assertIn(f"  {key}: {stored[key]}%;", css)
+            self.assertTrue(80 <= stored["size-adjust"] <= 130, stored)
+
+    @needs_font_tools
+    def test_the_stored_fallback_metrics_are_what_fonttools_computes(self):
+        import json
+
+        metrics = json.loads((REPO / "design/fonts" / webfonts.METRICS).read_text(encoding="utf-8"))
+        for source, _, family, weight in webfonts.FAMILIES:
+            computed = webfonts.fallback_metrics(REPO / "design/fonts" / source, weight)
+            self.assertEqual({k: v for k, v in metrics[family].items() if k != "fingerprint"}, computed, family)
 
     @needs_font_tools
     def test_each_committed_font_holds_every_glyph_of_its_source(self):
         from fontTools.ttLib import TTFont
 
-        for source, name, _ in webfonts.FAMILIES:
+        for source, name, _, _ in webfonts.FAMILIES:
             served = REPO / "public/static/fonts" / f"{name}.{webfonts.fingerprint(REPO / 'design/fonts' / source)}.woff2"
             woff2 = TTFont(served)
             self.assertEqual(woff2.flavor, "woff2")
@@ -106,15 +128,16 @@ class Build(unittest.TestCase):
         self.assertEqual({p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in self.out.iterdir()}, first)
 
     @needs_font_tools
-    def test_a_changed_font_gets_a_new_name_and_the_old_file_goes(self):
+    def test_a_changed_font_gets_a_new_name_and_the_old_file_stays_for_the_last_step(self):
         old = {p.name for p in self.out.glob("exo.*.woff2")}
         # Exo 2's outlines under Exo's file name: a real, different font, so the fingerprint and the output change.
         shutil.copyfile(self.fonts / "Exo2[wght].ttf", self.fonts / "Exo[wght].ttf")
         result = self.build()
         self.assertEqual(result.returncode, 0, result.stderr)
-        new = {p.name for p in self.out.glob("exo.*.woff2")}
+        new = {p.name for p in self.out.glob("exo.*.woff2")} - old
         self.assertEqual(len(new), 1)
-        self.assertFalse(new & old, "the old Exo file must be removed")
+        # The old file is still served until scripts/hash-asset.ts has named the new set (a later failure keeps it whole).
+        self.assertTrue(old <= {p.name for p in self.out.iterdir()})
         self.assertIn(f"/static/fonts/{new.pop()}", self.css.read_text(encoding="utf-8"))
         self.assertEqual([p for p in self.out.iterdir() if p.name.endswith(".tmp")], [])
 

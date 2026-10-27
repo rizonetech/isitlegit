@@ -44,6 +44,19 @@ describe("hash-asset", () => {
     expect([join(DIR, "public", first), join(DIR, "assets.ts")].map((p) => statSync(p).mtimeMs)).toEqual(times);
   });
 
+  it("removes a font the new set no longer names, and leaves other files alone", () => {
+    mkdirSync(join(DIR, "public/static/fonts"), { recursive: true });
+    writeFileSync(join(DIR, "public/static/fonts/exo.aaaaaaaaaaaa.woff2"), "current");
+    writeFileSync(join(DIR, "public/static/fonts/exo.bbbbbbbbbbbb.woff2"), "old");
+    writeFileSync(join(DIR, "public/static/robots.txt"), "kept");
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    hashAssets(args());
+    expect(readdirSync(join(DIR, "public/static/fonts"))).toEqual(["exo.aaaaaaaaaaaa.woff2"]);
+    expect(readFileSync(join(DIR, "public/static/robots.txt"), "utf-8")).toBe("kept");
+    rmSync(join(DIR, "public/static/fonts"), { recursive: true });
+    rmSync(join(DIR, "public/static/robots.txt"));
+  });
+
   it("gives changed content a new name and removes the old file", () => {
     writeFileSync(join(DIR, "app.css"), "a{}");
     const before = hashAssets(args()).css;

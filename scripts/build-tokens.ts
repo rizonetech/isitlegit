@@ -124,7 +124,8 @@ export function readTokens(dir = join(ROOT, TOKENS)): Tokens {
 }
 
 const rem = (px: number) => `${px / 16}rem`;
-const family = (name: string) => (name.includes(",") ? name : `"${name}", ${SANS}`);
+// A brand family is followed by its metric-matched fallback (design/tools/build-webfonts.py), then the system stack.
+const family = (name: string) => (name.includes(",") ? name : `"${name}", "${name} Fallback", ${SANS}`);
 const block = (selector: string, lines: string[]) => `${selector} {\n${lines.map((l) => `  ${l}`).join("\n")}\n}`;
 const indent = (css: string) => css.replaceAll("\n", "\n  ");
 const colours = (theme: Theme) => Object.entries(theme).map(([role, value]) => `--color-${role}: ${value};`);
