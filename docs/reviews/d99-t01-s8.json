@@ -1,0 +1,121 @@
+{
+  "ref": "D99 T01 \u00a78",
+  "title": "AI Gateway tokens",
+  "implementation_sha": "32b3b8b8c77a6639c2e5f014d862f3d328aa94c3",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/99-manual/D99-T01-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/99-manual/D99-T01-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/99-manual/D99-T01-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/99-manual/D99-T01-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "node scripts/check-gateway-tokens.ts -> eight passed lines, exit 0 (live, 2026-10-27 16:35 SAST)",
+    "pnpm exec vitest run --project node test/node/check-gateway-tokens.test.ts -> Tests  17 passed (17)",
+    "pnpm test -> Test Files 24 passed (24), Tests 269 passed (269)"
+  ],
+  "completion": {
+    "report": "docs/reviews/99-manual/D99-T01-s8.md",
+    "verdict": "completed",
+    "candidate": "b692722e812e5d64f8aa613ba5bb44572a89492c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/99-manual/D99-T01-s8.md",
+    "candidate": "bd102577d34ce4fc85036dec496d8300640286f9",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/99-manual/D99-T01-s8.md",
+    "verdict": "fixed",
+    "candidate": "8483e418071cfd337d7999ef125f6cf782d5e5f2",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

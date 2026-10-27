@@ -44,7 +44,7 @@ track: day-0
 | 5 | §5 | WhatsApp test number | -- | [ ] |
 | 6 | §6 | Google Web Risk API key | -- | [ ] |
 | 7 | §7 | Partner credits for Glimmer | -- | [ ] |
-| 8 | §8 | AI Gateway tokens | -- | [ ] |
+| 8 | §8 | AI Gateway tokens | -- | [x] |
 
 ## 1. Meta API billing and API key
 
@@ -229,7 +229,7 @@ Two Cloudflare API tokens only the operator can create: Wrangler's login offers 
 - [x] Close round 2's P3: the Edit probe's error list is checked to be a list before it is read, so a malformed answer is a named failure. Done when: `test/node/check-gateway-tokens.test.ts` covers a 503 whose errors are not a list.
 - [x] Close the final review's findings: requests never follow a redirect (the token would go with it), go only to Cloudflare's two hosts over HTTPS unless a test allows a stand-in, and read at most 1 MiB; the Run token is refused creating a gateway, so a Run token holding Edit fails; Edit is shown by the documented create and delete of a throwaway gateway, read back as gone, instead of an undocumented validation error, and a gateway that cannot be deleted is named; the `meta` provider must be enabled at `https://api.meta.ai`, found on whichever page it is listed; the interrupt names this command; and the stand-in servers are all closed. The planned check that the gateway refuses the admin token is dropped: live, Cloudflare's gateway accepts the Read-and-Edit admin token as Run, and no token setting prevents it, so the admin token must stay out of the Worker (recorded here), while swapped tokens are still caught by the Run token's Read. Done when: `test/node/check-gateway-tokens.test.ts` covers each and five mutations (following redirects, the Run token's Edit, the provider's address, the size limit, the host allowlist) each fail it; and a live run passes all eight checks with no throwaway gateway left.
 - [x] Close round 3's P2: a create whose answer is lost (a timeout, a reset) may still have happened, so after anything but a clear refusal the throwaway gateway is deleted and read back as gone, a gateway whose removal cannot be confirmed is named for the operator, and an interrupted run names any throwaway gateway that may remain. Done when: `test/node/check-gateway-tokens.test.ts` covers a create committed with its answer lost (removed, nothing left) and the same with a failed removal (named), and fails when cleanup runs only after a 200 (checked by mutation); and a live run passes all eight checks.
-- [ ] Commit: `todo: AI Gateway tokens in the vault`
+- [x] Commit: `todo: AI Gateway tokens in the vault`
 
 Evidence 2026-10-27 15:50 SAST, values never printed: the two credentials are filled (53 and more characters) and differ; `user/tokens/verify` reads both `active`. The admin token reads gateway `isitlegit` (`authentication: true`, `collect_logs: false`, `cache_ttl: 0`) and its custom provider `meta`, and a no-op `PUT` of the gateway's own settings returned 200 with every value unchanged. The Run token is refused reading the gateway's settings (403, `Authentication error`), so it holds no Read; at `gateway.ai.cloudflare.com/.../isitlegit/custom-meta/v1/models` a request with no token or a made-up one gets the gateway's own `AiGatewayError 2009 Unauthorized`, while one with the Run token passes the gateway (it is logged with a `cf-aig-log-id`) and is answered by Meta (`invalid_api_key`, as no Meta key was sent), so no model ran and nothing was charged. (A first attempt from Python's default user agent met Cloudflare's bot rule, error 1010; the check sets its own user agent.)
 
@@ -240,6 +240,9 @@ Evidence 2026-10-27 16:15 SAST, after the completion review: `node scripts/check
 Evidence 2026-10-27 16:35 SAST, after the final review: `node scripts/check-gateway-tokens.ts` printed eight `passed:` lines (no token and a made-up token refused; the Run token through to Meta, refused reading the settings and refused creating a gateway; the admin token reading the gateway, the `meta` provider enabled at `https://api.meta.ai`, and creating then deleting a throwaway gateway) and exited 0; the account then listed only `isitlegit`. `pnpm exec vitest run --project node test/node/check-gateway-tokens.test.ts`: 16 passed. If provider keys are ever stored on the gateway, the Run probe would reach a model; none are, and D00 T01 §7 keeps it so.
 
 **Test checkpoint:** `node scripts/check-gateway-tokens.ts` prints each capability as passed and exits 0, and `pnpm exec vitest run --project node test/node/check-gateway-tokens.test.ts` passes and fails if a swapped pair or an over-privileged Run token passes (**corrected 2026-10-27**, plan review: was two character counts above 1).
+
+> **Verified:** 2026-10-27 | §8 | 32b3b8b8c77a6639c2e5f014d862f3d328aa94c3
+> **Review:** `docs/reviews/d99-t01-s8.json`
 
 ## Verification
 
