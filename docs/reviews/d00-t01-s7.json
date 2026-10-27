@@ -1,0 +1,111 @@
+{
+  "ref": "D00 T01 \u00a77",
+  "title": "Meta smoke test",
+  "implementation_sha": "935b066bc34c6f0ba2fe83075c1a17c619d4fb1e",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/00-workspace/D00-T01-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/meta-smoke.test.ts -> 25 passed",
+    "node scripts/meta-smoke.ts --dry -> exit 0, four requests each with \"store\":false",
+    "node scripts/meta-smoke.ts --confirm-credit (at eaeb4f9) -> exit 0, four passing rows in docs/meta-smoke-test.md, US$0.008507",
+    "pnpm exec vitest run -> 294 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s7.md",
+    "verdict": "completed",
+    "candidate": "231b0deccf6377eb5c945f2df08e092bfc76f25c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s7.md",
+    "candidate": "6629d9b119aca99e162f0f5ec3d02c7341e2b46e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
