@@ -1,0 +1,18 @@
+{
+  "name": "isitlegit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.16.0",
+  "scripts": {
+    "typecheck": "wrangler types --strict-vars=false && tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "4.13.14",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "wrangler": "4.152.0"
+  }
+}

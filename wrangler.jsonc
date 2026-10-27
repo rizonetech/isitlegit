@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "isitlegit",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    // Local default; `wrangler dev --var` and the deploy (`--var COMMIT_SHA:$(git rev-parse HEAD)`) override it.
+    "COMMIT_SHA": "dev"
+  }
+}

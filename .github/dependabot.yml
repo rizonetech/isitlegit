@@ -7,3 +7,10 @@ updates:
       interval: weekly
     labels:
       - dependencies
+  # The Worker's npm packages are exact pins (D00 T01 §2); Dependabot proposes each bump as its own pull request.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies

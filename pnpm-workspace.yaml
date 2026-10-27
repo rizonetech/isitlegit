@@ -1,0 +1,9 @@
+# The Worker is the root package; the Astro marketing site joins as `site/` with its own TypeScript 6.0.3 pin (D07 T06).
+packages:
+  - "."
+  - "site"
+
+# pnpm 11 refuses to install while a dependency's build script is unapproved; Wrangler needs these two.
+allowBuilds:
+  esbuild: true
+  workerd: true
