@@ -1,8 +1,18 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { type Checks, type Deployment, runRollback, type Wrangler } from "../../scripts/rollback.ts";
+import {
+  type Checks,
+  checksFor,
+  type Deployment,
+  deployVersion,
+  parseRollbackArgs,
+  runRollback,
+  SecretsChanged,
+  type Wrangler,
+} from "../../scripts/rollback.ts";
 
 // scripts/rollback.ts against stand-ins for wrangler and the Worker (D00 T01 §10): it chooses the right version, refuses
 // before changing anything when it cannot, proves what serves afterwards, stays inside its deadline, and on every
@@ -10,7 +20,21 @@ import { type Checks, type Deployment, runRollback, type Wrangler } from "../../
 const ROOT = join(import.meta.dirname, "../..");
 const DIR = join(ROOT, `build/test-rollback-${process.pid}`);
 const REJECTED = join(DIR, "rejected.json");
-afterAll(() => rmSync(DIR, { recursive: true, force: true }));
+const servers: Server[] = [];
+afterAll(() => {
+  rmSync(DIR, { recursive: true, force: true });
+  for (const server of servers) server.close();
+});
+// A local stand-in answering each request with `handle`.
+async function serve(
+  handle: (req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => void,
+) {
+  const server = createServer(handle);
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+}
+const rejected = (versions: string[], commits: string[] = []) => JSON.stringify({ versions, commits });
 beforeEach(() => {
   rmSync(DIR, { recursive: true, force: true });
   mkdirSync(DIR, { recursive: true });
@@ -53,7 +77,7 @@ describe("scripts/rollback.ts", () => {
     expect(outcome).toMatchObject({ ok: true, changed: "yes" });
     expect(state.rollbacks).toEqual(["b2"]);
     expect(outcome.lines).toContain(`chosen: b2 (commit ${COMMITS.b})`);
-    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual(["c"]);
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({ versions: ["c"], commits: [COMMITS.c] });
   });
 
   it("skips a secret-only republish of the active commit", async () => {
@@ -73,12 +97,39 @@ describe("scripts/rollback.ts", () => {
 
   it("does not choose a rejected version again on a retry", async () => {
     // C was rolled back to B (b2 serves), and B proved broken too: the retry must not pick C again.
-    writeFileSync(REJECTED, JSON.stringify(["c"]));
+    writeFileSync(REJECTED, rejected(["c"], [COMMITS.c as string]));
     const { state, wrangler } = stage("b2");
     const outcome = await run(wrangler, passing(state));
     expect(state.rollbacks).toEqual(["a"]);
     expect(outcome.ok).toBe(true);
-    expect(JSON.parse(readFileSync(REJECTED, "utf-8")).sort()).toEqual(["b2", "c"]);
+    expect(JSON.parse(readFileSync(REJECTED, "utf-8"))).toEqual({
+      versions: ["c", "b2"],
+      commits: [COMMITS.c, COMMITS.b],
+    });
+  });
+
+  it("does not go back to a rejected commit through another version of it", async () => {
+    // History a, b, c1, c2 where c1 and c2 are one commit (a secret republish). Rolling back from c2 to b rejects
+    // commit C; when b proves broken too, the retry must choose a, not c1.
+    const commits: Record<string, string> = { ...COMMITS, c1: COMMITS.c as string, c2: COMMITS.c as string };
+    const history = [deployment("a", 1), deployment("b", 2), deployment("c1", 3), deployment("c2", 4)];
+    const state = { active: "c2", rollbacks: [] as string[] };
+    const wrangler: Wrangler = {
+      activeVersion: async () => state.active,
+      deployments: async () => history,
+      commitOf: async (version) => commits[version] ?? null,
+      rollback: async (version) => {
+        state.rollbacks.push(version);
+        state.active = version;
+      },
+    };
+    const checks: Checks = {
+      health: async () => ({ commit: commits[state.active] as string }),
+      smoke: async () => ({ ok: true, lines: [] }),
+    };
+    expect((await run(wrangler, checks)).ok).toBe(true);
+    expect((await run(wrangler, checks)).ok).toBe(true);
+    expect(state.rollbacks).toEqual(["b", "a"]);
   });
 
   it("rolls back to an explicit target, even past the default", async () => {
@@ -89,14 +140,14 @@ describe("scripts/rollback.ts", () => {
   });
 
   it("refuses before changing anything when nothing is eligible, the target is gone or already active", async () => {
-    writeFileSync(REJECTED, JSON.stringify(["a", "b", "b2"]));
+    writeFileSync(REJECTED, rejected(["a", "b", "b2"]));
     const none = stage("c");
     const nothing = await run(none.wrangler, passing(none.state));
     expect(nothing).toMatchObject({ ok: false, changed: "no" });
-    expect(nothing.lines.at(-1)).toMatch(/no earlier version .* redeploy a known-good commit/);
+    expect(nothing.lines.at(-2)).toMatch(/no earlier version .* redeploy a known-good commit/);
     const gone = stage("c");
     const expired = await run(gone.wrangler, passing(gone.state), { target: "z" });
-    expect(expired.lines.at(-1)).toMatch(/version z is gone/);
+    expect(expired.lines.at(-2)).toMatch(/version z is gone/);
     expect(await run(gone.wrangler, passing(gone.state), { target: "c" })).toMatchObject({ ok: false, changed: "no" });
     expect([...none.state.rollbacks, ...gone.state.rollbacks]).toEqual([]);
   });
@@ -133,7 +184,7 @@ describe("scripts/rollback.ts", () => {
     });
     const outcome = await run(wrangler, passing(state));
     expect(outcome).toMatchObject({ ok: false, changed: "no" });
-    expect(outcome.lines.at(-1)).toBe("rollback: c serves all traffic, not b2");
+    expect(outcome.lines.at(-2)).toBe("rollback: c serves all traffic, not b2");
     const moved = stage("c");
     const checks: Checks = {
       ...passing(moved.state),
@@ -142,23 +193,170 @@ describe("scripts/rollback.ts", () => {
         return { ok: true, lines: [] };
       },
     };
-    expect((await run(moved.wrangler, checks)).lines.at(-1)).toBe(
+    expect((await run(moved.wrangler, checks)).lines.at(-2)).toBe(
       "rollback: a serves all traffic after the checks, not b2",
     );
   });
 
-  it("reports a stalled wrangler call within its deadline, with the deployment state it can read", async () => {
-    const { state, wrangler } = stage("c", {
-      rollback: () =>
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("wrangler rollback did not finish before the deadline")), 300),
-        ),
-    });
+  it("reports a stalled deployment call within its deadline, with the deployment state it can read", async () => {
+    // Stand-ins that honour the deadline they are given, as the real ones do through runCommand and fetch signals.
+    const stall = (deadline: number) =>
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("did not finish before the deadline")), deadline - Date.now()),
+      );
+    const { state, wrangler } = stage("c", { rollback: (_v, _m, deadline) => stall(deadline) });
     const started = Date.now();
-    const outcome = await run(wrangler, passing(state), { waitMs: 500 });
-    expect(Date.now() - started).toBeLessThan(3_000);
+    const outcome = await run(wrangler, passing(state), { waitMs: 800 });
+    expect(Date.now() - started).toBeLessThan(1_000);
     expect(outcome).toMatchObject({ ok: false, changed: "no" });
     expect(outcome.lines).toContain("active after the failure: c");
+  });
+
+  it("ends inside its whole budget even when the read after a failure stalls too", async () => {
+    let reads = 0;
+    const stall = (deadline: number) =>
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("stalled")), deadline - Date.now()));
+    const { state, wrangler } = stage("c", {
+      activeVersion: async (deadline) => (++reads === 1 ? "c" : stall(deadline)),
+      rollback: (_v, _m, deadline) => stall(deadline),
+    });
+    const started = Date.now();
+    const outcome = await run(wrangler, passing(state), { waitMs: 800 });
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(outcome).toMatchObject({ ok: false, changed: "uncertain" });
+  });
+
+  it("refuses before changing anything when preflight or its record fails", async () => {
+    const down = stage("c", {
+      activeVersion: async () => {
+        throw new Error("wrangler: not logged in");
+      },
+    });
+    expect(await run(down.wrangler, passing(down.state))).toMatchObject({ ok: false, changed: "no" });
+    writeFileSync(REJECTED, "{ not json");
+    const damaged = stage("c");
+    expect(await run(damaged.wrangler, passing(damaged.state))).toMatchObject({ ok: false, changed: "no" });
+    rmSync(REJECTED);
+    // The record's folder is a file, so the record cannot be written: nothing may change.
+    writeFileSync(join(DIR, "blocked"), "");
+    const unwritable = stage("c");
+    const outcome = await run(unwritable.wrangler, passing(unwritable.state), {
+      rejectedFile: join(DIR, "blocked/r.json"),
+    });
+    expect(outcome).toMatchObject({ ok: false, changed: "no" });
+    expect([...down.state.rollbacks, ...damaged.state.rollbacks, ...unwritable.state.rollbacks]).toEqual([]);
+  });
+
+  it("refuses a rollback across changed secrets and says nothing changed", async () => {
+    const { state, wrangler } = stage("c", {
+      rollback: async () => {
+        throw new SecretsChanged(["SMOKE_TOKEN"]);
+      },
+    });
+    const outcome = await run(wrangler, passing(state));
+    expect(outcome).toMatchObject({ ok: false, changed: "no" });
+    expect(outcome.lines.at(-2)).toMatch(
+      /Cloudflare refused: secrets changed .*SMOKE_TOKEN.* redeploy a known-good commit/,
+    );
+  });
+
+  it("reports each waiting stage, what /health answers meanwhile, and the total time", async () => {
+    const { state, wrangler } = stage("c");
+    let asks = 0;
+    const logged: string[] = [];
+    const checks: Checks = {
+      ...passing(state),
+      health: async () => ({ commit: ++asks < 2 ? (COMMITS.c as string) : (COMMITS[state.active] as string) }),
+    };
+    const outcome = await run(wrangler, checks, { log: (line) => logged.push(line) });
+    expect(logged).toEqual(
+      expect.arrayContaining([
+        "Reading the version serving all traffic...",
+        "Choosing a version from the deployment history...",
+        `Rolling back to b2 (commit ${COMMITS.b})...`,
+        "Waiting for /health to report the chosen commit...",
+        `  /health: commit ${COMMITS.c}`,
+      ]),
+    );
+    expect(outcome.lines.at(-1)).toMatch(/^rollback finished in \d+ s$/);
+  });
+
+  it("checks the whole command line before anything runs", () => {
+    const id = "64244598-f549-4992-907a-54cc46d1c396";
+    expect(parseRollbackArgs(["--reason", "broke", "--to", id])).toEqual({ reason: "broke", target: id });
+    expect(parseRollbackArgs(["--reason", "broke"])).toEqual({ reason: "broke" });
+    expect(() => parseRollbackArgs(["--reason", "broke", "--to"])).toThrow();
+    expect(() => parseRollbackArgs(["--reason", "broke", "--to", "latest"])).toThrow(/needs a version id/);
+    expect(() => parseRollbackArgs(["--reason", "broke", "--force"])).toThrow();
+    expect(() => parseRollbackArgs(["--reason", "broke", id])).toThrow();
+    expect(() => parseRollbackArgs(["--to", id])).toThrow(/give the reason/);
+  });
+
+  it("refuses a mistyped command line from the real entry point without touching the deployment", async () => {
+    // With an empty PATH no wrangler could run: exit 2 and the message prove the refusal came first.
+    const child = spawn(process.execPath, ["scripts/rollback.ts", "--reason", "x", "--to"], {
+      cwd: ROOT,
+      env: { PATH: "" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    const code = await new Promise((resolve) => child.on("exit", resolve));
+    expect(code).toBe(2);
+    expect(stderr).toContain("deployment changed: no");
+  }, 15_000);
+
+  it("deploys through Cloudflare's API without force, and turns error 10220 into SecretsChanged", async () => {
+    const bodies: { url: string; body: unknown }[] = [];
+    let answer = { status: 200, body: { success: true, errors: [] } as object };
+    const api = await serve((req, res) => {
+      let raw = "";
+      req.on("data", (chunk) => {
+        raw += chunk;
+      });
+      req.on("end", () => {
+        bodies.push({ url: req.url as string, body: JSON.parse(raw) });
+        res.writeHead(answer.status, { "content-type": "application/json" });
+        res.end(JSON.stringify(answer.body));
+      });
+    });
+    await deployVersion(api, "t", "v1", "why", Date.now() + 2_000);
+    expect(bodies[0]?.url).toMatch(/\/workers\/scripts\/isitlegit\/deployments$/);
+    expect(bodies[0]?.body).toMatchObject({
+      strategy: "percentage",
+      versions: [{ version_id: "v1", percentage: 100 }],
+    });
+    answer = {
+      status: 400,
+      body: {
+        success: false,
+        errors: [
+          { code: 10220, message: "Cannot roll back. The following secrets have changed: SMOKE_TOKEN, META_KEY" },
+        ],
+      },
+    };
+    const refused = await deployVersion(api, "t", "v1", "why", Date.now() + 2_000).catch((e) => e);
+    expect(refused).toBeInstanceOf(SecretsChanged);
+    expect(refused.secrets).toEqual(["SMOKE_TOKEN", "META_KEY"]);
+    expect(bodies[1]?.url).not.toContain("force");
+    answer = { status: 403, body: { success: false, errors: [{ code: 10000, message: "Authentication error" }] } };
+    await expect(deployVersion(api, "t", "v1", "why", Date.now() + 2_000)).rejects.toThrow(/HTTP 403 10000/);
+  });
+
+  it("bounds /health by its deadline whether the headers or the body stall", async () => {
+    const headers = await serve(() => {});
+    const body = await serve((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.write('{"commit":');
+    });
+    for (const base of [headers, body]) {
+      const started = Date.now();
+      const answer = await checksFor(base).health(Date.now() + 300);
+      expect(Date.now() - started).toBeLessThan(1_500);
+      expect(answer).toHaveProperty("error");
+    }
   });
 
   it("calls a deployment it cannot read back uncertain", async () => {

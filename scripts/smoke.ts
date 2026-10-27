@@ -14,6 +14,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
 
 export const CHECKS = ["DB", "ARTEFACTS", "CACHE", "ANALYSIS", "BROWSER"];
 export type Outcome = { ok: boolean; lines: string[] };
@@ -34,7 +35,7 @@ export type SmokeOptions = {
 const seconds = (since: number) => `${Math.round((Date.now() - since) / 1000)} s`;
 
 // Calls `work` and logs the elapsed time every 10 s until it settles.
-async function withProgress<T>(what: string, log: (line: string) => void, work: () => Promise<T>): Promise<T> {
+export async function withProgress<T>(what: string, log: (line: string) => void, work: () => Promise<T>): Promise<T> {
   const start = Date.now();
   log(`${what}...`);
   const timer = setInterval(() => log(`  still ${what.toLowerCase()}, ${seconds(start)}`), 10_000);
@@ -99,14 +100,22 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
   const refused = (options.checkDestination ?? destinationProblem)(base);
   if (refused) return { ok: false, lines: [`smoke: ${refused}`] };
   const start = Date.now();
-  const deadline = start + waitMs;
+  // One budget for the whole run: the checks stop at `deadline`, which keeps back time for the last read of the
+  // active version, so even a stalled read ends by `start + waitMs`.
+  const deadline = start + waitMs - Math.min(30_000, waitMs / 4);
   const lines: string[] = [];
-  const { token, version } = rotate
-    ? await withProgress("Rotating SMOKE_TOKEN (Cloudflare publishes a new version)", log, () => rotate(deadline))
-    : await withProgress("Reading the smoke token and the version serving all traffic", log, async () => ({
-        token: await getToken(deadline),
-        version: await activeVersion(deadline),
-      }));
+  let token: string;
+  let version: string;
+  try {
+    ({ token, version } = rotate
+      ? await withProgress("Rotating SMOKE_TOKEN (Cloudflare publishes a new version)", log, () => rotate(deadline))
+      : await withProgress("Reading the smoke token and the version serving all traffic", log, async () => ({
+          token: await getToken(deadline),
+          version: await activeVersion(deadline),
+        })));
+  } catch (error) {
+    return { ok: false, lines: [`smoke: ${(error as Error).message}`, `failed in ${seconds(start)}`] };
+  }
   log(rotate ? `The new token is live in version ${version}.` : `Version ${version} serves all traffic.`);
   const url = new URL("/internal/smoke", base);
   const outcome = await withProgress(`Calling ${url}`, log, async (): Promise<Outcome> => {
@@ -157,7 +166,7 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
   // else changed the deployment meanwhile, and the result does not describe what now serves.
   let after: string;
   try {
-    after = await activeVersion(Math.max(deadline, Date.now() + 30_000));
+    after = await activeVersion(start + waitMs);
   } catch (error) {
     after = `unknown (${(error as Error).message})`;
   }
@@ -259,14 +268,22 @@ function opEnv(): NodeJS.ProcessEnv {
   return { ...process.env, OP_SERVICE_ACCOUNT_TOKEN: token };
 }
 
-export async function activeVersionFromWrangler(deadline: number): Promise<string> {
-  const status = JSON.parse(
-    await runCommand("pnpm", ["exec", "wrangler", "deployments", "status", "--json"], "", deadline),
-  );
+export type Runner = (
+  command: string,
+  args: string[],
+  input: string,
+  deadline: number,
+  env?: NodeJS.ProcessEnv,
+) => Promise<string>;
+
+async function activeVersionWith(run: Runner, deadline: number): Promise<string> {
+  const status = JSON.parse(await run("pnpm", ["exec", "wrangler", "deployments", "status", "--json"], "", deadline));
   const live = (status.versions as { version_id: string; percentage: number }[]).find((v) => v.percentage === 100);
   if (!live) throw new Error("no version serves all traffic");
   return live.version_id;
 }
+
+export const activeVersionFromWrangler = (deadline: number) => activeVersionWith(runCommand, deadline);
 
 export async function tokenFromVault(deadline: number): Promise<string> {
   const token = (
@@ -277,47 +294,76 @@ export async function tokenFromVault(deadline: number): Promise<string> {
 }
 
 // A new token goes into the vault first (so it is never lost), then onto the Worker through `wrangler secret put` on
-// standard input, which publishes the version answered.
-async function rotateWithVault(deadline: number): Promise<{ token: string; version: string }> {
-  const token = randomBytes(32).toString("hex");
-  const env = opEnv();
-  const item = JSON.parse(
-    await runCommand("op", ["item", "get", VAULT_ITEM, "--vault", "Conclave", "--format", "json"], "", deadline, env),
-  );
-  const field = (item.fields as { id: string; value?: string }[]).find((f) => f.id === "credential");
-  if (!field) throw new Error(`the vault item "${VAULT_ITEM}" has no credential field`);
-  field.value = token;
-  await runCommand(
-    "op",
-    ["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"],
-    JSON.stringify(item),
-    deadline,
-    env,
-  );
-  await runCommand("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], token, deadline);
-  return { token, version: await activeVersionFromWrangler(deadline) };
+// standard input, which publishes the version answered. If the Worker step fails or is interrupted, the vault holds a
+// token the Worker does not: running `--rotate` again reconciles them, and its smoke run proves it.
+export function rotateWith(run: Runner, env: () => NodeJS.ProcessEnv = opEnv) {
+  return async (deadline: number): Promise<{ token: string; version: string }> => {
+    const token = randomBytes(32).toString("hex");
+    const opEnvironment = env();
+    const item = JSON.parse(
+      await run(
+        "op",
+        ["item", "get", VAULT_ITEM, "--vault", "Conclave", "--format", "json"],
+        "",
+        deadline,
+        opEnvironment,
+      ),
+    );
+    const field = (item.fields as { id: string; value?: string }[]).find((f) => f.id === "credential");
+    if (!field) throw new Error(`the vault item "${VAULT_ITEM}" has no credential field`);
+    field.value = token;
+    await run(
+      "op",
+      ["item", "edit", VAULT_ITEM, "--vault", "Conclave", "--format", "json"],
+      JSON.stringify(item),
+      deadline,
+      opEnvironment,
+    );
+    try {
+      await run("pnpm", ["exec", "wrangler", "secret", "put", "SMOKE_TOKEN"], token, deadline);
+    } catch (error) {
+      throw new Error(
+        `the vault has the new token but the Worker did not take it (${(error as Error).message}); plain smoke runs ` +
+          "will fail until `--rotate` runs again and passes (docs/operations.md)",
+      );
+    }
+    return { token, version: await activeVersionWith(run, deadline) };
+  };
+}
+
+const rotateWithVault = rotateWith(runCommand);
+
+// The command line, checked whole before anything runs: an unknown flag or a flag without its value is refused.
+export function parseSmokeArgs(argv: string[]): { base: string; commit?: string; rotate: boolean } {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    options: { commit: { type: "string" }, rotate: { type: "boolean", default: false } },
+    allowPositionals: true,
+    strict: true,
+  });
+  if (positionals.length !== 1) throw new Error("give exactly one deployed Worker URL");
+  if (values.commit !== undefined && !/^[0-9a-f]{40}$/.test(values.commit))
+    throw new Error("--commit needs a full 40-hex commit");
+  return { base: positionals[0] as string, rotate: values.rotate, ...(values.commit ? { commit: values.commit } : {}) };
 }
 
 if (import.meta.filename === process.argv[1]) {
-  const base = process.argv[2];
-  if (!base || base.startsWith("--")) {
-    console.error("smoke: give the deployed Worker's URL");
+  let args: ReturnType<typeof parseSmokeArgs>;
+  try {
+    args = parseSmokeArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(`smoke: ${(error as Error).message}`);
     process.exit(2);
   }
-  const at = process.argv.indexOf("--commit");
-  const commit =
-    at > 0 ? (process.argv[at + 1] ?? "") : execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf-8" }).trim();
-  if (!/^[0-9a-f]{40}$/.test(commit)) {
-    console.error("smoke: --commit needs a full 40-hex commit");
-    process.exit(2);
-  }
+  const { base, rotate } = args;
+  const commit = args.commit ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf-8" }).trim();
   installSignalCleanup();
   try {
     const outcome = await runSmoke(base, {
       commit,
       getToken: tokenFromVault,
       activeVersion: activeVersionFromWrangler,
-      ...(process.argv.includes("--rotate") ? { rotate: rotateWithVault } : {}),
+      ...(rotate ? { rotate: rotateWithVault } : {}),
       log: (line) => console.log(line),
     });
     for (const line of outcome.lines) console.log(line);

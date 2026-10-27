@@ -5,6 +5,9 @@
     // The browser tests' page.evaluate callbacks run in the page, so this project also knows the DOM.
     "lib": ["es2024", "dom"],
     "allowImportingTsExtensions": true,
+    // The scripts run under Node's type stripping, which refuses syntax that emits code (parameter properties, enums,
+    // namespaces): the compiler refuses it first.
+    "erasableSyntaxOnly": true,
     // WORKAROUND: serve.test.ts imports wrangler, whose types reach Miniflare's published declarations, and those import
     // modules the package does not ship (`@cloudflare/workers-types/experimental`, TS2307), as in tsconfig.config.json.
     // Library checks only; this project's own files are still checked, and the Worker's sources keep library checks on.

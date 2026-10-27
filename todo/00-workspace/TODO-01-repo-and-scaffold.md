@@ -50,6 +50,7 @@ track: day-0
 | 9 | §9 | Red CI refused when a section starts | §4 | [ ] |
 | 10 | §10 | Deploy rollback and re-verification | §5 | [ ] |
 | 11 | §11 | AI Gateway config snapshot and restore | §6 | [ ] |
+| 12 | §12 | Rollback from a split deployment | §10 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -431,6 +432,24 @@ The gateway's settings, the `meta` custom provider and its pricing rules live in
 - [ ] Commit: `infra: AI Gateway configuration snapshot and restore`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/gateway-config.test.ts` passes and fails if `restore` deletes anything or reports success when the read-back differs.
+
+## 12. Rollback from a split deployment
+
+`scripts/rollback.ts` (§10) needs one version serving 100% of traffic and refuses otherwise; Cloudflare's own rollback can also replace a gradual deployment (say 90/10) with one stable version (completion review of D00 T01 §10, item E3). Once gradual deployments are used, an incident in the middle of one needs the same one-command, verified recovery.
+
+**Phase:** 0
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Recover from a split deployment. Done when: a 90/10 deployment is replaced by a named stable version, verified.
+
+- [ ] Teach `scripts/rollback.ts` to read a split deployment from `wrangler deployments status` (every version and its percentage), require `--to` when no single version serves all traffic, reject both split versions' commits for retries, and verify the named version at 100% afterwards with the unchanged smoke check. Done when: `test/node/rollback.test.ts` passes a 90/10 history to the named version, refuses a split without `--to` before changing anything, and fails when the read-back still shows a split.
+- [ ] Prove it live: deploy a 90/10 split with `wrangler versions deploy`, recover with `node scripts/rollback.ts --to <stable>`, and record the read-back. Done when: the section's evidence quotes the split before and the single version after.
+- [ ] Commit: `infra: rollback from a split deployment`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/rollback.test.ts` passes, and fails if a split deployment without `--to` reaches the deployment call.
 
 ## Verification
 

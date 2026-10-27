@@ -3,7 +3,16 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { destinationProblem, killGroup, refusal, runCommand, runSmoke } from "../../scripts/smoke.ts";
+import {
+  destinationProblem,
+  killGroup,
+  parseSmokeArgs,
+  type Runner,
+  refusal,
+  rotateWith,
+  runCommand,
+  runSmoke,
+} from "../../scripts/smoke.ts";
 
 // scripts/smoke.ts against a local stand-in for the deployed Worker (D00 T01 §5): it passes only on HTTP 200 from the
 // version the secret published, at the expected commit, with exactly the five checks all ok; it fails on anything
@@ -132,6 +141,77 @@ describe("scripts/smoke.ts", () => {
     });
     expect(outcome.ok).toBe(true);
     expect(outcome.lines.join("\n")).not.toContain(token);
+  });
+
+  it("reconciles an interrupted rotation: the vault first, the Worker failing, then a second --rotate", async () => {
+    const vault = { fields: [{ id: "credential", value: "a".repeat(64) }] };
+    const worker = { token: "a".repeat(64), fail: true };
+    const run: Runner = async (command, args, input) => {
+      if (command === "op" && args[1] === "get") return JSON.stringify(vault);
+      if (command === "op" && args[1] === "edit") {
+        vault.fields = JSON.parse(input).fields;
+        return "";
+      }
+      if (args.includes("secret")) {
+        if (worker.fail) throw new Error("wrangler secret put: network error");
+        worker.token = input;
+        return "";
+      }
+      if (args.includes("status")) return JSON.stringify({ versions: [{ version_id: VERSION, percentage: 100 }] });
+      throw new Error(`unexpected ${command} ${args.join(" ")}`);
+    };
+    const rotate = rotateWith(run, () => ({}));
+    const first = await rotate(Date.now() + 2_000).catch((e: Error) => e);
+    expect((first as Error).message).toMatch(
+      /vault has the new token but the Worker did not take it .* `--rotate` runs again/,
+    );
+    expect(vault.fields[0]?.value).not.toBe(worker.token);
+    worker.fail = false;
+    const second = await rotate(Date.now() + 2_000);
+    expect(second).toEqual({ token: worker.token, version: VERSION });
+    expect(vault.fields[0]?.value).toBe(worker.token);
+    expect(worker.token).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("ends inside its whole budget even when the last read of the active version stalls", async () => {
+    let reads = 0;
+    const base = await serve(() => ({ status: 404 }));
+    const started = Date.now();
+    const outcome = await runSmoke(base, {
+      ...quick,
+      waitMs: 800,
+      activeVersion: (deadline: number) =>
+        ++reads === 1
+          ? Promise.resolve(VERSION)
+          : new Promise<string>((_, reject) => setTimeout(() => reject(new Error("stalled")), deadline - Date.now())),
+    });
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(outcome.ok).toBe(false);
+  });
+
+  it("reports a failed setup as a failed run, never an exception", async () => {
+    const outcome = await runSmoke("http://127.0.0.1:1", {
+      ...quick,
+      getToken: async () => {
+        throw new Error("op: not signed in");
+      },
+    });
+    expect(outcome.ok).toBe(false);
+    expect(outcome.lines[0]).toBe("smoke: op: not signed in");
+  });
+
+  it("checks the whole command line before anything runs", () => {
+    const commit = "a".repeat(40);
+    expect(parseSmokeArgs(["https://x", "--commit", commit, "--rotate"])).toEqual({
+      base: "https://x",
+      commit,
+      rotate: true,
+    });
+    expect(parseSmokeArgs(["https://x"])).toEqual({ base: "https://x", rotate: false });
+    expect(() => parseSmokeArgs(["https://x", "--commit"])).toThrow();
+    expect(() => parseSmokeArgs(["https://x", "--commit", "abc"])).toThrow(/full 40-hex/);
+    expect(() => parseSmokeArgs(["https://x", "--rotat"])).toThrow();
+    expect(() => parseSmokeArgs([])).toThrow(/exactly one/);
   });
 
   it("fails when the version serving all traffic changes during the run", async () => {
