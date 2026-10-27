@@ -142,6 +142,7 @@ async function write(store: Store, wanted: Stored, body: Uint8Array): Promise<St
       } catch (error) {
         throw new StoreError("storage", `reading ${item.key}: ${(error as Error).message}`);
       }
+      if (stored === null) throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
     }
     if (stored !== item.sha256) throw new StoreError("conflict", `${item.key} already holds other content`);
     // The stored object's media type wins: the same bytes declared differently by a later writer are recorded as the

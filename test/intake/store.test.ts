@@ -354,6 +354,19 @@ describe("storing and reading", () => {
     await expect(putAttachment(store, caseId, "t.txt", bytes("expected"), "text/plain")).rejects.toEqual(
       refusal("conflict"),
     );
+    // Found without a checksum, then gone before its bytes are read: retryable, not a conflict.
+    const between = new Proxy(env.ARTEFACTS, {
+      get(target, key) {
+        if (key === "put") return async () => null;
+        if (key === "head") return async () => ({ checksums: {}, httpMetadata: {} });
+        if (key === "get") return async () => null;
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(
+      putAttachment({ bucket: between, db: env.DB }, caseId, "g.txt", bytes("gone"), "text/plain"),
+    ).rejects.toEqual(refusal("storage"));
   });
 
   it("reads an object that is gone as missing, and another case's key as not found", async () => {
