@@ -22,7 +22,7 @@ Sections: 7 | Checklist items: 80
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 31 | Checklist items: 180
+Sections: 31 | Checklist items: 185
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -34,7 +34,7 @@ Sections: 31 | Checklist items: 180
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 6     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
-| [ ]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 6     |
+| [ ]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 11    |
 | [ ]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 6     |
 | [ ]    | D07 T02 §2 | Passkey sign-in                            | none                  | 3     |
 | [ ]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 6     |
@@ -260,4 +260,4 @@ Sections: 12 | Checklist items: 54
 
 Progress: 6/189 verified sections, 5 ready to run now.
 
-Checklist: 112/895 items completed (includes Commit items).
+Checklist: 112/900 items completed (includes Commit items).

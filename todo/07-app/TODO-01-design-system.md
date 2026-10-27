@@ -78,7 +78,11 @@ The operator chose an attended design session before any surface is built (desig
 
 ## 2. Design tokens compiled to the stylesheet
 
+> **Started:** 2026-10-27T01:49:23Z
+
 Colours, type and spacing come from tokens only (`AGENTS.md`, manifesto). Tailwind 4.3.3 builds one static stylesheet from the token files; pages reference token classes, never raw values.
+
+**Corrected 2026-10-27** (validation before build): the section asked for `GET /static/app.css` with a long cache header and a content hash in its name, which contradict, and named no static-assets setup; its raw-colour test was a Vitest test, but Vitest runs inside workerd (D00 T01 §3), which cannot read the source tree; the entry stylesheet `src/web/styles/app.css` it compiles was never created; WOFF2 needs `brotli`, which `design/tools/requirements.txt` lacks; and `scripts/build-tokens.ts` needs Node types and a type check. The design SPEC does not say how the theme is chosen; the default taken is the operating-system preference (`prefers-color-scheme`) with a `data-theme` attribute on `<html>` that overrides it, the usual pattern, recorded in the stack doc; a visible theme switch would be a SPEC change first. Generated files (`tokens.css`, the hashed stylesheet, `src/web/assets.ts`, the WOFF2 fonts) are committed so a clean clone type-checks, and CI rebuilds them and fails on any difference, as with `worker-configuration.d.ts`.
 
 **Phase:** 1
 **Needs:** none
@@ -86,17 +90,24 @@ Colours, type and spacing come from tokens only (`AGENTS.md`, manifesto). Tailwi
 
 **Build order:**
 
-1. Generate the Tailwind theme from `design/tokens/*.json`. Done when: `pnpm build:css` writes `src/web/static/app.css` with the token variables.
-2. Guard against raw colours. Done when: a test fails on a hex colour in `src/web/`.
+1. Run Node-side tests beside the workerd ones. Done when: `pnpm test` runs a `node` project for `test/node/**` and the `worker` project for the rest.
+2. Generate the theme from `design/tokens/*.json` and compile it. Done when: `pnpm build:css` writes `public/static/app.<hash>.css` with every token variable and `src/web/assets.ts` naming it.
+3. Serve it as a long-cached static asset. Done when: under `wrangler dev`, the hashed path answers `200` `text/css` with `Cache-Control: public, max-age=31536000, immutable`, and `/health` still reaches the Worker.
+4. Guard against raw colours. Done when: a test fails on a hex colour in `src/web/`.
 
-- [ ] Add exact dev dependencies `tailwindcss` and `@tailwindcss/cli` 4.3.3. Done when: `pnpm install` resolves them.
-- [ ] Write `scripts/build-tokens.ts` turning `design/tokens/*.json` into `src/web/styles/tokens.css` (`@theme` variables, light and dark). Done when: the generated file lists every token.
-- [ ] Add script `build:css` compiling `src/web/styles/app.css` to `src/web/static/app.css`, and serve it as a static asset from the Worker. Done when: `GET /static/app.css` returns it with a long cache header and a content hash in the name.
-- [ ] Load Exo and Exo 2 from self-hosted WOFF2 files in `src/web/static/fonts/` with their SIL OFL 1.1 licence recorded in `NOTICE.md`. Done when: the files and the NOTICE row exist.
-- [ ] Write `test/web/no-raw-colours.test.ts` failing on any `#rgb`, `#rrggbb`, `rgb(` or `hsl(` in `src/web/**/*.tsx`. Done when: the test passes now and fails on a planted `#ff0000`.
+- [ ] Add exact dev dependencies `tailwindcss` and `@tailwindcss/cli` 4.3.3 (released 2026-07-16) and `@types/node` 24.19.2 (Node-side scripts and tests). Done when: `pnpm install` resolves them with no warning and writes no `minimumReleaseAgeExclude`. Cheaper substitute: a CDN Tailwind build, which the static-asset rule refuses.
+- [ ] Split `vitest.config.ts` into two `test.projects`: `worker` (the `cloudflareTest()` plugin, `test/**/*.test.ts` except `test/node/**`) and `node` (`environment: "node"`, `test/node/**/*.test.ts`), with `test/node/tsconfig.json` (`types: ["node"]`) added to `typecheck`. Done when: `pnpm test` reports both projects and `test/health.test.ts` still runs in workerd.
+- [ ] Write `scripts/build-tokens.ts` (run by Node 24 directly, `node scripts/build-tokens.ts`) turning `design/tokens/colors.json`, `spacing.json` and `typography.json` into `src/web/styles/tokens.css`: one `@theme` block with the light values, then the dark values under `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }` and `:root[data-theme="dark"] { ... }`; written to a temporary file and renamed into place. Done when: `test/node/build-tokens.test.ts` shows every colour role in both themes and every spacing, radius, control-height, shadow, family, weight and type-scale token as a variable with its JSON value, and fails when a token is dropped. Cheaper substitute: hand-written CSS variables that drift from the JSON.
+- [ ] Create `src/web/styles/app.css`: `@import "tailwindcss";`, `@import "./tokens.css";`, and `@font-face` rules for Exo and Exo 2 (variable weight, `font-display: swap`) from `/static/fonts/`. Done when: the compiled stylesheet holds the token variables, both `@font-face` rules and Tailwind's base layer.
+- [ ] Add `design/tools/build-webfonts.py` converting `design/fonts/Exo[wght].ttf` and `Exo2[wght].ttf` to `public/static/fonts/exo.woff2` and `exo2.woff2` with fonttools (temporary file, then rename), and pin `brotli` in `design/tools/requirements.txt`. Done when: both files begin with the `wOF2` signature and fonttools reads back the same glyph count as the source; `NOTICE.md`'s Exo row names the served files. Cheaper substitute: Google Fonts links, which leak visitors to a third party.
+- [ ] Add scripts `build:css` (`node scripts/build-tokens.ts`, then `tailwindcss -i src/web/styles/app.css -o build/css/app.css --minify`, then `node scripts/hash-asset.ts`) and `scripts/hash-asset.ts`, which copies the stylesheet to `public/static/app.<first 12 hex of its SHA-256>.css`, removes older `app.*.css` files, and writes `src/web/assets.ts` exporting `APP_CSS` with that path. Done when: running `pnpm build:css` twice leaves `git status` clean, and a changed token changes the hash and removes the old file (`test/node/hash-asset.test.ts`).
+- [ ] Serve `public/` as Workers static assets (`assets.directory` in `wrangler.jsonc`) with `public/_headers` giving `/static/*` `Cache-Control: public, max-age=31536000, immutable`. Done when: under `pnpm dev`, `curl -sI` on the hashed stylesheet and on `/static/fonts/exo.woff2` shows `200`, the right content type and that header, and `/health` still returns the commit.
+- [ ] Write `test/node/no-raw-colours.test.ts` failing on any `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb(`, `rgba(`, `hsl(`, `hsla(` or `oklch(` in `src/web/**/*.{ts,tsx,css}` except the generated `src/web/styles/tokens.css`. Done when: the test passes now and fails on a planted `#ff0000` in a `src/web` file.
+- [ ] Run `pnpm build:css` in CI's Worker job followed by `git diff --exit-code -- src/web public`, and add `pnpm build:css` to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README quickstart. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass, and a stale committed stylesheet fails the CI step.
+- [ ] Record in `NOTICE.md` (`tailwindcss`, `@tailwindcss/cli`, `@types/node`; none ships in the Worker; the compiled CSS carries Tailwind's MIT notice) and in the stack doc (theme selection default, `public/` assets layout). Done when: each row matches the installed package's version and licence.
 - [ ] Commit: `web: design tokens compiled to the app stylesheet`
 
-**Test checkpoint:** `pnpm build:css && pnpm exec vitest run test/web/no-raw-colours.test.ts` passes.
+**Test checkpoint:** in a clean clone, `pnpm build:css` leaves `git status` clean; `pnpm test` passes both projects (token coverage, hashing, no raw colours, health); `pnpm typecheck` and `pnpm lint` pass; under `pnpm dev` the hashed stylesheet and a font answer `200` with `Cache-Control: public, max-age=31536000, immutable`; and a planted `#ff0000` in `src/web/` fails `pnpm test`. **Corrected 2026-10-27:** the checkpoint was a build and one test that passes on an empty `src/web/`.
 
 ## 3. App shell and shared components with every state
 
