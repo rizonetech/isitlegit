@@ -596,7 +596,11 @@ def repository_relative(text, record=None):
 
         text = re.sub(r"\]\(" + re.escape(prefix) + r"([^)\s:]+)(?::(\d+))?\)", link, text)
         text = text.replace(prefix, "")
-    return text
+    # Any other home or user folder a reviewer quotes (a tool under ~/.local/bin, say) is written from `~`, so a
+    # published record names no account; the same folders scripts/check-publication.py refuses.
+    text = re.sub(r"/home/[A-Za-z0-9._-]+(?=/|\b)", "~", text)
+    text = re.sub(r"/mnt/[a-z]/Users/[^/`)\n]+", "~", text)
+    return re.sub(r"[A-Z]:\\Users\\[^\\`)\n]+", "~", text)
 
 
 def raw_lines(text):

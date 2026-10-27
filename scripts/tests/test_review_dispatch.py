@@ -351,6 +351,16 @@ class Dispatch(Harness):
         found = dispatch.read_findings(text)
         self.assertEqual((len(found["rounds"]), len(found["completions"])), (1, 1))
 
+    def test_record_writes_other_home_folders_from_tilde(self):
+        dispatch = self.module()
+        review = ("1. **P3** use `/home/someone/.local/bin/tool`, `C:\\Users\\Some One\\bin` and "
+                  "`/mnt/c/Users/someone/x`; /homework/x stays.\nHIGHEST: P3\nOVERALL: needs-attention")
+        record = self.repo / "docs/reviews/00-design/D00-T01-s1.md"
+        dispatch.record(record, {**self.RESULT, "review": review, "lenses": []}, "2026-10-26T17:00:00Z")
+        text = record.read_text(encoding="utf-8")
+        self.assertIn("use `~/.local/bin/tool`, `~\\bin` and `~/x`; /homework/x stays.", text)
+        self.assertEqual(len(dispatch.read_findings(text)["rounds"]), 1)
+
     def test_list_rounds_reads_back_what_record_wrote(self):
         # Two rounds written by record itself: one reviewed, one where the reviewer returned no review.
         record = self.repo / "docs/reviews/00-design/D00-T01-s1.md"

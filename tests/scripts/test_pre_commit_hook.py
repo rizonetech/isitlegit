@@ -218,6 +218,19 @@ class PreCommitHook(unittest.TestCase):
         result = self.commit()
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_a_staged_private_path_is_refused(self):
+        for path in ("/home/someone/.local/bin/tool", "C:\\Users\\Someone\\repo", "/mnt/c/GitHub/repo"):
+            (self.root / "notes.md").write_text(f"Run `{path}` first.\n", encoding="utf-8")
+            self.git("add", "notes.md")
+            result = self.commit()
+            self.assertNotEqual(result.returncode, 0, path)
+            self.assertIn("private path", result.stderr)
+
+    def test_a_home_relative_path_is_accepted(self):
+        (self.root / "notes.md").write_text("Run `~/.local/bin/tool` first.\n", encoding="utf-8")
+        self.git("add", "notes.md")
+        self.assertEqual(self.commit().returncode, 0)
+
     def test_without_a_client_list_nothing_is_checked(self):
         (self.root / "notes.txt").write_text("Acme Holdings\n", encoding="utf-8")
         self.git("add", "notes.txt")

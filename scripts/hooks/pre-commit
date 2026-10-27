@@ -41,6 +41,20 @@ if [ -f "$names_file" ]; then
     fi
 fi
 
+# Private machine paths (a home folder, a Windows or WSL-mounted user folder) never enter the public repository either:
+# the pattern scripts/check-publication.py uses, over the whole index, so a reviewer's quoted path in a findings file is
+# caught before it is committed, not after a push. Test fixtures may hold examples.
+git grep --cached -q -E -e '/home/[a-z]|[A-Z]:\\(GitHub|Users)\\[A-Za-z]|/mnt/[a-z]/(GitHub|Users)/[A-Za-z]' -- . ':!tests/' ':!scripts/tests/'
+private=$?
+if [ "$private" -eq 0 ]; then
+    echo "pre-commit: the staged tree contains a private path (a home or user folder); write it with ~ or a placeholder (python3 scripts/check-publication.py names the line)" >&2
+    exit 1
+fi
+if [ "$private" -ne 1 ]; then
+    echo "pre-commit: the private-path scan failed, so the commit is refused unchecked; run it again" >&2
+    exit 1
+fi
+
 git diff --cached --name-only -- todo/ docs/reviews/ | grep -q . || exit 0
 
 # The check reads the working tree, so the TODO files and the review receipts and findings they cite
