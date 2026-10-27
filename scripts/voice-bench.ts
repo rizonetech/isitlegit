@@ -16,17 +16,23 @@ type Row = {
 type Report = { decoder: string; rows: Row[] };
 
 function report(project: string, file: string): Report {
-  const run = spawnSync("pnpm", ["exec", "vitest", "run", "--project", project, file, "--silent=false"], {
-    encoding: "utf-8",
-    env: { ...process.env, VOICE_BENCH: "1" },
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  const line = `${run.stdout}\n${run.stderr}`.split("\n").find((l) => l.startsWith("VOICE_BENCH "));
+  // The verbose reporter always prints a test's console output; the default one does not everywhere.
+  const run = spawnSync(
+    "pnpm",
+    ["exec", "vitest", "run", "--project", project, file, "--silent=false", "--reporter=verbose"],
+    {
+      encoding: "utf-8",
+      env: { ...process.env, VOICE_BENCH: "1", NO_COLOR: "1" },
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
+  // The report's line, wherever a reporter's colour codes put it.
+  const line = /VOICE_BENCH (\{.*\})/.exec(`${run.stdout}\n${run.stderr}`)?.[1];
   if (run.status !== 0 || !line) {
     process.stderr.write(`${run.stdout}\n${run.stderr}`.slice(-4_000));
     throw new Error(`voice-bench: ${file} failed (exit ${run.status})`);
   }
-  return JSON.parse(line.slice("VOICE_BENCH ".length)) as Report;
+  return JSON.parse(line) as Report;
 }
 
 const ms = (value: number | null) => (value === null ? "-" : `${value} ms`);
