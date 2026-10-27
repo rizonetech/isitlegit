@@ -1,0 +1,124 @@
+{
+  "ref": "D00 T01 \u00a710",
+  "title": "Deploy rollback and re-verification",
+  "implementation_sha": "634e01eecbf0d001718ef5fc855bf21b321cf228",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s10.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s10.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/00-workspace/D00-T01-s10.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/00-workspace/D00-T01-s10.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/rollback.test.ts test/node/smoke-script.test.ts -> Tests  45 passed (45)",
+    "pnpm test -> Test Files 20 passed (20), Tests 199 passed (199)",
+    "live: rollback 34f5046 to 7aa7e87 and roll-forward verified, changed-secret rollback refused with deployment changed: no, rotation then plain smoke passed on bec88674"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s10.md",
+    "verdict": "filed",
+    "candidate": "07abd24108f89c7e8f901cb3371c57a2cfd1f984",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D00 T01 \u00a712"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "cap_outcome": "Round 4 declared HIGHEST: P3 (two findings: vault calls should use the conclave-op wrapper; the operations page overstated a failed rotation's outcome); both were fixed in 634e01e rather than filed, and proven live; nothing is left open",
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s10.md",
+    "candidate": "5f39d284271b594e595e1c255130d881513c348b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/00-workspace/D00-T01-s10.md",
+    "verdict": "fixed",
+    "candidate": "e9391c76de59c657807dbd589ba2527de8323cf9",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

@@ -19,7 +19,7 @@ Sections: 10 | Checklist items: 119
 | [x]    | D00 T01 §5  | Cloudflare bindings and first deploy   | cloudflare           | 24    |
 | [x]    | D00 T01 §6  | AI Gateway for the Meta Model API      | cloudflare           | 9     |
 | [ ]    | D00 T01 §7  | Meta smoke test                        | meta-api, cloudflare | 10    |
-| [ ]    | D00 T01 §10 | Deploy rollback and re-verification    | cloudflare           | 11    |
+| [x]    | D00 T01 §10 | Deploy rollback and re-verification    | cloudflare           | 11    |
 | [ ]    | D00 T01 §11 | AI Gateway config snapshot and restore | cloudflare           | 3     |
 | [ ]    | D00 T01 §12 | Rollback from a split deployment       | cloudflare           | 3     |
 
@@ -267,6 +267,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 12/198 verified sections, 13 ready to run now.
+Progress: 13/198 verified sections, 13 ready to run now.
 
-Checklist: 221/1008 items completed (includes Commit items).
+Checklist: 222/1008 items completed (includes Commit items).
