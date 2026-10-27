@@ -242,7 +242,7 @@ The controls every page uses, as the SPEC's shared parts and `design/mockups/sou
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` 1 (buttons in primary, dark, ghost, danger and link styles; pills in safe, suspicious, malicious, partial, running and neutral), board `Badges`, values from `design/mockups/source/ui.css`
+**Fidelity:** `design/SPEC.md` 1 (buttons in primary, dark, ghost, danger and link styles; pills in safe, suspicious, malicious, partial, running and neutral), boards `AppNav`, `Cases`, `Main`, `Team` (where the controls and pills appear), values from `design/mockups/source/ui.css` (`.btn`, `.field`, `.input`, `.checkbox`, `.pill`). **Corrected 2026-10-27:** the board was `Badges`, which is the T3 signature badge, not these controls.
 **Job:** one look and one behaviour for every button, input and status pill
 **Treatment:** tokens only, visible focus, an accessible name on every control
 **Chrome:** this section defines `Button`, `Field`, `Checkbox` and `Pill`
@@ -254,7 +254,7 @@ The controls every page uses, as the SPEC's shared parts and `design/mockups/sou
 - [ ] Configure Hono JSX: `jsx: "react-jsx"` and `jsxImportSource: "hono/jsx"` in `tsconfig.json`, `.tsx` in the root, `test` and `test/node` TypeScript projects, and `test/node/**/*.test.{ts,tsx}` in the Vitest `node` project. Done when: `pnpm typecheck` checks a `.tsx` file and refuses a planted type error in it, and a deliberately failing assertion in `test/node/controls.test.tsx` fails `pnpm test`. (Moved from §3, 2026-10-27: §6 is the first section to render JSX, and §3 now builds on it.)
 - [ ] Build `Button` (`primary`, `dark`, `ghost`, `danger`, `link`; `size` default 48 px or small 36 px; renders `<button>` or, with `href`, `<a>`; an icon-only button requires `label`, its accessible name). Done when: `test/node/controls.test.tsx` renders each variant and size with the radius, height and colours of `.btn` in `ui.css` as token utilities, and refuses an icon-only button without a label at the type level and at run time. Cheaper substitute: per-page button classes.
 - [ ] Build `Field` (label, hint, error, a 48 px input; the error state sets `aria-invalid` and links the error text with `aria-describedby`) and `Checkbox`. Done when: the test renders the plain, hinted and error states and finds the label tied to its input. Cheaper substitute: placeholder text as the label.
-- [ ] Build `Pill` (`safe`, `suspicious`, `malicious`, `partial`, `running`, `neutral`), each with an icon and text, never colour alone. Done when: the test finds the text in every variant and the icon hidden from assistive technology. Source: SPEC 1 and board `Badges`.
+- [ ] Build `Pill` (`safe`, `suspicious`, `malicious`, `partial`, `running`, `neutral`; default 26 px high, a 22 px compact size for navigation counts) carrying its meaning in its words, never colour alone, as the boards draw it ("Malicious", "Checking", "E7 · Critical", "Owner"). Done when: the test renders every variant and size, refuses an empty label, and finds the words in each. Source: SPEC 1, boards `Cases`, `Main`, `Team`, `AppNav`. **Corrected 2026-10-27:** the item asked for an icon on every pill; no board draws one, and the words already keep the meaning out of colour.
 - [ ] Commit: `web: buttons, fields and pills`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/controls.test.tsx` passes, covering every variant and state.
