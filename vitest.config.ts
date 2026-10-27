@@ -12,6 +12,9 @@ export default defineConfig({
         plugins: [
           cloudflareTest({
             wrangler: { configPath: "./wrangler.jsonc" },
+            // Local simulations only: the AI binding has none and would open a remote session, which needs a Cloudflare
+            // login CI does not have; no test calls env.AI.
+            remoteBindings: false,
             // A test-only smoke token; the deployed one is minted per run by scripts/smoke.ts.
             miniflare: { bindings: { COMMIT_SHA: TEST_COMMIT_SHA, SMOKE_TOKEN: "test-smoke-token" } },
           }),

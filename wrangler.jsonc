@@ -19,10 +19,15 @@
   "workflows": [{ "name": "isitlegit-analysis", "binding": "ANALYSIS", "class_name": "AnalysisWorkflow" }],
   // Browser Run, driven by @cloudflare/puppeteer.
   "browser": { "binding": "BROWSER" },
+  // Workers AI and AI Gateway: the Worker reaches the authenticated `isitlegit` gateway through this binding, which
+  // is pre-authenticated, so it stores no gateway token (D00 T01 §6).
+  "ai": { "binding": "AI" },
   // The Worker's own version id, which the smoke route reports so a run proves the exact version it tested.
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "vars": {
     // Local default; `wrangler dev --var` and the deploy (`--var COMMIT_SHA:$(git rev-parse HEAD)`) override it.
-    "COMMIT_SHA": "dev"
+    "COMMIT_SHA": "dev",
+    // The Meta Model API through AI Gateway's `meta` custom provider; the client appends /responses and the rest.
+    "META_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1"
   }
 }
