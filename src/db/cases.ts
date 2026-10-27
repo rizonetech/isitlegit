@@ -59,6 +59,7 @@ const toCase = (row: Row): Case => ({
 });
 
 const Id = z.string().min(1).max(200);
+const Ids = z.object({ orgId: Id, id: Id });
 const NewCase = z.object({ orgId: Id, channel: Channel, headersAvailable: z.boolean() });
 const fail = (code: CaseError["code"], message: string): { ok: false; error: CaseError } => ({
   ok: false,
@@ -99,7 +100,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
 }
 
 export async function getCase(db: D1Database, orgId: string, id: string): Promise<CaseResult<Case>> {
-  const ids = z.object({ orgId: Id, id: Id }).safeParse({ orgId, id });
+  const ids = Ids.safeParse({ orgId, id });
   if (!ids.success) return invalid(ids.error);
   const row = await db.prepare("SELECT * FROM cases WHERE id = ? AND org_id = ?").bind(id, orgId).first<Row>();
   return row ? { ok: true, value: toCase(row) } : fail("not_found", `no case ${id} in this organisation`);
@@ -129,6 +130,8 @@ export async function setStatus(
   id: string,
   status: CaseStatus,
 ): Promise<CaseResult<Case>> {
+  const ids = Ids.safeParse({ orgId, id });
+  if (!ids.success) return invalid(ids.error);
   const parsed = CaseStatus.safeParse(status);
   if (!parsed.success) return invalid(parsed.error);
   const from = FROM(parsed.data);
@@ -149,6 +152,8 @@ export async function setVerdict(
   id: string,
   verdict: Verdict,
 ): Promise<CaseResult<Case>> {
+  const ids = Ids.safeParse({ orgId, id });
+  if (!ids.success) return invalid(ids.error);
   const parsed = Verdict.safeParse(verdict);
   if (!parsed.success) return invalid(parsed.error);
   const row = await db

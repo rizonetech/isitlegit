@@ -130,6 +130,42 @@ describe("the case store", () => {
     });
   });
 
+  it("refuses a malformed organisation or case id in every read and change, before any SQL", async () => {
+    let statements = 0;
+    const counted = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            statements++;
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const missing = undefined as unknown as string;
+    for (const [orgId, id] of [
+      [missing, "x"],
+      ["org-a", missing],
+      ["", "x"],
+      ["org-a", ""],
+    ]) {
+      expect(await getCase(counted, orgId as string, id as string)).toMatchObject({
+        ok: false,
+        error: { code: "invalid" },
+      });
+      expect(await setStatus(counted, orgId as string, id as string, "running")).toMatchObject({
+        ok: false,
+        error: { code: "invalid" },
+      });
+      expect(await setVerdict(counted, orgId as string, id as string, "safe")).toMatchObject({
+        ok: false,
+        error: { code: "invalid" },
+      });
+    }
+    expect(statements).toBe(0);
+  });
+
   it("makes a successful change in one statement", async () => {
     const c = await created();
     let statements = 0;
