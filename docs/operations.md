@@ -141,8 +141,10 @@ A mail send is `uncertain` when SMTP2GO gave no answer, an unreadable one or a 5
 To settle it, open SMTP2GO's activity, search the send's time with the `X-IsItLegit-Send` header shown, and find the send key. Then record what SMTP2GO shows:
 
 ```bash
-node scripts/mail-settle.ts <send key> sent     # SMTP2GO has the message
-node scripts/mail-settle.ts <send key> failed   # SMTP2GO has no record of it; the caller may send it again
+node scripts/mail-settle.ts <send key> sent --claimed-at <claim time from the alert>     # SMTP2GO has the message
+node scripts/mail-settle.ts <send key> failed --claimed-at <claim time from the alert>   # SMTP2GO has no record; it may be sent again
 ```
 
-The script changes only a row that is still uncertain or pending, so it never reopens a sent message; it refuses anything that is not a send key. Use `failed` only when SMTP2GO has no record, since it lets the message be sent again.
+The script changes only a row that is still uncertain or pending and still the attempt the alert named, so it never reopens a sent message and a repeated command never touches a newer attempt; it refuses anything that is not a send key or a claim time. Use `failed` only when SMTP2GO has no record, since it lets the message be sent again.
+
+Each cron run logs one line, `{"event":"mail-reconcile","state":...}`, in Workers Logs: `disabled` when the SMTP2GO key is not set, `degraded` when a search failed (such as SMTP2GO refusing the activity search, HTTP 401 or 403) or a send could not be handed over, `ok` otherwise, with how many sends were settled, left unresolved and handed over. An alert that itself could not be confirmed sent is reconciled like any send, and its send counts as unresolved until it is.

@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { settle, settleStatement } from "../../scripts/mail-settle.ts";
+import { settle } from "../../scripts/mail-settle.ts";
+import { settleStatement } from "../../src/mail/settle.ts";
 
 // scripts/mail-settle.ts (D01 T02 §5): the operator's way to settle a send the reconciler could not, which never
 // reopens a sent message and never lets a send key carry SQL. And wrangler.jsonc's cron runs the reconciler.
@@ -14,7 +15,7 @@ describe("mail-settle", () => {
       calls.push([command, ...args]);
       return JSON.stringify([{ results: [], meta: { changes: 1 } }]);
     };
-    expect(await settle(run, "reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N", "sent", AT)).toBe(
+    expect(await settle(run, "reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N", "sent", "2026-10-24T19:20:11.000Z", AT)).toBe(
       "mail-settle: reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N is now sent",
     );
     expect(calls[0]?.slice(0, 8)).toEqual([
@@ -28,19 +29,23 @@ describe("mail-settle", () => {
       "--json",
     ]);
     expect(calls[0]?.at(-1)).toBe(
-      "UPDATE mail_sends SET status = 'sent', error = 'settled by the operator', updated_at = '2026-10-27T20:00:00.000Z' WHERE send_key = 'reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N' AND status IN ('uncertain', 'pending')",
+      "UPDATE mail_sends SET status = 'sent', error = 'settled by the operator', search_cursor = NULL, updated_at = '2026-10-27T20:00:00.000Z' WHERE send_key = 'reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N' AND claimed_at = '2026-10-24T19:20:11.000Z' AND status IN ('uncertain', 'pending')",
     );
   });
 
   it("refuses a row that changed nothing (sent already, or no such key)", async () => {
     const run = async () => JSON.stringify([{ results: [], meta: { changes: 0 } }]);
-    await expect(settle(run, "reply:x", "failed", AT)).rejects.toThrow(/no longer uncertain or pending/);
+    await expect(settle(run, "reply:x", "failed", "2026-10-24T19:20:11.000Z", AT)).rejects.toThrow(
+      /a newer attempt has claimed it since 2026-10-24T19:20:11.000Z/,
+    );
   });
 
   it("refuses a send key that is not one, and an outcome other than sent or failed", () => {
     for (const key of ["reply:x' OR '1'='1", "a b", "", "x".repeat(201)])
-      expect(() => settleStatement(key, "sent", AT.toISOString()), key).toThrow(/is not a send key/);
-    expect(() => settleStatement("reply:x", "delivered", AT.toISOString())).toThrow(/sent or failed/);
+      expect(() => settleStatement(key, "sent", AT.toISOString(), AT.toISOString()), key).toThrow(/is not a send key/);
+    expect(() => settleStatement("reply:x", "delivered", AT.toISOString(), AT.toISOString())).toThrow(/sent or failed/);
+    for (const claimed of ["", "yesterday", "2026-10-24' OR '1'='1"])
+      expect(() => settleStatement("reply:x", "sent", claimed, AT.toISOString()), claimed).toThrow(/--claimed-at/);
   });
 });
 

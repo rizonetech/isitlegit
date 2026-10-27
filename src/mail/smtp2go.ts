@@ -151,7 +151,7 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
       // Only a failed send may be tried again, and only by one caller at a time.
       const retried = await db
         .prepare(
-          "UPDATE mail_sends SET status = 'pending', error = NULL, updated_at = ?, claimed_at = ? WHERE send_key = ? AND status = 'failed' RETURNING attempts",
+          "UPDATE mail_sends SET status = 'pending', error = NULL, updated_at = ?, claimed_at = ?, search_cursor = NULL WHERE send_key = ? AND status = 'failed' RETURNING attempts",
         )
         .bind(at, at, message.sendKey)
         .first<{ attempts: number }>();

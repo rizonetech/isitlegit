@@ -40,6 +40,7 @@ track: day-1
 | 4 | §4 | Test and demo mail aliases | §1 | [x] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [ ] |
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
+| 7 | §7 | Automatic recovery of ambiguous sends | §5 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -177,6 +178,9 @@ A send recorded `uncertain` (no answer, an unreadable answer, or a 5xx, §1) may
 
 Evidence 2026-10-27 21:40 SAST. Migration `0004_mail_claims.sql` adds `claimed_at` (applied locally); `sendMail` sets it on every claim. `src/mail/reconcile.ts` searches SMTP2GO's activity around the latest claim, settles a row only on an event carrying its send key and only while the row is still the attempt and state it read, keeps an empty search uncertain, and hands a row still unresolved after 3 days to the operator once. `src/index.ts` exports `scheduled` beside `fetch`, and `wrangler.jsonc` adds the cron `*/15 * * * *` and `OPERATOR_EMAIL` (`hostmaster@rizonetech.com`). `scripts/mail-settle.ts` and `docs/operations.md` give the operator's resolution. `pnpm exec vitest run test/mail/reconcile.test.ts test/mail/smtp2go.test.ts test/scheduled.test.ts test/node/mail-settle.test.ts`: all pass, including a retry through the real `sendMail` landing between the reconciler's read and write (the retry's outcome kept) and a send that appears on a later run. Seven mutations (the retry keeping the old claim, a window ignoring the claim, absence made retryable, unconditional settlement, a repeated alert, a cron that does nothing, a settle that reopens a sent row) each fail them. `SMTP2GO_API_KEY` is not yet on the Worker, so the cron does nothing until it is; the live database needs migrations 0003 and 0004 before the next deploy (`docs/operations.md`, database migrations).
 
+Evidence after the completion review, 2026-10-27 21:48 SAST. Its five in-scope gaps and two in-scope improvements are closed: an uncertain operator alert is reconciled like any send and the original counts as handed over only once the alert is known sent, with no alert about an alert; `scripts/mail-settle.ts` takes `--claimed-at` and settles only that attempt (the statement now in `src/mail/settle.ts`), so a repeated command cannot fail a newer one; malformed events are skipped and a match without an `email_id` or type settles nothing; a bounce keeps its event type and SMTP codes, never its text; each cron run logs one `mail-reconcile` line with its state (`disabled`, `ok`, `degraded`); and migration `0005_mail_search_cursor.sql` keeps a row's place in a long window across runs, with requests paced under 60 a minute and capped per run. `pnpm exec vitest run test/mail test/scheduled.test.ts test/node/mail-settle.test.ts`: 32 passed; ten more mutations each fail them. Automatic recovery within a minute needs a provider with idempotency keys: filed as §7.
+> **Deferred:** recovering an ambiguous send automatically within a minute, with no operator -> XREF: D01 T02 §7
+
 **Test checkpoint:** `pnpm exec vitest run test/mail/reconcile.test.ts test/mail/smtp2go.test.ts` passes, and fails if a settled row is wrong, if an empty search makes a row retryable, if a stale reconciler overwrites a retry, or if the reconciler ever sends.
 
 ## 6. Forwarding failures detected and reported
@@ -200,6 +204,28 @@ Cloudflare accepts mail for an alias and then forwards it; a failure after that 
 - [ ] Commit: `mail: forwarding failures detected and reported to the operator`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and fails if a failure produces no alert or a repeated check alerts twice.
+
+## 7. Automatic recovery of ambiguous sends
+
+When SMTP2GO gives no answer or a 5xx, §1 records the send as uncertain and §5 settles it from SMTP2GO's activity, first after 30 minutes and, failing that, by the operator after 3 days. A provider that takes an idempotency key (Resend replays the original response to a repeated request for 24 hours, https://resend.com/docs/dashboard/emails/idempotency-keys) lets the caller retry at once with no duplicate and no operator. SMTP2GO takes none (§1's finding), so this is a choice of provider or of dispatch design. Filed from §5's completion review (out-of-scope gap, 2026-10-27).
+
+**Phase:** 1
+**Needs:** operator
+**Surface:** no
+
+**Operator decision (open):** keep SMTP2GO and accept §5's delayed recovery, move outbound mail to a provider with idempotency keys, or add a dispatch layer of our own that gives the same guarantee. Recording `Recovery design: <choice> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Choose the design. Done when: the choice is recorded with what it costs to reverse.
+2. Recover an ambiguous send automatically. Done when: a send whose answer was lost is settled within 60 seconds of the provider answering again, with no operator action and never a second delivery.
+
+- [ ] Record the choice and its reversal cost here, with the provider's idempotency documentation (window, key format, concurrent-request behaviour) if one is chosen. Done when: the `Recovery design:` line is recorded.
+- [ ] Send through the chosen design with the send key as the idempotency key, so an uncertain send is retried at once and the provider's replay settles it. Done when: `test/mail/recovery.test.ts` drives an accepted message whose answer is lost, retries it, and finds one delivery and a `sent` row within 60 seconds of the provider answering, and a concurrent duplicate request refused without a second delivery.
+- [ ] Keep §5's reconciliation for anything older than the provider's idempotency window, and never retry past it blind. Done when: the test shows a send older than the window left to §5.
+- [ ] Commit: `mail: automatic recovery of ambiguous sends`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/recovery.test.ts` passes, and fails if an ambiguous send is delivered twice or needs the operator inside the idempotency window.
 
 ## Verification
 

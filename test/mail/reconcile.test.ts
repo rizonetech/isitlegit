@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ACTIVITY_URL, HEADER, reconcileUncertain } from "../../src/mail/reconcile";
+import { settleStatement } from "../../src/mail/settle";
 import { type MailMessage, SMTP2GO_URL, sendMail } from "../../src/mail/smtp2go";
 
 // src/mail/reconcile.ts (D01 T02 §5): only SMTP2GO's record of a send settles it; an empty search keeps it uncertain;
@@ -76,7 +77,8 @@ describe("reconcileUncertain", () => {
       events: [
         event("someone-else"),
         event(found),
-        event(bounced, { event: "hard-bounced", reason: "mailbox unavailable" }),
+        // SMTP2GO's text can name the recipient; only the event type and the SMTP codes are kept.
+        event(bounced, { event: "hard-bounced", reason: "550 5.1.1 member@example.com: mailbox unavailable" }),
       ],
     });
     const report = await reconcileUncertain(deps(world.stub), band);
@@ -84,7 +86,7 @@ describe("reconcileUncertain", () => {
     expect(await read(found)).toMatchObject({ status: "sent", provider_id: `smtp-${found}` });
     expect(await read(bounced)).toMatchObject({
       status: "sent",
-      error: "settled from SMTP2GO's activity: hard-bounced, mailbox unavailable",
+      error: "settled from SMTP2GO's activity: hard-bounced (550 5.1.1)",
     });
     // The window runs from 5 minutes before the claim to 30 after, and asks for the send key's header.
     const window = world.searches.find((s) => s.start_date === minutesAgo(65));
@@ -116,13 +118,16 @@ describe("reconcileUncertain", () => {
   it("leaves a row whose search failed or ran out of pages, and one too young to judge", async () => {
     const failing = await row("uncertain", 40);
     const failed = await reconcileUncertain(deps(smtp2go("error").stub), band);
-    expect(failed.errors).toContain(failing);
+    expect(failed.errors).toEqual([`${failing}: SMTP2GO answered HTTP 503`]);
+    expect(failed.state).toBe("degraded");
     expect((await read(failing))?.status).toBe("uncertain");
     await db.prepare("UPDATE mail_sends SET status = 'sent' WHERE send_key = ?").bind(failing).run();
     const long = await row("uncertain", 40);
     const endless = Array.from({ length: 6 }, () => ({ events: [event("other")], continue_token: "more" }));
     const ran = await reconcileUncertain(deps(smtp2go(endless).stub, { pageBudget: 3 }), band);
-    expect(ran.errors).toContain(long);
+    // A window not read to its end is unresolved, its place kept for the next run.
+    expect(ran.unresolved).toContain(long);
+    expect((await read(long))?.search_cursor).toBe("more");
     expect((await read(long))?.status).toBe("uncertain");
     await db.prepare("UPDATE mail_sends SET status = 'sent' WHERE send_key = ?").bind(long).run();
     const young = await row("uncertain", 10);
@@ -181,6 +186,134 @@ describe("reconcileUncertain", () => {
     expect((await read(stuck))?.status).toBe("uncertain");
     const noOperator = await row("uncertain", 3 * 24 * 60 + 20);
     const without = await reconcileUncertain(deps(smtp2go({ events: [] }).stub, { operator: undefined }), band);
-    expect(without.errors).toContain(noOperator);
+    expect(without.errors).toContain(`${noOperator}: no operator address (OPERATOR_EMAIL) to hand it to`);
+  });
+
+  it("does not count an uncertain alert as handed over, reconciles it, and never alerts about an alert (completion review)", async () => {
+    const stuck = await row("uncertain", 3 * 24 * 60 + 10);
+    // The alert's own send gets no answer.
+    const timeout = (async (input: RequestInfo | URL) => {
+      if (String(input) === SMTP2GO_URL) throw new DOMException("timed out", "TimeoutError");
+      return Response.json({ data: { events: [], continue_token: null } });
+    }) as typeof fetch;
+    const first = await reconcileUncertain(deps(timeout), band);
+    expect(first.handedOver).toEqual([]);
+    expect(first.unresolved).toContain(stuck);
+    expect((await read(`unresolved:${stuck}`))?.status).toBe("uncertain");
+    const world = smtp2go({ events: [] });
+    const second = await reconcileUncertain(
+      deps(world.stub, { now: () => new Date(NOW.getTime() + 60 * 60_000) }),
+      band,
+    );
+    expect(second.handedOver).toEqual([]);
+    expect(world.sends).toEqual([]);
+    // SMTP2GO's record of the alert settles it, and only then is the send handed over.
+    const later = new Date(NOW.getTime() + 2 * 60 * 60_000);
+    const found = smtp2go({ events: [event(`unresolved:${stuck}`)] });
+    await reconcileUncertain(deps(found.stub, { now: () => later }), band);
+    expect((await read(`unresolved:${stuck}`))?.status).toBe("sent");
+    const third = await reconcileUncertain(deps(smtp2go({ events: [] }).stub, { now: () => later }), band);
+    expect(third.handedOver).toContain(stuck);
+    expect(found.sends).toEqual([]);
+    // An alert past the band is unresolved, and no alert is raised about it.
+    const oldAlert = await row("uncertain", 3 * 24 * 60 + 30, `unresolved:reply:older`);
+    const quiet = smtp2go({ events: [] });
+    const report = await reconcileUncertain(deps(quiet.stub), band);
+    expect(report.unresolved).toContain(oldAlert);
+    expect(quiet.sends).toEqual([]);
+  });
+
+  it("is not stopped by malformed events, and never settles on incomplete evidence (completion review)", async () => {
+    const odd = await row("uncertain", 50);
+    const after = await row("uncertain", 40);
+    const world = smtp2go({ events: [null, 7, "x", { custom_headers: null }, event(after)] });
+    const report = await reconcileUncertain(deps(world.stub), band);
+    expect(report.settled).toEqual([after]);
+    expect(report.unresolved).toContain(odd);
+    const incomplete = await row("uncertain", 45);
+    const missing = smtp2go({ events: [{ event: "processed", custom_headers: { [HEADER]: incomplete } }] });
+    const partial = await reconcileUncertain(deps(missing.stub), band);
+    expect(partial.errors).toContain(`${incomplete}: SMTP2GO's event for this send has no email id or type`);
+    expect((await read(incomplete))?.status).toBe("uncertain");
+  });
+
+  it("reads a long window across runs from where it stopped, paced under SMTP2GO's limit (completion review)", async () => {
+    const far = await row("uncertain", 60);
+    const pages = [
+      ...Array.from({ length: 5 }, (_, i) => ({ events: [event("other")], continue_token: `page-${i + 2}` })),
+      { events: [event(far)], continue_token: null },
+    ];
+    const world = smtp2go(pages);
+    const pauses: number[] = [];
+    const paced = { pageBudget: 3, pause: async (ms: number) => void pauses.push(ms) };
+    const first = await reconcileUncertain(deps(world.stub, paced), band);
+    expect(first.unresolved).toContain(far);
+    expect((await read(far))?.search_cursor).toBe("page-4");
+    const second = await reconcileUncertain(deps(world.stub, paced), band);
+    expect(second.settled).toContain(far);
+    // The second run resumed at page 4, not page 1.
+    expect(world.searches.map((s) => s.continue_token ?? null)).toEqual([
+      null,
+      "page-2",
+      "page-3",
+      "page-4",
+      "page-5",
+      "page-6",
+    ]);
+    expect((await read(far))?.search_cursor).toBeNull();
+    // Many rows: the run stops at its request budget and paces between rows.
+    for (let i = 0; i < 6; i++) await row("uncertain", 40 + i);
+    const busy = smtp2go({ events: [] });
+    pauses.length = 0;
+    const capped = await reconcileUncertain(
+      deps(busy.stub, { runBudget: 4, paceMs: 1_100, pause: async (ms: number) => void pauses.push(ms) }),
+      band,
+    );
+    expect(capped.requests).toBe(4);
+    expect(busy.searches).toHaveLength(4);
+    // A pause before each row's search after the first: under 60 requests a minute.
+    expect(pauses.length).toBeGreaterThanOrEqual(3);
+    expect(pauses.every((ms) => ms === 1_100)).toBe(true);
+    expect(capped.state).toBe("degraded");
+  });
+
+  it("reports a refused activity search as degraded (completion review)", async () => {
+    const key = await row("uncertain", 50);
+    const refused = (async () => new Response("{}", { status: 403 })) as typeof fetch;
+    const report = await reconcileUncertain(deps(refused), band);
+    expect(report.state).toBe("degraded");
+    expect(report.errors).toEqual([`${key}: SMTP2GO refused the activity search (HTTP 403)`]);
+  });
+
+  it("lets the operator settle only the attempt the alert named, so a repeated command cannot fail a newer one", async () => {
+    const key = await row("uncertain", 3 * 24 * 60 + 10);
+    const claimed = (await read(key))?.claimed_at as string;
+    const settle = (status: string) => db.prepare(settleStatement(key, status, claimed, NOW.toISOString())).run();
+    expect((await settle("failed")).meta.changes).toBe(1);
+    // A caller tries again: a new claim, now pending.
+    await sendMail(
+      {
+        db,
+        apiKey: KEY,
+        // No answer: the request is cut off at its deadline, leaving the new attempt uncertain.
+        fetch: ((_input: RequestInfo | URL, init?: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+          )) as typeof fetch,
+        timeoutMs: 10,
+      },
+      {
+        sendKey: key,
+        kind: "reply",
+        to: "member@example.com",
+        from: "IsItLegit <check@isitlegit.co.za>",
+        subject: "Re: x",
+        text: "x",
+      },
+    );
+    expect((await read(key))?.claimed_at).not.toBe(claimed);
+    // The operator repeats the command for the old attempt: refused, the new attempt untouched.
+    expect((await settle("failed")).meta.changes).toBe(0);
+    expect((await read(key))?.status).not.toBe("failed");
   });
 });
