@@ -39,10 +39,12 @@ The Worker gates (Node 24, pnpm 11; the full local run is under "Run the Worker 
 ```bash
 pnpm install --frozen-lockfile
 pnpm typecheck   # refuses a worker-configuration.d.ts that no longer matches wrangler.jsonc: run pnpm types and commit it
+pnpm lint
+pnpm test
 pnpm build
 ```
 
-Never edit `todo/implementation-plan.md` by hand; regenerate it with `python3 scripts/todo-graph.py plan --sync`. The Worker's lint and test commands join these gates with D00 T01 §3.
+Never edit `todo/implementation-plan.md` by hand; regenerate it with `python3 scripts/todo-graph.py plan --sync`. `pnpm test` runs the Worker's tests inside workerd (the Workers runtime) through `@cloudflare/vitest-plugin`; `pnpm lint` is Biome over the Worker's own files.
 
 ## Pull requests and commits
 

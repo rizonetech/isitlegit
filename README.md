@@ -84,6 +84,8 @@ You need Node 24.18.0 or newer (`.nvmrc`; `pnpm install` refuses an older Node) 
 ```bash
 pnpm install --frozen-lockfile   # exact pins from pnpm-lock.yaml
 pnpm typecheck                   # checks worker-configuration.d.ts against wrangler.jsonc, then tsc --noEmit
+pnpm lint                        # Biome: format and lint the Worker's own files
+pnpm test                        # Vitest inside workerd, the Workers runtime
 pnpm build                       # bundles the Worker with a dry-run deploy into build/dry
 pnpm dev                         # serves http://localhost:8787 with COMMIT_SHA set to your checkout's commit
 ```

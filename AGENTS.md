@@ -139,7 +139,9 @@ python3 scripts/meta-docs.py sync                   # refresh the local Meta doc
 python3 scripts/check-publication.py                # before every push: nothing private in the index (exit 2: cannot run)
 pnpm install --frozen-lockfile                      # the Worker's exact pins (Node 24.18.0 from .nvmrc, pnpm 11)
 pnpm typecheck                                      # worker-configuration.d.ts matches wrangler.jsonc, then tsc --noEmit
+pnpm lint                                           # Biome over the Worker's own files; unused variables are errors
+pnpm test                                           # Vitest inside workerd through @cloudflare/vitest-plugin
 pnpm build                                          # bundles the Worker (dry-run deploy into build/dry)
 ```
 
-Worker commands are added here by the scaffold section that creates them: Biome and Vitest with D00 T01 §3, `wrangler deploy` with D00 T01 §5; `tests/scripts/test_worker_gates.py` fails while a `package.json` gate script is missing here or from `CONTRIBUTING.md`. After changing `wrangler.jsonc`, run `pnpm types` and commit the regenerated `worker-configuration.d.ts`. Report only commands actually run, and distinguish static evidence, test output and review proof.
+Worker commands are added here by the scaffold section that creates them (Biome and Vitest came with D00 T01 §3; `wrangler deploy` comes with D00 T01 §5); `tests/scripts/test_worker_gates.py` fails while a `package.json` gate script is missing here or from `CONTRIBUTING.md`. After changing `wrangler.jsonc`, run `pnpm types` and commit the regenerated `worker-configuration.d.ts`. Report only commands actually run, and distinguish static evidence, test output and review proof.

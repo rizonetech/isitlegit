@@ -20,3 +20,6 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `zod` | 4.6.7 | MIT | Yes, once imported |
 | `typescript` | 7.0.2 | Apache-2.0 | No: type checking only |
 | `wrangler` | 4.152.0 | MIT OR Apache-2.0 | No: build and deploy tool |
+| `vitest` | 4.1.12 | MIT | No: test runner |
+| `@cloudflare/vitest-plugin` | 1.4.7 | MIT | No: runs the tests inside workerd |
+| `@biomejs/biome` | 2.6.3 | MIT OR Apache-2.0 | No: lint and format |
