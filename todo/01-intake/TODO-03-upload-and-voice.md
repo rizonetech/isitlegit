@@ -43,6 +43,7 @@ track: day-1
 | 7 | §7 | MP3 decoding | §2 | [x] |
 | 8 | §8 | M4A decoding | §2 | [ ] |
 | 9 | §9 | Filtered resampling for WAV | §2 | [ ] |
+| 10 | §10 | M4A with libxaac | §8 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -59,7 +60,7 @@ track: day-1
 
 - [ ] Write `POST /api/upload` (Hono) requiring a session from D07 T02 and the organisation's daily case cap from D07 T02 §4. Done when: an anonymous request gets 401 and a capped organisation gets 429 in `test/intake/upload.test.ts`.
 - [ ] Sniff the type from magic bytes (`%PDF`, PNG, JPEG, WebP, OggS, RIFF/WAVE, ID3 or MPEG frame, `ftyp` M4A, OLE header for `.msg`, RFC 5322 header block for `.eml`). Done when: a renamed PDF uploaded as `x.png` is treated as PDF. Cheaper substitute: trusting the extension.
-- [ ] Refuse anything else with 415 and files over 25 MiB with 413, storing nothing. Done when: both tests pass and R2 holds no object.
+- [ ] Refuse anything else with 415 and files over 25 MiB with 413, storing nothing; an M4A (an `ftyp` box with an audio brand) is refused by type with 415 and the message `UnsupportedAudio` gives, naming the formats taken (D01 T03 §8: AAC decoding waits on §10). Done when: both tests pass, an M4A upload gets 415 with that message, and R2 holds no object.
 - [ ] Store the file with `putRaw` for mail and `putAttachment` otherwise (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only derived kinds), create the case with `channel = "upload"` and a `source_kind` of mail, document, image or audio, and start the Workflow. Done when: each accepted fixture creates one case and one Workflow instance.
 - [ ] Make the Workflow's `parse` step branch on `source_kind`. Done when: a PDF case skips MIME parsing and records the document artefact.
 - [ ] Commit: `intake: upload API for mail, documents, images and audio`
@@ -241,6 +242,8 @@ Evidence after the completion review and rounds 1 and 2, 2026-10-28 00:31 SAST. 
 
 ## 8. M4A decoding
 
+> **Started:** 2026-10-27T22:31Z
+
 Spec 4.2a lists `.m4a` among voice-note uploads (iPhone voice memos are AAC in an MP4 container). §2 found no AAC decoder in the WASM family that runs in a Worker, so M4A is refused there with `UnsupportedAudio`. Filed from §2's plan review (P1 3, 2026-10-27) so the refusal has an owner.
 
 **Phase:** 1
@@ -252,9 +255,11 @@ Spec 4.2a lists `.m4a` among voice-note uploads (iPhone voice memos are AAC in a
 1. Find a decoder. Done when: an AAC decoder that runs in a Worker (WASM loadable as a precompiled module, no runtime compilation, no Web Worker) is chosen with its licence and version, or none is found and the governing contract is corrected.
 2. Decode or refuse for good. Done when: an M4A voice note yields 16 kHz mono WAV chunks through §2, or spec 4.2a, this file's Goal and §1's accepted types no longer list M4A and the upload refuses it with a clear message.
 
-- [ ] Survey AAC decoders for Workers (a WASM build of FAAD2 or FDK AAC, a demuxer for MP4's `moov` and `mdat`) and record each candidate's licence (FDK AAC's licence restricts redistribution), version, release date and whether it loads in the workers pool. Done when: the finding is recorded here with sources.
-- [ ] If one qualifies: add it exactly pinned, extract its WASM the way §2 does, generate `test/fixtures/audio/tone.m4a`, and decode M4A in `decodeToWavChunks`. Done when: `test/voice/decode.test.ts` decodes the fixture to the tone (440 Hz, its level, its length) and refuses a truncated one with `CorruptAudio`.
-- [ ] If none qualifies: correct spec 4.2a and the Goal of this file to drop `.m4a` (dated, with the reason), and make §1 refuse it by type with a message naming the formats it takes. Done when: the spec and Goal are corrected and `test/intake/upload.test.ts` (§1) refuses an M4A with that message.
+- [x] Survey AAC decoders for Workers (a WASM build of FAAD2 or FDK AAC, a demuxer for MP4's `moov` and `mdat`) and record each candidate's licence (FDK AAC's licence restricts redistribution), version, release date and whether it loads in the workers pool. Done when: the finding is recorded here with sources.
+
+Finding, 2026-10-28. FAAD2 is GPL-2.0 (`@audio/aac-decode` 1.0.2, its WebAssembly build on npm, is GPL-2.0 too), which would put this source-available product under the GPL; Fraunhofer's FDK AAC carries its own licence, which forbids charging for the software and grants no patent rights, and is not a permissive licence; FFmpeg's AAC decoder lives inside LGPL FFmpeg. One candidate passes on copyright: libxaac (https://github.com/ittiam-systems/libxaac, Ittiam for Android, Apache-2.0; release v0.1.13 of 2026-01-28 is the newest older than two weeks), which decodes AAC-LC, HE-AAC and xHE-AAC in C and would build to WebAssembly the way §7 builds minimp3, with an MP4 demuxer added for the `moov` and `mdat` boxes. It is not taken here: unlike MP3, whose patents have expired, AAC is still licensed through a patent pool (Via LA), and whether decoding uploads on a server needs that licence is a business decision the repository cannot make. So M4A stays refused, with a message naming the formats taken, and adopting libxaac is filed as §10, waiting on that decision.
+- [x] ~~If one qualifies: add it exactly pinned, extract its WASM the way §2 does, generate `test/fixtures/audio/tone.m4a`, and decode M4A in `decodeToWavChunks`.~~ Struck 2026-10-28: none is taken while the AAC patent question is open (the finding above); the build is §10's.
+- [ ] If none qualifies: correct spec 4.2a and the Goal of this file to drop `.m4a` (dated, with the reason and §10), and make the refusal plain where it happens: `decodeToWavChunks` refuses `audio/mp4` with `UnsupportedAudio` naming Ogg Opus, WAV and MP3 (§7's message), and §1's contract refuses an M4A upload by type with 415 and that message, storing nothing. Done when: the spec and Goal are corrected; `test/voice/decode.test.ts` refuses `audio/mp4` with the message naming the formats; and §1's sniff item names M4A among the refused types with its Done when, for §1's own test to prove when §1 is built (it is not yet). (**Corrected 2026-10-28**: §1, the upload route, is not built, so its test cannot exist here.)
 - [ ] Close §2's M4A deferral as `Resolved:`. Done when: §2's Deferred line reads resolved with this section's commit.
 - [ ] Commit: `voice: M4A voice notes decoded or refused by design`
 
@@ -280,6 +285,29 @@ Spec 4.2a lists `.m4a` among voice-note uploads (iPhone voice memos are AAC in a
 - [ ] Commit: `voice: filtered resampling for WAV, timed against FFmpeg`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes, and fails if a 12 kHz tone in a 48 kHz WAV comes out less than 60 dB down.
+
+## 10. M4A with libxaac
+
+§8 found one AAC decoder whose copyright licence allows shipping it in the Worker: libxaac (Ittiam for Android, Apache-2.0). It was not taken because AAC, unlike MP3, is still licensed through a patent pool, and whether decoding uploaded voice notes on a server needs that licence is a business decision. Filed from §8 (2026-10-28) so M4A has an owner.
+
+**Phase:** 2
+**Needs:** operator
+**Surface:** no
+
+**Operator decision (open):** whether IsItLegit may decode AAC (iPhone voice memos and other `.m4a` recordings) in the Worker, given the AAC patent pool, and if so under which licence. Recording `AAC decoding: <decision> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Build the decoder. Done when: libxaac, pinned to a release at least two weeks old, builds to WebAssembly with a per-frame binding the way §7 builds minimp3, and CI rebuilds it.
+2. Demux and decode M4A. Done when: an M4A voice note yields 16 kHz mono WAV chunks through §2, and damage is refused.
+
+- [ ] Vendor libxaac's decoder at a pinned release in `native/libxaac/`, write a binding that decodes one access unit per call and reports libxaac's result, and build it to `src/voice/aac.wasm` with `scripts/build-aac-wasm.py` and the pinned Zig; add the CI rebuild check and the `NOTICE.md` rows (Apache-2.0, with its NOTICE file). Done when: the module has no imports and CI's rebuild check passes.
+- [ ] Walk the MP4 container in `src/voice/m4a.ts`: the `ftyp`, `moov` (`trak`, `mdia`, `minf`, `stbl`: `stsd` with the `mp4a` sample entry and its `esds` AudioSpecificConfig, `stsz`, `stco` or `co64`, `stsc`, `stts`) and `mdat` boxes, every size and offset checked against the file, one audio track, the length from `stts` checked against 30 minutes before decoding. Done when: `test/voice/m4a.test.ts` refuses with `CorruptAudio` a file cut short, a box size past its parent, a sample table pointing outside `mdat`, and an empty file, each by name.
+- [ ] Decode the samples in batches of at most 5 seconds into §2's resampler and chunk writer, refusing an access unit libxaac refuses, and route `audio/mp4` and `audio/x-m4a` through `decodeToWavChunks`. Done when: a synthetic AAC-LC tone in M4A decodes to 440 Hz at the level libxaac decodes it to, its length from `stts`, identical output across batch and chunk sizes, and a 25-minute file in three chunks.
+- [ ] Undo §8's refusal: spec 4.2a and this file's Goal list `.m4a` again (dated), and §1 accepts M4A. Done when: the corrections are recorded and §1's M4A refusal is replaced by acceptance.
+- [ ] Commit: `voice: M4A voice notes decoded with libxaac`
+
+**Test checkpoint:** `pnpm exec vitest run test/voice/m4a.test.ts test/voice/decode.test.ts` passes, and fails if an M4A is refused, decoded to the wrong length or pitch, or damage is passed on.
 
 ## Verification
 
