@@ -80,15 +80,17 @@ const RUNS: Record<Check, (env: Env, run: Run) => Promise<void>> = {
       () => env.CACHE.delete(key),
     );
   },
-  async ANALYSIS(env, run) {
-    const instance = await env.ANALYSIS.create({ id: `smoke-${run.id}`, params: { caseId: `smoke-${run.id}` } });
+  ANALYSIS(env, run) {
+    let instance: WorkflowInstance | undefined;
     let complete = false;
-    // An instance that did not complete (past the limit, or its status could not be read) is terminated, and a
+    // Created inside the guard, so an instance whose creation answers after the limit is still terminated; an
+    // instance that did not complete (past the limit, or its status could not be read) is terminated, and a
     // termination that fails is reported as a failed cleanup.
     return trip(
       run,
       async () => {
         const deadline = Date.now() + run.limitMs - 1_000;
+        instance = await env.ANALYSIS.create({ id: `smoke-${run.id}`, params: { caseId: `smoke-${run.id}` } });
         while (Date.now() < deadline) {
           const { status, error } = await instance.status();
           if (status === "complete") {
@@ -102,7 +104,7 @@ const RUNS: Record<Check, (env: Env, run: Run) => Promise<void>> = {
         throw new Error(`instance did not complete within ${(run.limitMs - 1_000) / 1000} s`);
       },
       async () => {
-        if (!complete) await instance.terminate();
+        if (instance && !complete) await instance.terminate();
       },
     );
   },

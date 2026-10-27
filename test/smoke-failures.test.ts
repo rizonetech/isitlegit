@@ -78,6 +78,24 @@ describe("smoke route failures", () => {
     expect(terminated).toBe(true);
   });
 
+  it("terminates an instance whose creation answers only after the limit", async () => {
+    let terminated = false;
+    const ANALYSIS = {
+      create: async () => {
+        await later(1_500);
+        return {
+          status: async () => ({ status: "running" }),
+          terminate: async () => {
+            terminated = true;
+          },
+        };
+      },
+    } as unknown as Env["ANALYSIS"];
+    const { body } = await run({ ANALYSIS }, 1_000);
+    expect(body.checks.ANALYSIS).toBe("ANALYSIS did not finish within 1 s");
+    expect(terminated).toBe(true);
+  });
+
   it("terminates an instance whose status cannot be read, and reports a termination that fails", async () => {
     let terminations = 0;
     const failing = (terminate: () => Promise<void>) =>

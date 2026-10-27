@@ -5,7 +5,7 @@
 // stage as it starts, the elapsed time every 10 s while it waits, and the total; one deadline bounds every request.
 //
 //   node scripts/smoke.ts https://isitlegit.<subdomain>.workers.dev [--commit <sha>]   (default: git rev-parse HEAD)
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
 export const CHECKS = ["DB", "ARTEFACTS", "CACHE", "ANALYSIS", "BROWSER"];
@@ -145,7 +145,17 @@ export async function runSmoke(base: string, options: SmokeOptions): Promise<Out
 // The process groups of commands still running, so an interrupted run can stop them (installSignalCleanup).
 const running = new Set<number>();
 
-function killGroup(pid: number): void {
+// Kills a command and everything it started: its POSIX process group, or on Windows (no process groups) its process
+// tree through taskkill.
+export function killGroup(
+  pid: number,
+  platform: NodeJS.Platform = process.platform,
+  run: (command: string, args: string[]) => unknown = (command, args) => spawnSync(command, args, { stdio: "ignore" }),
+): void {
+  if (platform === "win32") {
+    run("taskkill", ["/pid", String(pid), "/T", "/F"]);
+    return;
+  }
   try {
     process.kill(-pid, "SIGKILL");
   } catch {
@@ -153,10 +163,11 @@ function killGroup(pid: number): void {
   }
 }
 
-// On Ctrl+C or a termination signal, kills every command still running before exiting, so an interrupted run cannot
+// On Ctrl+C, a termination signal or a hangup, kills every command still running before exiting, so an interrupted run cannot
 // leave wrangler publishing with no deadline left to stop it.
 export function installSignalCleanup(): void {
-  for (const signal of ["SIGINT", "SIGTERM"] as const)
+  // SIGHUP too: a closed terminal or SSH session reaches this process but not the commands' own groups.
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
     process.once(signal, () => {
       for (const pid of running) killGroup(pid);
       console.error(`smoke: interrupted (${signal}); stopped ${running.size} running command(s)`);
