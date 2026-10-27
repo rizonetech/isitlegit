@@ -825,6 +825,16 @@ esac
     child.kill("SIGINT");
     expect(await exited).toBe(130);
     expect(stderr).toContain("rollback: interrupted; whether the deployment changed is uncertain");
-    expect(() => process.kill(stalled, 0)).toThrow();
+    // The cleanup's signal lands asynchronously, so the stalled command is given 2 s to go; one never stopped fails.
+    const alive = () => {
+      try {
+        process.kill(stalled, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (let waited = 0; alive() && waited < 2_000; waited += 50) await new Promise((r) => setTimeout(r, 50));
+    expect(alive()).toBe(false);
   }, 20_000);
 });
