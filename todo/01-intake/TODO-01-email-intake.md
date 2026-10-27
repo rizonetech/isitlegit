@@ -35,7 +35,7 @@ track: day-1
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Core D1 schema and migration runner | D00 T01 §5 | [ ] |
+| 1 | §1 | Core D1 schema and migration runner | D00 T01 §5 | [x] |
 | 2 | §2 | Case store and R2 artefact layout | §1 | [ ] |
 | 3 | §3 | Email handler for verified members | §2, D07 T02 §5 | [ ] |
 | 4 | §4 | Forward-as-attachment detection | §3 | [ ] |
@@ -73,7 +73,7 @@ Every later domain stores rows against a case. This section creates the first mi
 - [x] Close the completion review's gaps: case ids are ULIDs (`src/db/ulid.ts`, which the artefact store in §2 requires); `setStatus` and `setVerdict` each make one statement (`UPDATE ... RETURNING *`) whose stored row is the answer, so a change made meanwhile shows; the migration scripts are operator tools, not CI gates, and no gate may touch the live database; and `docs/operations.md` gives the failed or interrupted migration's recovery (inspect, fix, retry, read back, deploy only after). Done when: `test/db/cases.test.ts` covers ULID ids, an interleaved change in both directions and one statement per successful change, each failing when its fix is mutated; `tests/scripts/test_worker_gates.py` passes and refuses a remote command as a gate; and a local rehearsal of a failing second migration is recorded on the page.
 - [x] Close round 1's P3: `setStatus` and `setVerdict` validate the organisation and case ids as `getCase` does, refusing a malformed one before any SQL. Done when: `test/db/cases.test.ts` refuses a missing or empty id in every read and change with no statement prepared, and fails when `setVerdict` skips the check (checked by mutation).
 - [x] Close the final review's findings: status and verdict are tied (a verdict only while `running`, `done` only with a verdict, `partial` with or without; a repeated finish answers the stored row, a different verdict after finishing is refused), so the workflow's finish (D01 T01 §7) is retry-safe; every query's database failure is a typed `database` refusal; migration `0002_evidence_order.sql` rebuilds the empty `evidence` table with `seq` tied to the id (creation order past `E9`) and JSON shape checks (`detail` an object, artefact keys an array), applied locally and live; the ULID comment states same-millisecond order truly; and the tests the review found thin now cover a missing id in every read, a change landing inside a call, and a package with a gate that would touch production. Done when: `test/db/cases.test.ts` and `test/db/schema.test.ts` cover each and five mutations (verdict outside running, done without a verdict, no repeated-finish answer, a thrown database error, no id check in the pipeline lookup) each fail them; `tests/scripts/test_worker_gates.py` fails when `--remote` is dropped from its rule; and `wrangler d1 migrations list DB --remote` reads "No migrations to apply" with `evidence` holding `seq` and `json_type`.
-- [ ] Commit: `db: core schema for cases, artefacts, evidence and step events`
+- [x] Commit: `db: core schema for cases, artefacts, evidence and step events`
 
 Evidence 2026-10-27 14:30 SAST. `wrangler d1 migrations apply DB --local` (a scratch `--persist-to`) applied `0001_core.sql` ✅; `pnpm db:migrate:remote` applied it to the live `isitlegit` database ✅, `wrangler d1 migrations list DB --remote` then printed "No migrations to apply!", and `sqlite_master` lists `artefacts`, `case_events`, `cases`, `evidence`. `pnpm exec vitest run --project worker test/db`: 11 passed. Mutations, each failing the tests: the setup file removed (11 fail), `setStatus` accepting `bogus`, `setVerdict` storing nothing, a read ignoring `orgId` (1 fails each).
 
@@ -82,6 +82,9 @@ Evidence 2026-10-27 14:45 SAST, after the completion review: `pnpm exec vitest r
 Evidence 2026-10-27 15:00 SAST, after the final review: `0002_evidence_order.sql` applied to a fresh local database after `0001` ✅; the live `evidence` table held 0 rows, `pnpm db:migrate:remote` applied `0002` ✅, `migrations list --remote` read "No migrations to apply!", and the live table's SQL has `seq` and `json_type`. `pnpm exec vitest run --project worker test/db`: 18 passed. The refused-move answer is read after the failed statement, so a concurrent change can make its message stale but never change the row (final review P3, accepted as stated in `src/db/cases.ts`); `getCaseForPipeline` stays a named, commented trusted lookup as the section requires (P3, accepted).
 
 **Test checkpoint:** `pnpm exec vitest run test/db/cases.test.ts` passes, and fails when `setStatus` accepts `"bogus"`, when `setVerdict` stores nothing, or when a read ignores `orgId`.
+
+> **Verified:** 2026-10-27 | §1 | 7db82ed402cc64ede44c502c93f3a994b85b9fff
+> **Review:** `docs/reviews/d01-t01-s1.json`
 
 ## 2. Case store and R2 artefact layout
 

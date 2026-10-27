@@ -1,0 +1,116 @@
+{
+  "ref": "D01 T01 \u00a71",
+  "title": "Core D1 schema and migration runner",
+  "implementation_sha": "7db82ed402cc64ede44c502c93f3a994b85b9fff",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T01-s1.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T01-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/db -> Tests  18 passed (18)",
+    "pnpm test -> Test Files 22 passed (22), Tests 232 passed (232)",
+    "live: wrangler d1 migrations list DB --remote -> No migrations to apply (0001_core, 0002_evidence_order); evidence holds seq and json_type"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T01-s1.md",
+    "verdict": "filed",
+    "candidate": "21acd02fcfb4e0362578f508e3a6c7bc044fc9d7",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T01 \u00a72",
+      "D02 T01 \u00a71",
+      "D01 T01 \u00a77",
+      "D07 T02 \u00a79"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T01-s1.md",
+    "candidate": "01e218dfe4c4a6e0677efca2456d9a64cf38355d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T01-s1.md",
+    "verdict": "fixed",
+    "candidate": "015e3f9b3c3d1de7e26d1ac58701aeb95448ef80",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

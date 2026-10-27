@@ -30,7 +30,7 @@ Sections: 32 | Checklist items: 215
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [ ]    | D01 T01 §1 | Core D1 schema and migration runner        | none                  | 12    |
+| [x]    | D01 T01 §1 | Core D1 schema and migration runner        | none                  | 12    |
 | [ ]    | D01 T01 §2 | Case store and R2 artefact layout          | none                  | 5     |
 | [ ]    | D01 T01 §8 | Signed expiring report links               | none                  | 5     |
 | [ ]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 5     |
@@ -269,6 +269,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 14/200 verified sections, 10 ready to run now.
+Progress: 15/200 verified sections, 13 ready to run now.
 
-Checklist: 243/1027 items completed (includes Commit items).
+Checklist: 244/1027 items completed (includes Commit items).
