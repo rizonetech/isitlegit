@@ -133,7 +133,11 @@ Evidence 2026-10-27 02:27 SAST, at `db21252`, following the README quickstart in
 
 ## 3. Vitest workers pool and Biome
 
-Tests run inside the Workers runtime through `@cloudflare/vitest-pool-workers`, which requires Vitest `^4.1` (so not Vitest 5). Biome replaces `typescript-eslint`, which does not support TypeScript 7.
+> **Started:** 2026-10-27T00:40:05Z
+
+Tests run inside the Workers runtime through Cloudflare's Vitest integration. Biome replaces `typescript-eslint`, which does not support TypeScript 7.
+
+**Corrected 2026-10-27:** the integration was planned as `@cloudflare/vitest-pool-workers` 0.23.0, which requires Vitest `^4.1`. That package was renamed `@cloudflare/vitest-plugin` for version 1 (Cloudflare changelog 2026-08-19, "@cloudflare/vitest-pool-workers is now @cloudflare/vitest-plugin"), and installing 0.23.0 prints `deprecated ... will not receive future updates`. The plugin is configured with `cloudflareTest()` in the `plugins` array, and tests reach the Worker through `exports` from `cloudflare:workers` (the `SELF` binding is the old API; developers.cloudflare.com/workers/testing/vitest-integration/test-apis/). Version 1.4.7 is pinned: it is the newest release older than pnpm 11's minimum release age on the day (1.4.8 came out 2026-10-26, and pnpm answers a too-new pin by writing a `minimumReleaseAgeExclude` waiver into `pnpm-workspace.yaml`), and it depends on exactly the Wrangler 4.152.0 the Worker pins, so the lockfile holds one Wrangler and one Miniflare. It accepts Vitest `^4.1 || ^5`; the stack doc's Vitest 4.1.12 stays.
 
 **Phase:** 0
 **Needs:** none
@@ -141,19 +145,23 @@ Tests run inside the Workers runtime through `@cloudflare/vitest-pool-workers`, 
 
 **Build order:**
 
-1. Add `vitest` 4.1.12 and `@cloudflare/vitest-pool-workers` 0.23.0 with `vitest.config.ts`. Done when: `pnpm test` runs inside workerd.
+1. Add `vitest` 4.1.12 and `@cloudflare/vitest-plugin` 1.4.7 with `vitest.config.ts`. Done when: `pnpm test` runs inside workerd.
 2. Write `test/health.test.ts` for `/health`. Done when: it passes, and fails when the route returns `500`.
 3. Add `@biomejs/biome` at an exact 2.6.x version with `biome.json`. Done when: `pnpm lint` exits 0 and fails on an unused variable.
+4. Document the two new gates. Done when: `tests/scripts/test_worker_gates.py` passes with `test` and `lint` in `package.json`.
 
-- [ ] Add exact dev dependencies `vitest` 4.1.12 and `@cloudflare/vitest-pool-workers` 0.23.0 to `package.json`. Done when: `pnpm install` resolves both with no peer warning about Vitest.
-- [ ] Create `vitest.config.ts` using the workers pool with `wrangler.jsonc` as its config. Done when: `pnpm exec vitest run` reports the workers pool.
-- [ ] Write `test/health.test.ts` calling `SELF.fetch("https://x/health")` and asserting `200`, `ok: true` and `commit` equal to the `COMMIT_SHA` binding the pool supplies (set a test value in `vitest.config.ts`, not `"dev"`). Done when: the test passes, and fails if `src/index.ts` returns `500` or hard-codes the commit. **Corrected 2026-10-27** (D00 T01 §2 completion review): the assertion read only status and `ok`, so a route that dropped or hard-coded the commit, the one thing `/health` exists to prove, passed. Cheaper substitute: unit-testing the handler function outside the runtime.
+- [ ] Add exact dev dependencies `vitest` 4.1.12 and `@cloudflare/vitest-plugin` 1.4.7 to `package.json`. Done when: `pnpm install` resolves both with no peer warning, writes no `minimumReleaseAgeExclude` into `pnpm-workspace.yaml`, and `pnpm-lock.yaml` holds one `wrangler@` (4.152.0) and one `miniflare@` entry. Cheaper substitute: accepting pnpm's release-age waiver for a day-old release. **Corrected 2026-10-27:** was `@cloudflare/vitest-pool-workers` 0.23.0 (renamed and deprecated, see above).
+- [ ] Create `vitest.config.ts` with `cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" }, miniflare: { bindings: { COMMIT_SHA: <a fixed 40-character test SHA> } } })` in `plugins`. Done when: `pnpm exec vitest run` runs `test/health.test.ts` in workerd (the test imports `cloudflare:workers`, which exists only there). **Corrected 2026-10-27:** "the workers pool" is now the `cloudflareTest()` plugin.
+- [ ] Write `test/health.test.ts` calling `exports.default.fetch("https://example.com/health")` from `cloudflare:workers` (**Corrected 2026-10-27:** was `SELF.fetch`, the pre-plugin API) and asserting `200`, `ok: true` and `commit` equal to the `COMMIT_SHA` binding the pool supplies (set a test value in `vitest.config.ts`, not `"dev"`). Done when: the test passes, and fails if `src/index.ts` returns `500` or hard-codes the commit. **Corrected 2026-10-27** (D00 T01 §2 completion review): the assertion read only status and `ok`, so a route that dropped or hard-coded the commit, the one thing `/health` exists to prove, passed. Cheaper substitute: unit-testing the handler function outside the runtime.
 - [ ] Add script `test` = `vitest run` to `package.json`. Done when: `pnpm test` exits 0.
-- [ ] Add exact dev dependency `@biomejs/biome` (latest 2.6.x on the day) and `biome.json` with the recommended rules, formatter on, `samples/`, `sources/` and `build/` ignored. Done when: `pnpm exec biome check .` exits 0.
+- [ ] Add `test/tsconfig.json` extending the root config with `types: ["@cloudflare/vitest-plugin/types"]` and `worker-configuration.d.ts` included, and extend `typecheck` to `tsc --noEmit -p test` after the root check. Done when: `pnpm typecheck` exits 1 with a type error planted in `test/health.test.ts`. Cheaper substitute: leaving tests outside the type check, where Vitest's transform strips types without checking them. Vitest's bundled `tinybench` types clash with the Workers runtime `EventTarget` (TS2416), a third-party defect, so this file alone sets `skipLibCheck: true`, marked `WORKAROUND`; the root config keeps checking libraries.
+- [ ] Add exact dev dependency `@biomejs/biome` 2.6.3 (latest 2.6.x on the day, released 2026-10-24) and `biome.json` with the formatter on, `linter.rules.preset` `recommended`, `noUnusedVariables` and `noUnusedImports` at `error`, VCS ignore on, and `files.includes` limited to the Worker's own files (`src/**`, `test/**`, `vitest.config.ts`, `wrangler.jsonc`, `package.json`, `tsconfig.json`, `biome.json`). Done when: `pnpm exec biome check .` exits 0 and `git status` shows no file outside those paths reformatted. **Corrected 2026-10-27:** the whole tree with three folders ignored would lint and reformat JSON written by the Python tooling (review receipts in `docs/reviews/`, design exports); `recommended: true` is deprecated in 2.6 in favour of `preset`; and `noUnusedVariables` is only a warning in the recommended set, which `biome check` passes.
 - [ ] Add script `lint` = `biome check .` to `package.json`. Done when: `pnpm lint` fails on an unused variable in `src/index.ts` and passes once it is removed.
+- [ ] Add `pnpm test` and `pnpm lint` to the `AGENTS.md` "Validation" block, `CONTRIBUTING.md` "Validation gates" and the README quickstart, and the three packages to `NOTICE.md` (`vitest` 4.1.12 MIT, `@cloudflare/vitest-plugin` 1.4.7 MIT, `@biomejs/biome` 2.6.3 MIT OR Apache-2.0, none shipping in the Worker). Done when: `python3 -m unittest tests.scripts.test_worker_gates` passes and each `NOTICE.md` row matches the installed `package.json` version and licence. Cheaper substitute: gates nobody is told to run.
+- [ ] Correct the stack doc's Tests row (plugin name and version, Vitest 5 now accepted, 4.1.12 kept) and Lint row (Biome 2.6.3 pinned). Done when: neither row names `vitest-pool-workers` or "2.6.x".
 - [ ] Commit: `test: Vitest workers pool and Biome lint for the Worker`
 
-**Test checkpoint:** `pnpm test` exits 0 with `test/health.test.ts` passing, and `pnpm lint` exits 0.
+**Test checkpoint:** in a clean clone, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint` and `pnpm test` exit 0 with `test/health.test.ts` passing; `pnpm test` exits 1 when `/health` returns `500` or hard-codes `"dev"` as the commit; `pnpm lint` exits 1 on an unused variable in `src/index.ts`; `python3 -m unittest tests.scripts.test_worker_gates` passes. **Corrected 2026-10-27:** the checkpoint named only the passing runs, which a test asserting nothing also gives.
 
 ## 4. GitHub Actions CI
 
