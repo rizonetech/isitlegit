@@ -1,0 +1,117 @@
+{
+  "ref": "D00 T01 \u00a72",
+  "title": "Worker package and health route",
+  "implementation_sha": "6e0c6d521c0318198e0e5d77c4794c95c9fa6cca",
+  "date": "2026-10-27",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s2.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm install --frozen-lockfile (clean clone at 6e0c6d5) -> exit 0",
+    "pnpm typecheck -> exit 0; with const n: number = \"x\" planted -> TS2322, exit 1",
+    "pnpm build (wrangler deploy --dry-run --outdir build/dry) -> exit 0",
+    "pnpm dev; curl -s -w \" %{http_code}\" localhost:8787/health -> {\"ok\":true,\"commit\":\"6e0c6d521c0318198e0e5d77c4794c95c9fa6cca\"} 200",
+    "python3 -m unittest discover -s tests/scripts -> OK (skipped=1)"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s2.md",
+    "verdict": "filed",
+    "candidate": "aa00ecd6727ed469cb7e9b52bcae32dbcd796f0e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D00 T01 \u00a73",
+      "D00 T01 \u00a74",
+      "D00 T01 \u00a75"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s2.md",
+    "candidate": "5f12d581b904bdeccade0a0d58285243f07d7010",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ]
+    }
+  },
+  "final": {
+    "report": "docs/reviews/00-workspace/D00-T01-s2.md",
+    "verdict": "fixed",
+    "candidate": "193dadd2a3127a17b6f3406da26f4319b4544e24",
+    "reviewer": "wonder",
+    "model": "muse-wonder-full-1.0"
+  }
+}

@@ -40,7 +40,7 @@ track: day-0
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Git repository and public GitHub repo | -- | [x] |
-| 2 | §2 | Worker package and health route | §1 | [ ] |
+| 2 | §2 | Worker package and health route | §1 | [x] |
 | 3 | §3 | Vitest workers pool and Biome | §2 | [ ] |
 | 4 | §4 | GitHub Actions CI | §3 | [ ] |
 | 5 | §5 | Cloudflare bindings and first deploy | §4 | [ ] |
@@ -120,13 +120,16 @@ The Worker is one deploy unit (stack doc "Platform services"). This section crea
 - [x] Make `typecheck` refuse a stale `worker-configuration.d.ts`: `typecheck` = `wrangler types --strict-vars=false --check && tsc --noEmit`, and a `types` script regenerates the file. Done when: a var added to `wrangler.jsonc` without `pnpm types` makes `pnpm typecheck` exit 1 with "Types at worker-configuration.d.ts are out of date". Cheaper substitute: regenerating inside the gate, which can never refuse a stale committed copy. (Final review 2026-10-27, P3.)
 - [x] Pin Node 24.18.0 from the stack doc in `.nvmrc` and `package.json` `engines.node` (`>=24.18.0`), with `engineStrict: true` in `pnpm-workspace.yaml`. Done when: `pnpm install --frozen-lockfile --config.node-version=22.12.0` exits 1 with `ERR_PNPM_UNSUPPORTED_ENGINE`, and `tests/scripts/test_worker_gates.py` checks `.nvmrc`, `engines` and `packageManager` against the stack doc row. (Final review 2026-10-27, P3.)
 - [x] State in the README quickstart that `/health` names the `HEAD` at `pnpm dev` start, so after a new commit or with uncommitted edits the server is restarted after committing. Done when: the README says so; the deploy half of the finding is D00 T01 §5's (corrected there to refuse a dirty tree). (Final review 2026-10-27, P3.)
-- [ ] Commit: `worker: scaffold the Worker package with a health route`
+- [x] Commit: `worker: scaffold the Worker package with a health route`
 
 **Test checkpoint:** `pnpm install --frozen-lockfile` exits 0 in a clean clone; `pnpm typecheck` exits 0 and exits non-zero with `const n: number = "x";` planted in `src/index.ts`; `pnpm exec wrangler deploy --dry-run --outdir build/dry` exits 0; and under `pnpm exec wrangler dev --var COMMIT_SHA:$(git rev-parse HEAD)`, `curl -s -w ' %{http_code}' localhost:8787/health` prints `{"ok":true,"commit":"<that SHA>"} 200`. **Corrected 2026-10-27:** the checkpoint was a type check and a dry run only, which pass on a Worker with no `/health` route; the route test in the runtime arrives with Vitest in §3.
 
 Evidence 2026-10-27 02:35 SAST, at `92115c4`: a clean clone runs `pnpm install --frozen-lockfile` (exit 0), `pnpm typecheck` (exit 0, and the regenerated `worker-configuration.d.ts` equals the committed one) and `pnpm exec wrangler deploy --dry-run --outdir build/dry` (exit 0); `pnpm typecheck` exits 1 with `const n: number = "x";` planted (`TS2322`); under `wrangler dev --var COMMIT_SHA:46eaa434f04fb77d9157f4328c994f82b2b9912d`, `/health` printed `{"ok":true,"commit":"46eaa434f04fb77d9157f4328c994f82b2b9912d"} 200` and an unknown path `404`. `wrangler types` runs with `--strict-vars=false` so `COMMIT_SHA` is typed `string`, not the literal `"dev"` (a deploy sets a SHA).
 
 Evidence 2026-10-27 02:27 SAST, at `db21252`, following the README quickstart in a clean clone: `pnpm install --frozen-lockfile` 0, `pnpm typecheck` 0 (tree unchanged), `pnpm build` 0, and under `pnpm dev`, `/health` printed `{"ok":true,"commit":"db2125216b6881211b4c1ed83b89f1da222b83ad"} 200`, the clone's HEAD; `python3 -m unittest tests.scripts.test_readme_brand` ran 17 tests, OK (1 live test skipped without `LIVE_CHECKS`).
+
+> **Verified:** 2026-10-27 | §2 | 6e0c6d521c0318198e0e5d77c4794c95c9fa6cca
+> **Review:** `docs/reviews/d00-t01-s2.json`
 
 ## 3. Vitest workers pool and Biome
 
