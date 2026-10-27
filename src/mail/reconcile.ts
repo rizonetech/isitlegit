@@ -41,7 +41,18 @@ export type ReconcileDeps = MailDeps & {
   pageBudget?: number;
   runBudget?: number;
   paceMs?: number;
+  // The run's time allowance and its clock (milliseconds); tests set both.
+  deadlineMs?: number;
+  clock?: () => number;
 };
+
+// A scheduled run may last 15 minutes (https://developers.cloudflare.com/workers/platform/limits/); the reconciler
+// stops at 10, leaving room to write and log its outcome. A request never waits past the time the run has left.
+export const RUN_DEADLINE_MS = 10 * 60_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+// The time one request may take: its own limit, cut to what the run has left (and never below a millisecond).
+export const requestTimeout = (remainingMs: number, limitMs = REQUEST_TIMEOUT_MS) =>
+  Math.max(1, Math.min(limitMs, remainingMs));
 export type ReconcileReport = {
   state: "ok" | "degraded";
   settled: string[];
@@ -70,7 +81,13 @@ const smtpCode = (event: Record<string, unknown>) => {
 
 // One run's reading of a row's window, from its saved place: a match, a whole window read with none, a place to
 // resume next time, or an error. `null` events, non-objects and a match missing its id or type are not evidence.
-async function search(deps: ReconcileDeps, apiKey: string, row: Row, spend: () => boolean): Promise<Search> {
+async function search(
+  deps: ReconcileDeps,
+  apiKey: string,
+  row: Row,
+  spend: () => boolean,
+  remaining: () => number,
+): Promise<Search> {
   const claimed = Date.parse(row.claimed_at);
   const window = {
     start_date: new Date(claimed - BEFORE_MS).toISOString(),
@@ -87,7 +104,7 @@ async function search(deps: ReconcileDeps, apiKey: string, row: Row, spend: () =
         method: "POST",
         headers: { "content-type": "application/json", "x-smtp2go-api-key": apiKey },
         body: JSON.stringify(token ? { ...window, continue_token: token } : window),
-        signal: AbortSignal.timeout(deps.timeoutMs ?? 30_000),
+        signal: AbortSignal.timeout(requestTimeout(remaining(), deps.timeoutMs ?? REQUEST_TIMEOUT_MS)),
       });
       if (response.status === 401 || response.status === 403)
         return { error: `SMTP2GO refused the activity search (HTTP ${response.status})` };
@@ -136,11 +153,22 @@ export async function reconcileUncertain(
     spent++;
     return true;
   };
+  const clock = deps.clock ?? Date.now;
+  const startedAt = clock();
+  const remaining = () => (deps.deadlineMs ?? RUN_DEADLINE_MS) - (clock() - startedAt);
+  let outOfTime = false;
   for (const row of rows.results) {
+    // Past the run's deadline: the rest wait for the next run, and the run says it stopped early.
+    if (remaining() <= 0) {
+      if (!outOfTime) report.errors.push("the run reached its time limit; the remaining sends wait for the next run");
+      outOfTime = true;
+      report.unresolved.push(row.send_key);
+      continue;
+    }
     const isAlert = row.send_key.startsWith(ALERT_PREFIX);
     if (row.claimed_at < cutoff) {
       if (isAlert) report.unresolved.push(row.send_key);
-      else await handOver(deps, row, report);
+      else await handOver({ ...deps, timeoutMs: requestTimeout(remaining(), deps.timeoutMs) }, row, report);
       continue;
     }
     // The run's requests are spent: the rest wait for the next run, with no search and no pause, so a large backlog
@@ -151,7 +179,7 @@ export async function reconcileUncertain(
     }
     if (spent > 0) await pause(deps.paceMs ?? PACE_MS);
     const before = spent;
-    const result = await search(deps, deps.apiKey, row, spend);
+    const result = await search(deps, deps.apiKey, row, spend, remaining);
     // Searched this run (a request was made): it goes behind the rows not yet searched, so a run budget smaller than
     // the backlog reaches every row across runs.
     if (spent > before)

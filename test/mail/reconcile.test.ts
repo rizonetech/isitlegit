@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ACTIVITY_URL, HEADER, reconcileUncertain } from "../../src/mail/reconcile";
+import { ACTIVITY_URL, HEADER, reconcileUncertain, requestTimeout } from "../../src/mail/reconcile";
 import { settleStatement } from "../../src/mail/settle";
 import { type MailMessage, SMTP2GO_URL, sendMail } from "../../src/mail/smtp2go";
 
@@ -391,5 +391,42 @@ describe("reconcileUncertain", () => {
       (await db.prepare(settleStatement(alertKey, "failed", alertClaim, NOW.toISOString())).run()).meta.changes,
     ).toBe(1);
     expect((await read(alertKey))?.status).toBe("failed");
+  });
+
+  it("stops at its time limit in an outage, reports it, and leaves the rest for the next run (round 3)", async () => {
+    for (let i = 0; i < 50; i++) await row("uncertain", 40 + i);
+    // Every search takes its full 31 s (an outage); the clock moves with it.
+    let clock = 0;
+    const slow = (async () => {
+      clock += 31_000;
+      return new Response("timeout", { status: 504 });
+    }) as typeof fetch;
+    const report = await reconcileUncertain(deps(slow, { clock: () => clock, paceMs: 0 }), band);
+    // 10 minutes at 31 s each: 20 searches, then the rest wait.
+    expect(report.requests).toBe(20);
+    expect(clock).toBeLessThanOrEqual(10 * 60_000 + 31_000);
+    expect(report.state).toBe("degraded");
+    expect(report.errors).toContain("the run reached its time limit; the remaining sends wait for the next run");
+    expect(report.unresolved).toHaveLength(30);
+  });
+
+  it("aborts a hanging search at the run's deadline, not at the 30 s request limit", async () => {
+    const key = await row("uncertain", 50);
+    const hangs = ((_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+      )) as typeof fetch;
+    const started = Date.now();
+    const report = await reconcileUncertain(deps(hangs, { deadlineMs: 300, now: () => NOW }), band);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(report.errors.some((e) => e.startsWith(`${key}: no readable answer from SMTP2GO`))).toBe(true);
+  });
+
+  it("cuts each request's timeout to the time the run has left", () => {
+    expect(requestTimeout(600_000)).toBe(30_000);
+    expect(requestTimeout(4_000)).toBe(4_000);
+    expect(requestTimeout(0)).toBe(1);
+    expect(requestTimeout(-50)).toBe(1);
+    expect(requestTimeout(600_000, 10)).toBe(10);
   });
 });
