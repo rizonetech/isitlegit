@@ -126,29 +126,71 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("frames from the keyboard", 
     await page.context().close();
   });
 
-  for (const frame of ["member", "admin"] as const)
-    it(`${frame} at 360 px: Enter and Space open and close Menu, Tab enters the opened sidebar, Esc returns`, async () => {
-      const page = await openPage(browser, FRAMES[frame], {
-        viewport: { width: 360, height: 800 },
-        javaScriptEnabled: false,
-      });
-      const shown = () => page.locator("#nav").isVisible();
-      const stops = await tabStops(page, 3);
-      expect(stops.map(keyOf)).toEqual([
-        "Skip to content",
-        frame === "member" ? "IsItLegit, cases" : "IsItLegit admin, overview",
-        "Menu",
-      ]);
-      await page.keyboard.press("Enter");
-      expect(await shown()).toBe(true);
-      await page.keyboard.press("Space");
-      expect(await shown()).toBe(false);
-      await page.keyboard.press("Space");
-      await page.keyboard.press("Tab");
-      const inside = await page.evaluate(() => !!document.activeElement?.closest("#nav"));
-      expect(inside).toBe(true);
-      await page.keyboard.press("Escape");
-      expect(await shown()).toBe(false);
-      await page.context().close();
-    });
+  // At phone width, in a short window too: Menu opens the sidebar, Tab walks every control in it with a visible ring
+  // (scrolled into view), the switcher opens from the keyboard, Esc closes the menu and returns focus to Menu, and Tab
+  // then moves on into the page content.
+  const PAGE_LINK = <a href="/cases/1">Statement request</a>;
+  const PHONE = {
+    member: String(
+      <Document title="Cases">
+        <AppShell {...member({}, PAGE_LINK)} />
+      </Document>,
+    ),
+    admin: String(
+      <Document title="Overview">
+        <AppShell {...admin({}, PAGE_LINK)} />
+      </Document>,
+    ),
+  };
+  for (const javaScriptEnabled of [true, false])
+    for (const colorScheme of ["light", "dark"] as const)
+      for (const frame of ["member", "admin"] as const)
+        it(`${frame} at 360 px, ${colorScheme}, JavaScript ${javaScriptEnabled ? "on" : "off"}: Menu, every control, Esc and back`, async () => {
+          const page = await openPage(browser, PHONE[frame], {
+            viewport: { width: 360, height: 560 },
+            colorScheme,
+            javaScriptEnabled,
+          });
+          const shown = () => page.locator("#nav").isVisible();
+          const home = frame === "member" ? "IsItLegit, cases" : "IsItLegit admin, overview";
+          expect((await tabStops(page, 3)).map(keyOf)).toEqual(["Skip to content", home, "Menu"]);
+          await page.keyboard.press("Enter");
+          expect(await shown()).toBe(true);
+          await page.keyboard.press("Space");
+          expect(await shown()).toBe(false);
+          await page.keyboard.press("Space");
+          expect(await shown()).toBe(true);
+          const inside = ORDER[frame].slice(1);
+          const stops: Focus[] = [];
+          for (const _ of inside) {
+            await page.keyboard.press("Tab");
+            const stop = (await focused(page)) as Focus;
+            stops.push(stop);
+            const box = await page.evaluate(() =>
+              (document.activeElement as HTMLElement).getBoundingClientRect().toJSON(),
+            );
+            expect(box.top >= 0 && box.bottom <= 560 && box.left >= 0 && box.right <= 360, `${stop.key} in view`).toBe(
+              true,
+            );
+          }
+          expect(stops.map(keyOf)).toEqual(inside);
+          for (const stop of stops) {
+            expect(stop.outline, stop.key).toMatch(/^solid [1-9]/);
+            expect(stop.contrast, `${stop.key} focus contrast`).toBeGreaterThanOrEqual(3);
+          }
+          if (frame === "member") {
+            await page.focus("summary");
+            await page.keyboard.press("Enter");
+            await page.keyboard.press("Tab");
+            const option = (await focused(page)) as Focus;
+            expect(keyOf(option)).toBe("ST Swartberg Transport");
+            expect(option.contrast).toBeGreaterThanOrEqual(3);
+          }
+          await page.keyboard.press("Escape");
+          expect(await shown()).toBe(false);
+          expect(keyOf((await focused(page)) as Focus)).toBe("Menu");
+          await page.keyboard.press("Tab");
+          expect(keyOf((await focused(page)) as Focus)).toBe("Statement request");
+          await page.context().close();
+        });
 });

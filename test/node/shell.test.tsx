@@ -76,11 +76,11 @@ describe("member frame (P1)", () => {
     expect(page).toContain('<summary aria-label="Switch organisation, current Karoo Couriers"');
     expect(page).toContain('<form method="post" action="/orgs/switch">');
     expect(page).toContain('<input type="hidden" name="organizationId" value="org-swartberg"/>');
-    expect(page).toMatch(/<button[^>]*type="submit"[^>]*>.*Swartberg Transport<\/button>/);
+    expect(page).toMatch(/<button type="submit"[^>]*>(?:(?!<\/button>).)*>Swartberg Transport<\/span><\/button>/);
     const one = html(<AppShell {...member({ otherOrganizations: [] })} />);
     expect(one).not.toContain("<details");
     expect(one).not.toContain("/orgs/switch");
-    expect(one).toContain("Karoo Couriers</p>");
+    expect(one).toContain("Karoo Couriers</span></p>");
   });
 
   it("copies the check address, signs out through a form, and shows the user", () => {

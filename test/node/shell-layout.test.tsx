@@ -1,5 +1,6 @@
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { LOGO, LOGO_MARK, LOGO_MARK_ON_DARK, LOGO_ON_DARK } from "../../src/web/assets";
 import { AppShell } from "../../src/web/components/AppShell";
 import { Document } from "../../src/web/components/Document";
 import { chromiumPath, launch, openPage } from "./browser";
@@ -24,6 +25,32 @@ const FRAMES = {
       <AppShell variant="public">
         <h1>Statement request</h1>
       </AppShell>
+    </Document>,
+  ),
+};
+// Real names run long, some with one long compound word: none may push the sidebar wider or scroll it sideways.
+const LONG = "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd";
+const LONG_PERSON = "Nomvuyiswa Thandekile Mahlangu-Vanderbijlpark";
+const LONG_FRAMES = {
+  member: String(
+    <Document title="Cases">
+      <AppShell
+        {...member({
+          organization: { id: "org-long", name: LONG },
+          otherOrganizations: [{ id: "org-longer", name: `${LONG} Holdings Incorporated` }],
+          user: { name: LONG_PERSON, role: "Owner" },
+        })}
+      />
+    </Document>,
+  ),
+  single: String(
+    <Document title="Cases">
+      <AppShell {...member({ organization: { id: "org-long", name: LONG }, otherOrganizations: [] })} />
+    </Document>,
+  ),
+  admin: String(
+    <Document title="Overview">
+      <AppShell {...admin({ operator: LONG_PERSON })} />
     </Document>,
   ),
 };
@@ -85,6 +112,56 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("frames at phone and desktop
     expect(broken).toBe(0);
     await page.context().close();
   });
+
+  for (const [name, html] of Object.entries(LONG_FRAMES))
+    for (const width of [360, 1280])
+      it(`${name}: long organisation and person names wrap inside the sidebar at ${width} px`, async () => {
+        const page = await openPage(browser, html, { viewport: { width, height: 900 }, javaScriptEnabled: false });
+        if (width === 360) await page.click('button[aria-label="Menu"]');
+        if (name === "member") await page.click("summary");
+        const spill = await page.evaluate(() => {
+          const nav = document.getElementById("nav") as HTMLElement;
+          const edge = nav.getBoundingClientRect().right;
+          const out = [...nav.querySelectorAll("*")].filter((el) => {
+            const box = el.getBoundingClientRect();
+            return box.width > 0 && box.right > edge + 0.5;
+          });
+          return {
+            width: nav.getBoundingClientRect().width,
+            scroll: nav.scrollWidth - nav.clientWidth,
+            out: out.length,
+          };
+        });
+        expect(spill).toEqual({ width: 256, scroll: 0, out: 0 });
+        expect(await overflow(page)).toBeLessThanOrEqual(0);
+        if (name === "member") {
+          expect(await page.locator("summary").getAttribute("aria-label")).toBe(`Switch organisation, current ${LONG}`);
+          expect(await page.getByRole("button", { name: `${LONG} Holdings Incorporated` }).isVisible()).toBe(true);
+        }
+        await page.context().close();
+      });
+
+  for (const colorScheme of ["light", "dark"] as const)
+    it(`shows the ${colorScheme} theme's brand artwork in every frame`, async () => {
+      const [logo, mark] = colorScheme === "light" ? [LOGO, LOGO_MARK] : [LOGO_ON_DARK, LOGO_MARK_ON_DARK];
+      const shownSrc = (page: Page) =>
+        page.evaluate(() =>
+          [...document.images]
+            .filter((img) => img.getBoundingClientRect().width > 0)
+            .map((img) => new URL(img.src).pathname),
+        );
+      for (const frame of ["member", "public"] as const) {
+        const desktop = await openPage(browser, FRAMES[frame], { viewport: { width: 1280, height: 900 }, colorScheme });
+        expect(await shownSrc(desktop), frame).toEqual([logo]);
+        await desktop.context().close();
+      }
+      const phone = await openPage(browser, FRAMES.member, { viewport: { width: 360, height: 800 }, colorScheme });
+      expect(await shownSrc(phone)).toEqual([mark]);
+      await phone.context().close();
+      const adminPage = await openPage(browser, FRAMES.admin, { viewport: { width: 1280, height: 900 }, colorScheme });
+      expect(await shownSrc(adminPage)).toEqual([LOGO_ON_DARK]);
+      await adminPage.context().close();
+    });
 
   for (const width of [360, 1280])
     it(`public: the header and content fit at ${width} px, with no menu and no navigation`, async () => {

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { APP_CSS, FONTS, LOGO, LOGO_MARK, LOGO_ON_DARK } from "../../src/web/assets.ts";
+import { APP_CSS, FONTS, LOGO, LOGO_MARK, LOGO_MARK_ON_DARK, LOGO_ON_DARK } from "../../src/web/assets.ts";
 
 // Everything under public/static/ is served with a year-long immutable cache (public/_headers), so every file there must
 // carry a 12-hex content fingerprint, be named in src/web/assets.ts, and exist: a missing, unhashed or stray file fails.
@@ -18,7 +18,7 @@ function files(dir: string): string[] {
 }
 
 describe("static assets", () => {
-  const exported = [APP_CSS, ...Object.values(FONTS), LOGO, LOGO_ON_DARK, LOGO_MARK];
+  const exported = [APP_CSS, ...Object.values(FONTS), LOGO, LOGO_ON_DARK, LOGO_MARK, LOGO_MARK_ON_DARK];
   const served = files(STATIC).map((path) => `/${relative(join(ROOT, "public"), path).replaceAll("\\", "/")}`);
 
   it("serves every path src/web/assets.ts exports", () => {

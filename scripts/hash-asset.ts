@@ -60,6 +60,7 @@ const LOGOS = {
   LOGO: ["isitlegit-logo.svg", "logo"],
   LOGO_ON_DARK: ["isitlegit-logo-on-dark.svg", "logo-on-dark"],
   LOGO_MARK: ["isitlegit-mark.svg", "mark"],
+  LOGO_MARK_ON_DARK: ["isitlegit-mark-on-dark.svg", "mark-on-dark"],
 } as const;
 
 const fingerprint = (data: Buffer) => createHash("sha256").update(data).digest("hex").slice(0, 12);

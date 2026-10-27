@@ -44,6 +44,8 @@ track: day-1
 | 8 | §8 | Empty, loading, error and partial states | §6 | [ ] |
 | 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [ ] |
 | 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [ ] |
+| 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
+| 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 
 ## 1. Attended design session and design/SPEC.md
 
@@ -174,6 +176,9 @@ One page frame for every app page (`AGENTS.md`: a second toolbar or panel shape 
 - [x] Give the spacing scale a 0 step (found at build): `p-0`, `px-0`, `m-0`, `inset-0` and `min-w-0` compiled to nothing because the theme reset removes Tailwind's defaults and the scale had no 0, so §6's link button as a `<button>` kept the browser's padding. `0` in `design/tokens/spacing.json` `scale`, allowed by `scripts/build-tokens.ts`. Done when: `test/node/build-css.test.ts` compiles each zero utility and fails without the step.
 - [x] Extend `Button` (§6) for the frames: the `icon` size (the 32 px copy button, `AppNav` 30 px built 32) and `small-icon` (the 36 by 40 px Menu button, `Report-Mobile`), and `popovertarget` on a `<button>`. Done when: `test/node/shell.test.tsx` finds Menu's `popovertarget` and the browser tests open the menu with it.
 - [x] Share the browser helpers in `test/node/browser.ts`: `focused` (the focus ring's contrast against every painted ancestor, used by §6's and this section's tests) and `openPage` (a rendered document with `public/` served as the Worker serves it). Done when: `test/node/controls-browser.test.tsx` and `test/node/shell-keyboard.test.tsx` both use `focused`.
+- [x] Show the theme's brand artwork: the member and public logos and the phone mark switch to their on-dark versions in dark theme (`LOGO_ON_DARK`, and `LOGO_MARK_ON_DARK` from `isitlegit-mark-on-dark.svg`, fingerprinted by `scripts/hash-asset.ts`), through the `dark:` variant so `data-theme` and the system setting both apply. Done when: `test/node/shell-layout.test.tsx` finds only the theme's artwork shown in every frame in both themes, and fails when the on-dark image is removed. (Completion review 2026-10-27, gap 1.)
+- [x] Fit real names in the 256 px sidebar: the organisation (current, each to switch to, and the single-organisation label), the member and the operator wrap, breaking a long compound word if they must, and the switch options are rows that grow with their name. Done when: `test/node/shell-layout.test.tsx` renders long names with an unbroken word at 360 px and 1280 px, finds the sidebar 256 px wide with nothing past its edge and the full name in the switcher's label, and fails when the wrapping is removed. (Completion review 2026-10-27, gap 2.)
+- [x] Prove the phone menu from the keyboard: at 360 by 560 px, in both themes with JavaScript on and off, Menu opens and closes with Enter and Space, Tab walks every sidebar control in order with each in view and a ring of 3:1 or more, the switcher opens to its option, Esc closes the menu and returns focus to Menu, and Tab then enters the page content. Done when: `test/node/shell-keyboard.test.tsx` covers the member and admin frames. (Completion review 2026-10-27, gap 3.)
 - [ ] Commit: `web: app shell and its three frames`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/document.test.tsx test/node/shell.test.tsx test/node/shell-layout.test.tsx test/node/shell-keyboard.test.tsx` passes (**Corrected 2026-10-27:** named `.ts` files; JSX needs `.tsx`): the document loads the shipped stylesheet and logo through the Worker, every P1 and P2 state and destination, the public frame per its board, 360 px and 1280 px without overflow, and keyboard operation with and without JavaScript.
@@ -343,7 +348,7 @@ The browser-side behaviour the pages need, served like the stylesheet.
 1. Serve htmx and one small app script as fingerprinted static assets. Done when: both are under `/static/` with hashed names and named in `src/web/assets.ts`.
 
 - [ ] Add htmx 2.0.11 as an exact dependency and copy its minified build through `scripts/hash-asset.ts` to `public/static/htmx.<hash>.js`, named in `src/web/assets.ts`. Done when: `test/node/assets.test.ts` and `test/node/serve.test.ts` cover it (fingerprinted, immutable cache, `application/javascript`), and `NOTICE.md` lists it (BSD 2-Clause). Moved here from §3 (its D07 T01 §5 plan-review correction stands: an unhashed htmx under the immutable cache would keep visitors on an old version).
-- [ ] Write `src/web/client/app.ts`, built to `public/static/app.<hash>.js` by the same step: `[data-copy]` buttons copy their value and announce "Copied" in a live region, and the phone Menu keeps `aria-expanded` in step with its disclosure. Done when: `test/node/app-script.test.ts` exercises both in headless Chromium.
+- [ ] Write `src/web/client/app.ts`, built to `public/static/app.<hash>.js` by the same step: `[data-copy]` buttons copy their value and announce "Copied" in a live region; when the clipboard refuses (no permission, an insecure context, no Clipboard API) they announce "Copy failed: select the address to copy it" and select the address's text, so it can be copied by hand. Done when: `test/node/app-script.test.ts` exercises the copy, the announcement and the refusal path (clipboard permission denied) in headless Chromium. (**Corrected 2026-10-27:** the phone Menu needs no script, since D07 T01 §3 made it a `popovertarget` popover whose button the browser keeps in step; the refusal path is D07 T01 §3's completion review, gap 4.)
 - [ ] Commit: `web: htmx and the app script as fingerprinted assets`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/assets.test.ts test/node/serve.test.ts test/node/app-script.test.ts` passes.
@@ -372,6 +377,53 @@ Every frame and component in every state on one page, checked together, before a
 - [ ] Commit: `web: component gallery with accessibility checks`
 
 **Test checkpoint:** `pnpm test:a11y` reports zero violations at 360 px and 1280 px, and `pnpm exec vitest run test/node/rendered-colours.test.ts` passes.
+
+## 11. Keyboard shortcuts and their help
+
+The frequent actions take one or two keys, as Gmail's and Linear's do, instead of four or five Tabs (completion review of D07 T01 §3, excellence items 7 and 8): Check a file in one shortcut, Cases and the other pages in at most two keys, and one help entry that lists them.
+
+**Phase:** 7
+**Needs:** attended
+**Surface:** yes
+**Fidelity:** a new board `Shortcuts` (the help dialog and the shortcut hint beside each link), drawn and approved in step 1 before any build
+**Job:** a member reaches Check a file and every page from the keyboard in one or two keys, and finds them in one help entry
+**Treatment:** the approved board, tokens only; no shortcut fires while focus is in a text field; every shortcut has a visible, discoverable hint
+**Chrome:** built on `AppShell` (D07 T01 §3) and the app script (D07 T01 §9)
+
+**Build order:**
+
+1. Draw and approve the board. Done when: the operator approves `Shortcuts` in `design/mockups/` with the key map.
+2. Build the shortcuts and their help. Done when: each shortcut works in Chromium and none fires in a text field.
+
+- [ ] Draw the `Shortcuts` board (the help dialog opened by `?`, the hint beside each link, the key map: `c` Check a file, `g` then `c`, `s`, `p`, `m`, `t` for Cases, Suppliers, Protect, Monitor, Team) and record the operator's approval in `design/SPEC.md` 1. Done when: the board is in `design/mockups/source/` and `design/mockups/png/`, and the SPEC names it. Cheaper substitute: shortcuts with no help, which nobody finds.
+- [ ] Implement the key map in `src/web/client/app.ts` from `data-shortcut` attributes on the shell's links, ignoring keys typed in `input`, `textarea`, `select` and `[contenteditable]`, and with any modifier held. Done when: `test/node/shortcuts.test.tsx` presses each shortcut in Chromium and lands on its page, and typing the same letters into a field does nothing.
+- [ ] Build the help dialog as a native `<dialog>` opened by `?` and by a "Keyboard shortcuts" link in the sidebar, closing on Esc and returning focus. Done when: the test opens it both ways, finds every shortcut listed, and Esc returns focus to where it was.
+- [ ] Commit: `web: keyboard shortcuts and their help`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/shortcuts.test.tsx` passes and fails if a shortcut fires inside a text field.
+
+## 12. Searchable organisation switcher
+
+A member of many organisations (a managed-service provider looking after 50 businesses) reaches the one they want by typing its name, as Xero's switcher allows, instead of scrolling a list (completion review of D07 T01 §3, excellence item 9); the two-step path for a short list stays.
+
+**Phase:** 7
+**Needs:** attended
+**Surface:** yes
+**Fidelity:** a change to board `AppNav` (the open switcher with a filter field and recent organisations), drawn and approved in step 1 before any build
+**Job:** switch to a named organisation among many in three actions: open, type, choose
+**Treatment:** the approved board, tokens only; without JavaScript the full list still works
+**Chrome:** the switcher in `AppShell` (D07 T01 §3)
+
+**Build order:**
+
+1. Draw and approve the change. Done when: the operator approves the open switcher on `AppNav`.
+2. Build the filter. Done when: typing narrows the list in Chromium, and the list without a script is unchanged.
+
+- [ ] Draw the open switcher on `AppNav` (a filter field when the member has more than 8 organisations, up to 3 recent ones first) and record the approval in `design/SPEC.md` 1 P1. Done when: the board and the SPEC show it.
+- [ ] Add the filter field and recent organisations to `OrgSwitcher` in `src/web/components/AppShell.tsx`, filtering in `src/web/client/app.ts` by name as the member types, with the result count announced. Done when: `test/node/shell-switcher.test.tsx` renders 50 organisations, types part of one name, finds only the matches with the count announced, reaches the match with one Down and Enter, and, with JavaScript off, finds all 50 forms working.
+- [ ] Commit: `web: searchable organisation switcher`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/shell-switcher.test.tsx` passes and fails if the filtered list hides the match or the script-free list loses a form.
 
 ## Verification
 

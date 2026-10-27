@@ -61,7 +61,7 @@ Sections: 32 | Checklist items: 207
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 33 | Checklist items: 166
+Sections: 33 | Checklist items: 169
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -82,7 +82,7 @@ Sections: 33 | Checklist items: 166
 | [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 5     |
 | [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
-| [ ]    | D07 T01 §3  | App shell and its three frames                        | none     | 15    |
+| [ ]    | D07 T01 §3  | App shell and its three frames                        | none     | 18    |
 | [ ]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 4     |
 | [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
 | [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
@@ -236,14 +236,16 @@ Sections: 56 | Checklist items: 207
 
 ### Phase 7: After the event
 
-Sections: 4 | Checklist items: 16
+Sections: 6 | Checklist items: 23
 
-| Status | Reference  | Deliverable                                      | Needs    | Items |
-| ------ | ---------- | ------------------------------------------------ | -------- | ----- |
-| [ ]    | D00 T01 §9 | Red CI refused when a section starts             | none     | 6     |
-| [ ]    | D05 T04 §7 | Certificate-transparency search for brand tokens | none     | 2     |
-| [ ]    | D07 T01 §4 | Design change comparison                         | none     | 3     |
-| [ ]    | D99 T01 §5 | WhatsApp test number                             | operator | 5     |
+| Status | Reference   | Deliverable                                      | Needs    | Items |
+| ------ | ----------- | ------------------------------------------------ | -------- | ----- |
+| [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none     | 6     |
+| [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
+| [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
+| [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
+| [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
+| [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
 
 ### Phase 99: Manual, operator only
 
@@ -264,6 +266,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 9/195 verified sections, 9 ready to run now.
+Progress: 9/197 verified sections, 9 ready to run now.
 
-Checklist: 172/963 items completed (includes Commit items).
+Checklist: 175/973 items completed (includes Commit items).

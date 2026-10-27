@@ -1,5 +1,5 @@
 import type { Child } from "hono/jsx";
-import { LOGO, LOGO_MARK, LOGO_ON_DARK } from "../assets";
+import { LOGO, LOGO_MARK, LOGO_MARK_ON_DARK, LOGO_ON_DARK } from "../assets";
 import { cx, FOCUS, FOCUS_ON_DARK } from "./attrs";
 import { Button } from "./Button";
 import {
@@ -79,6 +79,17 @@ const MEMBER_LINK =
 const ADMIN_LINK =
   "flex items-center gap-12 h-40 px-12 rounded-control-small text-15 weight-text-strong no-underline text-on-dark-muted hover:bg-dark-raised hover:text-on-dark aria-[current=page]:bg-dark-active aria-[current=page]:text-on-dark";
 
+// The brand artwork for the theme: the dark logo or mark on a light surface, its on-dark version on a dark one (the
+// theme follows the system or `data-theme`, so both are in the page and the `dark:` variant shows one).
+function Brand(props: { light: string; dark: string; alt: string; class: string }) {
+  return (
+    <>
+      <img src={props.light} alt={props.alt} class={cx("block dark:hidden", props.class)} />
+      <img src={props.dark} alt={props.alt} class={cx("hidden dark:block", props.class)} />
+    </>
+  );
+}
+
 function NavLink(props: { href: string; current: boolean; dark?: boolean; children: Child }) {
   return (
     <a
@@ -97,16 +108,22 @@ function PhoneHeader(props: { home: string; homeLabel: string }) {
   return (
     <header class="md:hidden grid grid-cols-3 items-center h-56 px-16 border-b border-line bg-surface">
       <a href={props.home} class={cx("col-start-2 justify-self-center rounded-small", FOCUS)}>
-        <img src={LOGO_MARK} alt={props.homeLabel} class="block w-32 h-32" />
+        <Brand light={LOGO_MARK} dark={LOGO_MARK_ON_DARK} alt={props.homeLabel} class="w-32 h-32" />
       </a>
       <Button size="small-icon" popovertarget="nav" label="Menu" icon={<MenuIcon />} class="justify-self-end" />
     </header>
   );
 }
 
+// A name from the data (an organisation, a person) wraps inside the 256 px sidebar, breaking a long word if it must.
+const NAME = "min-w-0 wrap-break-word";
+// An organisation to switch to: a row like the navigation links that grows with its name.
+const OPTION =
+  "flex items-center gap-12 w-full min-h-40 px-12 py-8 rounded-control-small border-0 bg-transparent text-left text-15 weight-text-strong text-ink-2 cursor-pointer hover:bg-light hover:text-ink";
+
 function OrgBadge(props: { name: string }) {
   return (
-    <span class="inline-flex items-center justify-center w-24 h-24 rounded-small bg-dark text-on-dark text-12 weight-heading">
+    <span class="inline-flex shrink-0 items-center justify-center w-24 h-24 rounded-small bg-dark text-on-dark text-12 weight-heading">
       {initials(props.name)}
     </span>
   );
@@ -116,9 +133,9 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
   const { organization, others } = props;
   if (!others.length)
     return (
-      <p class="flex items-center gap-12 h-48 px-12 text-15 weight-text-strong text-ink">
+      <p class="flex items-center gap-12 min-h-48 px-12 py-8 text-15 weight-text-strong text-ink">
         <OrgBadge name={organization.name} />
-        {organization.name}
+        <span class={NAME}>{organization.name}</span>
       </p>
     );
   return (
@@ -126,13 +143,13 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
       <summary
         aria-label={`Switch organisation, current ${organization.name}`}
         class={cx(
-          "flex items-center justify-between h-48 px-12 list-none rounded-control border border-line-strong bg-surface text-15 weight-text-strong text-ink cursor-pointer hover:border-ink [&::-webkit-details-marker]:hidden",
+          "flex items-center justify-between gap-8 min-h-48 px-12 py-8 list-none rounded-control border border-line-strong bg-surface text-15 weight-text-strong text-ink cursor-pointer hover:border-ink [&::-webkit-details-marker]:hidden",
           FOCUS,
         )}
       >
-        <span class="flex items-center gap-12">
+        <span class="flex items-center gap-12 min-w-0">
           <OrgBadge name={organization.name} />
-          {organization.name}
+          <span class={NAME}>{organization.name}</span>
         </span>
         <ChevronIcon class="text-muted" />
       </summary>
@@ -141,10 +158,10 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
           <li>
             <form method="post" action="/orgs/switch">
               <input type="hidden" name="organizationId" value={org.id} />
-              <Button type="submit" class="w-full justify-start border-0">
+              <button type="submit" class={cx(OPTION, FOCUS)}>
                 <OrgBadge name={org.name} />
-                {org.name}
-              </Button>
+                <span class={NAME}>{org.name}</span>
+              </button>
             </form>
           </li>
         ))}
@@ -160,7 +177,7 @@ function MemberNav(props: MemberShellProps) {
   return (
     <nav id="nav" popover="auto" aria-label="Main" class={cx(SIDEBAR, "gap-20 bg-subtle md:border-r md:border-line")}>
       <a href="/cases" class={cx("block self-start px-8 rounded-small", FOCUS)}>
-        <img src={LOGO} alt="IsItLegit, cases" class="block h-32" />
+        <Brand light={LOGO} dark={LOGO_ON_DARK} alt="IsItLegit, cases" class="h-32" />
       </a>
       <OrgSwitcher organization={props.organization} others={props.otherOrganizations} />
       <Button href="/upload" variant="primary" icon={<PlusIcon />} class="w-full">
@@ -225,8 +242,8 @@ function MemberNav(props: MemberShellProps) {
         <span class="inline-flex items-center justify-center w-32 h-32 rounded-pill bg-orange-wash text-orange-text text-13 weight-heading">
           {initials(user.name)}
         </span>
-        <span class="flex flex-col">
-          <span class="text-14 weight-text-strong">{user.name}</span>
+        <span class="flex flex-col min-w-0">
+          <span class={cx("text-14 weight-text-strong", NAME)}>{user.name}</span>
           <span class="text-13 text-muted">{user.role}</span>
         </span>
         <form method="post" action="/auth/sign-out" class="ml-auto">
@@ -278,7 +295,7 @@ function AdminNav(props: AdminShellProps) {
       </div>
       <div class="mt-auto flex flex-col gap-8 px-12 text-13 text-on-dark-muted">
         <span>Signed in through Cloudflare Access</span>
-        <span class="weight-text-strong text-on-dark">{operator}</span>
+        <span class={cx("weight-text-strong text-on-dark", NAME)}>{operator}</span>
       </div>
     </nav>
   );
@@ -302,7 +319,7 @@ export function AppShell(props: AppShellProps) {
         </a>
         <header class="flex flex-wrap items-center justify-between gap-x-24 gap-y-4 min-h-72 px-16 py-12 md:px-120 box-border border-b border-line bg-surface">
           <a href="https://isitlegit.co.za" class={cx("rounded-small", FOCUS)}>
-            <img src={LOGO} alt="IsItLegit home" class="block h-28" />
+            <Brand light={LOGO} dark={LOGO_ON_DARK} alt="IsItLegit home" class="h-28" />
           </a>
           <p class="text-14 text-muted">Report for a check sent to {CHECK_ADDRESS} · link valid for 7 days</p>
         </header>
