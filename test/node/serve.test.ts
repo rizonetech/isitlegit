@@ -18,9 +18,11 @@ beforeAll(async () => {
   });
   await worker.ready;
 }, 120_000);
+// Stopping workerd can outlast the default 10 s hook budget on the CI runner while another Worker test shuts down beside
+// it (run 40457777968), so teardown gets the same explicit budget as startup.
 afterAll(async () => {
   await worker?.dispose();
-});
+}, 120_000);
 
 const get = (path: string) => worker.fetch(`http://localhost${path}`);
 
