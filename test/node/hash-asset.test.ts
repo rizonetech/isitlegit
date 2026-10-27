@@ -62,12 +62,14 @@ describe("hash-asset", () => {
     writeFileSync(join(DIR, "public/static/app.123456789abc.css.4242.tmp"), "half a stylesheet");
     hashAssets(args());
     expect(readdirSync(join(DIR, "public/static")).filter((name) => name.endsWith(".tmp"))).toEqual([]);
-    // A module path whose folder is a file: the write fails, and its temporary file must not survive.
-    writeFileSync(join(DIR, "not-a-folder"), "");
-    const failing = [...args().slice(0, -2), "--module", join(DIR, "not-a-folder/assets.ts")];
+    // A module path that is a non-empty folder: the temporary file is written, the rename over the folder fails, and
+    // the temporary file must not survive.
+    mkdirSync(join(DIR, "assets-folder"), { recursive: true });
+    writeFileSync(join(DIR, "assets-folder/keep"), "");
+    const failing = [...args().slice(0, -2), "--module", join(DIR, "assets-folder")];
     expect(() => hashAssets(failing)).toThrow();
     expect(readdirSync(DIR).filter((name) => name.endsWith(".tmp"))).toEqual([]);
-    rmSync(join(DIR, "not-a-folder"));
+    rmSync(join(DIR, "assets-folder"), { recursive: true });
   });
 
   it("gives changed content a new name and removes the old file", () => {

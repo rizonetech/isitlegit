@@ -6,12 +6,12 @@
 //
 // Every write goes to a temporary file and is renamed into place; unchanged output is left byte-identical.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { option } from "./build-tokens.ts";
 
 function writeIfChanged(path: string, data: string | Buffer): void {
-  if (existsSync(path) && readFileSync(path).equals(Buffer.from(data))) return;
+  if (existsSync(path) && statSync(path).isFile() && readFileSync(path).equals(Buffer.from(data))) return;
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.${process.pid}.tmp`;
   try {
