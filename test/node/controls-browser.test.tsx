@@ -82,7 +82,8 @@ afterAll(async () => {
 async function open(theme: "light" | "dark" = "light"): Promise<Page> {
   const page = await browser.newPage();
   await page.setContent(
-    `<!doctype html><html data-theme="${theme}"><head><style>${css}</style></head><body>${BODY}<script>${SCRIPT}</script></body></html>`,
+    // The body carries the theme surface, as every page's document does, so contrast is measured against it.
+    `<!doctype html><html data-theme="${theme}"><head><style>${css}</style></head><body class="bg-surface text-ink">${BODY}<script>${SCRIPT}</script></body></html>`,
   );
   return page;
 }
@@ -96,24 +97,38 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", () =
       for (let i = 0; i < 12; i++) {
         await page.keyboard.press("Tab");
         const focus = await page.evaluate(() => {
-          const luminance = (rgb: string) => {
-            const [r, g, b] = (rgb.match(/[\d.]+/g) ?? []).slice(0, 3).map((v) => {
-              const c = Number(v) / 255;
+          // The ring composited over the page's real background on a 1x1 canvas, so any colour syntax and any alpha
+          // count as a viewer sees them; then the WCAG contrast ratio of the two.
+          const pixel = (fill: string[]) => {
+            const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d");
+            if (!ctx) throw new Error("no canvas");
+            for (const colour of fill) {
+              ctx.fillStyle = colour;
+              ctx.fillRect(0, 0, 1, 1);
+            }
+            return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+          };
+          const luminance = (rgb: number[]) => {
+            const [r, g, b] = rgb.map((v) => {
+              const c = v / 255;
               return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
             });
             return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
           };
           const el = document.activeElement as HTMLElement;
           const s = getComputedStyle(el);
-          const ring = luminance(s.outlineColor);
-          const page = luminance(
-            getComputedStyle(document.body).backgroundColor === "rgba(0, 0, 0, 0)"
-              ? getComputedStyle(document.documentElement).backgroundColor
-              : getComputedStyle(document.body).backgroundColor,
-          );
+          const background = getComputedStyle(document.body).backgroundColor;
+          const ring = luminance(pixel([background, s.outlineColor]));
+          const page = luminance(pixel([background]));
           const [hi, lo] = ring > page ? [ring, page] : [page, ring];
-          return { id: el.id, outline: `${s.outlineStyle} ${s.outlineWidth}`, contrast: (hi + 0.05) / (lo + 0.05) };
+          return {
+            id: el.id,
+            outline: `${s.outlineStyle} ${s.outlineWidth}`,
+            contrast: (hi + 0.05) / (lo + 0.05),
+            background,
+          };
         });
+        expect(focus.background, "the fixture paints the theme surface").not.toBe("rgba(0, 0, 0, 0)");
         if (focus.id) reached[focus.id] = { outline: focus.outline, contrast: focus.contrast };
       }
       for (const id of ["primary", "ghost", "dark", "go", "email", "bad", "consent", "plain", "submit"]) {

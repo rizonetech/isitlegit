@@ -124,6 +124,25 @@ describe("Button", () => {
         </Button>,
       ),
     ).toThrow("needs an id");
+    const htmx = tag(
+      html(
+        <Button href="/cases?page=0" hx-get="/cases?page=0" hx-target="#list" disabled>
+          Previous
+        </Button>,
+      ),
+      "a",
+    );
+    expect(htmx).not.toMatch(/\shx-/);
+    expect(
+      tag(
+        html(
+          <Button hx-post="/x" disabled>
+            Go
+          </Button>,
+        ),
+        "button",
+      ),
+    ).not.toMatch(/\shx-/);
   });
 });
 

@@ -55,7 +55,12 @@ export function Button(props: ButtonProps) {
   if (!children && !label) throw new Error("Button: an icon-only button needs a label");
   if (disabledReason && !id) throw new Error("Button: a disabled reason needs an id to describe the control");
   const reasonId = disabledReason && id ? `${id}-reason` : undefined;
-  const given = passThrough(props as Record<string, unknown>);
+  // A disabled control keeps no htmx action: htmx ignores aria-disabled, so an hx-get on a disabled link would still run.
+  const given = Object.fromEntries(
+    Object.entries(passThrough(props as Record<string, unknown>)).filter(
+      ([key]) => !(disabled && key.startsWith("hx-")),
+    ),
+  ) as PassThrough;
   const common = {
     ...given,
     id,
