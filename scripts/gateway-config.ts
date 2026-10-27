@@ -19,7 +19,7 @@
 // time and read at most 1 MiB of any answer.
 //
 //   node scripts/gateway-config.ts --help
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { isDeepStrictEqual, parseArgs } from "node:util";
 import { z } from "zod";
@@ -185,15 +185,22 @@ const GatewaySettings = z
   })
   .strict();
 const text = z.string().nullable();
+// A URL can carry a user name and password; such a URL is a credential, refused like the others.
+const withoutUserInfo = (value: string | null) => {
+  if (value === null || !URL.canParse(value)) return true;
+  const url = new URL(value);
+  return url.username === "" && url.password === "";
+};
+const noUserInfo = { error: "carries a user name or password, which can be a credential" };
 const ProviderSettings = z
   .object({
     name: z.string().min(1),
     slug: z.literal(PROVIDER),
-    base_url: z.url({ protocol: /^https$/, error: "must be an https URL" }),
+    base_url: z.url({ protocol: /^https$/, error: "must be an https URL" }).refine(withoutUserInfo, noUserInfo),
     enable: z.boolean(),
     beta: z.boolean(),
     description: text,
-    link: text,
+    link: text.refine(withoutUserInfo, noUserInfo),
     position: z.number().int(),
     logo: text,
     curl_example: text,
@@ -518,6 +525,10 @@ export async function restore(options: Options & { dry?: boolean }): Promise<Out
   let want: SnapshotData;
   let raw: unknown;
   try {
+    // Bounded before it is read: the committed snapshot is about 10 KB.
+    const size = statSync(options.file).size;
+    if (size > BODY_LIMIT)
+      return refuse(`${shown(options.file)} is ${size} bytes, over the 1 MiB a snapshot can be; take a fresh one`);
     raw = JSON.parse(readFileSync(options.file, "utf-8"));
   } catch (error) {
     // The parser's message quotes the file, which may hold a credential, so only the position is given.

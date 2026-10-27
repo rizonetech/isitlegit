@@ -399,6 +399,45 @@ describe("scripts/gateway-config.ts restore", () => {
     expect(world.requests).toEqual([]);
   });
 
+  it("refuses a URL that carries a user name or password, in the file and in the account, without printing it (round 2)", async () => {
+    const want = await take();
+    const world = cloudflare(live());
+    for (const [field, url] of [
+      ["base_url", "https://user:SYNTHETIC_PASSWORD@api.meta.ai"],
+      ["link", "https://SYNTHETIC_PASSWORD@dev.meta.ai/docs"],
+    ] as const) {
+      writeFileSync(FILE, JSON.stringify({ ...want, provider: { ...want.provider, [field]: url } }));
+      const outcome = await restore({ ...options(world.fetchStub), dry: true });
+      expect(outcome.code, field).toBe(2);
+      expect(failed(outcome.lines), field).toMatch(new RegExp(`provider\\.${field}: carries a user name or password`));
+      expect(failed(outcome.lines), field).not.toContain("SYNTHETIC_PASSWORD");
+    }
+    expect(world.requests).toEqual([]);
+    writeFileSync(FILE, "the previous snapshot\n");
+    const keyed = cloudflare({
+      ...live(),
+      providers: [{ ...provider(), base_url: "https://u:SYNTHETIC_PASSWORD@api.meta.ai" }],
+    });
+    const refused = await snapshot(options(keyed.fetchStub));
+    expect(refused.code).toBe(2);
+    expect(failed(refused.lines)).toMatch(/provider\.base_url: carries a user name or password/);
+    expect(failed(refused.lines)).not.toContain("SYNTHETIC_PASSWORD");
+    expect(readFileSync(FILE, "utf-8")).toBe("the previous snapshot\n");
+  });
+
+  it("refuses a file over 1 MiB before reading it (round 2)", async () => {
+    const want = await take();
+    writeFileSync(
+      FILE,
+      JSON.stringify({ ...want, provider: { ...want.provider, description: "x".repeat(1024 * 1024) } }),
+    );
+    const world = cloudflare(live());
+    const outcome = await restore({ ...options(world.fetchStub), dry: true });
+    expect(outcome.code).toBe(2);
+    expect(failed(outcome.lines)).toMatch(/is \d+ bytes, over the 1 MiB a snapshot can be/);
+    expect(world.requests).toEqual([]);
+  });
+
   it("never quotes a malformed file, which may hold a credential (round 1)", async () => {
     writeFileSync(FILE, '{"provider": {"headers": FAKE_SECRET_VALUE}}');
     const world = cloudflare(live());
