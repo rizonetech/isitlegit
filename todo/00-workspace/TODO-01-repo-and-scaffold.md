@@ -449,18 +449,22 @@ The gateway's settings, the `meta` custom provider and its pricing rules live in
 
 ## 12. Rollback from a split deployment
 
+> **Started:** 2026-10-27T11:15Z
+
 `scripts/rollback.ts` (§10) needs one version serving 100% of traffic and refuses otherwise; Cloudflare's own rollback can also replace a gradual deployment (say 90/10) with one stable version (completion review of D00 T01 §10, item E3). Once gradual deployments are used, an incident in the middle of one needs the same one-command, verified recovery.
 
 **Phase:** 0
 **Needs:** cloudflare
 **Surface:** no
 
+**Corrected 2026-10-27** (validation before build): today a split is refused before any change, because `activeVersionFromWrangler` (shared with `scripts/smoke.ts`) throws "no version serves all traffic"; the section keeps that refusal for the default path and adds the `--to` path. The record rules of §10 (a rollback records what it leaves; a roll-forward records nothing and clears its target) need a meaning for a split: the target is a roll-forward only when it is newer than every serving version, and otherwise every serving version other than the target, with its commit, is recorded. And the live proof needs a second version carrying today's secrets, or Cloudflare refuses the split (error 10220) for the same reason it refuses a rollback across changed secrets: `wrangler versions upload` makes one without deploying it.
+
 **Build order:**
 
 1. Recover from a split deployment. Done when: a 90/10 deployment is replaced by a named stable version, verified.
 
-- [ ] Teach `scripts/rollback.ts` to read a split deployment from `wrangler deployments status` (every version and its percentage), require `--to` when no single version serves all traffic, reject both split versions' commits for retries, and verify the named version at 100% afterwards with the unchanged smoke check. Done when: `test/node/rollback.test.ts` passes a 90/10 history to the named version, refuses a split without `--to` before changing anything, and fails when the read-back still shows a split.
-- [ ] Prove it live: deploy a 90/10 split with `wrangler versions deploy`, recover with `node scripts/rollback.ts --to <stable>`, and record the read-back. Done when: the section's evidence quotes the split before and the single version after.
+- [ ] Teach `scripts/rollback.ts` to read the whole deployment from `wrangler deployments status` (every version and its percentage, through a new `Wrangler.deployment` read beside `activeVersion`), refuse a split without `--to` before changing anything (naming the split), and with `--to` move the named version to 100%: one of the serving versions or any other the history still holds. The record follows §10's rules extended to a split (a roll-forward only when the target is newer than every serving version; otherwise every serving version other than the target is recorded with its commit), the output names the split it replaced, and the read-back after the change and after the checks requires the named version at 100%. Done when: `test/node/rollback.test.ts` passes a 90/10 deployment to the named version (either side of the split, and an older version), refuses a split without `--to` before any deployment call, records both serving versions when rolling back and nothing on a roll-forward, and fails when the read-back still shows a split.
+- [ ] Prove it live: upload a second version of the deployed commit with `wrangler versions upload` (today's secrets, nothing deployed), deploy a 90/10 split with `wrangler versions deploy <stable>@90% <second>@10% --yes`, confirm a plain `node scripts/rollback.ts --reason ...` refuses it with `deployment changed: no`, recover with `--to <stable>`, and record the read-backs. Done when: the section's evidence quotes the split before, the refusal, and the single version after, with `/health` and the smoke check passing.
 - [ ] Commit: `infra: rollback from a split deployment`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/rollback.test.ts` passes, and fails if a split deployment without `--to` reaches the deployment call.
