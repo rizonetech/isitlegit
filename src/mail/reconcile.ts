@@ -143,6 +143,12 @@ export async function reconcileUncertain(
       else await handOver(deps, row, report);
       continue;
     }
+    // The run's requests are spent: the rest wait for the next run, with no search and no pause, so a large backlog
+    // never keeps the run past the scheduled handler's time limit.
+    if (spent >= (deps.runBudget ?? RUN_BUDGET)) {
+      report.unresolved.push(row.send_key);
+      continue;
+    }
     if (spent > 0) await pause(deps.paceMs ?? PACE_MS);
     const before = spent;
     const result = await search(deps, deps.apiKey, row, spend);

@@ -272,10 +272,10 @@ describe("reconcileUncertain", () => {
     );
     expect(capped.requests).toBe(4);
     expect(busy.searches).toHaveLength(4);
-    // A pause before each row's search after the first: under 60 requests a minute.
-    expect(pauses.length).toBeGreaterThanOrEqual(3);
-    expect(pauses.every((ms) => ms === 1_100)).toBe(true);
-    expect(capped.state).toBe("degraded");
+    // A pause between searches, and none once the budget is spent: the rest wait for the next run (round 2).
+    expect(pauses).toEqual([1_100, 1_100, 1_100]);
+    expect(capped.unresolved).toHaveLength(6);
+    expect(capped.state).toBe("ok");
   });
 
   it("reports a refused activity search as degraded (completion review)", async () => {
@@ -379,5 +379,17 @@ describe("reconcileUncertain", () => {
       settled.push(...report.settled);
     }
     expect(settled.sort()).toEqual(keys.slice(3).sort());
+  });
+
+  it("lets the operator settle an alert by the key the reconciler gave it (round 2)", async () => {
+    const original = await row("uncertain", 3 * 24 * 60 + 10);
+    const claimed = (await read(original))?.claimed_at as string;
+    const alertKey = `unresolved:${original}@${claimed}`;
+    await row("uncertain", 3 * 24 * 60 + 5, alertKey);
+    const alertClaim = (await read(alertKey))?.claimed_at as string;
+    expect(
+      (await db.prepare(settleStatement(alertKey, "failed", alertClaim, NOW.toISOString())).run()).meta.changes,
+    ).toBe(1);
+    expect((await read(alertKey))?.status).toBe("failed");
   });
 });
