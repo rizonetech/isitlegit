@@ -41,24 +41,28 @@ track: day-1
 
 ## 1. SMTP2GO client with retries and send log
 
+> **Started:** 2026-10-27T18:30Z
+
 One module owns delivery (stack doc). It calls the SMTP2GO HTTP API with `fetch`, retries transient failures, and records every attempt without message bodies, so a failed reply is visible on the case instead of vanishing.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-27** (validation against the repository and SMTP2GO's API reference, `https://developers.smtp2go.com/reference/send-standard-email`, read 2026-10-27): migration 0002 is taken (`0002_evidence_order.sql`), so this is 0003; the API key goes in the `X-Smtp2go-Api-Key` header, not the body; SMTP2GO answers 200 even when sending failed, so `data.failed` and `data.failures` decide the outcome; it documents no retry guidance, so a request that got no answer may have been delivered and is recorded as uncertain, never retried (a retry could mail someone twice); and D07 T08 §7 adds a `renewal` kind. `ConfigError` (D01 T01 §8) moves to a shared `src/config.ts` so the mail client refuses a missing key the same way.
+
 **Build order:**
 
 1. Write `src/mail/smtp2go.ts` with `sendMail`. Done when: a stubbed `fetch` test sends one message with the exact JSON body SMTP2GO expects.
 2. Log each attempt to `mail_sends`. Done when: success and failure both leave a row.
 
-- [ ] Add migration `src/db/migrations/0002_mail.sql` with `mail_sends` (`id`, `case_id` nullable, `kind` reply, signin, verify, alert, notice, `to_hash`, `status`, `provider_id`, `attempts`, `created_at`); store a SHA-256 of the recipient, not the address. Done when: `pnpm db:migrate:local` applies it.
-- [ ] Write `sendMail({ kind, to, from, subject, text, html, headers, caseId })` posting to `https://api.smtp2go.com/v3/email/send` with `SMTP2GO_API_KEY` and `custom_headers` for threading. Done when: `test/mail/smtp2go.test.ts` asserts the request body against a recorded example from the SMTP2GO API docs.
-- [ ] Retry 429 and 5xx up to 3 times with backoff; never retry 4xx validation errors. Done when: tests cover a 503 then 200, and a 400 that fails at once.
-- [ ] Write the `mail_sends` row on every outcome with the provider's `email_id`. Done when: tests find `sent` and `failed` rows. Cheaper substitute: console logging only.
+- [ ] Add migration `src/db/migrations/0003_mail.sql` with `mail_sends` (`id`, `case_id` nullable referencing `cases`, `kind` one of reply, signin, verify, alert, notice, renewal, `to_hash`, `status` one of sent, failed, uncertain, `provider_id`, `attempts`, `error`, `created_at`); store a SHA-256 of the trimmed, lower-cased recipient, never the address or any body. Done when: `pnpm db:migrate:local` applies it and `test/db/schema.test.ts` refuses an unknown kind or status.
+- [ ] Write `sendMail({ kind, to, from, subject, text, html, headers, caseId })` in `src/mail/smtp2go.ts` posting to `https://api.smtp2go.com/v3/email/send` with the key in `X-Smtp2go-Api-Key`, a body of `sender`, `to` (an array), `subject`, `text_body`, `html_body` and `custom_headers` (`[{ header, value }]`, refusing `Content-Type`, `Content-Transfer-Encoding` and `MIME-Version`, which SMTP2GO forbids), and a bounded timeout; a missing `SMTP2GO_API_KEY` (typed in `src/types/secrets.d.ts`) is a `ConfigError`. Done when: `test/mail/smtp2go.test.ts` asserts the request URL, header and body against the field names of SMTP2GO's documented example.
+- [ ] Retry 429 and 5xx up to 3 times with backoff (an injectable pause); never retry a 4xx, a 200 whose `data.failed` is above 0, or a request that got no answer (recorded `uncertain`, since it may have been delivered). Done when: tests cover a 503 then 200, a 429 three times then failed, a 400 that fails at once, a 200 with a failure reported, and a timeout recorded uncertain with one attempt.
+- [ ] Write the `mail_sends` row on every outcome with the provider's `email_id`, the attempts and a short error (never the address, the body or the key). Done when: tests find `sent`, `failed` and `uncertain` rows and no address, body or key in any of them. Cheaper substitute: console logging only.
 - [ ] Commit: `mail: SMTP2GO client with retries and a send log`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/smtp2go.test.ts` passes and fails if a 400 is retried.
+**Test checkpoint:** `pnpm exec vitest run test/mail/smtp2go.test.ts` passes, and fails if a 400 or an unanswered request is retried.
 
 ## 2. Recipient allowlist enforced in code
 
