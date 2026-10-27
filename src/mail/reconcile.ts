@@ -13,8 +13,9 @@
 // retryable here; an error, a malformed answer or a run budget spent leaves it too. A row is settled only while it is
 // the attempt and state the reconciler read, so a retry or another reconciler in between is never overwritten.
 //
-// A row still unresolved when it leaves the age band goes to the operator by an `alert` mail, under its own send key.
-// It counts as handed over only once that alert is known sent; an alert that is itself uncertain is reconciled like
+// A row still unresolved when it leaves the age band goes to the operator by an `alert` mail, keyed by that attempt (a
+// later attempt that ages out gets its own). It counts as handed over only once that alert is known sent, and a failed
+// alert makes the run degraded; an alert that is itself uncertain is reconciled like
 // any send and reported unresolved until it is settled, and an alert is never raised about an alert. The run's outcome
 // (settled, unresolved, handed over, errors, and whether it was disabled or degraded) is returned for the scheduled
 // entrypoint to log. `scripts/mail-settle.ts` resolves a handed-over row. The reconciler never sends the message it
@@ -125,7 +126,7 @@ export async function reconcileUncertain(
   const cutoff = new Date(now.getTime() - bounds.youngerThanDays * 86_400_000).toISOString();
   const rows = await deps.db
     .prepare(
-      "SELECT send_key, kind, case_id, claimed_at, status, search_cursor FROM mail_sends WHERE status IN ('uncertain', 'pending') AND claimed_at <= ? ORDER BY claimed_at",
+      "SELECT send_key, kind, case_id, claimed_at, status, search_cursor FROM mail_sends WHERE status IN ('uncertain', 'pending') AND claimed_at <= ? ORDER BY searched_at IS NOT NULL, searched_at, claimed_at",
     )
     .bind(settledBefore)
     .all<Row>();
@@ -143,7 +144,15 @@ export async function reconcileUncertain(
       continue;
     }
     if (spent > 0) await pause(deps.paceMs ?? PACE_MS);
+    const before = spent;
     const result = await search(deps, deps.apiKey, row, spend);
+    // Searched this run (a request was made): it goes behind the rows not yet searched, so a run budget smaller than
+    // the backlog reaches every row across runs.
+    if (spent > before)
+      await deps.db
+        .prepare("UPDATE mail_sends SET searched_at = ? WHERE send_key = ? AND claimed_at = ?")
+        .bind(now.toISOString(), row.send_key, row.claimed_at)
+        .run();
     if ("error" in result) {
       report.errors.push(`${row.send_key}: ${result.error}`);
       continue;
@@ -183,7 +192,8 @@ async function handOver(deps: ReconcileDeps, row: Row, report: ReconcileReport):
     return;
   }
   const message: MailMessage = {
-    sendKey: `${ALERT_PREFIX}${row.send_key}`,
+    // One alert per attempt: a later attempt that ages out too is a new handover, with its own claim time.
+    sendKey: `${ALERT_PREFIX}${row.send_key}@${row.claimed_at}`,
     kind: "alert",
     to: deps.operator,
     from: "IsItLegit <alerts@isitlegit.co.za>",
@@ -200,5 +210,7 @@ async function handOver(deps: ReconcileDeps, row: Row, report: ReconcileReport):
   // Handed over only when the alert is known to have gone; an uncertain alert is reconciled as a send of its own.
   if (outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent"))
     report.handedOver.push(row.send_key);
+  else if (outcome.status === "failed")
+    report.errors.push(`${row.send_key}: the operator alert failed (${outcome.reason})`);
   else report.unresolved.push(row.send_key);
 }

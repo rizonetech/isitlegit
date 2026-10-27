@@ -199,7 +199,8 @@ describe("reconcileUncertain", () => {
     const first = await reconcileUncertain(deps(timeout), band);
     expect(first.handedOver).toEqual([]);
     expect(first.unresolved).toContain(stuck);
-    expect((await read(`unresolved:${stuck}`))?.status).toBe("uncertain");
+    const alertKey = `unresolved:${stuck}@${(await read(stuck))?.claimed_at}`;
+    expect((await read(alertKey))?.status).toBe("uncertain");
     const world = smtp2go({ events: [] });
     const second = await reconcileUncertain(
       deps(world.stub, { now: () => new Date(NOW.getTime() + 60 * 60_000) }),
@@ -209,9 +210,9 @@ describe("reconcileUncertain", () => {
     expect(world.sends).toEqual([]);
     // SMTP2GO's record of the alert settles it, and only then is the send handed over.
     const later = new Date(NOW.getTime() + 2 * 60 * 60_000);
-    const found = smtp2go({ events: [event(`unresolved:${stuck}`)] });
+    const found = smtp2go({ events: [event(alertKey)] });
     await reconcileUncertain(deps(found.stub, { now: () => later }), band);
-    expect((await read(`unresolved:${stuck}`))?.status).toBe("sent");
+    expect((await read(alertKey))?.status).toBe("sent");
     const third = await reconcileUncertain(deps(smtp2go({ events: [] }).stub, { now: () => later }), band);
     expect(third.handedOver).toContain(stuck);
     expect(found.sends).toEqual([]);
@@ -315,5 +316,68 @@ describe("reconcileUncertain", () => {
     // The operator repeats the command for the old attempt: refused, the new attempt untouched.
     expect((await settle("failed")).meta.changes).toBe(0);
     expect((await read(key))?.status).not.toBe("failed");
+  });
+
+  it("alerts again for a later attempt that ages out too, naming its own claim (round 1)", async () => {
+    const key = await row("uncertain", 3 * 24 * 60 + 10);
+    const world = smtp2go({ events: [] });
+    const first = await reconcileUncertain(deps(world.stub), band);
+    expect(first.handedOver).toEqual([key]);
+    const firstClaim = (await read(key))?.claimed_at as string;
+    // The operator fails that attempt; a caller's retry claims it again, gets no answer and ages out in turn.
+    await db.prepare(settleStatement(key, "failed", firstClaim, NOW.toISOString())).run();
+    const retryAt = new Date(NOW.getTime() + 60_000);
+    await sendMail(
+      {
+        db,
+        apiKey: KEY,
+        now: () => retryAt,
+        fetch: ((_input: RequestInfo | URL, init?: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+          )) as typeof fetch,
+        timeoutMs: 10,
+      },
+      {
+        sendKey: key,
+        kind: "reply",
+        to: "member@example.com",
+        from: "IsItLegit <check@isitlegit.co.za>",
+        subject: "Re: x",
+        text: "x",
+      },
+    );
+    const later = new Date(retryAt.getTime() + 3 * 86_400_000 + 60_000);
+    const second = await reconcileUncertain(deps(world.stub, { now: () => later }), band);
+    expect(second.handedOver).toEqual([key]);
+    expect(world.sends).toHaveLength(2);
+    expect(String((world.sends[1] as Record<string, unknown>).text_body)).toContain(retryAt.toISOString());
+  });
+
+  it("makes the run degraded when the operator alert fails (round 1)", async () => {
+    const key = await row("uncertain", 3 * 24 * 60 + 10);
+    const refused = (async (input: RequestInfo | URL) =>
+      String(input) === SMTP2GO_URL
+        ? Response.json({ data: { error_code: "E_ApiResponseCodes.ENDPOINT_PERMISSION_DENIED" } }, { status: 403 })
+        : Response.json({ data: { events: [], continue_token: null } })) as typeof fetch;
+    const report = await reconcileUncertain(deps(refused), band);
+    expect(report.state).toBe("degraded");
+    expect(report.errors).toEqual([
+      `${key}: the operator alert failed (SMTP2GO refused the message (HTTP 403: E_ApiResponseCodes.ENDPOINT_PERMISSION_DENIED))`,
+    ]);
+    expect(report.handedOver).toEqual([]);
+  });
+
+  it("reaches every row of a backlog bigger than one run's budget, across runs (round 1)", async () => {
+    const keys: string[] = [];
+    for (let i = 0; i < 6; i++) keys.push(await row("uncertain", 120 - i));
+    // The three oldest have no record; the three newest do.
+    const world = smtp2go({ events: keys.slice(3).map((k) => event(k)) });
+    const settled: string[] = [];
+    for (let run = 0; run < 3 && settled.length < 3; run++) {
+      const report = await reconcileUncertain(deps(world.stub, { runBudget: 3, paceMs: 0 }), band);
+      settled.push(...report.settled);
+    }
+    expect(settled.sort()).toEqual(keys.slice(3).sort());
   });
 });
