@@ -235,7 +235,7 @@ Evidence 2026-10-27 06:21 SAST, at `1d9d254` after the final review, CI run http
 
 ## 6. Buttons, fields and pills
 
-> **Started:** 2026-10-27T04:38:06Z
+> **Started:** 2026-10-27T04:39:59Z, the build, after the plan review recorded in `92c6eba`. **Corrected 2026-10-27:** was 2026-10-27T04:38:06Z, written in `0420f69` when §6 was carved out of §3, before its plan corrections (`e305009`, the commit the plan review read); the only code commit, `85a8d7c` (04:47:21Z), came after the review.
 
 The controls every page uses, as the SPEC's shared parts and `design/mockups/source/ui.css` define them.
 
