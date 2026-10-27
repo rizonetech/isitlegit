@@ -149,7 +149,7 @@ The public page a signature badge links to (design spec 2a, Verifiable signature
 **Fidelity:** `design/SPEC.md` verify page and `design/brand/README.md` (seal and badge rules)
 **Job:** a recipient who sees the badge confirms in one step whether the email really came from that business
 **Treatment:** the business's real domains first, the forward instruction second, nothing private
-**Chrome:** `AppShell` public variant, `Button`, `EvidenceCard` from D07 T01 §3
+**Chrome:** `AppShell` public variant, `Button`, `EvidenceCard` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -174,7 +174,7 @@ The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a 
 **Fidelity:** `design/SPEC.md` member console, protected identity section; `design/brand/README.md` badge rules
 **Job:** a business owner adds the badge to every staff signature in a minute
 **Treatment:** one copy button, a preview, and plain steps for Outlook and Gmail
-**Chrome:** `AppShell`, `Button`, `Field` from D07 T01 §3
+**Chrome:** `AppShell`, `Button`, `Field` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

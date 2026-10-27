@@ -39,7 +39,7 @@ track: day-1
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [ ] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
-| 6 | §6 | Upload page | §1, D07 T01 §3 | [ ] |
+| 6 | §6 | Upload page | §1, D07 T01 §10 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -158,7 +158,7 @@ The member-facing page for uploads: one drop zone and file picker, accepted type
 **Fidelity:** `design/SPEC.md` upload screen and its mockup
 **Job:** a member checks a file they received without forwarding an email
 **Treatment:** one primary action, the accepted types in plain words, errors that say what to do
-**Chrome:** the shared app shell and form controls from D07 T01 §3
+**Chrome:** the shared app shell and form controls from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

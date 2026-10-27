@@ -33,7 +33,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Report route with signed-link and session access | D07 T01 §3, D01 T01 §8 | [ ] |
+| 1 | §1 | Report route with signed-link and session access | D07 T01 §10, D01 T01 §8 | [ ] |
 | 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [ ] |
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [ ] |
 | 4 | §4 | Live status, partial and failed states | §2 | [ ] |
@@ -51,7 +51,7 @@ track: day-2
 **Fidelity:** `design/SPEC.md` report page
 **Job:** a member who forwarded a mail opens the answer from the reply in one tap
 **Treatment:** verdict first, nothing private to anyone outside the organisation
-**Chrome:** `AppShell` from D07 T01 §3
+**Chrome:** `AppShell` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -76,7 +76,7 @@ The top of the report answers the question in a glance (spec 4.7, manifesto): ve
 **Fidelity:** `design/SPEC.md` report page, verdict section
 **Job:** a busy owner knows within five seconds whether to act and what to do
 **Treatment:** verdict, reasons, action, in that order, in plain words
-**Chrome:** `VerdictBadge`, `Button` from D07 T01 §3
+**Chrome:** `VerdictBadge`, `Button` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -99,7 +99,7 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 **Fidelity:** `design/SPEC.md` report page, evidence card variants
 **Job:** a sceptical reader sees exactly why IsItLegit said what it said
 **Treatment:** one card shape, the artefact as proof, severity by icon and word
-**Chrome:** `EvidenceCard` from D07 T01 §3
+**Chrome:** `EvidenceCard` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -123,7 +123,7 @@ While a case runs, the report shows progress by step and updates itself (htmx po
 **Fidelity:** `design/SPEC.md` report page, pending, partial and failed states
 **Job:** a member waiting for an answer sees it is working and is never left guessing
 **Treatment:** calm progress, honest gaps, one clear retry
-**Chrome:** `LoadingState`, `PartialNotice`, `ErrorState` from D07 T01 §3
+**Chrome:** `LoadingState`, `PartialNotice`, `ErrorState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -147,7 +147,7 @@ The judges and members see the models at work, from real pipeline events (plan D
 **Fidelity:** `design/SPEC.md` report page, model trace section
 **Job:** a judge sees which Meta model did what, how fast and at what cost
 **Treatment:** a compact timeline, model names in full, cost in US cents
-**Chrome:** `EvidenceCard` layout for the panel from D07 T01 §3
+**Chrome:** `EvidenceCard` layout for the panel from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -170,7 +170,7 @@ A member disputes a verdict in one tap with an optional note (spec 4.7); feedbac
 **Fidelity:** `design/SPEC.md` report page, feedback control
 **Job:** a member tells IsItLegit it got one wrong, without effort
 **Treatment:** one button, an optional note, a thank-you that says what happens next
-**Chrome:** `Button`, `Field` from D07 T01 §3
+**Chrome:** `Button`, `Field` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

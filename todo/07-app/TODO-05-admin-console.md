@@ -30,7 +30,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Access application and JWT verification | D07 T01 §3 | [ ] |
+| 1 | §1 | Access application and JWT verification | D07 T01 §10 | [ ] |
 | 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [ ] |
 
 ## 1. Access application and JWT verification
@@ -63,7 +63,7 @@ Every organisation (name, created, domains verified, members, cases this week, t
 **Fidelity:** `design/SPEC.md` admin console
 **Job:** the operator sees how every client is doing and what the build is spending
 **Treatment:** dense but calm tables, spend as a bar against each cap
-**Chrome:** `AppShell` admin variant from D07 T01 §3
+**Chrome:** `AppShell` admin variant from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

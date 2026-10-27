@@ -61,38 +61,43 @@ Sections: 32 | Checklist items: 205
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 28 | Checklist items: 127
+Sections: 33 | Checklist items: 147
 
-| Status | Reference  | Deliverable                                             | Needs    | Items |
-| ------ | ---------- | ------------------------------------------------------- | -------- | ----- |
-| [ ]    | D02 T01 §1 | Evidence type, IDs and registry                         | none     | 5     |
-| [ ]    | D02 T01 §2 | Check runner step with failure isolation                | none     | 5     |
-| [ ]    | D02 T02 §1 | Trusted Authentication-Results parsing                  | none     | 5     |
-| [ ]    | D02 T02 §2 | SPF, DKIM and DMARC alignment evidence                  | none     | 6     |
-| [ ]    | D02 T02 §3 | ARC chain evidence                                      | none     | 3     |
-| [ ]    | D02 T03 §1 | Confusables skeleton and edit distance module           | none     | 5     |
-| [ ]    | D02 T03 §3 | Curated brand domain table in KV                        | none     | 4     |
-| [ ]    | D02 T02 §4 | Display name, Reply-To and Return-Path checks           | none     | 5     |
-| [ ]    | D02 T02 §5 | First-time sender per organisation                      | none     | 3     |
-| [ ]    | D02 T03 §2 | Lookalike check against own, supplier and brand domains | none     | 5     |
-| [ ]    | D02 T03 §4 | Domain age from RDAP with caching                       | none     | 5     |
-| [ ]    | D02 T04 §1 | Content-type sniffing against the extension             | none     | 3     |
-| [ ]    | D02 T04 §2 | HTML attachments and smuggling                          | none     | 3     |
-| [ ]    | D02 T04 §3 | Macros, encrypted archives and executables              | none     | 4     |
-| [ ]    | D02 T05 §1 | Invisible text extraction from HTML                     | none     | 5     |
-| [ ]    | D02 T05 §2 | AI-addressed instruction detection                      | none     | 4     |
-| [ ]    | D07 T01 §3 | App shell and shared components with every state        | none     | 9     |
-| [ ]    | D01 T03 §6 | Upload page                                             | none     | 5     |
-| [ ]    | D07 T02 §7 | Sign-in, signup, invite and domain verification pages   | none     | 5     |
-| [ ]    | D07 T03 §1 | Report route with signed-link and session access        | none     | 5     |
-| [ ]    | D07 T03 §2 | Verdict banner, headline, reasons and actions           | none     | 4     |
-| [ ]    | D07 T03 §3 | Evidence cards by kind                                  | none     | 5     |
-| [ ]    | D07 T03 §4 | Live status, partial and failed states                  | none     | 4     |
-| [ ]    | D07 T03 §6 | This-was-wrong feedback                                 | none     | 5     |
-| [ ]    | D07 T03 §7 | Reply email matched to the report design                | none     | 4     |
-| [ ]    | D08 T01 §1 | Label format and loader                                 | none     | 3     |
-| [ ]    | D08 T01 §2 | Public corpora chosen by licence                        | none     | 4     |
-| [ ]    | D08 T03 §1 | Experiment: edited invoice digits                       | meta-api | 4     |
+| Status | Reference   | Deliverable                                           | Needs    | Items |
+| ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
+| [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 5     |
+| [ ]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
+| [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
+| [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
+| [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
+| [ ]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
+| [ ]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
+| [ ]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 5     |
+| [ ]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
+| [ ]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
+| [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
+| [ ]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
+| [ ]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
+| [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
+| [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 5     |
+| [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
+| [ ]    | D07 T01 §3  | App shell and its three frames                        | none     | 8     |
+| [ ]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 4     |
+| [ ]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 4     |
+| [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
+| [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
+| [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
+| [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
+| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 5     |
+| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 5     |
+| [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
+| [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 5     |
+| [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 4     |
+| [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
+| [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
+| [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
+| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
+| [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -259,6 +264,6 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 8/190 verified sections, 6 ready to run now.
+Progress: 8/195 verified sections, 8 ready to run now.
 
-Checklist: 143/922 items completed (includes Commit items).
+Checklist: 143/942 items completed (includes Commit items).

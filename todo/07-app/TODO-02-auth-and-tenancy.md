@@ -19,6 +19,7 @@ track: day-1
 - Better Auth docs for the D1 adapter, magic link, passkey and organisation plugins (cite the page used in each section's commit).
 - -> XREF: D01 T01 §3 -- the email handler that admits mail only through `findMemberBySender`
 - -> XREF: D01 T03 §1 -- the upload API that requires a session and the daily cap
+- -> XREF: D07 T01 §3 -- the app shell, whose organisation switcher and Sign out post to the routes §1 and §3 here build
 
 ## Outcome
 
@@ -40,7 +41,7 @@ track: day-1
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [ ] |
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [ ] |
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [ ] |
-| 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §3 | [ ] |
+| 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
@@ -180,7 +181,7 @@ The pages members see before and around sign-in, built on the shell and componen
 **Fidelity:** `design/SPEC.md` sign-in, signup and domain verification sections
 **Job:** a business owner gets in, creates the organisation and proves their domain in a few minutes
 **Treatment:** one task per page, plain words, every error says what to do next
-**Chrome:** `AppShell`, `Field`, `Button`, `ErrorState` from D07 T01 §3
+**Chrome:** `AppShell`, `Field`, `Button`, `ErrorState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

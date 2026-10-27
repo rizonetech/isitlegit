@@ -33,7 +33,7 @@ track: day-6
 | 1 | §1 | Eval runner through the deployed pipeline | D08 T01 §1, D01 T03 §1 | [ ] |
 | 2 | §2 | Metrics against the spec targets | §1 | [ ] |
 | 3 | §3 | Model ablation runs | §2, D04 T01 §2 | [ ] |
-| 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §3 | [ ] |
+| 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [ ] |
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
@@ -105,7 +105,7 @@ The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metri
 **Fidelity:** `design/SPEC.md` eval dashboard
 **Job:** a judge sees measured accuracy, cost and each model's contribution at a glance
 **Treatment:** targets beside results, met or missed said plainly, dates and commit shown
-**Chrome:** `AppShell` and uPlot charts from D07 T01 §3
+**Chrome:** `AppShell` and uPlot charts from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

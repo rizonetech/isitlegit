@@ -36,7 +36,7 @@ track: day-5
 | 1 | §1 | Invoice detection and Muse Spark field extraction | D03 T02 §2, D03 T01 §5 | [ ] |
 | 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [ ] |
 | 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
-| 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §3 | [ ] |
+| 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [ ] |
 | 5 | §5 | Synthetic invoice set with genuine and tampered pairs | §1 | [ ] |
 
 ## 1. Invoice detection and Muse Spark field extraction
@@ -109,7 +109,7 @@ Members see and manage their suppliers (spec 4.5, 4.8 dashboard): list and searc
 **Fidelity:** `design/SPEC.md` member console, supplier ledger section
 **Job:** a finance clerk keeps the list of who the business really pays and how
 **Treatment:** a table that is quick to scan, masked numbers, undo for every change
-**Chrome:** `AppShell`, `Field`, `Button`, `EmptyState`, `ErrorState` from D07 T01 §3
+**Chrome:** `AppShell`, `Field`, `Button`, `EmptyState`, `ErrorState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

@@ -31,7 +31,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [ ] |
 | 2 | §2 | Weekly stats, money at risk and CSV export | §1 | [ ] |
-| 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §3 | [ ] |
+| 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §7 | [ ] |
 
 ## 1. Cases list with filters and search
@@ -44,7 +44,7 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 **Fidelity:** `design/SPEC.md` member console, cases list
 **Job:** a member finds a past check without its link
 **Treatment:** a scannable table, verdict first, filters that keep their state in the URL
-**Chrome:** `AppShell`, `VerdictBadge`, `EmptyState` from D07 T01 §3
+**Chrome:** `AppShell`, `VerdictBadge`, `EmptyState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -67,7 +67,7 @@ This week and last: cases checked, verdict mix, median time to verdict, invoice 
 **Fidelity:** `design/SPEC.md` member console, stats panel
 **Job:** an owner sees what IsItLegit did for the business this week
 **Treatment:** four numbers and one small chart, money in rand
-**Chrome:** `AppShell` plus uPlot 1.6.32 chart from D07 T01 §3
+**Chrome:** `AppShell` plus uPlot 1.6.32 chart from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -90,7 +90,7 @@ Owners and admins invite by email, change roles and remove members; members see 
 **Fidelity:** `design/SPEC.md` member console, team section
 **Job:** an owner brings the finance clerk in and removes someone who left
 **Treatment:** one list, one invite field, removal confirmed
-**Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3
+**Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
@@ -112,7 +112,7 @@ The organisation's approved domains and sending addresses with their verificatio
 **Fidelity:** `design/SPEC.md` member console, domains section
 **Job:** an admin controls which mail IsItLegit accepts for the business
 **Treatment:** state per row, one add action, removal confirmed
-**Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3
+**Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

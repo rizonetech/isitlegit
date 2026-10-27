@@ -36,9 +36,14 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Attended design session and design/SPEC.md | -- | [x] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [x] |
-| 3 | §3 | App shell and shared components with every state | §2, §5 | [ ] |
+| 3 | §3 | App shell and its three frames | §2, §5 | [ ] |
 | 4 | §4 | Design change comparison | §1 | [ ] |
 | 5 | §5 | Hashed static assets and fonts | §2 | [x] |
+| 6 | §6 | Buttons, fields and pills | §2, §5 | [ ] |
+| 7 | §7 | Verdict band, evidence card and severity | §6 | [ ] |
+| 8 | §8 | Empty, loading, error and partial states | §6 | [ ] |
+| 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [ ] |
+| 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [ ] |
 
 ## 1. Attended design session and design/SPEC.md
 
@@ -124,34 +129,42 @@ Evidence 2026-10-27 05:22 SAST, at `3d1db21` after the final review, CI run http
 > **Verified:** 2026-10-27 | §2 | 7b230a4977e86df5c3f9ee05c3eaac94a7380b2f
 > **Review:** `docs/reviews/d07-t01-s2.json`
 
-## 3. App shell and shared components with every state
+## 3. App shell and its three frames
 
-One layout and one component set for every app page (`AGENTS.md`: a second toolbar or panel shape is a defect). Server-rendered with `hono/jsx`; htmx for partial updates. Every page works at phone width, and every icon-only control has an accessible name.
+> **Started:** 2026-10-27T04:33:18Z
+
+One page frame for every app page (`AGENTS.md`: a second toolbar or panel shape is a defect). Server-rendered with `hono/jsx`. Three frames, as the approved boards draw them: the member app with the P1 navigation, the admin console with the P2 navigation, and the public frame of a report opened from a signed link.
+
+**Corrected 2026-10-27** (validation before build; findings in `docs/phase-runs/2026-10-27-phase-2.md`): this section planned a header shell with an organisation switcher and a "by Rizonetech" footer, plus eight components, htmx, a gallery, an accessibility check and a rendered-colour check in one section. The approved P1 App navigation is a sidebar (`design/SPEC.md` 1, board `AppNav`), the components the SPEC's shared parts name are more than planned (buttons in five styles, pills in six, bands in five, severity in five), and `todo/README.md` asks for single-responsibility sections. This section is now the frames; the components are §6 to §8, htmx and the app script §9, and the gallery with the accessibility and rendered-colour checks §10, which every page section depends on. "Browser Run" for the accessibility check needed Cloudflare; §10 runs axe-core in the local headless Chromium the other tests use.
 
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` shell and component sections
-**Job:** every IsItLegit page looks and behaves as one product
-**Treatment:** the approved shell, tokens only, every state designed
-**Chrome:** this section defines the chrome: `AppShell`, `VerdictBadge`, `EvidenceCard`, `Button`, `Field`, `EmptyState`, `LoadingState`, `ErrorState`, `PartialNotice`
+**Fidelity:** `design/SPEC.md` 1 (P1 App navigation, P2 Admin navigation), boards `AppNav`, `AdminNav`, `Report-Counterparty` (public header), `Report-Mobile` (phone header and Menu button); values from `design/mockups/source/ui.css`
+**Job:** every app page sits in the same frame, with the navigation and the signed-in context in the same place
+**Treatment:** the approved frames, tokens only, phone layout per the phone boards
+**Chrome:** this section defines the frames: `AppShell` (`variant` member, admin or public)
+
+> **Deferred:** switching the active organisation (the form posts to the route D07 T02 §3 builds) -> XREF: D07 T02 §3
+> **Deferred:** the sign-out action (the form posts to the auth route D07 T02 §1 builds) -> XREF: D07 T02 §1
+> **Deferred:** the copy and menu behaviour in the browser (`[data-copy]`, the phone menu) -> XREF: D07 T01 §9
 
 **Build order:**
 
-1. Build `src/web/components/` and `AppShell`. Done when: a test page renders every component in every state.
-2. Check accessibility and phone width. Done when: an automated check finds no missing accessible names and no horizontal overflow at 360 px.
+1. Build the member frame from the P1 board. Done when: a rendered page shows the navigation, its states and the main region with the right landmarks.
+2. Build the admin and public frames. Done when: each renders from its board with the right landmarks.
+3. Make every frame work at phone width. Done when: Chromium at 360 px shows no horizontal overflow and the navigation is reachable.
 
-- [ ] Build `AppShell` (header with wordmark and organisation switcher, main region, footer "by Rizonetech") in `src/web/components/shell.tsx`. Done when: `test/web/components.test.ts` renders it with landmarks `banner`, `main` and `contentinfo`. Cheaper substitute: per-page headers.
-- [ ] Build `VerdictBadge` for safe, suspicious, malicious and partial with icon plus text, never colour alone. Done when: the test finds the text label in each variant.
-- [ ] Build `EvidenceCard` with slots for severity, summary, detail and an artefact (image, crop, header excerpt). Done when: the test renders one of each artefact kind.
-- [ ] Build `Button`, `Field` (label, hint, error), `EmptyState`, `LoadingState`, `ErrorState` and `PartialNotice`. Done when: the test renders each with its SPEC text.
-- [ ] Add htmx 2.0.11 as a self-hosted static asset, fingerprinted by `scripts/hash-asset.ts` like the stylesheet (`/static/htmx.<hash>.js`, named in `src/web/assets.ts`), and a `hx-` helper for partial updates. Done when: the hashed path serves it under the immutable cache, the static-policy test in `test/node/assets.test.ts` passes, and `NOTICE.md` lists it (BSD 2-Clause). **Corrected 2026-10-27** (D07 T01 §5 plan review P2): an unhashed `/static/htmx.min.js` under the year-long immutable cache would keep returning visitors on an old htmx after an upgrade.
-- [ ] Add a `/dev/components` page (only when `ENV` is `development`) showing every component in every state. Done when: it returns 404 in production config.
-- [ ] Add an accessibility check with Browser Run plus axe-core 4.11 on `/dev/components` at 360 px and 1280 px. Done when: `pnpm test:a11y` reports zero violations and fails on a planted unlabeled icon button.
-- [ ] Check every rendered page for colours in `style` and SVG presentation attributes: render each shell page and component state with Hono's renderer in `test/node/rendered-colours.test.ts` and refuse any colour that is not `var(--color-*)`, `transparent` or `currentcolor` in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: a planted `style={{ color: "red" }}` and `fill="red"` in a shell component each fail it. (D07 T01 §2 round 2, 2026-10-27: the source scan in `test/node/no-raw-colours.test.ts` is a pattern match over source text, so the rendered HTML, which Hono owns, is the authoritative proof once pages exist.)
-- [ ] Commit: `web: app shell and shared components`
+- [ ] Write `src/web/components/AppShell.tsx` (hono/jsx) with `variant: "member"` rendering the P1 navigation as a `<nav aria-label="Main">` sidebar beside `<main>`: the logo (link to Cases, alt "IsItLegit, cases"), the organisation switcher, the primary "Check a file" button, the main links Cases, Suppliers, Protect, Monitor, Team, the "Settings" group with Domains and addresses, Account and Plan, the footer card "Forward suspicious mail as an attachment to" with the check address and its copy button, and the user block (initials, name, role) with Sign out. Done when: `test/node/shell.test.tsx` renders it and finds `nav[aria-label=Main]` and `main`, every link and label the SPEC names, and the classes and values of `design/mockups/source/AppNav.dc.html` mapped to token utilities. Cheaper substitute: per-page headers. Source: `design/SPEC.md` 1 P1.
+- [ ] Render the P1 states from props: `active` (cases, suppliers, protect, monitor, team, domains, account, plan) marks one link with `aria-current="page"` and the active style, Check a file and onboarding pages pass `cases`; the Monitor pill shows `monitorNew` new findings ("1 new") and is absent at zero; the Plan pill shows "Trial, N days" while a trial runs, else the plan name. Done when: the test covers each `active` value, a zero and a non-zero count, a trial and a paid plan. Source: SPEC P1 States.
+- [ ] Render the organisation switcher as a disclosure (`<details>`) listing the member's other organisations as forms that post to the switch route, and as a plain label for a member of one organisation. Done when: the test shows the list for two organisations and the plain label for one; the route is D07 T02 §3's.
+- [ ] Render Sign out as a `<form method="post">` button to the sign-out route, and the check-address copy button as `<button type="button" data-copy="...">` with an accessible name. Done when: the test finds both, each with an accessible name; their behaviour is §9's and the route D07 T02 §1's.
+- [ ] Add `variant: "admin"` rendering the P2 navigation: links Overview, Organisations, Invite codes, Feedback (open count in a malicious pill), Eval runs, `active` (overview, orgs, invites, feedback, eval), and the identity footer "Signed in through Cloudflare Access" with the operator's name and no sign-out. Done when: the test covers each `active` value and finds no sign-out control. Source: SPEC P2, board `AdminNav`.
+- [ ] Add `variant: "public"` rendering the signed-link report frame: the 72 px header with the logo and the "Protect your business" link of the `Report-Counterparty` board, no member navigation and no member data. Done when: the test finds the header and `main`, and none of the member navigation's links or names.
+- [ ] Lay out the phone width per `Report-Mobile`: below the `md` breakpoint the sidebar collapses behind a compact header with the logo and a "Menu" button (`aria-label="Menu"`, `aria-expanded`, `aria-controls` naming the navigation) built on `<details>` so it opens without JavaScript. Done when: `test/node/shell-layout.test.ts` renders each frame in headless Chromium at 360 px and 1280 px, finds no horizontal overflow, and finds the navigation links reachable after opening Menu at 360 px. Cheaper substitute: hiding the navigation on phones.
+- [ ] Commit: `web: app shell and its three frames`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/components.test.ts && pnpm test:a11y` passes.
+**Test checkpoint:** `pnpm exec vitest run test/node/shell.test.tsx test/node/shell-layout.test.ts` passes, covering every P1 and P2 state, the public frame, and 360 px and 1280 px without horizontal overflow.
 
 ## 4. Design change comparison
 
@@ -214,6 +227,119 @@ Evidence 2026-10-27 06:21 SAST, at `1d9d254` after the final review, CI run http
 
 > **Verified:** 2026-10-27 | §5 | faa36b7d9190e31e2d6ae28e19e3984466481e6c
 > **Review:** `docs/reviews/d07-t01-s5.json`
+
+## 6. Buttons, fields and pills
+
+The controls every page uses, as the SPEC's shared parts and `design/mockups/source/ui.css` define them.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` 1 (buttons in primary, dark, ghost, danger and link styles; pills in safe, suspicious, malicious, partial, running and neutral), board `Badges`, values from `design/mockups/source/ui.css`
+**Job:** one look and one behaviour for every button, input and status pill
+**Treatment:** tokens only, visible focus, an accessible name on every control
+**Chrome:** this section defines `Button`, `Field`, `Checkbox` and `Pill`
+
+**Build order:**
+
+1. Build the controls in `src/web/components/`. Done when: each renders every variant with its token classes.
+
+- [ ] Build `Button` (`primary`, `dark`, `ghost`, `danger`, `link`; `size` default 48 px or small 36 px; renders `<button>` or, with `href`, `<a>`; an icon-only button requires `label`, its accessible name). Done when: `test/node/controls.test.tsx` renders each variant and size with the radius, height and colours of `.btn` in `ui.css` as token utilities, and refuses an icon-only button without a label at the type level and at run time. Cheaper substitute: per-page button classes.
+- [ ] Build `Field` (label, hint, error, a 48 px input; the error state sets `aria-invalid` and links the error text with `aria-describedby`) and `Checkbox`. Done when: the test renders the plain, hinted and error states and finds the label tied to its input. Cheaper substitute: placeholder text as the label.
+- [ ] Build `Pill` (`safe`, `suspicious`, `malicious`, `partial`, `running`, `neutral`), each with an icon and text, never colour alone. Done when: the test finds the text in every variant and the icon hidden from assistive technology. Source: SPEC 1 and board `Badges`.
+- [ ] Commit: `web: buttons, fields and pills`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/controls.test.tsx` passes, covering every variant and state.
+
+## 7. Verdict band, evidence card and severity
+
+How a verdict and its evidence look on every report.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (verdict banner, evidence cards with severity pills), boards `Main`, `Report-Safe`, `Report-Partial`, `Report-Running`, values from `design/mockups/source/ui.css` (`.band`, `.card`, `.sev`)
+**Job:** a reader sees the verdict first and each finding with its proof
+**Treatment:** tokens only, the verdict as text and icon as well as colour
+**Chrome:** this section defines `VerdictBand`, `VerdictBadge`, `EvidenceCard` and `Severity`
+
+**Build order:**
+
+1. Build the verdict and evidence components. Done when: each renders every variant from the boards.
+
+- [ ] Build `VerdictBand` (`malicious`, `suspicious`, `safe`, `partial`, `running`) with its eyebrow ("Verdict · confidence"), headline and one sentence, and `VerdictBadge` as the matching `Pill`. Done when: `test/node/verdict.test.tsx` renders every variant with its band colours and the verdict word as text. Source: SPEC M3, board `Main`.
+- [ ] Build `Severity` (critical, high, medium, low, info) as icon plus text. Done when: the test finds the word in each level.
+- [ ] Build `EvidenceCard` with an id, a severity, a title, a summary, a detail and one artefact (an image, a crop, a header excerpt). Done when: the test renders one card of each artefact kind and finds the severity and title in each.
+- [ ] Commit: `web: verdict band, evidence card and severity`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx` passes.
+
+## 8. Empty, loading, error and partial states
+
+The four states every page draws the same way.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** boards `Cases-Empty`, `Report-Running`, `Report-Partial`, `Error-404` to `Error-500`, `design/SPEC.md` 5 and 7 for their wording
+**Job:** a member always knows whether there is nothing yet, something running, something wrong, or a partial result
+**Treatment:** tokens only, the SPEC's words, a live region for the loading state
+**Chrome:** this section defines `EmptyState`, `LoadingState`, `ErrorState` and `PartialNotice`
+
+**Build order:**
+
+1. Build the four state components. Done when: each renders the words and structure of its board.
+
+- [ ] Build `EmptyState` (title, one sentence, an optional action) per `Cases-Empty`. Done when: `test/node/states.test.tsx` renders it with and without an action.
+- [ ] Build `LoadingState` with `role="status"` and `aria-live="polite"` and no motion under `prefers-reduced-motion`. Done when: the test finds the live region and the reduced-motion rule in the compiled stylesheet.
+- [ ] Build `ErrorState` (code, title, one sentence, the way out) taking the wording of the error pages in SPEC 7. Done when: the test renders the 404, 403, 410, 429 and 500 wordings.
+- [ ] Build `PartialNotice` (which checks did not run and why) per `Report-Partial`. Done when: the test renders it with two skipped checks.
+- [ ] Commit: `web: empty, loading, error and partial states`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/states.test.tsx` passes.
+
+## 9. htmx and the app script as fingerprinted assets
+
+The browser-side behaviour the pages need, served like the stylesheet.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Serve htmx and one small app script as fingerprinted static assets. Done when: both are under `/static/` with hashed names and named in `src/web/assets.ts`.
+
+- [ ] Add htmx 2.0.11 as an exact dependency and copy its minified build through `scripts/hash-asset.ts` to `public/static/htmx.<hash>.js`, named in `src/web/assets.ts`. Done when: `test/node/assets.test.ts` and `test/node/serve.test.ts` cover it (fingerprinted, immutable cache, `application/javascript`), and `NOTICE.md` lists it (BSD 2-Clause). Moved here from §3 (its D07 T01 §5 plan-review correction stands: an unhashed htmx under the immutable cache would keep visitors on an old version).
+- [ ] Write `src/web/client/app.ts`, built to `public/static/app.<hash>.js` by the same step: `[data-copy]` buttons copy their value and announce "Copied" in a live region, and the phone Menu keeps `aria-expanded` in step with its disclosure. Done when: `test/node/app-script.test.ts` exercises both in headless Chromium.
+- [ ] Commit: `web: htmx and the app script as fingerprinted assets`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/assets.test.ts test/node/serve.test.ts test/node/app-script.test.ts` passes.
+
+## 10. Component gallery with accessibility checks
+
+Every frame and component in every state on one page, checked together, before any page section builds on them.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** every board §3 and §6 to §8 name
+**Job:** a developer sees and checks the whole component set in one place
+**Treatment:** tokens only; the page exists only in development
+**Chrome:** the frames from §3 and the components from §6 to §8
+
+**Build order:**
+
+1. Add the gallery page. Done when: it renders every frame and component in every state, and production answers 404.
+2. Check accessibility and colours on it. Done when: axe-core and the rendered-colour check pass and each fails on a planted defect.
+
+- [ ] Add `/dev/components`, served only when `ENV` is `development`, rendering every frame (§3) and every component state (§6 to §8). Done when: it answers 200 under `pnpm dev` and 404 with production configuration (`test/node/serve.test.ts`).
+- [ ] Add `pnpm test:a11y`: axe-core 4.11 run in headless Chromium (the browser the other tests use) on `/dev/components` at 360 px and 1280 px. Done when: it reports zero violations and fails on a planted icon-only button without a label.
+- [ ] Add `test/node/rendered-colours.test.ts`: render each frame and component state with Hono's renderer and refuse any colour that is not `var(--color-*)`, `transparent` or `currentcolor` in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: a planted `style={{ color: "red" }}` and `fill="red"` in a component each fail it. (D07 T01 §2 round 2: the source scan is a pattern match over text; the rendered HTML, which Hono owns, is the authoritative proof once pages exist.)
+- [ ] Add `pnpm test:a11y` to CI and to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass.
+- [ ] Commit: `web: component gallery with accessibility checks`
+
+**Test checkpoint:** `pnpm test:a11y` reports zero violations at 360 px and 1280 px, and `pnpm exec vitest run test/node/rendered-colours.test.ts` passes.
 
 ## Verification
 

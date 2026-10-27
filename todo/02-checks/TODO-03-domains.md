@@ -34,7 +34,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Confusables skeleton and edit distance module | D02 T01 §1 | [ ] |
-| 2 | §2 | Lookalike check against own, supplier and brand domains | §1, §3 | [ ] |
+| 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [ ] |
 | 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [ ] |
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
 
@@ -59,7 +59,7 @@ UTS #39 defines a "skeleton" that maps visually confusable characters to one pro
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts` passes and fails if NFD normalisation is removed.
 
-## 2. Lookalike check against own, supplier and brand domains
+## 2. Lookalike check against own, supplier and brand names
 
 For every domain in the case, compare its registrable label with the organisation's verified domains, its suppliers' domains (when the ledger exists) and the brand table. A lookalike of a domain the organisation trusts is high; of a brand, medium; an exact match is never a lookalike.
 

@@ -34,7 +34,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [ ] |
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [ ] |
-| 3 | §3 | Protected identity console page | §2, D07 T01 §3 | [ ] |
+| 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [ ] |
 
 ## 1. Protected identity data model and logo upload
 
@@ -89,7 +89,7 @@ Owners and admins manage the identity: display names, verified domains and addre
 **Fidelity:** `design/SPEC.md` member console, protected identity section
 **Job:** a business owner tells IsItLegit what their real identity is, so impersonation can be caught
 **Treatment:** plain words, the privacy promise stated beside the bank fields, every change confirmed
-**Chrome:** `AppShell`, `Field`, `Button`, `EmptyState`, `ErrorState` from D07 T01 §3
+**Chrome:** `AppShell`, `Field`, `Button`, `EmptyState`, `ErrorState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 

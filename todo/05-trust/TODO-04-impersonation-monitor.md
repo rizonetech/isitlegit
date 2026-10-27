@@ -123,7 +123,7 @@ The business gets an alert with the evidence and a takedown pack: domain, regist
 **Fidelity:** `design/SPEC.md` member console, impersonation monitor section
 **Job:** a business owner learns a fake site exists and has what they need to get it taken down
 **Treatment:** the finding first, the takedown steps second, nothing sent on their behalf
-**Chrome:** `AppShell`, `EvidenceCard`, `Button`, `EmptyState` from D07 T01 §3
+**Chrome:** `AppShell`, `EvidenceCard`, `Button`, `EmptyState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
