@@ -97,7 +97,7 @@ In South Africa most scams that reach a small business arrive on WhatsApp, not e
 ### 4.2a Voice notes and voicemail lures
 
 - Sources: voice notes uploaded on the web (a WhatsApp voice note saved as Ogg Opus `.ogg` or `.opus`, or `.wav`, `.mp3`, `.m4a`), and email attachments posing as voicemail (`.wav`, `.mp3`, or an HTML "play message" lure). WhatsApp intake itself is after the event (4.1a).
-- Audio is decoded in the Worker (`ogg-opus-decoder`, WASM) to 16 kHz mono 16-bit WAV, the format the endpoint accepts, capped at 10 minutes.
+- Audio is decoded in the Worker (libopus through `opus-decoder`, WASM; **corrected 2026-10-27**, was `ogg-opus-decoder`, see the stack doc) to 16 kHz mono 16-bit WAV, the format the endpoint accepts, capped at 10 minutes.
 - **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`, diarization mode) returns the transcript; Muse Spark then extracts the request (pay, change bank details, share a code, click a link), the claimed identity and urgency, as evidence.
 - Claimed identity is checked against the trust network: "claims to be your director; your director's registered number is not the sender".
 - Limits stated in the report: the model supports 25 languages including English, but not Afrikaans, isiZulu or isiXhosa; we do not claim to detect voice cloning.

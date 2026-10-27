@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 37 | Checklist items: 256
+Sections: 38 | Checklist items: 260
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -41,6 +41,7 @@ Sections: 37 | Checklist items: 256
 | [ ]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
 | [ ]    | D01 T03 §7 | MP3 decoding                               | none                  | 5     |
 | [ ]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
+| [ ]    | D01 T03 §9 | Filtered resampling for WAV                | none                  | 4     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
 | [x]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
@@ -276,6 +277,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 24/207 verified sections, 11 ready to run now.
+Progress: 24/208 verified sections, 11 ready to run now.
 
-Checklist: 320/1092 items completed (includes Commit items).
+Checklist: 320/1096 items completed (includes Commit items).

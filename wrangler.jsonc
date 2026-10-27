@@ -2,13 +2,9 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "isitlegit",
   "main": "src/index.ts",
-  // WORKAROUND: the voice decoder's dependencies need a Web Worker class at import, which a Worker lacks, and bundle a
-  // 2.7 MB speech-enhancement decoder it never uses; see src/voice/no-web-worker.ts and src/voice/no-opus-ml.ts.
-  // vitest.config.ts names the same aliases (test/node/opus-wasm.test.ts checks they agree).
-  "alias": {
-    "@eshaz/web-worker": "./src/voice/no-web-worker.ts",
-    "@wasm-audio-decoders/opus-ml": "./src/voice/no-opus-ml.ts"
-  },
+  // WORKAROUND: the voice decoder's dependency needs a Web Worker class at import, which a Worker lacks; see
+  // src/voice/no-web-worker.ts. vitest.config.ts names the same alias (test/node/opus-wasm.test.ts checks they agree).
+  "alias": { "@eshaz/web-worker": "./src/voice/no-web-worker.ts" },
   "compatibility_date": "2026-10-26",
   "compatibility_flags": ["nodejs_compat"],
   // Fingerprinted stylesheet and fonts (D07 T01 §5); public/_headers gives /static/* a year-long immutable cache.

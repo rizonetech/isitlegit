@@ -41,7 +41,7 @@ Status: decided 2026-10-26, before the first commit. Companion to `2026-10-26-ph
 | Marketing site | `astro` | 7.4.2 | Static output; no server adapter needed |
 | MIME parsing | `postal-mime` | 4.1.4 | Works in Workers |
 | Outlook `.msg` parsing | `@kenjiuno/msgreader` | 1.29.0 | Day 1: prove it runs under `nodejs_compat`; cut to `.eml`-only if not |
-| Audio decoding | `ogg-opus-decoder` | 1.7.5 | Uploaded voice notes (Ogg Opus, as WhatsApp saves them) to PCM, then 16 kHz mono WAV for Muse Voice Transcribe; day 1 spike in Workers |
+| Audio decoding | `opus-decoder` | 0.7.12 | Uploaded voice notes (Ogg Opus, as WhatsApp saves them) decoded by libopus straight to 16 kHz, then mono WAV for Muse Voice Transcribe. **Corrected 2026-10-27** (D01 T03 §2; was `ogg-opus-decoder` 1.7.5): that package's Ogg demuxer, `codec-parser`, is LGPL-3.0-or-later and decodes a whole 64 KiB slice at once, which a dense stream can make exceed a Worker's 128 MB; the Worker now demuxes Ogg itself (`src/voice/decode.ts`) and gives `opus-decoder` packets in 5-second batches, with its WebAssembly precompiled (`src/voice/opus-decoder.wasm`) |
 | Domain parsing | `tldts` | 7.4.19 | Registrable domain, public suffix |
 | Lookalike detection | own module over the Unicode confusables table | n/a | `confusables` on npm is from 2022; a small skeleton function plus edit distance is easier to test |
 | QR decoding | `jsqr` | 1.4.0 | Runs inside the Browser Run page, not in the Worker |

@@ -5,8 +5,7 @@ import { extractOpusWasm } from "../../scripts/build-opus-wasm.ts";
 import { VOICE_ALIASES } from "../../vitest.config.ts";
 
 // D01 T03 §2: the Opus decoder's WebAssembly the Worker imports is the installed package's own, and the Web Worker
-// and speech-enhancement stubs are named the same way where the Worker is bundled (wrangler.jsonc) and where it is
-// tested (vitest.config.ts).
+// stub is named the same way where the Worker is bundled (wrangler.jsonc) and where it is tested (vitest.config.ts).
 const ROOT = join(import.meta.dirname, "../..");
 
 describe("the voice decoder's build inputs", () => {
@@ -17,7 +16,7 @@ describe("the voice decoder's build inputs", () => {
     expect(WebAssembly.validate(committed)).toBe(true);
   });
 
-  it("aliases the decoder's Web Worker and speech-enhancement imports to the same stubs in both configs", () => {
+  it("aliases the decoder's Web Worker import to the same stub in both configs", () => {
     const text = readFileSync(join(ROOT, "wrangler.jsonc"), "utf-8");
     // The file's comments are whole lines, and its objects may end with a trailing comma.
     const config = JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"));

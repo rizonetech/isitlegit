@@ -1,9 +1,10 @@
-import { OggOpusDecoder } from "ogg-opus-decoder";
 import { describe, expect, it } from "vitest";
 import {
   AudioTooLong,
   CorruptAudio,
+  createOpusDecoder,
   decodeToWavChunks,
+  type OpusLayout,
   type OpusStream,
   Resampler,
   UnsupportedAudio,
@@ -13,7 +14,6 @@ import { BOS, oggCrc, oggPackets, oggPage, oggStream, tone, wavFile } from "../f
 
 // D01 T03 §2: voice notes decoded to 16 kHz mono 16-bit WAV, checked by their sound, not only their headers.
 
-const FRAME_16K = 320; // one 20 ms Opus frame at 16 kHz
 const PRE_SKIP = 312;
 
 type Wav = { format: number; channels: number; rate: number; bits: number; riffSize: number; samples: Int16Array };
@@ -60,19 +60,21 @@ const audio = fixture.slice(2).map((p) => p.packet);
 const repeated = (repeats: number) =>
   oggStream(headers, Array.from({ length: repeats }, () => audio).flat(), PRE_SKIP, 960);
 
+// The real decoder, as decode.ts makes it, counting what it is asked to do.
 const counting = () => {
-  const seen = { made: 0, freed: 0, decodes: 0, largest: 0 };
-  const make = (): OpusStream => {
+  const seen = { made: 0, freed: 0, batches: 0, largest: 0, total: 0 };
+  const make = (layout: OpusLayout): OpusStream => {
     seen.made++;
-    const decoder = new OggOpusDecoder();
+    const decoder = createOpusDecoder(layout);
     return {
       ready: decoder.ready,
-      decode: (data) => {
-        seen.decodes++;
-        seen.largest = Math.max(seen.largest, data.length);
-        return decoder.decode(data);
+      decodeFrames: (packets) => {
+        const out = decoder.decodeFrames(packets);
+        seen.batches++;
+        seen.largest = Math.max(seen.largest, out.samplesDecoded);
+        seen.total += out.samplesDecoded;
+        return out;
       },
-      flush: () => decoder.flush(),
       free: () => {
         seen.freed++;
         decoder.free();
@@ -139,7 +141,8 @@ describe("decodeToWavChunks", () => {
     const wav = readWav(chunks[0] as Uint8Array);
     expect([wav.format, wav.channels, wav.rate, wav.bits]).toEqual([1, 1, 16_000, 16]);
     expect(wav.riffSize).toBe(36 + wav.samples.length * 2);
-    expect(Math.abs(wav.samples.length - 48_000)).toBeLessThanOrEqual(FRAME_16K);
+    // 150 packets of 20 ms, less the 312-sample pre-skip (48 kHz), which is 104 samples at 16 kHz.
+    expect(wav.samples.length).toBe(48_000 - 104);
     expect(Math.abs(frequency(wav.samples, 16_000) - 440)).toBeLessThan(2);
     // The tone at half of full scale: RMS 0.5 / sqrt(2) of 32768, within 10% after lossy coding.
     expect(rms(wav.samples, 4_000, 44_000) / (0.5 * 32768 * Math.SQRT1_2)).toBeCloseTo(1, 1);
@@ -200,14 +203,17 @@ describe("decodeToWavChunks", () => {
     const long = repeated(500); // 500 x 3 s
     expect(long.length).toBeLessThan(25 * 1024 * 1024);
     const lengths: number[] = [];
+    const started = performance.now();
+    const at: number[] = [];
     for await (const chunk of decodeToWavChunks(long, "audio/ogg")) {
+      at.push(performance.now() - started);
       const wav = readWav(chunk);
       expect([wav.channels, wav.rate, wav.bits]).toEqual([1, 16_000, 16]);
       lengths.push(wav.samples.length);
     }
-    expect(lengths.slice(0, 2)).toEqual([9_600_000, 9_600_000]);
-    expect(Math.abs((lengths[2] as number) - 4_800_000)).toBeLessThanOrEqual(FRAME_16K);
-    expect(lengths).toHaveLength(3);
+    expect(lengths).toEqual([9_600_000, 9_600_000, 4_800_000 - 104]);
+    // The measured times (completion review: first chunk and completion), for the section's evidence.
+    console.log(`decode timing: first chunk ${Math.round(at[0] ?? 0)} ms, all ${Math.round(at.at(-1) ?? 0)} ms`);
   });
 
   it("refuses a recording over 30 minutes before decoding any of it", async () => {
@@ -222,12 +228,29 @@ describe("decodeToWavChunks", () => {
     expect(seen).toMatchObject({ made: 1, freed: 1 });
   });
 
-  it("feeds the decoder in slices of at most 64 KiB, never the whole file", async () => {
+  it("decodes in batches of at most 5 seconds, never the whole file", async () => {
     const { seen, make } = counting();
-    const thirty = repeated(10); // 30 s, about 240 KB
-    await decodeAll(thirty, "audio/ogg", { opusDecoder: make });
-    expect(seen.decodes).toBe(Math.ceil(thirty.length / 65_536));
-    expect(seen.largest).toBeLessThanOrEqual(65_536);
+    await decodeAll(repeated(10), "audio/ogg", { opusDecoder: make }); // 30 s
+    expect(seen.batches).toBe(6);
+    expect(seen.largest).toBeLessThanOrEqual(5 * 16_000);
+  });
+
+  it("keeps a highly compressed stereo stream within its batches (completion review)", {
+    timeout: 180_000,
+  }, async () => {
+    // 2-byte packets of six empty 20 ms CELT frames each (TOC code 3, stereo): 120 ms of audio per packet, the most
+    // audio per byte Opus allows. 29 minutes in about 450 KB: decoded whole at 48 kHz it would need 668 MB.
+    const stereoHead = (headers[0] as Uint8Array).slice();
+    stereoHead[9] = 2;
+    const packets = Array.from({ length: 14_500 }, () => Uint8Array.from([0xff, 0x06]));
+    const dense = oggStream([stereoHead, headers[1] as Uint8Array], packets, PRE_SKIP, 5_760);
+    expect(dense.length).toBeLessThan(500_000);
+    const { seen, make } = counting();
+    const lengths = (await decodeAll(dense, "audio/ogg", { opusDecoder: make })).map((c) => readWav(c).samples.length);
+    expect(lengths).toEqual([9_600_000, 9_600_000, 29 * 60 * 16_000 - 104 - 19_200_000]);
+    // No batch decodes more than 5 seconds plus one packet: 2 channels x 81,920 floats, 655 KB.
+    expect(seen.largest).toBeLessThanOrEqual(5 * 16_000 + 1_920);
+    expect(seen.total).toBe(29 * 60 * 16_000 - 104);
   });
 
   it("refuses MP3 and M4A by type until D01 T03 §7 and §8 decode them", async () => {
@@ -278,15 +301,50 @@ describe("decodeToWavChunks", () => {
     });
 
     it("an Opus frame the decoder reports as bad, in pages whose checksums are intact", async () => {
-      // TOC code 3 with a frame count of 0: an invalid Opus packet (RFC 6716 3.2.5).
-      const bad = audio.map((p, i) => (i === 75 ? Uint8Array.from([0x03, 0x00]) : p));
+      // TOC code 1 (two frames of equal size) over an odd payload: a valid duration, but libopus refuses it.
+      const bad = audio.map((p, i) => (i === 75 ? Uint8Array.from([0xf9, 0x00]) : p));
       expect(await refusal(oggStream(headers, bad, PRE_SKIP, 960), "audio/ogg")).toMatch(/damaged frames/);
+    });
+
+    it("a malformed Opus packet: no frames, too long, or larger than the decoder takes (completion review)", async () => {
+      const withPacket = (packet: Uint8Array) =>
+        oggStream(
+          headers,
+          audio.map((p, i) => (i === 75 ? packet : p)),
+          PRE_SKIP,
+          960,
+        );
+      expect(await refusal(withPacket(Uint8Array.from([0x03, 0x00])), "audio/ogg")).toMatch(/packet 75 is malformed/);
+      // Code 3 asking for 7 frames of 20 ms: 140 ms, past Opus's 120 ms.
+      expect(await refusal(withPacket(Uint8Array.from([0xfb, 0x07])), "audio/ogg")).toMatch(/packet 75 is malformed/);
+      const huge = new Uint8Array(5_000);
+      huge[0] = 0xf8;
+      expect(await refusal(withPacket(huge), "audio/ogg")).toMatch(/packet 75 is larger/);
+    });
+
+    it("anything the decoder throws, as a typed refusal (completion review)", async () => {
+      const throwing = (): OpusStream => ({
+        ready: Promise.resolve(),
+        decodeFrames: () => {
+          throw new RangeError("offset is out of bounds");
+        },
+        free: () => {},
+      });
+      expect(await refusal(toneOgg, "audio/ogg", { opusDecoder: throwing })).toMatch(
+        /RangeError: offset is out of bounds/,
+      );
+    });
+
+    it("an Ogg with a page taken out, its checksums all intact (completion review)", async () => {
+      const pages = oggPackets(toneOgg).map((p, i) => oggPage(p.packet, p.flags, p.granule, i));
+      pages.splice(80, 1);
+      expect(await refusal(Uint8Array.from(pages.flatMap((p) => [...p])), "audio/ogg")).toMatch(/page 80 is missing/);
     });
 
     it("an Opus stream that decodes to nothing", async () => {
       const silent = (): OpusStream => {
         const none = { channelData: [], samplesDecoded: 0, errors: [] };
-        return { ready: Promise.resolve(), decode: () => none, flush: async () => none, free: () => {} };
+        return { ready: Promise.resolve(), decodeFrames: () => none, free: () => {} };
       };
       expect(await refusal(toneOgg, "audio/ogg", { opusDecoder: silent })).toMatch(/decoded to no audio/);
     });
@@ -299,6 +357,37 @@ describe("decodeToWavChunks", () => {
       expect(await refusal(long, "audio/wav")).toMatch(/runs past the end/);
       expect(await refusal(wavFile(samples, 16_000, 0), "audio/wav")).toMatch(/no channels/);
       expect(await refusal(new TextEncoder().encode("not a wave file at all"), "audio/wav")).toMatch(/RIFF WAVE/);
+    });
+
+    it("a WAV whose data ends partway through a sample or a frame (completion review)", async () => {
+      const mono = wavFile(tone(16_000, 0.1), 16_000, 1);
+      const view = new DataView(mono.buffer);
+      view.setUint32(40, view.getUint32(40, true) - 1, true); // 199 bytes of 16-bit samples, and so on
+      expect(await refusal(mono, "audio/wav")).toMatch(/partway through a sample frame/);
+      const stereo = wavFile(tone(16_000, 0.2).slice(0, 1_601), 16_000, 2); // an odd count of samples in two channels
+      expect(await refusal(stereo, "audio/wav")).toMatch(/partway through a sample frame/);
+    });
+  });
+
+  describe("streams this decoder does not take", () => {
+    it("chained Ogg streams, each under 30 minutes, are refused before any decoding (completion review)", async () => {
+      const { seen, make } = counting();
+      const chained = Uint8Array.from([...repeated(320), ...repeated(320)]); // two 16-minute streams
+      const refusal = await decodeAll(chained, "audio/ogg", { opusDecoder: make }).catch((e: unknown) => e);
+      expect(refusal).toBeInstanceOf(UnsupportedAudio);
+      expect((refusal as Error).message).toMatch(/chained or multiple streams/);
+      expect(seen.made).toBe(0);
+    });
+
+    it("more than two channels", async () => {
+      const head = (headers[0] as Uint8Array).slice();
+      head[9] = 6;
+      const refusal = await decodeAll(
+        oggStream([head, headers[1] as Uint8Array], audio, PRE_SKIP, 960),
+        "audio/ogg",
+      ).catch((e: unknown) => e);
+      expect(refusal).toBeInstanceOf(UnsupportedAudio);
+      expect((refusal as Error).message).toMatch(/6 channels/);
     });
   });
 });
