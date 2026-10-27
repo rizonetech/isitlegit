@@ -40,6 +40,7 @@ track: day-1
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [ ] |
+| 7 | §7 | MP3 decoding | §2 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -65,22 +66,30 @@ track: day-1
 
 ## 2. Audio decoding to 16 kHz mono WAV
 
+> **Started:** 2026-10-27T20:10Z
+
 Muse Voice Transcribe accepts WAV only, 16 kHz mono 16-bit, at most 10 minutes (spec 4.2a). WhatsApp saves voice notes as Ogg Opus; `ogg-opus-decoder` (WASM) decodes them in the Worker. WAV input is resampled; MP3 and M4A are refused with a clear message if no decoder runs in Workers (recorded, not hidden).
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-27** (validation before building; spike in workerd). The stack doc's `ogg-opus-decoder` does not run in a Worker as published: (1) the package's index imports `@wasm-audio-decoders/common`, which at import time builds a class on `@eshaz/web-worker`, and that refers to a `Worker` global the Workers runtime lacks (`ReferenceError: Worker is not defined`); (2) the decoder compiles its embedded WASM from bytes at runtime, which Workers refuse (`CompileError: WebAssembly.compile(): Wasm code generation disallowed by embedder`, measured in the workers pool). Both have a fix the library itself supports: `@eshaz/web-worker` is aliased to a stub in `wrangler.jsonc` (`alias`) and in the workers project of `vitest.config.ts` (the test plugin does not read Wrangler's alias), and the decoder takes a precompiled module through the static `OpusDecoder.module` (`@wasm-audio-decoders/common` 9.0.7, `instantiate(_EmscriptenWASM, _module)`), which a Worker gets by importing the `.wasm` file (compiled at deploy). The spike decoded a synthetic Ogg Opus tone in workerd this way: 48000 Hz, 1 channel, 143,688 samples, no errors, the same as in Node. Fixtures are generated in Node with `opusscript` 0.1.1 (libopus, MIT; no ffmpeg, opusenc or sox on the build machine). MP3 has a decoder of the same family (`mpg123-decoder` 1.0.3) that the same fix would load, so refusing it is no longer forced; its fixture needs an MP3 encoder, so it is filed as §7 rather than widening this section. M4A (AAC) has no Workers decoder in that family and stays refused.
+
 **Build order:**
 
-1. Prove `ogg-opus-decoder` 1.7.5 in the workers pool. Done when: a synthetic Opus fixture decodes to PCM in a Vitest workers test.
+1. Prove `ogg-opus-decoder` 1.7.5 in the workers pool. Done when: a synthetic Opus fixture decodes to PCM in a Vitest workers test, with the WASM loaded as a precompiled module and nothing compiled at runtime.
 2. Resample and encode WAV. Done when: the output header reads 16000 Hz, 1 channel, 16 bits.
 
-- [ ] Add exact dependency `ogg-opus-decoder` 1.7.5. Done when: `pnpm install` resolves it and the WASM loads in the workers pool.
+- [ ] Add exact dependencies `ogg-opus-decoder` 1.7.5 and `opus-decoder` 0.7.12 (the class whose static `module` takes the precompiled WASM; the version `ogg-opus-decoder` 1.7.5 pins), and dev dependency `opusscript` 0.1.1. Done when: `pnpm install` resolves them, `pnpm why opus-decoder` lists one version, and the WASM loads in the workers pool.
+- [ ] Extract the Opus decoder's WASM with `scripts/build-opus-wasm.ts` (runs the installed decoder once in Node and writes the module it compiles) to `src/voice/opus-decoder.wasm`, committed, and import it in `src/voice/decode.ts` as a module (`?module`) set on `OpusDecoder.module` before the first decode. Done when: a workers test decodes with runtime compilation impossible (a `WebAssembly.compile` call would throw), and `test/node/opus-wasm.test.ts` fails when the committed file differs from what the installed package produces. Source: `@wasm-audio-decoders/common` 9.0.7 `WASMAudioDecoderCommon.js` (`instantiate`, `setModule`).
+- [ ] Alias `@eshaz/web-worker` to `src/voice/no-web-worker.ts` (a class that throws if constructed) in `wrangler.jsonc` and in the workers project of `vitest.config.ts`, marked as a workaround (the package's index needs a Web Worker class at import, which a Cloudflare Worker has no use for). Done when: `test/node/opus-wasm.test.ts` fails if the two aliases differ, and `wrangler deploy --dry-run` bundles the decoder.
 - [ ] Generate synthetic fixtures `test/fixtures/audio/tone.ogg` and `tone.wav` (a 3-second tone, no voice) with `scripts/fixtures/make-audio.ts`. Done when: both files and the generator are committed.
-- [ ] Write `decodeToPcm(bytes, type)` in `src/voice/decode.ts` for Ogg Opus and WAV, and refuse other types with `UnsupportedAudio` naming the type. Done when: tests decode both fixtures and refuse an MP3 header with the typed error.
+- [ ] Write `decodeToPcm(bytes, type)` in `src/voice/decode.ts` for Ogg Opus and WAV (PCM 16-bit, any rate and channel count), and refuse other types, and a WAV it cannot read (a compressed format, a missing `fmt ` or `data` chunk), with `UnsupportedAudio` naming the type. Done when: tests decode both fixtures, refuse an MP3 header and an M4A `ftyp` header with the typed error naming the type, and refuse a truncated Ogg with a typed error, never a crash.
 - [ ] Write `toWav16kMono(pcm, sampleRate, channels)` with linear resampling and channel mixdown. Done when: a test reads the WAV header fields 16000, 1 and 16.
 - [ ] Cap at 10 minutes per chunk by splitting longer audio into 10-minute WAV chunks, and refuse audio over 30 minutes. Done when: a synthetic 25-minute PCM buffer yields three chunks and a 31-minute one is refused.
+> **Deferred:** decoding MP3 voice notes and voicemail attachments (refused with `UnsupportedAudio` until then) -> XREF: D01 T03 §7
+
 - [ ] Commit: `voice: decode voice notes to 16 kHz mono WAV`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if the sample rate written to the header is not 16000.
@@ -172,6 +181,27 @@ The member-facing page for uploads: one drop zone and file picker, accepted type
 - [ ] Commit: `web: upload page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/upload-page.test.ts` passes and fails if the error region is removed.
+
+## 7. MP3 decoding
+
+Spec 4.2a lists `.mp3` among voice-note uploads and as the usual format of a voicemail-lure attachment. §2 found that `mpg123-decoder` (the same WASM family as `ogg-opus-decoder`) can run in a Worker with the same fix: a precompiled module and the `@eshaz/web-worker` stub. Filed from §2's validation (2026-10-27) so that section stays one format family.
+
+**Phase:** 1
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Decode MP3 in the workers pool. Done when: a synthetic MP3 fixture decodes to PCM in a Vitest workers test with nothing compiled at runtime.
+2. Route MP3 through §2's pipeline. Done when: an MP3 voice note yields 16 kHz mono WAV chunks like any other.
+
+- [ ] Add exact dependency `mpg123-decoder` 1.0.3 and extract its WASM with `scripts/build-opus-wasm.ts` (extended to both decoders) to `src/voice/mpg123-decoder.wasm`, set on the decoder's static `module`. Done when: `test/node/opus-wasm.test.ts` checks both committed files against the installed packages.
+- [ ] Generate `test/fixtures/audio/tone.mp3` (the same 3-second tone) in `scripts/fixtures/make-audio.ts` with an MP3 encoder whose licence allows a development dependency, recording the choice. Done when: the fixture and generator are committed and the generator's output is the same on every run.
+- [ ] Decode MP3 in `decodeToPcm` (`src/voice/decode.ts`), and stop refusing it. Done when: `test/voice/decode.test.ts` decodes the MP3 fixture and refuses a truncated one with a typed error.
+- [ ] Close §2's deferral as `Resolved:`. Done when: §2's Deferred line reads resolved with this section's commit.
+- [ ] Commit: `voice: decode MP3 voice notes and voicemail attachments`
+
+**Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts` passes and fails if an MP3 is refused or its WAV header is not 16000 Hz, 1 channel, 16 bits.
 
 ## Verification
 
