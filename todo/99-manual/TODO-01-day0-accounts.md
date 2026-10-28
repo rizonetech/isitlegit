@@ -202,6 +202,7 @@ The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-
 - [ ] Commit: `todo: record partner credits`
 
 Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decision 2026-10-27; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
+Partner credit Fireworks: granted, 2026-10-28 (US$100 loaded, reported by the operator at 09:02 SAST; not used: operator decision 2026-10-27)
 
 **Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
 
