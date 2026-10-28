@@ -14,13 +14,17 @@
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { join, resolve } from "node:path";
-import { type Browser, type BrowserContext, chromium, type Route } from "playwright-core";
+import type { Readable } from "node:stream";
+import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
+import { type Browser, type BrowserContext, chromium, type Page, type Route } from "playwright-core";
 import { getDomain } from "tldts";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { chromiumPath } from "../lib/chromium.ts";
-import { type FormFlags, normaliseScreenshot, readFormFlags, shownText } from "./source-pages.ts";
+import { bounded, type FormFlags, normaliseScreenshot, readFormFlags, shownText } from "./source-pages.ts";
 import { MAX_HEIGHT, MAX_WIDTH, openStore, PAGE_KINDS, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -57,7 +61,7 @@ export function saList(text: string): UrlList {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
     const [kind = "", url = "", brand = "", also = ""] = line.split("\t").map((cell) => cell.trim());
-    if (!(PAGE_KINDS as readonly string[]).includes(kind) || kind === "home")
+    if (!(PAGE_KINDS as readonly string[]).includes(kind))
       throw new Error(`benign-sa line ${index + 1}: kind "${kind}"`);
     if (!/^https:\/\/[^\s/]+/.test(url)) throw new Error(`benign-sa line ${index + 1}: not an https URL`);
     if (!brand) throw new Error(`benign-sa line ${index + 1}: no brand`);
@@ -127,36 +131,55 @@ export class HttpStatus extends Error {
 
 // Signs that the page is not the site but a wall in front of it. Run inside the page.
 export function readWalls(): { captcha: boolean; consentWall: boolean } {
-  const captcha = [...document.querySelectorAll("iframe")].some((frame) =>
-    /recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha/i.test(frame.src || ""),
-  );
   const width = innerWidth;
   const height = innerHeight;
-  let consentWall = false;
+  const area = (el: Element) => {
+    const box = el.getBoundingClientRect();
+    return (
+      Math.max(0, Math.min(box.right, width) - Math.max(box.left, 0)) *
+      Math.max(0, Math.min(box.bottom, height) - Math.max(box.top, 0))
+    );
+  };
+  const shown = (el: Element) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+  const frames = [...document.querySelectorAll("iframe")];
+  // A challenge the viewer must solve, not a protection badge: a visible CAPTCHA frame larger than a corner badge.
+  const captcha = frames.some((frame) => {
+    if (
+      !/recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha/i.test(frame.src || "")
+    )
+      return false;
+    const box = frame.getBoundingClientRect();
+    return shown(frame) && box.width >= 150 && box.height >= 100 && area(frame) > 0;
+  });
+  const consentWords =
+    /we use cookies|accept (all )?cookies|(cookie|privacy) (settings|preferences)|manage cookies|consent to|your consent/i;
+  // A consent provider's own frame in front of the page.
+  const providerFrame = frames.some(
+    (frame) =>
+      /consent|cookiebot|onetrust|cookielaw|didomi|trustarc|quantcast|consensu\.org|privacy-mgmt|sourcepoint|usercentrics|cookiefirst|iubenda/i.test(
+        frame.src || "",
+      ) &&
+      shown(frame) &&
+      area(frame) >= 0.15 * width * height,
+  );
+  let covering = false;
+  let backdrop = false;
+  let dialog = false;
   for (const el of document.querySelectorAll("body *")) {
     const style = getComputedStyle(el);
     if (style.position !== "fixed" && style.position !== "absolute") continue;
-    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) continue;
-    const box = el.getBoundingClientRect();
-    const covered =
-      Math.max(0, Math.min(box.right, width) - Math.max(box.left, 0)) *
-      Math.max(0, Math.min(box.bottom, height) - Math.max(box.top, 0));
-    if (covered < 0.5 * width * height) continue;
+    if (!shown(el)) continue;
     // biome-ignore lint/performance/useDomNodeTextContent: what the overlay shows is the point
     const text = (el as HTMLElement).innerText || "";
+    const big = area(el) >= 0.5 * width * height;
     // A consent wall asks for consent; a page wrapped whole in a positioned frame (Microsoft's sign-in) only links
     // its "Privacy & cookies" policy in a footer.
-    if (
-      text.length < 3000 &&
-      /we use cookies|accept (all )?cookies|(cookie|privacy) (settings|preferences)|manage cookies|consent to|your consent/i.test(
-        text,
-      )
-    ) {
-      consentWall = true;
-      break;
-    }
+    if (big && text.length < 3000 && consentWords.test(text)) covering = true;
+    // A full-screen backdrop with almost nothing written on it, and a consent dialog of any size above the page.
+    if (big && text.trim().length < 40) backdrop = true;
+    if (text.length < 3000 && consentWords.test(text)) dialog = true;
   }
-  return { captcha, consentWall };
+  return { captcha, consentWall: covering || providerFrame || (backdrop && dialog) };
 }
 
 // Why a capture cannot be stored as a benign page of the listed site, or null when it can.
@@ -179,19 +202,187 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
   if (capture.captcha) return "a CAPTCHA frame";
   if (capture.consentWall) return "a cookie wall covering the page";
   if (capture.text.trim().length < MIN_TEXT) return `under ${MIN_TEXT} characters of visible text`;
+  // A brand's social profile lives on someone else's site: one that lands on that site's sign-in page is the network's
+  // page, not the brand's, so its brand label would be wrong. (A brand's own page that lands elsewhere on its own site
+  // is still the brand's, and `capturedKind` records which kind it shows.)
+  if (entry.kind === "social" && SIGN_IN_PATH.test(new URL(capture.finalUrl).pathname))
+    return `redirected to a sign-in page, not the ${entry.kind} page listed`;
+  if (entry.brand && !brandShown(entry.brand, capture)) return `the listed brand (${entry.brand}) is not on the page`;
   return null;
 }
 
-export async function openRenderer(options: { allowOrigins?: string[]; limitMs?: number } = {}) {
+const SIGN_IN_PATH =
+  /(^|\/)(log-?in|sign-?in|signin|auth|authenticate|accounts?\/login|session\/new|oauth2?)(\/|$|\?|\.)/i;
+
+const ROOT_PATH = /^\/([a-z]{2}([-_][a-z]{2})?\/?)?(index\.html?)?$/i;
+const ACCOUNT_PATH = /(^|\/)(my-?account|account|profile|e-?services|self-?service|portal|online-?services)(\/|$|\.)/i;
+const CART_PATH = /(^|\/)(cart|basket|checkout|bag|trolley|mycart)(\/|$|\.)/i;
+const PRODUCT_PATH = /(^|\/)(p|pd|product|products|item|dp)\/[^/]{3,}/i;
+const COMPANY_PATH =
+  /(^|\/|-)(about|who-?we-?are|our-?(story|company)|company-?profile|at-a-glance|contact|corporate|investors?|group)(\/|$|\.|-|_)/i;
+
+// The kind a capture shows: its listed kind when the page bears it out, otherwise `home` (a real page of the site, but
+// not the sign-in, cart, product or about page the list names), so a kind's count is of pages of that kind.
+export function capturedKind(
+  entry: Pick<ListEntry, "kind">,
+  capture: Pick<Capture, "finalUrl" | "title" | "text" | "has_login_form" | "has_payment_form">,
+): Kind {
+  const path = new URL(capture.finalUrl).pathname;
+  const shown = `${capture.title}\n${capture.text.slice(0, 4000)}`;
+  switch (entry.kind) {
+    case "login":
+      return capture.has_login_form ? "login" : "home";
+    case "account":
+      return capture.has_login_form || ACCOUNT_PATH.test(path) ? "account" : "home";
+    case "checkout":
+      return capture.has_payment_form || CART_PATH.test(path) ? "checkout" : "home";
+    case "shop":
+      return !ROOT_PATH.test(path) &&
+        (CART_PATH.test(path) || PRODUCT_PATH.test(path) || /add to (cart|basket|bag|trolley)|buy now/i.test(shown))
+        ? "shop"
+        : "home";
+    case "company":
+      return !ROOT_PATH.test(path) &&
+        (COMPANY_PATH.test(path) ||
+          /about us|who we are|contact us|our story|company profile|at a glance/i.test(capture.title))
+        ? "company"
+        : "home";
+    default:
+      return entry.kind;
+  }
+}
+
+// Words a brand's name shares with many others, which on their own do not show the brand.
+const GENERIC_WORDS = new Set(
+  "the and city bank group online south africa african limited ltd pty company municipality metropolitan metro store shop mobile insurance services".split(
+    " ",
+  ),
+);
+
+// Whether a listed brand is on the page: any word of its name (three letters or more, or the whole short name) in the
+// title, the text or the host.
+export function brandShown(brand: string, capture: Pick<Capture, "title" | "text" | "finalUrl">): boolean {
+  const haystack = `${capture.title}\n${capture.text}\n${new URL(capture.finalUrl).hostname}`.toLowerCase();
+  const words = brand
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length >= 3 && !GENERIC_WORDS.has(w));
+  const tokens = words.length ? words : [brand.toLowerCase()];
+  return tokens.some((word) => haystack.includes(word));
+}
+
+// The address a connection may use: every one the name resolves to must be public, checked when the socket connects,
+// so a name that resolves publicly for a check and privately for the connection never reaches a private address.
+export type Resolve = (host: string) => Promise<{ address: string; family: number }[]>;
+const systemResolve: Resolve = (host) => lookup(host, { all: true, verbatim: true });
+
+export function publicLookup(resolve: Resolve = systemResolve) {
+  return (
+    hostname: string,
+    options: { all?: boolean },
+    callback: (error: Error | null, address?: string | { address: string; family: number }[], family?: number) => void,
+  ) => {
+    resolve(hostname).then(
+      (addresses) => {
+        const refused = addresses.find((a) => !isPublicAddress(a.address));
+        if (!addresses.length || refused)
+          return callback(
+            Object.assign(new Error(`${hostname} resolves to a non-public address`), { code: "EPRIVATE" }),
+          );
+        if (options.all) return callback(null, addresses);
+        const first = addresses[0] as { address: string; family: number };
+        return callback(null, first.address, first.family);
+      },
+      (error: Error) => callback(error),
+    );
+  };
+}
+
+export const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
+type Hop = { status: number; headers: Record<string, string>; body: Buffer };
+
+// One request, one hop, no redirect followed, over a socket whose address `lookup` checked; uncompressed, so the bytes
+// reach the browser as they are; at most 20 MB.
+function fetchHop(
+  url: URL,
+  method: string,
+  headers: Record<string, string>,
+  body: Buffer | null,
+  lookupFn: ReturnType<typeof publicLookup> | undefined,
+  timeoutMs: number,
+): Promise<Hop> {
+  const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const outgoing = Object.fromEntries(
+    Object.entries(headers).filter(([name]) => !/^(host|connection|accept-encoding|content-length|:)/i.test(name)),
+  );
+  return new Promise((resolveHop, reject) => {
+    const req = send(
+      url,
+      {
+        method,
+        headers: { ...outgoing, "accept-encoding": "identity" },
+        ...(lookupFn ? { lookup: lookupFn as never } : {}),
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        // A server may compress although asked not to: the body reaches the browser decoded, since the encoding header
+        // is not passed on, and the 20 MB bound counts the decoded bytes.
+        const encoding = String(res.headers["content-encoding"] ?? "")
+          .toLowerCase()
+          .trim();
+        const decoder =
+          encoding === "gzip" || encoding === "x-gzip"
+            ? createGunzip()
+            : encoding === "deflate"
+              ? createInflate()
+              : encoding === "br"
+                ? createBrotliDecompress()
+                : null;
+        const stream: Readable = decoder ? res.pipe(decoder) : res;
+        stream.on("data", (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > MAX_RESPONSE_BYTES) {
+            req.destroy(new Error(`the response is over ${MAX_RESPONSE_BYTES / 1024 / 1024} MB`));
+            decoder?.destroy();
+            return;
+          }
+          chunks.push(chunk);
+        });
+        decoder?.on("error", reject);
+        stream.on("end", () => {
+          const flat: Record<string, string> = {};
+          for (const [name, value] of Object.entries(res.headers)) {
+            if (value === undefined || /^(content-encoding|transfer-encoding|content-length|connection)$/i.test(name))
+              continue;
+            flat[name] = Array.isArray(value) ? value.join("\n") : String(value);
+          }
+          resolveHop({ status: res.statusCode ?? 0, headers: flat, body: Buffer.concat(chunks) });
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("the request timed out")));
+    req.on("error", reject);
+    if (body?.length) req.write(body);
+    req.end();
+  });
+}
+
+export async function openRenderer(options: { allowOrigins?: string[]; limitMs?: number; resolve?: Resolve } = {}) {
   const found = chromiumPath();
   if (!found) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
   const executablePath: string = found;
   const allowOrigins = new Set(options.allowOrigins ?? []);
   const limitMs = options.limitMs ?? RENDER_LIMIT_MS;
+  const checkedLookup = publicLookup(options.resolve);
   let session: Promise<Browser> | null = null;
+  let launched = 0;
   const contexts = new Set<BrowserContext>();
   const current = () => {
     session ??= chromium.launch({ executablePath, chromiumSandbox: true, args: ["--no-first-run"] }).then((browser) => {
+      launched++;
       browser.on("disconnected", () => {
         session = null;
       });
@@ -200,49 +391,49 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     return session;
   };
 
-  const verdicts = new Map<string, Promise<boolean>>();
-  async function allowed(url: string): Promise<boolean> {
+  // A request may leave only for http or https (data and blob carry the page's own bytes); an address in the URL itself
+  // must be public. A name is checked where it is connected to (`publicLookup`).
+  function allowedUrl(url: string): boolean {
     let parsed: URL;
     try {
       parsed = new URL(url);
     } catch {
       return false;
     }
-    if (parsed.protocol === "data:" || parsed.protocol === "blob:") return true; // no network: the page's own bytes
+    if (parsed.protocol === "data:" || parsed.protocol === "blob:") return true;
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
     if (allowOrigins.has(parsed.origin)) return true;
     const host = parsed.hostname.replace(/^\[|\]$/g, "");
-    if (isIP(host)) return isPublicAddress(host);
-    let verdict = verdicts.get(host);
-    if (!verdict) {
-      verdict = lookup(host, { all: true, verbatim: true }).then(
-        (addresses) => addresses.length > 0 && addresses.every((a) => isPublicAddress(a.address)),
-        () => false,
-      );
-      verdicts.set(host, verdict);
-    }
-    return verdict;
+    return isIP(host) ? isPublicAddress(host) : true;
   }
 
-  // Every request is fetched here, one hop at a time, so each redirect's target is checked before it is followed:
-  // Playwright calls a route only for a redirect chain's first URL. The browser follows a passed-on redirect as a new
-  // request, which comes back through this route.
-  // The status of each page's last main-frame response, as the guard fetched it.
-  const mainStatus = new WeakMap<import("playwright-core").Page, number>();
-  async function guard(route: Route) {
+  // Every request is fetched here, one hop at a time, over a connection whose address was checked as it connected; a
+  // redirect is passed to the browser, which follows it as a new request through this same route (Playwright calls a
+  // route only for a redirect chain's first URL, so the route never follows one itself).
+  const mainStatus = new WeakMap<Page, number>();
+  async function guard(route: Route, deadline: number) {
     const request = route.request();
-    if (!(await allowed(request.url()))) return route.abort("blockedbyclient");
+    if (!allowedUrl(request.url())) return route.abort("blockedbyclient");
+    const url = new URL(request.url());
+    if (url.protocol === "data:" || url.protocol === "blob:") return route.continue();
     try {
-      const response = await route.fetch({ maxRedirects: 0 });
-      const location = response.headers().location;
-      if (response.status() >= 300 && response.status() < 400 && location) {
-        if (!(await allowed(new URL(location, request.url()).href))) return route.abort("blockedbyclient");
-      }
+      const hop = await fetchHop(
+        url,
+        request.method(),
+        await request.allHeaders(),
+        request.postDataBuffer(),
+        allowOrigins.has(url.origin) ? undefined : checkedLookup,
+        Math.max(1, deadline - Date.now()),
+      );
+      const location = hop.headers.location;
+      if (hop.status >= 300 && hop.status < 400 && location && !allowedUrl(new URL(location, url).href))
+        return route.abort("blockedbyclient");
       const frame = request.frame();
-      if (request.isNavigationRequest() && !frame.parentFrame()) mainStatus.set(frame.page(), response.status());
-      return await route.fulfill({ response });
-    } catch {
-      return route.abort("failed").catch(() => undefined); // the context closed under it, or the fetch failed
+      if (request.isNavigationRequest() && !frame.parentFrame()) mainStatus.set(frame.page(), hop.status);
+      return await route.fulfill({ status: hop.status, headers: hop.headers, body: hop.body });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      return route.abort(code === "EPRIVATE" ? "blockedbyclient" : "failed").catch(() => undefined);
     }
   }
 
@@ -251,28 +442,51 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     let popupsClosed = 0;
     context.on("page", (other) => {
       if (other !== page) {
-        popupsClosed++;
-        other.close().catch(() => undefined);
+        void other.close().then(
+          () => {
+            popupsClosed++;
+          },
+          () => undefined,
+        );
       }
     });
     const downloads: Promise<string | null>[] = [];
     page.on("download", (download) => downloads.push(download.path().catch(() => null)));
-    const response = await page
-      .goto(url, { waitUntil: "load", timeout: Math.max(1, deadline - Date.now()) })
-      .catch((error: Error) => {
-        const status = mainStatus.get(page);
-        if (status !== undefined && status >= 400) throw new HttpStatus(status);
-        throw error;
-      });
-    await page
-      .waitForLoadState("networkidle", { timeout: Math.min(SETTLE_MS, Math.max(1, deadline - Date.now())) })
-      .catch(
-        () => undefined, // a page that keeps polling has still settled enough after 3 seconds
-      );
-    // What a viewer sees: what display, visibility, opacity 0 or a position off the page hides is left out (§5).
-    const text = await page.evaluate(shownText);
+    const left = () => Math.max(1, deadline - Date.now());
+    const response = await page.goto(url, { waitUntil: "load", timeout: left() }).catch((error: Error) => {
+      const status = mainStatus.get(page);
+      if (status !== undefined && status >= 400) throw new HttpStatus(status);
+      throw error;
+    });
+    await page.waitForLoadState("networkidle", { timeout: Math.min(SETTLE_MS, left()) }).catch(
+      () => undefined, // a page that keeps polling has still settled enough after 3 seconds
+    );
+    // The page and every frame in it, cross-origin and nested ones included: a sign-in form inside an identity
+    // provider's frame is still the page's sign-in form, and its text is still what the viewer reads.
+    const frames = page.frames();
+    const readFrame = async <T>(frame: (typeof frames)[number], fn: () => T, fallback: T): Promise<T> => {
+      try {
+        return await frame.evaluate(fn);
+      } catch {
+        return fallback; // a frame that went away or never loaded reads as empty
+      }
+    };
+    let text = await page.evaluate(shownText);
+    let has_login_form = false;
+    let has_payment_form = false;
+    for (const frame of frames) {
+      const flags = await readFrame(frame, readFormFlags, { has_login_form: false, has_payment_form: false });
+      has_login_form ||= flags.has_login_form;
+      has_payment_form ||= flags.has_payment_form;
+      if (frame !== page.mainFrame()) {
+        const shown = await frame.frameElement().then(
+          (el) => el.isVisible(),
+          () => false,
+        );
+        if (shown) text += `\n${await readFrame(frame, shownText, "")}`;
+      }
+    }
     const title = await page.title();
-    const flags = await page.evaluate(readFormFlags);
     const walls = await page.evaluate(readWalls);
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
@@ -280,7 +494,7 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       type: "png",
       fullPage: true,
       clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, height)) },
-      timeout: Math.max(1, deadline - Date.now()),
+      timeout: left(),
     });
     const written = (await Promise.all(downloads)).filter((path) => path !== null).length;
     return {
@@ -293,7 +507,8 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
         .replace(/ *\n[\n ]*/g, "\n")
         .trim(),
       screenshot: await normaliseScreenshot(new Uint8Array(shot)),
-      ...flags,
+      has_login_form,
+      has_payment_form,
       ...walls,
       downloadsWritten: written,
       popupsClosed,
@@ -301,43 +516,67 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     };
   }
 
+  // The whole render, the browser's start and the context's setup included, runs under one deadline; the context's
+  // close gets 5 seconds more, and a browser that does not close it is dropped, so no worker waits on it again.
   async function render(url: string): Promise<Capture> {
-    const browser = await current();
-    const context = await browser.newContext({
-      viewport: { width: MAX_WIDTH, height: 800 },
-      acceptDownloads: false,
-      serviceWorkers: "block",
-      permissions: [],
-      ignoreHTTPSErrors: false,
-    });
-    contexts.add(context);
     const deadline = Date.now() + limitMs;
     let timer: NodeJS.Timeout | undefined;
-    try {
-      await context.routeWebSocket(/.*/, (socket) => socket.close());
-      await context.route("**/*", guard);
-      const limit = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new RenderTimeout(`the render passed ${limitMs / 1000} seconds`)), limitMs);
+    let context: BrowserContext | undefined;
+    let browser: Browser | undefined;
+    let abandoned = false;
+    const mine = current();
+    const work = (async () => {
+      browser = await mine;
+      const made = await browser.newContext({
+        viewport: { width: MAX_WIDTH, height: 800 },
+        acceptDownloads: false,
+        serviceWorkers: "block",
+        permissions: [],
+        ignoreHTTPSErrors: false,
       });
-      return await Promise.race([capture(context, url, deadline), limit]);
+      // Made after the deadline gave up on this render: closed here, since nothing else will.
+      if (abandoned) {
+        void bounded(made.close());
+        throw new RenderTimeout("the render passed its deadline while its context was made");
+      }
+      context = made;
+      contexts.add(context);
+      await context.routeWebSocket(/.*/, (socket) => socket.close());
+      await context.route("**/*", (route) => guard(route, deadline));
+      return capture(context, url, deadline);
+    })();
+    const limit = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new RenderTimeout(`the render passed ${limitMs / 1000} seconds`)), limitMs);
+    });
+    try {
+      return await Promise.race([work, limit]);
     } catch (error) {
       if (error instanceof RenderTimeout || /Timeout \d+ms exceeded/.test((error as Error).message))
         throw new RenderTimeout((error as Error).message.split("\n")[0]);
       throw error;
     } finally {
+      abandoned = true;
       clearTimeout(timer);
-      contexts.delete(context);
-      await context.close().catch(() => undefined); // a context of a crashed browser has nothing left to close
+      work.catch(() => undefined); // a render abandoned at its deadline still settles somewhere: nothing waits on it
+      if (context) {
+        contexts.delete(context);
+        if (!(await bounded(context.close()))) {
+          // The browser did not close the context: it is dropped, and the next render starts a new one.
+          if (session === mine) session = null;
+          if (browser) void bounded(browser.close());
+        }
+      }
     }
   }
 
   return {
     render,
     openContexts: () => contexts.size,
+    launches: () => launched,
     close: async () => {
       const open = session;
       session = null;
-      if (open) await (await open).close();
+      if (open) await bounded(open.then((b) => b.close()));
     },
   };
 }
@@ -391,6 +630,10 @@ export function appendJournal(path: string, event: Omit<JournalEvent, "at">): vo
   }
 }
 
+// Network failures that pass: tried again on a rerun, like a timeout or a 5xx, three times in all.
+const TRANSIENT =
+  /net::ERR_(CONNECTION_(RESET|CLOSED|REFUSED|TIMED_OUT|ABORTED)|TIMED_OUT|NETWORK_CHANGED|EMPTY_RESPONSE|SOCKET_NOT_CONNECTED|NAME_RESOLUTION_FAILED|ADDRESS_UNREACHABLE)/;
+
 export type BatchResult = { stored: number; excluded: number; retry: number; skipped: number; recovered: number };
 
 export async function runBatch(options: {
@@ -441,13 +684,18 @@ export async function runBatch(options: {
       capture = await options.render(entry.url);
     } catch (error) {
       const reason = (error as Error).message.split("\n")[0] ?? "render failed";
-      if (error instanceof RenderTimeout || (error instanceof HttpStatus && error.status >= 500))
+      if (
+        error instanceof RenderTimeout ||
+        (error instanceof HttpStatus && (error.status >= 500 || error.status === 429)) ||
+        TRANSIENT.test(reason)
+      )
         return retry(entry, known?.retries ?? 0, reason);
       appendJournal(journal, { url: entry.url, event: "excluded", reason });
       result.excluded++;
       return;
     }
-    if (capture.status >= 500) return retry(entry, known?.retries ?? 0, `HTTP ${capture.status}`);
+    if (capture.status >= 500 || capture.status === 429)
+      return retry(entry, known?.retries ?? 0, `HTTP ${capture.status}`);
     const reason = unusable(capture, entry);
     if (reason) {
       appendJournal(journal, { url: entry.url, event: "excluded", reason });
@@ -479,7 +727,7 @@ export async function runBatch(options: {
       },
       redacted: false,
       url: entry.url,
-      kind: entry.kind,
+      kind: capturedKind(entry, capture),
     });
     options.afterStore?.(entry.url);
     appendJournal(journal, { url: entry.url, event: "stored", id });
@@ -545,17 +793,21 @@ function pageFault(store: Pick<ReturnType<typeof openStore>, "readPage">, page: 
   const hash = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
   if (hash(screenshot) !== page.sha256.screenshot || hash(text) !== page.sha256.text) return "files do not match";
   if (page.labels.lure !== false || page.label_source.lure !== "ground-truth") return "not a ground-truth benign page";
-  if (
-    page.kind &&
-    page.kind !== "home" &&
-    (!page.labels.brand || !page.south_africa || page.label_source.brand !== "ground-truth")
-  )
+  if (page.labels.lure_type !== "none" || page.label_source.lure_type !== "ground-truth")
+    return "no ground-truth lure type of none";
+  for (const flag of ["has_login_form", "has_payment_form"] as const)
+    if (typeof page.labels[flag] !== "boolean" || page.label_source[flag] !== "dom") return `no DOM-read ${flag}`;
+  if (!page.kind) return "no listed kind";
+  if (!page.url || !/^https?:\/\//.test(page.url)) return "no listed URL";
+  if (page.kind !== "home" && (!page.labels.brand || !page.south_africa || page.label_source.brand !== "ground-truth"))
     return "a South African list page without its brand or region";
   return null;
 }
 
 if (import.meta.filename === process.argv[1]) {
-  const [command, only] = process.argv.slice(2);
+  const [given, only] = process.argv.slice(2);
+  // `--coverage` is the spelling §6's checkpoint names; `coverage` the subcommand's.
+  const command = given === "--coverage" ? "coverage" : given;
   const dir = storeDir();
   const store = openStore(dir);
   if (command === "coverage") {
@@ -564,7 +816,7 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(coverage.met ? 0 : 1);
   }
   if (command !== "run" || (only && only !== "majestic" && only !== "benign-sa")) {
-    console.error("usage: node scripts/glimmer/render.ts run [majestic|benign-sa] | coverage");
+    console.error("usage: node scripts/glimmer/render.ts run [majestic|benign-sa] | coverage | --coverage");
     process.exit(2);
   }
   const lists: UrlList[] = [];
@@ -574,14 +826,19 @@ if (import.meta.filename === process.argv[1]) {
   const renderer = await openRenderer();
   try {
     for (const list of lists) {
-      const result = await runBatch({
-        list,
-        store,
-        journal: join(dir, "raw/benign/progress.jsonl"),
-        render: renderer.render,
-        log: (line) => console.log(line),
-      });
-      console.log(`${list.name}: ${JSON.stringify(result)}`);
+      // A page that timed out or met a passing failure is tried again in the same run, up to three tries in all, so
+      // one command leaves every URL stored or excluded.
+      for (let pass = 1; pass <= MAX_TRIES; pass++) {
+        const result = await runBatch({
+          list,
+          store,
+          journal: join(dir, "raw/benign/progress.jsonl"),
+          render: renderer.render,
+          log: (line) => console.log(line),
+        });
+        console.log(`${list.name}: ${JSON.stringify(result)}`);
+        if (result.retry === 0) break;
+      }
     }
   } finally {
     await renderer.close();

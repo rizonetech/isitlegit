@@ -3,17 +3,21 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   assertListLicence,
   benignCoverage,
+  brandShown,
   type Capture,
+  capturedKind,
   HttpStatus,
   isPublicAddress,
   type ListEntry,
   majesticList,
   openRenderer,
+  publicLookup,
   RenderTimeout,
   readJournal,
   runBatch,
@@ -85,6 +89,60 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
   "/slow": () => {
     // never answers
   },
+  // A sign-in form two frames down, the first from another origin: the identity provider's frame is the page's form.
+  "/xframe-login": (res) =>
+    html(res, `<p>${words}</p><iframe src="${frameOrigin}/inner" width=500 height=400></iframe>`),
+  // A small consent dialog over a full-screen backdrop, and a consent provider's frame over the page.
+  "/backdrop-consent": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div style="position:fixed;inset:0;background:rgba(0,0,0,.5)"></div><div style="position:fixed;left:20px;bottom:20px;width:320px;height:140px;background:#fff">We use cookies. Accept all cookies?</div>`,
+    ),
+  "/cmp-frame": (res) =>
+    html(
+      res,
+      `<p>${words}</p><iframe src="/consent-manager/notice.html" style="position:fixed;left:0;top:0;width:900px;height:500px;border:0"></iframe>`,
+    ),
+  "/consent-manager/notice.html": (res) => html(res, "<p>Your privacy choices</p>"),
+  "/captcha-badge": (res) =>
+    html(
+      res,
+      `<p>${words}</p><iframe src="/recaptcha/badge" style="position:fixed;right:0;bottom:0;width:70px;height:60px"></iframe>`,
+    ),
+  "/captcha-challenge": (res) =>
+    html(res, `<p>${words}</p><iframe src="/recaptcha/challenge" width=400 height=500></iframe>`),
+  "/opacity-body": (res) => {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(`<!doctype html><html><body style="opacity:0"><p>${words}</p></body></html>`);
+  },
+  "/geo": (res) =>
+    html(
+      res,
+      `<p>${words}</p><p id=g>GEO-WAITING</p><script>navigator.geolocation.getCurrentPosition(() => { g.textContent = 'GEO-ALLOWED' }, (e) => { g.textContent = 'GEO-DENIED-' + e.code })</script>`,
+    ),
+  "/ws": (res) =>
+    html(
+      res,
+      `<p>${words}</p><p id=w>WS-WAITING</p><script>const s = new WebSocket('ws://' + location.host + '/socket'); s.onmessage = () => { w.textContent = 'WS-MESSAGE' }; s.onclose = () => { if (w.textContent === 'WS-WAITING') w.textContent = 'WS-CLOSED' }</script>`,
+    ),
+  "/storage-set": (res) =>
+    html(res, `<p>${words}</p><script>localStorage.setItem('k', 'kept'); document.cookie = 'c=kept'</script>`),
+  "/storage-get": (res) =>
+    html(
+      res,
+      `<p>${words}</p><p id=s></p><script>s.textContent = 'STORED-' + localStorage.getItem('k') + '-' + (document.cookie || 'none')</script>`,
+    ),
+  // A server that compresses although asked not to.
+  "/gzip": (res) => {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-encoding": "gzip" });
+    res.end(gzipSync(`<!doctype html><html><body><p>Compressed: ${words}</p></body></html>`));
+  },
+  // A page whose script never yields once it has loaded: nothing can be read from it.
+  "/hang": (res) => html(res, `<p>${words}</p><script>setTimeout(() => { for (;;) {} }, 50)</script>`),
+};
+const framePages: Record<string, string> = {
+  "/inner": `<p>Example Identity</p><iframe src="/nested" width=400 height=300></iframe>`,
+  "/nested": `<p>Nested sign-in text for the example service</p><input type=password>`,
 };
 function html(res: import("node:http").ServerResponse, body: string) {
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -100,7 +158,20 @@ let secret: Server;
 let secretOrigin: string;
 let secretHits = 0;
 let failing503 = 0;
+let upgrades = 0;
+let frameServer: Server;
+let frameOrigin: string;
 beforeAll(async () => {
+  frameServer = createServer((req, res) => {
+    const body = framePages[new URL(req.url ?? "/", "http://x").pathname];
+    if (body) html(res, body);
+    else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  await new Promise<void>((done) => frameServer.listen(0, "127.0.0.1", done));
+  frameOrigin = `http://127.0.0.1:${(frameServer.address() as AddressInfo).port}`;
   server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://x").pathname;
     serverHits.push(path);
@@ -117,6 +188,10 @@ beforeAll(async () => {
       res.end();
     }
   });
+  server.on("upgrade", (_req, socket) => {
+    upgrades++;
+    socket.destroy();
+  });
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   secret = createServer((_req, res) => {
     secretHits++;
@@ -125,7 +200,7 @@ beforeAll(async () => {
   await new Promise<void>((done) => secret.listen(0, "127.0.0.1", done));
   secretOrigin = `http://127.0.0.1:${(secret.address() as AddressInfo).port}`;
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  renderer = await openRenderer({ allowOrigins: [origin], limitMs: 8_000 });
+  renderer = await openRenderer({ allowOrigins: [origin, frameOrigin], limitMs: 8_000 });
   // The browser starts lazily on the first page; it starts here, inside the hook's 60 seconds, so no test pays
   // Chromium's start-up on a slow CI runner (three runs on 2026-10-28 timed out at 15 seconds that way).
   await renderer.render(`${origin}/page`);
@@ -136,9 +211,36 @@ afterAll(async () => {
   await new Promise((done) => server?.close(done));
   secret?.closeAllConnections();
   await new Promise((done) => secret?.close(done));
+  frameServer?.closeAllConnections();
+  await new Promise((done) => frameServer?.close(done));
 });
 
 describe("addresses", () => {
+  it("checks a name's addresses at every connection, so a name that turns private is refused", async () => {
+    const answers = [[{ address: "93.184.216.34", family: 4 }], [{ address: "127.0.0.1", family: 4 }]];
+    const lookup = publicLookup(async () => answers.shift() ?? []);
+    const connect = () =>
+      new Promise<string>((done) =>
+        lookup("rebind.example", {}, (error, address) =>
+          done(error ? ((error as { code?: string }).code ?? "") : String(address)),
+        ),
+      );
+    expect(await connect()).toBe("93.184.216.34");
+    expect(await connect()).toBe("EPRIVATE");
+  });
+
+  it("refuses a page whose name resolves to a private address when the browser connects", async () => {
+    const rebinding = await openRenderer({
+      limitMs: 5_000,
+      resolve: async () => [{ address: "127.0.0.1", family: 4 }],
+    });
+    serverHits = [];
+    const port = new URL(origin).port;
+    await expect(rebinding.render(`http://rebind.example:${port}/page`)).rejects.toThrow(/BLOCKED_BY_CLIENT/);
+    expect(serverHits).toEqual([]);
+    await rebinding.close();
+  }, 30_000);
+
   it("allows only public addresses", () => {
     for (const ip of ["127.0.0.1", "10.0.0.1", "172.16.4.4", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0"])
       expect(isPublicAddress(ip), ip).toBe(false);
@@ -166,7 +268,8 @@ describe("lists", () => {
       { url: "https://www.fnb.co.za/", kind: "login", brand: "FNB", also: ["firstrand.co.za"] },
       { url: "https://www.takealot.com/", kind: "shop", brand: "Takealot", also: [] },
     ]);
-    expect(() => saList("home\thttps://x.co.za/\tX\n")).toThrow(/kind/);
+    expect(() => saList("blog\thttps://x.co.za/\tX\n")).toThrow(/kind/);
+    expect(saList("home\thttps://x.co.za/\tX\n").entries[0]?.kind).toBe("home");
     expect(() => saList("login\thttp://x.co.za/\tX\n")).toThrow(/https/);
   });
 });
@@ -205,6 +308,25 @@ describe("renderPage", () => {
     expect(serverHits).toEqual(expect.arrayContaining(["/to-loopback", "/hop", "/page"]));
   });
 
+  it("hands the browser a compressed body decoded", async () => {
+    expect((await renderer.render(`${origin}/gzip`)).text).toContain(`Compressed: ${words}`);
+  });
+
+  it("reads a sign-in form and its text from a cross-origin frame and the frame inside it", async () => {
+    const shot = await renderer.render(`${origin}/xframe-login`);
+    expect(shot.has_login_form).toBe(true);
+    expect(shot.text).toContain("Nested sign-in text for the example service");
+  });
+
+  it("denies permissions, refuses WebSockets and keeps nothing between pages", async () => {
+    expect((await renderer.render(`${origin}/geo`)).text).toMatch(/GEO-DENIED-1/);
+    upgrades = 0;
+    expect((await renderer.render(`${origin}/ws`)).text).toContain("WS-CLOSED");
+    expect(upgrades).toBe(0);
+    await renderer.render(`${origin}/storage-set`);
+    expect((await renderer.render(`${origin}/storage-get`)).text).toContain("STORED-null-none");
+  });
+
   it("writes no download, closes a pop-up and registers no service worker", async () => {
     expect((await renderer.render(`${origin}/download`)).downloadsWritten).toBe(0);
     expect((await renderer.render(`${origin}/popup`)).popupsClosed).toBeGreaterThanOrEqual(1);
@@ -219,6 +341,17 @@ describe("renderPage", () => {
     expect(quick.openContexts()).toBe(0);
     await quick.close();
   }, 20_000);
+
+  it("gives up on a page that stops answering and goes on with the next", async () => {
+    const quick = await openRenderer({ allowOrigins: [origin], limitMs: 3_000 });
+    const started = Date.now();
+    await expect(quick.render(`${origin}/hang`)).rejects.toBeInstanceOf(RenderTimeout);
+    // The render's 3 seconds and at most 5 more for the context's close.
+    expect(Date.now() - started).toBeLessThan(9_000);
+    expect(quick.openContexts()).toBe(0);
+    expect((await quick.render(`${origin}/page`)).status).toBe(200);
+    await quick.close();
+  }, 40_000);
 });
 
 describe("usable", () => {
@@ -259,6 +392,39 @@ describe("usable", () => {
     expect(unusable(await live("/page"), local)).toBeNull();
     // A sign-in page drawn in a full-screen frame that links its cookie policy is a page, not a wall.
     expect(unusable(await live("/framed-login"), local)).toBeNull();
+    expect(unusable(await live("/backdrop-consent"), local)).toBe("a cookie wall covering the page");
+    expect(unusable(await live("/cmp-frame"), local)).toBe("a cookie wall covering the page");
+    expect(unusable(await live("/captcha-challenge"), local)).toBe("a CAPTCHA frame");
+    // A protection badge in a corner is not a challenge the viewer must solve.
+    expect(unusable(await live("/captcha-badge"), local)).toBeNull();
+    // Text under a body that opacity 0 hides is not shown.
+    expect(unusable(await live("/opacity-body"), local)).toMatch(/under 50 characters/);
+  });
+
+  it("excludes a listed page that lands on a sign-in page or does not show its brand", () => {
+    const profile = { url: "https://www.facebook.com/FNBSA", kind: "social" as const, brand: "FNB", also: [] };
+    const generic = capture({ finalUrl: "https://www.facebook.com/login/?next=x", title: "Log in to Facebook" });
+    expect(unusable(generic, profile)).toBe("redirected to a sign-in page, not the social page listed");
+    const other = capture({ finalUrl: "https://www.facebook.com/somebody", title: "Somebody" });
+    expect(unusable(other, profile)).toBe("the listed brand (FNB) is not on the page");
+    expect(
+      unusable(capture({ finalUrl: "https://www.facebook.com/FNBSA", title: "FNB | Facebook" }), profile),
+    ).toBeNull();
+    // A word every bank shares does not show a brand.
+    expect(brandShown("Standard Bank", { title: "Bank", text: words, finalUrl: "https://example.com/" })).toBe(false);
+  });
+
+  it("keeps a listed kind only when the page shows it", () => {
+    const at = (path: string, over: Partial<Capture> = {}) =>
+      capture({ finalUrl: `https://www.example.co.za${path}`, ...over });
+    expect(capturedKind({ kind: "login" }, at("/login", { has_login_form: true }))).toBe("login");
+    expect(capturedKind({ kind: "login" }, at("/"))).toBe("home");
+    expect(capturedKind({ kind: "checkout" }, at("/cart"))).toBe("checkout");
+    expect(capturedKind({ kind: "shop" }, at("/products/kettle-2l"))).toBe("shop");
+    expect(capturedKind({ kind: "shop" }, at("/en-za/"))).toBe("home");
+    expect(capturedKind({ kind: "company" }, at("/about-us/"))).toBe("company");
+    expect(capturedKind({ kind: "company" }, at("/"))).toBe("home");
+    expect(capturedKind({ kind: "social" }, at("/FNBSA"))).toBe("social");
   });
 });
 
@@ -341,6 +507,28 @@ describe("the batch run", () => {
     expect(readJournal(journal).at(-1)?.reason).toBe("HTTP 404");
   });
 
+  it("retries a passing network failure and a 429, and excludes a page after its third try", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const throwing = (error: Error) => async () => {
+      throw error;
+    };
+    const reset = throwing(new Error("page.goto: net::ERR_CONNECTION_RESET at https://x/"));
+    expect(await runBatch({ list: list(["/r"]), store, journal, render: reset })).toMatchObject({ retry: 1 });
+    expect(await runBatch({ list: list(["/q"]), store, journal, render: throwing(new HttpStatus(429)) })).toMatchObject(
+      {
+        retry: 1,
+      },
+    );
+    const timeout = throwing(new RenderTimeout("the render passed 20 seconds"));
+    const urls = list(["/t"]);
+    expect(await runBatch({ list: urls, store, journal, render: timeout })).toMatchObject({ retry: 1 });
+    expect(await runBatch({ list: urls, store, journal, render: timeout })).toMatchObject({ retry: 1 });
+    expect(await runBatch({ list: urls, store, journal, render: timeout })).toMatchObject({ excluded: 1 });
+    expect(readJournal(journal).at(-1)?.reason).toBe("the render passed 20 seconds (3 tries)");
+    expect(await runBatch({ list: urls, store, journal, render: timeout })).toMatchObject({ skipped: 1 });
+  });
+
   it("repairs a truncated journal and retries a 503 once", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "progress.jsonl");
@@ -374,8 +562,14 @@ describe("benignCoverage", () => {
         host: null,
         template: null,
         redacted: false,
-        labels: { lure: false, lure_type: "none" as const },
-        label_source: { lure: "ground-truth" as const, lure_type: "ground-truth" as const },
+        labels: { lure: false, lure_type: "none" as const, has_login_form: false, has_payment_form: false },
+        label_source: {
+          lure: "ground-truth" as const,
+          lure_type: "ground-truth" as const,
+          has_login_form: "dom" as const,
+          has_payment_form: "dom" as const,
+        },
+        url: "https://www.example.co.za/",
       };
       await store.putPage("benign-majestic", {
         ...base,
@@ -400,9 +594,32 @@ describe("benignCoverage", () => {
         south_africa: true,
         kind: "shop",
       });
+      // A benign render read back without its DOM form flags or its listed URL is a problem, not a page.
+      const { has_login_form: _flag, ...noFlags } = base.labels;
+      const { has_login_form: _source, ...noFlagSources } = base.label_source;
+      await store.putPage("benign-sa", {
+        ...base,
+        text: "a page without its flags",
+        origin: "benign",
+        south_africa: true,
+        kind: "home",
+        labels: noFlags,
+        label_source: noFlagSources,
+      });
+      await store.putPage("benign-sa", {
+        ...base,
+        text: "a page without its URL",
+        origin: "benign",
+        south_africa: true,
+        kind: "home",
+        url: undefined,
+      });
       const coverage = benignCoverage(store);
       expect(coverage).toMatchObject({ total: 2, southAfrica: 1, signIn: 1, shop: 0, met: false });
       expect(coverage.short).toContain("total 2 of 3000");
+      expect(coverage.problems.map((line) => line.split(": ")[1])).toEqual(
+        expect.arrayContaining(["no DOM-read has_login_form", "no listed URL"]),
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

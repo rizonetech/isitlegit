@@ -120,11 +120,9 @@ export function readFormFlags(): FormFlags {
 export function shownText(): string {
   const body = document.body;
   if (!body) return "";
-  const shown = (el: Element) => {
-    const style = getComputedStyle(el);
-    return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
-  };
-  if (!shown(document.documentElement) || !shown(body)) return "";
+  // A body that display, visibility or opacity 0 hides (on itself or the root) shows nothing: `checkVisibility` reads
+  // the element and its ancestors.
+  if (!body.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return "";
   // `innerText` leaves out what display and visibility hide, but not what opacity 0 or a position off the page hides.
   // Those elements (the outermost of each) leave the layout while the text is read, and are put back after, so the
   // screenshot that follows sees the page as it was.

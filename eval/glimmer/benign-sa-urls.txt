@@ -1,86 +1,88 @@
 # South African pages lures copy, rendered as benign training pages for Loupe (D03 T04 §6). Our own list.
 # <kind>\t<url>\t<brand>[\t<other domains the page may finish on, comma-separated>]
-# Kinds: login, checkout and account (sign-in, cart and account pages), shop (shop home and category pages, whose look
-# fake shops copy), company (corporate home and about pages), social (public profile and page views). An entry that
-# renders unusable (an error, a wall, another site) is replaced by another of its kind until each kind's minimum of
-# usable captures holds (§6).
-login	https://www.fnb.co.za/	FNB
+# Kinds: login, checkout and account (a sign-in form, a cart or checkout, an account or e-services page), shop (a
+# product, category or cart page), company (an about or contact page), social (a public profile or page view), and home
+# (a brand's home page: a benign South African page, counted toward no kind's minimum). A sign-in page at a site's root
+# is listed only on the site's own sign-in host. A capture keeps its listed kind only when the page shows it
+# (`capturedKind()` in render.ts) and is stored as home otherwise. An entry that renders unusable (an error, a wall,
+# another site) is replaced by another of its kind until each kind's minimum of usable captures holds (§6).
+home	https://www.fnb.co.za/	FNB
 login	https://www.online.fnb.co.za/	FNB
-account	https://www.fnb.co.za/ways-to-bank/online-banking/index.html	FNB
-login	https://onlinebanking.standardbank.co.za/	Standard Bank
+home	https://www.fnb.co.za/ways-to-bank/online-banking/index.html	FNB
+home	https://onlinebanking.standardbank.co.za/	Standard Bank
 account	https://www.standardbank.co.za/southafrica/personal/ways-to-bank/digital-banking	Standard Bank
 login	https://ib.absa.co.za/absa-online/login.jsp	Absa
-account	https://www.absa.co.za/personal/	Absa
-login	https://secured.nedbank.co.za/	Nedbank
+home	https://www.absa.co.za/personal/	Absa
+home	https://secured.nedbank.co.za/	Nedbank
 account	https://personal.nedbank.co.za/	Nedbank
-login	https://www.capitecbank.co.za/	Capitec
-login	https://login.secure.investec.com/	Investec	investec.com
-login	https://www.tymebank.co.za/	TymeBank
+home	https://www.capitecbank.co.za/	Capitec
+home	https://login.secure.investec.com/	Investec	investec.com
+home	https://www.tymebank.co.za/	TymeBank
 login	https://www.discovery.co.za/portal/	Discovery
-login	https://www.africanbank.co.za/	African Bank
-login	https://www.bankzero.co.za/	Bank Zero
-login	https://www.oldmutual.co.za/	Old Mutual
-login	https://www.sanlam.co.za/	Sanlam
-login	https://www.liberty.co.za/	Liberty
-login	https://www.momentum.co.za/	Momentum
-login	https://www.allangray.co.za/	Allan Gray
-login	https://www.coronation.com/	Coronation
-login	https://www.10x.co.za/	10X Investments
+home	https://www.africanbank.co.za/	African Bank
+home	https://www.bankzero.co.za/	Bank Zero
+home	https://www.oldmutual.co.za/	Old Mutual
+home	https://www.sanlam.co.za/	Sanlam
+home	https://www.liberty.co.za/	Liberty
+home	https://www.momentum.co.za/	Momentum
+home	https://www.allangray.co.za/	Allan Gray
+home	https://www.coronation.com/	Coronation
+home	https://www.10x.co.za/	10X Investments
 login	https://platform.easyequities.co.za/Account/SignIn	EasyEquities
-login	https://www.easyequities.co.za/	EasyEquities
-login	https://satrix.co.za/	Satrix
-login	https://www.sygnia.co.za/	Sygnia
-login	https://www.postbank.co.za/	Postbank
-login	https://www.mercantile.co.za/	Mercantile Bank
-login	https://www.sasfin.com/	Sasfin
-login	https://www.grindrodbank.co.za/	Grindrod Bank
-login	https://www.bidvestbank.co.za/	Bidvest Bank
+home	https://www.easyequities.co.za/	EasyEquities
+home	https://satrix.co.za/	Satrix
+home	https://www.sygnia.co.za/	Sygnia
+home	https://www.postbank.co.za/	Postbank
+home	https://www.mercantile.co.za/	Mercantile Bank
+home	https://www.sasfin.com/	Sasfin
+home	https://www.grindrodbank.co.za/	Grindrod Bank
+home	https://www.bidvestbank.co.za/	Bidvest Bank
 login	https://www.paypal.com/za/signin	PayPal
-login	https://payfast.io/	Payfast
+home	https://payfast.io/	Payfast
 login	https://portal.yoco.com/	Yoco
-login	https://www.ikhokha.com/	iKhokha
-login	https://ozow.com/	Ozow
-login	https://www.mukuru.com/	Mukuru
-login	https://www.luno.com/	Luno
-login	https://www.valr.com/	VALR
+home	https://www.ikhokha.com/	iKhokha
+home	https://ozow.com/	Ozow
+home	https://www.mukuru.com/	Mukuru
+home	https://www.luno.com/	Luno
+home	https://www.valr.com/	VALR
 login	https://secure.sarsefiling.co.za/app/login	SARS eFiling
-login	https://www.sarsefiling.co.za/	SARS eFiling
-account	https://www.sars.gov.za/	SARS
+home	https://www.sarsefiling.co.za/	SARS eFiling
+home	https://www.sars.gov.za/	SARS
 account	https://www.sars.gov.za/types-of-tax/personal-income-tax/	SARS
 login	https://ehome.dha.gov.za/	Home Affairs
-login	https://www.ufiling.co.za/	UIF
+home	https://www.ufiling.co.za/	UIF
 login	https://srd.sassa.gov.za/	SASSA
-login	https://eservices.cipc.co.za/	CIPC
+home	https://eservices.cipc.co.za/	CIPC
 login	https://my.nsfas.org.za/	NSFAS
-login	https://online.natis.gov.za/	eNaTIS
-account	https://www.gems.gov.za/	GEMS
-account	https://www.gov.za/	South African Government
-login	https://www.labour.gov.za/	Department of Labour
-login	https://www.vodacom.co.za/	Vodacom
+home	https://online.natis.gov.za/	eNaTIS
+home	https://www.gems.gov.za/	GEMS
+home	https://www.gov.za/	South African Government
+home	https://www.labour.gov.za/	Department of Labour
+home	https://www.vodacom.co.za/	Vodacom
 account	https://www.vodacom.co.za/vodacom/shopping	Vodacom
 login	https://www.mtn.co.za/home/	MTN
-login	https://www.telkom.co.za/	Telkom
-login	https://www.cellc.co.za/	Cell C
-login	https://www.rain.co.za/	Rain
-login	https://clientzone.afrihost.com/	Afrihost	afrihost.com
-login	https://www.webafrica.co.za/	Webafrica
-login	https://www.vox.co.za/	Vox
-login	https://www.coolideas.co.za/	Cool Ideas
-login	https://www.mweb.co.za/	MWEB
-login	https://www.openserve.co.za/	Openserve
-login	https://www.dstv.com/en-za/	DStv
-login	https://www.showmax.com/	Showmax
+home	https://www.telkom.co.za/	Telkom
+home	https://www.cellc.co.za/	Cell C
+home	https://www.rain.co.za/	Rain
+home	https://clientzone.afrihost.com/	Afrihost	afrihost.com
+home	https://www.webafrica.co.za/	Webafrica
+home	https://www.vox.co.za/	Vox
+home	https://www.coolideas.co.za/	Cool Ideas
+home	https://www.mweb.co.za/	MWEB
+home	https://www.openserve.co.za/	Openserve
+home	https://www.dstv.com/en-za/	DStv
+home	https://www.showmax.com/	Showmax
 login	https://www.netflix.com/za/login	Netflix
-login	https://www.netflix.com/za/	Netflix
+home	https://www.netflix.com/za/	Netflix
 login	https://accounts.spotify.com/en/login	Spotify
-login	https://login.microsoftonline.com/	Microsoft	microsoft.com,live.com,office.com,microsoftonline.com,cloud.microsoft
+home	https://login.microsoftonline.com/	Microsoft	microsoft.com,live.com,office.com,microsoftonline.com,cloud.microsoft
 login	https://outlook.live.com/owa/	Microsoft	microsoft.com,live.com,office.com,microsoftonline.com,cloud.microsoft
-login	https://www.office.com/	Microsoft	microsoft.com,live.com,office.com,microsoftonline.com,cloud.microsoft
+home	https://www.office.com/	Microsoft	microsoft.com,live.com,office.com,microsoftonline.com,cloud.microsoft
 login	https://account.microsoft.com/	Microsoft	microsoft.com,live.com,office.com,microsoftonline.com,cloud.microsoft
-login	https://accounts.google.com/	Google	google.com,google.co.za
+home	https://accounts.google.com/	Google	google.com,google.co.za
 login	https://mail.google.com/	Google	google.com,google.co.za
-login	https://account.apple.com/	Apple	apple.com,icloud.com
-login	https://www.icloud.com/	Apple	apple.com,icloud.com
+home	https://account.apple.com/	Apple	apple.com,icloud.com
+home	https://www.icloud.com/	Apple	apple.com,icloud.com
 login	https://www.facebook.com/login/	Facebook
 login	https://www.instagram.com/accounts/login/	Instagram
 login	https://www.linkedin.com/login	LinkedIn
@@ -88,16 +90,16 @@ login	https://x.com/i/flow/login	X
 login	https://login.yahoo.com/	Yahoo
 login	https://www.dropbox.com/login	Dropbox
 login	https://account.docusign.com/	DocuSign
-login	https://account.adobe.com/	Adobe	adobe.com,adobelogin.com
-login	https://wetransfer.com/	WeTransfer
+home	https://account.adobe.com/	Adobe	adobe.com,adobelogin.com
+home	https://wetransfer.com/	WeTransfer
 login	https://zoom.us/signin	Zoom
-login	https://login.xero.com/	Xero
-login	https://www.sage.com/en-za/	Sage
+home	https://login.xero.com/	Xero
+home	https://www.sage.com/en-za/	Sage
 login	https://web.whatsapp.com/	WhatsApp
 login	https://account.booking.com/sign-in	Booking.com	booking.com
 login	https://www.airbnb.co.za/login	Airbnb
-login	https://auth.uber.com/	Uber	uber.com
-login	https://bolt.eu/en-za/	Bolt
+home	https://auth.uber.com/	Uber	uber.com
+home	https://bolt.eu/en-za/	Bolt
 login	https://github.com/login	GitHub
 login	https://store.steampowered.com/login/	Steam
 login	https://www.takealot.com/account/login	Takealot
@@ -143,189 +145,189 @@ checkout	https://www.sportsmanswarehouse.co.za/checkout/cart/	Sportsmans Warehou
 login	https://www.bobshop.co.za/login	Bob Shop
 login	https://www.foschini.co.za/login	Foschini
 login	https://leroymerlin.co.za/customer/account/login	Leroy Merlin
-login	https://www.mrdfood.com/	Mr D
-login	https://www.computicket.com/	Computicket
-login	https://www.flysafair.co.za/	FlySafair
-login	https://www.flyairlink.com/	Airlink
-login	https://www.flysaa.com/	South African Airways
-login	https://www.lift.co.za/	Lift
-login	https://www.travelstart.co.za/	Travelstart
-account	https://www.thecourierguy.co.za/	The Courier Guy
-account	https://portal.thecourierguy.co.za/	The Courier Guy
-account	https://www.aramex.co.za/	Aramex
-account	https://www.postnet.co.za/	PostNet
-account	https://www.postoffice.co.za/	SA Post Office
+home	https://www.mrdfood.com/	Mr D
+home	https://www.computicket.com/	Computicket
+home	https://www.flysafair.co.za/	FlySafair
+home	https://www.flyairlink.com/	Airlink
+home	https://www.flysaa.com/	South African Airways
+home	https://www.lift.co.za/	Lift
+home	https://www.travelstart.co.za/	Travelstart
+home	https://www.thecourierguy.co.za/	The Courier Guy
+home	https://portal.thecourierguy.co.za/	The Courier Guy
+home	https://www.aramex.co.za/	Aramex
+home	https://www.postnet.co.za/	PostNet
+home	https://www.postoffice.co.za/	SA Post Office
 account	https://www.dhl.com/za-en/home.html	DHL
-account	https://pargo.co.za/	Pargo
-account	https://www.pudo.co.za/	Pudo
-account	https://www.dawnwing.co.za/	Dawn Wing
-account	https://www.ram.co.za/	RAM
+home	https://pargo.co.za/	Pargo
+home	https://www.pudo.co.za/	Pudo
+home	https://www.dawnwing.co.za/	Dawn Wing
+home	https://www.ram.co.za/	RAM
 account	https://www.fedex.com/en-za/home.html	FedEx
-account	https://www.courierit.co.za/	Courier IT
+home	https://www.courierit.co.za/	Courier IT
 account	https://eservices1.capetown.gov.za/	City of Cape Town
-account	https://www.capetown.gov.za/	City of Cape Town
-account	https://www.joburg.org.za/	City of Johannesburg
-login	https://www.e-joburg.org.za/	City of Johannesburg
-account	https://www.tshwane.gov.za/	City of Tshwane
-login	https://www.e-tshwane.co.za/	City of Tshwane
-account	https://www.durban.gov.za/	eThekwini
-account	https://www.ekurhuleni.gov.za/	Ekurhuleni
-account	https://www.nelsonmandelabay.gov.za/	Nelson Mandela Bay
-account	https://www.eskom.co.za/	Eskom
-account	https://www.citypower.co.za/	City Power
-account	https://www.stellenbosch.gov.za/	Stellenbosch Municipality
-account	https://www.mangaung.co.za/	Mangaung
-account	https://www.buffalocity.gov.za/	Buffalo City
+home	https://www.capetown.gov.za/	City of Cape Town
+home	https://www.joburg.org.za/	City of Johannesburg
+home	https://www.e-joburg.org.za/	City of Johannesburg
+home	https://www.tshwane.gov.za/	City of Tshwane
+home	https://www.e-tshwane.co.za/	City of Tshwane
+home	https://www.durban.gov.za/	eThekwini
+home	https://www.ekurhuleni.gov.za/	Ekurhuleni
+home	https://www.nelsonmandelabay.gov.za/	Nelson Mandela Bay
+home	https://www.eskom.co.za/	Eskom
+home	https://www.citypower.co.za/	City Power
+home	https://www.stellenbosch.gov.za/	Stellenbosch Municipality
+home	https://www.mangaung.co.za/	Mangaung
+home	https://www.buffalocity.gov.za/	Buffalo City
 login	https://www.discovery.co.za/medical-aid/	Discovery Health
-login	https://www.bonitas.co.za/	Bonitas
-login	https://medshield.co.za/	Medshield
-login	https://www.fedhealth.co.za/	Fedhealth
-login	https://www.bestmed.co.za/	Bestmed
-login	https://www.profmed.co.za/	Profmed
-login	https://www.polmed.co.za/	Polmed
-login	https://www.outsurance.co.za/	Outsurance
-login	https://www.miway.co.za/	MiWay
-login	https://www.kingprice.co.za/	King Price
-login	https://www.dialdirect.co.za/	Dial Direct
-login	https://www.budgetinsurance.co.za/	Budget Insurance
-login	https://www.firstforwomen.co.za/	1st for Women
-login	https://www.santam.co.za/	Santam
-login	https://www.hollard.co.za/	Hollard
-login	https://pineapple.co.za/	Pineapple
-login	https://www.naked.insure/	Naked Insurance
-login	https://my.unisa.ac.za/	Unisa
-login	https://www.wits.ac.za/	Wits
-login	https://www.uj.ac.za/	University of Johannesburg
-login	https://www.up.ac.za/	University of Pretoria
-login	https://www.sun.ac.za/	Stellenbosch University
-login	https://uct.ac.za/	University of Cape Town
-shop	https://www.takealot.com/	Takealot
-shop	https://www.checkers.co.za/	Checkers
-shop	https://www.pnp.co.za/	Pick n Pay
-shop	https://www.woolworths.co.za/	Woolworths
-shop	https://www.makro.co.za/	Makro
-shop	https://www.game.co.za/	Game
-shop	https://www.mrp.com/en_za/	Mr Price
-shop	https://superbalist.com/	Superbalist
-shop	https://bash.com/	Bash
-shop	https://clicks.co.za/	Clicks
-shop	https://www.dischem.co.za/	Dis-Chem
-shop	https://www.incredible.co.za/	Incredible
-shop	https://www.hificorp.co.za/	HiFi Corp
-shop	https://www.builders.co.za/	Builders
-shop	https://leroymerlin.co.za/	Leroy Merlin
-shop	https://www.capeunionmart.co.za/	Cape Union Mart
-shop	https://www.loot.co.za/	Loot
-shop	https://www.bobshop.co.za/	Bob Shop
-shop	https://www.edgars.co.za/	Edgars
-shop	https://www.foschini.co.za/	Foschini
-shop	https://www.truworths.co.za/	Truworths
-shop	https://www.ackermans.co.za/	Ackermans
-shop	https://www.pepstores.com/	PEP
-shop	https://www.sportsmanswarehouse.co.za/	Sportsmans Warehouse
-shop	https://www.totalsports.co.za/	Totalsports
-shop	https://www.shoprite.co.za/	Shoprite
-shop	https://www.spar.co.za/	Spar
-shop	https://www.amazon.co.za/	Amazon
-shop	https://www.yuppiechef.com/	Yuppiechef
-shop	https://www.faithful-to-nature.co.za/	Faithful to Nature
-shop	https://www.wellnesswarehouse.com/	Wellness Warehouse
-shop	https://www.hirschs.co.za/	Hirsch's
-shop	https://www.evetech.co.za/	Evetech
-shop	https://www.wootware.co.za/	Wootware
-shop	https://www.rebeltech.co.za/	Rebel Tech
-shop	https://www.matrixwarehouse.co.za/	Matrix Warehouse
-shop	https://www.istore.co.za/	iStore
-shop	https://www.samsung.com/za/	Samsung
-shop	https://www.apple.com/za/	Apple
-shop	https://www.lego.com/en-za	Lego
-shop	https://typo.com/za/	Typo
-shop	https://cottonon.com/ZA/	Cotton On
-shop	https://www2.hm.com/en_za/index.html	H&M
-shop	https://www.zara.com/za/	Zara
-shop	https://www.nike.com/za/	Nike
-shop	https://www.adidas.co.za/	Adidas
-shop	https://za.puma.com/	Puma
-shop	https://www.sorbet.co.za/	Sorbet
-shop	https://www.gumtree.co.za/	Gumtree
-shop	https://www.cashcrusaders.co.za/	Cash Crusaders
-shop	https://www.coricraft.co.za/	Coricraft
-shop	https://www.mrphome.com/en_za/	Mr Price Home
-shop	https://www.home.co.za/	@Home
-shop	https://www.volpes.co.za/	Volpes
-shop	https://www.bargainbooks.co.za/	Bargain Books
-shop	https://www.exclusivebooks.co.za/	Exclusive Books
-shop	https://raru.co.za/	Raru
-shop	https://www.onedayonly.co.za/	OneDayOnly
-shop	https://www.netflorist.co.za/	Netflorist
-shop	https://www.ubereats.com/za	Uber Eats
+home	https://www.bonitas.co.za/	Bonitas
+home	https://medshield.co.za/	Medshield
+home	https://www.fedhealth.co.za/	Fedhealth
+home	https://www.bestmed.co.za/	Bestmed
+home	https://www.profmed.co.za/	Profmed
+home	https://www.polmed.co.za/	Polmed
+home	https://www.outsurance.co.za/	Outsurance
+home	https://www.miway.co.za/	MiWay
+home	https://www.kingprice.co.za/	King Price
+home	https://www.dialdirect.co.za/	Dial Direct
+home	https://www.budgetinsurance.co.za/	Budget Insurance
+home	https://www.firstforwomen.co.za/	1st for Women
+home	https://www.santam.co.za/	Santam
+home	https://www.hollard.co.za/	Hollard
+home	https://pineapple.co.za/	Pineapple
+home	https://www.naked.insure/	Naked Insurance
+home	https://my.unisa.ac.za/	Unisa
+home	https://www.wits.ac.za/	Wits
+home	https://www.uj.ac.za/	University of Johannesburg
+home	https://www.up.ac.za/	University of Pretoria
+home	https://www.sun.ac.za/	Stellenbosch University
+home	https://uct.ac.za/	University of Cape Town
+home	https://www.takealot.com/	Takealot
+home	https://www.checkers.co.za/	Checkers
+home	https://www.pnp.co.za/	Pick n Pay
+home	https://www.woolworths.co.za/	Woolworths
+home	https://www.makro.co.za/	Makro
+home	https://www.game.co.za/	Game
+home	https://www.mrp.com/en_za/	Mr Price
+home	https://superbalist.com/	Superbalist
+home	https://bash.com/	Bash
+home	https://clicks.co.za/	Clicks
+home	https://www.dischem.co.za/	Dis-Chem
+home	https://www.incredible.co.za/	Incredible
+home	https://www.hificorp.co.za/	HiFi Corp
+home	https://www.builders.co.za/	Builders
+home	https://leroymerlin.co.za/	Leroy Merlin
+home	https://www.capeunionmart.co.za/	Cape Union Mart
+home	https://www.loot.co.za/	Loot
+home	https://www.bobshop.co.za/	Bob Shop
+home	https://www.edgars.co.za/	Edgars
+home	https://www.foschini.co.za/	Foschini
+home	https://www.truworths.co.za/	Truworths
+home	https://www.ackermans.co.za/	Ackermans
+home	https://www.pepstores.com/	PEP
+home	https://www.sportsmanswarehouse.co.za/	Sportsmans Warehouse
+home	https://www.totalsports.co.za/	Totalsports
+home	https://www.shoprite.co.za/	Shoprite
+home	https://www.spar.co.za/	Spar
+home	https://www.amazon.co.za/	Amazon
+home	https://www.yuppiechef.com/	Yuppiechef
+home	https://www.faithful-to-nature.co.za/	Faithful to Nature
+home	https://www.wellnesswarehouse.com/	Wellness Warehouse
+home	https://www.hirschs.co.za/	Hirsch's
+home	https://www.evetech.co.za/	Evetech
+home	https://www.wootware.co.za/	Wootware
+home	https://www.rebeltech.co.za/	Rebel Tech
+home	https://www.matrixwarehouse.co.za/	Matrix Warehouse
+home	https://www.istore.co.za/	iStore
+home	https://www.samsung.com/za/	Samsung
+home	https://www.apple.com/za/	Apple
+home	https://www.lego.com/en-za	Lego
+home	https://typo.com/za/	Typo
+home	https://cottonon.com/ZA/	Cotton On
+home	https://www2.hm.com/en_za/index.html	H&M
+home	https://www.zara.com/za/	Zara
+home	https://www.nike.com/za/	Nike
+home	https://www.adidas.co.za/	Adidas
+home	https://za.puma.com/	Puma
+home	https://www.sorbet.co.za/	Sorbet
+home	https://www.gumtree.co.za/	Gumtree
+home	https://www.cashcrusaders.co.za/	Cash Crusaders
+home	https://www.coricraft.co.za/	Coricraft
+home	https://www.mrphome.com/en_za/	Mr Price Home
+home	https://www.home.co.za/	@Home
+home	https://www.volpes.co.za/	Volpes
+home	https://www.bargainbooks.co.za/	Bargain Books
+home	https://www.exclusivebooks.co.za/	Exclusive Books
+home	https://raru.co.za/	Raru
+home	https://www.onedayonly.co.za/	OneDayOnly
+home	https://www.netflorist.co.za/	Netflorist
+home	https://www.ubereats.com/za	Uber Eats
 shop	https://www.takealot.com/computers	Takealot
 shop	https://www.takealot.com/cellphones	Takealot
 shop	https://www.takealot.com/home-kitchen	Takealot
-company	https://www.sasol.com/	Sasol
-company	https://www.mtn.com/	MTN Group
-company	https://www.vodacom.com/	Vodacom Group
-company	https://www.naspers.com/	Naspers
-company	https://www.shopriteholdings.co.za/	Shoprite Holdings
-company	https://www.bidvest.co.za/	Bidvest
-company	https://www.angloamerican.com/	Anglo American
-company	https://www.sibanyestillwater.com/	Sibanye-Stillwater
-company	https://www.exxaro.com/	Exxaro
-company	https://www.sappi.com/	Sappi
-company	https://www.tigerbrands.com/	Tiger Brands
-company	https://www.avi.co.za/	AVI
-company	https://www.barloworld.com/	Barloworld
-company	https://www.transnet.net/	Transnet
-company	https://group.telkom.co.za/	Telkom Group
-company	https://www.absa.africa/	Absa Group
-company	https://www.standardbank.com/	Standard Bank Group
-company	https://group.nedbank.co.za/	Nedbank Group
-company	https://www.firstrand.co.za/	FirstRand
+home	https://www.sasol.com/	Sasol
+home	https://www.mtn.com/	MTN Group
+home	https://www.vodacom.com/	Vodacom Group
+home	https://www.naspers.com/	Naspers
+home	https://www.shopriteholdings.co.za/	Shoprite Holdings
+home	https://www.bidvest.co.za/	Bidvest
+home	https://www.angloamerican.com/	Anglo American
+home	https://www.sibanyestillwater.com/	Sibanye-Stillwater
+home	https://www.exxaro.com/	Exxaro
+home	https://www.sappi.com/	Sappi
+home	https://www.tigerbrands.com/	Tiger Brands
+home	https://www.avi.co.za/	AVI
+home	https://www.barloworld.com/	Barloworld
+home	https://www.transnet.net/	Transnet
+home	https://group.telkom.co.za/	Telkom Group
+home	https://www.absa.africa/	Absa Group
+home	https://www.standardbank.com/	Standard Bank Group
+home	https://group.nedbank.co.za/	Nedbank Group
+home	https://www.firstrand.co.za/	FirstRand
 company	https://www.capitecbank.co.za/about-us/	Capitec
 company	https://www.discovery.co.za/corporate/home	Discovery
-company	https://www.oldmutual.com/	Old Mutual
-company	https://www.sanlam.com/	Sanlam
-company	https://www.remgro.com/	Remgro
-company	https://www.woolworthsholdings.co.za/	Woolworths Holdings
-company	https://www.mrpricegroup.com/	Mr Price Group
-company	https://www.tfglimited.co.za/	TFG
-company	https://clicksgroup.co.za/	Clicks Group
-company	https://www.netcare.co.za/	Netcare
-company	https://www.mediclinic.co.za/	Mediclinic
-company	https://www.lifehealthcare.co.za/	Life Healthcare
-company	https://www.multichoice.com/	Multichoice
+home	https://www.oldmutual.com/	Old Mutual
+home	https://www.sanlam.com/	Sanlam
+home	https://www.remgro.com/	Remgro
+home	https://www.woolworthsholdings.co.za/	Woolworths Holdings
+home	https://www.mrpricegroup.com/	Mr Price Group
+home	https://www.tfglimited.co.za/	TFG
+home	https://clicksgroup.co.za/	Clicks Group
+home	https://www.netcare.co.za/	Netcare
+home	https://www.mediclinic.co.za/	Mediclinic
+home	https://www.lifehealthcare.co.za/	Life Healthcare
+home	https://www.multichoice.com/	Multichoice
 company	https://www.investec.com/en_za.html	Investec
-company	https://www.psg.co.za/	PSG
+home	https://www.psg.co.za/	PSG
 company	https://www.santam.co.za/about-us/	Santam
-company	https://www.outsurancegroup.co.za/	Outsurance Group
-company	https://www.grindrod.com/	Grindrod
-company	https://www.murrob.com/	Murray & Roberts
-company	https://www.wbho.co.za/	WBHO
-company	https://www.ppc.africa/	PPC
-company	https://www.afrimat.co.za/	Afrimat
-company	https://www.harmony.co.za/	Harmony Gold
-company	https://www.goldfields.com/	Gold Fields
-company	https://www.implats.co.za/	Implats
-company	https://www.northam.co.za/	Northam Platinum
-company	https://www.sab.co.za/	SAB
-company	https://www.ccbagroup.com/	Coca-Cola Beverages Africa
-company	https://www.massmart.co.za/	Massmart
-company	https://www.motus.co.za/	Motus
-company	https://www.supergroup.co.za/	Super Group
-company	https://www.datatec.com/	Datatec
-company	https://www.altron.com/	Altron
-company	https://www.karooooo.com/	Karooooo
-company	https://www.randwater.co.za/	Rand Water
-company	https://www.airports.co.za/	Airports Company South Africa
-company	https://www.nra.co.za/	SANRAL
-company	https://www.denel.co.za/	Denel
-company	https://www.dimensiondata.com/	Dimension Data
-company	https://www.picknpayinvestor.co.za/	Pick n Pay Stores
-company	https://www.dischemgroup.com/	Dis-Chem Group
-company	https://www.distell.co.za/	Distell
-company	https://www.imperiallogistics.com/	Imperial
-company	https://www.aveng.co.za/	Aveng
-company	https://www.angloamericankumba.com/	Kumba Iron Ore
+home	https://www.outsurancegroup.co.za/	Outsurance Group
+home	https://www.grindrod.com/	Grindrod
+home	https://www.murrob.com/	Murray & Roberts
+home	https://www.wbho.co.za/	WBHO
+home	https://www.ppc.africa/	PPC
+home	https://www.afrimat.co.za/	Afrimat
+home	https://www.harmony.co.za/	Harmony Gold
+home	https://www.goldfields.com/	Gold Fields
+home	https://www.implats.co.za/	Implats
+home	https://www.northam.co.za/	Northam Platinum
+home	https://www.sab.co.za/	SAB
+home	https://www.ccbagroup.com/	Coca-Cola Beverages Africa
+home	https://www.massmart.co.za/	Massmart
+home	https://www.motus.co.za/	Motus
+home	https://www.supergroup.co.za/	Super Group
+home	https://www.datatec.com/	Datatec
+home	https://www.altron.com/	Altron
+home	https://www.karooooo.com/	Karooooo
+home	https://www.randwater.co.za/	Rand Water
+home	https://www.airports.co.za/	Airports Company South Africa
+home	https://www.nra.co.za/	SANRAL
+home	https://www.denel.co.za/	Denel
+home	https://www.dimensiondata.com/	Dimension Data
+home	https://www.picknpayinvestor.co.za/	Pick n Pay Stores
+home	https://www.dischemgroup.com/	Dis-Chem Group
+home	https://www.distell.co.za/	Distell
+home	https://www.imperiallogistics.com/	Imperial
+home	https://www.aveng.co.za/	Aveng
+home	https://www.angloamericankumba.com/	Kumba Iron Ore
 social	https://www.youtube.com/@FNBSA	FNB
 social	https://www.linkedin.com/company/fnb/	FNB
 social	https://www.facebook.com/FNBSA/	FNB
@@ -370,3 +372,222 @@ social	https://www.linkedin.com/company/sasol/	Sasol
 social	https://www.linkedin.com/company/old-mutual/	Old Mutual
 social	https://www.linkedin.com/company/shoprite-holdings/	Shoprite
 social	https://www.facebook.com/PicknPay/	Pick n Pay
+# Kind pages found 2026-10-29 from each root-listed site's own links (or its common paths), each answering 200 on the same site.
+login	https://onlinebanking.standardbank.co.za/auth/login	Standard Bank
+account	https://www.absa.co.za/self-service/digital-banking-services/online-banking/	Absa
+login	https://secured.nedbank.co.za/login	Nedbank
+login	https://login.secure.investec.com/login	Investec	investec.com
+login	https://myliberty.liberty.co.za/logon	Liberty
+login	https://www.momentum.co.za/my-momentum	Momentum
+login	https://www.allangray.co.za/login.html	Allan Gray
+login	https://www.coronation.com/login	Coronation
+login	https://my.10x.co.za/account/login	10X Investments
+login	https://satrix.co.za/login	Satrix
+login	https://www.bidvestbank.co.za/login	Bidvest Bank
+login	https://payfast.io/login-portals/	Payfast
+login	https://luno.com/login	Luno
+login	https://www.valr.com/login	VALR
+login	https://www.sarsefiling.co.za/login	SARS eFiling
+login	https://eservices.cipc.co.za/Login.aspx	CIPC
+login	https://online.natis.gov.za/login	eNaTIS
+account	https://hcp.gems.gov.za/login	GEMS
+account	https://www.gov.za/services/online-services	South African Government
+login	https://www.vodacom.co.za/user/login	Vodacom
+login	https://business.cellc.co.za/auth/login	Cell C
+login	https://clientzone.afrihost.com/login	Afrihost	afrihost.com
+login	https://customer.vox.co.za/login	Vox
+login	https://www.openserve.co.za/portal-login	Openserve
+login	https://www.dstv.com/en-za/mydstv/	DStv
+login	https://www.netflix.com/login	Netflix
+login	https://login.microsoftonline.com/account/login	Microsoft	microsoft.com,live.com,office.com,microsoftonline.com,cloud.microsoft
+login	https://accounts.google.com/login	Google	google.com,google.co.za
+login	https://account.apple.com/signin	Apple	apple.com,icloud.com
+login	https://account.adobe.com/login	Adobe	adobe.com,adobelogin.com
+login	https://wetransfer.com/signin	WeTransfer
+account	https://identity.xero.com/account/forgot-password	Xero
+login	https://www.sage.com/login	Sage
+login	https://auth.uber.com/login	Uber	uber.com
+login	https://www.flysafair.co.za/login	FlySafair
+account	https://www.flysaa.com/manage-fly/manage/booking-management	South African Airways
+login	https://www.travelstart.co.za/login	Travelstart
+account	https://portal.thecourierguy.co.za/login	The Courier Guy
+account	https://www.postnet.co.za/login	PostNet
+account	https://mypargo.pargo.co.za/mypargo/login	Pargo
+account	https://www.capetown.gov.za/city-connect/all-city-online-services/all-our-online-services/	City of Cape Town
+account	https://joburg.org.za/Pages/E-Services.aspx	City of Johannesburg
+login	https://www.e-joburg.org.za/login	City of Johannesburg
+login	https://www.e-tshwane.co.za/login	City of Tshwane
+account	https://nmbmundertakersportal.nelsonmandelabay.gov.za/Account/Dashboard	Nelson Mandela Bay
+account	https://csonline.eskom.co.za/GTConnect/Login/	Eskom
+account	https://stellenbosch.gov.za/planning-portal/	Stellenbosch Municipality
+account	https://gis.buffalocity.gov.za/portal/apps/sites/	Buffalo City
+login	https://www.bonitas.co.za/memberzone	Bonitas
+login	https://services.bestmed.co.za/ords/f?p=10050	Bestmed
+login	https://live.profmed.co.za/web_prfliv/run.w	Profmed
+login	https://my.outsurance.co.za/claim/login	Outsurance
+login	https://selfservice.miway.co.za/login-register/	MiWay
+login	https://policy.dialdirect.co.za/login/	Dial Direct
+login	https://policy.budgetinsurance.co.za/login/	Budget Insurance
+login	https://policy.firstforwomen.co.za/login/welcome	1st for Women
+login	https://www.santam.co.za/client-services/referral/login/	Santam
+login	https://web.pineapple.co.za/dealership/sign-in	Pineapple
+login	https://my.unisa.ac.za/login	Unisa
+login	https://uct.ac.za/user/login	University of Cape Town
+shop	https://www.makro.co.za/coca-cola-zero-sugar-no-caffeine/p/itm602aa7db5911c?pid=ADKH7ZFZEHZMPTDF&lid=LSTADKH7ZFZEHZMPTDFEKC2ZX&fm=organic&ppt=None&ppn=None&ssid=dwqftjh5jk0000001793226781040	Makro
+shop	https://www.mrp.com/cart	Mr Price
+shop	https://superbalist.com/feature/kids-collections/85489811f1	Superbalist
+shop	https://bash.com/women/accessories/bags	Bash
+shop	https://clicks.co.za/kotex_young-pantiliners-thin/p/398920	Clicks
+shop	https://www.dischem.co.za/shop-by-department/baby-child/maternity/baby-bags	Dis-Chem
+shop	https://www.incredible.co.za/products/tv-audio	Incredible
+shop	https://www.hificorp.co.za/products/tv-audio	HiFi Corp
+shop	https://leroymerlin.co.za/dexter-tool-bag-14l-81499081	Leroy Merlin
+shop	https://www.capeunionmart.co.za/cart	Cape Union Mart
+shop	https://www.loot.co.za/product/alex-ferguson-games-of-my-life/kdyl-8500-ga30	Loot
+shop	https://www.bobshop.co.za/jsp/cart/Cart.jsp	Bob Shop
+shop	https://www.edgars.co.za/products/online-only-gift-card	Edgars
+shop	https://www.ackermans.co.za/products/spider-man-basketball-sleeveless-set-sku-231073?variant=47608239980716	Ackermans
+shop	https://www.pepstores.com/cart	PEP
+shop	https://www.sportsmanswarehouse.co.za/checkout/cart	Sportsmans Warehouse
+shop	https://www.yuppiechef.com/order.htm?action=ShowCart	Yuppiechef
+shop	https://www.faithful-to-nature.co.za/checkout/cart/	Faithful to Nature
+shop	https://wellnesswarehouse.com/products/metagenics-akkermansia-healthy-weight-30s-30s-00519600001955	Wellness Warehouse
+shop	https://www.hirschs.co.za/checkout/cart/	Hirsch's
+shop	https://www.evetech.co.za/laptop-bag-best-sellers-south-africa/x/5612	Evetech
+shop	https://matrixwarehouse.co.za/products/i3-pc-16gb-512gb-ssd-linux	Matrix Warehouse
+shop	https://www.istore.co.za/catalog/product/view/id/40359/s/one-to-one-training	iStore
+shop	https://www.lego.com/cart	Lego
+shop	https://typo.com/checkout	Typo
+shop	https://cottonon.com/ZA/co/women/womens-clothing/womens-jeans/womens-relaxed-jeans/	Cotton On
+shop	https://www.nike.com/za/w/mens-basketball-shoes-3glsmznik1zy7ok	Nike
+shop	https://za.puma.com/pd/speedcat-croco-leather-sneakers-women/407674.html?color=01	Puma
+shop	https://www.sorbet.co.za/cart	Sorbet
+shop	https://www.gumtree.co.za/fashion/boardwalk-meander/blue-diesel-jean-ls2605n3h92m7vl92wc	Gumtree
+shop	https://coricraft.co.za/products/rococo-upholstered-3-seater-couch_1199?variant=45031895531710	Coricraft
+shop	https://www.mrphome.com/cart	Mr Price Home
+shop	https://bargainbooks.co.za/product/9780639881706	Bargain Books
+shop	https://exclusivebooks.co.za/products/9781770109735	Exclusive Books
+shop	https://www.onedayonly.co.za/products/contemporary-upholstered-chair-20261027	OneDayOnly
+shop	https://www.netflorist.co.za/gifts/christmas/picnic-baskets/	Netflorist
+company	https://www.sasol.com/who-we-are/about-us	Sasol
+company	https://www.mtn.com/about/	MTN Group
+company	https://www.vodacom.com/about-us.php	Vodacom Group
+company	https://www.shopriteholdings.co.za/group/story.html	Shoprite Holdings
+company	https://bidvest.co.za/about	Bidvest
+company	https://www.angloamerican.com/about-us	Anglo American
+company	https://www.sibanyestillwater.com/about-us/	Sibanye-Stillwater
+company	https://www.exxaro.com/contact/	Exxaro
+company	https://www.tigerbrands.com/at-a-glance.php	Tiger Brands
+company	https://www.avi.co.za/our-company/	AVI
+company	https://barloworld.com/about-barloworld	Barloworld
+company	https://group.telkom.co.za/telkomfoundation/who-we-are.html	Telkom Group
+company	https://www.absa.africa/about-us	Absa Group
+company	https://corporateandinvestment.standardbank.com/cib/global/who-we-are/about-us/our-footprint/africa/egypt	Standard Bank Group
+company	https://www.firstrand.co.za/the-group/about-firstrand/	FirstRand
+company	https://www.oldmutual.com/about/governance/annual-general-meeting	Old Mutual
+company	https://www.sanlam.com/investor-relations-contacts.php	Sanlam
+company	https://www.remgro.com/company-profile.php	Remgro
+company	https://mrpricegroup.com/about-us/	Mr Price Group
+company	https://tfglimited.co.za/about-us/vision-values/	TFG
+company	https://www.clicksgroup.co.za/contact-us/	Clicks Group
+company	https://www.netcare.co.za/Who-We-Are/Group-at-a-glance	Netcare
+company	https://www.mediclinic.co.za/en/corporate/home.html	Mediclinic
+company	https://www.lifehealthcare.co.za/about-us/	Life Healthcare
+company	https://www.multichoice.com/about-us.php	Multichoice
+company	https://www.psg.co.za/about	PSG
+company	https://www.murrob.com/con-head-office_brp.asp	Murray & Roberts
+company	https://www.wbho.co.za/about-us/	WBHO
+company	https://www.ppc.africa/about-us/people-careers/	PPC
+company	https://www.afrimat.co.za/about-us/group-snapshot/	Afrimat
+company	https://www.harmony.co.za/about/	Harmony Gold
+company	https://www.implats.co.za/corporate-reports-results-and-presentations.php	Implats
+company	https://northam.co.za/about-northam/company-profile	Northam Platinum
+company	https://www.sab.co.za/about-us/our-principles	SAB
+company	https://www.ccbagroup.com/about-us/	Coca-Cola Beverages Africa
+company	https://www.massmart.co.za/about-us	Massmart
+company	https://www.motus.co.za/about-us/who-we-are/	Motus
+company	https://www.supergroup.co.za/corporate-social-investment	Super Group
+company	https://www.datatec.com/at-a-glance.php	Datatec
+company	https://www.altron.com/about	Altron
+company	https://karooooo.com/corporate-social-responsibility/	Karooooo
+company	https://www.airports.co.za/airports/or-tambo-international-airport/the-airport/about-or-tambo	Airports Company South Africa
+company	https://www.denel.co.za/about-us/company-profile	Denel
+company	https://www.picknpayinvestor.co.za/corporate-strategy.php	Pick n Pay Stores
+company	https://dischemgroup.com/about-us/overview/	Dis-Chem Group
+company	https://www.imperiallogistics.com/corporate-governance-report.php	Imperial
+company	https://aveng.co.za/aveng-at-a-glance/	Aveng
+company	https://www.angloamericankumba.com/about-us	Kumba Iron Ore
+# Further real South African sign-in, account and shop pages, found 2026-10-29 the same way among Majestic's .za domains, so
+# each kind's minimum holds with pages of the kind.
+login	https://www.timeslive.co.za/account/login/	TimesLIVE
+login	https://www.businessday.co.za/account/login/	BusinessDay
+login	https://eservices.inforegulator.org.za/user/login.aspx	Information Regulator
+login	https://www.moneyweb.co.za/moneyweb-insider/login/	Moneyweb
+login	https://www.sowetan.co.za/account/login/	Sowetan
+login	https://homeofengines.co.za/auth	Home of Engines
+login	https://ldrpretoria.co.za/auth	LDR Pretoria
+login	https://www.journals.ac.za/index.php/index/login	AOSIS Journals
+login	https://pmg.org.za/user/login/?next=%2F	PMG
+login	https://www.soccerladuma.co.za/user/sign_in	Soccer Laduma
+login	https://os.tut.ac.za/StudentPortal/Login	Tshwane University of Technology
+login	https://nextgencorp.co.za/login/index.php	NextGen
+login	https://sajs.co.za/login	SAJS
+login	https://www.lekkeslaap.co.za/login	LekkeSlaap
+login	https://risk.kzntreasury.gov.za:443/cura/nextgen/login.aspx	KZN Treasury
+login	https://www.sa4x4.co.za/login/	SA4x4
+login	https://www.gautrain.co.za/login	Gautrain
+login	https://www.ngb.org.za/login/	NGB
+login	https://www.sajr.co.za/login/	SAJR
+login	https://hts.org.za/index.php/hts/login	HTS Teologiese Studies
+login	https://www.wosa.co.za/Login	Wines of South Africa
+login	https://www.howler.co.za/users/sign_in	Howler
+login	https://www.rmb.co.za/Logins	RMB
+login	https://www.algoafm.co.za/login	Algoa FM
+login	https://wereld.afriforum.co.za/af/auth/login	AfriForum
+login	https://www.places.co.za/login.html	Places
+login	https://exchange.dsd.gov.za/owa/auth/logon.aspx	Department of Social Development
+login	https://fv.sharenet.co.za/login	Sharenet
+login	https://www.fanews.co.za/login	FAnews
+login	https://www.careerjunction.co.za/account/signin	CareerJunction
+login	https://www.acts.co.za/authentication/login	ACTS
+login	https://tracks4africa.co.za/accounts/login/	Tracks4Africa
+login	https://www.wsu.ac.za/en/library/login	Walter Sisulu University
+login	https://smesouthafrica.co.za/sign-in/	SME South Africa
+login	https://www.vousgroup.co.za/sign-in.html	Vous Group
+login	https://tickets.nationalartsfestival.co.za/en/login	National Arts Festival
+login	https://www.agsa.co.za/account/login	Auditor-General of South Africa
+login	https://www.skillsportal.co.za/user/login	Skills Portal
+login	https://blacksoldierflyfarming.co.za/login	Black Soldier Fly Farming
+login	https://www.axxess.co.za/sign-in	Axxess
+login	https://topauto.co.za/login	TopAuto
+account	https://www.deckleedge.co.za/my-account/	Deckle Edge
+account	https://grootconstantia.co.za/my-account	Groot Constantia
+account	https://jacana.co.za/my-account/	Jacana
+account	https://hsrcpress.ac.za/my-account/	HSRC Press
+account	https://www.moonstone.co.za/my-account/	Moonstone
+account	https://vergelegen.co.za/my-account/	Vergelegen
+shop	https://shop.sahistory.org.za/product/true-confessions-unrehabilitated-terrorist	SA History Online
+shop	https://www.moneyweb.co.za/product/moneyweb-insider-gold/?utm_source=Moneyweb&utm_medium=topMenu	Moneyweb
+shop	https://homeofengines.co.za/products/mazda-l3-2-3l-turbo-petrol-engine-mps-cx-7	Home of Engines
+shop	https://ldrpretoria.co.za/products/mazda-l3-2-3l-turbo-petrol-engine-high-performance-replacement	LDR Pretoria
+shop	https://bigsky.co.za/cart/	Big Sky
+shop	https://www.domains.co.za/checkout	Domains.co.za
+shop	https://deckleedge.co.za/product/online-gift-voucher/	Deckle Edge
+shop	https://www.webtickets.co.za/v2/Cart.aspx	Webtickets
+shop	https://www.wildlifeauctions.co.za/cart.php	Wildlife Auctions
+shop	https://www.sa4x4.co.za/product/the-air-spring-supply-company-airmax-compressor-specials/	SA4x4
+shop	https://www.gautrain.co.za/account/mycart	Gautrain
+shop	https://www.districtsix.co.za/product/district-six-huis-kombuis-food-and-memory-cookbook/	District Six Museum
+shop	https://store.delaire.co.za/product/the-laurence-graff-reserve-2021/	Delaire Graff
+shop	https://stuff.co.za/cart/	Stuff
+shop	https://www.livestockauctions.co.za/cart.php	Livestock Auctions
+shop	https://www.penguinrandomhouse.co.za/product/chris-hani-11281600/	Penguin Random House
+shop	https://grootconstantia.co.za/cart/	Groot Constantia
+shop	https://shop.tracks4africa.co.za/product/cape-to-addo-map-series-bundle/	Tracks4Africa
+shop	https://jacana.co.za/product/a-burning-hunger-how-tsietsi-mashinini-ignited-a-revolution-that-changed-the-struggle-south-africa-and-his-family-forever/	Jacana
+shop	https://shop.nag.co.za/product/nag-magazine-winter-edition-2026/	NAG
+shop	https://digitalschoolofmarketing.co.za/cart/	Digital School of Marketing
+shop	https://blacksoldierflyfarming.co.za/cart/	Black Soldier Fly Farming
+shop	https://hsrcpress.ac.za/product/the-sixth-south-african-national-hiv-behavioural-health-survey-sabssm-vi-20-years-of-strategic-hiv-and-public-health-data/	HSRC Press
+shop	https://www.moonstone.co.za/cart/	Moonstone
+shop	https://vergelegen.co.za/basket/	Vergelegen
