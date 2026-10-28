@@ -4,6 +4,8 @@ The launcher runs a fake `codex` placed first on PATH, which records its argumen
 and exits with a chosen code, so each test proves what really ran. The Astra rules in AGENTS.md and CONTRIBUTIONS.md are
 checked by substance, and each check is shown to fail on a copy with that rule removed.
 """
+import errno
+import importlib.util
 import json
 import os
 import shutil
@@ -15,29 +17,49 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "astra-collect.py"
 BRIEF = ROOT / "docs" / "glimmer" / "astra-collection-brief.md"
 
 FAKE_CODEX = """#!/usr/bin/env python3
-import json, os, signal, sys, time
+import json, os, signal, subprocess, sys, time
 data = sys.stdin.buffer.read()
+record = {"args": sys.argv[1:], "cwd": os.getcwd(), "stdin": data.decode("utf-8"), "pid": os.getpid()}
+if os.environ.get("FAKE_CODEX_DESCENDANT"):
+    # A download Codex started that ignores SIGTERM and outlives Codex.
+    record["descendant"] = subprocess.Popen([sys.executable, "-c",
+        "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)"]).pid
 with open(os.environ["FAKE_CODEX_LOG"], "w") as fh:
-    json.dump({"args": sys.argv[1:], "cwd": os.getcwd(), "stdin": data.decode("utf-8"), "pid": os.getpid()}, fh)
+    json.dump(record, fh)
 if os.environ.get("FAKE_CODEX_IGNORE_TERM"):
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
 time.sleep(float(os.environ.get("FAKE_CODEX_SLEEP", "0")))
+if not os.environ.get("FAKE_CODEX_NO_REPORT"):
+    with open(sys.argv[sys.argv.index("-o") + 1], "w") as fh:
+        fh.write("Report: 1 accepted\\n")
 sys.exit(int(os.environ.get("FAKE_CODEX_EXIT", "0")))
 """
 
 
 def alive(pid: int) -> bool:
+    """Whether `pid` runs (a zombie waiting for its reaper counts as gone)."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    return True
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().split(") ")[1][0] != "Z"
+    except OSError:
+        return False
+
+
+def load_launcher():
+    spec = importlib.util.spec_from_file_location("astra_collect", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class Launcher(unittest.TestCase):
@@ -121,6 +143,69 @@ class Launcher(unittest.TestCase):
         self.assertEqual(self.status()["signal"], "SIGTERM")
         self.assertFalse(alive(child))
 
+    def test_a_download_left_by_an_exited_codex_is_killed_too(self):
+        result = self.run_script("--deadline-seconds", "1", FAKE_CODEX_SLEEP="60", FAKE_CODEX_DESCENDANT="1")
+        self.assertEqual(result.returncode, 124, result.stderr)
+        descendant = self.recorded()["descendant"]
+        deadline = time.monotonic() + 3
+        while alive(descendant) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(alive(descendant))
+
+    def test_a_zero_exit_without_a_report_is_a_failure_with_a_partial_report(self):
+        result = self.run_script(FAKE_CODEX_NO_REPORT="1")
+        self.assertEqual(result.returncode, 1)
+        status = self.status()
+        self.assertEqual((status["outcome"], status["report"]), ("failed", "fallback"))
+        self.assertIn("without writing its report", status["reason"])
+        report = (self.home / "isitlegit-data" / "glimmer" / "raw" / "ASTRA-REPORT.md").read_text()
+        self.assertIn("# Partial collection report", report)
+
+    def test_a_timed_out_run_leaves_a_partial_report_naming_each_source(self):
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        (raw / "phishpedia").mkdir(parents=True)
+        (raw / "phishpedia" / "COLLECTED.md").write_text("URL: x\n")
+        (raw / "visualphishnet").mkdir()
+        result = self.run_script("--deadline-seconds", "1", FAKE_CODEX_SLEEP="60")
+        self.assertEqual(result.returncode, 124)
+        report = (raw / "ASTRA-REPORT.md").read_text()
+        self.assertIn("timed-out", report)
+        self.assertIn("- phishpedia: accepted", report)
+        self.assertIn("- visualphishnet: incomplete", report)
+        self.assertEqual(self.status()["report"], "fallback")
+
+    def test_a_codex_that_cannot_start_is_a_failure_with_its_reason(self):
+        (self.bin / "codex").write_text("#!/nonexistent/interpreter\n")
+        result = self.run_script()
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(self.status()["outcome"], "failed")
+        self.assertIn("could not start", self.status()["reason"])
+
+    def test_a_run_that_died_unrecorded_is_kept_as_abandoned_and_the_relaunch_runs(self):
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        raw.mkdir(parents=True)
+        gone = subprocess.Popen(["true"])
+        gone.wait()
+        (raw / "RUN-STATUS.json").write_text(json.dumps({"outcome": "running", "pid": gone.pid, "started": "t0"}))
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("abandoned", result.stdout)
+        kept = [json.loads(p.read_text()) for p in raw.glob("RUN-STATUS.*Z.json")]
+        self.assertEqual([k["outcome"] for k in kept], ["abandoned"])
+        self.assertEqual(self.status()["outcome"], "completed")
+
+    def test_a_live_collection_is_not_raced(self):
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        raw.mkdir(parents=True)
+        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "astra-collect"])
+        self.addCleanup(lambda: (other.kill(), other.wait()))
+        (raw / "RUN-STATUS.json").write_text(json.dumps({"outcome": "running", "pid": other.pid, "started": "t0"}))
+        result = self.run_script()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("another collection is running", result.stderr)
+        self.assertFalse(self.log.exists())
+
     def test_progress_is_reported_while_codex_runs(self):
         raw = self.home / "isitlegit-data" / "glimmer" / "raw"
         (raw / "phishpedia").mkdir(parents=True)
@@ -170,7 +255,7 @@ class Launcher(unittest.TestCase):
         (raw / "ASTRA-REPORT.md").write_text("the earlier run")
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse((raw / "ASTRA-REPORT.md").exists())
+        self.assertEqual((raw / "ASTRA-REPORT.md").read_text(), "Report: 1 accepted\n")
         kept = list(raw.glob("ASTRA-REPORT.*Z.md"))
         self.assertEqual(len(kept), 1)
         self.assertEqual(kept[0].read_text(), "the earlier run")
@@ -195,6 +280,80 @@ class Launcher(unittest.TestCase):
         result = self.run_script(PATH=f"{self.bin}{os.pathsep}{Path(shutil.which('git')).parent}")
         self.assertEqual(result.returncode, 2)
         self.assertIn("not on PATH", result.stderr)
+
+
+class FaultInjection(unittest.TestCase):
+    """Failures a subprocess cannot stage reliably, injected into the launcher run in this process."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="astra-faults-"))
+        self.addCleanup(lambda: subprocess.run(["rm", "-rf", str(self.tmp)], check=False))
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        fake = self.bin / "codex"
+        fake.write_text(FAKE_CODEX)
+        fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+        self.raw = self.tmp / "store" / "raw"
+        env = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "GLIMMER_DATA_DIR": str(self.tmp / "store"),
+               "FAKE_CODEX_LOG": str(self.tmp / "codex.json")}
+        patcher = mock.patch.dict(os.environ, env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.launcher = load_launcher()
+
+    def test_a_broken_pipe_ends_as_a_failure_and_stops_codex(self):
+        real = subprocess.Popen(["sleep", "30"], start_new_session=True)
+        self.addCleanup(lambda: (real.kill(), real.wait()))
+
+        class Pipe:
+            def write(self, _data):
+                raise BrokenPipeError(errno.EPIPE, "Broken pipe")
+
+            def close(self):
+                pass
+
+        class Child:
+            pid, stdin = real.pid, Pipe()
+            poll, wait = real.poll, real.wait
+
+        original = subprocess.Popen
+
+        def launch(command, *args, **kwargs):  # only the Codex launch is faked; git's probe runs for real
+            return Child() if "exec" in command else original(command, *args, **kwargs)
+
+        with mock.patch.object(self.launcher.subprocess, "Popen", launch), \
+                mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            code = self.launcher.main([])
+        self.assertEqual(code, 1)
+        status = json.loads((self.raw / "RUN-STATUS.json").read_text())
+        self.assertEqual(status["outcome"], "failed")
+        self.assertIn("closed its input", status["reason"])
+        self.assertIsNotNone(real.poll())
+
+    def test_a_full_disk_at_the_end_is_reported_and_the_next_run_recovers(self):
+        write = self.launcher.write_status
+        calls = []
+
+        def failing(raw, status):
+            calls.append(status["outcome"])
+            if status["outcome"] != "running":
+                raise OSError(errno.ENOSPC, "No space left on device")
+            write(raw, status)
+
+        with mock.patch.object(self.launcher, "write_status", failing), mock.patch("sys.stdout"), \
+                mock.patch("sys.stderr") as stderr:
+            code = self.launcher.main([])
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, ["running", "completed"])
+        printed = "".join(c.args[0] for c in stderr.write.call_args_list)
+        self.assertIn("No space left on device", printed)
+        self.assertIn("next run sets it aside as abandoned", printed)
+        self.assertEqual(json.loads((self.raw / "RUN-STATUS.json").read_text())["outcome"], "running")
+        # The relaunch, once space is back, keeps the stuck status aside and runs.
+        with mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            self.assertEqual(self.launcher.main([]), 0)
+        self.assertEqual(json.loads((self.raw / "RUN-STATUS.json").read_text())["outcome"], "completed")
+        self.assertEqual(len(list(self.raw.glob("RUN-STATUS.*Z.json"))), 1)
 
 
 # Each Astra rule in AGENTS.md, and the record of its use in CONTRIBUTIONS.md, as phrases the text must hold.
