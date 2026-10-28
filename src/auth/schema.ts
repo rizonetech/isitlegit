@@ -4,12 +4,13 @@
 import { magicLink } from "better-auth/plugins/magic-link";
 
 export const MAGIC_LINK_SECONDS = 15 * 60;
+// A link's token is stored only as its hash, so a copy of the verification table opens no account.
 
 type SendMagicLink = Parameters<typeof magicLink>[0]["sendMagicLink"];
 
 export function schemaOptions(sendMagicLink: SendMagicLink) {
   return {
     emailAndPassword: { enabled: false },
-    plugins: [magicLink({ expiresIn: MAGIC_LINK_SECONDS, sendMagicLink })],
+    plugins: [magicLink({ expiresIn: MAGIC_LINK_SECONDS, storeToken: "hashed", sendMagicLink })],
   };
 }

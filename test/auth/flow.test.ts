@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { authOptions } from "../../src/auth/auth";
-import { call, pathOf, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "./helpers";
+import { authEnv, call, pathOf, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "./helpers";
 
 // D07 T02 §1: signing in end to end through the Worker's own fetch: the link requested, sent through SMTP2GO, redeemed
 // over HTTP, and the session read back from D1.
@@ -75,10 +75,10 @@ describe("magic-link sign-in through the Worker", () => {
     await requestLink("used@example.com");
     const link = pathOf(smtp.sends[0]?.link ?? "");
     expect(sessionCookie(await call(link))).toMatch(/session_token=/);
-    // The second time: no session, sent back with an error.
+    // The second time: no session, and to sign-in with the destination kept and the reason, to ask for a new link.
     const again = await call(link);
     expect(sessionCookie(again)).toBe("");
-    expect(again.headers.get("location") ?? "").toMatch(/error=/);
+    expect(target(again)).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
     // A link past its 15 minutes.
     await requestLink("late@example.com");
     await db
@@ -87,7 +87,84 @@ describe("magic-link sign-in through the Worker", () => {
       .run();
     const late = await call(pathOf(smtp.sends[1]?.link ?? ""));
     expect(sessionCookie(late)).toBe("");
-    expect(late.headers.get("location") ?? "").toMatch(/error=/);
+    expect(target(late)).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
+  });
+
+  it("sends a failed link for a page back to sign-in with that page kept", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    await requestLink("keep@example.com", "/cases/42?tab=evidence");
+    const link = pathOf(smtp.sends[0]?.link ?? "");
+    await call(link);
+    expect(target(await call(link))).toBe("/signin?next=%2Fcases%2F42%3Ftab%3Devidence&error=INVALID_TOKEN");
+  });
+
+  it("sets the failure and new-user paths itself, and refuses an edited link that leaves the site", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const asked = await call("/api/auth/sign-in/magic-link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "fresh@example.com",
+        callbackURL: "/cases",
+        errorCallbackURL: "http://localhost/elsewhere",
+        newUserCallbackURL: "/welcome",
+      }),
+    });
+    expect(asked.status).toBe(200);
+    const link = new URL(smtp.sends[0]?.link ?? "");
+    expect(link.searchParams.get("errorCallbackURL")).toBe("/signin?next=%2Fcases");
+    expect(link.searchParams.get("newUserCallbackURL")).toBe("/cases");
+    // Edited to fail toward another site: refused, and the link is still good.
+    for (const name of ["errorCallbackURL", "newUserCallbackURL", "callbackURL"]) {
+      for (const value of ["//evil.example/x", "https://evil.example/", "http://localhost/elsewhere"]) {
+        const edited = new URL(link);
+        edited.searchParams.set(name, value);
+        const refused = await call(`${edited.pathname}${edited.search}`);
+        // Better Auth's origin check answers 403 for another site; a full URL even on this one is not a path (400).
+        expect(value.startsWith("http://localhost") ? [400] : [400, 403], `${name}=${value}`).toContain(refused.status);
+        expect(sessionCookie(refused), name).toBe("");
+      }
+    }
+    // A new member lands where the link was asked for, not on a page the client named.
+    expect(target(await call(`${link.pathname}${link.search}`))).toBe("/cases");
+  });
+
+  it("stores a link's token only as its hash", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    await requestLink("hashed@example.com");
+    const token = new URL(smtp.sends[0]?.link ?? "").searchParams.get("token") ?? "";
+    expect(token.length).toBeGreaterThan(20);
+    const rows = await db
+      .prepare(`SELECT identifier, value FROM "verification"`)
+      .all<{ identifier: string; value: string }>();
+    for (const row of rows.results) expect(`${row.identifier} ${row.value}`).not.toContain(token);
+  });
+
+  it("keeps outstanding links across a new secret, and voids them only by deleting their records", async () => {
+    // Signed in first: signIn stubs SMTP2GO itself, and restoring that stub would remove this test's.
+    const { cookie } = await signIn("rotate@example.com");
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    await requestLink("rotate@example.com");
+    await requestLink("rotate@example.com");
+    const [kept, voided] = smtp.sends.slice(-2).map((s) => pathOf(s.link));
+    const rotated = { ...authEnv, BETTER_AUTH_SECRET: "a-new-secret-0123456789abcdef-0123456789" };
+    // The new secret refuses the session it did not sign: the member is signed out.
+    expect(
+      (await call("/api/auth/get-session", { headers: { cookie } }, rotated).then((r) => r.json())) ?? null,
+    ).toBeNull();
+    // A link sent before it still signs in.
+    const keptAnswer = await call(kept as string, {}, rotated);
+    expect([keptAnswer.status, target(keptAnswer)]).toEqual([302, "/cases"]);
+    expect(sessionCookie(keptAnswer)).toMatch(/session_token=/);
+    // Deleting the outstanding link records (docs/operations.md) voids the rest.
+    await db.prepare(`DELETE FROM "verification" WHERE identifier LIKE 'magic-link:%'`).run();
+    const late = await call(voided as string, {}, rotated);
+    expect(sessionCookie(late)).toBe("");
+    expect(target(late)).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
   });
 
   it("sends a new, usable link for each request, under its own send key", async () => {

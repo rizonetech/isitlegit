@@ -136,9 +136,9 @@ Cloudflare sets a secret only on the newest version, so do it while no rollback 
 
 ## Better Auth secret
 
-Members' sessions and magic links are signed with the Worker secret `BETTER_AUTH_SECRET`, 32 random bytes as base64url kept in the vault as "IsItLegit Better Auth secret" (`src/auth/auth.ts`, D07 T02 §1). It was created on 2026-10-28 from the generator straight into the vault (the item JSON piped to `conclave-op item create --vault Conclave -`, so the value never appeared as an argument), then set on the Worker from the vault as below; the smoke check passed on the version that published.
+Members' session cookies are signed with the Worker secret `BETTER_AUTH_SECRET`, 32 random bytes as base64url kept in the vault as "IsItLegit Better Auth secret" (`src/auth/auth.ts`, D07 T02 §1). It was created on 2026-10-28 from the generator straight into the vault (the item JSON piped to `conclave-op item create --vault Conclave -`, so the value never appeared as an argument), then set on the Worker from the vault as below; the smoke check passed on the version that published.
 
-Replacing it signs every member out and voids every magic link not yet used. Replace it only when it may have leaked: write a new value into the vault item first, then set it on the Worker from the vault, the read checked (43 characters) before Wrangler starts:
+Replacing it signs every member out. It does not void a magic link already sent: a link carries a random token whose hash is a row in D1's `verification` table, checked without the secret, so it still signs in until it is used or its 15 minutes pass (`test/auth/flow.test.ts`, "keeps outstanding links across a new secret"). Replace it only when it may have leaked: write a new value into the vault item first, then set it on the Worker from the vault, the read checked (43 characters) before Wrangler starts:
 
 ```bash
 secret=$(conclave-op read "op://Conclave/IsItLegit Better Auth secret/credential") && [ ${#secret} -eq 43 ] \
@@ -148,6 +148,12 @@ unset secret
 ```
 
 As with any secret, `wrangler secret put` publishes a new version of the same code: do it while no rollback is in effect, and run the smoke check afterwards.
+
+To void every magic link not yet used (a mailbox exposed, or with the secret when the leak may include sent links), delete their records; a voided link then lands on the sign-in page with `error=INVALID_TOKEN`, and the member asks for a new one:
+
+```bash
+pnpm exec wrangler d1 execute isitlegit --remote --command "DELETE FROM verification WHERE identifier LIKE 'magic-link:%'"
+```
 
 ## Settle an uncertain mail send
 
