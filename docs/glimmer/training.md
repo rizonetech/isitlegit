@@ -17,7 +17,7 @@ Checked 2026-10-28 14:14 UTC with `node scripts/fireworks-check.ts` (admin key, 
 
 ## Probe
 
-- 2026-10-28 14:10 UTC: `node scripts/fireworks-check.ts --probe` wrote `build/glimmer/probe.jsonl` (3 lines, one image each) and created dataset `isitlegit-probe` (HTTP 200), but the upload answered HTTP 403 "dataset uploads are temporarily disabled, please contact Fireworks AI to get access"; the signed-URL path (`:getUploadEndpoint`) answers HTTP 400 with the same message. The account reads `accountVerification: NOT_VERIFIED`. No job was started and nothing was billed. `--delete-probe` removed the empty dataset at 14:16 UTC (read back as gone). Waiting on the operator: verify the Fireworks account or have Fireworks enable dataset uploads for `rizonetech`.
+- 2026-10-28 14:10 UTC: `node scripts/fireworks-check.ts --probe` wrote `build/glimmer/probe.jsonl` (3 lines, one image each) and created dataset `isitlegit-probe` (HTTP 200), but the upload answered HTTP 403 "dataset uploads are temporarily disabled, please contact Fireworks AI to get access"; the signed-URL path (`:getUploadEndpoint`) answers HTTP 400 with the same message. The account reads `accountVerification: NOT_VERIFIED`. No job was started and nothing was billed. `--delete-probe` removed the empty dataset at 14:16 UTC (read back as gone). Corrected 15:13 UTC: the account is not restricted (the operator uploads in the UI); the refusal is for the key's principal, the service account `isitlegit-meta-api-admin`. Waiting on the operator for an API key of their own user (vault item "IsItLegit Fireworks Owner") or a UI upload of the probe file.
 
 ## Dataset
 
