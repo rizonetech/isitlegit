@@ -85,17 +85,18 @@ export type ResponsesParams = Omit<ResponseCreateParamsNonStreaming, "model" | "
 export async function metaResponses(params: ResponsesParams, ctx: MetaContext): Promise<MetaAnswer<MetaResponse>> {
   const model = standard(params.model);
   const { apiKey, token, base } = settings(ctx.env);
+  const seen = observe(ctx.fetch ?? fetch);
   const client = new OpenAI({
     apiKey,
     baseURL: base,
     defaultHeaders: gatewayHeaders(token),
-    fetch: ctx.fetch ?? fetch,
+    fetch: seen.fetch,
     maxRetries: 0,
     timeout: ctx.deadlineMs ?? DEFAULT_DEADLINE_MS,
   });
   // Forced last, so no caller's `store` reaches Meta.
   const body: ResponseCreateParamsNonStreaming = { ...params, model, stream: false, store: false };
-  return withRetries(ctx, async (signal) => {
+  return withRetries(ctx, seen, async (signal) => {
     const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
     if (!isResponse(data))
       throw new ModelError("malformed", "Meta's answer is not a response object", {
@@ -138,9 +139,9 @@ export async function metaRaw(
     contentType = { "content-type": "application/json" };
   }
   const { apiKey, token, base } = settings(ctx.env);
-  const send = ctx.fetch ?? fetch;
-  return withRetries(ctx, async (signal) => {
-    const response = await send(`${base}${path}`, {
+  const seen = observe(ctx.fetch ?? fetch);
+  return withRetries(ctx, seen, async (signal) => {
+    const response = await seen.fetch(`${base}${path}`, {
       method: "POST",
       headers: {
         authorization: `Bearer ${apiKey}`,
@@ -197,7 +198,40 @@ const gatewayHeaders = (token: string) => ({
 const isResponse = (data: unknown): data is MetaResponse =>
   typeof data === "object" && data !== null && Array.isArray((data as { output?: unknown }).output);
 
-async function withRetries<T>(ctx: MetaContext, attempt: (signal: AbortSignal) => Promise<T>): Promise<T> {
+// The transport, noting each response's status and headers the moment they arrive, before its body is read: an attempt
+// whose body then fails (cut off, stalled to the deadline, unparsable) still has its status and trace ids.
+type Seen = { status: number; headers: Headers };
+type Observed = { fetch: typeof fetch; last: Seen | null };
+function observe(send: typeof fetch): Observed {
+  const observed: Observed = {
+    last: null,
+    fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await send(input, init);
+      observed.last = { status: response.status, headers: response.headers };
+      return response;
+    }) as typeof fetch,
+  };
+  return observed;
+}
+
+// A failure, completed from what its attempt's response showed before the body failed: an error status whose body
+// could not be read is still that status (so a cut-off 503 is retried), and the trace ids are kept either way.
+function completed(failure: ModelError, seen: Seen | null): ModelError {
+  if (!seen) return failure;
+  if (failure.details.status === undefined && seen.status >= 400 && failure.kind !== "timeout")
+    return statusError(seen.status, seen.headers, undefined);
+  const ids = traced(seen.headers);
+  failure.details.status ??= seen.status;
+  failure.details.logId ??= ids.logId;
+  failure.details.requestId ??= ids.requestId;
+  return failure;
+}
+
+async function withRetries<T>(
+  ctx: MetaContext,
+  seen: Observed,
+  attempt: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   const deadlineMs = ctx.deadlineMs ?? DEFAULT_DEADLINE_MS;
   const sleep = ctx.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const random = ctx.random ?? Math.random;
@@ -220,10 +254,11 @@ async function withRetries<T>(ctx: MetaContext, attempt: (signal: AbortSignal) =
   };
   try {
     for (let n = 1; ; n++) {
+      seen.last = null;
       try {
         return await Promise.race([attempt(controller.signal), expired]);
       } catch (error) {
-        const failure = classify(error);
+        const failure = completed(classify(error), seen.last);
         const { status, retryAfterMs } = failure.details;
         attempts.push({
           kind: failure.kind,

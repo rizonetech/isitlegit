@@ -257,6 +257,48 @@ describe.each(Object.entries(entries))("%s: retries", (_, entry) => {
     expect(error.kind).toBe("timeout");
     expect(Date.now() - started).toBeLessThan(5_000);
   });
+
+  it("retries a 503 whose body is cut off mid-read", async () => {
+    const cut = () =>
+      new Response(
+        new ReadableStream({
+          start: (c) => {
+            c.enqueue(new TextEncoder().encode('{"error":{"type":"ser'));
+            c.error(new TypeError("connection reset"));
+          },
+        }),
+        { status: 503, headers: { "content-type": "application/json", "cf-aig-log-id": "log-cut" } },
+      );
+    const { sent, ctx } = transport(cut, entry.ok);
+    await entry.call(ctx);
+    expect(sent).toHaveLength(2);
+  });
+
+  it("keeps the status and trace ids of an answer whose body stalls to the deadline", async () => {
+    const stalled = () =>
+      new Response(new ReadableStream({ start: () => {} }), {
+        headers: { "content-type": "application/json", "cf-aig-log-id": "log-slow", "x-request-id": "req_slow" },
+      });
+    const { ctx } = transport(stalled);
+    const error = await failure(entry.call({ ...ctx, deadlineMs: 300 }));
+    expect(error.kind).toBe("timeout");
+    expect(error.details).toMatchObject({ status: 200, logId: "log-slow", requestId: "req_slow" });
+    expect(error.details.attempts).toEqual([
+      { kind: "timeout", status: 200, logId: "log-slow", requestId: "req_slow" },
+    ]);
+  });
+
+  it("keeps the trace ids of a success whose body is not JSON", async () => {
+    const { ctx } = transport(
+      () =>
+        new Response("<html>gateway page</html>", {
+          headers: { "content-type": "application/json", "cf-aig-log-id": "log-html", "x-request-id": "req_html" },
+        }),
+    );
+    const error = await failure(entry.call(ctx));
+    expect(error.kind).toBe("malformed");
+    expect(error.details).toMatchObject({ status: 200, logId: "log-html", requestId: "req_html" });
+  });
 });
 
 describe.each(Object.entries(entries))("%s: every failure is a ModelError with a kind", (_, entry) => {

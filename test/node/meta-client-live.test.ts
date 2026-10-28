@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { type LiveOptions, runClientLive } from "../../scripts/meta-client-live.ts";
@@ -220,6 +220,53 @@ describe("meta-client-live", () => {
     expect(second.code).toBe(0);
     expect(again.sent.every((u) => u.startsWith(LOGS_URL))).toBe(true);
     expect(ledgerNow()).toHaveLength(1);
+  });
+
+  it("never sends again a call whose answer could not be saved", async () => {
+    // The pending file in a folder that turns read-only once the call is out: the mark is written, the answer is not.
+    const folder = join(DIR, "pending");
+    mkdirSync(folder);
+    const pending = join(folder, "pending.json");
+    const down = world({
+      responses: () => {
+        chmodSync(folder, 0o500);
+        return json({ id: "resp_1", object: "response", output: [], usage: USAGE }, 200, {
+          "cf-aig-log-id": "log-abc",
+        });
+      },
+      logs: () => json({ success: false, errors: [{ code: 1000 }] }, 404),
+    });
+    const first = await runClientLive({ ...down.options, pending });
+    chmodSync(folder, 0o700);
+    expect(first.code).toBe(1);
+    expect(first.lines.join("\n")).toContain("record log log-abc by hand");
+    expect(JSON.parse(readFileSync(pending, "utf-8"))).toMatchObject({ logId: null });
+
+    const again = world();
+    const second = await runClientLive({ ...again.options, pending });
+    expect(second.code).toBe(1);
+    expect(second.lines.join("\n")).toContain("is not sent again");
+    expect(again.sent).toHaveLength(0);
+    expect(ledgerNow()).toHaveLength(1);
+  });
+
+  it("sends nothing when the call cannot be marked as sent", async () => {
+    const folder = join(DIR, "locked");
+    mkdirSync(folder, { mode: 0o500 });
+    const { options, sent } = world();
+    const outcome = await runClientLive({ ...options, pending: join(folder, "pending.json") });
+    chmodSync(folder, 0o700);
+    expect(outcome.code).toBe(1);
+    expect(outcome.lines.join("\n")).toContain("so nothing was sent");
+    expect(sent).toHaveLength(0);
+    expect(ledgerNow()).toEqual([]);
+  });
+
+  it("leaves no mark when the call failed, so a new run may call again", async () => {
+    const { options } = world({ responses: () => json({ error: { type: "invalid_request_error" } }, 400) });
+    const outcome = await runClientLive(options);
+    expect(outcome.code).toBe(1);
+    expect(existsSync(PENDING)).toBe(false);
   });
 
   it("refuses an unreadable pending call rather than paying for another", async () => {

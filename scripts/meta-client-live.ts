@@ -62,8 +62,15 @@ export type LiveOptions = {
   log?: (line: string) => void;
 };
 export type LiveOutcome = { code: 0 | 1; lines: string[] };
-// What an answered call leaves to verify: no body, only its identifiers and counts.
-export type Pending = { run: string; logId: string; usage: Usage | null; cost: number | null; estimate: number };
+// A call in flight or answered, until its log is checked and recorded: no body, only its identifiers and counts. It is
+// written before the call is sent (logId null), so a call whose answer could not be saved is never sent again unasked.
+export type Pending = {
+  run: string;
+  logId: string | null;
+  usage: Usage | null;
+  cost: number | null;
+  estimate: number;
+};
 
 type Say = (line: string) => void;
 
@@ -106,20 +113,26 @@ async function run(
     let pending: Pending;
     try {
       pending = JSON.parse(readFileSync(pendingFile, "utf-8"));
-      if (typeof pending?.logId !== "string" || typeof pending.run !== "string") throw new Error("no log id or run");
+      if (typeof pending?.run !== "string" || !(typeof pending.logId === "string" || pending.logId === null))
+        throw new Error("no run or log id");
     } catch (error) {
       return refuse(
         `${pendingFile} is unreadable (${(error as Error).message}); it holds an answered call's log id, so repair it rather than delete it`,
       );
     }
+    if (pending.logId === null)
+      return refuse(
+        `the call of ${pending.run} was sent and its answer was not saved, so it is not sent again; find it in the gateway's log (its time, model ${MODEL}), record it, then remove ${pendingFile} to make a new call`,
+      );
+    const answered = { ...pending, logId: pending.logId };
     let secrets: Secrets;
     try {
       secrets = await readSecrets();
     } catch (error) {
       return refuse((error as Error).message);
     }
-    say(`resuming: the call of ${pending.run} was answered (log ${pending.logId}); verifying it, no new call`);
-    return verify(options, pendingFile, pending, secrets, fetchImpl, say, lines);
+    say(`resuming: the call of ${answered.run} was answered (log ${answered.logId}); verifying it, no new call`);
+    return verify(options, pendingFile, answered, secrets, fetchImpl, say, lines);
   }
 
   const now = options.now ?? (() => new Date());
@@ -179,6 +192,24 @@ async function run(
     }
     return fetchImpl(input, init);
   }) as typeof fetch;
+  // The call marked as sent before it is: a failure to save its answer later cannot lead to a second paid call.
+  try {
+    writeWhole(
+      pendingFile,
+      `${JSON.stringify({ run: runId, logId: null, usage: null, cost: null, estimate } satisfies Pending, null, 1)}\n`,
+    );
+  } catch (error) {
+    return refuse(`${pendingFile} could not be written (${(error as Error).message}), so nothing was sent`);
+  }
+  const unmark = () => {
+    try {
+      rmSync(pendingFile, { force: true });
+    } catch (error) {
+      say(
+        `meta-client-live: ${pendingFile} could not be removed (${(error as Error).message}); remove it to run again`,
+      );
+    }
+  };
   let answer: Awaited<ReturnType<typeof metaResponses>>;
   try {
     answer = await metaResponses(
@@ -195,6 +226,8 @@ async function run(
       const unsettled = settleSpend(ledgerFile, ledger, entry, null);
       if (unsettled) say(`meta-client-live: ${unsettled}`);
     }
+    // Nothing was answered, so there is nothing to verify, and a new run may call again.
+    unmark();
     if (stopped) return refuse(`stopped before attempt ${attempts.length + 1}: ${stopped}`);
     const why = error instanceof ModelError ? `${error.kind}: ${error.message}` : (error as Error).name;
     say(safe(`failed: the call did not complete (${why})`));
@@ -217,16 +250,20 @@ async function run(
     if (unsettled) say(`meta-client-live: ${unsettled}; the reservation stands at its estimate`);
   });
   if (!answer.logId) {
+    unmark();
     say("failed: no cf-aig-log-id came back, so the gateway did not log the call");
     return { code: 1, lines };
   }
 
-  // 5. The answered call kept before it is verified, so a failed check or record is resumed without paying again.
-  const pending: Pending = { run: runId, logId: answer.logId, usage, cost, estimate };
+  // 5. The answer kept before it is verified, so a failed check or record is resumed without paying again. Unsaved,
+  // the mark from step 3 stays: a failed check is then not retried by a new call, and the log id is said here.
+  const pending = { run: runId, logId: answer.logId, usage, cost, estimate };
   try {
     writeWhole(pendingFile, `${JSON.stringify(pending, null, 1)}\n`);
   } catch (error) {
-    say(`meta-client-live: ${pendingFile} could not be written (${(error as Error).message}); verifying now`);
+    say(
+      `meta-client-live: ${pendingFile} could not be written (${(error as Error).message}); the answered call's log is ${answer.logId}`,
+    );
   }
   return verify(options, pendingFile, pending, secrets, fetchImpl, say, lines);
 }
@@ -236,14 +273,23 @@ async function run(
 async function verify(
   options: LiveOptions,
   pendingFile: string,
-  pending: Pending,
+  pending: Pending & { logId: string },
   secrets: Secrets,
   fetchImpl: typeof fetch,
   say: Say,
   lines: string[],
 ): Promise<LiveOutcome> {
   const safe = scrub(secrets);
-  const resume = existsSync(pendingFile) ? "; run again to resume, no new call is made" : "";
+  // A rerun resumes only an answer the pending file holds; otherwise it refuses, and the log id is the way back.
+  let saved = false;
+  try {
+    saved = JSON.parse(readFileSync(pendingFile, "utf-8"))?.logId === pending.logId;
+  } catch {
+    // not saved
+  }
+  const resume = saved
+    ? "; run again to resume, no new call is made"
+    : `; it was not saved, so a rerun will not call again: record log ${pending.logId} by hand`;
   const planned: Planned = { name: "client Spark", model: MODEL, body: {}, stream: false, estimate: pending.estimate };
   const getLog = async (path: string) => {
     const response = await fetchImpl(`${LOGS_URL}${path}`, {
