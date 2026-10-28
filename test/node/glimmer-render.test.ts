@@ -1,3 +1,4 @@
+import { createSocket } from "node:dgram";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -156,6 +157,12 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<p>${words}</p><p id=s></p><script>s.textContent = 'STORED-' + localStorage.getItem('k') + '-' + (document.cookie || 'none')</script>`,
     ),
+  // A page that gathers WebRTC candidates against a STUN server on loopback: UDP that would leave outside the proxy.
+  "/webrtc": (res) =>
+    html(
+      res,
+      `<p>${words}</p><script>const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:127.0.0.1:${stunPort}' }] }); pc.createDataChannel('x'); pc.createOffer().then((offer) => pc.setLocalDescription(offer))</script>`,
+    ),
   // A server that compresses although asked not to.
   "/gzip": (res) => {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-encoding": "gzip" });
@@ -184,9 +191,19 @@ let secretHits = 0;
 let failing503 = 0;
 let upgrades = 0;
 let dripOpen = 0;
+let stunPort = 0;
+let stunPackets = 0;
 let frameServer: Server;
+let stunSocket: ReturnType<typeof createSocket> | undefined;
 let frameOrigin: string;
 beforeAll(async () => {
+  const stun = createSocket("udp4");
+  stun.on("message", () => {
+    stunPackets++;
+  });
+  await new Promise<void>((done) => stun.bind(0, "127.0.0.1", done));
+  stunPort = stun.address().port;
+  stunSocket = stun;
   frameServer = createServer((req, res) => {
     const body = framePages[new URL(req.url ?? "/", "http://x").pathname];
     if (body) html(res, body);
@@ -236,6 +253,7 @@ afterAll(async () => {
   await new Promise((done) => server?.close(done));
   secret?.closeAllConnections();
   await new Promise((done) => secret?.close(done));
+  stunSocket?.close();
   frameServer?.closeAllConnections();
   await new Promise((done) => frameServer?.close(done));
 });
@@ -344,6 +362,12 @@ describe("renderPage", () => {
     const shot = await renderer.render(`${origin}/xframe-login`);
     expect(shot.has_login_form).toBe(true);
     expect(shot.text).toContain("Nested sign-in text for the example service");
+  });
+
+  it("sends no WebRTC traffic outside the proxy", async () => {
+    stunPackets = 0;
+    await renderer.render(`${origin}/webrtc`);
+    expect(stunPackets).toBe(0);
   });
 
   it("denies permissions, refuses WebSockets and keeps nothing between pages", async () => {

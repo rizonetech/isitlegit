@@ -437,7 +437,13 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
   const current = () => {
     if (!session) {
       const starting = chromium
-        .launch({ executablePath, chromiumSandbox: true, args: ["--no-first-run"], timeout: BROWSER_START_MS })
+        .launch({
+          executablePath,
+          chromiumSandbox: true,
+          // WebRTC sends UDP of its own, outside any proxy: only proxied traffic may leave, so it has none.
+          args: ["--no-first-run", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"],
+          timeout: BROWSER_START_MS,
+        })
         .then((browser) => {
           launched++;
           browser.on("disconnected", () => {
