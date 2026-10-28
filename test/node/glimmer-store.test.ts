@@ -331,3 +331,67 @@ describe("recovery, integrity and removal", () => {
     expect(() => store.removeSource("../x")).toThrow();
   });
 });
+
+describe("setLabels and the lure-type rule (D03 T04 §9)", () => {
+  it("replaces one page's labels whole, refuses an invalid record, and derives a lure's type from its forms", async () => {
+    const { applyRules, derivedLureType } = await import("../../scripts/glimmer/label-rules.ts");
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-labels-"));
+    try {
+      const store = openStore(dir);
+      const shot = new Uint8Array(
+        await sharp({ create: { width: 32, height: 32, channels: 3, background: "#fff" } })
+          .jpeg()
+          .toBuffer(),
+      );
+      const base = {
+        origin: "public" as const,
+        licence: "CC0",
+        host: null,
+        template: null,
+        south_africa: false,
+        redacted: false,
+      };
+      const put = (text: string, labels: Record<string, unknown>) =>
+        store.putPage("set", {
+          ...base,
+          screenshot: shot,
+          text,
+          labels,
+          label_source: Object.fromEntries(
+            Object.keys(labels).map((k) => [k, k.startsWith("has_") ? "dom" : "ground-truth"]),
+          ),
+        } as Parameters<typeof store.putPage>[1]);
+      const login = await put("login lure", { lure: true, has_login_form: true, has_payment_form: false });
+      const card = await put("card lure", { lure: true, has_login_form: true, has_payment_form: true });
+      const plain = await put("lookalike", { lure: true, has_login_form: false, has_payment_form: false });
+      const shop = await put("shop", {
+        lure: true,
+        lure_type: "fake_shop",
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      const benign = await put("benign", {
+        lure: false,
+        lure_type: "none",
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      expect(applyRules(store)).toEqual({ credential: 1, payment: 1, impersonation: 1 });
+      const byId = new Map(
+        openStore(dir)
+          .manifest()
+          .map((p) => [p.id, p]),
+      );
+      expect(byId.get(login)?.labels.lure_type).toBe("credential");
+      expect(byId.get(login)?.label_source.lure_type).toBe("rule");
+      expect(byId.get(card)?.labels.lure_type).toBe("payment");
+      expect(byId.get(plain)?.labels.lure_type).toBe("impersonation");
+      expect(byId.get(shop)?.label_source.lure_type).toBe("ground-truth");
+      expect(derivedLureType(byId.get(benign) as never)).toBeNull();
+      expect(() => store.setLabels(login, { lure: true }, { lure: "ground-truth", lure_type: "rule" })).toThrow();
+      expect(openStore(dir).verify().damaged).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

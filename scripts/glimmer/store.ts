@@ -53,6 +53,9 @@ export const LABEL_SOURCES = [
   "astra+claude",
   "claude",
   "unverified",
+  // A value derived by a fixed rule from the page's other labels (D03 T04 §9: a lure's type from its form flags). It
+  // trains, but evaluation never trusts it.
+  "rule",
 ] as const;
 
 // What is known of a page's PageAnswer fields; a field not yet decided is absent (D03 T04 §9 fills them).
@@ -273,6 +276,20 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return id;
   }
 
+  // One page's labels and their sources replaced, validated against the page record and written whole (temp then
+  // rename, flushed), so a stopped write leaves the old meta.json, never half of one.
+  function setLabels(id: string, labels: Labels, label_source: PageMeta["label_source"]): StoredPage {
+    const folder = join(pages, id);
+    const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+    const meta = PageMeta.parse({ ...current, labels, label_source });
+    const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
+    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    sync(temporary);
+    renameSync(temporary, join(folder, "meta.json"));
+    sync(folder);
+    return { id, ...meta };
+  }
+
   function manifest(): StoredPage[] {
     if (!existsSync(pages)) return [];
     return readdirSync(pages)
@@ -330,5 +347,5 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     };
   }
 
-  return { dir, putPage, manifest, counts, readPage, verify, removeSource };
+  return { dir, putPage, setLabels, manifest, counts, readPage, verify, removeSource };
 }
