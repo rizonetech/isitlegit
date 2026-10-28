@@ -160,7 +160,8 @@ def stop(child: subprocess.Popen) -> None:
 def take_lock(raw: Path):
     """An exclusive lock on the store held for the whole run, or None when another collection holds it.
 
-    The kernel drops the lock when its holder dies, so a crashed run never blocks the next one."""
+    The kernel drops the lock when the last process holding it dies. Codex inherits it (`pass_fds`), so a launcher
+    killed outright still leaves the store locked while Codex runs, and a crashed run blocks nothing once it is gone."""
     handle = open(raw / LOCK, "a+")  # noqa: SIM115 (held open for the life of the run)
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -265,6 +266,12 @@ def collect(args, raw: Path, run: list[str], lock) -> int:
         except (OSError, ValueError):
             earlier = {"outcome": "unreadable"}
         if earlier.get("outcome") in ("running", "unreadable"):
+            # The lock covers a Codex that kept its inherited descriptor; the recorded process group covers one that
+            # closed it. Either way a survivor of a killed launcher is never raced.
+            group = earlier.get("codex_pgid")
+            if isinstance(group, int) and group_alive(group):
+                return refuse(f"the previous collection's Codex (process group {group}) is still running; wait for "
+                              f"it, or stop it with `kill -TERM -- -{group}`")
             earlier["outcome"] = "abandoned"
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             try:
@@ -304,9 +311,12 @@ def collect(args, raw: Path, run: list[str], lock) -> int:
     try:
         try:
             # Its own session and process group, so the deadline or a cancel stops everything Codex started.
-            child = subprocess.Popen(run, stdin=subprocess.PIPE, cwd=raw, start_new_session=True)
+            child = subprocess.Popen(run, stdin=subprocess.PIPE, cwd=raw, start_new_session=True,
+                                     pass_fds=(lock.fileno(),))
         except OSError as error:
             raise Failed(f"Codex could not start: {error.strerror or error}") from error
+        status["codex_pgid"] = child.pid
+        write_status(raw, status)
         try:
             child.stdin.write(BRIEF.read_bytes())
             child.stdin.close()

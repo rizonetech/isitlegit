@@ -206,6 +206,38 @@ class Launcher(unittest.TestCase):
         self.assertIn("another collection is running", result.stderr)
         self.assertFalse(self.log.exists())
 
+    def test_codex_left_by_a_killed_launcher_is_never_raced(self):
+        environment = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "HOME": str(self.home),
+                       "FAKE_CODEX_LOG": str(self.log), "FAKE_CODEX_SLEEP": "60"}
+        launcher = subprocess.Popen([sys.executable, str(SCRIPT)], env=environment, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL)
+        deadline = time.monotonic() + 20
+        while not self.log.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        codex = self.recorded()["pid"]
+        self.addCleanup(lambda: subprocess.run(["kill", "-KILL", "--", f"-{codex}"], check=False,
+                                               capture_output=True))
+        launcher.kill()  # SIGKILL: no cleanup runs, and the launcher's own lock descriptor is gone
+        launcher.wait()
+        self.log.unlink()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("another collection is running", result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertTrue(alive(codex))
+
+    def test_a_recorded_codex_group_still_running_is_never_raced(self):
+        # A Codex that closed its inherited lock is still found through the process group the status recorded.
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        raw.mkdir(parents=True)
+        survivor = subprocess.Popen(["sleep", "30"], start_new_session=True)
+        self.addCleanup(lambda: (survivor.kill(), survivor.wait()))
+        (raw / "RUN-STATUS.json").write_text(json.dumps({"outcome": "running", "codex_pgid": survivor.pid}))
+        result = self.run_script()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(f"process group {survivor.pid}", result.stderr)
+        self.assertFalse(self.log.exists())
+
     def test_two_launchers_started_together_run_one_collection(self):
         environment = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "HOME": str(self.home),
                        "FAKE_CODEX_LOG": str(self.log), "FAKE_CODEX_SLEEP": "2"}
@@ -406,7 +438,7 @@ class FaultInjection(unittest.TestCase):
                 mock.patch("sys.stderr") as stderr:
             code = self.launcher.main([])
         self.assertEqual(code, 1)  # a run whose end is not on record has not completed
-        self.assertEqual(calls, ["running", "completed"])
+        self.assertEqual(calls, ["running", "running", "completed"])  # start, Codex's group, end
         printed = "".join(c.args[0] for c in stderr.write.call_args_list)
         self.assertIn("No space left on device", printed)
         self.assertIn("next run sets it aside as abandoned", printed)

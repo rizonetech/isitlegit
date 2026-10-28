@@ -89,6 +89,12 @@ class DispatchHook(unittest.TestCase):
                             f"grep -n main scripts/{script}.py", f"python3 -m unittest {module}"):
                 self.assertEqual(run(bash(command)).returncode, 0, command)
 
+    def test_code_that_names_a_launcher_in_quotes_is_not_a_run(self):
+        # A heredoc editing the launcher names its path inside `Path('...')`; that is text, not a run.
+        for command in ("python3 - <<'EOF'\np = Path('scripts/astra-collect.py')\nEOF",
+                        'grep -n main "scripts/astra-judge.py"', "x=('scripts/review-dispatch.py' --prompt p)"):
+            self.assertEqual(run(bash(command)).returncode, 0, command)
+
     def test_interpreter_options_and_quoted_paths_are_still_runs(self):
         for command in ("python3 -u scripts/astra-collect.py", "python3 -u scripts/astra-collect.py &",
                         "python3 -X dev scripts/astra-judge.py", "python3 'scripts/astra-collect.py'",
