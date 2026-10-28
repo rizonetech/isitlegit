@@ -16,8 +16,8 @@
 // A passkey's credential ID is refused when any member already has it (WebAuthn Level 3 §7.1), which the plugin does not
 // check; migration 0009 makes the column unique as well.
 //
-// A malformed passkey sign-in response is refused before the plugin reads it, which it would do before checking its
-// shape, consuming the challenge or failing with a 500.
+// A malformed passkey response, at registration or sign-in, is refused before the plugin reads it, which it would do
+// before checking its shape, consuming the challenge or failing with a 500.
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { ConfigError } from "../config";
@@ -100,6 +100,9 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           return;
         }
         if (ctx.path === "/passkey/verify-registration") {
+          // As for sign-in: a malformed registration is a 400 before the plugin consumes the challenge.
+          if (!wellFormedAttestation((ctx.body as { response?: unknown } | undefined)?.response))
+            throw new APIError("BAD_REQUEST", { message: "the passkey response is malformed" });
           const id = (ctx.body as { response?: { id?: unknown } } | undefined)?.response?.id;
           const taken =
             typeof id === "string" &&
@@ -146,6 +149,15 @@ function bytesOf(value: unknown, max = 4096): string | null {
     return null;
   }
 }
+// The client data both ceremonies sign: a JSON object of the ceremony's type carrying a challenge.
+function clientDataOf(value: unknown, type: "webauthn.create" | "webauthn.get") {
+  try {
+    const parsed = JSON.parse(bytesOf(value) ?? "") as { type?: unknown; challenge?: unknown } | null;
+    return parsed?.type === type && typeof parsed.challenge === "string";
+  } catch {
+    return false;
+  }
+}
 function wellFormedAssertion(value: unknown): boolean {
   const v = value as Record<string, unknown> | null | undefined;
   const r = v?.response as Record<string, unknown> | null | undefined;
@@ -153,13 +165,26 @@ function wellFormedAssertion(value: unknown): boolean {
   const authenticatorData = bytesOf(r?.authenticatorData);
   if (!authenticatorData || authenticatorData.length < 37 || !bytesOf(r?.signature)) return false;
   if (r?.userHandle !== undefined && !bytesOf(r.userHandle)) return false;
-  const clientData = bytesOf(r?.clientDataJSON);
-  try {
-    const parsed = JSON.parse(clientData ?? "") as { type?: unknown; challenge?: unknown } | null;
-    return parsed?.type === "webauthn.get" && typeof parsed.challenge === "string";
-  } catch {
+  return clientDataOf(r?.clientDataJSON, "webauthn.get");
+}
+// A registration as the browser serializes it (RegistrationResponseJSON): the attestation object's bytes, transports a
+// list of short strings when given (the plugin joins them into a column).
+function wellFormedAttestation(value: unknown): boolean {
+  const v = value as Record<string, unknown> | null | undefined;
+  const r = v?.response as Record<string, unknown> | null | undefined;
+  if (v?.type !== "public-key" || !bytesOf(v.id) || !bytesOf(v.rawId)) return false;
+  if (!bytesOf(r?.attestationObject, 65_536)) return false;
+  const transports = r?.transports;
+  if (
+    transports !== undefined &&
+    !(
+      Array.isArray(transports) &&
+      transports.length <= 8 &&
+      transports.every((t) => typeof t === "string" && t.length <= 32)
+    )
+  )
     return false;
-  }
+  return clientDataOf(r?.clientDataJSON, "webauthn.create");
 }
 
 export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {

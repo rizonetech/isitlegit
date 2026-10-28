@@ -148,6 +148,39 @@ describe("registration refusals", () => {
     expect(await countPasskeys("nopin@example.com")).toBe(0);
   });
 
+  it("answers a malformed registration 400 before using the challenge, so the registration can still finish", async () => {
+    const authenticator = new SoftAuthenticator();
+    const { cookie } = await signIn("badattest@example.com");
+    const { response, cookie: withChallenge } = await registerOptions(cookie);
+    const good = await authenticator.create(await response.json(), ORIGIN);
+    const malformed: unknown[] = [
+      {},
+      "a string",
+      { ...good, id: "A" },
+      { ...good, type: "password" },
+      { ...good, response: { ...good.response, attestationObject: "A" } },
+      { ...good, response: { ...good.response, attestationObject: undefined } },
+      { ...good, response: { ...good.response, clientDataJSON: "A" } },
+      { ...good, response: { ...good.response, transports: "internal" } },
+      { ...good, response: { ...good.response, transports: [{}] } },
+      {
+        ...good,
+        response: {
+          ...good.response,
+          clientDataJSON: b64url(new TextEncoder().encode('{"type":"webauthn.get","challenge":"x"}')),
+        },
+      },
+    ];
+    for (const attempt of malformed) {
+      const refused = await post("/api/auth/passkey/verify-registration", withChallenge, { response: attempt });
+      expect(refused.status, JSON.stringify(attempt).slice(0, 60)).toBe(400);
+    }
+    expect(await countPasskeys("badattest@example.com")).toBe(0);
+    const finished = await post("/api/auth/passkey/verify-registration", withChallenge, { response: good });
+    expect(finished.status).toBe(200);
+    expect(await countPasskeys("badattest@example.com")).toBe(1);
+  });
+
   it("refuses a credential ID another member already registered", async () => {
     const first = new SoftAuthenticator();
     const { cookie } = await signIn("first@example.com");
