@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest";
 // workers test pool is not held to that limit, so each case runs here in a Node process with a 128 MiB heap.
 const FORWARD = join(import.meta.dirname, "../../src/intake/forward.ts");
 
+// Resolves the source's extensionless relative imports in the child process.
+const HOOK = join(import.meta.dirname, "ts-extensionless.mjs");
+
 function underHeapLimit(build: string) {
   const script = `
     import { extractOriginal } from ${JSON.stringify(FORWARD)};
@@ -14,11 +17,15 @@ function underHeapLimit(build: string) {
     const found = await extractOriginal(forward);
     console.log(JSON.stringify({ path: found.path, bytes: found.original.byteLength }));
   `;
-  return spawnSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], {
-    encoding: "utf-8",
-    // A real clock: a forward that takes longer than this is a denial of service, not a slow message.
-    timeout: 10_000,
-  });
+  return spawnSync(
+    process.execPath,
+    ["--max-old-space-size=128", "--import", HOOK, "--input-type=module", "-e", script],
+    {
+      encoding: "utf-8",
+      // A real clock: a forward that takes longer than this is a denial of service, not a slow message.
+      timeout: 10_000,
+    },
+  );
 }
 
 describe("extractOriginal under a 128 MiB heap", () => {
