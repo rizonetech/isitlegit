@@ -15,6 +15,9 @@ export { ParseError };
 
 export const BODY_PART_LIMIT = 1024 * 1024;
 export const BODY_TOTAL_LIMIT = 2 * 1024 * 1024;
+// Cut parts kept whole, each its own artefact: past this, a message of thousands of tiny parts would mean as many
+// writes, so further cut parts are counted as `omitted`, which the evidence reports as not checked (D02 T01 §1).
+export const KEPT_PARTS_LIMIT = 50;
 
 export type ParsedAttachment = {
   filename: string | null;
@@ -33,24 +36,30 @@ export type ParsedMessage = {
   // Body parts cut before rendering: each one's whole bytes, its media type and charset (needed to read the bytes back)
   // and how much was kept.
   truncated: { mediaType: string; charset: string | null; full: Uint8Array; keptBytes: number }[];
+  // Further cut parts, past KEPT_PARTS_LIMIT, not kept.
+  omitted: number;
 };
 
 export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
   const parsing = await readTree(raw);
   const truncated: ParsedMessage["truncated"] = [];
   let budget = BODY_TOTAL_LIMIT;
+  let omitted = 0;
   for (const leaf of leaves(parsing.root)) {
     if (!leaf.content || !parsing.isBodyText(leaf)) continue;
     const size = leaf.content.byteLength;
     const kept = Math.min(size, BODY_PART_LIMIT, budget);
     budget -= kept;
     if (kept === size) continue;
-    truncated.push({
-      mediaType: leaf.contentType.parsed.value.toLowerCase(),
-      charset: leaf.contentType.parsed.params.charset?.trim().toLowerCase() || null,
-      full: new Uint8Array(leaf.content),
-      keptBytes: kept,
-    });
+    const mediaType = leaf.contentType.parsed.value.toLowerCase();
+    if (truncated.length < KEPT_PARTS_LIMIT)
+      truncated.push({
+        mediaType,
+        charset: charsetOf(leaf.contentType.parsed.params.charset, mediaType, leaf.content),
+        full: new Uint8Array(leaf.content),
+        keptBytes: kept,
+      });
+    else omitted += 1;
     leaf.content = leaf.content.slice(0, kept);
   }
   const { email, attachmentBytes } = await parsing.finish();
@@ -67,7 +76,20 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
       bytes: attachmentBytes[i] as Uint8Array,
     })),
     truncated,
+    omitted,
   };
+}
+
+// The charset to read a part's bytes with: its Content-Type parameter, else for HTML a `<meta charset>` or
+// `<meta http-equiv="Content-Type" content="...charset=...">` in its first kilobyte (as postal-mime reads the kept
+// part), else null.
+function charsetOf(parameter: string | undefined, mediaType: string, content: ArrayBuffer): string | null {
+  const declared = parameter?.trim().toLowerCase();
+  if (declared) return declared;
+  if (mediaType !== "text/html") return null;
+  const head = new TextDecoder().decode(new Uint8Array(content, 0, Math.min(content.byteLength, 1024)));
+  const meta = /<meta\b[^>]*?charset\s*=\s*["']?\s*([a-z0-9_.:-]+)/i.exec(head);
+  return meta?.[1]?.toLowerCase() ?? null;
 }
 
 export type ParsedSummary = {
@@ -83,6 +105,7 @@ export type ParsedSummary = {
     bytes: number;
   }[];
   truncated: { mediaType: string; charset: string | null; key: string; fullBytes: number; keptBytes: number }[];
+  omitted: number;
   forward: Pick<Forward, "path" | "headersAvailable" | "otherOriginals">;
 };
 
@@ -134,6 +157,7 @@ export async function storeParsed(
     html: parsed.html,
     attachments,
     truncated,
+    omitted: parsed.omitted,
     forward: { path: forward.path, headersAvailable: forward.headersAvailable, otherOriginals: forward.otherOriginals },
   };
   await putParsed(store, caseId, summary);

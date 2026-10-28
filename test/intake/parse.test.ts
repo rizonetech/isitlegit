@@ -2,7 +2,14 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { createCase } from "../../src/db/cases";
 import { extractOriginal } from "../../src/intake/forward";
-import { BODY_PART_LIMIT, BODY_TOTAL_LIMIT, ParseError, parseMessage, storeParsed } from "../../src/intake/parse";
+import {
+  BODY_PART_LIMIT,
+  BODY_TOTAL_LIMIT,
+  KEPT_PARTS_LIMIT,
+  ParseError,
+  parseMessage,
+  storeParsed,
+} from "../../src/intake/parse";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { forwards } from "../fixtures/forward/load";
 
@@ -405,5 +412,66 @@ describe("round 1 cases", () => {
     ]);
     const parsed = await parseMessage(message);
     expect(parsed.attachments.at(-1)?.bytes).toEqual(new Uint8Array([1, 2, 3, 4]));
+  });
+});
+
+describe("final review cases", () => {
+  const multipart = (parts: string[]) =>
+    enc(
+      [
+        "From: billing@fictional-supplier.example",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        ...parts.flatMap((p) => ["--b", p]),
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+
+  it("keeps at most 50 cut parts and counts the rest as omitted", async () => {
+    const big = "z".repeat(BODY_PART_LIMIT + 10);
+    const parsed = await parseMessage(
+      multipart([
+        `Content-Type: text/plain\r\n\r\n${big}`,
+        `Content-Type: text/plain\r\n\r\n${big}`,
+        ...Array.from({ length: 200 }, () => "Content-Type: text/plain\r\n\r\ntiny part"),
+      ]),
+    );
+    expect(parsed.truncated).toHaveLength(KEPT_PARTS_LIMIT);
+    expect(parsed.omitted).toBe(202 - KEPT_PARTS_LIMIT);
+  });
+
+  it("reads a cut HTML part's charset from its meta tag when the type names none", async () => {
+    const html = `<html><head><meta charset="shift_jis"></head><body>${"x".repeat(BODY_PART_LIMIT + 10)}</body></html>`;
+    const parsed = await parseMessage(multipart([`Content-Type: text/html\r\n\r\n${html}`]));
+    expect(parsed.truncated[0]?.charset).toBe("shift_jis");
+  });
+
+  it("refuses a message past the part-count and header-size limits as a ParseError", async () => {
+    const parts = Array.from({ length: 10_001 }, () => "--p\r\nContent-Type: text/plain\r\n\r\nx").join("\r\n");
+    await expect(
+      parseMessage(
+        enc(`From: a@fictional.example\r\nContent-Type: multipart/mixed; boundary="p"\r\n\r\n${parts}\r\n--p--\r\n`),
+      ),
+    ).rejects.toBeInstanceOf(ParseError);
+    await expect(
+      parseMessage(enc(`From: a@fictional.example\r\n${"X-A: b\r\n".repeat(40_000)}\r\nbody\r\n`)),
+    ).rejects.toBeInstanceOf(ParseError);
+  });
+
+  it("stores the CSV and the attached message byte for byte", async () => {
+    const caseId = await newCase();
+    const summary = await storeParsed(
+      store,
+      caseId,
+      await parseMessage(ORIGINAL),
+      await extractOriginal(forwards["attached-rfc822"]),
+    );
+    expect(new TextDecoder().decode(await bytesAt(summary.attachments[2]?.key as string))).toBe(
+      "item,amount\r\nwidgets,4200",
+    );
+    expect(new TextDecoder().decode(await bytesAt(summary.attachments[4]?.key as string))).toBe(
+      "From: earlier@fictional-supplier.example\r\nSubject: Earlier\r\n\r\nThe earlier message.\r\n",
+    );
   });
 });

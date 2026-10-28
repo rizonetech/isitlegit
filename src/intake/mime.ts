@@ -89,7 +89,8 @@ export async function readTree(raw: Uint8Array): Promise<Parsing> {
   return {
     root: reader.root,
     isBodyText: (node) => reader.isInlineTextNode(node),
-    // postal-mime's own parse() after its read loop, unchanged.
+    // postal-mime's own parse() after its read loop, with three changes, each commented below: each collected
+    // attachment's node is recorded, a calendar part is collected as plain bytes, and the counts are checked.
     finish: async () => {
       const collected: MimeNode[] = [];
       const collect = reader.collectAttachment.bind(reader);
