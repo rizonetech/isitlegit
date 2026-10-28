@@ -215,6 +215,8 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 ## 9. Serve the app on app.isitlegit.co.za
 
+> **Started:** 2026-10-28T23:18Z
+
 Every link the app mails points at `PUBLIC_ORIGIN`, `https://app.isitlegit.co.za` (`wrangler.jsonc`): sign-in links, claim codes and report links. The Worker serves only at `isitlegit.derick-f5a.workers.dev` today, so each of those links is dead until the app host answers. Moved forward from §6 by D01 T01 §9's plan review (2026-10-29).
 
 **Phase:** 1
