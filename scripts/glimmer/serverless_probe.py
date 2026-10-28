@@ -212,7 +212,9 @@ def run(service_factory, renderer, image_examples, text_examples, train_on, datu
         receipt["stage"] = "failed"
         receipt["error"] = f"{type(error).__name__}: {error}"[:500]
     finally:
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)  # a second signal must not cut the close short
+        # No signal may cut the cleanup short: SIGINT (Ctrl+C), SIGTERM and SIGHUP wait until the session is deleted,
+        # the client closed and the receipt written.
+        held = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         if service is not None:
             # Closing the client does not free the session's slot on Fireworks; deleting the session does
             # (https://docs.fireworks.ai/fine-tuning/training-api/serverless#capacity-and-rate-limits). Both are tried,
@@ -229,15 +231,17 @@ def run(service_factory, renderer, image_examples, text_examples, train_on, datu
                 try:
                     service.delete_training_session()
                     receipt["deleted"] = True
-                except Exception as error:
+                except BaseException as error:  # even an interrupt here must leave the close and the receipt to run
                     receipt["deleted"] = False
                     receipt["delete_error"] = f"{type(error).__name__}: {error}"[:300]
             try:
                 service.close()
                 receipt["closed"] = True
-            except Exception as error:
+            except BaseException as error:
                 receipt["closed"] = False
                 receipt["close_error"] = f"{type(error).__name__}: {error}"[:300]
+        for sig, handler in held.items():
+            signal.signal(sig, handler)
         for sig, handler in previous.items():
             signal.signal(sig, handler)
         receipt["mode"] = decide(receipt.get("image"), receipt.get("text"))

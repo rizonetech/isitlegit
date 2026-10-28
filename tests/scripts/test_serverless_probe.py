@@ -194,6 +194,20 @@ class Recovery(Base):
         self.assertTrue(failing.closed)
         self.assertEqual(result["mode"], "image")
 
+    def test_ctrl_c_during_cleanup_cannot_skip_the_close_or_the_receipt(self):
+        class Slow(Service):
+            def delete_training_session(self):
+                os.kill(os.getpid(), signal.SIGINT)  # ignored while cleanup runs
+                raise KeyboardInterrupt  # and an interrupt that still arrives is recorded, not raised
+        service = Slow()
+        before = signal.getsignal(signal.SIGINT)
+        result = self.run_probe(service)
+        self.assertTrue(service.closed)
+        self.assertFalse(result["deleted"])
+        self.assertIn("KeyboardInterrupt", result["delete_error"])
+        self.assertEqual(self.saved()["mode"], "image")
+        self.assertIs(signal.getsignal(signal.SIGINT), before)
+
     def test_a_retry_keeps_the_earlier_attempts_receipt(self):
         def interrupt(call):
             if call == 2:
