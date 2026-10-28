@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 23 | Checklist items: 231
+Sections: 23 | Checklist items: 233
 
 | Status | Reference   | Deliverable                              | Needs                | Items |
 | ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
@@ -22,7 +22,7 @@ Sections: 23 | Checklist items: 231
 | [x]    | D00 T01 §12 | Rollback from a split deployment         | cloudflare           | 10    |
 | [ ]    | D03 T04 §2  | Fireworks account check and image probe  | operator             | 11    |
 | [ ]    | D03 T04 §3  | PageScreen contract and training store   | none                 | 9     |
-| [ ]    | D03 T04 §4  | Astra as dataset collector               | none                 | 5     |
+| [ ]    | D03 T04 §4  | Astra as dataset collector               | none                 | 7     |
 | [ ]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 7     |
 | [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 6     |
 | [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 8     |
@@ -299,4 +299,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 39/228 verified sections, 20 ready to run now.
 
-Checklist: 438/1290 items completed (includes Commit items).
+Checklist: 438/1292 items completed (includes Commit items).
