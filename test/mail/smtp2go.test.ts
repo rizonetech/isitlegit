@@ -459,6 +459,10 @@ describe("sendMail", () => {
       ["a two-line subject", { subject: "Hi\r\nBcc: x@y.example" }],
       ["no text body", { text: " " }],
       ["no send key", { sendKey: "" }],
+      // The sender is isitlegit.co.za or a subdomain, never another domain or a look-alike (D99 T01 §4).
+      ["another sender domain", { from: "IsItLegit <alerts@rizonetech.com>" }],
+      ["a look-alike sender domain", { from: "check@isitlegit.co.za.example.net" }],
+      ["a bare look-alike", { from: "IsItLegit <check@notisitlegit.co.za>" }],
     ];
     for (const [label, over] of bad) {
       const m = message(over);
@@ -466,5 +470,17 @@ describe("sendMail", () => {
       expect(await row(m.sendKey), label).toBeNull();
     }
     expect(calls).toHaveLength(0);
+  });
+
+  it("sends as isitlegit.co.za and its subdomains", async () => {
+    for (const from of [
+      "IsItLegit <check@isitlegit.co.za>",
+      "alerts@demo.isitlegit.co.za",
+      "IsItLegit <signin@ISITLEGIT.CO.ZA>",
+    ]) {
+      const { stub, calls } = smtp2go([ok()]);
+      await sendMail(deps(stub), message({ from, sendKey: `from:${from}` }));
+      expect(calls, from).toHaveLength(1);
+    }
   });
 });
