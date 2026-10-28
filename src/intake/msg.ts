@@ -11,11 +11,10 @@
 //
 // A file msgreader cannot read, one it reads as holding nothing, and one whose body is only compressed RTF are each a
 // ParseError, so the case ends partial naming why rather than as an empty message (reading RTF bodies: D01 T01 §13).
-import MsgReader from "@kenjiuno/msgreader";
-import msgreaderConstants from "@kenjiuno/msgreader/lib/const.js";
 import PostalMime from "postal-mime";
 import { type CfbEntry, type CompoundFile, child, hide, readCompoundFile } from "./cfb";
 import { ParseError } from "./mime";
+import { MsgReader, msgreaderConstants } from "./msgreader";
 import { BODY_PART_LIMIT, BODY_TOTAL_LIMIT, KEPT_PARTS_LIMIT, type ParsedMessage } from "./parse";
 
 export async function parseMsg(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headersAvailable: boolean }> {
@@ -28,7 +27,7 @@ export async function parseMsg(bytes: Uint8Array): Promise<{ parsed: ParsedMessa
   }
 }
 
-type Fields = ReturnType<MsgReader["getFileData"]>;
+type Fields = ReturnType<InstanceType<typeof MsgReader>["getFileData"]>;
 
 // String properties other than the top-level bodies (with the named-property names and the named binary properties
 // msgreader decodes, below): each at most this many bytes, and all of them together at most

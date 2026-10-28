@@ -1,11 +1,10 @@
 import { env } from "cloudflare:workers";
-import MsgReader from "@kenjiuno/msgreader";
-import msgreaderConstants from "@kenjiuno/msgreader/lib/const.js";
 import { describe, expect, it } from "vitest";
 import { makeDecoyCompoundFile, makeMsg, renameEntry } from "../../scripts/fixtures/msg-builder";
 import { createCase, setHeadersAvailable } from "../../src/db/cases";
 import { ParseError } from "../../src/intake/mime";
 import { parseMsg, STRING_PROPERTY_LIMIT } from "../../src/intake/msg";
+import { MsgReader, msgreaderConstants } from "../../src/intake/msgreader";
 import { BODY_PART_LIMIT, parseMessage, storeParsed } from "../../src/intake/parse";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { msgs, twin } from "../fixtures/msg/load";

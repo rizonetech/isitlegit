@@ -26,7 +26,8 @@ describe("bindings", () => {
     await expect
       .poll(async () => (await instance.status()).status, { timeout: 15_000, interval: 200 })
       .toBe("complete");
-    expect((await instance.status()).output).toEqual({ caseId: "test-case" });
+    // No case has this id, so the Workflow ends at its `admit` step (D01 T01 §7), as the binding smoke's instances do.
+    expect((await instance.status()).output).toEqual({ caseId: "test-case", skipped: true });
   });
 
   it("BROWSER is bound (test/smoke.test.ts launches and closes a session through it)", () => {
