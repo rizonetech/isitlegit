@@ -18,6 +18,7 @@ track: day-1
 - `docs/specs/2026-10-26-tech-stack-design.md` "Outbound mail" (SMTP2GO HTTP API `POST https://api.smtp2go.com/v3/email/send`, `In-Reply-To` and `References`).
 - Design spec 4.1 (reply), 4.6a (no model decides recipients), 11 (Outbound and Mailbox decisions).
 - RFC 5322 section 3.6.4 (`Message-ID`, `In-Reply-To`, `References`).
+- -> XREF: D01 T01 §4 -- the forward's path and the count of attached messages not checked, which the reply explains
 - -> XREF: D01 T01 §9 -- the live intake smoke that waits for the reply path
 
 ## Outcome
@@ -124,6 +125,7 @@ The member gets the answer as a reply in the same thread (spec 4.1): verdict, to
 - [ ] Write `buildReply(caseRow, verdictView, reportUrl)` returning subject `Re: <original subject>` (trimmed to 120 characters), `text` and `html` bodies with verdict, headline, up to three reasons and the action. Done when: `test/mail/reply.test.ts` snapshots both bodies for a fixture verdict.
 - [ ] Thread with `In-Reply-To: <forward Message-ID>` and `References: <forward References> <forward Message-ID>` (RFC 5322 section 3.6.4). Done when: the test reads both headers.
 - [ ] Explain missing headers when `headers_available = 0`: one sentence on forwarding as an attachment in Outlook and Gmail. Done when: the inline-forward fixture's reply contains it.
+- [ ] Say when only the first of several attached messages was checked (the parsed summary's `forward.otherOriginals` above 0): one sentence asking the member to forward each on its own. Done when: the `two-originals` fixture's reply (D01 T01 §4) contains it and a single-original reply does not. Source: D01 T01 §4 plan review, 2026-10-28.
 - [ ] Call `buildReply` and `sendMail({ kind: "reply" })` from the Workflow `reply` step with a link from `signReportLink` (D01 T01 §8). Done when: the Workflow test records one `mail_sends` row of kind `reply`.
 - [ ] Build the reply's report link as an absolute `https://` URL from the trusted public origin in the Worker's configuration (a `PUBLIC_ORIGIN` var in `wrangler.jsonc`, refused unless it is `https`), never from a request's `Host`, joined to `signReportLink`'s path. Done when: `test/mail/reply.test.ts` finds the same absolute link in the `text` and the `html` body, and `verifyReportLink` accepts its path and parameters. (**Added 2026-10-27**, D01 T01 §8's plan review P2 4.)
 - [ ] Never send a second reply for the same case: the step checks `mail_sends` first. Done when: re-running the step sends nothing. Cheaper substitute: none; a retried step would otherwise mail twice.

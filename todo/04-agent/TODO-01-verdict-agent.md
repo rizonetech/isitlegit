@@ -18,6 +18,7 @@ track: day-6
 
 - Design spec 4.6 (verdict agent, tools, output JSON, floor), 4.6a (prompt-injection defence), 9 (model map); `AGENTS.md` safety contract and review failure modes.
 - Meta docs `tool-calling.md` (only `tool_choice: "auto"`; arguments not guaranteed to match schema), `structured-output.md`, `reasoning.md`.
+- -> XREF: D01 T01 §4 -- `headers_available`, which caps the verdict's confidence when the original headers are missing
 - -> XREF: D03 T01 §5 -- the structured-output helper the agent's final answer goes through
 - -> XREF: D02 T01 §2 -- the evidence list and IDs every citation must name
 - -> XREF: D02 T05 §2 -- the AI-addressed instruction evidence that the injection fixtures rely on
@@ -124,6 +125,7 @@ Muse Spark (`muse-spark-1.3`) receives the case summary and the evidence list (s
 - [ ] On budget refusal or model error, store `ruleVerdict` with `source: "rules"` and a partial notice. Done when: a failing stub ends with a rule verdict.
 - [ ] Replace the Workflow `verdict` stub with `runAgent`. Done when: the Workflow test stores an agent verdict for a fixture.
 - [ ] Run the agent live on five synthetic fixtures after the credit gate and record outcomes in `docs/frontier-log.md`. Done when: the entry exists.
+- [ ] Cap the verdict's confidence at 0.6 when the case's `headers_available` is 0 (design spec 4.1: without the original headers the authentication checks cannot run), applied after the agent loop and after the rule-based fallback (§2) alike, so no model answer can exceed it. Done when: a test with `headers_available = 0` and a stubbed agent answering confidence 0.95 stores 0.6, the rule-based path is capped the same, and a case with headers keeps its confidence. Source: D01 T01 §4 plan review, 2026-10-28 (the 0.6 cap is a default; changing it is one constant here).
 - [ ] Commit: `agent: verdict agent loop with tools`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes and fails if raw HTML reaches the model input.

@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 290
+Sections: 38 | Checklist items: 291
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -57,7 +57,7 @@ Sections: 38 | Checklist items: 290
 | [ ]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 6     |
 | [ ]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
 | [ ]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 7     |
-| [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 7     |
+| [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 8     |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 8     |
 | [ ]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 6     |
 | [ ]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 7     |
@@ -185,7 +185,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 216
+Sections: 55 | Checklist items: 217
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -193,7 +193,7 @@ Sections: 55 | Checklist items: 216
 | [ ]    | D04 T01 §1 | Deterministic floor from critical evidence | none                  | 4     |
 | [ ]    | D04 T01 §2 | Rule-based verdict                         | none                  | 3     |
 | [ ]    | D04 T01 §3 | Read-only agent tools with zod validation  | none                  | 5     |
-| [ ]    | D04 T01 §4 | Verdict agent loop on the Responses API    | meta-api              | 8     |
+| [ ]    | D04 T01 §4 | Verdict agent loop on the Responses API    | meta-api              | 9     |
 | [ ]    | D04 T01 §5 | Citation validator with fallback           | none                  | 3     |
 | [ ]    | D04 T01 §6 | Prompt-injection fixture suite             | none                  | 4     |
 | [ ]    | D04 T01 §7 | Prompt Guard as a second classifier        | cloudflare            | 3     |
@@ -283,4 +283,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 35/212 verified sections, 15 ready to run now.
 
-Checklist: 401/1165 items completed (includes Commit items).
+Checklist: 401/1167 items completed (includes Commit items).
