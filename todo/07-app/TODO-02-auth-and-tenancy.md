@@ -315,6 +315,8 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 
 ## 10. Scanner-safe sign-in links
 
+> **Started:** 2026-10-28T23:46Z
+
 The sign-in link verifies on GET (`/api/auth/magic-link/verify?token=...`, Better Auth's magic-link plugin, §1), so whatever fetches it first signs in. Found live on 2026-10-29 (D01 T01 §9): the first link sent to a Microsoft 365 mailbox was opened by a pre-delivery link scanner 18 seconds after the send and before the mail reached the inbox, which created a session for the user (a scripted Chrome user agent) and left the member's own click `INVALID_TOKEN`. Every member on a mail system that scans links (Microsoft Defender Safe Links, Mimecast, Proofpoint) is locked out, and the scanner holds a valid session. The industry practice is a link that only shows a confirm page, the token consumed by a POST from that page, which scanners do not send.
 
 **Phase:** 1
