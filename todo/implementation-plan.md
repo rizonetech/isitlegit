@@ -51,7 +51,7 @@ Sections: 38 | Checklist items: 280
 | [x]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 9     |
 | [x]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 5     |
 | [x]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 7     |
-| [ ]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 10    |
+| [x]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 10    |
 | [ ]    | D01 T01 §3 | Email handler for verified members         | none                  | 8     |
 | [ ]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 5     |
 | [ ]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 6     |
@@ -279,6 +279,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 33/210 verified sections, 14 ready to run now.
+Progress: 34/210 verified sections, 15 ready to run now.
 
-Checklist: 386/1139 items completed (includes Commit items).
+Checklist: 387/1139 items completed (includes Commit items).

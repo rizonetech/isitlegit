@@ -39,7 +39,7 @@ track: day-1
 | 2 | §2 | Passkey sign-in | §1 | [x] |
 | 3 | §3 | Organisations, roles, invites and removal | §1 | [x] |
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [x] |
-| 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [ ] |
+| 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [x] |
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [ ] |
 | 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [ ] |
@@ -215,9 +215,12 @@ Mail is accepted at `check@` only from domains an organisation has proven it own
 - [x] ~~Record each verification attempt and result in `auth_events` (from §6).~~ Moved to §6 (**Corrected 2026-10-28:** `auth_events` is §6's table and §6's audit item already records verification).
 Evidence 2026-10-28. Migration `0015_domains.sql` adds `org_domains`, `org_addresses` (each verified one unique), `verification_codes` (one live code a claim), `verification_sends` (the hourly limit, by organisation and target) and rebuilds `mail_sends` to allow the `claim` kind (`test/node/mail-sends-rebuild.test.ts` keeps a row with every column, the case index and the cascade). `src/auth/domains.ts` mounts the claim routes at `/api/org` behind `requireSession`, `requireOrg` and an owner-or-admin check, every query naming the active organisation; `src/auth/claim-mail.ts` sends codes as `claim` under `claim:<claim>:<code>` and maps the outcome to 200, 202 or 502; the allowlist admits `claim` mail only to a pending claim's recipients and keeps `verify` demo-only. `pnpm exec vitest run test/auth/domains.test.ts test/mail`: 4 files, 56 passed, covering an owner's DNS round trip with read-back and removal, an admin claiming and a member refused on every route, claims refused for a public suffix, an IP and malformed input, another organisation's owner getting 404 for each act with the claim unchanged and no mail, two organisations racing for a domain (one verified, one 409, a third refused), DoH not-yet versus provider-failure answers with the claim pending, codes to admin@ and postmaster@ replaced, expired, locked at three (a resend keeping the lock), consumed on success, four concurrent guesses locking at three, each send outcome, five codes an hour, an address verified by code with resend, expiry, the hourly limit across delete and re-add and the 20-claim cap, removal leaving nothing stale and re-adding needing fresh proof, `findMemberBySender` for subdomains, a free-mail address and a surviving verified address, and the allowlist's `claim` rules. Full suite 573 passed, 2 skipped. Twelve mutations each fail them.
 
-- [ ] Commit: `auth: domain verification and member sender lookup`
+- [x] Commit: `auth: domain verification and member sender lookup`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/domains.test.ts test/mail` passes and fails if a pending or removed domain is admitted, a member or another organisation can touch a claim, a code is accepted after it expired, was replaced, was used or after three wrong tries, `verify` mail reaches a claim recipient, or a failed code send is reported sent. (`test/intake/email.test.ts` is D01 T01 §3's, which calls `findMemberBySender`.)
+
+> **Verified:** 2026-10-28 | §5 | 9f03352952f6b10dd392b8d0ad62dc753dc32272
+> **Review:** `docs/reviews/d07-t02-s5.json`
 
 ## 6. Sign-in rate limits and auth audit trail
 
