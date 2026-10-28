@@ -126,6 +126,18 @@ def fit(groups, tokens, budget, seed):
     return sorted(chosen)
 
 
+def line_tokens(line, renderer, train_on):
+    """One training line's tokens as Glimmer's renderer counts them. The line carries OpenAI-style `image_url` parts and
+    the cookbook renderer reads `image` parts (its training loop converts them the same way), so they are converted
+    first: given raw, a screenshot would not be counted as the image it is."""
+    messages = [{"role": m["role"], "content": [
+        {"type": "image", "image": part["image_url"]["url"]} if part.get("type") == "image_url" else part
+        for part in m["content"]] if isinstance(m["content"], list) else m["content"]}
+        for m in json.loads(line)["messages"]]
+    model_input, _ = renderer.build_supervised_example(messages, train_on_what=train_on)
+    return sum(c.expected_tokens if c.type == "image" else len(c.tokens) for c in model_input.chunks)
+
+
 def read_lines(path):
     with open(path, encoding="utf-8") as handle:
         return [line for line in handle if line.strip()]
@@ -345,11 +357,7 @@ def main(argv=None, now=None):
         renderer = get_renderer(RENDERER, get_tokenizer(TOKENIZER),
                                 image_processor=MuseGlimmerImageTokenCounter.from_pretrained(TOKENIZER))
         lines = read_lines(train_file)
-        tokens = []
-        for line in lines:
-            model_input, _ = renderer.build_supervised_example(json.loads(line)["messages"],
-                                                               train_on_what=TrainOnWhat.LAST_ASSISTANT_MESSAGE)
-            tokens.append(sum(c.expected_tokens if c.type == "image" else len(c.tokens) for c in model_input.chunks))
+        tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in lines]
         chosen = list(range(len(lines)))
         if not args.measure and not resuming:
             budget = sum(tokens)

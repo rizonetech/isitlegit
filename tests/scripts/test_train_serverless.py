@@ -82,6 +82,29 @@ class Fit(unittest.TestCase):
         self.assertEqual(chosen, ts.fit(groups, tokens, 50_000, 7))
 
 
+class Tokens(unittest.TestCase):
+    def test_a_screenshot_is_counted_as_the_image_it_is(self):
+        seen = []
+
+        class Renderer:
+            def build_supervised_example(self, messages, train_on_what=None):
+                chunks = []
+                for message in messages:
+                    for part in message["content"] if isinstance(message["content"], list) else [{"type": "text"}]:
+                        seen.append(part.get("type"))
+                        if part.get("type") == "image":
+                            chunks.append(SimpleNamespace(type="image", expected_tokens=3312))
+                        else:
+                            chunks.append(SimpleNamespace(type="text", tokens=[0] * 7))
+                return SimpleNamespace(chunks=chunks), []
+
+        line = json.dumps({"messages": [{"role": "user", "content": [{"type": "text", "text": "x"},
+                                                                     {"type": "image_url", "image_url": {"url": "data:y"}}]},
+                                        {"role": "assistant", "content": "{}"}]})
+        self.assertEqual(ts.line_tokens(line, Renderer(), None), 7 + 3312 + 7)
+        self.assertNotIn("image_url", seen)
+
+
 class FakeLoop:
     """The cookbook's sft_loop as far as the wrapper uses it: a Config, main(), and the W&B logger it calls."""
 
