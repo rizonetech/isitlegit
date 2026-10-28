@@ -121,6 +121,49 @@ describe("visibleText", () => {
     await quick.close();
   }, 60_000);
 
+  it("replaces a browser that died under several pages once, not once a page", async () => {
+    const quick = await openTextReader({ pageMs: 1_500 });
+    const huge = `<div>${"<span>word </span>".repeat(2_000_000)}</div>`;
+    const results = await Promise.allSettled([quick.renderHtml(huge), quick.renderHtml(huge), quick.renderHtml(huge)]);
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    expect((await quick.renderHtml("<p>After the timeouts one new browser renders</p>")).text).toBe(
+      "After the timeouts one new browser renders",
+    );
+    expect(quick.launches()).toBe(2);
+    await quick.close();
+  }, 90_000);
+
+  it("retries pages caught in a browser crash on one replacement browser", async () => {
+    const own = await openTextReader();
+    await own.renderHtml("<p>warm the first browser up</p>");
+    const slow = (n: number) => `<p>page ${n}</p><div>${"<span>word </span>".repeat(150_000)}</div>`;
+    const pages = [1, 2, 3].map((n) => own.renderHtml(slow(n)));
+    await new Promise((done) => setTimeout(done, 300));
+    await own.dropBrowser();
+    const results = await Promise.all(pages);
+    expect(results.map((r) => r.text.split("\n")[0])).toEqual(["page 1", "page 2", "page 3"]);
+    expect(own.launches()).toBe(2);
+    await own.close();
+  }, 90_000);
+
+  it("shows no text for a page whose body or root is hidden", async () => {
+    expect(
+      (await reader.renderHtml('<body style="display:none"><p>Hidden phishing content long enough</p></body>')).text,
+    ).toBe("");
+    expect(
+      (await reader.renderHtml('<html style="visibility:hidden"><body><p>Also hidden text here</p></body></html>'))
+        .text,
+    ).toBe("");
+  });
+
+  it("counts a card field named as one, without an autocomplete hint", async () => {
+    const flags = async (html: string) => (await reader.renderHtml(html)).has_payment_form;
+    expect(await flags('<label>Card number <input name="card_number"></label>')).toBe(true);
+    expect(await flags('<input name="cvv" placeholder="CVV">')).toBe(true);
+    expect(await flags('<input placeholder="MM / YY">')).toBe(true);
+    expect(await flags('<input name="username"><input type="hidden" name="card_number">')).toBe(false);
+  });
+
   it("stays on a page whose meta refresh points elsewhere", async () => {
     const out = await reader.renderHtml(
       '<meta http-equiv="refresh" content="0;url=https://elsewhere.example/"><p>Your parcel is waiting for collection</p>',

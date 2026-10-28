@@ -70,10 +70,19 @@ export function readFormFlags(): FormFlags {
         .toLowerCase();
       return /\b(username|user ?name|user id|e-?mail|login|log in|sign ?in)\b/.test(hint);
     });
+  // A card field by its autocomplete hint, or by what its name, id, placeholder, aria label or label says.
+  const card =
+    /\b(card ?(number|no\.?|num)|cardnumber|ccnum|cc-?number|credit ?card|debit ?card|cvv2?|cvc2?|csc|security code|expiry|expiration|exp(iry)? ?date|mm ?\/ ?yy)\b/i;
   const payment = (doc: Document) =>
-    [...doc.querySelectorAll("input")].some(
-      (input) => visible(input) && /^cc-(number|exp|csc)/.test(input.autocomplete),
-    ) || [...doc.querySelectorAll("iframe")].some((frame) => visible(frame) && providers.test(frame.src || ""));
+    [...doc.querySelectorAll("input")].some((input) => {
+      if (input.type === "hidden" || !visible(input)) return false;
+      if (/^cc-(number|exp|csc)/.test(input.autocomplete)) return true;
+      const hint = [input.name, input.id, input.placeholder, input.getAttribute("aria-label")]
+        .concat(input.labels ? [...input.labels].map((label) => label.textContent ?? "") : [])
+        .join(" ")
+        .replace(/[_-]/g, " ");
+      return card.test(hint);
+    }) || [...doc.querySelectorAll("iframe")].some((frame) => visible(frame) && providers.test(frame.src || ""));
   const docs: Document[] = [document];
   for (const frame of document.querySelectorAll("iframe")) {
     try {
@@ -83,6 +92,20 @@ export function readFormFlags(): FormFlags {
     }
   }
   return { has_login_form: docs.some(login), has_payment_form: docs.some(payment) };
+}
+
+// The text a viewer sees. `innerText` of an element that is not rendered is its whole `textContent`, so a page whose
+// body (or root) is hidden would pass its hidden text off as visible: such a page shows nothing. Run inside the page.
+export function shownText(): string {
+  const body = document.body;
+  if (!body) return "";
+  const shown = (el: Element) => {
+    const style = getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
+  };
+  if (!shown(document.documentElement) || !shown(body)) return "";
+  // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
+  return body.innerText;
 }
 
 export type RenderedHtml = { screenshot: Uint8Array; text: string } & FormFlags;
@@ -97,6 +120,8 @@ export const PAGE_DEADLINE_MS = 30_000;
 export async function openTextReader(options: { pageMs?: number } = {}): Promise<{
   visibleText: (html: string) => Promise<string>;
   renderHtml: (html: string) => Promise<RenderedHtml>;
+  launches: () => number;
+  dropBrowser: () => Promise<void>;
   close: () => Promise<void>;
 }> {
   const found = chromiumPath();
@@ -104,7 +129,9 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
   const executablePath: string = found;
   // A crashed browser (a huge page can take Chromium down) is replaced, not left to fail every page after it.
   let session: Promise<{ browser: Browser; context: BrowserContext }> | null = null;
+  let launched = 0;
   async function launch(): Promise<{ browser: Browser; context: BrowserContext }> {
+    launched++;
     const browser = await chromium.launch({
       executablePath,
       chromiumSandbox: true,
@@ -136,7 +163,13 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
       .replace(/ *\n[\n ]*/g, "\n")
       .trim();
   async function withPage<T>(html: string, read: (page: Page) => Promise<T>, retried = false): Promise<T> {
-    const { browser, context } = await current();
+    const mine = current();
+    const { browser, context } = await mine;
+    // A browser that died under several workers is replaced once: each clears the shared session only while it still
+    // holds the session that died, so a later worker never drops a replacement an earlier one already launched.
+    const forget = () => {
+      if (session === mine) session = null;
+    };
     let page: Page | undefined;
     let timer: NodeJS.Timeout | undefined;
     const deadline = options.pageMs ?? PAGE_DEADLINE_MS;
@@ -156,14 +189,20 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
     } catch (error) {
       if (error instanceof PageTimeout) {
         // The renderer stopped answering: this browser is dropped (its pages with it) and the next page gets a new one.
-        if (session) session = null;
+        forget();
         page = undefined;
         await browser.close().catch(() => undefined);
         throw error;
       }
-      // The browser went away under this page: start a fresh one and try the page once more.
-      if (!browser.isConnected() && !retried) {
-        session = null;
+      // The browser went away under this page: start a fresh one and try the page once more. A page can fail with the
+      // closure before Playwright marks the browser disconnected, so the error itself counts too.
+      const gone =
+        !browser.isConnected() ||
+        /Target page, context or browser has been closed|Browser has been closed|browser has disconnected/i.test(
+          String((error as Error)?.message),
+        );
+      if (gone && !retried) {
+        forget();
         return withPage(html, read, true);
       }
       throw error;
@@ -174,12 +213,12 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
   }
   async function visibleText(html: string): Promise<string> {
     // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
-    return withPage(html, async (page) => tidy(await page.evaluate(() => document.body?.innerText ?? "")));
+    return withPage(html, async (page) => tidy(await page.evaluate(shownText)));
   }
   async function renderHtml(html: string): Promise<RenderedHtml> {
     return withPage(html, async (page) => {
       // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
-      const text = tidy(await page.evaluate(() => document.body?.innerText ?? ""));
+      const text = tidy(await page.evaluate(shownText));
       const flags = await page.evaluate(readFormFlags);
       // Only the top 1280 by 2000 pixels are kept, so only they are captured: a full page tens of thousands of pixels
       // tall would outgrow the decoder's pixel limit and the browser's memory.
@@ -194,6 +233,12 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
   return {
     visibleText,
     renderHtml,
+    // How many browsers this reader has launched: one, plus one for each that died.
+    launches: () => launched,
+    // Closes the current browser as a crash would, under whatever pages it is rendering (the tests' crash).
+    dropBrowser: async () => {
+      if (session) await (await session).browser.close();
+    },
     close: async () => {
       const open = session;
       session = null;

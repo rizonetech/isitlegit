@@ -254,6 +254,19 @@ describe("the import run", () => {
     expect(result.filtered).toHaveLength(2);
   });
 
+  it("renders a damaged stored page again on resume, and the store repairs it", async () => {
+    const storeDir = join(dir, "store");
+    await importSource({ source: "set", licence: "CC0", items: [item("fixme", "#303")], store: openStore(storeDir) });
+    const [stored] = openStore(storeDir).manifest();
+    writeFileSync(join(storeDir, "pages", stored?.id ?? "", "screenshot.jpg"), "truncated");
+    let loads = 0;
+    const again = { ...item("fixme", "#303"), load: () => (loads++, item("fixme", "#303").load()) };
+    const rerun = await importSource({ source: "set", licence: "CC0", items: [again], store: openStore(storeDir) });
+    expect(loads).toBe(1);
+    expect(rerun).toMatchObject({ status: "complete", skipped: 0 });
+    expect(openStore(storeDir).verify().damaged).toEqual([]);
+  });
+
   it("says running before the first page, so a killed run never leaves an earlier complete standing", async () => {
     const storeDir = join(dir, "store");
     const record = join(storeDir, "raw", "set", "IMPORT.json");

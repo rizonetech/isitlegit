@@ -301,10 +301,14 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
       .map((id) => ({ id, ...PageMeta.parse(JSON.parse(readFileSync(join(pages, id, "meta.json"), "utf-8"))) }));
   }
 
-  // Every stored page whose files no longer match their hashes, or whose meta.json does not read.
-  function verify(): { intact: number; damaged: string[] } {
+  // Every stored page whose files no longer match their hashes, or whose meta.json does not read; with `source`, only
+  // that source's pages (`<source>-<16 hex>`), so a resumed import checks its own pages, not the whole store.
+  function verify(source?: string): { intact: number; damaged: string[] } {
     if (!existsSync(pages)) return { intact: 0, damaged: [] };
-    const ids = readdirSync(pages).filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory());
+    const own = source ? new RegExp(`^${source.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}-[0-9a-f]{16}$`) : null;
+    const ids = readdirSync(pages).filter(
+      (name) => !name.startsWith(".") && (!own || own.test(name)) && statSync(join(pages, name)).isDirectory(),
+    );
     const damaged = ids.filter((id) => !intact(id)).sort();
     return { intact: ids.length - damaged.length, damaged };
   }

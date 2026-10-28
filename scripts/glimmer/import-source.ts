@@ -86,7 +86,11 @@ export async function importSource(options: {
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
   const manifest = store.manifest();
   const before = new Set(manifest.map((page) => page.id));
-  const done = new Set(manifest.flatMap((page) => (page.source === source && page.item ? [page.item] : [])));
+  // An item is skipped only when its stored page is intact: a damaged one is rendered again and `putPage` replaces it.
+  const damaged = new Set(store.verify(source).damaged);
+  const done = new Set(
+    manifest.flatMap((page) => (page.source === source && page.item && !damaged.has(page.id) ? [page.item] : [])),
+  );
   const concurrency = options.concurrency ?? 4;
   const started = new Date();
   // The record says `running` before any page is touched; a store that cannot take even that is not imported into.
