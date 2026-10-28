@@ -36,6 +36,8 @@ training mode: image
 
 ## Training
 
+- 2026-10-28 19:32 to 19:34 UTC, throughput measure (unpromoted, `runs/loupe-1.0-measure`): 50 lines in 7 steps of 8, 58,143 tokens as the trainer counts them (about 1,160 a line), 1,066 to 1,212 tokens a second once warm, loss 0.880 to 0.047; about 3,400 lines an hour, so 24 hours of training holds about 80,000 lines and 40 hours about 135,000. Rated US$0.34 if billed.
+
 ## Deployment
 
 ## Measurements
