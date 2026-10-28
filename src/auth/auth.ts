@@ -19,7 +19,7 @@ import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "better-auth/api";
 import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
-import { type MailDeps, recipientHash, sendMail } from "../mail/smtp2go";
+import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { inviteSignup, type SendFirstLink } from "./signup";
@@ -59,6 +59,8 @@ export function authOptions(
   env: Omit<AuthEnv, "DB">,
   mail: () => MailDeps,
   sendFirstLink: SendFirstLink = async () => false,
+  // Told the outcome of each magic-link send, so the signup knows whether its own first link went (createAuth).
+  onMagicLinkOutcome: (email: string, outcome: SendOutcome) => void = () => {},
 ) {
   const schema = schemaOptions(
     {
@@ -71,6 +73,7 @@ export function authOptions(
           subject: "Your IsItLegit sign-in link",
           text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${url}\n\nIf you did not ask for it, ignore this mail.`,
         });
+        onMagicLinkOutcome(email, outcome);
         // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
         // never tells a stranger who is registered; a failed or unknown send is still an error.
         if (outcome.status === "refused") return;
@@ -336,17 +339,15 @@ export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
   if (!env.BETTER_AUTH_SECRET) throw new ConfigError("BETTER_AUTH_SECRET is not set");
   // The signup's first link goes through the magic-link endpoint itself, so it is the same link a member asks for.
   const origin = new URL(env.APP_URL).origin;
-  // Whether it went is read from the send log: the endpoint answers a held-back link (the sign-in limit) as a sent one,
-  // so a stranger learns nothing, but the new owner must be told the truth (D01 T02 §2).
+  // Whether it went is this send's own outcome, told by the magic-link sender (this instance serves one request): the
+  // endpoint answers a held-back link (the sign-in limit) as a sent one, so a stranger learns nothing, but the new
+  // owner must be told the truth (D01 T02 §2), and no other mail to the address can stand in for it.
+  const outcomes = new Map<string, SendOutcome>();
   const sendFirstLink: SendFirstLink = async (email) => {
-    const since = new Date().toISOString();
+    outcomes.delete(email.toLowerCase());
     await auth.api.signInMagicLink({ body: { email, callbackURL: DEFAULT_RETURN }, headers: new Headers({ origin }) });
-    const sent = await env.DB.prepare(
-      "SELECT 1 FROM mail_sends WHERE kind = 'signin' AND to_hash = ? AND status = 'sent' AND created_at >= ? LIMIT 1",
-    )
-      .bind(await recipientHash(email), since)
-      .first();
-    return sent !== null;
+    const outcome = outcomes.get(email.toLowerCase());
+    return outcome?.status === "sent" || (outcome?.status === "duplicate" && outcome.previous === "sent");
   };
   const auth = betterAuth(
     authOptions(
@@ -359,6 +360,7 @@ export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
         ...(fetchImpl ? { fetch: fetchImpl } : {}),
       }),
       sendFirstLink,
+      (email, outcome) => outcomes.set(email.toLowerCase(), outcome),
     ),
   );
   return auth;

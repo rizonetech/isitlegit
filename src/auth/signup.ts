@@ -58,45 +58,75 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
           if (!code) throw unusable();
           const id = crypto.randomUUID();
           const hash = await codeHash(code);
-          const [taken] = await db.batch([
-            db
-              .prepare(
-                "UPDATE invite_codes SET uses = uses + 1 WHERE code_hash = ? AND uses < max_uses AND expires_at > ?",
-              )
-              .bind(hash, now),
-            db
-              .prepare(
-                "INSERT INTO invite_redemptions (id, code_id, email, status, consented_at, created_at) SELECT ?, id, ?, 'pending', ?, ? FROM invite_codes WHERE code_hash = ? AND changes() = 1",
-              )
-              .bind(id, email, now, now, hash),
-          ]);
-          if (taken?.meta.changes !== 1) throw unusable();
-          redemption = { id, status: "pending", user_id: null, org_id: null };
+          // One redemption per address (migration 0014): a signup overlapping one already redeemed for this address
+          // fails its insert, the batch (the use included) rolls back, and it reads that redemption again below.
+          const batch = await db
+            .batch([
+              db
+                .prepare(
+                  "UPDATE invite_codes SET uses = uses + 1 WHERE code_hash = ? AND uses < max_uses AND expires_at > ?",
+                )
+                .bind(hash, now),
+              db
+                .prepare(
+                  "INSERT INTO invite_redemptions (id, code_id, email, status, consented_at, created_at) SELECT ?, id, ?, 'pending', ?, ? FROM invite_codes WHERE code_hash = ? AND changes() = 1",
+                )
+                .bind(id, email, now, now, hash),
+            ])
+            .catch(() => null);
+          if (!batch) {
+            const other = await db
+              .prepare("SELECT id, status, user_id, org_id FROM invite_redemptions WHERE email = ?")
+              .bind(email)
+              .first<Redemption>();
+            if (!other) throw unusable();
+            if (other.status !== "pending")
+              throw new APIError("CONFLICT", { message: "this address already has an account; sign in instead" });
+            redemption = other;
+          } else {
+            if (batch[0]?.meta.changes !== 1) throw unusable();
+            redemption = { id, status: "pending", user_id: null, org_id: null };
+          }
         }
 
-        // 2. The user, the organisation and the owner membership, each found or made, keyed by the redemption.
-        const user =
-          (await internalAdapter.findUserByEmail(email))?.user ??
-          (await internalAdapter.createUser({ email, name: email, emailVerified: false }, { method: "admin" }));
-        const slug = `org-${redemption.id}`;
-        const organization =
-          (await adapter.findOne<{ id: string }>({ model: "organization", where: [{ field: "slug", value: slug }] })) ??
-          (await adapter.create<{ name: string; slug: string; createdAt: Date }, { id: string }>({
-            model: "organization",
-            data: { name: organizationName, slug, createdAt: new Date() },
+        // 2. The user, the organisation and the owner membership, each found or made, keyed by the redemption. Two
+        // requests resuming the same redemption at once can race to make each: the loser's insert fails a unique
+        // constraint (the user's address, the organisation's slug, migration 0011's membership) and it finds the
+        // winner's.
+        // A create that loses a race finds the winner's row, or fails as it would have.
+        const orFound = async <T>(create: () => Promise<T>, find: () => Promise<T | null | undefined>): Promise<T> =>
+          (await find()) ??
+          (await create().catch(async (error) => {
+            const found = await find();
+            if (!found) throw error;
+            return found;
           }));
-        const membership = await adapter.findOne({
-          model: "member",
-          where: [
-            { field: "userId", value: user.id },
-            { field: "organizationId", value: organization.id },
-          ],
-        });
-        if (!membership)
-          await adapter.create({
-            model: "member",
-            data: { userId: user.id, organizationId: organization.id, role: "owner", createdAt: new Date() },
-          });
+        const user = await orFound(
+          () => internalAdapter.createUser({ email, name: email, emailVerified: false }, { method: "admin" }),
+          async () => (await internalAdapter.findUserByEmail(email))?.user,
+        );
+        const slug = `org-${redemption.id}`;
+        const organization = await orFound(
+          () =>
+            adapter.create<{ name: string; slug: string; createdAt: Date }, { id: string }>({
+              model: "organization",
+              data: { name: organizationName, slug, createdAt: new Date() },
+            }),
+          () => adapter.findOne<{ id: string }>({ model: "organization", where: [{ field: "slug", value: slug }] }),
+        );
+        const ownership = [
+          { field: "userId", value: user.id },
+          { field: "organizationId", value: organization.id },
+        ];
+        if (!(await adapter.findOne({ model: "member", where: ownership })))
+          await adapter
+            .create({
+              model: "member",
+              data: { userId: user.id, organizationId: organization.id, role: "owner", createdAt: new Date() },
+            })
+            .catch(async (error) => {
+              if (!(await adapter.findOne({ model: "member", where: ownership }))) throw error;
+            });
         await db
           .prepare(
             "UPDATE invite_redemptions SET status = 'complete', user_id = ?, org_id = ?, consented_at = ? WHERE id = ?",

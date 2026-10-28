@@ -131,6 +131,33 @@ describe("invite-code signup", () => {
     expect(await count("SELECT COUNT(*) AS n FROM invite_redemptions WHERE code_id = ?", codeId)).toBe(1);
   });
 
+  it("makes one organisation for one address, however its signups overlap", async () => {
+    const codeId = await addInviteCode(db, "OVERLAP", { maxUses: 4 });
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    // Two at once for the same address.
+    const both = await Promise.all(
+      [0, 1].map(() =>
+        signUp({ email: "overlap@example.org", code: "OVERLAP", organizationName: "Once", consent: true }),
+      ),
+    );
+    expect(both.every((a) => [201, 409].includes(a.status))).toBe(true);
+    expect(await accountOf("overlap@example.org")).toEqual({ users: 1, organisations: 1, redemptions: 1 });
+    expect(await usesOf(codeId)).toBe(1);
+    // One that read "not a member" before the other completed: its redemption fails and rolls back, the use with it.
+    const now = new Date().toISOString();
+    await db
+      .prepare(
+        "INSERT INTO invite_redemptions (id, code_id, email, status, consented_at, created_at) VALUES ('done-1', ?, 'late@example.org', 'complete', ?, ?)",
+      )
+      .bind(codeId, now, now)
+      .run();
+    const late = await signUp({ email: "late@example.org", code: "OVERLAP", organizationName: "Twice", consent: true });
+    expect(late.status).toBe(409);
+    expect(await usesOf(codeId)).toBe(1);
+    expect(await accountOf("late@example.org")).toEqual({ users: 0, organisations: 0, redemptions: 1 });
+  });
+
   it("completes a signup stopped after any of its writes, with one of everything and the code used once", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
@@ -184,6 +211,32 @@ describe("invite-code signup", () => {
       // The first link is sent on the retry too.
       expect(smtp.sends.length, stop).toBe(linksBefore + 1);
     }
+  });
+
+  it("judges linkSent by its own send, not another mail to the address landing at the same time", async () => {
+    const email = "crowded@example.org";
+    await addInviteCode(db, "CROWDED");
+    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email)))]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    // Four links already, and an invitation sent while the signup runs (timed just after it starts): the limit is
+    // reached, so the signup's own link is held back, and the invitation must not be taken for it.
+    const now = Date.now();
+    const rows: [string, string][] = [0, 1, 2, 3].map((i) => [`crowd-${i}`, new Date(now - 60_000).toISOString()]);
+    rows.push(["crowd-invite", new Date(now + 2_000).toISOString()]);
+    for (const [key, at] of rows)
+      await db
+        .prepare(
+          "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, 'signin', ?, 'sent', 1, ?, ?)",
+        )
+        .bind(key, key, hash, at, at)
+        .run();
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const answer = await signUp({ email, code: "CROWDED", organizationName: "Crowd", consent: true });
+    expect(answer.status).toBe(201);
+    expect(await answer.json()).toMatchObject({ linkSent: false });
+    expect(smtp.sends).toEqual([]);
   });
 
   it("answers linkSent false when the sign-in limit holds the first link back", async () => {
