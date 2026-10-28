@@ -38,7 +38,7 @@ track: day-1
 | 1 | §1 | Core D1 schema and migration runner | D00 T01 §5 | [x] |
 | 2 | §2 | Case store and R2 artefact layout | §1 | [x] |
 | 3 | §3 | Email handler for verified members | §2, D07 T02 §4, D07 T02 §5 | [x] |
-| 4 | §4 | Forward-as-attachment detection | §3 | [ ] |
+| 4 | §4 | Forward-as-attachment detection | §3 | [x] |
 | 5 | §5 | MIME parsing and attachment extraction | §4 | [ ] |
 | 6 | §6 | Outlook .msg parsing | §5 | [ ] |
 | 7 | §7 | AnalysisWorkflow skeleton, partial reports | §5 | [ ] |
@@ -183,9 +183,12 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 > **Deferred:** the `intake.forward` evidence item naming the forward's path and `otherOriginals` -> XREF: D02 T01 §1
 > **Deferred:** the reply telling a member who forwarded several messages at once that only the first was checked -> XREF: D01 T02 §3
 > **Deferred:** confidence lowered when `headers_available = 0` (design spec 4.1), whichever path makes the verdict -> XREF: D04 T01 §4
-- [ ] Commit: `intake: detect forward-as-attachment and missing headers`
+- [x] Commit: `intake: detect forward-as-attachment and missing headers`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/forward.test.ts test/db/cases.test.ts` passes for all ten fixtures and the store's refusals, and fails if the inline case reports headers as available, a lower-precedence attachment wins, an excluded original goes uncounted, or inline bytes change (**Corrected 2026-10-28**, plan review).
+
+> **Verified:** 2026-10-28 | §4 | a1780735ece282a620008418b5895daae0ba5547
+> **Review:** `docs/reviews/d01-t01-s4.json`
 
 ## 5. MIME parsing and attachment extraction
 
