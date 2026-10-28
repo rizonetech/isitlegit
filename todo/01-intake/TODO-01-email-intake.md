@@ -161,6 +161,8 @@ The `email()` handler is the front door (spec 4.1). Only mail from a verified me
 
 ## 4. Forward-as-attachment detection
 
+> **Started:** 2026-10-28T07:47Z
+
 A normal Outlook or Gmail forward strips the original headers, which kills the authentication checks; the supported path is "forward as attachment" (spec 4.1). This section finds the original message inside the forward or records that the headers are missing.
 
 **Phase:** 1
@@ -169,12 +171,15 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 
 **Build order:**
 
-1. Write `src/intake/forward.ts` returning the original message bytes and `headersAvailable`. Done when: fixtures for an attached `message/rfc822`, an attached `.eml`, an attached `.msg` and an inline forward give the expected result.
+1. Write `src/intake/forward.ts` returning the original message bytes, its format, `headersAvailable` and the path taken. Done when: fixtures for an attached `message/rfc822`, an attached `.eml`, an attached `.msg` and an inline forward give the expected result.
+2. Store the outcome on the case. Done when: the case row's `headers_available` reads back 1 for an attached original and 0 for an inline forward.
 
-- [ ] Add synthetic fixtures `test/fixtures/forward/attached-rfc822.eml`, `attached-eml-file.eml`, `attached-msg.eml` and `inline-forward.eml` built from fictional senders (`AGENTS.md`: synthetic only). Done when: the four files exist and contain no real address.
-- [ ] Write `extractOriginal(parsed)` choosing the first `message/rfc822` part, else the first attachment named `*.eml`, else the first `*.msg` (RFC 2046 section 5.2.1). Done when: the three attachment fixtures return the inner message.
-- [ ] Return `{ original: forwarderMessage, headersAvailable: false }` for an inline forward. Done when: the inline fixture yields `headersAvailable: false` and the case row stores `headers_available = 0`.
-- [ ] Record which path was taken as an `intake.forward` evidence item (info severity) so the report can explain it. Done when: a test finds the evidence row with `detail_json.path` set.
+- [ ] Add synthetic fixtures `test/fixtures/forward/attached-rfc822.eml`, `attached-eml-file.eml`, `attached-msg.eml` and `inline-forward.eml` built from fictional senders (`AGENTS.md`: synthetic only), plus `attached-rfc822-inline.eml` whose `message/rfc822` part has no `Content-Disposition` (some clients send it so) and `nested-forward.eml` whose attached original itself carries an attached message. The `.msg` fixture's attachment is placeholder bytes named `*.msg`: §6 parses real ones. Done when: the six files exist and contain no real address (**Corrected 2026-10-28** at start: the two edge fixtures added).
+- [ ] Write `extractOriginal(raw)` in `src/intake/forward.ts`, parsing the forward with `postal-mime` 4.1.4 (added by D01 T01 §3; `forceRfc822Attachments: true`, so an attached message is always kept as its own bytes and never merged into the forward's body) and choosing the first `message/rfc822` part, else the first attachment named `*.eml`, else the first `*.msg` (RFC 2046 section 5.2.1), and returning `{ original, format: "eml" | "msg", headersAvailable, path: "rfc822" | "eml" | "msg" | "inline" }`. Only the outermost attachment is taken: an original that itself carries a message stays whole for §5. A forward `postal-mime` refuses (its limits: nesting, part count, header size) is a typed `ParseError`, not a crash. Done when: `test/intake/forward.test.ts` gets the inner message for the three attachment fixtures and the no-disposition one, the outer original for the nested one, and `ParseError` for a forward past the parser's limits (**Corrected 2026-10-28** at start: said `extractOriginal(parsed)` with no parser named; the parser, its option, the return shape and the refusal were unstated).
+- [ ] Return `{ original: forwarderMessage, format: "eml", headersAvailable: false, path: "inline" }` for an inline forward. Done when: the inline fixture yields `headersAvailable: false`.
+- [ ] Write `setHeadersAvailable(db, caseId, available)` in `src/db/cases.ts` (the pipeline's write by case id, like `getCaseForPipeline`: §3 admits every email case with `headers_available = 0` because it reads no MIME), changing only a case still `received` or `running`. Done when: `test/db/cases.test.ts` reads back 1 for an attached original and 0 for an inline forward, and a `done` case is left as it was. (**Corrected 2026-10-28** at start: "the case row stores `headers_available = 0`" named no writer; the pipeline's `parse` step (§7) calls it.)
+- [x] ~~Record which path was taken as an `intake.forward` evidence item (info severity) so the report can explain it.~~ Struck 2026-10-28 at start: evidence ids (`E1`, `E2`) come from `saveEvidence`, which D02 T01 §1 owns and which needs D01 T01 §7 first; writing rows here would duplicate it. The path travels in the result (`path`) and in §5's parsed summary, and D02 T01 §1 writes the `intake.forward` item from it.
+> **Deferred:** the `intake.forward` evidence item naming the forward's path -> XREF: D02 T01 §1
 - [ ] Commit: `intake: detect forward-as-attachment and missing headers`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/forward.test.ts` passes for all four fixtures and fails if the inline case reports headers as available.
@@ -195,7 +200,7 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 - [ ] Add exact dependency `postal-mime` 4.1.4 to `package.json`. Done when: `pnpm install` resolves it.
 - [ ] Write `parseMessage(bytes)` returning headers (as an ordered list, duplicates kept), `text`, `html`, and attachments with filename, media type, content id and bytes. Done when: `test/intake/parse.test.ts` checks a multipart fixture with two attachments and an inline image.
 - [ ] Store each attachment with `putAttachment(caseId, name, bytes, mediaType)` (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only the derived kinds) and inline images the same way, with their `content_id` in the summary. Done when: the test finds three artefact rows for the fixture.
-- [ ] Write the parsed summary (headers, text, html, attachment keys) with `putParsed(caseId, summary)` to `raw/<caseId>/parsed.json` (**corrected 2026-10-27**, D01 T01 §2's plan review: it is the message's content, so it expires with the message under `raw/`; it was `art/<caseId>/parsed/summary.json`). Done when: the test reads it back and it is under 1 MiB for the fixture.
+- [ ] Write the parsed summary (headers, text, html, attachment keys, and `forward` with §4's `path` and `headersAvailable`; **corrected 2026-10-28**, D01 T01 §4 start: the forward's outcome had no home) with `putParsed(caseId, summary)` to `raw/<caseId>/parsed.json` (**corrected 2026-10-27**, D01 T01 §2's plan review: it is the message's content, so it expires with the message under `raw/`; it was `art/<caseId>/parsed/summary.json`). Done when: the test reads it back and it is under 1 MiB for the fixture.
 - [ ] Treat a parse failure as a typed `ParseError` that the Workflow turns into a partial report (§7). Done when: a truncated fixture raises `ParseError`, not a crash.
 - [ ] Commit: `intake: MIME parsing with attachments stored in R2`
 
@@ -216,6 +221,7 @@ Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno
 
 - [ ] Add exact dependency `@kenjiuno/msgreader` 1.29.0. Done when: `pnpm install` resolves it.
 - [ ] Create synthetic fixture `test/fixtures/msg/invoice-request.msg` and its `.eml` twin from a fictional sender (generate the `.msg` with a script in `scripts/fixtures/`, never from real mail). Done when: both files exist and the generator is committed.
+- [ ] When the `.msg` carries no `PidTagTransportMessageHeaders` (a draft or a message saved before sending), set the case's `headers_available` to 0 with `setHeadersAvailable` (D01 T01 §4), since §4 counts an attached `.msg` as having headers. Done when: a fixture without transport headers leaves the case at 0. Source: D01 T01 §4 start, 2026-10-28.
 - [ ] Write `parseMsg(bytes)` in `src/intake/msg.ts` mapping sender, recipients, subject, headers (`PidTagTransportMessageHeaders`), bodies and attachments into the §5 summary shape. Done when: `test/intake/msg.test.ts` compares it with `parseMessage` of the twin.
 - [ ] If the library fails in the workers pool, record the error in `docs/frontier-log.md` style under `docs/decisions.md`, make `parseMsg` throw `UnsupportedFormat`, and have the reply say to forward as attachment in Outlook's default format. Done when: either the parse test passes or the fallback test passes; never neither.
 - [ ] Commit: `intake: Outlook .msg parsing`
@@ -236,6 +242,7 @@ Cloudflare Workflows run the pipeline as durable steps (stack doc), so a failure
 2. Add the failure path. Done when: a forced failure in `checks` ends the case `partial` with an event naming the step.
 
 - [ ] Replace the D00 T01 §5 stub with an `AnalysisWorkflow` whose `run` calls `step.do` for `parse`, `checks`, `verdict`, `store` and `reply`, passing R2 keys between steps. Done when: `pnpm typecheck` passes and the class is still exported as `ANALYSIS`.
+- [ ] Make the `parse` step read the raw message, call `extractOriginal` (§4), store `headers_available` with `setHeadersAvailable` (§4) and parse the original (§5, or §6 for `format: "msg"`), so the forward's outcome reaches the case before the checks. Done when: the inline fixture's case ends with `headers_available = 0` and the attached one's with 1. Source: D01 T01 §4 start, 2026-10-28.
 - [ ] Write `recordEvent(caseId, step, status, extra)` in `src/pipeline/events.ts` and call it at the start and end of each step with duration. Done when: a test run leaves two events per step in `case_events`.
 - [ ] Add a stub `checks` step returning no evidence and a stub `verdict` step returning `suspicious` with headline "Analysis in progress: checks are not built yet" and confidence 0. Done when: the fixture case ends `done` with that stub verdict. Cheaper substitute: returning `safe`, which would mislead a member.
 - [ ] Configure `retries` per step (`limit: 3`, exponential backoff) and catch the final failure into `setStatus(caseId, "partial")` plus an event with the error class (no message content). Done when: a test that throws in `checks` three times ends `partial`.

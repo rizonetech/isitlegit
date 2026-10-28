@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 287
+Sections: 38 | Checklist items: 290
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -53,10 +53,10 @@ Sections: 38 | Checklist items: 287
 | [x]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 7     |
 | [x]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 10    |
 | [x]    | D01 T01 §3 | Email handler for verified members         | none                  | 13    |
-| [ ]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 5     |
+| [ ]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 6     |
 | [ ]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 6     |
-| [ ]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 5     |
-| [ ]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 6     |
+| [ ]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
+| [ ]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 7     |
 | [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 7     |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 8     |
 | [ ]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 6     |
@@ -71,12 +71,12 @@ Sections: 38 | Checklist items: 287
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 35 | Checklist items: 191
+Sections: 35 | Checklist items: 192
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                      | operator | 6     |
-| [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 5     |
+| [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 6     |
 | [ ]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
 | [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
@@ -283,4 +283,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 35/212 verified sections, 15 ready to run now.
 
-Checklist: 400/1161 items completed (includes Commit items).
+Checklist: 401/1165 items completed (includes Commit items).
