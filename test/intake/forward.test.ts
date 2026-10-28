@@ -124,18 +124,16 @@ describe("extractOriginal", () => {
         ].join("\r\n"),
       );
       expect(forward.byteLength).toBeGreaterThan(8_000_000);
-      // The parser sees header blocks only: no body reaches its rendering.
-      const parse = vi.spyOn(PostalMime, "parse");
+      // Only postal-mime's first stage runs: neither its full parse nor the step that renders text into HTML.
+      type Stages = { parse: () => unknown; renderTextContent: () => unknown };
+      const prototype = PostalMime.prototype as unknown as Stages;
+      const fullParse = vi.spyOn(prototype, "parse");
+      const render = vi.spyOn(prototype, "renderTextContent");
       const found = await extractOriginal(forward);
-      const sizeOf = (input: unknown) =>
-        typeof input === "string"
-          ? input.length
-          : input instanceof ArrayBuffer || ArrayBuffer.isView(input)
-            ? input.byteLength
-            : Number.POSITIVE_INFINITY;
-      const largest = Math.max(...parse.mock.calls.map(([input]) => sizeOf(input)));
-      parse.mockRestore();
-      expect(largest).toBeLessThan(64 * 1024);
+      const calls = [fullParse.mock.calls.length, render.mock.calls.length];
+      fullParse.mockRestore();
+      render.mockRestore();
+      expect(calls).toEqual([0, 0]);
       expect(found).toMatchObject({ path: "rfc822", headersAvailable: true });
       expect(new TextDecoder().decode(found.original)).toBe(original);
     });
