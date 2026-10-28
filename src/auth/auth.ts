@@ -139,6 +139,39 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           if (!member) throw new APIError("FORBIDDEN", { message: "you are not a member of this organisation" });
           return;
         }
+        if (ctx.path === "/organization/invite-member") {
+          // An invitation already spent (invitation_uses) but still pending, after an acceptance interrupted before
+          // Better Auth wrote its status, would make Better Auth refuse a new invitation ("already invited") or resend
+          // the spent one; it is cancelled first, so inviting again, with or without resend, makes a fresh one.
+          const body = (ctx.body ?? {}) as { email?: unknown; organizationId?: unknown };
+          const signedIn = await getSessionFromCtx(ctx);
+          const organizationId =
+            typeof body.organizationId === "string"
+              ? body.organizationId
+              : (signedIn?.session as { activeOrganizationId?: string | null } | undefined)?.activeOrganizationId;
+          if (typeof body.email !== "string" || !organizationId) return;
+          const pending = await ctx.context.adapter.findMany<{ id: string }>({
+            model: "invitation",
+            where: [
+              { field: "organizationId", value: organizationId },
+              { field: "email", value: body.email.toLowerCase() },
+              { field: "status", value: "pending" },
+            ],
+          });
+          for (const { id } of pending) {
+            const spent = await mail()
+              .db.prepare("SELECT 1 FROM invitation_uses WHERE invitation_id = ?")
+              .bind(id)
+              .first();
+            if (spent)
+              await ctx.context.adapter.update({
+                model: "invitation",
+                where: [{ field: "id", value: id }],
+                update: { status: "canceled" },
+              });
+          }
+          return;
+        }
         if (ctx.path === "/organization/accept-invitation") {
           // An invitation is used once: its use is recorded (migration 0012) before the plugin accepts it, only for
           // the signed-in recipient of a pending, unexpired invitation (so a stranger's attempt spends nothing), and a

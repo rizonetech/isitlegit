@@ -287,6 +287,38 @@ describe("roles, revocation and removal", () => {
     expect((await membersOf(orgId)).filter((m) => m.email === "twice@example.com")).toHaveLength(1);
   });
 
+  it("let an owner invite again after an acceptance stopped before Better Auth wrote its status", async () => {
+    // The use is recorded and the invitation still pending: a retry is refused, and inviting again, plainly or as a
+    // resend, makes a fresh invitation instead of being refused as already invited or resending the spent one.
+    for (const resend of [false, true]) {
+      const orgId = await orgFor(`stophost${resend}@example.com`, "Stopped");
+      const { cookie } = await signIn(`stophost${resend}@example.com`);
+      const invitee = `stopped${resend}@example.com`;
+      const { link } = await invite(cookie, invitee);
+      const stopped = await signIn(invitee);
+      await db
+        .prepare("INSERT INTO invitation_uses (invitation_id, user_id, used_at) VALUES (?, ?, ?)")
+        .bind(invitationId(link), await userId(invitee), new Date().toISOString())
+        .run();
+      expect(
+        (await post("/organization/accept-invitation", stopped.cookie, { invitationId: invitationId(link) })).status,
+      ).toBe(409);
+      const fresh = await invite(cookie, invitee, "member", resend ? { resend: true } : {});
+      expect(fresh.answer.status, `resend ${resend}`).toBe(200);
+      expect(invitationId(fresh.link), `resend ${resend}`).not.toBe(invitationId(link));
+      const old = await db
+        .prepare(`SELECT status FROM "invitation" WHERE id = ?`)
+        .bind(invitationId(link))
+        .first<{ status: string }>();
+      expect(old?.status).toBe("canceled");
+      expect(
+        (await post("/organization/accept-invitation", stopped.cookie, { invitationId: invitationId(fresh.link) }))
+          .status,
+      ).toBe(200);
+      expect((await membersOf(orgId)).filter((m) => m.email === invitee)).toHaveLength(1);
+    }
+  });
+
   it("refuse a second use even when Better Auth has set the invitation back to pending", async () => {
     // Two acceptances overlapping: the one whose membership write fails has Better Auth reset the invitation to
     // pending (crud-invites.mjs). Removing the member who did join must not leave that invitation usable.
