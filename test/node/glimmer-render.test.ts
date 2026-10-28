@@ -78,6 +78,8 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
   },
   // A blank page whose only text and sign-in form sit in a frame no one can see.
   "/hidden-frame": (res) => html(res, `<iframe src="/frame-login" style="opacity:0" width=400 height=300></iframe>`),
+  "/offscreen-frame": (res) =>
+    html(res, `<iframe src="/frame-login" style="position:absolute;left:-10000px" width=400 height=300></iframe>`),
   "/frame-login": (res) => html(res, `<p>${words}</p><input type=password>`),
   // A server that drops the connection before it answers.
   "/reset": (res) => res.socket?.destroy(),
@@ -407,6 +409,9 @@ describe("renderPage", () => {
     const shot = await renderer.render(`${origin}/hidden-frame`);
     expect(shot.has_login_form).toBe(false);
     expect(shot.text).not.toContain("Welcome");
+    const away = await renderer.render(`${origin}/offscreen-frame`);
+    expect(away.has_login_form).toBe(false);
+    expect(away.text).not.toContain("Welcome");
   });
 
   it("judges a page that moves on by the document captured", async () => {

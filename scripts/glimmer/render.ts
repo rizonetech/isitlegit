@@ -518,8 +518,13 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
           ?.evaluate((node) => {
             const el = node as Element;
             const box = el.getBoundingClientRect();
+            // On the page, too: a frame moved off it (a negative offset) is not seen.
+            const onPage = box.right > 0 && box.bottom > 0;
             return (
-              box.width > 0 && box.height > 0 && el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+              box.width > 0 &&
+              box.height > 0 &&
+              onPage &&
+              el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
             );
           })
           .catch(() => false);
