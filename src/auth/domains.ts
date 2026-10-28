@@ -24,6 +24,12 @@ const LOCK_MS = 60 * 60_000;
 const HOUR_MS = 60 * 60_000;
 const MAX_ATTEMPTS = 3;
 const CODES_PER_HOUR = 5;
+// An organisation's own claim mail, over all its claims (removed ones included): bounds the mail an owner can send to
+// addresses they do not control by claiming, removing and claiming again.
+const ORG_CODES_PER_HOUR = 20;
+const ORG_CODES_PER_DAY = 50;
+const DAY_MS = 24 * HOUR_MS;
+const ORG_LIMIT = `at most ${ORG_CODES_PER_HOUR} codes an hour and ${ORG_CODES_PER_DAY} a day for an organisation; try again later`;
 const PENDING_DOMAINS = 10;
 const PENDING_ADDRESSES = 20;
 
@@ -65,6 +71,9 @@ const bodyOf = async (c: Context<OrgEnv>) => (await c.req.json().catch(() => nul
 // domain of the address, else null.
 export async function findMemberBySender(db: D1Database, sender: string): Promise<string | null> {
   const address = sender.trim().toLowerCase();
+  // An address: one @, something on each side.
+  const at = address.indexOf("@");
+  if (at < 1 || at !== address.lastIndexOf("@") || at === address.length - 1) return null;
   const byAddress = await db
     .prepare("SELECT org_id FROM org_addresses WHERE address = ? AND state = 'verified'")
     .bind(address)
@@ -93,7 +102,10 @@ async function verifyByDns(db: D1Database, id: string): Promise<Verified> {
       db.prepare(verifySql("org_domains")).bind(new Date().toISOString(), "dns", id),
       db.prepare("DELETE FROM verification_codes WHERE claim_id = ?").bind(id),
     ]);
-    return (done[0]?.meta.changes ?? 0) === 1 ? "verified" : "gone";
+    if ((done[0]?.meta.changes ?? 0) === 1) return "verified";
+    // Verified meanwhile by its emailed code: the claim is verified all the same.
+    const state = await db.prepare("SELECT state FROM org_domains WHERE id = ?").bind(id).first<{ state: string }>();
+    return state?.state === "verified" ? "verified" : "gone";
   } catch (error) {
     return isUnique(error) ? "taken" : "unavailable";
   }
@@ -106,35 +118,56 @@ const allowanceOf = (claim: { domain?: string; address?: string }) =>
 
 // A new code for a claim, replacing any earlier one; a lock in force stays. The hourly limit is checked in the
 // statement that records the send, and the code is written only if that send was recorded.
-async function issueCode(db: D1Database, orgId: string, claimId: string, allowance: string) {
+// Why a code was not issued: the claim is gone, its code is locked (a code sent now would expire before the lock
+// ends), its own hourly allowance is spent, or the organisation's is.
+type NotIssued = "gone" | "locked" | "limit" | "busy";
+const PENDING_CLAIM =
+  "SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending'";
+
+async function issueCode(
+  db: D1Database,
+  orgId: string,
+  claimId: string,
+  allowance: string,
+): Promise<{ code: string; codeId: string } | NotIssued> {
   const now = Date.now();
   const at = new Date(now).toISOString();
+  const hourAgo = new Date(now - HOUR_MS).toISOString();
+  const dayAgo = new Date(now - DAY_MS).toISOString();
   const code = sixDigits();
   const codeId = crypto.randomUUID();
-  // The send is recorded only while the claim is still pending (a removal or a verification under way wins) and under
-  // the hourly limit; the code is written only if the send was.
+  // The send is recorded only while the claim is still pending (a removal or a verification under way wins), its code
+  // is not locked, and every limit has room; the code is written only if the send was.
   const [counted] = await db.batch([
     db
       .prepare(
-        "INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ? AND EXISTS (SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending')",
+        `INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE EXISTS (${PENDING_CLAIM}) AND NOT EXISTS (SELECT 1 FROM verification_codes WHERE claim_id = ? AND locked_until > ?) AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ?`,
       )
       .bind(
         crypto.randomUUID(),
         orgId,
         allowance,
         at,
+        claimId,
+        orgId,
+        claimId,
+        orgId,
+        claimId,
+        at,
         orgId,
         allowance,
-        new Date(now - HOUR_MS).toISOString(),
+        hourAgo,
         CODES_PER_HOUR,
-        claimId,
         orgId,
-        claimId,
+        hourAgo,
+        ORG_CODES_PER_HOUR,
         orgId,
+        dayAgo,
+        ORG_CODES_PER_DAY,
       ),
     db
       .prepare(
-        "INSERT INTO verification_codes (claim_id, org_id, code_id, code_hash, expires_at, attempts, locked_until) SELECT ?, ?, ?, ?, ?, 0, NULL WHERE changes() = 1 ON CONFLICT (claim_id) DO UPDATE SET code_id = excluded.code_id, code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = CASE WHEN locked_until > ? THEN attempts ELSE 0 END",
+        "INSERT INTO verification_codes (claim_id, org_id, code_id, code_hash, expires_at, attempts, locked_until) SELECT ?, ?, ?, ?, ?, 0, NULL WHERE changes() = 1 ON CONFLICT (claim_id) DO UPDATE SET code_id = excluded.code_id, code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, locked_until = NULL",
       )
       .bind(
         claimId,
@@ -142,18 +175,58 @@ async function issueCode(db: D1Database, orgId: string, claimId: string, allowan
         codeId,
         await sha256Hex(`${claimId}:${code}`),
         new Date(now + CODE_LIFETIME_MS).toISOString(),
-        at,
       ),
   ]);
   if (counted?.meta.changes === 1) return { code, codeId };
-  const live = await db
-    .prepare(
-      "SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending'",
-    )
-    .bind(claimId, orgId, claimId, orgId)
-    .first();
-  return live ? ("limit" as const) : ("gone" as const);
+  if (!(await db.prepare(PENDING_CLAIM).bind(claimId, orgId, claimId, orgId).first())) return "gone";
+  const wait = await nextCodeAt(db, orgId, claimId, allowance);
+  return wait.locked ? "locked" : wait.target ? "limit" : "busy";
 }
+
+// When the next code may be sent for a claim, and what holds it back: the code's lock, the claim's own hourly
+// allowance, or the organisation's hourly and daily ones. Null when one may be sent now.
+async function nextCodeAt(db: D1Database, orgId: string, claimId: string, allowance: string) {
+  const now = Date.now();
+  const at = new Date(now).toISOString();
+  const [lock, target, org] = await db.batch<{ until: string | null; n: number }>([
+    db
+      .prepare("SELECT locked_until AS until, 0 AS n FROM verification_codes WHERE claim_id = ? AND locked_until > ?")
+      .bind(claimId, at),
+    db
+      .prepare(
+        "SELECT MIN(sent_at) AS until, COUNT(*) AS n FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?",
+      )
+      .bind(orgId, allowance, new Date(now - HOUR_MS).toISOString()),
+    db
+      .prepare(
+        "SELECT (SELECT sent_at FROM verification_sends WHERE org_id = ?1 AND sent_at > ?2 ORDER BY sent_at LIMIT 1 OFFSET (SELECT COUNT(*) FROM verification_sends WHERE org_id = ?1 AND sent_at > ?2) - ?3) AS until, (SELECT COUNT(*) FROM verification_sends WHERE org_id = ?1 AND sent_at > ?2) AS n",
+      )
+      .bind(orgId, new Date(now - HOUR_MS).toISOString(), ORG_CODES_PER_HOUR),
+  ]);
+  const day = await db
+    .prepare(
+      "SELECT (SELECT sent_at FROM verification_sends WHERE org_id = ?1 AND sent_at > ?2 ORDER BY sent_at LIMIT 1 OFFSET (SELECT COUNT(*) FROM verification_sends WHERE org_id = ?1 AND sent_at > ?2) - ?3) AS until, (SELECT COUNT(*) FROM verification_sends WHERE org_id = ?1 AND sent_at > ?2) AS n",
+    )
+    .bind(orgId, new Date(now - DAY_MS).toISOString(), ORG_CODES_PER_DAY)
+    .first<{ until: string | null; n: number }>();
+  const locked = lock?.results[0]?.until ?? null;
+  const targetRow = target?.results[0];
+  const orgRow = org?.results[0];
+  // Each limit frees a place when the send that filled it ages out of its window.
+  const waits = [
+    locked,
+    targetRow && targetRow.n >= CODES_PER_HOUR && targetRow.until ? plus(targetRow.until, HOUR_MS) : null,
+    orgRow && orgRow.n >= ORG_CODES_PER_HOUR && orgRow.until ? plus(orgRow.until, HOUR_MS) : null,
+    day && day.n >= ORG_CODES_PER_DAY && day.until ? plus(day.until, DAY_MS) : null,
+  ];
+  const until =
+    waits
+      .filter((w): w is string => w !== null)
+      .sort()
+      .at(-1) ?? null;
+  return { until, locked: locked !== null, target: waits[1] !== null };
+}
+const plus = (iso: string, ms: number) => new Date(Date.parse(iso) + ms).toISOString();
 
 // Checks a code and, when right, consumes it and verifies the claim in one batch, so neither happens without the other.
 async function proveByCode(
@@ -273,16 +346,11 @@ async function challengeOf(db: D1Database, orgId: string, claimId: string, allow
     .prepare("SELECT expires_at, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?")
     .bind(claimId, orgId)
     .first<{ expires_at: string; locked_until: string | null }>();
-  const sends = await db
-    .prepare("SELECT sent_at FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ? ORDER BY sent_at")
-    .bind(orgId, allowance, new Date(Date.now() - HOUR_MS).toISOString())
-    .all<{ sent_at: string }>();
-  const full = sends.results.length >= CODES_PER_HOUR;
   const now = new Date().toISOString();
   return {
     codeExpiresAt: code && code.expires_at > now ? code.expires_at : null,
     lockedUntil: code?.locked_until && code.locked_until > now ? code.locked_until : null,
-    nextCodeAt: full ? new Date(Date.parse(sends.results[0]?.sent_at ?? now) + HOUR_MS).toISOString() : null,
+    nextCodeAt: (await nextCodeAt(db, orgId, claimId, allowance)).until,
   };
 }
 
@@ -388,7 +456,9 @@ domainRoutes.post("/domains/:domain/code", async (c) => {
   const to = `${body.local}@${claim.domain}`;
   const issued = await issueCode(c.env.DB, org, claim.id, allowanceOf({ domain: claim.domain }));
   if (issued === "gone") return problem(404, "no such domain claim");
+  if (issued === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
   if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes a domain an hour; try again later`);
+  if (issued === "busy") return problem(429, ORG_LIMIT);
   const outcome = await sendClaimCode(c.env, {
     to,
     claimId: claim.id,
@@ -448,10 +518,13 @@ async function addressCode(c: Context<OrgEnv>, create: boolean) {
         ? problem(429, `at most ${PENDING_ADDRESSES} addresses can wait for verification`)
         : unavailable();
   }
-  if (claim.state === "verified") return c.json({ address, state: "verified" });
+  if (claim.state === "verified")
+    return create ? c.json({ address, state: "verified" }) : problem(409, "that address is already verified");
   const issued = await issueCode(db, org, claim.id, allowanceOf({ address }));
   if (issued === "gone") return problem(404, "no such address claim");
+  if (issued === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
   if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes an address an hour; try again later`);
+  if (issued === "busy") return problem(429, ORG_LIMIT);
   const outcome = await sendClaimCode(c.env, {
     to: address,
     claimId: claim.id,

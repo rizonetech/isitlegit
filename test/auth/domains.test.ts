@@ -328,15 +328,29 @@ describe("codes by email", () => {
     expect((await json("/domains/coded.co.za/verify", cookie, "POST", { code: wrong })).status).toBe(400);
     expect((await json("/domains/coded.co.za/verify", cookie, "POST", { code: wrong })).status).toBe(429);
     expect((await json("/domains/coded.co.za/verify", cookie, "POST", { code: right })).status).toBe(429);
-    // A resend during the lock leaves it.
-    await json("/domains/coded.co.za/code", cookie, "POST", { local: "admin" });
-    expect((await json("/domains/coded.co.za/verify", cookie, "POST", { code: lastCode() })).status).toBe(429);
-    // The lock over, the newest code verifies and is consumed.
+    // No code is sent during the lock (it would expire before the lock ends), and none of the allowance is spent; a
+    // reload shows the lock as the time the next code may be sent.
+    const mailed = world.sends.length;
+    const spent = await db.prepare("SELECT COUNT(*) AS n FROM verification_sends").first<{ n: number }>();
+    const refused = await json("/domains/coded.co.za/code", cookie, "POST", { local: "admin" });
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: expect.stringMatching(/lock/) });
+    expect(world.sends.length).toBe(mailed);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM verification_sends").first<{ n: number }>()).toEqual(spent);
+    const during = (await (await json("/domains", cookie, "GET")).json()) as {
+      domains: { lockedUntil: string | null; nextCodeAt: string | null }[];
+    };
+    expect(during.domains[0]?.lockedUntil).not.toBeNull();
+    expect(during.domains[0]?.nextCodeAt).toBe(during.domains[0]?.lockedUntil);
+    // The lock over, a new code is sent with a fresh three attempts, and it verifies and is consumed.
     await db
       .prepare("UPDATE verification_codes SET locked_until = ?")
       .bind(new Date(Date.now() - 1000).toISOString())
       .run();
+    expect((await json("/domains/coded.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
     const newest = lastCode();
+    expect(newest).not.toBe(right);
+    expect((await json("/domains/coded.co.za/verify", cookie, "POST", { code: right })).status).toBe(400);
     expect(await (await json("/domains/coded.co.za/verify", cookie, "POST", { code: newest })).json()).toMatchObject({
       verified: true,
     });
@@ -413,13 +427,14 @@ describe("codes by email", () => {
     await json("/domains/relockrace.co.za/code", cookie, "POST", { local: "admin" });
     const first = lastCode();
     for (const n of [1, 2]) await guess("relockrace.co.za", cookie, near(first, n), db);
-    // The third wrong guess pauses after its first statement on the code while a new code is sent.
+    // The third wrong guess pauses after its first statement on the code while a new code is asked for.
     const pause = held(1);
     const third = guess("relockrace.co.za", cookie, near(first, 3), pausing(pause));
     await Promise.race([pause.reached, third]);
-    expect((await json("/domains/relockrace.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+    await json("/domains/relockrace.co.za/code", cookie, "POST", { local: "admin" });
     pause.release();
     expect((await third).status).toBe(429);
+    // Whatever code was mailed last, it is refused under the lock.
     expect((await guess("relockrace.co.za", cookie, lastCode(), db)).status).toBe(429);
     expect(await stateOf(orgId, "relockrace.co.za")).toBe("pending");
   });
@@ -755,5 +770,131 @@ describe("completion review cases", () => {
     expect(answered.status).toBe(503);
     expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
     expect(await stateOf(orgId, "deadline.co.za")).toBe("pending");
+  });
+});
+
+describe("final review cases", () => {
+  it("locks an address after three wrong codes, sends nothing under the lock, and lets a new code verify after it", async () => {
+    const { cookie, orgId } = await owner("addrlock@example.org");
+    await json("/addresses", cookie, "POST", { address: "locked@gmail.com" });
+    const right = lastCode();
+    for (const n of [1, 2])
+      await json("/addresses/verify", cookie, "POST", { address: "locked@gmail.com", code: near(right, n) });
+    expect(
+      (await json("/addresses/verify", cookie, "POST", { address: "locked@gmail.com", code: near(right, 3) })).status,
+    ).toBe(429);
+    expect((await json("/addresses/verify", cookie, "POST", { address: "locked@gmail.com", code: right })).status).toBe(
+      429,
+    );
+    const mailed = world.sends.length;
+    expect((await json("/addresses/code", cookie, "POST", { address: "locked@gmail.com" })).status).toBe(429);
+    expect(world.sends.length).toBe(mailed);
+    await db
+      .prepare("UPDATE verification_codes SET locked_until = ?")
+      .bind(new Date(Date.now() - 1000).toISOString())
+      .run();
+    expect((await json("/addresses/code", cookie, "POST", { address: "locked@gmail.com" })).status).toBe(200);
+    expect(
+      await (await json("/addresses/verify", cookie, "POST", { address: "locked@gmail.com", code: lastCode() })).json(),
+    ).toMatchObject({ verified: true });
+    expect(await findMemberBySender(db, "locked@gmail.com")).toBe(orgId);
+  });
+
+  it("bounds an organisation's claim mail across claims removed and made again", async () => {
+    const { cookie, orgId } = await owner("budget@example.org");
+    // Claiming, removing and claiming another address spends the organisation's hourly twenty.
+    for (let i = 0; i < 20; i++) {
+      expect((await json("/addresses", cookie, "POST", { address: `target${i}@outlook.com` })).status).toBe(200);
+      expect((await json(`/addresses/target${i}@outlook.com`, cookie, "DELETE")).status).toBe(204);
+    }
+    const mailed = world.sends.length;
+    const over = await json("/addresses", cookie, "POST", { address: "target20@outlook.com" });
+    expect(over.status).toBe(429);
+    expect(await over.json()).toMatchObject({ error: expect.stringMatching(/organisation/) });
+    expect(world.sends.length).toBe(mailed);
+    // The claim waits, and a reload says when a code may be sent: an hour after the first of the twenty.
+    const listed = (await (await json("/domains", cookie, "GET")).json()) as {
+      addresses: { address: string; nextCodeAt: string | null }[];
+    };
+    const first = await db
+      .prepare("SELECT MIN(sent_at) AS at FROM verification_sends WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ at: string }>();
+    expect(listed.addresses.find((a) => a.address === "target20@outlook.com")?.nextCodeAt).toBe(
+      new Date(Date.parse(first?.at ?? "") + 60 * 60_000).toISOString(),
+    );
+  });
+
+  it("bounds an organisation's claim mail to fifty a day", async () => {
+    const { cookie, orgId } = await owner("daily@example.org");
+    // Fifty sends over the past day, none in the last hour.
+    const old = Date.now() - 2 * 60 * 60_000;
+    for (let i = 0; i < 50; i++)
+      await db
+        .prepare("INSERT INTO verification_sends (id, org_id, target, sent_at) VALUES (?, ?, ?, ?)")
+        .bind(`day-${i}`, orgId, `address:old${i}@outlook.com`, new Date(old - i * 60_000).toISOString())
+        .run();
+    const over = await json("/addresses", cookie, "POST", { address: "fresh@outlook.com" });
+    expect(over.status).toBe(429);
+    const listed = (await (await json("/domains", cookie, "GET")).json()) as {
+      addresses: { nextCodeAt: string | null }[];
+    };
+    // The oldest of the fifty ages out of the day first.
+    expect(listed.addresses[0]?.nextCodeAt).toBe(new Date(old - 49 * 60_000 + 24 * 60 * 60_000).toISOString());
+  });
+
+  it("answers a resend for a verified address 409, as for a domain", async () => {
+    const { cookie } = await owner("verifiedresend@example.org");
+    await json("/addresses", cookie, "POST", { address: "done@gmail.com" });
+    await json("/addresses/verify", cookie, "POST", { address: "done@gmail.com", code: lastCode() });
+    const mailed = world.sends.length;
+    expect((await json("/addresses/code", cookie, "POST", { address: "done@gmail.com" })).status).toBe(409);
+    expect(world.sends.length).toBe(mailed);
+  });
+
+  it("answers a DNS check verified when the emailed code verified the domain while DNS was answering", async () => {
+    const { cookie, orgId } = await owner("bothways@example.org");
+    const { txt } = (await (await json("/domains", cookie, "POST", { domain: "bothways.co.za" })).json()) as {
+      txt: { value: string };
+    };
+    await json("/domains/bothways.co.za/code", cookie, "POST", { local: "admin" });
+    const code = lastCode();
+    // The check reads the claim, then the code verifies it before the DNS answer arrives.
+    const pause = held(1);
+    let answered: () => void = () => {};
+    const dnsArrives = new Promise<void>((resolve) => {
+      answered = resolve;
+    });
+    spy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.startsWith(DOH_URL)) throw new Error("unexpected fetch");
+      pause.hold();
+      await dnsArrives;
+      return txtAnswer(txt.value);
+    });
+    const check = json("/domains/bothways.co.za/check", cookie, "POST");
+    await pause.reached;
+    pause.release();
+    spy.mockRestore();
+    expect(await (await json("/domains/bothways.co.za/verify", cookie, "POST", { code })).json()).toMatchObject({
+      verified: true,
+    });
+    answered();
+    const result = await check;
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ verified: true });
+    expect(await stateOf(orgId, "bothways.co.za")).toBe("verified");
+  });
+
+  it("finds an organisation for an address only", async () => {
+    const { cookie, orgId } = await owner("onlyaddr@example.org");
+    const { txt } = (await (await json("/domains", cookie, "POST", { domain: "onlyaddr.co.za" })).json()) as {
+      txt: { value: string };
+    };
+    world.doh = () => txtAnswer(txt.value);
+    await json("/domains/onlyaddr.co.za/check", cookie, "POST");
+    expect(await findMemberBySender(db, "boss@onlyaddr.co.za")).toBe(orgId);
+    for (const sender of ["onlyaddr.co.za", "@onlyaddr.co.za", "boss@", "a@b@onlyaddr.co.za", ""])
+      expect(await findMemberBySender(db, sender), sender).toBeNull();
   });
 });
