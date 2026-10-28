@@ -4,7 +4,7 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
-import { candidates, ESTIMATE_USD, glimmerSpend, teach } from "../../scripts/glimmer/teacher-label.ts";
+import { candidates, ESTIMATE_USD, glimmerSpend, ledgerLock, teach } from "../../scripts/glimmer/teacher-label.ts";
 import { readLedger } from "../../scripts/meta-smoke.ts";
 
 // scripts/glimmer/teacher-label.ts (D03 T04 §9): Spark's second opinion on evaluation pages, through the shared Meta
@@ -52,6 +52,20 @@ const answer = (lure: boolean) =>
     lure_type: lure ? "credential" : "none",
     confidence: 0.9,
   });
+
+describe("the ledger lock", () => {
+  it("sits beside the ledger, so the ledger stays readable while the run holds it", async () => {
+    const { takeLock } = await import("../../scripts/meta-smoke.ts");
+    const ledgerFile = join(dir, "ledger", "meta-spend.json");
+    mkdirSync(join(dir, "ledger"), { recursive: true });
+    writeFileSync(ledgerFile, "[]");
+    expect(ledgerLock(ledgerFile)).not.toBe(ledgerFile);
+    const release = takeLock(ledgerLock(ledgerFile));
+    expect(typeof release).toBe("function");
+    expect(readLedger(ledgerFile)).toEqual([]);
+    (release as () => void)();
+  });
+});
 
 describe("candidates", () => {
   it("takes trusted-lure pages, South African first, skipping those checked", () => {

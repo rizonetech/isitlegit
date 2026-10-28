@@ -36,6 +36,9 @@ export const GLIMMER_CAP_USD = 20;
 export const ESTIMATE_USD = tokenCost(SPARK, 9_000, 400);
 const TRUSTED = new Set(["ground-truth", "construction", "dom", "claude", "astra+claude"]);
 
+// The ledger's run lock beside it, never the ledger itself: a lock written over the ledger's path leaves it unreadable.
+export const ledgerLock = (ledgerFile: string) => `${ledgerFile}.lock`;
+
 export type Ask = (input: unknown[], instructions: string) => Promise<{ text: string; usd: number | null }>;
 
 // The pages worth a second opinion: those that can enter evaluation, South African first, not checked before.
@@ -162,7 +165,7 @@ if (import.meta.filename === process.argv[1]) {
   const at = process.argv.indexOf("--max");
   const max = at >= 0 ? Number(process.argv[at + 1]) : 500;
   const ledgerFile = metaLedger();
-  const release = takeLock(ledgerFile);
+  const release = takeLock(ledgerLock(ledgerFile));
   if (typeof release === "string") {
     console.error(`teacher-label: ${release}`);
     process.exit(1);
