@@ -158,7 +158,12 @@ describe("invitations", () => {
         const email = `${answer}-invitee@example.com`;
         const failed = await post("/organization/invite-member", cookie, { email, role: "member" });
         expect(failed.status, answer).toBe(502);
-        expect(await failed.text()).toMatch(/could not be sent/);
+        // A refusal is a failed send; no answer is an unknown one, which may have gone.
+        expect(await failed.text(), answer).toMatch(answer === "refused" ? /could not be sent/ : /not known/);
+        const recorded = await db
+          .prepare("SELECT status FROM mail_sends WHERE send_key LIKE 'invite:%' ORDER BY created_at DESC")
+          .first<{ status: string }>();
+        expect(recorded?.status, answer).toBe(answer === "refused" ? "failed" : "uncertain");
         const pending = await db
           .prepare(`SELECT id, status FROM "invitation" WHERE email = ?`)
           .bind(email)
@@ -220,6 +225,33 @@ describe("roles, revocation and removal", () => {
     expect((await invite(deputy, "welcome@example.com")).answer.status).toBe(200);
   });
 
+  it("finish an acceptance the Worker was stopped in, with exactly one membership", async () => {
+    const orgId = await orgFor("host@example.com", "Resume");
+    const { cookie } = await signIn("host@example.com");
+    const { link } = await invite(cookie, "halfway@example.com");
+    // Better Auth marked it accepted and stopped before writing the membership.
+    await db.prepare(`UPDATE "invitation" SET status = 'accepted' WHERE id = ?`).bind(invitationId(link)).run();
+    const halfway = await signIn("halfway@example.com");
+    const retried = await post("/organization/accept-invitation", halfway.cookie, { invitationId: invitationId(link) });
+    expect(retried.status).toBe(200);
+    const again = await post("/organization/accept-invitation", halfway.cookie, { invitationId: invitationId(link) });
+    expect(again.status).toBeGreaterThanOrEqual(400);
+    expect((await membersOf(orgId)).filter((m) => m.email === "halfway@example.com")).toEqual([
+      { email: "halfway@example.com", role: "member" },
+    ]);
+    // Someone else holding the same used invitation gets nothing from it.
+    const other = await signIn("notme@example.com");
+    expect(
+      (await post("/organization/accept-invitation", other.cookie, { invitationId: invitationId(link) })).status,
+    ).toBeGreaterThanOrEqual(400);
+    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("notme@example.com");
+    const status = await db
+      .prepare(`SELECT status FROM "invitation" WHERE id = ?`)
+      .bind(invitationId(link))
+      .first<{ status: string }>();
+    expect(status?.status).toBe("accepted");
+  });
+
   it("revoke an invitation so it cannot be accepted", async () => {
     await orgFor("revoker@example.com", "Revoke");
     const { cookie } = await signIn("revoker@example.com");
@@ -275,6 +307,61 @@ describe("requireOrg", () => {
       .run();
     expect(await activeOf(cookie)).toBe(mine);
     expect((await caseRequest(cookie, own)).status).toBe(403);
+  });
+});
+
+describe("an unreachable database", () => {
+  // D1 failing every read of the member table, as an outage would; everything else answers.
+  const failingMembers = new Proxy(db, {
+    get(target, key) {
+      if (key === "prepare")
+        return (sql: string) =>
+          /from "member"/i.test(sql)
+            ? {
+                bind: () => ({
+                  all: async () => {
+                    throw new Error("D1_ERROR: Network connection lost.");
+                  },
+                }),
+              }
+            : target.prepare(sql);
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const down = { ...authEnv, DB: failingMembers };
+
+  it("answers 503 to a member, not 'not a member', and still refuses", async () => {
+    const orgId = await orgFor("outage@example.com", "Outage");
+    const { cookie } = await signIn("outage@example.com");
+    const caseId = await addCase(orgId);
+    const answer = await app.fetch(
+      new Request(`${ORIGIN}/cases/${caseId}`, { headers: { cookie, accept: "application/json" } }),
+      down,
+    );
+    expect(answer.status).toBe(503);
+    expect(answer.headers.get("retry-after")).toBe("5");
+    expect((await answer.json()) as object).toEqual({
+      error: "the organisation could not be checked just now; try again in a moment",
+    });
+  });
+
+  it("answers the switcher 503 too, the active organisation as it was", async () => {
+    const first = await orgFor("stuckswitch@example.com", "One");
+    const second = await orgFor("stuckswitch@example.com", "Two");
+    const { cookie } = await signIn("stuckswitch@example.com");
+    const answer = await worker.fetch(
+      new Request(`${ORIGIN}/orgs/switch`, {
+        method: "POST",
+        headers: { cookie, origin: ORIGIN, "content-type": "application/x-www-form-urlencoded" },
+        body: `organizationId=${second}`,
+        redirect: "manual",
+      }),
+      down,
+      { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext,
+    );
+    expect(answer.status).toBe(503);
+    expect(await activeOf(cookie)).toBe(first);
   });
 });
 

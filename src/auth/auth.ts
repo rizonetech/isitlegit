@@ -139,6 +139,40 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           if (!member) throw new APIError("FORBIDDEN", { message: "you are not a member of this organisation" });
           return;
         }
+        if (ctx.path === "/organization/accept-invitation") {
+          // Better Auth marks an invitation accepted before it writes the membership, in separate writes; a Worker
+          // stopped between them leaves the invitation used and the member out, and its retry refused. An invitation
+          // accepted with no membership, unexpired, for this signed-in recipient, is opened again so the retry finishes.
+          const invitationId = (ctx.body as { invitationId?: unknown } | undefined)?.invitationId;
+          const signedIn = await getSessionFromCtx(ctx);
+          if (typeof invitationId !== "string" || !signedIn) return;
+          const invitation = await ctx.context.adapter.findOne<{
+            status: string;
+            email: string;
+            organizationId: string;
+            expiresAt: Date;
+          }>({ model: "invitation", where: [{ field: "id", value: invitationId }] });
+          if (
+            invitation?.status !== "accepted" ||
+            invitation.email.toLowerCase() !== signedIn.user.email.toLowerCase() ||
+            new Date(invitation.expiresAt) <= new Date()
+          )
+            return;
+          const member = await ctx.context.adapter.findOne({
+            model: "member",
+            where: [
+              { field: "userId", value: signedIn.user.id },
+              { field: "organizationId", value: invitation.organizationId },
+            ],
+          });
+          if (!member)
+            await ctx.context.adapter.update({
+              model: "invitation",
+              where: [{ field: "id", value: invitationId }],
+              update: { status: "pending" },
+            });
+          return;
+        }
         if (ctx.path === "/sign-out") {
           const token = await ctx.getSignedCookie(ctx.context.authCookies.sessionToken.name, ctx.context.secret);
           if (!token) return;
@@ -174,11 +208,14 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
             .db.prepare("SELECT status FROM mail_sends WHERE send_key = ?")
             .bind(inviteSendKey(invitation as Invitation))
             .first<{ status: string }>();
-          if (sent?.status !== "sent")
-            throw new APIError("BAD_GATEWAY", {
-              message: "the invitation is saved but its email could not be sent; send it again",
-            });
-          return;
+          // Confirmed, unknown (SMTP2GO may have taken it before its answer was lost), or not sent: each says so.
+          if (sent?.status === "sent") return;
+          throw new APIError("BAD_GATEWAY", {
+            message:
+              sent?.status === "uncertain" || sent?.status === "pending"
+                ? "the invitation is saved, but whether its email went is not known; check with them before sending it again"
+                : "the invitation is saved but its email could not be sent; send it again",
+          });
         }
         if (ctx.path === "/organization/remove-member") {
           // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest.
