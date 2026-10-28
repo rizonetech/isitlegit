@@ -108,7 +108,9 @@ export async function storeParsed(
     attachments.push({
       key: stored.key,
       filename,
-      mediaType: stored.mediaType,
+      // The part's own declared type: two parts with the same bytes and name share one stored object, whose row keeps
+      // the first one's type, and a mismatch between declared type and content is evidence (attachment checks).
+      mediaType: a.mediaType || "application/octet-stream",
       contentId: a.contentId,
       disposition: a.disposition,
       bytes: stored.bytes,

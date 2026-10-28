@@ -26,6 +26,7 @@ type Reader = {
   av: Uint8Array;
   readPos: number;
   root: MimeNode;
+  attachments: { mimeType: string }[];
   forceRfc822Attachments: boolean;
   rfc822NestingDepth: number;
   readLine(): { bytes: Uint8Array; lineBreak: Uint8Array; done: boolean };
@@ -70,7 +71,14 @@ export async function readTree(raw: Uint8Array): Promise<Parsing> {
     reader.readPos = 0;
     while (reader.readPos < reader.av.length) {
       const line = reader.readLine();
-      await reader.processLine(line.bytes, line.lineBreak, line.done);
+      // A last line with no line break gets a synthesized LF from postal-mime, which its decoders write into the part:
+      // a binary attachment ending the message would gain a byte. The bytes actually there (none, or a lone CR) go
+      // instead.
+      const lineBreak =
+        line.done && reader.av[reader.av.length - 1] !== 0x0a
+          ? reader.av.subarray(line.bytes.byteOffset + line.bytes.byteLength, reader.av.length)
+          : line.lineBreak;
+      await reader.processLine(line.bytes, lineBreak, line.done);
     }
     // The end-of-input flush for every part still open (a last part with no closing boundary); a no-op for parts
     // already finished.
@@ -87,7 +95,20 @@ export async function readTree(raw: Uint8Array): Promise<Parsing> {
       const collect = reader.collectAttachment.bind(reader);
       reader.collectAttachment = (node, ...rest) => {
         collected.push(node);
-        collect(node, ...rest);
+        // postal-mime decodes a calendar part as text and rewrites it, unbounded (a 12 MB calendar exhausted 128 MiB,
+        // round 1); its bytes are taken from the node anyway, so it is collected as plain bytes and its type restored.
+        const type = node.contentType.parsed.value;
+        const calendar = type === "text/calendar" || type === "application/ics";
+        if (calendar) node.contentType.parsed.value = "application/octet-stream";
+        try {
+          collect(node, ...rest);
+        } finally {
+          if (calendar) {
+            node.contentType.parsed.value = type;
+            const last = reader.attachments[reader.attachments.length - 1];
+            if (last) last.mimeType = type;
+          }
+        }
       };
       try {
         reader.forceRfc822Attachments = true;

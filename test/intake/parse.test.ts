@@ -345,3 +345,65 @@ describe("completion review cases", () => {
     expect(summary.truncated).toEqual([]);
   });
 });
+
+describe("round 1 cases", () => {
+  it("records each part's own declared type when two share their bytes and name", async () => {
+    const caseId = await newCase();
+    const message = enc(
+      [
+        "From: billing@fictional-supplier.example",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        "--b",
+        "Content-Type: text/plain",
+        "",
+        "Two copies.",
+        "--b",
+        'Content-Type: application/pdf; name="invoice.pdf"',
+        "Content-Disposition: attachment",
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64(PDF),
+        "--b",
+        'Content-Type: application/x-msdownload; name="invoice.pdf"',
+        "Content-Disposition: attachment",
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64(PDF),
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+    const summary = await storeParsed(store, caseId, await parseMessage(message), await extractOriginal(message));
+    expect(summary.attachments.map((a) => a.mediaType)).toEqual(["application/pdf", "application/x-msdownload"]);
+    expect(summary.attachments[0]?.key).toBe(summary.attachments[1]?.key);
+  });
+
+  it("keeps a binary attachment that ends the message byte for byte, with no line break added", async () => {
+    const message = new Uint8Array([
+      ...enc(
+        [
+          "From: billing@fictional-supplier.example",
+          'Content-Type: multipart/mixed; boundary="b"',
+          "",
+          "--b",
+          "Content-Type: text/plain",
+          "",
+          "Binary follows.",
+          "--b",
+          'Content-Type: application/octet-stream; name="data.bin"',
+          "Content-Disposition: attachment",
+          "Content-Transfer-Encoding: binary",
+          "",
+          "",
+        ].join("\r\n"),
+      ),
+      1,
+      2,
+      3,
+      4,
+    ]);
+    const parsed = await parseMessage(message);
+    expect(parsed.attachments.at(-1)?.bytes).toEqual(new Uint8Array([1, 2, 3, 4]));
+  });
+});

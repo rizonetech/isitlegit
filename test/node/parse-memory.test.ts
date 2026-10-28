@@ -58,4 +58,11 @@ describe("parseMessage under a 128 MiB heap", () => {
     const run = underHeapLimit(TWENTY, "PostalMime.parse(message)");
     expect(run.status).not.toBe(0);
   });
+
+  it("parses a 12 MB calendar attachment, which postal-mime's calendar rewrite exhausted", () => {
+    const run = underHeapLimit(
+      `"From: billing@fictional-supplier.example\\r\\nContent-Type: multipart/mixed; boundary=\\"b\\"\\r\\n\\r\\n--b\\r\\nContent-Type: text/plain\\r\\n\\r\\ninvite\\r\\n--b\\r\\nContent-Type: text/calendar\\r\\nContent-Disposition: attachment; filename=\\"i.ics\\"\\r\\nContent-Transfer-Encoding: base64\\r\\n\\r\\n" + btoa("a\\r\\n".repeat(3000000)).replace(/.{76}/g, "$&\\r\\n") + "\\r\\n--b--\\r\\n"`,
+    );
+    expect(run.status, run.stderr.slice(-400)).toBe(0);
+  });
 });
