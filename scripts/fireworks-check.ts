@@ -40,6 +40,7 @@ const VAULT_ADMIN = "IsItLegit Fireworks Admin";
 // operator's own user uploads normally (2026-10-28), so the probe runs on a key of that user.
 const VAULT_OWNER = "IsItLegit Fireworks Owner";
 export const PROBE_FILE = join(ROOT, "build/glimmer/probe.jsonl");
+export const PROBE_TEXT_FILE = join(ROOT, "build/glimmer/probe-text.jsonl");
 const FIXTURES = join(ROOT, "test/fixtures/meta-smoke");
 const REQUEST_MS = 60_000;
 // Node's fetch tries each of a host's addresses for 250 ms by default before the next. From this host a connection to
@@ -58,6 +59,7 @@ Lists what the Fireworks account ${ACCOUNT} holds, and runs the Glimmer image pr
   --probe text     the text control, ${PROBE_TEXT}: only after the image probe was refused for its images
   --job <id>       one fine-tuning job's state, outcome and bill state
   --delete-probe   delete both probes' job, model and dataset
+  --write-probe-lines  write the image probe and its text control to build/glimmer/ for the serverless probe (local)
   --help           this text
 
 Exit codes: 0 done, 1 Fireworks refused or failed a request, 2 refused before sending.`;
@@ -67,7 +69,8 @@ export type Mode =
   | { kind: "list" }
   | { kind: "probe"; variant: Variant }
   | { kind: "job"; id: string }
-  | { kind: "delete-probe" };
+  | { kind: "delete-probe" }
+  | { kind: "write-probe-lines" };
 
 export function parseCheckArgs(argv: string[]): { help: boolean; mode: Mode } {
   const { values, positionals } = parseArgs({
@@ -77,6 +80,7 @@ export function parseCheckArgs(argv: string[]): { help: boolean; mode: Mode } {
       text: { type: "boolean", default: false },
       job: { type: "string" },
       "delete-probe": { type: "boolean", default: false },
+      "write-probe-lines": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
     strict: true,
@@ -87,8 +91,10 @@ export function parseCheckArgs(argv: string[]): { help: boolean; mode: Mode } {
   if (positionals.length > (values.probe ? 1 : 0) || (positionals.length === 1 && positionals[0] !== "text"))
     throw new Error(`unexpected argument: ${positionals.join(" ")}`);
   if (text && !values.probe) throw new Error("text goes with --probe");
-  const chosen = [values.probe, values.job !== undefined, values["delete-probe"]].filter(Boolean).length;
-  if (chosen > 1) throw new Error("choose one of --probe, --job and --delete-probe");
+  const chosen = [values.probe, values.job !== undefined, values["delete-probe"], values["write-probe-lines"]].filter(
+    Boolean,
+  ).length;
+  if (chosen > 1) throw new Error("choose one of --probe, --job, --delete-probe and --write-probe-lines");
   if (values.job !== undefined && !/^[a-z0-9][a-z0-9-]{0,62}$/.test(values.job))
     throw new Error("--job takes a job ID: lowercase letters, digits and dashes");
   const mode: Mode = values.probe
@@ -97,7 +103,9 @@ export function parseCheckArgs(argv: string[]): { help: boolean; mode: Mode } {
       ? { kind: "job", id: values.job }
       : values["delete-probe"]
         ? { kind: "delete-probe" }
-        : { kind: "list" };
+        : values["write-probe-lines"]
+          ? { kind: "write-probe-lines" }
+          : { kind: "list" };
   return { help: values.help, mode };
 }
 
@@ -217,6 +225,7 @@ export type RunOptions = {
   fetch?: typeof fetch;
   now?: () => Date;
   probeFile?: string;
+  probeTextFile?: string;
   fixturesDir?: string;
   log?: (line: string) => void;
   datasetWaitMs?: number;
@@ -234,6 +243,23 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
   };
   const now = options.now ?? (() => new Date());
   const fetchImpl = options.fetch ?? fetch;
+
+  // The probe's two files for scripts/glimmer/serverless_probe.py: local, no key, no request.
+  if (options.mode.kind === "write-probe-lines") {
+    for (const [variant, file] of [
+      ["image", options.probeFile ?? PROBE_FILE],
+      ["text", options.probeTextFile ?? PROBE_TEXT_FILE],
+    ] as const) {
+      writeAtomic(
+        file,
+        `${probeLines(variant, options.fixturesDir)
+          .map((line) => JSON.stringify(line))
+          .join("\n")}\n`,
+      );
+      say(`wrote ${variant} probe lines: ${file}`);
+    }
+    return { code: 0, lines };
+  }
 
   if (options.mode.kind === "probe" && now() >= PROBE_CUTOFF) {
     say(`refused: the free Glimmer training offer ended 2026-11-30; no probe is started on or after 2026-12-01`);

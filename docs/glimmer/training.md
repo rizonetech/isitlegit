@@ -21,6 +21,12 @@ Checked 2026-10-28 14:14 UTC with `node scripts/fireworks-check.ts` (admin key, 
 - 2026-10-28 15:20 UTC: with the operator's own key ("IsItLegit Fireworks Owner", `GET /v1/accounts/rizonetech` HTTP 200) the upload is refused the same way (HTTP 403 on `:upload`, HTTP 400 on `:getUploadEndpoint`, both "dataset uploads are temporarily disabled"), so the API refuses uploads for the account whatever the key, while the dashboard accepts them. The empty dataset was deleted (read back as gone). Next: the operator uploads `build/glimmer/probe.jsonl` in the dashboard as dataset `isitlegit-probe`, and `--probe` starts the job on it.
 - 2026-10-28 15:26 UTC: the operator reports the dashboard upload is refused too. Dataset uploads are closed for the account on every path; the operator is asking Fireworks to enable them, and the Serverless Training API (examples streamed by the client, no dataset upload; Glimmer reads `supportsServerlessTraining: true`) is being checked as an alternative.
 
+- 2026-10-28 16:13 UTC: Fireworks support (Kat, reply received 15:35 UTC) confirmed dataset uploads are closed platform-wide with no restoration date, so the probe moved to the Serverless Training API, where Fireworks' cookbook states "Muse Glimmer 30B SFT is free via UI and Serverless Training API until 11/30". `~/.venvs/fireworks/bin/python scripts/glimmer/serverless_probe.py` rendered the three probe examples with the cookbook's `muse_glimmer` renderer and Glimmer's image processor (images of 392, 522 and 1,260 tokens), and ran one cross-entropy forward and backward pass on them and on the text controls, with no optimiser step and no checkpoint.
+probe session ts-28111d83258c4bd0b016571ba6d6cc22: image step loss:sum 120.10 over 2,435 tokens; text control loss:sum 48.57 over 321 tokens; 2,762 tokens sent in all
+training mode: image
+- Bill: pending until 2026-10-29 16:13 UTC (rated costs lag a day); SFT on Glimmer is free until 2026-11-30 by Fireworks' statement, and §11 reconciles it before the first training run.
+- `--delete-probe` found no managed probe resource left (16:14 UTC).
+
 ## Dataset
 
 ## Training

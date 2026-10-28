@@ -433,6 +433,25 @@ describe("--delete-probe", () => {
   });
 });
 
+describe("--write-probe-lines", () => {
+  it("writes both probe files without a key or a request", async () => {
+    const { seen, impl } = stub({});
+    const readKey = async () => {
+      throw new Error("no key needed");
+    };
+    const out = await runFireworksCheck(
+      base({ fetch: impl, readKey, mode: { kind: "write-probe-lines" }, probeTextFile: join(DIR, "probe-text.jsonl") }),
+    );
+    expect(out.code).toBe(0);
+    expect(seen).toHaveLength(0);
+    const image = readFileSync(join(DIR, "probe.jsonl"), "utf-8").trim().split("\n");
+    const text = readFileSync(join(DIR, "probe-text.jsonl"), "utf-8").trim().split("\n");
+    expect([image.length, text.length]).toEqual([3, 3]);
+    expect(image.every((line) => line.includes("image_url"))).toBe(true);
+    expect(text.some((line) => line.includes("image_url"))).toBe(false);
+  });
+});
+
 describe("arguments", () => {
   it("takes one mode and a safe job ID", () => {
     expect(parseCheckArgs([]).mode).toEqual({ kind: "list" });
@@ -442,6 +461,7 @@ describe("arguments", () => {
     expect(() => parseCheckArgs(["--probe", "video"])).toThrow();
     expect(() => parseCheckArgs(["text"])).toThrow();
     expect(() => parseCheckArgs(["--probe", "--delete-probe"])).toThrow();
+    expect(parseCheckArgs(["--write-probe-lines"]).mode).toEqual({ kind: "write-probe-lines" });
     expect(() => parseCheckArgs(["--job", "../models"])).toThrow();
   });
 });
