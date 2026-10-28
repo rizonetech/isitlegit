@@ -103,6 +103,18 @@ class Launcher(unittest.TestCase):
         self.assertEqual(Path(call["cwd"]).resolve(), raw)
         self.assertEqual(call["stdin"], BRIEF.read_text(encoding="utf-8"))
 
+    def test_a_later_brief_is_sent_instead_and_one_outside_docs_glimmer_is_refused(self):
+        later = BRIEF.with_name("astra-collection-brief-2.md")
+        made = not later.exists()
+        if made:
+            later.write_text("a later sweep's brief\n", encoding="utf-8")
+            self.addCleanup(later.unlink)
+        self.assertEqual(self.run_script("--brief", "docs/glimmer/astra-collection-brief-2.md").returncode, 0)
+        self.assertEqual(self.recorded()["stdin"], later.read_text(encoding="utf-8"))
+        refused = self.run_script("--brief", "AGENTS.md")
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("docs/glimmer/astra-collection-brief", refused.stderr)
+
     def test_it_exits_with_codexs_own_failure(self):
         self.assertEqual(self.run_script(exit_code=7).returncode, 7)
         self.assertEqual(self.status()["outcome"], "failed")

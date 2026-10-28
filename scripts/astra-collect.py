@@ -210,6 +210,7 @@ def refuse(reason: str) -> int:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Run GPT-6 Astra as the Loupe dataset collector (D03 T04 §4).")
     parser.add_argument("--dry-run", action="store_true", help="print the command and the store; change nothing")
+    parser.add_argument("--brief", help="another brief in docs/glimmer/ named astra-collection-brief*.md (D03 T04 §18)")
     parser.add_argument("--deadline-seconds", type=float, default=DEADLINE_SECONDS, help=argparse.SUPPRESS)
     parser.add_argument("--progress-seconds", type=float, default=PROGRESS_SECONDS, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -222,12 +223,16 @@ def main(argv=None) -> int:
     codex = shutil.which("codex")
     if not codex:
         return refuse("the Codex CLI (`codex`) is not on PATH")
-    if not BRIEF.is_file():
-        return refuse(f"the brief {BRIEF.relative_to(ROOT)} is missing")
+    # A later sweep gives its own brief, kept beside the first so every brief Astra was given is in the repository.
+    brief = (ROOT / args.brief).resolve() if args.brief else BRIEF
+    if brief.parent != BRIEF.parent or not brief.name.startswith("astra-collection-brief") or brief.suffix != ".md":
+        return refuse(f"the brief must be docs/glimmer/astra-collection-brief*.md, not {args.brief}")
+    if not brief.is_file():
+        return refuse(f"the brief {brief.relative_to(ROOT)} is missing")
     run = command(codex, raw)
     if args.dry_run:
         print(f"store: {store}")
-        print(f"brief: {BRIEF.relative_to(ROOT)} (standard input)")
+        print(f"brief: {brief.relative_to(ROOT)} (standard input)")
         print(shlex.join(run))
         return 0
 
@@ -250,12 +255,12 @@ def main(argv=None) -> int:
     if lock is None:
         return refuse(f"another collection is running in {raw}")
     try:
-        return collect(args, raw, run, lock)
+        return collect(args, raw, run, lock, brief)
     finally:
         lock.close()
 
 
-def collect(args, raw: Path, run: list[str], lock) -> int:
+def collect(args, raw: Path, run: list[str], lock, brief: Path = BRIEF) -> int:
     """The run itself, holding the store's lock."""
     # Holding the lock, a status still `running` can only belong to a run that died before it recorded its end: it is
     # kept aside as `abandoned` so the relaunch starts clean.
@@ -325,7 +330,7 @@ def collect(args, raw: Path, run: list[str], lock) -> int:
         status["codex_pgid"] = child.pid
         write_status(raw, status)
         try:
-            child.stdin.write(BRIEF.read_bytes())
+            child.stdin.write(brief.read_bytes())
             child.stdin.close()
         except BrokenPipeError as error:
             raise Failed("Codex closed its input before reading the brief") from error
