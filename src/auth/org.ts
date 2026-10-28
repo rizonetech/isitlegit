@@ -11,8 +11,10 @@ export type ActiveOrg = { id: string; role: string };
 export type OrgEnv = { Bindings: Env; Variables: { signedIn: SignedIn; org: ActiveOrg } };
 
 const refused = (error: string) => Response.json({ error }, { status: 403, headers: { "cache-control": "no-store" } });
-// Better Auth answers every definite refusal with an APIError; anything else is the service failing (D1 unreachable),
-// which still refuses the request but says so, to be retried, rather than telling a member they do not belong.
+// Better Auth answers a definite refusal with a 4xx APIError; a 5xx one (its own read failing) or anything else is the
+// service failing (D1 unreachable), which still refuses the request but says so, to be retried, rather than telling a
+// member they do not belong.
+export const isRefusal = (error: unknown) => isAPIError(error) && error.statusCode < 500;
 const unavailable = () =>
   Response.json(
     { error: "the organisation could not be checked just now; try again in a moment" },
@@ -26,7 +28,7 @@ export const requireOrg = createMiddleware<OrgEnv>(async (c, next) => {
   try {
     member = await createAuth(c.env).api.getActiveMember({ headers: c.req.raw.headers });
   } catch (error) {
-    if (!isAPIError(error)) return unavailable();
+    if (!isRefusal(error)) return unavailable();
     member = null;
   }
   if (!member || member.organizationId !== active) return refused("you are not a member of this organisation");
@@ -41,8 +43,12 @@ export async function switchOrganisation(env: Env, request: Request): Promise<Re
   const form = await request.formData().catch(() => null);
   const organizationId = form?.get("organizationId");
   if (typeof organizationId !== "string" || !organizationId) return new Response("Bad Request", { status: 400 });
+  const auth = createAuth(env);
   try {
-    const { headers } = await createAuth(env).api.setActiveOrganization({
+    // Read the session first: inside the plugin a failed session read becomes "not signed in" (401), an outage
+    // indistinguishable from a refusal; Better Auth's getSession throws a 5xx for it instead.
+    if (!(await auth.api.getSession({ headers: request.headers }))) return new Response("Forbidden", { status: 403 });
+    const { headers } = await auth.api.setActiveOrganization({
       headers: request.headers,
       body: { organizationId },
       returnHeaders: true,
@@ -51,6 +57,6 @@ export async function switchOrganisation(env: Env, request: Request): Promise<Re
     for (const cookie of headers.getSetCookie()) out.headers.append("set-cookie", cookie);
     return out;
   } catch (error) {
-    return isAPIError(error) ? new Response("Forbidden", { status: 403 }) : unavailable();
+    return isRefusal(error) ? new Response("Forbidden", { status: 403 }) : unavailable();
   }
 }

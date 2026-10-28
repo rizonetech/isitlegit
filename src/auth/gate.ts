@@ -20,7 +20,14 @@ function toSignIn(requested: string) {
 
 export const requireSession = createMiddleware<GateEnv>(async (c, next) => {
   const auth = createAuth(c.env);
-  const { headers, response } = await auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true });
+  // A session store that cannot be read is an outage, answered 503 to be retried, not a bare 500 and never a pass.
+  const read = await auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true }).catch(() => null);
+  if (!read)
+    return c.json({ error: "signing in could not be checked just now; try again in a moment" }, 503, {
+      "cache-control": "no-store",
+      "retry-after": "5",
+    });
+  const { headers, response } = read;
   if (!response) {
     // Better Auth's own headers go too: for an expired session they delete its cookie, so the browser stops sending it.
     const refused = (c.req.header("accept") ?? "").includes("text/html") ? toSignIn(c.req.url) : notSignedIn();

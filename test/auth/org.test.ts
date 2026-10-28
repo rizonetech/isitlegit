@@ -252,6 +252,47 @@ describe("roles, revocation and removal", () => {
     expect(status?.status).toBe("accepted");
   });
 
+  it("do not let a removed member come back through their old invitation", async () => {
+    const orgId = await orgFor("strict-host@example.com", "NoReturn");
+    const { cookie } = await signIn("strict-host@example.com");
+    const { link } = await invite(cookie, "former@example.com", "admin");
+    const former = await signIn("former@example.com");
+    expect(
+      (await post("/organization/accept-invitation", former.cookie, { invitationId: invitationId(link) })).status,
+    ).toBe(200);
+    expect((await post("/organization/remove-member", cookie, { memberIdOrEmail: "former@example.com" })).status).toBe(
+      200,
+    );
+    const back = await signIn("former@example.com");
+    const replay = await post("/organization/accept-invitation", back.cookie, { invitationId: invitationId(link) });
+    expect(replay.status).toBeGreaterThanOrEqual(400);
+    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("former@example.com");
+  });
+
+  it("hold one membership per person when a recovered acceptance overlaps the one still running", async () => {
+    const orgId = await orgFor("racehost@example.com", "Race");
+    const { cookie } = await signIn("racehost@example.com");
+    const { link } = await invite(cookie, "racer@example.com");
+    // Request A has marked it accepted and not yet written its membership; request B recovers it and joins.
+    await db.prepare(`UPDATE "invitation" SET status = 'accepted' WHERE id = ?`).bind(invitationId(link)).run();
+    const racer = await signIn("racer@example.com");
+    expect(
+      (await post("/organization/accept-invitation", racer.cookie, { invitationId: invitationId(link) })).status,
+    ).toBe(200);
+    // A's membership write then lands: the database refuses a second row for the pair.
+    const racerId = await userId("racer@example.com");
+    const now = new Date().toISOString();
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'member', ?)`,
+        )
+        .bind(crypto.randomUUID(), orgId, racerId, now)
+        .run(),
+    ).rejects.toThrow(/UNIQUE/);
+    expect((await membersOf(orgId)).filter((m) => m.email === "racer@example.com")).toHaveLength(1);
+  });
+
   it("revoke an invitation so it cannot be accepted", async () => {
     await orgFor("revoker@example.com", "Revoke");
     const { cookie } = await signIn("revoker@example.com");
@@ -344,6 +385,48 @@ describe("an unreachable database", () => {
     expect((await answer.json()) as object).toEqual({
       error: "the organisation could not be checked just now; try again in a moment",
     });
+  });
+
+  it("answers 503 when the session itself cannot be read, at the gate and at the switch", async () => {
+    const first = await orgFor("nosession@example.com", "Down");
+    const second = await orgFor("nosession@example.com", "Up");
+    const { cookie } = await signIn("nosession@example.com");
+    const failingSessions = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) =>
+            /from "session"/i.test(sql)
+              ? {
+                  bind: () => ({
+                    all: async () => {
+                      throw new Error("D1_ERROR: Network connection lost.");
+                    },
+                  }),
+                }
+              : target.prepare(sql);
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const storeDown = { ...authEnv, DB: failingSessions };
+    const caseId = await addCase(first);
+    const gated = await app.fetch(
+      new Request(`${ORIGIN}/cases/${caseId}`, { headers: { cookie, accept: "application/json" } }),
+      storeDown,
+    );
+    expect(gated.status).toBe(503);
+    const switched = await worker.fetch(
+      new Request(`${ORIGIN}/orgs/switch`, {
+        method: "POST",
+        headers: { cookie, origin: ORIGIN, "content-type": "application/x-www-form-urlencoded" },
+        body: `organizationId=${second}`,
+        redirect: "manual",
+      }),
+      storeDown,
+      { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext,
+    );
+    expect(switched.status).toBe(503);
+    expect(await activeOf(cookie)).toBe(first);
   });
 
   it("answers the switcher 503 too, the active organisation as it was", async () => {

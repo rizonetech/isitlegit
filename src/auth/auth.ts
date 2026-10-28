@@ -143,6 +143,8 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           // Better Auth marks an invitation accepted before it writes the membership, in separate writes; a Worker
           // stopped between them leaves the invitation used and the member out, and its retry refused. An invitation
           // accepted with no membership, unexpired, for this signed-in recipient, is opened again so the retry finishes.
+          // A removal cancels the member's accepted invitations (below), so this cannot bring a removed member back,
+          // and migration 0011 holds one membership per user and organisation if two acceptances overlap.
           const invitationId = (ctx.body as { invitationId?: unknown } | undefined)?.invitationId;
           const signedIn = await getSessionFromCtx(ctx);
           if (typeof invitationId !== "string" || !signedIn) return;
@@ -218,10 +220,25 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           });
         }
         if (ctx.path === "/organization/remove-member") {
-          // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest.
+          // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest. Their
+          // accepted invitations there are cancelled, so the recovery above cannot reopen one to bring them back.
           const removed = ctx.context.returned as { member?: { userId?: string; organizationId?: string } } | null;
           const member = removed?.member;
           if (!member?.userId || !member.organizationId || isAPIError(removed)) return;
+          const user = await ctx.context.adapter.findOne<{ email: string }>({
+            model: "user",
+            where: [{ field: "id", value: member.userId }],
+          });
+          if (user)
+            await ctx.context.adapter.updateMany({
+              model: "invitation",
+              where: [
+                { field: "organizationId", value: member.organizationId },
+                { field: "email", value: user.email.toLowerCase() },
+                { field: "status", value: "accepted" },
+              ],
+              update: { status: "canceled" },
+            });
           await ctx.context.adapter.deleteMany({
             model: "session",
             where: [
