@@ -105,7 +105,7 @@ class FakeLoop:
                             "train/tokens_per_sec": 500.0}, step)
             if self.recorder.stopped_at_cap:
                 raise SystemExit("SIGTERM")
-        return {"steps": self.steps}
+        return {"steps": self.steps, "job_id": "ts-fake-session"}
 
 
 class Records(unittest.TestCase):
@@ -130,6 +130,7 @@ class Records(unittest.TestCase):
         self.assertEqual(record["steps"], 120)
         self.assertEqual(record["outcome"], "completed")
         self.assertEqual(record["model_id"], "isitlegit-loupe-1-0")
+        self.assertEqual(record["sessions"], ["ts-fake-session"])
         self.assertEqual(loop.config.output_model_id, "isitlegit-loupe-1-0")
         self.assertEqual(loop.config.dcp_save_interval, 200)
         self.assertTrue(loop.config.serverless)

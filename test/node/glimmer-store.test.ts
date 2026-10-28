@@ -376,7 +376,8 @@ describe("setLabels and the lure-type rule (D03 T04 §9)", () => {
         has_login_form: false,
         has_payment_form: false,
       });
-      expect(applyRules(store)).toEqual({ credential: 1, payment: 1, impersonation: 1 });
+      const counts = applyRules(store);
+      expect(counts).toMatchObject({ credential: 1, payment: 1, impersonation: 1 });
       const byId = new Map(
         openStore(dir)
           .manifest()
@@ -393,5 +394,19 @@ describe("setLabels and the lure-type rule (D03 T04 §9)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("the brand rule (D03 T04 §9)", () => {
+  it("names a lure's brand from its text, a real page's from its host, and none otherwise", async () => {
+    const { derivedBrand } = await import("../../scripts/glimmer/label-rules.ts");
+    const page = (labels: Record<string, unknown>, host: string | null = null) =>
+      ({ id: "x", host, labels, label_source: {} }) as never;
+    expect(derivedBrand(page({ lure: true }), "Sign in to your Microsoft 365 account")).toBe("Microsoft 365");
+    expect(derivedBrand(page({ lure: true }), "Verify your FNB online banking")).toBe("FNB");
+    expect(derivedBrand(page({ lure: true }), "Designer shoes 90% off today")).toBeNull();
+    expect(derivedBrand(page({ lure: true }), "Welcome to Metamorphosis")).toBeNull();
+    expect(derivedBrand(page({ lure: false }, "en.wikipedia.org"), "")).toBe("wikipedia");
+    expect(derivedBrand(page({ lure: true, brand: "PayPal" }), "Amazon")).toBeUndefined();
   });
 });

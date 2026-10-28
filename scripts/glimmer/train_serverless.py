@@ -220,10 +220,11 @@ class Recorder:
             self.stop()
 
 
-def run_json(run_dir, version, model_id, params, started, ended, outcome):
+def run_json(run_dir, version, model_id, params, started, ended, outcome, session=None):
     lines = [json.loads(line) for line in read_lines(Path(run_dir) / "metrics.jsonl")] if (
         Path(run_dir) / "metrics.jsonl").is_file() else []
-    sessions = sorted({line["session"] for line in lines if line.get("session")})
+    # The loop names its session only when it returns (its `job_id`); a resumed run's earlier sessions are in its lines.
+    sessions = sorted({line["session"] for line in lines if line.get("session")} | ({session} if session else set()))
     data = {
         "version": version,
         "model_id": model_id,
@@ -300,8 +301,9 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
     try:
         result = loop.main(config)
         outcome = "stopped at cap" if recorder.stopped_at_cap else "completed"
+        session = (result or {}).get("job_id") if isinstance(result, dict) else None
         return result, run_json(run_dir, version, model_id if promote else None, params, started,
-                                datetime.now(timezone.utc).isoformat(timespec="seconds"), outcome)
+                                datetime.now(timezone.utc).isoformat(timespec="seconds"), outcome, session)
     except BaseException:
         run_json(run_dir, version, None, params, started, datetime.now(timezone.utc).isoformat(timespec="seconds"),
                  "stopped at cap" if recorder.stopped_at_cap else outcome)
