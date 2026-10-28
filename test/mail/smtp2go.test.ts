@@ -382,6 +382,35 @@ describe("sendMail", () => {
     }
   });
 
+  it("still refuses, typed, when the refusal cannot be recorded, and records it once when asked again", async () => {
+    const { stub, calls } = smtp2go([ok()]);
+    // The allowlist reads (no member, so refused); the refusal's write fails.
+    const failing = {
+      prepare: (sql: string) => ({
+        bind: (...values: unknown[]) => ({
+          first: async () => null,
+          run: async () =>
+            sql.startsWith("INSERT")
+              ? Promise.reject(new Error("D1 storage full"))
+              : db
+                  .prepare(sql)
+                  .bind(...values)
+                  .run(),
+        }),
+      }),
+    };
+    const stranger = message({ to: "nobody@example.com", sendKey: "reply:unrecorded" });
+    const outcome = await sendMail({ ...deps(stub), db: failing as unknown as D1Database }, stranger);
+    expect(outcome).toEqual({ status: "refused", reason: expect.stringMatching(/could not be recorded/) });
+    expect(calls).toHaveLength(0);
+    // Storage back: the same refusal is recorded, once.
+    expect(await sendMail(deps(stub), stranger)).toMatchObject({ status: "refused" });
+    expect(await sendMail(deps(stub), stranger)).toMatchObject({ status: "refused" });
+    const rows = await db.prepare("SELECT status FROM mail_sends WHERE send_key = 'reply:unrecorded'").all();
+    expect(rows.results).toEqual([{ status: "refused" }]);
+    expect(calls).toHaveLength(0);
+  });
+
   it("sends nothing when the allowlist cannot be read", async () => {
     const { stub, calls } = smtp2go([ok()]);
     const down = { prepare: () => ({ bind: () => ({ first: async () => Promise.reject(new Error("D1 down")) }) }) };

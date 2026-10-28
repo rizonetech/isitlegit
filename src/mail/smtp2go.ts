@@ -154,12 +154,17 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
   }
   if (!allowed) {
     const at = now();
-    await db
-      .prepare(
-        "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'refused', 0, ?, ?) ON CONFLICT (send_key) DO NOTHING",
-      )
-      .bind(ulid(), message.sendKey, message.caseId ?? null, message.kind, toHash, at, at)
-      .run();
+    try {
+      await db
+        .prepare(
+          "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'refused', 0, ?, ?) ON CONFLICT (send_key) DO NOTHING",
+        )
+        .bind(ulid(), message.sendKey, message.caseId ?? null, message.kind, toHash, at, at)
+        .run();
+    } catch {
+      // Refused either way; only the record of it is missing, and asking again records it.
+      return { status: "refused", reason: "the recipient is not on the allowlist (the refusal could not be recorded)" };
+    }
     return { status: "refused", reason: "the recipient is not on the allowlist" };
   }
 
