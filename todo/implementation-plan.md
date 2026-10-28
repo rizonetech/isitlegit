@@ -247,13 +247,14 @@ Sections: 55 | Checklist items: 217
 
 ### Phase 7: After the event
 
-Sections: 10 | Checklist items: 45
+Sections: 11 | Checklist items: 50
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
 | [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none     | 6     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended | 6     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
+| [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -281,6 +282,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 35/212 verified sections, 15 ready to run now.
+Progress: 35/213 verified sections, 15 ready to run now.
 
-Checklist: 405/1167 items completed (includes Commit items).
+Checklist: 405/1172 items completed (includes Commit items).

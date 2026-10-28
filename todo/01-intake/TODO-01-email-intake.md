@@ -46,6 +46,7 @@ track: day-1
 | 9 | §9 | Email Routing for check@ and live smoke | §7, D01 T02 §3 | [ ] |
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
 | 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
+| 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -202,7 +203,7 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 - [ ] Add exact dependency `postal-mime` 4.1.4 to `package.json`. Done when: `pnpm install` resolves it.
 - [ ] Write `parseMessage(bytes)` returning headers (as an ordered list, duplicates kept), `text`, `html`, and attachments with filename, media type, content id and bytes. Done when: `test/intake/parse.test.ts` checks a multipart fixture with two attachments and an inline image.
 - [ ] Store each attachment with `putAttachment(caseId, name, bytes, mediaType)` (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only the derived kinds) and inline images the same way, with their `content_id` in the summary. Done when: the test finds three artefact rows for the fixture.
-- [ ] Write the parsed summary (headers, text, html, attachment keys, and `forward` with §4's `path` and `headersAvailable`; **corrected 2026-10-28**, D01 T01 §4 start: the forward's outcome had no home) with `putParsed(caseId, summary)` to `raw/<caseId>/parsed.json` (**corrected 2026-10-27**, D01 T01 §2's plan review: it is the message's content, so it expires with the message under `raw/`; it was `art/<caseId>/parsed/summary.json`). Done when: the test reads it back and it is under 1 MiB for the fixture.
+- [ ] Write the parsed summary (headers, text, html, attachment keys, and `forward` with §4's `path`, `headersAvailable` and `otherOriginals`; **corrected 2026-10-28**, D01 T01 §4 start: the forward's outcome had no home; its completion review: `otherOriginals`, which the evidence (D02 T01 §1) and the reply (D01 T02 §3) read, was missing) with `putParsed(caseId, summary)` to `raw/<caseId>/parsed.json` (**corrected 2026-10-27**, D01 T01 §2's plan review: it is the message's content, so it expires with the message under `raw/`; it was `art/<caseId>/parsed/summary.json`). Done when: the test reads it back, its `forward` holding §4's three fields for the `two-originals` fixture (`otherOriginals: 1`) and an inline one, and it is under 1 MiB for the fixture.
 - [ ] Treat a parse failure as a typed `ParseError` that the Workflow turns into a partial report (§7). Done when: a truncated fixture raises `ParseError`, not a crash.
 - [ ] Commit: `intake: MIME parsing with attachments stored in R2`
 
@@ -361,6 +362,33 @@ After a forward, the member hears nothing until the verdict reply (D01 T02 §3),
 - [ ] Commit: `intake: acceptance acknowledgement for a forward`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if a refused or duplicate forward is acknowledged, or one forward is acknowledged twice.
+
+
+## 12. Several originals in one forward
+
+A member who attaches several suspicious messages to one forward gets only the first checked and is asked to forward the rest one by one (§4 counts them; D01 T02 §3 says so). Outlook's own Report button takes several selected messages at once (D01 T01 §4 completion review, Part 2 item 2). Checking each attached original as its own case, with its own outcome, removes that extra work for the member, within the daily cap and the model budget.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+
+**Fidelity:** `design/SPEC.md` gains the several-originals outcome: how the reply groups N verdicts, each with its own report link, and what a member sees when the cap admits only some of them; no board yet.
+**Job:** one forward carrying N supported originals produces N cases with N independent outcomes, or as many as the daily cap admits with the rest named as not checked.
+**Treatment:** one reply listing each original's subject and verdict on its own line with its report link; the existing single-case reply unchanged for one original.
+**Chrome:** the reply template (D01 T02 §3) and the report page (D07 T03), no new surface.
+
+**Build order:**
+
+1. Decide the grouped reply and the cap behaviour in the SPEC. Done when: the SPEC section names both.
+2. Admit one case per original and reply once. Done when: a forward with two originals yields two cases and one reply naming both.
+
+- [ ] Add the several-originals outcome to `design/SPEC.md` (the grouped reply, each report link, the partly capped case, an upper bound on originals a forward, defaulting to 5). Done when: the section exists with the bound stated.
+- [ ] Make `extractOriginal` (`src/intake/forward.ts`, §4) return every supported original in order (up to the bound) rather than the first and a count, keeping the precedence of §4 for each. Done when: `test/intake/forward.test.ts` gets both originals of `two-originals` in order and the bound's excess counted.
+- [ ] Admit one case per original under the daily cap in the Workflow's `parse` step (§7), each with its own Workflow, linked to the forward's delivery claim (§3) so a retried delivery makes none twice. Done when: a test with two originals makes two cases and two Workflows, a retry makes none, and a cap of one admits the first and names the second as not checked.
+- [ ] Send one grouped reply for the forward once every case has its verdict (D01 T02 §3's template), instead of one reply per case. Done when: the two-originals fixture's reply lists both subjects, verdicts and report links, and a single-original forward's reply is unchanged.
+- [ ] Commit: `intake: several originals in one forward`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/forward.test.ts test/intake/email.test.ts` passes and fails if a second original is dropped unseen, a retried delivery makes a case twice, or the cap is passed.
 
 ## Verification
 
