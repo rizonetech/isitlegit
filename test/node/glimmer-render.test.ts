@@ -126,6 +126,9 @@ beforeAll(async () => {
   secretOrigin = `http://127.0.0.1:${(secret.address() as AddressInfo).port}`;
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   renderer = await openRenderer({ allowOrigins: [origin], limitMs: 8_000 });
+  // The browser starts lazily on the first page; it starts here, inside the hook's 60 seconds, so no test pays
+  // Chromium's start-up on a slow CI runner (three runs on 2026-10-28 timed out at 15 seconds that way).
+  await renderer.render(`${origin}/page`);
 }, 60_000);
 afterAll(async () => {
   await renderer?.close();

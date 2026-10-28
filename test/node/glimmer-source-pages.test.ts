@@ -50,6 +50,9 @@ describe("visibleText", () => {
   let reader: Awaited<ReturnType<typeof openTextReader>>;
   beforeAll(async () => {
     reader = await openTextReader();
+    // The browser starts lazily on the first page; it starts here, inside the hook's 60 seconds, so no test pays
+    // Chromium's start-up on a slow CI runner (three runs on 2026-10-28 timed out at 15 seconds that way).
+    await reader.renderHtml("<p>start the browser before the tests</p>");
   }, 60_000);
   afterAll(async () => {
     await reader?.close();
