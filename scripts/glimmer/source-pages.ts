@@ -92,7 +92,9 @@ export async function openTextReader(): Promise<{
       serviceWorkers: "block",
     });
     // Nothing a dataset page names is fetched: its own scripts, images and fonts are refused.
-    await context.route("**/*", (route) => route.abort());
+    // Refused as `aborted` (net::ERR_ABORTED), which Chromium never replaces the page with an error page for: a page's
+    // `<meta http-equiv=refresh>` then stays the page it is, instead of navigating away mid-read.
+    await context.route("**/*", (route) => route.abort("aborted"));
     browser.on("disconnected", () => {
       session = null;
     });

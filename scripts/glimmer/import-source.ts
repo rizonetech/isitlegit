@@ -1,7 +1,9 @@
 // The shared import run for a public dataset (D03 T04 §5): each item becomes a store page, four at a time, and the
 // run's account goes to `<store>/raw/<source>/IMPORT.json` (temp-then-rename): items expected, imported (new pages),
-// duplicates (pages already stored, so a rerun stores nothing twice), excluded (each with its item and reason) and
-// stored (the source's pages in the store afterwards). More than 5 percent excluded, or a stop on a write failure,
+// duplicates (pages already stored, so a rerun stores nothing twice), excluded (each with its item and reason: an item
+// that failed to load or store), filtered (each with its item and reason: a page that loaded but renders almost no
+// text, which no rerun changes) and stored (the source's pages in the store afterwards). More than 5 percent excluded,
+// or a stop on a write failure,
 // reads `incomplete`; the source is not used until a rerun completes it.
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -25,6 +27,7 @@ export type ImportResult = {
   imported: number;
   duplicates: number;
   excluded: { item: string; reason: string }[];
+  filtered: { item: string; reason: string }[];
   stored: number;
   reason?: string;
   finished: string;
@@ -64,6 +67,7 @@ export async function importSource(options: {
   let duplicates = 0;
   let stopped: string | undefined;
   const excluded: ImportResult["excluded"] = [];
+  const filtered: ImportResult["filtered"] = [];
   let next = 0;
   async function worker() {
     while (!stopped && next < items.length) {
@@ -75,9 +79,10 @@ export async function importSource(options: {
         excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
         continue;
       }
-      // A page that renders to almost no text (a script-only shell, a blank frame) teaches nothing and is excluded.
+      // A page that renders to almost no text (a script-only shell, a blank frame) teaches nothing: it is filtered out,
+      // and counted apart from failures, because it is what the dataset holds rather than an import that went wrong.
       if (page.text.trim().length < MIN_TEXT_CHARACTERS) {
-        excluded.push({ item: item.id, reason: `renders under ${MIN_TEXT_CHARACTERS} characters of text` });
+        filtered.push({ item: item.id, reason: `renders under ${MIN_TEXT_CHARACTERS} characters of text` });
         continue;
       }
       const labels: Labels = { ...item.labels };
@@ -115,8 +120,8 @@ export async function importSource(options: {
         if ((error as NodeJS.ErrnoException).code) stopped = reason;
         else excluded.push({ item: item.id, reason });
       }
-      if ((imported + duplicates + excluded.length) % 250 === 0)
-        options.log?.(`${source}: ${imported + duplicates + excluded.length} of ${items.length}`);
+      const handled = imported + duplicates + excluded.length + filtered.length;
+      if (handled % 250 === 0) options.log?.(`${source}: ${handled} of ${items.length}`);
     }
   }
   await Promise.all(Array.from({ length: options.concurrency ?? 4 }, worker));
@@ -128,6 +133,7 @@ export async function importSource(options: {
     imported,
     duplicates,
     excluded,
+    filtered,
     stored,
     ...(stopped
       ? { reason: stopped }

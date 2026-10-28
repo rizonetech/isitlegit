@@ -90,6 +90,13 @@ describe("visibleText", () => {
     expect(await flags("<p>Just text</p>")).toEqual([false, false]);
   });
 
+  it("stays on a page whose meta refresh points elsewhere", async () => {
+    const out = await reader.renderHtml(
+      '<meta http-equiv="refresh" content="0;url=https://elsewhere.example/"><p>Your parcel is waiting for collection</p>',
+    );
+    expect(out.text).toBe("Your parcel is waiting for collection");
+  });
+
   it("captures only the kept 1280 by 2000 pixels of a very tall page", async () => {
     const out = await reader.renderHtml('<body><h1>Top</h1><div style="height:60000px"></div><p>Bottom</p></body>');
     expect(jpegSize(out.screenshot)).toEqual({ width: 1280, height: 2000 });

@@ -189,8 +189,24 @@ describe("the import run", () => {
       ],
       store: openStore(join(dir, "store")),
     });
-    expect(result.excluded).toEqual([{ item: "blank", reason: "renders under 20 characters of text" }]);
+    expect(result.filtered).toEqual([{ item: "blank", reason: "renders under 20 characters of text" }]);
+    expect(result.excluded).toEqual([]);
     expect(result.status).toBe("complete");
+  });
+
+  it("keeps a source complete when only filtered pages pass 5 percent", async () => {
+    const blank = (id: string): SourceItem => ({
+      ...item(id, "#444"),
+      load: async () => ({ screenshot: await jpeg(64, 64), text: "" }),
+    });
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [item("kept", "#555"), blank("x"), blank("y")],
+      store: openStore(join(dir, "store")),
+    });
+    expect(result).toMatchObject({ status: "complete", imported: 1 });
+    expect(result.filtered).toHaveLength(2);
   });
 
   it("records exclusions and goes incomplete past 5 percent", async () => {
