@@ -187,4 +187,30 @@ describe("the reply step", () => {
     expect(again.mail).toBe("duplicate");
     expect(requests).toHaveLength(1);
   });
+
+  it("still replies, with the stored Message-ID, when the summary or the forward cannot be read", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const partial = { status: "partial" as const, failedStep: "parse" as const, errorClass: "StoreError" };
+    const broken = [
+      { ...env.ARTEFACTS, get: () => Promise.reject(new Error("R2 down")) },
+      {
+        ...env.ARTEFACTS,
+        get: async () => ({
+          arrayBuffer: () => Promise.reject(new Error("cut off")),
+          text: () => Promise.reject(new Error("cut off")),
+        }),
+      },
+    ];
+    for (const bucket of broken) {
+      const requests = stubSmtp2go(["sent"]);
+      const id = await caseFrom(forwards["inline-forward"]);
+      const result = await reply({ ...env, ARTEFACTS: bucket as unknown as R2Bucket }, id, partial);
+      expect(result.mail).toBe("sent");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.subject).toBe("Re: your IsItLegit check");
+      expect(header(requests[0] as Request_, "In-Reply-To")).toBe("<forward-77@fictional-recipient.example>");
+      expect(requests[0]?.text_body).toContain("forward the message again");
+      vi.restoreAllMocks();
+    }
+  });
 });

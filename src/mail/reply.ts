@@ -49,14 +49,24 @@ export function threading(
   };
 }
 
-// The forward's own headers from the start of its stored bytes, or null when they cannot be read.
+// The forward's own headers from the start of its stored bytes, or null when they cannot be read. The header block goes
+// to postal-mime as bytes, so a UTF-8 subject (RFC 6532) is read as written, not as Latin-1.
 export async function parentHeaders(head: Uint8Array | null): Promise<ParentHeaders | null> {
   if (!head) return null;
-  const text = new TextDecoder("latin1").decode(head.subarray(0, HEADER_BYTES));
-  const end = text.search(/\r?\n\r?\n/);
+  const bytes = head.subarray(0, HEADER_BYTES);
+  let end = -1;
+  for (let i = 0; i + 1 < bytes.length; i++) {
+    if (bytes[i] === 0x0a && (bytes[i + 1] === 0x0a || (bytes[i + 1] === 0x0d && bytes[i + 2] === 0x0a))) {
+      end = i;
+      break;
+    }
+  }
   if (end < 0) return null;
+  const block = new Uint8Array(end + 5);
+  block.set(bytes.subarray(0, end + 1));
+  block.set([0x0d, 0x0a, 0x0d, 0x0a], end + 1);
   try {
-    const email = await PostalMime.parse(`${text.slice(0, end)}\r\n\r\n`);
+    const email = await PostalMime.parse(block);
     const header = (name: string) => email.headers.find((h) => h.key === name)?.value ?? null;
     return {
       subject: email.subject ?? null,
@@ -90,7 +100,9 @@ const VERDICT_WORDS: Record<VerdictView["verdict"], string> = {
   malicious: "Fraud",
 };
 
-export type ReplyReport = { status: "ready"; view: VerdictView } | { status: "partial"; failedStep: string };
+export type ReplyReport =
+  | { status: "ready"; view: VerdictView }
+  | { status: "partial"; failedStep: string; errorClass: string };
 export type ReplyInput = {
   parentSubject: string | null;
   headersAvailable: boolean;
@@ -111,7 +123,7 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
   const notes: string[] = [];
   if (!input.headersAvailable)
     notes.push(
-      "We could not see the original message's headers, so the sender checks could not run. Next time, forward it as an attachment: in Outlook choose More, then Forward as attachment; in Gmail choose the three dots, then Forward as attachment.",
+      "We could not see the original message's headers, so the sender checks could not run. Next time, forward it as an attachment. In Outlook, select the message, then choose Forward as attachment (in the Forward menu, or under More actions). In Gmail on a computer, tick the message in your inbox list, then choose More (the three dots) and Forward as attachment; the Gmail phone app cannot do this.",
     );
   if (input.otherOriginals > 0)
     notes.push(
@@ -137,7 +149,9 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
       `<p>What to do now:</p><ul>${actions.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>`,
     ];
   } else {
-    const unreadable = input.report.failedStep === "parse";
+    // The message itself could not be read (the parsers refused it) only on a ParseError; any other failure, the
+    // stored message gone or a service fault included, is ours, and forwarding it again is the advice.
+    const unreadable = input.report.failedStep === "parse" && input.report.errorClass === "ParseError";
     const advice = unreadable
       ? "We could not read the message you forwarded. Forward it again as an attachment; if it was an Outlook .msg file, save it as .eml first."
       : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";

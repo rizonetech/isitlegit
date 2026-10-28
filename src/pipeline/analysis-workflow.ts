@@ -290,15 +290,21 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
     if (!stored?.ok) throw new Error(`reading the verdict for the reply: ${stored ? stored.error.code : "missing"}`);
     report = { status: "ready", view: stored.value };
   } else {
-    report = { status: "partial", failedStep: state.failedStep };
+    report = { status: "partial", failedStep: state.failedStep, errorClass: state.errorClass };
   }
-  const summary = await readArtefact(store, caseId, parsedKey(caseId));
-  const otherOriginals =
-    summary && "body" in summary
-      ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
-      : 0;
-  const head = await env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } });
-  const parent = (await parentHeaders(head ? new Uint8Array(await head.arrayBuffer()) : null)) ?? {
+  // The summary and the forward's header block are optional: either unreadable (gone, or a storage fault) and the reply
+  // still goes, with no other-originals note and the fallback subject and threading.
+  const otherOriginals = await readArtefact(store, caseId, parsedKey(caseId))
+    .then((summary) =>
+      summary && "body" in summary
+        ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
+        : 0,
+    )
+    .catch(() => 0);
+  const head = await env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } })
+    .then(async (object) => (object ? new Uint8Array(await object.arrayBuffer()) : null))
+    .catch(() => null);
+  const parent = (await parentHeaders(head)) ?? {
     subject: null,
     messageId: null,
     references: null,

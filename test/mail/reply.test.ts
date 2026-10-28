@@ -90,14 +90,19 @@ describe("buildReply", () => {
 
   it("tells a member plainly that a check could not finish, with no verdict and no internal names", () => {
     for (const failedStep of ["parse", "checks"]) {
-      const reply = buildReply({ ...base, report: { status: "partial", failedStep } });
+      const reply = buildReply({ ...base, report: { status: "partial", failedStep, errorClass: "Error" } });
       expect(reply.text).toContain("We could not finish checking this message");
       expect(reply.text).not.toMatch(/Fraud|Suspicious|Looks legitimate|checks step|parse|ParseError|§/);
       expect(reply.text).toContain(URL_);
     }
-    expect(buildReply({ ...base, report: { status: "partial", failedStep: "parse" } }).text).toContain(
-      "save it as .eml",
-    );
+    // Only a message the parsers refused is the member's to change; anything else is ours, and the advice is to try again.
+    const advice = (errorClass: string) =>
+      buildReply({ ...base, report: { status: "partial", failedStep: "parse", errorClass } }).text;
+    expect(advice("ParseError")).toContain("save it as .eml");
+    for (const ours of ["RawMissing", "StoreError", "Error"]) {
+      expect(advice(ours), ours).not.toContain(".eml");
+      expect(advice(ours), ours).toContain("forward the message again");
+    }
   });
 });
 
@@ -147,6 +152,8 @@ describe("parentHeaders", () => {
       inReplyTo: null,
     });
     expect(await parentHeaders(null)).toBeNull();
+    const utf8 = new TextEncoder().encode("Subject: Fwd: Faktuur vir José 🚩\r\nMessage-ID: <ü@x>\r\n\r\nbody\r\n");
+    expect(await parentHeaders(utf8)).toMatchObject({ subject: "Fwd: Faktuur vir José 🚩" });
     expect(await parentHeaders(new TextEncoder().encode("no blank line at all"))).toBeNull();
   });
 });
