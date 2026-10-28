@@ -37,7 +37,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Better Auth on D1 with email magic link | D01 T01 §1, D01 T02 §1 | [x] |
 | 2 | §2 | Passkey sign-in | §1 | [x] |
-| 3 | §3 | Organisations, roles, invites and removal | §1 | [ ] |
+| 3 | §3 | Organisations, roles, invites and removal | §1 | [x] |
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [ ] |
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [ ] |
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [ ] |
@@ -146,9 +146,12 @@ Evidence 2026-10-28 (after the reviews; it replaces the build's first paragraph)
 
 **Decision 2026-10-28 (review rounds 1 and 2):** an invitation is used once. Its use is recorded in `invitation_uses` (migration 0012) before Better Auth accepts it, only for the signed-in recipient of a pending, unexpired invitation, and a second use is refused (409) whatever the invitation's status says, because Better Auth moves that status both ways (it resets an acceptance to pending when its membership write fails). An acceptance interrupted between Better Auth's two writes is recovered by an owner sending a new invitation, not by reopening the old one: the completion review's recovery that did reopen it let a removed member come back and two acceptances both proceed, and was withdrawn. Migration 0011 holds one membership per user and organisation. Reversing it means a self-service recovery with its own proof of first use; the cost of keeping it is one more invitation from an owner after a rare interruption.
 
-- [ ] Commit: `auth: organisations, roles, invites and removal`
+- [x] Commit: `auth: organisations, roles, invites and removal`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth test/node/auth-schema.test.ts` passes and fails if `requireOrg` trusts a query parameter, a member can create an organisation or invite, an invite reports success when its email did not go, or a removed member keeps access.
+
+> **Verified:** 2026-10-28 | §3 | 7603dc0807588d9942b73a8323986c6525998d91
+> **Review:** `docs/reviews/d07-t02-s3.json`
 
 ## 4. Invite-code signup and daily case caps
 

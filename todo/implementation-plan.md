@@ -48,7 +48,7 @@ Sections: 38 | Checklist items: 274
 | [x]    | D07 T01 §5 | Hashed static assets and fonts             | none                  | 16    |
 | [x]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 9     |
 | [x]    | D07 T02 §2 | Passkey sign-in                            | none                  | 9     |
-| [ ]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 9     |
+| [x]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 9     |
 | [ ]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 4     |
 | [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 7     |
 | [ ]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 6     |
@@ -278,6 +278,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 30/209 verified sections, 12 ready to run now.
+Progress: 31/209 verified sections, 15 ready to run now.
 
-Checklist: 364/1124 items completed (includes Commit items).
+Checklist: 365/1124 items completed (includes Commit items).
