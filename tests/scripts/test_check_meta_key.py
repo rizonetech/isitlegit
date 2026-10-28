@@ -1,4 +1,5 @@
 """scripts/check-meta-key.py (D99 T01 §1): the key passes only when Meta accepts it, and never reaches the output."""
+import hashlib
 import importlib.util
 import pathlib
 import unittest
@@ -10,6 +11,7 @@ cmk = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cmk)
 
 KEY = "LLM_1234567890_abcdefghijKLMNOP"
+KEY_ID = hashlib.sha256(b"1234567890").hexdigest()[:16]
 
 
 def models(status=200, ids=("muse-spark-1.3", "muse-wonder-1.0")):
@@ -18,20 +20,31 @@ def models(status=200, ids=("muse-spark-1.3", "muse-wonder-1.0")):
 
 class MetaKey(unittest.TestCase):
     def outcome(self, read=lambda: KEY, list_models=None):
-        passed, line = cmk.check(read=read, models=list_models or models())
+        passed, line = cmk.check(read=read, models=list_models or models(), expected=KEY_ID)
         self.assertNotIn(KEY, line)
         return passed, line
 
     def test_a_working_key_passes(self):
-        self.assertEqual(self.outcome(), (True, "check-meta-key: HTTP 200, 2 models listed, muse-spark-1.3 among them; key shape ok"))
+        self.assertEqual(self.outcome(), (True, "check-meta-key: HTTP 200, 2 models listed, muse-spark-1.3 among them; the recorded key"))
 
     def test_a_placeholder_or_whitespace_is_refused_before_any_call(self):
         called = []
         for value in ("  ", "placeholder", "LLM_", "sk-something"):
             with self.subTest(value):
-                passed, line = cmk.check(read=lambda v=value: v, models=lambda key: called.append(key) or (200, []))
+                passed, line = cmk.check(read=lambda v=value: v, models=lambda key: called.append(key) or (200, []),
+                                         expected=KEY_ID)
                 self.assertFalse(passed)
                 self.assertIn("does not hold a Meta key", line)
+        self.assertEqual(called, [])
+
+    def test_another_teams_working_key_is_refused_before_any_call(self):
+        called = []
+        other = "LLM_9999999999_zyxwvutsrqPONMLK"
+        passed, line = cmk.check(read=lambda: other, models=lambda key: called.append(key) or (200, ["muse-spark-1.3"]),
+                                 expected=KEY_ID)
+        self.assertFalse(passed)
+        self.assertIn("another Meta key", line)
+        self.assertNotIn(other, line)
         self.assertEqual(called, [])
 
     def test_a_revoked_or_foreign_key_is_refused(self):
