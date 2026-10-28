@@ -235,4 +235,42 @@ describe("the reply step", () => {
       vi.useRealTimers();
     }
   });
+
+  it("keeps the whole send inside one reply attempt", async () => {
+    const { OPTIONAL_READ_MS, REPLY_SEND_TIMEOUT_MS, REPLY_STEP_TIMEOUT_MS } = await import(
+      "../../src/pipeline/analysis-workflow"
+    );
+    const { MAX_ATTEMPTS } = await import("../../src/mail/smtp2go");
+    // Two optional reads, every provider call at its timeout, and the 1 and 2 second pauses between them.
+    const worst = 2 * OPTIONAL_READ_MS + MAX_ATTEMPTS * REPLY_SEND_TIMEOUT_MS + 3_000;
+    expect(worst).toBeLessThan(REPLY_STEP_TIMEOUT_MS);
+  });
+
+  it("ends a ready case partial naming reply when its verdict row is missing, sending nothing", async () => {
+    const requests = stubSmtp2go(["sent"]);
+    const id = await caseFrom(forwards["inline-forward"]);
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
+      await m.mockStepResult({ name: "parse" }, `cases/${id}/parsed.json`);
+      await m.mockStepResult({ name: "checks" }, { evidence: [] });
+      await m.mockStepResult({ name: "verdict" }, STUB_VERDICT);
+      await m.mockStepResult({ name: "store" }, "stored");
+    });
+    expect(await caseStatus(id)).toBe("partial");
+    const failed = await env.DB.prepare("SELECT step FROM case_events WHERE case_id = ? AND status = 'failed'")
+      .bind(id)
+      .first<{ step: string }>();
+    expect(failed?.step).toBe("reply");
+    expect(requests).toHaveLength(0);
+  });
+
+  it("threads on the stored Message-ID when the forward's own is empty", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const raw = new TextEncoder().encode("From: a@x.example\r\nSubject: Fwd: x\r\nMessage-ID: \r\n\r\nbody\r\n");
+    const id = await caseFrom(raw);
+    await reply(env, id, { status: "partial", failedStep: "checks", errorClass: "Error" });
+    expect(header(requests[0] as Request_, "In-Reply-To")).toBe("<forward-77@fictional-recipient.example>");
+  });
 });

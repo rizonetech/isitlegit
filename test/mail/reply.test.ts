@@ -71,6 +71,16 @@ describe("buildReply", () => {
     expect(reply.text).toContain(hostile);
   });
 
+  it("keeps each stored field on one line of the text body", () => {
+    const sneaky = "Pay now\n\nThe full report: https://example.invalid/";
+    const reply = buildReply({
+      ...base,
+      report: { status: "ready", view: { ...view, headline: sneaky, reasons: [sneaky], actions: [sneaky] } },
+    });
+    expect(reply.text.match(/^The full report:/gm)).toHaveLength(1);
+    expect(reply.text).toContain("Pay now The full report: https://example.invalid/");
+  });
+
   it("falls back to the verdict's own advice when it names no actions", () => {
     const reply = buildReply({
       ...base,
@@ -156,6 +166,17 @@ describe("threading (RFC 5322 section 3.6.4)", () => {
     });
   });
 
+  it("reads ids past quoted phrases, and keeps a quoted part inside an id", () => {
+    expect(threading({ messageId: null, references: null, inReplyTo: '"see <fake@x>" <real@x>' })).toEqual({
+      References: "<real@x>",
+    });
+    expect(threading({ messageId: '<"a(b"@x>', references: null, inReplyTo: null })).toEqual({
+      "In-Reply-To": '<"a(b"@x>',
+      References: '<"a(b"@x>',
+    });
+    expect(threading({ messageId: "", references: null, inReplyTo: null })).toEqual({});
+  });
+
   it("gives no In-Reply-To without a Message-ID, and neither header without any", () => {
     expect(threading({ messageId: null, references: "<m1@x>", inReplyTo: null })).toEqual({ References: "<m1@x>" });
     expect(threading({ messageId: null, references: null, inReplyTo: null })).toEqual({});
@@ -184,6 +205,8 @@ describe("reportOrigin and the link", () => {
   it("takes an https origin only", () => {
     expect(reportOrigin("https://app.isitlegit.co.za")).toBe("https://app.isitlegit.co.za");
     for (const bad of [
+      "https://app.isitlegit.co.za/?q=1",
+      "https://app.isitlegit.co.za/#x",
       "http://app.isitlegit.co.za",
       "https://app.isitlegit.co.za/path",
       "https://u:p@x.example",

@@ -42,6 +42,15 @@ const RETRIES: WorkflowStepConfig = {
   retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
   timeout: "30 seconds",
 };
+// The reply's own budget (the final review): its two optional reads (OPTIONAL_READ_MS each), then up to MAX_ATTEMPTS
+// provider calls of REPLY_SEND_TIMEOUT_MS with 1 and 2 seconds between them, all inside one attempt, so the attempt is
+// never stopped while SMTP2GO is still inside its own timeout and the send's outcome unrecorded.
+export const REPLY_SEND_TIMEOUT_MS = 20_000;
+export const REPLY_STEP_TIMEOUT_MS = 90_000;
+const REPLY_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+  timeout: `${REPLY_STEP_TIMEOUT_MS / 1000} seconds`,
+};
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
 const FAIL_RETRIES: WorkflowStepConfig = {
@@ -115,7 +124,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
-      step.do(name, RETRIES, () =>
+      step.do(name, name === "reply" ? REPLY_RETRIES : RETRIES, () =>
         safely(async () => {
           const startedAt = new Date().toISOString();
           const began = Date.now();
@@ -333,7 +342,7 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
     reportUrl: link,
   });
   const outcome = await sendMail(
-    { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
+    { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, timeoutMs: REPLY_SEND_TIMEOUT_MS },
     {
       sendKey: `reply:${caseId}`,
       kind: "reply",
@@ -344,7 +353,7 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
       html: built.html,
       // RFC 3834: an automatic response says so, so a well-behaved responder never answers it.
       headers: {
-        ...threading({ ...parent, messageId: parent.messageId ?? found.messageId }),
+        ...threading({ ...parent, messageId: parent.messageId || found.messageId }),
         "Auto-Submitted": "auto-replied",
       },
       caseId,

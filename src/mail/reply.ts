@@ -5,7 +5,7 @@
 import PostalMime from "postal-mime";
 import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
-import { withoutComments } from "./rfc5322";
+import { messageIds } from "./rfc5322";
 
 export const REPLY_FROM = "IsItLegit <check@isitlegit.co.za>";
 export const FALLBACK_SUBJECT = "Re: your IsItLegit check";
@@ -33,7 +33,7 @@ export function reportOrigin(configured: string | undefined): string {
   return url.origin;
 }
 
-const ids = (value: string | null) => (value ? withoutComments(value).match(/<[^<>\s()]+>/g) : null) ?? [];
+const ids = (value: string | null) => (value ? messageIds(value) : []);
 
 // RFC 5322 section 3.6.4: In-Reply-To is the parent's Message-ID; References is the parent's References (or, without
 // them, its In-Reply-To when that holds one id) followed by its Message-ID. A parent with none gives neither.
@@ -114,6 +114,9 @@ export type ReplyInput = {
   reportUrl: string;
 };
 
+// A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").
+const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").trim();
+
 const escapeHtml = (value: string) =>
   value
     .replace(/&/g, "&amp;")
@@ -140,11 +143,11 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
     const reasons = view.reasons.slice(0, 3);
     const actions = view.actions.length ? view.actions : [DEFAULT_ACTIONS[view.verdict]];
     lines = [
-      `${VERDICT_WORDS[view.verdict]}: ${view.headline}`,
-      ...(reasons.length ? ["", "Why:", ...reasons.map((r) => `- ${r}`)] : []),
+      `${VERDICT_WORDS[view.verdict]}: ${oneLine(view.headline)}`,
+      ...(reasons.length ? ["", "Why:", ...reasons.map((r) => `- ${oneLine(r)}`)] : []),
       "",
       "What to do now:",
-      ...actions.map((a) => `- ${a}`),
+      ...actions.map((a) => `- ${oneLine(a)}`),
     ];
     blocks = [
       `<p><strong>${escapeHtml(VERDICT_WORDS[view.verdict])}</strong>: ${escapeHtml(view.headline)}</p>`,
