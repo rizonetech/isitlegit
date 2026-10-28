@@ -8,10 +8,13 @@ import {
   assertConsent,
   bodyWithImages,
   CONSENT_HEADING,
+  clientDomains,
   htmlAttachments,
   labelOf,
   leaks,
+  protectedTerms,
   recipientNames,
+  renderRedacted,
 } from "../../scripts/glimmer/import-samples.ts";
 import { redact } from "../../scripts/glimmer/redact.ts";
 
@@ -81,6 +84,24 @@ describe("the sample importer", () => {
     expect(clean).not.toMatch(/Thandi|Acme Holdings|62812345678/);
     expect(clean).toContain("FNB");
     expect(addresses(email, MESSAGE)).toEqual(["thandi.vdmerwe@acme.co.za", "accounts@acme.co.za"]);
+  });
+
+  it("protects the client's own domains, not a public mail provider's", () => {
+    const terms = protectedTerms(["Acme Holdings"], ["thandi@acme.co.za", "someone@gmail.com"]);
+    expect(terms).toEqual(["Acme Holdings", "thandi@acme.co.za", "someone@gmail.com", "acme.co.za"]);
+    expect(clientDomains(["a@outlook.com", "b@acme.co.za"])).toEqual(["acme.co.za"]);
+    // A domain standing alone in the text is redacted once it is among the terms.
+    expect(redact("<p>Visit acme.co.za today</p>", ["acme.co.za"])).toBe("<p>Visit [name] today</p>");
+  });
+
+  it("refuses a rendered page whose text still holds a client detail", async () => {
+    const terms = ["acme.co.za"];
+    // The source splits the address with a tag, so redaction cannot see it; the render joins it up again.
+    const joined = async (html: string) => ({ text: html.replace(/<[^>]+>/g, "") });
+    await expect(renderRedacted(joined, "<p>thandi@<b></b>acme<i></i>.co.za</p>", [], terms)).rejects.toThrow(
+      /survived redaction/,
+    );
+    expect((await renderRedacted(joined, "<p>Verify with FNB</p>", [], terms)).text).toBe("Verify with FNB");
   });
 
   it("finds a client name or address that survives into a page, and nothing in a redacted one", () => {

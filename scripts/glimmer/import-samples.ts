@@ -110,6 +110,30 @@ export function addresses(email: Email, raw: string): string[] {
   return [...people.map((p) => p.address ?? ""), ...delivered].filter(Boolean).map((a) => a.toLowerCase());
 }
 
+// The client's own domains: every recipient address's domain that is not a public mail provider.
+export function clientDomains(recipientAddresses: string[]): string[] {
+  const publicMail = /^(gmail|googlemail|outlook|hotmail|live|yahoo|icloud|me|aol|proton|protonmail)\./;
+  return [...new Set(recipientAddresses.map((a) => a.split("@")[1] ?? ""))].filter((d) => d && !publicMail.test(d));
+}
+
+// What must never reach a stored sample page: client names, recipient addresses and the client's domains.
+export function protectedTerms(clientNames: string[], recipientAddresses: string[]): string[] {
+  return [...clientNames, ...recipientAddresses, ...clientDomains(recipientAddresses)];
+}
+
+// A sample's HTML redacted, then rendered, then checked: an address split by tags in the source can join up again on
+// render, so a page whose text still holds a client detail is refused, never stored.
+export async function renderRedacted<T extends { text: string }>(
+  render: (html: string) => Promise<T>,
+  html: string,
+  names: string[],
+  terms: string[],
+): Promise<T> {
+  const page = await render(redact(html, names));
+  if (leaks([{ id: "page", text: page.text }], terms).length) throw new Error("a client detail survived redaction");
+  return page;
+}
+
 // Every stored sample page whose text holds a client name, a recipient address or the client's domain.
 export function leaks(pages: { id: string; text: string }[], terms: string[]): { id: string; term: string }[] {
   const wanted = [...new Set(terms.map((t) => t.toLowerCase()).filter((t) => t.length >= 3))];
@@ -149,14 +173,12 @@ async function main(command: string | undefined) {
     return 0;
   }
   const store = openStore(storeDir());
+  const terms = protectedTerms(
+    clientNames,
+    parsed.flatMap(({ email, raw }) => addresses(email, raw)),
+  );
+  const domains = clientDomains(parsed.flatMap(({ email, raw }) => addresses(email, raw)));
   if (command === "leak-check") {
-    const terms = [...clientNames, ...parsed.flatMap(({ email, raw }) => addresses(email, raw))];
-    // The client's own domains: every recipient address's domain that is not a public mail provider.
-    const publicMail = /^(gmail|outlook|hotmail|live|yahoo|icloud)\./;
-    for (const address of new Set(terms.filter((t) => t.includes("@")))) {
-      const domain = address.split("@")[1] ?? "";
-      if (domain && !publicMail.test(domain)) terms.push(domain);
-    }
     const pages = store
       .manifest()
       .filter((p: StoredPage) => p.origin === "samples")
@@ -179,7 +201,8 @@ async function main(command: string | undefined) {
       const items: SourceItem[] = [];
       for (const { file, raw, email } of parsed) {
         const label = labelOf(file, manifest);
-        const names = recipientNames(email, raw, clientNames);
+        // The client's domains are redacted too: a domain can stand alone in the text, outside any address.
+        const names = [...recipientNames(email, raw, clientNames), ...domains];
         const htmls =
           kind === "attachment" ? htmlAttachments(email) : [bodyWithImages(email)].filter((h): h is string => !!h);
         htmls.forEach((html, index) => {
@@ -189,7 +212,7 @@ async function main(command: string | undefined) {
             labels: label.lure === undefined ? {} : { lure: label.lure },
             label_source:
               label.lure === undefined ? {} : { lure: label.source === "ground-truth" ? "ground-truth" : "unverified" },
-            load: () => reader.renderHtml(redact(html, names)),
+            load: () => renderRedacted(reader.renderHtml, html, names, terms),
           });
         });
       }
