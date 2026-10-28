@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { admitCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
-import { CLAIM_LEASE_MS, handleEmail, MAX_MESSAGE_BYTES, RetryDelivery, sweepIntake } from "../../src/intake/email";
+import {
+  CLAIM_LEASE_MS,
+  handleEmail,
+  isAutomatic,
+  MAX_MESSAGE_BYTES,
+  RetryDelivery,
+  sweepIntake,
+} from "../../src/intake/email";
 import { EMAIL_ROUTING_AUTHSERV_ID } from "../../src/intake/sender";
 import { rawKey } from "../../src/intake/store";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
@@ -170,6 +177,21 @@ describe("handleEmail", () => {
     expect(await workflowExists(caseId)).toBe(true);
     expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "done", case_id: caseId }]);
     expect(world.sends).toEqual([]);
+  });
+
+  it("reads Auto-Submitted as RFC 3834's keyword, comments and parameters around it", () => {
+    for (const machine of [
+      "auto-replied",
+      "no-reply",
+      "No-Reply",
+      "auto-generated; owner-email=a@b",
+      "(x) auto-replied",
+      "",
+    ])
+      expect(isAutomatic(machine), machine).toBe(true);
+    for (const person of ["no", "No", " no ", "(human) no", "no (sent by a person)", "no; reason=x"])
+      expect(isAutomatic(person), person).toBe(false);
+    expect(isAutomatic(null)).toBe(false);
   });
 
   it("ignores a message a machine sent on its own, and takes one marked Auto-Submitted: no", async () => {

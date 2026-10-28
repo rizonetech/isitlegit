@@ -5,6 +5,7 @@
 import PostalMime from "postal-mime";
 import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
+import { withoutComments } from "./rfc5322";
 
 export const REPLY_FROM = "IsItLegit <check@isitlegit.co.za>";
 export const FALLBACK_SUBJECT = "Re: your IsItLegit check";
@@ -32,22 +33,6 @@ export function reportOrigin(configured: string | undefined): string {
   return url.origin;
 }
 
-// RFC 5322's comments, (nested, with \-escapes), removed: an id inside one is not an id (round 1).
-function withoutComments(value: string): string {
-  let out = "";
-  let depth = 0;
-  for (let i = 0; i < value.length; i++) {
-    const c = value[i];
-    if (c === "\\" && depth > 0) {
-      i++;
-      continue;
-    }
-    if (c === "(") depth++;
-    else if (c === ")" && depth > 0) depth--;
-    else if (depth === 0) out += c;
-  }
-  return out;
-}
 const ids = (value: string | null) => (value ? withoutComments(value).match(/<[^<>\s()]+>/g) : null) ?? [];
 
 // RFC 5322 section 3.6.4: In-Reply-To is the parent's Message-ID; References is the parent's References (or, without

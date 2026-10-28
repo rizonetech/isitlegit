@@ -10,9 +10,11 @@
 // case. A failed step is undone and the delivery thrown, so Email Routing's retry starts clean; when it is unknown
 // whether the Workflow started, the claim is left pending with its case and whoever next reaches it (the same message's
 // retry after five minutes, or the scheduled sweep) settles it by asking the Workflow.
+
 import { memberOfSender } from "../auth/senders";
 import { admitCase, DEFAULT_DAILY_CASES } from "../db/cases";
 import { ulid } from "../db/ulid";
+import { withoutComments } from "../mail/rfc5322";
 import { sendMail } from "../mail/smtp2go";
 import { senderAuthenticated } from "./sender";
 import { putRaw, rawKey, type Store } from "./store";
@@ -45,6 +47,14 @@ export type IntakeOutcome =
 
 type Claim = { orgId: string; key: string; claimedAt: string };
 
+// RFC 3834 section 5: Auto-Submitted is a keyword, comments allowed around it and parameters after a ";". Only the
+// keyword "no" marks a person's message; any other (auto-replied, auto-generated, no-reply) is a machine's.
+export function isAutomatic(value: string | null): boolean {
+  if (value === null) return false;
+  const keyword = withoutComments(value).split(";")[0]?.trim().toLowerCase() ?? "";
+  return keyword !== "no";
+}
+
 export async function handleEmail(
   message: ForwardableEmailMessage,
   env: Env,
@@ -59,8 +69,7 @@ export async function handleEmail(
     message.setReject("Message too large");
     return { kind: "too-large" };
   }
-  const automatic = message.headers.get("Auto-Submitted")?.trim().toLowerCase();
-  if (automatic && !/^no\b/.test(automatic)) return { kind: "automatic" };
+  if (isAutomatic(message.headers.get("Auto-Submitted"))) return { kind: "automatic" };
   const from = message.from.trim().toLowerCase();
   // What the organisation verified decides what the mail must prove: its domain, or this one mailbox.
   const member = await memberOfSender(env.DB, from);
