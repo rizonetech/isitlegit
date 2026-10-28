@@ -72,7 +72,7 @@ Credits apply in batches after the claim form; until they show, every call is ch
 
 Meta credit visible: 2026-10-27
 
-**Test checkpoint:** `op item get "IsItLegit Meta Model API" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has) (the item exists; the value is never printed).
+**Test checkpoint:** `bash -o pipefail -c '~/.local/bin/conclave-op read "op://Conclave/IsItLegit Meta Model API/credential" | tr -d "\r\n" | wc -c'` exits 0 and prints a number greater than 1 (the lookup succeeded and the key is filled in; only the count is shown, never the value). **Corrected 2026-10-28** (D99 T01 §1's plan review): it called bare `op item get`, outside WSL's Conclave path (`conclave-op` with the service account), and a failed lookup could still print a count; the earlier text, kept: `op item get "IsItLegit Meta Model API" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has) (the item exists; the value is never printed).
 
 ## 2. Domain verification and nameservers
 
@@ -204,7 +204,7 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 - [x] ~~Add a Google Cloud budget alert on the Rizonetech project for the Web Risk API at US$1 (alerts at 50, 90 and 100%), so any charge at all is seen the same day. Done when: Billing, Budgets and alerts lists it.~~ **Struck 2026-10-27:** the budget's Services filter lists only services with billable usage, and Web Risk has none (its free tier is not billed); a project-wide alert would fire on the project's other services. Charges are already bounded: the code caps lookups at 3,000 a day (D02 T06 §1) and a test refuses any Update API call; the metrics check below covers the other path.
 - [ ] Commit: `todo: record the Web Risk key`
 
-**Test checkpoint:** `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has).
+**Test checkpoint:** `bash -o pipefail -c '~/.local/bin/conclave-op read "op://Conclave/IsItLegit Web Risk/credential" | tr -d "\r\n" | wc -c'` exits 0 and prints a number greater than 1 (the lookup succeeded and the key is filled in; only the count is shown, never the value). **Corrected 2026-10-28** (D99 T01 §1's plan review): it called bare `op item get`, outside WSL's Conclave path (`conclave-op` with the service account), and a failed lookup could still print a count; the earlier text, kept: `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has).
 
 ## 7. Partner credits for Glimmer
 
