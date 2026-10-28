@@ -3,7 +3,13 @@ import { extractOriginal, ParseError } from "../../src/intake/forward";
 import { forwards, inners } from "../fixtures/forward/load";
 
 // D01 T01 §4: the original inside a forward, its precedence, the inline fallback and the parser's refusal.
-const MSG_MAGIC = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+// The placeholder .msg the fixture carries (base64 in attached-msg.eml): the compound-file magic, 56 zero bytes and a
+// note. Compared whole, so a truncated or altered attachment fails.
+const PLACEHOLDER_MSG = new Uint8Array([
+  ...[0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1],
+  ...new Array(56).fill(0),
+  ...new TextEncoder().encode("placeholder Outlook message: D01 T01 §6 parses real ones"),
+]);
 
 describe("extractOriginal", () => {
   it("returns the attached original's exact bytes, with its headers, for each attachment kind", async () => {
@@ -21,9 +27,8 @@ describe("extractOriginal", () => {
       path: "eml",
       otherOriginals: 0,
     });
-    const msg = await extractOriginal(forwards["attached-msg"]);
-    expect({ ...msg, original: [...msg.original.subarray(0, 8)] }).toEqual({
-      original: MSG_MAGIC,
+    expect(await extractOriginal(forwards["attached-msg"])).toEqual({
+      original: PLACEHOLDER_MSG,
       format: "msg",
       headersAvailable: true,
       path: "msg",

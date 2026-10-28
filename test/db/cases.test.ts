@@ -329,12 +329,26 @@ describe("the case store", () => {
     const id = open.value.id;
     expect(await setHeadersAvailable(db, id, true)).toMatchObject({ ok: true, value: { headersAvailable: true } });
     await setStatus(db, orgId, id, "running");
-    // An attached .msg without transport headers corrects it back (D01 T01 §6); the same write again is the same row.
+    // While running: set, then corrected back (an attached .msg without transport headers, D01 T01 §6), each read back.
+    expect(await setHeadersAvailable(db, id, true)).toMatchObject({
+      ok: true,
+      value: { id, headersAvailable: true, status: "running" },
+    });
     expect(await setHeadersAvailable(db, id, false)).toMatchObject({
       ok: true,
-      value: { headersAvailable: false, status: "running" },
+      value: { id, headersAvailable: false, status: "running" },
     });
-    expect(await setHeadersAvailable(db, id, false)).toMatchObject({ ok: true, value: { headersAvailable: false } });
+    expect(await getCaseForPipeline(db, id)).toMatchObject({ ok: true, value: { headersAvailable: false } });
+    // The same write again answers the same case, unchanged but for its time, and touches no other case.
+    const otherCases = async () =>
+      (await db.prepare("SELECT id, headers_available FROM cases WHERE id != ? ORDER BY id").bind(id).all()).results;
+    const others = await otherCases();
+    const again = await setHeadersAvailable(db, id, false);
+    expect(again).toMatchObject({
+      ok: true,
+      value: { id, orgId, headersAvailable: false, status: "running", channel: "email" },
+    });
+    expect(await otherCases()).toEqual(others);
     await setVerdict(db, orgId, id, "safe");
     await setStatus(db, orgId, id, "done");
     expect(await setHeadersAvailable(db, id, true)).toMatchObject({ ok: false, error: { code: "transition" } });
