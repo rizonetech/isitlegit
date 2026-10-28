@@ -45,6 +45,7 @@ track: day-0
 | 6 | §6 | Google Web Risk API key | -- | [ ] |
 | 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
+| 9 | §9 | Domain recovery runbook | §2 | [ ] |
 
 ## 1. Meta API billing and API key
 
@@ -116,7 +117,7 @@ Meta credit visible: 2026-10-27
 - [x] Add an Email Routing custom address `conduct@isitlegit.co.za` forwarding to the operator's mailbox (named in `CODE_OF_CONDUCT.md` as the private conduct contact). Done when: a test mail to it arrives in the operator's mailbox. Evidence 2026-10-27 00:59 SAST: the test "IsItLegit routing test (conduct@)" from rizonetech@gmail.com, sent 22:58:56 UTC on 2026-10-26, arrived in derick@rizonetech.com seconds later (internetMessageId `<CA+OCnvmAHgudPYBzy2DtAo=cNyWodPTPE-XkgWTMZq4VS82uww@mail.gmail.com>`).
 - [ ] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
 
-**Test checkpoint:** `python3 scripts/check-domain.py` exits 0 and prints `7 of 7 checks passed`: from public DNS (1.1.1.1), Cloudflare's two nameservers, Email Routing's three MX hosts and SPF include, DMARC `p=reject` reporting to dmarc@, CAA issuers only from Universal SSL's authorities and including Let's Encrypt, Google and SSL.com (Cloudflare adds Sectigo and DigiCert rows itself), the registry's DS record (key tag 2371, algorithm 13, digest type 2, the recorded digest) and the zone validated (`ad`); any missing or wrong record fails it (`tests/scripts/test_check_domain.py`). The registrar's `ok`, auto-renew and lock, and Email Routing's `ready` with its verified destination, are the dated read-backs in the items above. **Corrected 2026-10-28** (plan review): it checked only the nameservers; the earlier text, kept: `dig +short NS isitlegit.co.za @1.1.1.1` prints `carmelo.ns.cloudflare.com.` and `paris.ns.cloudflare.com.`. Evidence 2026-10-28 23:14 SAST: `check-domain: 7 of 7 checks passed`, exit 0.
+**Test checkpoint:** `python3 scripts/check-domain.py` exits 0 and prints `7 of 7 checks passed`: from public DNS (1.1.1.1), Cloudflare's two nameservers, Email Routing's three MX hosts, exactly one SPF record whose Cloudflare include comes before any `all` (RFC 7208), exactly one DMARC record with `p=reject` reporting only to dmarc@ (RFC 7489), CAA `issue` tags (not `issuewild`) only from Universal SSL's authorities and including Let's Encrypt, Google and SSL.com (RFC 8659; Cloudflare adds Sectigo and DigiCert rows itself), the registry's DS record (key tag 2371, algorithm 13, digest type 2, the recorded digest) and the zone validated (`ad`); any missing, duplicated or weakened record fails it (exit 1), and a lookup that could not be made is reported as that (exit 2), never as a wrong record (`tests/scripts/test_check_domain.py`; completion review, 2026-10-28). The registrar's `ok`, auto-renew and lock, and Email Routing's `ready` with its verified destination, are the dated read-backs in the items above. **Corrected 2026-10-28** (plan review): it checked only the nameservers; the earlier text, kept: `dig +short NS isitlegit.co.za @1.1.1.1` prints `carmelo.ns.cloudflare.com.` and `paris.ns.cloudflare.com.`. Evidence 2026-10-28 23:14 SAST: `check-domain: 7 of 7 checks passed`, exit 0.
 
 ## 3. Workers Paid plan
 
@@ -285,6 +286,27 @@ Evidence 2026-10-27 16:35 SAST, after the final review: `node scripts/check-gate
 
 > **Verified:** 2026-10-27 | §8 | 32b3b8b8c77a6639c2e5f014d862f3d328aa94c3
 > **Review:** `docs/reviews/d99-t01-s8.json`
+
+
+## 9. Domain recovery runbook
+
+D99 T01 §2 set up isitlegit.co.za with DNSSEC (the DS at the registry), Cloudflare's nameservers, Email Routing and DMARC `p=reject`. A nameserver or signing change made with the DS still in place stops the domain resolving, and with it the site, mail intake and every report link (Cloudflare's DNSSEC documentation, https://developers.cloudflare.com/dns/dnssec/). The operator needs one ordered procedure for the changes that can break it, each step with its read-back, rather than researching during an incident. Filed from §2's completion review (out-of-scope gap C5 and E2, 2026-10-28).
+
+**Phase:** 99
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Write the runbook. Done when: `docs/operations.md` has a "Domain recovery" section with ordered steps and a read-back after each.
+2. Walk it through once. Done when: the walkthrough is recorded with each step's expected read-back.
+
+- [ ] Write `docs/operations.md` "Domain recovery" covering, in order, (a) a planned nameserver move (remove the DS at Domains.co.za, wait two DS TTLs, move, re-sign, publish the new DS), (b) an emergency when resolution fails with a DS present (`dig +cd` against `dig` to tell a DNSSEC failure from an outage, then pulling the DS), (c) restoring Email Routing (MX, SPF, the verified destination and its rules) and (d) restoring DMARC and CAA, citing Cloudflare's DNSSEC and Email Routing pages. Done when: each step names the command or dashboard action and the read-back that shows it worked. Cheaper substitute: a link to Cloudflare's documentation alone.
+- [ ] End every procedure with `python3 scripts/check-domain.py` as the final read-back (7 of 7, or the named refusal), and say what exit 2 (a lookup failed) means during an incident. Done when: each procedure's last step names it.
+- [ ] Walk the runbook against the live domain without changing it (each read-back command run and its current output recorded), and record the walkthrough under the section with its date. Done when: the record lists every step with its observed read-back.
+- [ ] Commit: `todo: domain recovery runbook`
+
+**Test checkpoint:** `grep -c "check-domain.py" docs/operations.md` prints at least 4 (one per procedure), and `python3 scripts/check-domain.py` exits 0.
 
 ## Verification
 
