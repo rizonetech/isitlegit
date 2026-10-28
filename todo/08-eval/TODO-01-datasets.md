@@ -17,6 +17,7 @@ track: day-2
 
 - Design spec 4.9 (dataset, targets, Muse Image set), 11 (Eval data decision), `AGENTS.md` (synthetic data only; corpora licences in `eval/DATASETS.md`).
 - -> XREF: D06 T02 §4 -- the Muse Image doctored payment documents that join this set
+- -> XREF: D03 T04 §5 -- the Glimmer page datasets chosen under the same licence rule
 
 ## Outcome
 

@@ -8,21 +8,35 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 11 | Checklist items: 138
+Sections: 25 | Checklist items: 288
 
-| Status | Reference   | Deliverable                            | Needs                | Items |
-| ------ | ----------- | -------------------------------------- | -------------------- | ----- |
-| [x]    | D00 T01 §1  | Git repository and public GitHub repo  | attended             | 16    |
-| [x]    | D00 T01 §2  | Worker package and health route        | none                 | 16    |
-| [x]    | D00 T01 §3  | Vitest workers pool and Biome          | none                 | 15    |
-| [x]    | D00 T01 §4  | GitHub Actions CI                      | none                 | 12    |
-| [x]    | D00 T01 §5  | Cloudflare bindings and first deploy   | cloudflare           | 24    |
-| [x]    | D00 T01 §6  | AI Gateway for the Meta Model API      | cloudflare           | 9     |
-| [x]    | D00 T01 §10 | Deploy rollback and re-verification    | cloudflare           | 11    |
-| [x]    | D00 T01 §12 | Rollback from a split deployment       | cloudflare           | 10    |
-| [x]    | D99 T01 §8  | AI Gateway tokens                      | none                 | 9     |
-| [x]    | D00 T01 §7  | Meta smoke test                        | meta-api, cloudflare | 10    |
-| [x]    | D00 T01 §11 | AI Gateway config snapshot and restore | cloudflare           | 6     |
+| Status | Reference   | Deliverable                              | Needs                | Items |
+| ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
+| [x]    | D00 T01 §1  | Git repository and public GitHub repo    | attended             | 16    |
+| [x]    | D00 T01 §2  | Worker package and health route          | none                 | 16    |
+| [x]    | D00 T01 §3  | Vitest workers pool and Biome            | none                 | 15    |
+| [x]    | D00 T01 §4  | GitHub Actions CI                        | none                 | 12    |
+| [x]    | D00 T01 §5  | Cloudflare bindings and first deploy     | cloudflare           | 24    |
+| [x]    | D00 T01 §6  | AI Gateway for the Meta Model API        | cloudflare           | 9     |
+| [x]    | D00 T01 §10 | Deploy rollback and re-verification      | cloudflare           | 11    |
+| [x]    | D00 T01 §12 | Rollback from a split deployment         | cloudflare           | 10    |
+| [x]    | D03 T04 §2  | Fireworks account check and image probe  | none                 | 22    |
+| [x]    | D03 T04 §3  | PageScreen contract and training store   | none                 | 15    |
+| [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
+| [ ]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
+| [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
+| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 8     |
+| [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
+| [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 8     |
+| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 8     |
+| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 9     |
+| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe        | none                 | 11    |
+| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero   | none                 | 7     |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 9     |
+| [ ]    | D03 T04 §17 | Loupe model card per version             | none                 | 9     |
+| [x]    | D99 T01 §8  | AI Gateway tokens                        | none                 | 9     |
+| [x]    | D00 T01 §7  | Meta smoke test                          | meta-api, cloudflare | 10    |
+| [x]    | D00 T01 §11 | AI Gateway config snapshot and restore   | cloudflare           | 6     |
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
@@ -113,27 +127,29 @@ Sections: 35 | Checklist items: 194
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 17 | Checklist items: 80
+Sections: 19 | Checklist items: 91
 
-| Status | Reference  | Deliverable                                          | Needs      | Items |
-| ------ | ---------- | ---------------------------------------------------- | ---------- | ----- |
-| [ ]    | D01 T03 §3 | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
-| [ ]    | D01 T03 §4 | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
-| [ ]    | D01 T03 §5 | Voicemail-lure attachments in email                  | none       | 3     |
-| [ ]    | D02 T06 §1 | Web Risk lookup with cache, caps and outage handling | none       | 7     |
-| [ ]    | D02 T06 §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
-| [ ]    | D02 T06 §3 | Well-known sites list loaded into KV                 | none       | 4     |
-| [ ]    | D02 T06 §4 | Reputation weighting rules                           | none       | 5     |
-| [ ]    | D02 T07 §1 | URL extraction from text, HTML and PDF annotations   | none       | 6     |
-| [ ]    | D02 T07 §2 | Redirect expansion in Browser Run                    | cloudflare | 6     |
-| [ ]    | D02 T07 §3 | Landing screenshot and form detection                | cloudflare | 4     |
-| [ ]    | D02 T07 §4 | QR code decoding from images and PDF pages           | cloudflare | 4     |
-| [ ]    | D03 T02 §1 | Email HTML rendering to a screenshot                 | cloudflare | 4     |
-| [ ]    | D03 T02 §2 | PDF page rasterisation                               | cloudflare | 3     |
-| [ ]    | D03 T02 §3 | Muse Spark structured reading of renders and pages   | meta-api   | 6     |
-| [ ]    | D03 T02 §4 | Claimed brand against its real domains               | meta-api   | 4     |
-| [ ]    | D08 T01 §3 | Synthetic South African mail set                     | meta-api   | 5     |
-| [ ]    | D08 T03 §2 | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
+| Status | Reference   | Deliverable                                          | Needs      | Items |
+| ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
+| [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
+| [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
+| [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
+| [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
+| [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
+| [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
+| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 5     |
+| [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 6     |
+| [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
+| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 4     |
+| [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
+| [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
+| [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
+| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 6     |
+| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
+| [ ]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
+| [ ]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 4     |
+| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
+| [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -189,7 +205,7 @@ Sections: 55 | Checklist items: 217
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [ ]    | D03 T04 §1 | Glimmer screener, Spark failover           | meta-api, third-party | 8     |
+| [ ]    | D03 T04 §1 | Glimmer screener, Spark failover           | meta-api              | 7     |
 | [ ]    | D04 T01 §1 | Deterministic floor from critical evidence | none                  | 4     |
 | [ ]    | D04 T01 §2 | Rule-based verdict                         | none                  | 3     |
 | [ ]    | D04 T01 §3 | Read-only agent tools with zod validation  | none                  | 5     |
@@ -198,7 +214,7 @@ Sections: 55 | Checklist items: 217
 | [ ]    | D04 T01 §6 | Prompt-injection fixture suite             | none                  | 4     |
 | [ ]    | D04 T01 §7 | Prompt Guard as a second classifier        | cloudflare            | 3     |
 | [ ]    | D05 T04 §1 | Lookalike candidate generator              | none                  | 4     |
-| [ ]    | D05 T04 §2 | Daily run with DNS liveness checks         | cloudflare            | 5     |
+| [ ]    | D05 T04 §2 | Daily run with DNS liveness checks         | cloudflare            | 6     |
 | [ ]    | D05 T04 §3 | Screening new or changed live pages        | meta-api              | 3     |
 | [ ]    | D05 T04 §4 | Full pipeline on flagged pages             | meta-api, cloudflare  | 3     |
 | [ ]    | D05 T04 §5 | Monitor alerts and takedown pack           | none                  | 4     |
@@ -247,7 +263,7 @@ Sections: 55 | Checklist items: 217
 
 ### Phase 7: After the event
 
-Sections: 12 | Checklist items: 54
+Sections: 13 | Checklist items: 58
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -256,6 +272,7 @@ Sections: 12 | Checklist items: 54
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
+| [ ]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -283,6 +300,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 41/214 verified sections, 20 ready to run now.
+Progress: 44/231 verified sections, 23 ready to run now.
 
-Checklist: 462/1196 items completed (includes Commit items).
+Checklist: 519/1361 items completed (includes Commit items).

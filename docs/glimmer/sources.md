@@ -1,0 +1,21 @@
+# Loupe's public page datasets
+
+Every public dataset considered for training Loupe, IsItLegit's page screener (D03 T04 §5), with its licence and the decision. Public facts only: no page content. A dataset is used only when its licence allows training a model for a commercial product; research-only, non-commercial, by-request and unclear terms are rejected (design spec 4.9). GPT-6 Astra researched and downloaded the candidates on 2026-10-28 under `docs/glimmer/astra-collection-brief.md`; Claude re-read each accepted licence at its source and re-checked every file's SHA-256 before importing.
+
+Label errors is the spot check's share of wrong labels in 50 random pages a source (`-` before it ran). Above 10 percent, the source's `lure` labels are marked `unverified` and go to adjudication instead of being trusted.
+
+| Source | Dataset | Licence | Licence link | Decision | Reason | Label errors |
+| ------ | ------- | ------- | ------------ | -------- | ------ | ------------ |
+| `scamferret` | https://github.com/ScamFerret/artifact (commit 8cf8dc6) | GPL-3.0 | https://github.com/ScamFerret/artifact/blob/8cf8dc631edafe584141e2f95f0c0f51855fb7bc/LICENSE | accepted | 2,400 top-page HTML captures and 240 screenshots of scam and legitimate sites; the GPL permits commercial use, and its conditions attach to conveying the work, while the data and Loupe's weights stay in IsItLegit's own service | 4% |
+| `phreshphish` | https://huggingface.co/datasets/phreshphish/phreshphish (train shards 000 and 001) | CC BY 4.0 | https://huggingface.co/datasets/phreshphish/phreshphish/discussions/10 | accepted | 6,780 phishing and benign HTML pages with target brands; a member of the publishing organisation confirmed commercial anti-phishing use; two verified shards stay under the 5 GB source limit | - |
+| `phishpedia` | https://github.com/lindsey98/Phishpedia | CC0 1.0 (code only) | https://github.com/lindsey98/Phishpedia/blob/main/LICENSE | rejected | the externally hosted dataset has no licence of its own; the code's licence is not assumed to cover it | - |
+| `phishintention` | https://github.com/lindsey98/PhishIntention | CC0 1.0 (code only) | https://github.com/lindsey98/PhishIntention/blob/main/LICENSE | rejected | the externally hosted dataset has no licence of its own | - |
+| `visualphishnet` | https://github.com/S-Abdelnabi/VisualPhishNet | research use by request | https://github.com/S-Abdelnabi/VisualPhishNet/blob/master/README.md | rejected | access by request, for research purposes | - |
+| `pilwd-134k` | https://gvis.unileon.es/datasets-pilwd-134k/ | none stated | https://gvis.unileon.es/datasets-pilwd-134k/ | rejected | access by request; no commercial licence | - |
+| `phish360` | https://web.cs.hacettepe.edu.tr/~selman/phish360-dataset/ | MIT (code only) | https://github.com/almakhamreh/Multimodal-Phishing-Benchmarks/blob/main/LICENSE | rejected | the Parquet files have no licence of their own | - |
+| `mendeley-online-shops` | https://data.mendeley.com/datasets/m7xtkx7g5m/1 | CC BY 4.0 | https://data.mendeley.com/datasets/m7xtkx7g5m/1 | rejected | URL and feature records only, no screenshots or page text | - |
+| `elfw-2031` | https://link.springer.com/article/10.1007/s10660-025-10029-9 | none stated | https://link.springer.com/article/10.1007/s10660-025-10029-9 | rejected | data available on request; the article's licence is not the data's | - |
+| `sa-attack-surface` | https://attacksurface.co.za/ | none stated | https://attacksurface.co.za/ | rejected | no licence and no downloadable labelled page set | - |
+| `yadav-2025` | https://zenodo.org/records/21379702 | CC BY 4.0 | https://zenodo.org/api/records/21379702 | rejected | screenshots and URL features without page text; bundled Phish-Iris provenance unreviewed | - |
+| `phishvn` | https://data.mendeley.com/datasets/b97hxbxtpd/1 | research-only (pages) | https://github.com/vuthainguyen1602/phishvn/blob/master/docs/datasheet.md | rejected | the paired HTML and screenshots are research-only and by request | - |
+| `7-days-later` | https://zenodo.org/records/14885725 | CC BY 4.0 | https://zenodo.org/api/records/14885725 | rejected | the public sample alone is 12.4 GB, over the 5 GB source limit; the full set is by request | - |

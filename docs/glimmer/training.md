@@ -1,0 +1,44 @@
+# Loupe training record
+
+Loupe is IsItLegit's page screener: Muse Glimmer 30B fine-tuned with a LoRA on Fireworks AI (D03 T04). This file records what the account held, what the probe proved, the dataset, every training run, the deployment, the measurements and the decisions, each with its date. Versions are Loupe 1.0, 1.1, 1.2 and on, written `isitlegit-loupe-1-0` on Fireworks (D03 T04 §11).
+
+## Account
+
+Checked 2026-10-28 14:14 UTC with `node scripts/fireworks-check.ts` (admin key, `GET` only), account `rizonetech`:
+
+- models: 0
+- deployments: 0
+- datasets: 2, both Fireworks' onboarding samples created with the account (`onboarding-cord-receipts`, `onboarding-prompt-router`), none of ours
+- supervised fine-tuning jobs: 0
+- credit redemptions: 1, redeemed 2026-10-28 06:47 UTC
+- rated spend 2026-10-01 to 2026-10-28 14:14 UTC: US$0.00
+- credit balance: not exposed by the Fireworks API (`/credits` answers 404); the operator's US$100 partner credit (loaded 2026-10-28 09:02 SAST) is the balance of record
+- base model `accounts/fireworks/models/muse-glimmer-30b`: `supportsImageInput` true, `supervisedLoraTunable` true, `enableVisionEncoderTuning` false, `trainingContextLength` 131072, not served serverless
+
+## Probe
+
+- 2026-10-28 14:10 UTC: `node scripts/fireworks-check.ts --probe` wrote `build/glimmer/probe.jsonl` (3 lines, one image each) and created dataset `isitlegit-probe` (HTTP 200), but the upload answered HTTP 403 "dataset uploads are temporarily disabled, please contact Fireworks AI to get access"; the signed-URL path (`:getUploadEndpoint`) answers HTTP 400 with the same message. The account reads `accountVerification: NOT_VERIFIED`. No job was started and nothing was billed. `--delete-probe` removed the empty dataset at 14:16 UTC (read back as gone). Corrected 15:13 UTC: the account is not restricted (the operator uploads in the UI); the refusal is for the key's principal, the service account `isitlegit-meta-api-admin`. Waiting on the operator for an API key of their own user (vault item "IsItLegit Fireworks Owner") or a UI upload of the probe file.
+- 2026-10-28 15:20 UTC: with the operator's own key ("IsItLegit Fireworks Owner", `GET /v1/accounts/rizonetech` HTTP 200) the upload is refused the same way (HTTP 403 on `:upload`, HTTP 400 on `:getUploadEndpoint`, both "dataset uploads are temporarily disabled"), so the API refuses uploads for the account whatever the key, while the dashboard accepts them. The empty dataset was deleted (read back as gone). Next: the operator uploads `build/glimmer/probe.jsonl` in the dashboard as dataset `isitlegit-probe`, and `--probe` starts the job on it.
+- 2026-10-28 15:26 UTC: the operator reports the dashboard upload is refused too. Dataset uploads are closed for the account on every path; the operator is asking Fireworks to enable them, and the Serverless Training API (examples streamed by the client, no dataset upload; Glimmer reads `supportsServerlessTraining: true`) is being checked as an alternative.
+
+- 2026-10-28 16:13 UTC: Fireworks support (Kat, reply received 15:35 UTC) confirmed dataset uploads are closed platform-wide with no restoration date, so the probe moved to the Serverless Training API, where Fireworks' cookbook states "Muse Glimmer 30B SFT is free via UI and Serverless Training API until 11/30". `~/.venvs/fireworks/bin/python scripts/glimmer/serverless_probe.py` rendered the three probe examples with the cookbook's `muse_glimmer` renderer and Glimmer's image processor (images of 392, 522 and 1,260 tokens), and ran one cross-entropy forward and backward pass on them and on the text controls, with no optimiser step and no checkpoint.
+probe session ts-28111d83258c4bd0b016571ba6d6cc22: image step loss:sum 120.10 over 2,435 tokens; text control loss:sum 48.57 over 321 tokens; 2,762 tokens sent in all
+training mode: image
+- Bill: pending until 2026-10-29 16:13 UTC (rated costs lag a day); SFT on Glimmer is free until 2026-11-30 by Fireworks' statement, and §11 reconciles it before the first training run.
+- `--delete-probe` found no managed probe resource left (16:14 UTC).
+- 16:33 UTC: closing the client had not freed the sessions' slots (`ts-28111d83…` still `READY`), so both of today's sessions were deleted through `DELETE /v1/accounts/rizonetech/trainingSessions/<id>` (HTTP 200, read back `EXPIRED`); the probe now deletes its session itself.
+
+## Dataset
+
+- 2026-10-28 18:50 UTC, label spot check `scamferret`: 50 pages drawn with a fixed seed (20261028) from the 2,349 stored, each screenshot viewed against its `lure` and `lure_type`. No label was clearly wrong; 2 were doubtful (a Dutch crypto-trading course and a Russian cloud-mining service, both from the dataset's legitimate investment category), counted as errors: 4 percent, under the 10 percent line, so the source's labels stay `ground-truth`. The check also found one Shift_JIS page stored as mojibake, which led to `decodeHtml()` and a clean reimport of the source (commit 2d2a94e). Renders of dataset HTML carry no styles or images (the renderer fetches nothing), and some show a cookie banner the page drew itself.
+
+## Training
+
+## Deployment
+
+## Measurements
+
+## Decisions
+
+- 2026-10-28 20:50 SAST, operator: the US$60 a-run training cap is lifted until 2026-11-30 23:59 SAST, while Glimmer's supervised fine-tuning is free, and applies again from 2026-12-01 by the date in `scripts/glimmer/train_serverless.py` (D03 T04 §11). The lift holds only once the probe's 24-hour bill reconciliation reads US$0 rated for training; until then, or if it reads more, US$60 stands. Reversing it costs nothing: the cap returns by date. With the cap lifted, the time left before 2026-11-01 12:00 SAST bounds the training set instead.
+- 2026-10-28 20:50 SAST, operator: many more public sources go into Loupe 1.0 rather than a later 1.1 (D03 T04 §18): a second Astra sweep aimed at lures, ten more PhreshPhish shards, the 7 Days Later sample and the Majestic Million's top 20,000.

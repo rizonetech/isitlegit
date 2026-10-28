@@ -23,6 +23,8 @@ These files came from Rizonetech's own Conclave-SDK `base`, `todo` and `reviewer
 
 The IsItLegit brand itself (`design/brand/` outside `rizonetech/`, and `design/tools/build-brand.py`) was designed and built during the event, on 26 Oct 2026.
 
+GPT-6 Astra, OpenAI's model through the Codex CLI, is development tooling in the same sense: it reviews every section, and for the Loupe page screener (D03 T04) it also does dataset collection, downloading licence-checked public page datasets into a local data store outside the repository, and label judging, deciding disputed training labels beside Claude. It writes no product code, and its collections and judgements are verified by Claude before any of them trains Loupe.
+
 Changes made to this tooling during the event (the IsItLegit environment needs, the client-name guard in the pre-commit hook) are new work and show in the history.
 
 ## Third-party code and data

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Claude Code PreToolUse hook: a review runs through the Bash tool's own background option, never detached.
+"""Claude Code PreToolUse hook: a review or an Astra job runs through the Bash tool's background option, not detached.
 
-A review (`scripts/review-dispatch.py ... --prompt ...`) takes minutes. Started with the tool's `run_in_background`, the
-session is told the moment it finishes and acts on it; started detached (`&`, `nohup`, `disown`, `setsid`), nothing
-tells the session, and the finished review waits for the next heartbeat (operator, 2026-10-27). This hook refuses the
-detached form and a foreground form alike, naming the fix. Calls that run no review (`--check-pin`, `--help`) pass, and
-so does anything it cannot read: a broken hook must never block the session's other work.
+A review (`scripts/review-dispatch.py ... --prompt ...`) takes minutes, and an Astra collection or judging run
+(`scripts/astra-collect.py`, `scripts/astra-judge.py`, D03 T04 §4 and §9) takes hours. Started with the tool's
+`run_in_background`, the session is told the moment it finishes and acts on it; started detached (`&`, `nohup`,
+`disown`, `setsid`), nothing tells the session, and the finished job waits for the next heartbeat (operator,
+2026-10-27). This hook refuses the detached form and a foreground form alike, naming the fix. Calls that run no review
+(`--check-pin`, `--help`) and Astra calls that run nothing (`--dry-run`, `--help`) pass, and so does anything it cannot
+read: a broken hook must never block the session's other work.
 
 Wired in .claude/settings.json as a PreToolUse hook on Bash; exit 2 refuses the call and shows the message to Claude.
 """
@@ -13,11 +15,15 @@ import json
 import re
 import sys
 
-# The dispatcher run as a command: after `python`/`python3`, or in command position (the start, after `;`, `&`, `|`,
-# `(`, a newline, `nohup`, `setsid` or `exec`). Text that only mentions it (a heredoc, a commit message) is not a run.
-REVIEW = re.compile(
-    r"(?:\bpython3?\s+|(?:^|[\n;&|(]|\bnohup\b|\bsetsid\b|\bexec\b)\s*)(?:[\w.~/-]*/)?review-dispatch\.py\b"
-)
+# The dispatcher run as a command: after `python`/`python3` and any interpreter options (`-u`, `-X dev`, `-W error`),
+# its path quoted or not, or in command position (the start, after `;`, `&`, `|`, `(`, a newline, `nohup`, `setsid` or
+# `exec`), unquoted. Text that only mentions it (a heredoc, a commit message, `Path('scripts/...')` in code) is not a run.
+RUN_PREFIX = (r"(?:\bpython3?(?:\.\d+)?(?:\s+(?:-[XW]\s*\S+|-[A-Za-z]+))*\s+['\"]?"
+              r"|(?:^|[\n;&|(]|\bnohup\b|\bsetsid\b|\bexec\b)\s*)"
+              r"(?:[\w.~/-]*/)?")
+REVIEW = re.compile(RUN_PREFIX + r"review-dispatch\.py\b")
+# The Astra launchers, matched the same way.
+ASTRA = re.compile(RUN_PREFIX + r"(astra-(?:collect|judge))\.py\b")
 # A single `&` that backgrounds a command, not `&&`, `&>`, `>&` or `2>&1`.
 DETACH = re.compile(r"(?<![&>])&(?![&>])|\bnohup\b|\bdisown\b|\bsetsid\b")
 
@@ -28,13 +34,23 @@ def verdict(payload: dict) -> str | None:
         return None
     tool_input = payload.get("tool_input") or {}
     command = tool_input.get("command")
-    if not isinstance(command, str) or not REVIEW.search(command) or "--prompt" not in command:
+    if not isinstance(command, str):
         return None
+    if REVIEW.search(command) and "--prompt" in command:
+        name, job, length = "review-dispatch", "the review", "a review takes minutes"
+    else:
+        # Each call is judged by its own arguments (up to the next `;`, `&`, `|` or newline), so a dry run beside a
+        # real run does not let the real one through.
+        noop = re.compile(r"(?:^|\s)(?:--dry-run|--help|-h)(?=\s|$)")
+        real = [m for m in ASTRA.finditer(command) if not noop.search(re.split(r"[;&|\n]", command[m.end():])[0])]
+        if not real:
+            return None
+        name, job, length = real[0].group(1), "the Astra run", "an Astra run takes hours"
     if DETACH.search(command):
-        return ("review-dispatch: run the review with the Bash tool's run_in_background option, not detached "
+        return (f"{name}: run {job} with the Bash tool's run_in_background option, not detached "
                 "(&, nohup, disown, setsid): only the tool's option tells the session when it finishes")
     if tool_input.get("run_in_background") is not True:
-        return ("review-dispatch: a review takes minutes; run it with the Bash tool's run_in_background option, so "
+        return (f"{name}: {length}; run it with the Bash tool's run_in_background option, so "
                 "the session is told when it finishes")
     return None
 

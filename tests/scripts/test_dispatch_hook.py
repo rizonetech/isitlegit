@@ -66,6 +66,52 @@ class DispatchHook(unittest.TestCase):
         result = run(bash(f"{REVIEW} > /tmp/log 2>&1 && echo ok || echo failed &> /dev/null", background=True))
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_an_astra_run_goes_through_the_background_option_only(self):
+        # D03 T04 §4 and §9: collection and judging take hours, so they follow the review rule.
+        for script in ("astra-collect", "astra-judge"):
+            command = f"python3 scripts/{script}.py"
+            self.assertEqual(run(bash(command, background=True)).returncode, 0, command)
+            for background in (False, None):
+                result = run(bash(command, background=background))
+                self.assertEqual(result.returncode, 2, f"{command} {background}")
+                self.assertIn("an Astra run takes hours", result.stderr)
+            for detached in (f"{command} &", f"nohup {command} > /tmp/log 2>&1 &", f"setsid {command}",
+                             f"cd /r; ./scripts/{script}.py & disown"):
+                result = run(bash(detached, background=True))
+                self.assertEqual(result.returncode, 2, detached)
+                self.assertIn("not detached", result.stderr)
+                self.assertIn(script, result.stderr)
+
+    def test_astra_calls_that_run_nothing_pass(self):
+        for script in ("astra-collect", "astra-judge"):
+            module = f"tests.scripts.test_{script.replace('-', '_')}"
+            for command in (f"python3 scripts/{script}.py --dry-run", f"python3 scripts/{script}.py --help",
+                            f"grep -n main scripts/{script}.py", f"python3 -m unittest {module}"):
+                self.assertEqual(run(bash(command)).returncode, 0, command)
+
+    def test_code_that_names_a_launcher_in_quotes_is_not_a_run(self):
+        # A heredoc editing the launcher names its path inside `Path('...')`; that is text, not a run.
+        for command in ("python3 - <<'EOF'\np = Path('scripts/astra-collect.py')\nEOF",
+                        'grep -n main "scripts/astra-judge.py"', "x=('scripts/review-dispatch.py' --prompt p)"):
+            self.assertEqual(run(bash(command)).returncode, 0, command)
+
+    def test_interpreter_options_and_quoted_paths_are_still_runs(self):
+        for command in ("python3 -u scripts/astra-collect.py", "python3 -u scripts/astra-collect.py &",
+                        "python3 -X dev scripts/astra-judge.py", "python3 'scripts/astra-collect.py'",
+                        'python3 -u "scripts/astra-collect.py" > /tmp/log 2>&1', "python3.12 scripts/astra-collect.py",
+                        "python3 -u scripts/review-dispatch.py --prompt /tmp/p.md --record x.md",
+                        "python3 'scripts/review-dispatch.py' --prompt /tmp/p.md --record x.md"):
+            self.assertEqual(run(bash(command)).returncode, 2, command)
+        self.assertEqual(run(bash("python3 -u scripts/astra-collect.py", background=True)).returncode, 0)
+        self.assertEqual(run(bash("python3 -u scripts/astra-collect.py --dry-run")).returncode, 0)
+
+    def test_a_dry_run_beside_a_real_astra_run_does_not_let_it_through(self):
+        for command in ("python3 scripts/astra-collect.py --dry-run && python3 scripts/astra-collect.py",
+                        "python3 scripts/astra-judge.py; python3 scripts/astra-collect.py --dry-run"):
+            result = run(bash(command))
+            self.assertEqual(result.returncode, 2, command)
+            self.assertIn("an Astra run takes hours", result.stderr)
+
     def test_an_unreadable_payload_lets_the_call_run(self):
         for payload in ("", "not json", "[]", json.dumps({"tool_name": "Bash", "tool_input": None})):
             self.assertEqual(run(payload).returncode, 0, payload)

@@ -17,6 +17,7 @@ track: day-6
 
 - Design spec 4.11 (candidates, daily run, alert, takedown pack, cost guard), 2b (paid Protect feature; trial unlocks it), 8 (cut order).
 - -> XREF: D02 T03 §1 -- the confusables and edit-distance module the candidate generator reuses
+- -> XREF: D03 T04 §15 -- `wakeGlimmer`, called at the start of the daily run before candidate resolution
 
 ## Outcome
 
@@ -31,7 +32,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [ ] |
-| 2 | §2 | Daily run with DNS liveness checks | §1 | [ ] |
+| 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [ ] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [ ] |
 | 4 | §4 | Full pipeline on flagged pages | §3, D04 T02 §6 | [ ] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
@@ -73,6 +74,7 @@ A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, re
 - [ ] Add `"triggers": { "crons": ["15 4 * * *"] }` (06:15 SAST) and a `scheduled` handler running the monitor as a Workflow per organisation. Done when: `wrangler deploy --dry-run` lists the cron and `test/monitor/cron.test.ts` runs one organisation.
 - [ ] Resolve candidates with DoH (`cloudflare-dns.com`, A and AAAA) at most 20 in parallel, and fetch the homepage of new or changed resolving hosts through Browser Run (downloads blocked). Done when: unchanged hosts are not re-fetched in the test.
 - [ ] Monitor only organisations whose plan flag allows it (trial or Protect). Done when: a free organisation is skipped.
+- [ ] Call `wakeGlimmer` (D03 T04 §15) at the start of the run's Workflow, before candidate resolution, so the screener's warm-up overlaps the DNS checks, and screen no page on Glimmer until it answers (added 2026-10-28, operator decision on the tuned Glimmer deployment). Done when: `test/monitor/cron.test.ts` shows the wake request before the first DNS lookup.
 - [ ] Commit: `monitor: daily run with DNS liveness and change tracking`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/cron.test.ts` passes.
