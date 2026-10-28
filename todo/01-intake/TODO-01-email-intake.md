@@ -320,7 +320,11 @@ The absolute `https://` link a reply carries is built by D01 T02 §3 from a trus
 
 ## 9. Email Routing for check@ and live smoke
 
+> **Started:** 2026-10-28T23:13Z
+
 The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (stack doc). This section creates the rule and proves the whole loop on the live service with a synthetic fixture: forward in, stub reply out.
+
+**Corrected 2026-10-29** (at start, checked against the live account): (1) the Worker has no route on the zone; it serves at `isitlegit.derick-f5a.workers.dev` (D00 T01 §5), so `/health` is read there, and `check@` is reached only through Email Routing; (2) the zone's routing rules today are `hello@`, `dmarc@`, `conduct@` and three `demo.` aliases, all forwarding to the operator's mailbox, with the catch-all disabled, so `check@` has no rule and mail to it is refused; (3) SMTP2GO sends only as isitlegit.co.za (D99 T01 §4) and intake identifies the forwarder by the envelope sender (`message.from`, §3), which for an SMTP2GO send is its return-path domain, not the From address, to be confirmed by the first live send before the test sender is chosen; a forward from the operator's own mailbox (the Microsoft 365 connector's forward) has envelope and From equal, as a member's would; (4) the live D1 was migrated to 0019 on 2026-10-29 (it had stood at 0002), so the case tables exist.
 
 **Phase:** 1
 **Needs:** cloudflare, live-mail
