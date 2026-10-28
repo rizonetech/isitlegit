@@ -12,6 +12,9 @@
 // Signing out ends the session in D1 before Better Auth clears the cookie, and refuses (503, cookie kept) when that delete
 // fails: Better Auth's own sign-out logs a failed delete and reports success, which would leave a copied cookie
 // signed in after the member was told they were out. The hook covers every way in: /api/auth/sign-out and the app's form.
+//
+// A passkey's credential ID is refused when any member already has it (WebAuthn Level 3 §7.1), which the plugin does not
+// check; migration 0009 makes the column unique as well.
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { ConfigError } from "../config";
@@ -64,7 +67,7 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
         throw new APIError("BAD_GATEWAY", {
           message: "the sign-in link could not be sent; try again in a few minutes",
         });
-    }),
+    }, env.APP_URL),
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.APP_URL,
     basePath: "/api/auth",
@@ -85,6 +88,14 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           const callbackURL = (body.callbackURL as string | undefined) ?? DEFAULT_RETURN;
           const paths = { callbackURL, newUserCallbackURL: callbackURL, errorCallbackURL: recoveryPath(callbackURL) };
           return { context: { body: { ...body, ...paths } } };
+        }
+        if (ctx.path === "/passkey/verify-registration") {
+          const id = (ctx.body as { response?: { id?: unknown } } | undefined)?.response?.id;
+          const taken =
+            typeof id === "string" &&
+            (await ctx.context.adapter.findOne({ model: "passkey", where: [{ field: "credentialID", value: id }] }));
+          if (taken) throw new APIError("BAD_REQUEST", { message: "this passkey is already registered" });
+          return;
         }
         if (ctx.path === "/sign-out") {
           const token = await ctx.getSignedCookie(ctx.context.authCookies.sessionToken.name, ctx.context.secret);

@@ -1,6 +1,7 @@
-// The Better Auth options that shape its tables (D07 T02 §1), shared by src/auth/auth.ts and scripts/auth-schema.ts so
-// the migration Better Auth compiles is the schema the Worker uses. It imports nothing of the Worker's, so the script
-// runs in plain Node.
+// The Better Auth options that shape its tables (D07 T02 §1, §2), shared by src/auth/auth.ts and scripts/auth-schema.ts
+// so the migrations Better Auth compiles are the schema the Worker uses. It imports nothing of the Worker's, so the
+// script runs in plain Node.
+import { passkey } from "@better-auth/passkey";
 import { magicLink } from "better-auth/plugins/magic-link";
 
 export const MAGIC_LINK_SECONDS = 15 * 60;
@@ -8,9 +9,21 @@ export const MAGIC_LINK_SECONDS = 15 * 60;
 
 type SendMagicLink = Parameters<typeof magicLink>[0]["sendMagicLink"];
 
-export function schemaOptions(sendMagicLink: SendMagicLink) {
+// Passkeys belong to the host the app is served from: the relying party ID is APP_URL's hostname and the only origin
+// accepted is APP_URL's (the plugin would otherwise trust the request's Origin header). Sign-in asks anonymously, with
+// no credential list, so only a discoverable credential can answer it: registration requires one.
+export function schemaOptions(sendMagicLink: SendMagicLink, appURL: string) {
+  const app = new URL(appURL);
   return {
     emailAndPassword: { enabled: false },
-    plugins: [magicLink({ expiresIn: MAGIC_LINK_SECONDS, storeToken: "hashed", sendMagicLink })],
+    plugins: [
+      magicLink({ expiresIn: MAGIC_LINK_SECONDS, storeToken: "hashed", sendMagicLink }),
+      passkey({
+        rpID: app.hostname,
+        rpName: "IsItLegit",
+        origin: app.origin,
+        authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+      }),
+    ],
   };
 }
