@@ -10,6 +10,7 @@ import { LOGS_URL, readLedger, type Spend, spentOn, tokenCost } from "../../scri
 const DIR = join(import.meta.dirname, `../../build/test-meta-client-live-${process.pid}`);
 const LEDGER = join(DIR, "spend.json");
 const RECORD = join(DIR, "live-checks.md");
+const PENDING = join(DIR, "pending.json");
 const SECRETS = { meta: `meta-${"k".repeat(30)}`, run: `run-${"r".repeat(30)}`, admin: `adm-${"a".repeat(30)}` };
 const NOW = new Date("2026-10-28T17:00:00Z");
 const TODAY = "2026-10-28";
@@ -45,6 +46,7 @@ function world(w: World = {}) {
   let secretsRead = 0;
   const options: LiveOptions = {
     ledger: LEDGER,
+    pending: PENDING,
     record: RECORD,
     now: () => NOW,
     logWaitMs: 50,
@@ -81,10 +83,11 @@ describe("meta-client-live", () => {
     expect(sent[0]).toMatch(/\/custom-meta\/v1\/responses$/);
     expect(sent.filter((u) => u.startsWith(LOGS_URL))).toHaveLength(3); // the log, its request body, its response body
     expect(ledgerNow()).toEqual([
-      expect.objectContaining({ date: TODAY, call: "client Spark", cost: COST, state: "settled" }),
+      expect.objectContaining({ date: TODAY, call: "client Spark attempt 1", cost: COST, state: "settled" }),
     ]);
     const record = readFileSync(RECORD, "utf-8");
     expect(record).toContain("## Meta model client");
+    expect(existsSync(PENDING)).toBe(false);
     expect(record).toContain("`log-abc`");
     for (const secret of Object.values(SECRETS)) {
       expect(outcome.lines.join("\n")).not.toContain(secret);
@@ -158,5 +161,73 @@ describe("meta-client-live", () => {
     const outcome = await runClientLive(options);
     expect(outcome.code).toBe(1);
     expect(outcome.lines.join("\n")).toContain("no cf-aig-log-id");
+  });
+
+  it("reserves every attempt: one that failed stays at its estimate, the answered one is settled", async () => {
+    let n = 0;
+    const { options, sent } = world({
+      responses: () =>
+        ++n === 1
+          ? json({ error: { type: "server_error", message: "busy" } }, 503)
+          : json({ id: "resp_1", object: "response", output: [], usage: USAGE }, 200, { "cf-aig-log-id": "log-abc" }),
+    });
+    const outcome = await runClientLive(options);
+    expect(outcome.code).toBe(0);
+    expect(sent.filter((u) => !u.startsWith(LOGS_URL))).toHaveLength(2);
+    expect(ledgerNow()).toEqual([
+      expect.objectContaining({ call: "client Spark attempt 1", cost: null, state: "uncertain" }),
+      expect.objectContaining({ call: "client Spark attempt 2", cost: COST, state: "settled" }),
+    ]);
+  });
+
+  it("sends no retry the day cap cannot cover", async () => {
+    const { options, sent } = world({ responses: () => json({ error: { type: "server_error" } }, 503) });
+    const estimate = tokenCost("muse-spark-1.3", 200, 64);
+    const outcome = await runClientLive({ ...options, dayCap: estimate * 1.5 });
+    expect(outcome.code).toBe(1);
+    expect(outcome.lines.join("\n")).toContain("stopped before attempt 2");
+    expect(sent).toHaveLength(1);
+    expect(ledgerNow()).toEqual([expect.objectContaining({ call: "client Spark attempt 1", state: "uncertain" })]);
+  });
+
+  it("resumes a log check that failed without calling Meta again", async () => {
+    const down = world({ logs: () => json({ success: false, errors: [{ code: 1000 }] }, 404) });
+    const first = await runClientLive(down.options);
+    expect(first.code).toBe(1);
+    expect(first.lines.join("\n")).toContain("run again to resume");
+    expect(JSON.parse(readFileSync(PENDING, "utf-8"))).toMatchObject({ logId: "log-abc", cost: COST });
+
+    const up = world();
+    const second = await runClientLive(up.options);
+    expect(second.code).toBe(0);
+    expect(second.lines.join("\n")).toContain("no new call");
+    expect(up.sent.every((u) => u.startsWith(LOGS_URL))).toBe(true);
+    expect(ledgerNow()).toHaveLength(1);
+    expect(readFileSync(RECORD, "utf-8")).toContain("`log-abc`");
+    expect(existsSync(PENDING)).toBe(false);
+  });
+
+  it("resumes a record that could not be written without calling Meta again", async () => {
+    const blocked = join(DIR, "blocked");
+    mkdirSync(blocked);
+    const first = await runClientLive({ ...world().options, record: blocked });
+    expect(first.code).toBe(1);
+    expect(first.lines.join("\n")).toContain("the record could not be written");
+    expect(existsSync(PENDING)).toBe(true);
+
+    const again = world();
+    const second = await runClientLive(again.options);
+    expect(second.code).toBe(0);
+    expect(again.sent.every((u) => u.startsWith(LOGS_URL))).toBe(true);
+    expect(ledgerNow()).toHaveLength(1);
+  });
+
+  it("refuses an unreadable pending call rather than paying for another", async () => {
+    writeFileSync(PENDING, "{ not json");
+    const { options, sent } = world();
+    const outcome = await runClientLive(options);
+    expect(outcome.code).toBe(1);
+    expect(outcome.lines.join("\n")).toContain("repair it rather than delete it");
+    expect(sent).toHaveLength(0);
   });
 });

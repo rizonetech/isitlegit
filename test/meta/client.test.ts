@@ -39,16 +39,26 @@ function transport(...script: (() => Response | Promise<Response>)[]) {
 }
 
 const audio = () => new Blob([new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0])], { type: "audio/wav" });
-// Both entry points, each with a body that succeeds against `ok`.
+// Every way out: a call with a model that succeeds against `ok`, the same call with any model, and its exact URL.
 const entries = {
   responses: {
     call: (ctx: MetaContext) => metaResponses({ model: "muse-spark-1.3", input: "hello" }, ctx),
+    with: (ctx: MetaContext, model: string) => metaResponses({ model, input: "hello" }, ctx),
     ok: () => json(200, answer),
+    url: "https://gateway.test/v1/acct/isitlegit/custom-meta/v1/responses",
   },
   transcribe: {
     call: (ctx: MetaContext) =>
       metaRaw("/asr/transcribe", { request: { model: "muse-voice-transcribe-1.0" }, audio: audio() }, ctx),
+    with: (ctx: MetaContext, model: string) => metaRaw("/asr/transcribe", { request: { model }, audio: audio() }, ctx),
     ok: () => json(200, { transcript: "hello" }),
+    url: "https://gateway.test/v1/acct/isitlegit/custom-meta/v1/asr/transcribe",
+  },
+  "image edit": {
+    call: (ctx: MetaContext) => metaRaw("/images/edits", { model: "muse-image-1.0", prompt: "a red square" }, ctx),
+    with: (ctx: MetaContext, model: string) => metaRaw("/images/edits", { model, prompt: "a red square" }, ctx),
+    ok: () => json(200, { data: [{ b64_json: "AAAA" }] }),
+    url: "https://gateway.test/v1/acct/isitlegit/custom-meta/v1/images/edits",
   },
 } as const;
 
@@ -145,14 +155,26 @@ describe("metaRaw", () => {
 });
 
 describe.each(Object.entries(entries))("%s: models and settings", (_, entry) => {
+  it("sends to its exact URL with both tokens and metadata-only logging", async () => {
+    const { sent, ctx } = transport(entry.ok);
+    await entry.call(ctx);
+    const request = sent[0] as Request;
+    expect(request.url).toBe(entry.url);
+    expect(request.headers.get("authorization")).toBe(`Bearer ${KEY}`);
+    expect(request.headers.get("cf-aig-authorization")).toBe(`Bearer ${TOKEN}`);
+    expect(request.headers.get("cf-aig-collect-log")).toBe("true");
+    expect(request.headers.get("cf-aig-collect-log-payload")).toBe("false");
+  });
+
   it("refuses a contributor or unknown model before the network", async () => {
-    for (const model of ["muse-spark-1.3-contributor", "gpt-4o", "muse-voice-transcribe-1.0-contributor"]) {
+    for (const model of [
+      "muse-spark-1.3-contributor",
+      "gpt-4o",
+      "muse-voice-transcribe-1.0-contributor",
+      "muse-image-1.0-contributor",
+    ]) {
       const { sent, ctx } = transport(entry.ok);
-      const call =
-        _ === "responses"
-          ? metaResponses({ model, input: "x" }, ctx)
-          : metaRaw("/asr/transcribe", { request: { model }, audio: audio() }, ctx);
-      expect((await failure(call)).kind).toBe("refused-model");
+      expect((await failure(entry.with(ctx, model))).kind).toBe("refused-model");
       expect(sent).toHaveLength(0);
     }
   });
@@ -176,11 +198,25 @@ describe.each(Object.entries(entries))("%s: retries", (_, entry) => {
     expect(waits).toEqual([500]);
   });
 
-  it("gives up after three attempts", async () => {
-    const { sent, waits, ctx } = transport(() => json(500, envelope("server_error")));
+  it("gives up after three attempts, keeping each attempt's gateway log id and Meta request id", async () => {
+    let n = 0;
+    const { sent, waits, ctx } = transport(() => {
+      n++;
+      return json(500, envelope("server_error"), { "cf-aig-log-id": `log-${n}`, "x-request-id": `req_${n}` });
+    });
     const error = await failure(entry.call(ctx));
     expect(error.kind).toBe("server");
     expect(error.details.status).toBe(500);
+    expect(error.details.logId).toBe("log-3");
+    expect(error.details.requestId).toBe("req_3");
+    expect(error.details.attempts).toEqual(
+      [1, 2, 3].map((i) => ({
+        kind: "server",
+        status: 500,
+        logId: `log-${i}`,
+        requestId: `req_${i}`,
+      })),
+    );
     expect(sent).toHaveLength(3);
     expect(waits).toEqual([500, 1000]);
   });
@@ -247,18 +283,39 @@ describe.each(Object.entries(entries))("%s: every failure is a ModelError with a
     expect((await failure(entry.call(ctx))).kind).toBe("network");
   });
 
-  it("keeps a bounded message and never the key, the token or the rest of the body", async () => {
-    const long = `bad request ${"x".repeat(500)}`;
+  it("keeps Meta's identifier fields and never the key, the token or content Meta echoes back", async () => {
+    // Meta's messages can name what was sent: an image URL it could not fetch, a rejected value.
     const { ctx } = transport(() =>
       json(400, {
-        error: { message: long, type: "invalid_request_error", param: "input", code: null },
+        error: {
+          message: "could not fetch https://private.example/scan.png?ref=PRIVATE-MARK: blocked by robots.txt",
+          type: "invalid_request_error",
+          param: "images[0].image_url",
+          code: null,
+        },
         echo: "PAYLOAD",
       }),
     );
     const error = await failure(entry.call(ctx));
+    expect(error.details).toMatchObject({ type: "invalid_request_error", param: "images[0].image_url", code: null });
     const text = `${error.message} ${JSON.stringify(error.details)}`;
-    expect(error.message.length).toBeLessThan(260);
-    expect(error.details.param).toBe("input");
-    for (const secret of [KEY, TOKEN, "PAYLOAD"]) expect(text).not.toContain(secret);
+    for (const kept of [KEY, TOKEN, "PAYLOAD", "PRIVATE-MARK", "private.example"]) expect(text).not.toContain(kept);
+  });
+
+  it("drops an identifier field that carries content rather than shortening it", async () => {
+    const { ctx } = transport(() =>
+      json(400, {
+        error: {
+          message: "x",
+          type: "invalid_request_error",
+          param: "input: PRIVATE-MARK said hello",
+          code: "PRIVATE MARK",
+        },
+      }),
+    );
+    const error = await failure(entry.call(ctx));
+    expect(error.details.param).toBeNull();
+    expect(error.details.code).toBeNull();
+    expect(`${error.message} ${JSON.stringify(error.details)}`).not.toContain("PRIVATE");
   });
 });

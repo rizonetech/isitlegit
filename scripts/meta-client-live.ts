@@ -3,11 +3,13 @@
 //
 // It spends under the smoke's guard (scripts/meta-smoke.ts, D00 T01 §7): the same lock, the same caps and the same
 // ledger (build/meta-smoke-spend.json, which D03 T01 §2's budget guard counts). The caps are checked before any secret
-// is read; the call's estimate is reserved before it is sent and settled at Meta's reported cost after it, so an
-// interrupted run still counts it. The Meta key, the gateway's Run token and its admin token (the log read-back only,
+// is read; each attempt's estimate is reserved before it is sent (the client may try three times) and the answered one
+// settled at Meta's reported cost after, so an interrupted run still counts what it may have spent. An answered call is
+// kept (its log id and counts, no body) until its log is checked and recorded, so a failed check is resumed by running
+// again, with no second call. The Meta key, the gateway's Run token and its admin token (the log read-back only,
 // never a Worker secret) come from Conclave through conclave-op and are never printed.
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { ModelError, metaResponses } from "../src/meta/client.ts";
 import {
@@ -42,12 +44,15 @@ export const USAGE = `node scripts/meta-client-live.ts --confirm-credit
 
 One Muse Spark call (at most ${MAX_OUTPUT_TOKENS} output tokens) through src/meta/client.ts and AI Gateway, its log read
 back for metadata and no stored body, recorded in docs/live-checks.md. Spends under scripts/meta-smoke.ts's caps and
-ledger. --confirm-credit is required: the call is billed.`;
+ledger, each attempt reserved before it is sent. A run whose call was answered but whose log check or record failed is
+resumed by running again: no second call is made. --confirm-credit is required: the call is billed.`;
 
 export type LiveOptions = {
   readSecrets?: () => Promise<Secrets>;
   fetch?: typeof fetch;
   ledger?: string;
+  // The answered call awaiting its log check and record (build/meta-client-live-pending.json).
+  pending?: string;
   record?: string;
   now?: () => Date;
   runCap?: number;
@@ -57,36 +62,66 @@ export type LiveOptions = {
   log?: (line: string) => void;
 };
 export type LiveOutcome = { code: 0 | 1; lines: string[] };
+// What an answered call leaves to verify: no body, only its identifiers and counts.
+export type Pending = { run: string; logId: string; usage: Usage | null; cost: number | null; estimate: number };
+
+type Say = (line: string) => void;
 
 export async function runClientLive(options: LiveOptions = {}): Promise<LiveOutcome> {
   const lines: string[] = [];
-  const say = (line: string) => {
+  const say: Say = (line) => {
     lines.push(line);
     options.log?.(line);
   };
   const ledgerFile = options.ledger ?? join(ROOT, "build/meta-smoke-spend.json");
+  const pendingFile = options.pending ?? join(ROOT, "build/meta-client-live-pending.json");
   const unlock = takeLock(`${ledgerFile}.lock`);
   if (typeof unlock === "string") {
     say(`meta-client-live: refused: ${unlock}`);
     return { code: 1, lines };
   }
   try {
-    return await spend(options, ledgerFile, say, lines);
+    return await run(options, ledgerFile, pendingFile, say, lines);
   } finally {
     unlock();
   }
 }
 
-async function spend(
+async function run(
   options: LiveOptions,
   ledgerFile: string,
-  say: (line: string) => void,
+  pendingFile: string,
+  say: Say,
   lines: string[],
 ): Promise<LiveOutcome> {
   const refuse = (why: string): LiveOutcome => {
     say(`meta-client-live: refused: ${why}`);
     return { code: 1, lines };
   };
+  const readSecrets = options.readSecrets ?? readSecretsFromVault;
+  const fetchImpl = options.fetch ?? fetch;
+
+  // An answered call still to verify is finished first, with no new call.
+  if (existsSync(pendingFile)) {
+    let pending: Pending;
+    try {
+      pending = JSON.parse(readFileSync(pendingFile, "utf-8"));
+      if (typeof pending?.logId !== "string" || typeof pending.run !== "string") throw new Error("no log id or run");
+    } catch (error) {
+      return refuse(
+        `${pendingFile} is unreadable (${(error as Error).message}); it holds an answered call's log id, so repair it rather than delete it`,
+      );
+    }
+    let secrets: Secrets;
+    try {
+      secrets = await readSecrets();
+    } catch (error) {
+      return refuse((error as Error).message);
+    }
+    say(`resuming: the call of ${pending.run} was answered (log ${pending.logId}); verifying it, no new call`);
+    return verify(options, pendingFile, pending, secrets, fetchImpl, say, lines);
+  }
+
   const now = options.now ?? (() => new Date());
   const today = now().toISOString().slice(0, 10);
   const runId = now().toISOString();
@@ -101,47 +136,72 @@ async function spend(
   }
   const runCap = options.runCap ?? RUN_CAP;
   const dayCap = options.dayCap ?? DAY_CAP;
-  const spentToday = spentOn(ledger, today);
-  if (estimate > runCap) return refuse(`the call could cost US$${estimate.toFixed(6)}, over the US$${runCap} cap`);
-  if (spentToday + estimate > dayCap)
-    return refuse(
-      `US$${spentToday.toFixed(4)} spent under the smoke's ledger today; this call's US$${estimate.toFixed(6)} would pass the US$${dayCap} a day`,
-    );
+  const overCap = (attempt: number) => {
+    const spentToday = spentOn(ledger, today);
+    if (attempt * estimate > runCap)
+      return `${attempt} attempt(s) could cost US$${(attempt * estimate).toFixed(6)}, over the US$${runCap} cap`;
+    if (spentToday + estimate > dayCap)
+      return `US$${spentToday.toFixed(4)} spent under the smoke's ledger today; another attempt's US$${estimate.toFixed(6)} would pass the US$${dayCap} a day`;
+    return null;
+  };
+  const before = overCap(1);
+  if (before) return refuse(before);
 
   // 2. The secrets, never printed: any line said is scrubbed of them.
   let secrets: Secrets;
   try {
-    secrets = await (options.readSecrets ?? readSecretsFromVault)();
+    secrets = await readSecrets();
   } catch (error) {
     return refuse((error as Error).message);
   }
-  const safe = (text: string) => Object.values(secrets).reduce((t, s) => (s ? t.split(s).join("[secret]") : t), text);
-  const fetchImpl = options.fetch ?? fetch;
+  const safe = scrub(secrets);
 
-  // 3. Reserved, then sent.
-  const reserved = reserveSpend(ledgerFile, ledger, { date: today, run: runId, call: "client Spark", estimate });
-  if ("refused" in reserved) return refuse(reserved.refused);
-  const { entry } = reserved;
+  // 3. Sent, every attempt reserved first: the client may try three times, and each may be charged.
+  const attempts: Spend[] = [];
+  let stopped: string | null = null;
+  const guarded = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.startsWith(GATEWAY_URL)) {
+      const over = overCap(attempts.length + 1);
+      const reserved = over
+        ? { refused: over }
+        : reserveSpend(ledgerFile, ledger, {
+            date: today,
+            run: runId,
+            call: `client Spark attempt ${attempts.length + 1}`,
+            estimate,
+          });
+      if ("refused" in reserved) {
+        stopped = reserved.refused;
+        throw new Error("spend refused");
+      }
+      attempts.push(reserved.entry);
+    }
+    return fetchImpl(input, init);
+  }) as typeof fetch;
   let answer: Awaited<ReturnType<typeof metaResponses>>;
   try {
     answer = await metaResponses(
       { model: MODEL, input: PROMPT, max_output_tokens: MAX_OUTPUT_TOKENS },
       {
         env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
-        fetch: fetchImpl,
+        fetch: guarded,
         deadlineMs: 60_000,
       },
     );
   } catch (error) {
-    // Whether Meta charged is unknown: the reservation stands at its estimate.
-    const unsettled = settleSpend(ledgerFile, ledger, entry, null);
+    // Whether Meta charged any attempt is unknown: each reservation stands at its estimate.
+    for (const entry of attempts) {
+      const unsettled = settleSpend(ledgerFile, ledger, entry, null);
+      if (unsettled) say(`meta-client-live: ${unsettled}`);
+    }
+    if (stopped) return refuse(`stopped before attempt ${attempts.length + 1}: ${stopped}`);
     const why = error instanceof ModelError ? `${error.kind}: ${error.message}` : (error as Error).name;
     say(safe(`failed: the call did not complete (${why})`));
-    if (unsettled) say(`meta-client-live: ${unsettled}`);
     return { code: 1, lines };
   }
 
-  // 4. Settled at Meta's reported usage.
+  // 4. Settled: the answered attempt at Meta's reported usage, any earlier one left at its estimate.
   const counts = answer.data.usage;
   const usage: Usage | null =
     counts && Number.isInteger(counts.input_tokens) && Number.isInteger(counts.output_tokens)
@@ -152,15 +212,39 @@ async function spend(
         }
       : null;
   const cost = usage ? tokenCost(MODEL, usage.input, usage.output, usage.cached) : null;
-  const unsettled = settleSpend(ledgerFile, ledger, entry, cost);
-  if (unsettled) say(`meta-client-live: ${unsettled}; the reservation stands at its estimate`);
-
-  // 5. The gateway's log: this call's metadata, and no stored body.
+  attempts.forEach((entry, i) => {
+    const unsettled = settleSpend(ledgerFile, ledger, entry, i === attempts.length - 1 ? cost : null);
+    if (unsettled) say(`meta-client-live: ${unsettled}; the reservation stands at its estimate`);
+  });
   if (!answer.logId) {
     say("failed: no cf-aig-log-id came back, so the gateway did not log the call");
     return { code: 1, lines };
   }
-  const planned: Planned = { name: "client Spark", model: MODEL, body: {}, stream: false, estimate };
+
+  // 5. The answered call kept before it is verified, so a failed check or record is resumed without paying again.
+  const pending: Pending = { run: runId, logId: answer.logId, usage, cost, estimate };
+  try {
+    writeWhole(pendingFile, `${JSON.stringify(pending, null, 1)}\n`);
+  } catch (error) {
+    say(`meta-client-live: ${pendingFile} could not be written (${(error as Error).message}); verifying now`);
+  }
+  return verify(options, pendingFile, pending, secrets, fetchImpl, say, lines);
+}
+
+// The gateway's log: this call's metadata, and no stored body; then the record. The pending file goes only when both
+// are done.
+async function verify(
+  options: LiveOptions,
+  pendingFile: string,
+  pending: Pending,
+  secrets: Secrets,
+  fetchImpl: typeof fetch,
+  say: Say,
+  lines: string[],
+): Promise<LiveOutcome> {
+  const safe = scrub(secrets);
+  const resume = existsSync(pendingFile) ? "; run again to resume, no new call is made" : "";
+  const planned: Planned = { name: "client Spark", model: MODEL, body: {}, stream: false, estimate: pending.estimate };
   const getLog = async (path: string) => {
     const response = await fetchImpl(`${LOGS_URL}${path}`, {
       headers: { authorization: `Bearer ${secrets.admin}`, "user-agent": "isitlegit-meta-client-live/1.0" },
@@ -176,22 +260,32 @@ async function spend(
     }
     return { status: response.status, body };
   };
-  const logCheck = await checkLog(getLog, answer.logId, planned, usage, options.logWaitMs, options.pause);
+  const logCheck = await checkLog(getLog, pending.logId, planned, pending.usage, options.logWaitMs, options.pause);
   if (!logCheck.ok) {
-    say(safe(`failed: ${logCheck.detail} (log ${answer.logId})`));
+    say(safe(`failed: ${logCheck.detail} (log ${pending.logId})${resume}`));
     return { code: 1, lines };
   }
-
-  // 6. Recorded.
-  const row = `| ${runId} | \`${MODEL}\` | passed | ${usage?.input ?? "?"} / ${usage?.output ?? "?"} | US$${(cost ?? estimate).toFixed(6)} | \`${answer.logId}\`: ${logCheck.detail} |`;
+  const { usage, cost } = pending;
+  const row = `| ${pending.run} | \`${MODEL}\` | passed | ${usage?.input ?? "?"} / ${usage?.output ?? "?"} | US$${(cost ?? pending.estimate).toFixed(6)} | \`${pending.logId}\`: ${logCheck.detail} |`;
   try {
     appendRecord(options.record ?? join(ROOT, "docs/live-checks.md"), row);
   } catch (error) {
-    say(`failed: the record could not be written (${(error as Error).message})`);
+    say(`failed: the record could not be written (${(error as Error).message})${resume}`);
     return { code: 1, lines };
   }
-  say(safe(`passed: ${MODEL} through src/meta/client.ts; log ${answer.logId}: ${logCheck.detail}`));
+  rmSync(pendingFile, { force: true });
+  say(safe(`passed: ${MODEL} through src/meta/client.ts; log ${pending.logId}: ${logCheck.detail}`));
   return { code: 0, lines };
+}
+
+const scrub = (secrets: Secrets) => (text: string) =>
+  Object.values(secrets).reduce((t, s) => (s ? t.split(s).join("[secret]") : t), text);
+
+function writeWhole(file: string, text: string): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, text);
+  renameSync(tmp, file);
 }
 
 // The row under the record's heading, the table made the first time; written whole, through a temporary file.
@@ -203,9 +297,7 @@ function appendRecord(file: string, row: string): void {
   const next = text.indexOf("\n## ", at + RECORD_HEADING.length);
   const end = next < 0 ? text.length : next;
   text = `${text.slice(0, end).trimEnd()}\n${row}\n${text.slice(end)}`;
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, text.endsWith("\n") ? text : `${text}\n`);
-  renameSync(tmp, file);
+  writeWhole(file, text.endsWith("\n") ? text : `${text}\n`);
 }
 
 if (import.meta.filename === process.argv[1]) {

@@ -7,8 +7,9 @@
 // One owner for retries, this module: the SDK's own are off (it would also retry 408 and 409, and wait up to ten
 // minutes). Only the statuses Meta documents as retryable are tried again (429, 500, 502, 503; a 504 is not, as Meta
 // advises), at most three attempts, all inside one deadline that also bounds reading the answer. Every failure leaves
-// as a ModelError with a kind, keeping Meta's status, type, code and param and a bounded message, never a payload or a
-// credential.
+// as a ModelError with a kind, keeping Meta's status and its identifier fields (type, code, param) and, for each attempt,
+// the gateway's log id and Meta's request id to trace it by; never Meta's free-text message, which can echo what was
+// sent (a rejected value, an image URL it could not fetch), a payload or a credential.
 import OpenAI from "openai";
 import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
@@ -21,7 +22,9 @@ export const MAX_ATTEMPTS = 3;
 export const MAX_RETRY_AFTER_MS = 20_000;
 const BACKOFF_MS = 1_000;
 const RETRIED = new Set([429, 500, 502, 503]);
-const MESSAGE_LIMIT = 200;
+// What an identifier field (Meta's type, code and param; the gateway's and Meta's ids) may hold to be kept: a name,
+// a field path such as images[0].image_url, or an id. Anything else is dropped, never shortened.
+const IDENTIFIER = /^[A-Za-z0-9_.:[\]-]{1,80}$/;
 
 export type MetaEnv = { META_API_KEY?: string; CF_AIG_TOKEN?: string; META_GATEWAY_URL?: string };
 export type MetaContext = {
@@ -48,12 +51,18 @@ export type ModelErrorKind =
   | "network"
   | "malformed";
 
+// One attempt that failed, with what traces it: the gateway's log id (cf-aig-log-id) and Meta's (x-request-id).
+export type FailedAttempt = { kind: ModelErrorKind; status?: number; logId: string | null; requestId: string | null };
 export type ModelErrorDetails = {
   status?: number;
   type?: string | null;
   code?: string | null;
   param?: string | null;
   retryAfterMs?: number;
+  logId?: string | null;
+  requestId?: string | null;
+  // Every failed attempt of the call, in order, on the error that ends it.
+  attempts?: FailedAttempt[];
 };
 
 // Plain fields rather than parameter properties: Node's type stripping (the live script) refuses syntax that emits code.
@@ -88,7 +97,11 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
   const body: ResponseCreateParamsNonStreaming = { ...params, model, stream: false, store: false };
   return withRetries(ctx, async (signal) => {
     const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
-    if (!isResponse(data)) throw new ModelError("malformed", "Meta's answer is not a response object");
+    if (!isResponse(data))
+      throw new ModelError("malformed", "Meta's answer is not a response object", {
+        status: response.status,
+        ...traced(response.headers),
+      });
     return { data, logId: response.headers.get("cf-aig-log-id") };
   });
 }
@@ -148,7 +161,10 @@ export async function metaRaw(
     }
     if (!response.ok) throw statusError(response.status, response.headers, parsed ? data : undefined);
     if (!parsed || typeof data !== "object" || data === null)
-      throw new ModelError("malformed", `Meta's answer from ${path} is not a JSON object`, { status: response.status });
+      throw new ModelError("malformed", `Meta's answer from ${path} is not a JSON object`, {
+        status: response.status,
+        ...traced(response.headers),
+      });
     return { data, logId: response.headers.get("cf-aig-log-id") };
   });
 }
@@ -196,6 +212,12 @@ async function withRetries<T>(ctx: MetaContext, attempt: (signal: AbortSignal) =
     }, deadlineMs);
   });
   expired.catch(() => {});
+  const attempts: FailedAttempt[] = [];
+  // The call's end carries every attempt that failed, so each can be found in the gateway's log.
+  const end = (failure: ModelError) => {
+    failure.details.attempts = attempts;
+    return failure;
+  };
   try {
     for (let n = 1; ; n++) {
       try {
@@ -203,12 +225,22 @@ async function withRetries<T>(ctx: MetaContext, attempt: (signal: AbortSignal) =
       } catch (error) {
         const failure = classify(error);
         const { status, retryAfterMs } = failure.details;
-        if (n >= MAX_ATTEMPTS || status === undefined || !RETRIED.has(status)) throw failure;
-        if (retryAfterMs !== undefined && retryAfterMs > MAX_RETRY_AFTER_MS) throw failure;
+        attempts.push({
+          kind: failure.kind,
+          ...(status !== undefined ? { status } : {}),
+          logId: failure.details.logId ?? null,
+          requestId: failure.details.requestId ?? null,
+        });
+        if (n >= MAX_ATTEMPTS || status === undefined || !RETRIED.has(status)) throw end(failure);
+        if (retryAfterMs !== undefined && retryAfterMs > MAX_RETRY_AFTER_MS) throw end(failure);
         // Meta's Retry-After when it gave one, else 1 s then 2 s with full jitter.
         const wait = retryAfterMs ?? random() * BACKOFF_MS * 2 ** (n - 1);
-        if (Date.now() - started + wait >= deadlineMs) throw failure;
-        await Promise.race([sleep(wait), expired]);
+        if (Date.now() - started + wait >= deadlineMs) throw end(failure);
+        try {
+          await Promise.race([sleep(wait), expired]);
+        } catch (timeout) {
+          throw end(classify(timeout));
+        }
       }
     }
   } finally {
@@ -229,13 +261,18 @@ function classify(error: unknown): ModelError {
   return new ModelError("malformed", "Meta's answer could not be read");
 }
 
-// An error status decides the kind; Meta's envelope, when the body is one, adds its type, code, param and message.
-// A body that is not the envelope (404's is empty, an edge's 502 may be HTML) keeps its status's kind.
+// An error status decides the kind; Meta's envelope, when the body is one, adds its type, code and param. A body that is
+// not the envelope (404's is empty, an edge's 502 may be HTML) keeps its status's kind.
 function statusError(status: number, headers: Headers, body: unknown): ModelError {
   const envelope = (body as { error?: unknown } | undefined)?.error;
   const e = typeof envelope === "object" && envelope !== null ? (envelope as Record<string, unknown>) : {};
-  const text = (value: unknown) => (typeof value === "string" ? value : null);
-  const details: ModelErrorDetails = { status, type: text(e.type), code: text(e.code), param: text(e.param) };
+  const details: ModelErrorDetails = {
+    status,
+    type: identifier(e.type),
+    code: identifier(e.code),
+    param: identifier(e.param),
+    ...traced(headers),
+  };
   const retryAfterMs = retryAfter(headers.get("retry-after"));
   if (retryAfterMs !== undefined) details.retryAfterMs = retryAfterMs;
   const kind: ModelErrorKind =
@@ -254,13 +291,15 @@ function statusError(status: number, headers: Headers, body: unknown): ModelErro
                 : status >= 400
                   ? "invalid-request"
                   : "malformed";
-  const said = text(e.message);
-  return new ModelError(
-    kind,
-    `Meta answered HTTP ${status}${said ? `: ${said.slice(0, MESSAGE_LIMIT)}` : ""}`,
-    details,
-  );
+  const named = [details.type, details.code, details.param].filter(Boolean).join(", ");
+  return new ModelError(kind, `Meta answered HTTP ${status}${named ? ` (${named})` : ""}`, details);
 }
+
+const identifier = (value: unknown) => (typeof value === "string" && IDENTIFIER.test(value) ? value : null);
+const traced = (headers: Headers) => ({
+  logId: identifier(headers.get("cf-aig-log-id")),
+  requestId: identifier(headers.get("x-request-id")),
+});
 
 // Retry-After as seconds or an HTTP date (RFC 9110 10.2.3); unreadable is absent.
 function retryAfter(value: string | null): number | undefined {
