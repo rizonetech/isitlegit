@@ -77,17 +77,22 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
                 )
                 .bind(id, email, now, now, hash),
             ])
-            .catch(() => null);
-          if (batch && batch[0]?.meta.changes === 1) {
+            .catch((error: unknown) => ({ failed: error }));
+          if (Array.isArray(batch) && batch[0]?.meta.changes === 1) {
             redemption = { id, status: "pending", user_id: null, org_id: null };
           } else {
             // Not redeemed here: the insert lost to this address's redemption, or the code had no use left (perhaps
             // because an overlapping signup for this address just took it). Either way, this address's redemption
-            // decides: resume a pending one, refer a completed one to sign-in, or refuse the code.
+            // decides: resume a pending one, refer a completed one to sign-in, or refuse the code. A batch that failed
+            // with no redemption to show for it was the database failing, not the code: that is a 503 to retry.
             const other = await db
               .prepare("SELECT id, status, user_id, org_id FROM invite_redemptions WHERE email = ?")
               .bind(email)
               .first<Redemption>();
+            if (!other && !Array.isArray(batch))
+              throw new APIError("SERVICE_UNAVAILABLE", {
+                message: "signing up could not be completed just now; try again in a moment",
+              });
             if (!other) throw unusable();
             if (other.status !== "pending")
               throw new APIError("CONFLICT", { message: "this address already has an account; sign in instead" });

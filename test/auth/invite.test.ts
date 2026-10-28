@@ -259,6 +259,29 @@ describe("invite-code signup", () => {
     expect(await count(`SELECT COUNT(*) AS n FROM "member" WHERE "userId" = 'joined-user'`)).toBe(1);
   });
 
+  it("answers 503, not an invalid code, when the database fails the redemption, and the code still works after", async () => {
+    const codeId = await addInviteCode(db, "TRANSIENT");
+    const failingBatch = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch")
+          return async () => {
+            throw new Error("D1_ERROR: Network connection lost.");
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const body = { email: "transient@example.org", code: "TRANSIENT", organizationName: "Flaky", consent: true };
+    const failed = await signUp(body, { ...authEnv, DB: failingBatch });
+    expect(failed.status).toBe(503);
+    expect(await failed.text()).toMatch(/try again/);
+    expect(await usesOf(codeId)).toBe(0);
+    expect((await signUp(body)).status).toBe(201);
+    expect(await usesOf(codeId)).toBe(1);
+  });
+
   it("completes a signup stopped after any of its writes, with one of everything and the code used once", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
