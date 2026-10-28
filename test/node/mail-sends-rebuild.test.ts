@@ -39,3 +39,34 @@ describe("migration 0015", () => {
     expect(db.prepare("SELECT id FROM mail_sends WHERE id = 'm1'").get()).toBeUndefined();
   });
 });
+
+describe("migration 0016", () => {
+  it("adds the intake claims, one per organisation and message, and the forwarder columns to cases", () => {
+    const db = new DatabaseSync(":memory:");
+    for (const name of files.filter((n) => n < "0017")) db.exec(readFileSync(join(MIGRATIONS, name), "utf-8"));
+    const now = "2026-10-28T05:00:00.000Z";
+    db.exec(
+      `INSERT INTO cases (id, org_id, channel, forwarded_by, message_id, created_at, updated_at) VALUES ('01JCASE00000000000000000001', 'o', 'email', 'boss@member.co.za', '<m@member.co.za>', '${now}', '${now}')`,
+    );
+    expect(db.prepare("SELECT forwarded_by, message_id FROM cases").get()).toEqual({
+      forwarded_by: "boss@member.co.za",
+      message_id: "<m@member.co.za>",
+    });
+    db.exec(
+      `INSERT INTO intake_messages (org_id, message_key, state, claimed_at) VALUES ('o', '<m@member.co.za>', 'pending', '${now}')`,
+    );
+    expect(() =>
+      db.exec(
+        `INSERT INTO intake_messages (org_id, message_key, state, claimed_at) VALUES ('o', '<m@member.co.za>', 'done', '${now}')`,
+      ),
+    ).toThrow(/UNIQUE/);
+    db.exec(
+      `INSERT INTO intake_messages (org_id, message_key, state, claimed_at) VALUES ('other', '<m@member.co.za>', 'done', '${now}')`,
+    );
+    expect(() =>
+      db.exec(
+        `INSERT INTO intake_messages (org_id, message_key, state, claimed_at) VALUES ('o', 'k2', 'started', '${now}')`,
+      ),
+    ).toThrow(/CHECK/);
+  });
+});

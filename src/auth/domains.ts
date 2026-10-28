@@ -1,21 +1,24 @@
-// Domain and sending-address verification, and the sender lookup the email handler uses (D07 T02 §5; spec 4.1, 4.8).
+// Domain and sending-address verification (D07 T02 §5; spec 4.1, 4.8); the sender lookup it feeds is in ./senders.
 //
 // An owner or admin claims a domain (held in its registrable form) or a single sending address for the active
 // organisation, then proves control: a domain by a DNS TXT record or a code mailed to admin@ or postmaster@ it, an
 // address by a code mailed to it. Every read and change names the active organisation, so another organisation's claim
 // reads as missing. A claim's challenge is one live code, stored hashed and bound to its claim and organisation: a new
-// code replaces the old, a lock survives a resend, and wrong guesses are counted in one statement, so concurrent
-// guesses cannot pass three. A right code is consumed in the same batch that verifies the claim, so a failure loses
-// neither. The limits (pending claims an organisation, codes a claim an hour) are each checked in the statement that
-// would exceed them. Removing a claim deletes it with its code and token, so nothing stale can restore it. Codes go
-// out as mail kind `claim`, which the recipient allowlist admits only to a pending claim (src/mail/allowlist.ts). A
-// database failure answers 503 to retry, never as another organisation's claim.
+// code replaces the old, and none is sent while the code is locked. A guess is one transaction that takes one of three
+// attempts (the third setting the lock), consumes a right code and verifies the claim, so concurrent guesses cannot pass
+// three and a failure loses nothing. The limits (pending claims an organisation; codes a claim an hour; codes an
+// organisation an hour and a day) are each checked in the statement that would exceed them. Removing a claim deletes it
+// with its code and token, so nothing stale can restore it. Codes go out as mail kind `claim`, which the recipient
+// allowlist admits only to a pending claim (src/mail/allowlist.ts). A database failure answers 503 to retry, never as
+// another organisation's claim.
 import { type Context, Hono } from "hono";
-import { getDomain, parse } from "tldts";
 import { z } from "zod";
 import { type MailOutcome, sendClaimCode } from "./claim-mail";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
+import { findMemberBySender, registrable } from "./senders";
+
+export { findMemberBySender, registrable };
 
 export const DOH_URL = "https://cloudflare-dns.com/dns-query";
 export const DOH_DEADLINE_MS = 10_000;
@@ -42,17 +45,6 @@ const randomHex = (bytes: number) =>
   [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
 const sixDigits = () => String((crypto.getRandomValues(new Uint32Array(1))[0] ?? 0) % 1_000_000).padStart(6, "0");
 
-// A host name as typed: ASCII letters, digits and hyphens in dot-separated labels of 1 to 63 (an internationalised
-// name in its xn-- form), nothing else; so a URL, an address or a path is refused rather than read for a domain in it.
-const HOST = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
-
-// A domain's registrable form (`mail.example.co.za` is `example.co.za`), or null for an IP address, a public suffix
-// or anything that is not a host name.
-export function registrable(input: string): string | null {
-  const host = input.trim().toLowerCase().replace(/\.$/, "");
-  if (!HOST.test(host) || parse(host).isIp) return null;
-  return getDomain(host, { allowPrivateDomains: false }) ?? null;
-}
 const Address = z.string().trim().toLowerCase().email().max(254);
 
 type Domain = { id: string; org_id: string; domain: string; token: string; state: string };
@@ -66,27 +58,6 @@ const isUnique = (error: unknown) => /UNIQUE/i.test(String((error as Error)?.mes
 // A request body's fields: unparsable JSON is null, and any JSON (null, an array, a string) reads every field as
 // undefined, which each route refuses with a 400.
 const bodyOf = async (c: Context<OrgEnv>) => (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
-
-// The organisation a sender belongs to, for the email handler: a verified address, else the verified registrable
-// domain of the address, else null.
-export async function findMemberBySender(db: D1Database, sender: string): Promise<string | null> {
-  const address = sender.trim().toLowerCase();
-  // An address: one @, something on each side.
-  const at = address.indexOf("@");
-  if (at < 1 || at !== address.lastIndexOf("@") || at === address.length - 1) return null;
-  const byAddress = await db
-    .prepare("SELECT org_id FROM org_addresses WHERE address = ? AND state = 'verified'")
-    .bind(address)
-    .first<{ org_id: string }>();
-  if (byAddress) return byAddress.org_id;
-  const domain = registrable(address.slice(address.lastIndexOf("@") + 1));
-  if (!domain) return null;
-  const byDomain = await db
-    .prepare("SELECT org_id FROM org_domains WHERE domain = ? AND state = 'verified'")
-    .bind(domain)
-    .first<{ org_id: string }>();
-  return byDomain?.org_id ?? null;
-}
 
 const verifySql = (table: "org_domains" | "org_addresses") =>
   table === "org_domains"

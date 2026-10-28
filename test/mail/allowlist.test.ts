@@ -124,6 +124,36 @@ describe("isAllowedRecipient", () => {
       expect(await allowed(to, "claim"), to).toBe(false);
   });
 
+  it("lets a forwarder that intake admits receive reply and notice mail, not renewal (D01 T01 §3)", async () => {
+    const at = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES ('d-forward', 'o-forward', 'forwarders.co.za', 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
+        )
+        .bind(at, at),
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO org_domains (id, org_id, domain, token, state, created_at) VALUES ('d-waiting', 'o-forward', 'waiting.co.za', 'tttttttttttttttt', 'pending', ?)",
+        )
+        .bind(at),
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES ('a-forward', 'o-forward', 'owner.personal@gmail.com', 'verified', ?, ?)",
+        )
+        .bind(at, at),
+    ]);
+    for (const to of ["accounts@forwarders.co.za", "ceo@mail.forwarders.co.za", "owner.personal@gmail.com"]) {
+      expect(await allowed(to, "reply"), to).toBe(true);
+      expect(await allowed(to, "notice"), to).toBe(true);
+      expect(await allowed(to, "renewal"), to).toBe(false);
+    }
+    for (const to of ["accounts@waiting.co.za", "someone.else@gmail.com", "accounts@forwarders.co.za.evil.com"]) {
+      expect(await allowed(to, "reply"), to).toBe(false);
+      expect(await allowed(to, "notice"), to).toBe(false);
+    }
+  });
+
   it("admits no operator when none is configured", async () => {
     expect(await isAllowedRecipient(db, OPERATOR, "alert", undefined)).toBe(false);
     expect(await isAllowedRecipient(db, OPERATOR, "alert", "")).toBe(false);

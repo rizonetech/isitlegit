@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
+  admitCase,
   type Case,
   type CaseStatus,
   createCase,
@@ -276,5 +277,34 @@ describe("the case store", () => {
     expect(await stored(c)).toMatchObject({ status: "running", verdict: null });
     // The pipeline's trusted lookup reads by id alone.
     expect(await getCaseForPipeline(db, c.id)).toMatchObject({ ok: true, value: { id: c.id, orgId: "org-a" } });
+  });
+
+  it("stores an email case's forwarder and Message-ID, and none for an upload (D01 T01 §3)", async () => {
+    const email = await admitCase(db, {
+      orgId: "org-forward",
+      channel: "email",
+      headersAvailable: false,
+      forwardedBy: " Boss@Member.co.za ",
+      messageId: "<abc@member.co.za>",
+    });
+    expect(email).toMatchObject({
+      ok: true,
+      value: { forwardedBy: "boss@member.co.za", messageId: "<abc@member.co.za>" },
+    });
+    if (!email.ok) throw new Error(email.error.message);
+    expect(await getCase(db, "org-forward", email.value.id)).toMatchObject({
+      ok: true,
+      value: { forwardedBy: "boss@member.co.za", messageId: "<abc@member.co.za>" },
+    });
+    const upload = await createCase(db, { orgId: "org-forward", channel: "upload", headersAvailable: true });
+    expect(upload).toMatchObject({ ok: true, value: { forwardedBy: null, messageId: null } });
+    expect(
+      await admitCase(db, {
+        orgId: "org-forward",
+        channel: "email",
+        headersAvailable: false,
+        forwardedBy: "not an address",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "invalid" } });
   });
 });

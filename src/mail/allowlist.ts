@@ -6,12 +6,15 @@
 // A demo alias is an address at exactly isitlegit.co.za or demo.isitlegit.co.za, which forward to the operator's
 // Rizonetech mailbox. The operator is OPERATOR_EMAIL. Per kind:
 //   signin                    members, pending unexpired invitees, demo aliases, the operator
-//   reply, notice, renewal    members, demo aliases, the operator
+//   reply, notice             members, any address findMemberBySender resolves (a verified address, or any address at
+//                             a verified domain: the forwarders intake admits, D01 T01 §3), demo aliases, the operator
+//   renewal                   members, demo aliases, the operator
 //   verify                    demo aliases only (closed-loop verification goes only to the fictional demo businesses)
 //   alert                     demo aliases and the operator (impersonation and counterparty alerts, the operator's
 //                             unsettled-send handover), never a member's own address
 //   claim                     ownership codes (D07 T02 §5): admin@ or postmaster@ a domain with a pending claim, an
 //                             address with a pending claim, and nothing else (not even the demo aliases)
+import { findMemberBySender } from "../auth/senders";
 import type { MailKind } from "./smtp2go";
 
 const DEMO_DOMAINS = new Set(["isitlegit.co.za", "demo.isitlegit.co.za"]);
@@ -72,6 +75,7 @@ export async function isAllowedRecipient(
       return demo || operator || (await isMember(db, address)) || (await isInvitee(db, address, now));
     case "reply":
     case "notice":
+      return demo || operator || (await isMember(db, address)) || (await findMemberBySender(db, address)) !== null;
     case "renewal":
       return demo || operator || (await isMember(db, address));
   }

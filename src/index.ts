@@ -3,6 +3,7 @@ import { createAuth } from "./auth/auth";
 import { domainRoutes } from "./auth/domains";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
+import { handleEmail, sweepIntake } from "./intake/email";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { smoke } from "./smoke";
 
@@ -23,14 +24,28 @@ app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
 // Domain and sending-address verification for owners and admins (D07 T02 §5), src/auth/domains.ts.
 app.route("/api/org", domainRoutes);
 
-// The Worker: HTTP through the app, and the cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail
-// sends from SMTP2GO's record (D01 T02 §5).
+// The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
+// cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)
+// and sweeping the intake claims.
 export default {
   fetch: app.fetch,
+  async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
+    await handleEmail(message, env);
+  },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(scheduledReconcile(env));
+    ctx.waitUntil(scheduledIntakeSweep(env));
   },
 } satisfies ExportedHandler<Env>;
+
+// The intake sweep's outcome as one log line (counts only: no address, key or Message-ID).
+export async function scheduledIntakeSweep(env: Env, log: (line: string) => void = console.log) {
+  try {
+    log(JSON.stringify({ event: "intake-sweep", state: "ok", ...(await sweepIntake(env)) }));
+  } catch (error) {
+    log(JSON.stringify({ event: "intake-sweep", state: "degraded", error: (error as Error).name }));
+  }
+}
 
 // One run's outcome, logged as one line for Workers Logs (no key, address or body): `disabled` when the SMTP2GO key is
 // not set, `degraded` when a search failed or a send could not be handed over, `ok` otherwise, with the counts.
