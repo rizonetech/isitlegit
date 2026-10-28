@@ -11,13 +11,14 @@ const BRIEF = readFileSync(join(import.meta.dirname, "../../docs/glimmer/astra-c
 const RULES: Record<string, string[]> = {
   Goal: ["fake shops", "lookalike company, supplier or social network pages", "benign pages", "South Africa"],
   "Candidate sources": ["Phishpedia", "PhishIntention", "VisualPhishNet", "PILWD-134K", "fake-shop"],
-  "Licence rule": ["commercial product", "research-only", "non-commercial", "unclear", "raw/REJECTED.md", "4.9"],
+  "Licence rule": ["commercial product", "research-only", "non-commercial", "unclear", "`REJECTED.md`", "4.9"],
   "Safety rules": [
     "Download only from the dataset's official page",
     "Never open, fetch or render a live phishing URL",
     "Never execute",
+    "Never unpack an archive",
     "Do not log in",
-    "Write nothing outside the `raw/` folder",
+    "Write nothing outside the folder you start in",
   ],
   "Output layout": [
     "`URL:`",
@@ -30,10 +31,14 @@ const RULES: Record<string, string[]> = {
     "`Date:`",
   ],
   "Recovery rules": [
-    "`raw/<source>/.partial/`",
+    "`<source>/.partial/`",
     "only after its SHA-256 has been computed",
     "`COLLECTED.md` is written last, through a temporary file and a rename",
+    "only when every file it lists is in place",
     "skips a source whose `COLLECTED.md` hashes still match",
+    "deletes `.partial/` and redoes any source without a `COLLECTED.md`",
+    "renames it to `COLLECTED.invalid-<UTC stamp>.md`",
+    "other sources are left as they are",
   ],
   "Stop conditions": [
     "At most 3 attempts per file",
@@ -41,6 +46,7 @@ const RULES: Record<string, string[]> = {
     "20 GB in all",
     "30 candidate sources",
     "4 hours",
+    "less than 10 GB free",
   ],
   Report: ["every candidate you researched"],
 };
@@ -65,6 +71,14 @@ function missing(brief: string): string[] {
 }
 
 describe("Astra's collection brief", () => {
+  it("names every path relative to the folder Astra starts in, never under a second raw/", () => {
+    // astra-collect.py starts Codex in <store>/raw, so a `raw/` path in the brief would land in <store>/raw/raw.
+    expect(BRIEF).toContain("every path in this brief is relative to it");
+    // The only `raw/` paths left are the store folder itself and the example of what not to write.
+    expect(BRIEF.match(/`raw\/[^`]*`/g) ?? []).toEqual(["`raw/`", "`raw/<source>/`"]);
+    expect(BRIEF).toContain("never `raw/<source>/`");
+  });
+
   it("carries every rule under its heading", () => {
     expect(missing(BRIEF)).toEqual([]);
   });

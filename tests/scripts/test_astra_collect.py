@@ -7,10 +7,12 @@ checked by substance, and each check is shown to fail on a copy with that rule r
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -19,12 +21,23 @@ SCRIPT = ROOT / "scripts" / "astra-collect.py"
 BRIEF = ROOT / "docs" / "glimmer" / "astra-collection-brief.md"
 
 FAKE_CODEX = """#!/usr/bin/env python3
-import json, os, sys
+import json, os, signal, sys, time
 data = sys.stdin.buffer.read()
 with open(os.environ["FAKE_CODEX_LOG"], "w") as fh:
-    json.dump({"args": sys.argv[1:], "cwd": os.getcwd(), "stdin": data.decode("utf-8")}, fh)
+    json.dump({"args": sys.argv[1:], "cwd": os.getcwd(), "stdin": data.decode("utf-8"), "pid": os.getpid()}, fh)
+if os.environ.get("FAKE_CODEX_IGNORE_TERM"):
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+time.sleep(float(os.environ.get("FAKE_CODEX_SLEEP", "0")))
 sys.exit(int(os.environ.get("FAKE_CODEX_EXIT", "0")))
 """
+
+
+def alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 class Launcher(unittest.TestCase):
@@ -50,6 +63,10 @@ class Launcher(unittest.TestCase):
     def recorded(self):
         return json.loads(self.log.read_text())
 
+    def status(self, store=None):
+        raw = (store or self.home / "isitlegit-data" / "glimmer") / "raw"
+        return json.loads((raw / "RUN-STATUS.json").read_text())
+
     def test_it_runs_codex_in_the_default_store_with_the_brief_on_standard_input(self):
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -65,6 +82,55 @@ class Launcher(unittest.TestCase):
 
     def test_it_exits_with_codexs_own_failure(self):
         self.assertEqual(self.run_script(exit_code=7).returncode, 7)
+        self.assertEqual(self.status()["outcome"], "failed")
+        self.assertEqual(self.status()["exit"], 7)
+
+    def test_a_finished_run_records_its_outcome(self):
+        self.assertEqual(self.run_script().returncode, 0)
+        status = self.status()
+        self.assertEqual((status["outcome"], status["exit"]), ("completed", 0))
+        self.assertIn("started", status)
+        self.assertIn("ended", status)
+
+    def test_the_deadline_stops_a_stalled_run_and_its_whole_process_group(self):
+        # The fake ignores SIGTERM, so only the SIGKILL that follows the grace period stops it.
+        began = time.monotonic()
+        result = self.run_script("--deadline-seconds", "1", FAKE_CODEX_SLEEP="60", FAKE_CODEX_IGNORE_TERM="1")
+        self.assertEqual(result.returncode, 124, result.stderr)
+        self.assertLess(time.monotonic() - began, 20)
+        self.assertEqual(self.status()["outcome"], "timed-out")
+        self.assertFalse(alive(self.recorded()["pid"]))
+
+    def test_an_interrupted_launcher_stops_codex_and_says_so(self):
+        environment = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "HOME": str(self.home),
+                       "FAKE_CODEX_LOG": str(self.log), "FAKE_CODEX_SLEEP": "60"}
+        launcher = subprocess.Popen([sys.executable, str(SCRIPT)], env=environment, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True)
+        deadline = time.monotonic() + 20
+        while not self.log.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        child = self.recorded()["pid"]
+        began = time.monotonic()
+        launcher.send_signal(signal.SIGTERM)
+        code = launcher.wait(timeout=20)
+        launcher.stdout.close()
+        launcher.stderr.close()
+        self.assertEqual(code, 130)
+        self.assertLess(time.monotonic() - began, 6)
+        self.assertEqual(self.status()["outcome"], "interrupted")
+        self.assertEqual(self.status()["signal"], "SIGTERM")
+        self.assertFalse(alive(child))
+
+    def test_progress_is_reported_while_codex_runs(self):
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        (raw / "phishpedia").mkdir(parents=True)
+        (raw / "phishpedia" / "COLLECTED.md").write_text("URL: x\n")
+        (raw / "visualphishnet" / ".partial").mkdir(parents=True)
+        (raw / "REJECTED.md").write_text("a: research-only\nb: unclear\n")
+        result = self.run_script("--progress-seconds", "0.2", FAKE_CODEX_SLEEP="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("1 accepted, 2 rejected, 1 in progress or incomplete", result.stdout)
+        self.assertGreaterEqual(result.stdout.count(" min: "), 2)
 
     def test_it_honours_the_store_override(self):
         store = self.tmp / "elsewhere"

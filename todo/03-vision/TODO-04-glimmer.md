@@ -51,6 +51,7 @@ track: day-6
 | 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [ ] |
 | 14 | §15 | Warm-up handling and wake call | §14 | [ ] |
 | 15 | §1 | Glimmer screener, Spark failover | D03 T02 §3, §13, §15 | [ ] |
+| 16 | §16 | Resumable verified dataset downloads | §4 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -152,6 +153,13 @@ The operator chose Astra (GPT-6 Astra through the Codex CLI) to collect public d
 - [x] Make `astra-collect.py` create `<store>/raw` (parents included) before launching, refuse with the reason and without launching when it cannot (a file in the way, no permission), and move an earlier `ASTRA-REPORT.md` aside to `ASTRA-REPORT.<UTC stamp>.md` so a stale report never stands as this run's. Done when: the test creates the default store under a temporary `HOME`, honours a `GLIMMER_DATA_DIR` override, refuses an uncreatable store without launching, and keeps the earlier report under its stamp. **Corrected 2026-10-28 (plan review finding 2):** no step created the store.
 - [x] Prove the launch with a fake `codex` on `PATH` that records its arguments, working directory and standard input and exits with a chosen code. Done when: the test shows the exact arguments, the working directory `<store>/raw`, the brief's bytes on standard input, the `-o` path, and the script exiting with the child's non-zero code; it fails when the launch is removed. **Corrected 2026-10-28 (plan review finding 1):** a dry-run-only script passed every earlier test. **Corrected 2026-10-28:** the store is not a git repository, so Codex needs `--skip-git-repo-check` (the dispatcher passes it too, `scripts/review-dispatch.py:366`); the effort is set because the operator's Codex config defaults to `max` (high is this file's default for research, changed in one argument); `-o` keeps Astra's report beside what it collected.
 - [x] Extend `scripts/dispatch_hook.py` so `astra-collect.py` and `astra-judge.py` (§9) run only with the Bash tool's `run_in_background` option, as reviews do (`CLAUDE.md`). Done when: `tests/scripts/test_dispatch_hook.py` refuses a foreground and a detached run of each and passes `--dry-run`.
+- [x] Make every path in the brief relative to the folder Astra starts in (`<store>/raw`), so `raw/<source>/` cannot land in `<store>/raw/raw/` (completion review C1). Done when: `test/node/astra-brief.test.ts` finds the rule and no `raw/` path but the store folder and the counter-example.
+- [x] Hold the 4-hour limit in `astra-collect.py`: at the deadline or on SIGINT, SIGTERM or SIGHUP, SIGTERM to Codex's process group and SIGKILL 5 seconds later, exiting 124 or 130 (completion review C2, E1). Done when: `tests/scripts/test_astra_collect.py` stops a stalled fake that ignores SIGTERM and a cancelled launcher, each with the child gone.
+- [x] Write `<store>/raw/RUN-STATUS.json` through a temporary file and rename: `running` at the start, then `completed`, `failed`, `timed-out` or `interrupted` with the exit code (completion review C2). Done when: the test reads each outcome back.
+- [x] Print a progress line every 60 seconds while Codex runs: accepted, rejected and incomplete sources and the gigabytes collected (completion review E3). Done when: the test sees the counts from a seeded store.
+- [x] Forbid Astra to unpack archives (it lists them to count items) and leave confined, size-bounded extraction to §5's converters (completion review C3). Done when: the brief test finds the rule.
+- [x] Add the recovery rule for a `COLLECTED.md` whose listed file is missing or changed (renamed `COLLECTED.invalid-<UTC stamp>.md`, the source collected again, others untouched) and a 10 GB free-disk stop (completion review C4). Done when: the brief test finds both.
+- [x] Make the brief test catch the removal of each recovery clause, including "only when every file it lists is in place" and the delete-and-redo rule (completion review C5). Done when: the test fails on a copy with either removed.
 - [x] Commit: `glimmer: Astra as dataset collector with its brief`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_astra_collect tests.scripts.test_dispatch_hook` and `pnpm exec vitest run test/node/astra-brief.test.ts` pass, and fail if a collection run can start inside the repository, the launcher never runs Codex, or a brief or `AGENTS.md` rule is removed.
@@ -172,6 +180,7 @@ Astra researches and downloads public phishing-page datasets under the brief (§
 - [ ] Run `python3 scripts/astra-collect.py` in the background and read Astra's report. Done when: every candidate source in the brief has `raw/<source>/COLLECTED.md` or a rejection line with its reason.
 - [ ] Re-read each accepted source's licence at its own URL and check every downloaded file's SHA-256 against `COLLECTED.md`. Done when: each source is confirmed or rejected by Claude, and a mismatch removes the source. Cheaper substitute: trusting Astra's licence summary.
 - [ ] Record every candidate in `docs/glimmer/sources.md` (public: name, URL, licence, decision, reason, item count; no content). Done when: `test/node/glimmer-sources.test.ts` finds a decision and licence link on each row.
+- [ ] Write `extractArchive()` in `scripts/glimmer/archive.ts` unpacking a downloaded archive into a fresh folder with every entry confined to it (absolute paths, `..` and links refused) and the expanded size held to 5 GB a source, stopping cleanly on a full disk with the source marked incomplete (Astra never unpacks, §4 completion review C3). Done when: `test/node/glimmer-archive.test.ts` refuses a `../` entry, a symbolic link and an archive that expands past the limit, and leaves no partial folder.
 - [ ] Write one converter per accepted source, `scripts/glimmer/import-<source>.ts`, storing each item through `putPage` with its source labels (`lure`, `brand`) and `origin: public`. Done when: `counts()` shows the source's pages and the converter's test converts a two-item fixture.
 - [ ] Spot-check 50 random pages per source by viewing their screenshots against their labels. Done when: the label error rate per source is recorded in `docs/glimmer/training.md` under `Dataset`, and a source above 10 percent errors is relabelled by §9's teacher rather than trusted.
 - [ ] If no source is acceptable, record that in `docs/glimmer/sources.md` and raise §8's synthetic target to 3,000 lures. Done when: either imports exist or the decision is recorded.
@@ -411,6 +420,26 @@ A scaled-to-zero deployment answers the first request with an immediate `503 DEP
 - [ ] Commit: `vision: Glimmer warm-up handling and wake call`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/glimmer-wake.test.ts` passes and fails if a `503` during warm-up is treated as a final failure instead of retried.
+
+## 16. Resumable verified dataset downloads
+
+Filed 2026-10-28 from D03 T04 §4's completion review (E2): a collection interrupted at 90 percent of a large download starts that file again, because the brief deletes `.partial/` on a rerun; a downloader such as aria2 resumes it. Resuming must keep the rule that no file is accepted until its full SHA-256 is checked.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Write the resumable fetch. Done when: an interrupted transfer resumes from its last byte and is still verified whole.
+2. Point the brief at it. Done when: the brief's recovery rule keeps `.partial/` files for resumption.
+
+- [ ] Write `scripts/glimmer/fetch.py` downloading one URL into `<source>/.partial/` with HTTP range requests, resuming from the partial file's length when the server answers `206` and starting over on `200`, then computing the whole file's SHA-256 before moving it into place. Done when: `tests/scripts/test_glimmer_fetch.py` interrupts a local 10 MB transfer at 90 percent and the resumed run fetches at most the last 10 percent plus 64 KB, and a server that ignores ranges is fetched whole. Source: RFC 9110 section 14 (range requests).
+- [ ] Refuse a resumed file whose final SHA-256 differs from the one the dataset publishes, deleting the partial file. Done when: the test's corrupted partial file is refused and removed.
+- [ ] Change the brief's recovery rule to keep `.partial/` files and resume them with `fetch.py`, and its test to require the new rule. Done when: `test/node/astra-brief.test.ts` passes with the resume rule and fails without it.
+- [ ] Commit: `glimmer: resumable verified dataset downloads`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes and fails if a resumed transfer refetches the whole file or a mismatched file is accepted.
 
 ## Verification
 
