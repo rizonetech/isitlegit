@@ -90,6 +90,21 @@ describe("visibleText", () => {
     expect(await flags("<p>Just text</p>")).toEqual([false, false]);
   });
 
+  it("captures only the kept 1280 by 2000 pixels of a very tall page", async () => {
+    const out = await reader.renderHtml('<body><h1>Top</h1><div style="height:60000px"></div><p>Bottom</p></body>');
+    expect(jpegSize(out.screenshot)).toEqual({ width: 1280, height: 2000 });
+    expect(out.text).toContain("Top");
+  });
+
+  it("opens a new browser when the one it had is gone", async () => {
+    const own = await openTextReader();
+    await own.close();
+    expect((await own.renderHtml("<p>After a restart the reader still renders</p>")).text).toBe(
+      "After a restart the reader still renders",
+    );
+    await own.close();
+  });
+
   it("fetches nothing a page names", async () => {
     const text = await reader.visibleText(
       `<body><img src="http://example.invalid/x.png" alt="logo"><iframe src="http://example.invalid/"></iframe>ok</body>`,

@@ -2,7 +2,7 @@
 // page's visible text. Each is done by the tool that owns the format: sharp decodes and re-encodes the image, and
 // Chromium (inert: no JavaScript, no network) lays the HTML out and reads `innerText`, which already leaves out
 // scripts, styles, comments and everything CSS or `hidden` keeps off the screen.
-import { type Browser, chromium } from "playwright-core";
+import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 import sharp, { type Sharp } from "sharp";
 import { chromiumPath } from "../lib/chromium.ts";
 import { MAX_HEIGHT, MAX_WIDTH } from "./store.ts";
@@ -73,34 +73,56 @@ export async function openTextReader(): Promise<{
   renderHtml: (html: string) => Promise<RenderedHtml>;
   close: () => Promise<void>;
 }> {
-  const executablePath = chromiumPath();
-  if (!executablePath) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
-  const browser: Browser = await chromium.launch({
-    executablePath,
-    chromiumSandbox: true,
-    args: ["--proxy-server=127.0.0.1:9", "--no-first-run"],
-  });
-  const context = await browser.newContext({
-    javaScriptEnabled: false,
-    offline: true,
-    viewport: { width: 1280, height: 800 },
-    acceptDownloads: false,
-    serviceWorkers: "block",
-  });
-  // Nothing a dataset page names is fetched: its own scripts, images and fonts are refused.
-  await context.route("**/*", (route) => route.abort());
+  const found = chromiumPath();
+  if (!found) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
+  const executablePath: string = found;
+  // A crashed browser (a huge page can take Chromium down) is replaced, not left to fail every page after it.
+  let session: Promise<{ browser: Browser; context: BrowserContext }> | null = null;
+  async function launch(): Promise<{ browser: Browser; context: BrowserContext }> {
+    const browser = await chromium.launch({
+      executablePath,
+      chromiumSandbox: true,
+      args: ["--proxy-server=127.0.0.1:9", "--no-first-run"],
+    });
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      offline: true,
+      viewport: { width: 1280, height: MAX_HEIGHT },
+      acceptDownloads: false,
+      serviceWorkers: "block",
+    });
+    // Nothing a dataset page names is fetched: its own scripts, images and fonts are refused.
+    await context.route("**/*", (route) => route.abort());
+    browser.on("disconnected", () => {
+      session = null;
+    });
+    return { browser, context };
+  }
+  const current = () => {
+    session ??= launch();
+    return session;
+  };
   const tidy = (text: string) =>
     text
       .replace(/[ \t\f\v\r]+/g, " ")
       .replace(/ *\n[\n ]*/g, "\n")
       .trim();
-  async function withPage<T>(html: string, read: (page: import("playwright-core").Page) => Promise<T>): Promise<T> {
-    const page = await context.newPage();
+  async function withPage<T>(html: string, read: (page: Page) => Promise<T>, retried = false): Promise<T> {
+    const { browser, context } = await current();
+    let page: Page | undefined;
     try {
+      page = await context.newPage();
       await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 10_000 });
       return await read(page);
+    } catch (error) {
+      // The browser went away under this page: start a fresh one and try the page once more.
+      if (!browser.isConnected() && !retried) {
+        session = null;
+        return withPage(html, read, true);
+      }
+      throw error;
     } finally {
-      await page.close();
+      await page?.close().catch(() => undefined); // a page of a crashed browser has nothing left to close
     }
   }
   async function visibleText(html: string): Promise<string> {
@@ -112,9 +134,23 @@ export async function openTextReader(): Promise<{
       // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
       const text = tidy(await page.evaluate(() => document.body?.innerText ?? ""));
       const flags = await page.evaluate(readFormFlags);
-      const shot = await page.screenshot({ type: "png", fullPage: true, timeout: 10_000 });
+      // Only the top 1280 by 2000 pixels are kept, so only they are captured: a full page tens of thousands of pixels
+      // tall would outgrow the decoder's pixel limit and the browser's memory.
+      const shot = await page.screenshot({
+        type: "png",
+        clip: { x: 0, y: 0, width: 1280, height: MAX_HEIGHT },
+        timeout: 10_000,
+      });
       return { screenshot: await normaliseScreenshot(new Uint8Array(shot)), text, ...flags };
     });
   }
-  return { visibleText, renderHtml, close: () => browser.close() };
+  return {
+    visibleText,
+    renderHtml,
+    close: async () => {
+      const open = session;
+      session = null;
+      if (open) await (await open).browser.close();
+    },
+  };
 }

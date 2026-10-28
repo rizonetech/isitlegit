@@ -7,9 +7,8 @@
 // from its HTML in inert Chromium (no script, no request: a phishing page is never live) for its screenshot and text.
 // `lure` comes from the label and `brand` from the target (except `other`), both ground truth; `lure_type` is left for
 // §9's adjudication, since the set does not say which kind of lure a page is.
-import { closeSync, createReadStream, existsSync, openSync, readSync } from "node:fs";
+import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 import { importSource, type SourceItem } from "./import-source.ts";
 import { openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
@@ -40,18 +39,41 @@ export function phreshItem(
   };
 }
 
-// Each row's small fields and its line's byte range; the HTML stays on disk until the page is rendered.
+// Each row's small fields and its line's byte range; the HTML stays on disk until the page is rendered. Lines end at a
+// newline byte and nowhere else: JSONL allows U+2028 and U+2029 inside a string, and Node's readline would cut a row
+// there (19 PhreshPhish pages hold one).
 export async function indexRows(path: string): Promise<PhreshIndex[]> {
   const index: PhreshIndex[] = [];
-  let offset = 0;
-  const lines = createInterface({ input: createReadStream(path), crlfDelay: Number.POSITIVE_INFINITY });
-  for await (const line of lines) {
-    const length = Buffer.byteLength(line, "utf-8");
-    if (line.trim()) {
-      const { html: _html, ...row } = JSON.parse(line) as PhreshRow;
-      index.push({ ...row, offset, length });
+  const fd = openSync(path, "r");
+  try {
+    const chunk = Buffer.alloc(1 << 20);
+    let pending: Buffer[] = [];
+    let lineStart = 0;
+    let position = 0;
+    const finish = (end: number) => {
+      const line = Buffer.concat(pending).toString("utf-8");
+      pending = [];
+      if (line.trim()) {
+        const { html: _html, ...row } = JSON.parse(line) as PhreshRow;
+        index.push({ ...row, offset: lineStart, length: end - lineStart });
+      }
+    };
+    for (;;) {
+      const read = readSync(fd, chunk, 0, chunk.length, position);
+      if (read === 0) break;
+      let from = 0;
+      for (let newline = chunk.indexOf(10, from); newline !== -1 && newline < read; newline = chunk.indexOf(10, from)) {
+        pending.push(Buffer.from(chunk.subarray(from, newline)));
+        finish(position + newline);
+        from = newline + 1;
+        lineStart = position + from;
+      }
+      pending.push(Buffer.from(chunk.subarray(from, read)));
+      position += read;
     }
-    offset += length + 1;
+    finish(position);
+  } finally {
+    closeSync(fd);
   }
   return index;
 }

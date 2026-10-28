@@ -56,14 +56,20 @@ describe("ScamFerret", () => {
     const shop = join(dataset, "scam_websites", "online_shopping_english");
     mkdirSync(join(shop, "toppage_html"), { recursive: true });
     mkdirSync(join(shop, "sample_screenshot"), { recursive: true });
-    writeFileSync(join(shop, "toppage_html", "cheap-shoes.example.html.gz"), gzipSync("<h1>Shoes 90% off</h1>"));
+    writeFileSync(
+      join(shop, "toppage_html", "cheap-shoes.example.html.gz"),
+      gzipSync("<h1>Designer shoes 90% off today only</h1>"),
+    );
     const big = await sharp({ create: { width: 2560, height: 5000, channels: 3, background: "#c33" } })
       .png()
       .toBuffer();
     writeFileSync(join(shop, "sample_screenshot", "cheap-shoes.example.png"), big);
     const legit = join(dataset, "legitimate_websites", "investment", "toppage_html");
     mkdirSync(legit, { recursive: true });
-    writeFileSync(join(legit, "bank.example.html.gz"), gzipSync("<h1>Annual report</h1><input type=password>"));
+    writeFileSync(
+      join(legit, "bank.example.html.gz"),
+      gzipSync("<h1>Annual report for shareholders</h1><input type=password>"),
+    );
 
     const store = openStore(join(dir, "store"));
     const result = await importSource({
@@ -84,8 +90,8 @@ describe("ScamFerret", () => {
     expect(benign).toMatchObject({ labels: { lure: false, lure_type: "none", has_login_form: true } });
     const shot = openStore(join(dir, "store")).readPage(scam?.id ?? "");
     expect(jpegSize(shot.screenshot)).toEqual({ width: 1280, height: 2000 });
-    expect(shot.text).toBe("Shoes 90% off");
-    expect(openStore(join(dir, "store")).readPage(benign?.id ?? "").text).toBe("Annual report");
+    expect(shot.text).toBe("Designer shoes 90% off today only");
+    expect(openStore(join(dir, "store")).readPage(benign?.id ?? "").text).toBe("Annual report for shareholders");
   });
 });
 
@@ -98,19 +104,31 @@ describe("PhreshPhish", () => {
         {
           sha256: "a1",
           url: "https://faceb00k-login.example/",
-          html: "<h1>Log in to Facebook</h1>",
+          html: "<h1>Log in to Facebook to continue</h1>",
           label: "phish",
           target: "facebook",
         },
-        { sha256: "b2", url: "https://news.example/", html: "<h1>Today's news</h1>", label: "benign", target: null },
-        { sha256: "c3", url: "http://198.51.100.7/", html: "<h1>Verify</h1>", label: "phish", target: "other" },
+        {
+          sha256: "b2",
+          url: "https://news.example/",
+          html: "<h1>Today's news from the city</h1>",
+          label: "benign",
+          target: null,
+        },
+        {
+          sha256: "c3",
+          url: "http://198.51.100.7/",
+          html: "<h1>Verify your account details now</h1>",
+          label: "phish",
+          target: "other",
+        },
       ]
         .map((row) => JSON.stringify(row))
         .join("\n") + "\n",
     );
     const index = await indexRows(rows);
     expect(index.map((entry) => entry.sha256)).toEqual(["a1", "b2", "c3"]);
-    expect(readHtml(rows, index[1] as (typeof index)[number])).toBe("<h1>Today's news</h1>");
+    expect(readHtml(rows, index[1] as (typeof index)[number])).toBe("<h1>Today's news from the city</h1>");
     const store = openStore(join(dir, "store"));
     const result = await importSource({
       source: "phreshphish",
@@ -130,6 +148,21 @@ describe("PhreshPhish", () => {
   });
 });
 
+describe("PhreshPhish rows", () => {
+  it("ends a row only at a newline byte, never at U+2028 or U+2029 inside its HTML", async () => {
+    const rows = join(dir, "rows.jsonl");
+    const html = "<p>first\u2028second\u2029third</p>";
+    writeFileSync(
+      rows,
+      `${JSON.stringify({ sha256: "x1", url: null, html, label: "benign", target: null })}\n${JSON.stringify({ sha256: "x2", url: null, html: "<p>é</p>", label: "phish", target: "bank" })}\n`,
+    );
+    const index = await indexRows(rows);
+    expect(index.map((entry) => entry.sha256)).toEqual(["x1", "x2"]);
+    expect(readHtml(rows, index[0] as (typeof index)[number])).toBe(html);
+    expect(readHtml(rows, index[1] as (typeof index)[number])).toBe("<p>é</p>");
+  });
+});
+
 describe("the import run", () => {
   const item = (id: string, colour: string, fail = false): SourceItem => ({
     id,
@@ -138,8 +171,26 @@ describe("the import run", () => {
     label_source: { lure: "ground-truth", lure_type: "ground-truth" },
     load: async () => {
       if (fail) throw new Error("image does not decode");
-      return { screenshot: await jpeg(320, 200, colour), text: id };
+      return { screenshot: await jpeg(320, 200, colour), text: `the visible text of page ${id}` };
     },
+  });
+
+  it("excludes a page that renders almost no text", async () => {
+    const empty: SourceItem = {
+      ...item("blank", "#333"),
+      load: async () => ({ screenshot: await jpeg(64, 64), text: " " }),
+    };
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [
+        empty,
+        ...Array.from({ length: 20 }, (_, i) => item(`page-${i}`, `#${(i * 7 + 16).toString(16).padStart(3, "0")}`)),
+      ],
+      store: openStore(join(dir, "store")),
+    });
+    expect(result.excluded).toEqual([{ item: "blank", reason: "renders under 20 characters of text" }]);
+    expect(result.status).toBe("complete");
   });
 
   it("records exclusions and goes incomplete past 5 percent", async () => {

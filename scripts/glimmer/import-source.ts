@@ -9,6 +9,7 @@ import { HOST } from "../../src/vision/page-screen.ts";
 import type { Labels, openStore, PageInput } from "./store.ts";
 
 export const MAX_EXCLUDED_SHARE = 0.05;
+export const MIN_TEXT_CHARACTERS = 20;
 
 export type SourceItem = {
   id: string; // the item's name inside the dataset, for exclusions
@@ -72,6 +73,11 @@ export async function importSource(options: {
         page = await item.load();
       } catch (error) {
         excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
+        continue;
+      }
+      // A page that renders to almost no text (a script-only shell, a blank frame) teaches nothing and is excluded.
+      if (page.text.trim().length < MIN_TEXT_CHARACTERS) {
+        excluded.push({ item: item.id, reason: `renders under ${MIN_TEXT_CHARACTERS} characters of text` });
         continue;
       }
       const labels: Labels = { ...item.labels };
