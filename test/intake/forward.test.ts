@@ -206,3 +206,116 @@ describe("extractOriginal", () => {
     });
   });
 });
+
+describe("round 2 cases", () => {
+  const enc = (text: string) => new TextEncoder().encode(text);
+  const message = (tag: string) => `From: billing@fictional-supplier.example\r\nSubject: ${tag}\r\n\r\n${tag} body\r\n`;
+
+  it("reads the boundary from its own parameter, never from inside another's quoted value", async () => {
+    const forward = enc(
+      [
+        "From: boss@fictional-recipient.example",
+        'Content-Type: multipart/mixed; name="ignored; boundary=decoy; ignored"; boundary="real"',
+        "",
+        "--decoy",
+        "Content-Type: message/rfc822",
+        "",
+        message("benign"),
+        "--decoy--",
+        "--real",
+        "Content-Type: message/rfc822",
+        "",
+        message("suspicious"),
+        "--real--",
+        "",
+      ].join("\r\n"),
+    );
+    expect(await extractOriginal(forward)).toMatchObject({ original: enc(message("suspicious")), otherOriginals: 0 });
+  });
+
+  it("decodes a 22 MB quoted-printable original into one buffer", async () => {
+    const line = `${"a".repeat(74)}\r\n`;
+    const body = line.repeat(300_000);
+    const forward = enc(
+      [
+        "From: boss@fictional-recipient.example",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        "--b",
+        'Content-Type: application/octet-stream; name="original.eml"',
+        "Content-Transfer-Encoding: quoted-printable",
+        "",
+        `${body}--b--`,
+        "",
+      ].join("\r\n"),
+    );
+    expect(forward.byteLength).toBeGreaterThan(22_000_000);
+    const found = await extractOriginal(forward);
+    expect(found.original.byteLength).toBe(body.length - 2);
+    expect(found.path).toBe("eml");
+  });
+
+  it("refuses a boundary longer than 70 characters at once, rather than scanning with it", async () => {
+    const boundary = `${"-".repeat(60_000)}X`;
+    const forward = enc(
+      `From: boss@fictional-recipient.example\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n${"-".repeat(5_000_000)}`,
+    );
+    const started = Date.now();
+    await expect(extractOriginal(forward)).rejects.toBeInstanceOf(ParseError);
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it("scans a long run of near-delimiters in linear time", async () => {
+    const boundary = `${"-".repeat(68)}X`;
+    const forward = enc(
+      `From: boss@fictional-recipient.example\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n${`${"-".repeat(70)}\n`.repeat(70_000)}`,
+    );
+    const started = Date.now();
+    expect(await extractOriginal(forward)).toMatchObject({ path: "inline" });
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it("counts a digest's untyped parts as messages, in order", async () => {
+    const forward = enc(
+      [
+        "From: boss@fictional-recipient.example",
+        'Content-Type: multipart/mixed; boundary="outer"',
+        "",
+        "--outer",
+        'Content-Type: multipart/digest; boundary="digest"',
+        "",
+        "--digest",
+        "",
+        message("suspicious"),
+        "--digest--",
+        "--outer",
+        "Content-Type: message/rfc822",
+        "",
+        message("benign"),
+        "--outer--",
+        "",
+      ].join("\r\n"),
+    );
+    expect(await extractOriginal(forward)).toMatchObject({ original: enc(message("suspicious")), otherOriginals: 1 });
+  });
+
+  it("refuses malformed base64 as a ParseError", async () => {
+    for (const encoded of ["QUJD=REVG", "QUJD*REVG", "QUJDR"]) {
+      const forward = enc(
+        [
+          "From: boss@fictional-recipient.example",
+          'Content-Type: multipart/mixed; boundary="b"',
+          "",
+          "--b",
+          'Content-Type: application/octet-stream; name="original.eml"',
+          "Content-Transfer-Encoding: base64",
+          "",
+          encoded,
+          "--b--",
+          "",
+        ].join("\r\n"),
+      );
+      await expect(extractOriginal(forward), encoded).rejects.toBeInstanceOf(ParseError);
+    }
+  });
+});
