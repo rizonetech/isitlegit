@@ -83,7 +83,11 @@ Completion review 2026-10-28 (`docs/reviews/07-app/D07-T02-s1.md`): a failed lin
 
 ## 2. Passkey sign-in
 
+> **Started:** 2026-10-28T01:07Z
+
 Passkeys give members a phishing-resistant second way in, fitting for a phishing product (stack doc). A member adds a passkey after the first magic-link sign-in.
+
+**Corrected 2026-10-28:** the section said only "enable the passkey plugin with `rpID: "app.isitlegit.co.za"`" and checked registration options and a 401. In Better Auth 1.7 the plugin is its own package, `@better-auth/passkey` (pinned 1.7.13 beside `better-auth`); it adds a `passkey` table, so §1's migration script must now write the next migration rather than rewrite 0007 (already applied locally and pending on the remote D1); it takes the expected origin from the request's `Origin` header unless `origin` is set, and its relying party ID from `baseURL`, so both are pinned to `APP_URL` (a hard-coded `app.isitlegit.co.za` would refuse every passkey in tests and on any other host); and registration needs a fresh session (Better Auth's default, a day). The section is named passkey sign-in, so it now proves the whole ceremony (register, sign in, list, remove) with a software authenticator, and the refusals that keep it phishing-resistant.
 
 **Phase:** 1
 **Needs:** none
@@ -91,13 +95,19 @@ Passkeys give members a phishing-resistant second way in, fitting for a phishing
 
 **Build order:**
 
-1. Enable the passkey plugin with the right relying party. Done when: registration and authentication options are served for `app.isitlegit.co.za`.
+1. Enable the passkey plugin with the right relying party. Done when: registration and authentication options are served for the host in `APP_URL`.
+2. Prove the ceremony end to end and its refusals. Done when: a software authenticator registers a passkey for a signed-in member and signs in with it through the Worker's fetch, and every refusal below is a test.
 
-- [ ] Enable the Better Auth passkey plugin with `rpID: "app.isitlegit.co.za"` and `rpName: "IsItLegit"`. Done when: `test/auth/passkey.test.ts` gets registration options for a signed-in user.
-- [ ] Refuse passkey registration without an active session. Done when: an anonymous request gets 401.
+- [x] Add `@better-auth/passkey` pinned to `1.7.13` (the version of `better-auth`). Done when: `package.json` lists it exactly and `pnpm typecheck` passes. (Added with this correction.)
+- [ ] Enable the plugin in `schemaOptions` (`src/auth/schema.ts`) with `rpName: "IsItLegit"`, `rpID` the hostname of `APP_URL` and `origin` its origin, passed in from `authOptions` (the schema script passes the production `APP_URL`). Done when: `test/auth/passkey.test.ts` gets registration options for a signed-in member whose `rp.id` is the test `APP_URL`'s host, and authentication options anonymously.
+- [ ] Make `scripts/auth-schema.ts` incremental: apply the committed auth migrations (`0007_auth.sql` and later `*_auth*.sql`) in order to an in-memory SQLite, have Better Auth compile what is still missing, and write it as the next numbered migration (`pnpm db:auth-schema <name>`, temporary file then rename), writing nothing when nothing is missing; then generate `src/db/migrations/0008_auth_passkey.sql`. Done when: the file holds only the `passkey` table and its indexes, and `test/node/auth-schema.test.ts` (rewritten) fails when Better Auth finds anything missing after the committed migrations; `test/auth/auth.test.ts` still finds nothing to migrate on D1.
+- [ ] Refuse registration without a session, and with a stale one. Done when: an anonymous request for registration options gets 401, and a session older than a day gets Better Auth's fresh-session refusal (403), not options.
+- [ ] Prove the ceremony with a software authenticator (`test/auth/webauthn.ts`: an ES256 key, `none` attestation, assertions signed over the client data hash): register a passkey while signed in, list it, sign out, request authentication options anonymously, sign in with it, and pass `requireSession`. Done when: `test/auth/passkey.test.ts` covers that path through the Worker's fetch.
+- [ ] Refuse a forged or replayed sign-in. Done when: tests refuse an assertion signed by another key, one whose client data names another origin, one for another relying party ID, and a replay of a used challenge; none sets a session cookie.
+- [ ] Let a member remove a passkey, and only their own. Done when: deleting their passkey succeeds and signing in with it is then refused, and deleting another member's passkey is refused and leaves it in place.
 - [ ] Commit: `auth: passkey sign-in`
 
-**Test checkpoint:** `pnpm exec vitest run test/auth/passkey.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/auth test/node/auth-schema.test.ts` passes, and fails if a passkey registers without a fresh session, an assertion from another origin or key signs in, or a member removes another member's passkey.
 
 ## 3. Organisations, roles, invites and removal
 
