@@ -185,11 +185,11 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 212
+Sections: 55 | Checklist items: 216
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [ ]    | D03 T04 §1 | Page screener on Muse Spark                | meta-api              | 4     |
+| [ ]    | D03 T04 §1 | Glimmer screener, Spark failover           | meta-api, third-party | 8     |
 | [ ]    | D04 T01 §1 | Deterministic floor from critical evidence | none                  | 4     |
 | [ ]    | D04 T01 §2 | Rule-based verdict                         | none                  | 3     |
 | [ ]    | D04 T01 §3 | Read-only agent tools with zod validation  | none                  | 5     |
@@ -283,4 +283,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 34/212 verified sections, 15 ready to run now.
 
-Checklist: 399/1157 items completed (includes Commit items).
+Checklist: 399/1161 items completed (includes Commit items).
