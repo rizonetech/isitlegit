@@ -37,7 +37,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Core D1 schema and migration runner | D00 T01 §5 | [x] |
 | 2 | §2 | Case store and R2 artefact layout | §1 | [x] |
-| 3 | §3 | Email handler for verified members | §2, D07 T02 §5 | [ ] |
+| 3 | §3 | Email handler for verified members | §2, D07 T02 §4, D07 T02 §5 | [ ] |
 | 4 | §4 | Forward-as-attachment detection | §3 | [ ] |
 | 5 | §5 | MIME parsing and attachment extraction | §4 | [ ] |
 | 6 | §6 | Outlook .msg parsing | §5 | [ ] |
@@ -139,6 +139,7 @@ The `email()` handler is the front door (spec 4.1). Only mail from a verified me
 - [ ] Call `findMemberBySender(from)` from D07 T02 §5 and drop the message (no reply, no case) when it returns null. Done when: `test/intake/email.test.ts` shows an unknown sender leaves `cases` empty and calls no mail sender. Cheaper substitute: replying "not registered", which creates backscatter.
 - [ ] Reject messages over 25 MiB with `message.setReject("Message too large")` (Email Routing limit, stack doc). Done when: a test with a 26 MiB body is rejected and stores nothing.
 - [ ] Store the raw message with `putRaw` from §2, create the case with `createCase` from §1, and start `env.ANALYSIS.create({ id: caseId, params: { caseId } })`. Done when: a test sees one raw object, one case row and one Workflow create call with the case id as the instance id.
+- [ ] Check the organisation's daily case cap with `checkDailyCap` (D07 T02 §4) before creating the case, and when it is reached create no case and send the member one `notice` mail a day ("today's limit of N checks is reached; it resets at midnight") under the send key `cap:<orgId>:<SAST date>:<member>`. Done when: a capped forward creates no case and sends one notice, and a second capped forward the same day sends none. (Moved from D07 T02 §4, 2026-10-28: the email path is this section's.)
 - [ ] Make the handler idempotent on `Message-ID` per organisation within 24 hours using a `CACHE` key. Done when: delivering the same fixture twice creates one case. Cheaper substitute: none; duplicate deliveries happen on retries.
 - [ ] Export `email` from `src/index.ts` next to `fetch`. Done when: `pnpm typecheck` passes and `wrangler deploy --dry-run` lists the email handler.
 - [ ] Commit: `intake: email handler for verified members`
