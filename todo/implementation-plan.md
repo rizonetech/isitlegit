@@ -51,7 +51,7 @@ Sections: 39 | Checklist items: 311
 | [x]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 6     |
 | [x]    | D01 T02 §5 | Reconcile uncertain sends                  | none                  | 8     |
 | [ ]    | D01 T02 §6 | Forwarding failures detected and reported  | operator              | 6     |
-| [ ]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | none                  | 4     |
+| [x]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | none                  | 4     |
 | [x]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
 | [x]    | D01 T03 §7 | MP3 decoding                               | none                  | 7     |
 | [x]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
@@ -307,6 +307,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 51/238 verified sections, 29 ready to run now.
+Progress: 52/238 verified sections, 28 ready to run now.
 
-Checklist: 532/1388 items completed (includes Commit items).
+Checklist: 533/1388 items completed (includes Commit items).
