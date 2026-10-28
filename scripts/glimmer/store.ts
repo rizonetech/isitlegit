@@ -41,7 +41,17 @@ export const MAX_WIDTH = 1280;
 export const MAX_HEIGHT = 2000;
 
 export const ORIGINS = ["public", "benign", "samples", "synthetic"] as const;
-export const LABEL_SOURCES = ["ground-truth", "dom", "construction", "spark", "astra+claude", "claude"] as const;
+// `unverified` marks a label from a public set whose spot check found more than 10 percent errors (D03 T04 §5): it is
+// kept out of evaluation and goes to §9's Astra and Claude adjudication, never trusted as ground truth.
+export const LABEL_SOURCES = [
+  "ground-truth",
+  "dom",
+  "construction",
+  "spark",
+  "astra+claude",
+  "claude",
+  "unverified",
+] as const;
 
 // What is known of a page's PageAnswer fields; a field not yet decided is absent (D03 T04 §9 fills them).
 export const Labels = z.strictObject({

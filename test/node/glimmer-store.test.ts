@@ -106,6 +106,18 @@ describe("putPage", () => {
     expect(stored?.labels).toEqual({ lure: true });
   });
 
+  it("keeps an unverified label as unverified", async () => {
+    const store = openStore(dir);
+    await store.putPage(
+      "public-x",
+      page({
+        labels: { lure: true, lure_type: "credential" },
+        label_source: { lure: "unverified", lure_type: "unverified" },
+      }),
+    );
+    expect(openStore(dir).manifest()[0]?.label_source).toEqual({ lure: "unverified", lure_type: "unverified" });
+  });
+
   it("stores the same page twice as one", async () => {
     const store = openStore(dir);
     expect(await store.putPage("s", page())).toBe(await store.putPage("s", page()));
