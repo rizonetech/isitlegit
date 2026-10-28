@@ -47,11 +47,16 @@ export default defineConfig({
           include: ["test/**/*.test.ts"],
           exclude: ["test/node/**"],
           setupFiles: ["./test/apply-migrations.ts"],
+          // The Worker tests make real D1, R2 and Better Auth calls in sequence (twenty claims, a sign-in per step), so
+          // the 5-second default fails them on a loaded machine (a full run also starts Node processes under a 128 MiB
+          // heap, test/node/forward-memory.test.ts), not because anything is wrong.
+          testTimeout: 15_000,
         },
       },
       {
         // Build scripts and source checks, which read the repository, in Node.
-        test: { name: "node", include: ["test/node/**/*.test.{ts,tsx}"], environment: "node" },
+        // 15 seconds as for the Worker tests: the memory tests start Node processes that load the machine meanwhile.
+        test: { name: "node", include: ["test/node/**/*.test.{ts,tsx}"], environment: "node", testTimeout: 15_000 },
       },
     ],
   },
