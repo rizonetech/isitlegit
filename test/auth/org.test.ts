@@ -225,31 +225,38 @@ describe("roles, revocation and removal", () => {
     expect((await invite(deputy, "welcome@example.com")).answer.status).toBe(200);
   });
 
-  it("finish an acceptance the Worker was stopped in, with exactly one membership", async () => {
+  it("spend an invitation once: after an interrupted acceptance, an owner's new invitation brings them in", async () => {
     const orgId = await orgFor("host@example.com", "Resume");
     const { cookie } = await signIn("host@example.com");
     const { link } = await invite(cookie, "halfway@example.com");
-    // Better Auth marked it accepted and stopped before writing the membership.
-    await db.prepare(`UPDATE "invitation" SET status = 'accepted' WHERE id = ?`).bind(invitationId(link)).run();
+    // A stranger's attempt spends nothing.
+    const stranger = await signIn("passerby@example.com");
+    expect(
+      (await post("/organization/accept-invitation", stranger.cookie, { invitationId: invitationId(link) })).status,
+    ).toBeGreaterThanOrEqual(400);
+    expect(
+      await db.prepare("SELECT 1 FROM invitation_uses WHERE invitation_id = ?").bind(invitationId(link)).first(),
+    ).toBeNull();
+    // The Worker stopped after recording the use and marking it accepted, before the membership.
     const halfway = await signIn("halfway@example.com");
+    await db
+      .prepare("INSERT INTO invitation_uses (invitation_id, user_id, used_at) VALUES (?, ?, ?)")
+      .bind(invitationId(link), await userId("halfway@example.com"), new Date().toISOString())
+      .run();
+    await db.prepare(`UPDATE "invitation" SET status = 'accepted' WHERE id = ?`).bind(invitationId(link)).run();
     const retried = await post("/organization/accept-invitation", halfway.cookie, { invitationId: invitationId(link) });
-    expect(retried.status).toBe(200);
-    const again = await post("/organization/accept-invitation", halfway.cookie, { invitationId: invitationId(link) });
-    expect(again.status).toBeGreaterThanOrEqual(400);
+    expect(retried.status).toBe(409);
+    expect(await retried.text()).toMatch(/already been used/);
+    // An owner invites again; the new invitation joins them, once.
+    const fresh = await invite(cookie, "halfway@example.com");
+    expect(fresh.answer.status).toBe(200);
+    expect(
+      (await post("/organization/accept-invitation", halfway.cookie, { invitationId: invitationId(fresh.link) }))
+        .status,
+    ).toBe(200);
     expect((await membersOf(orgId)).filter((m) => m.email === "halfway@example.com")).toEqual([
       { email: "halfway@example.com", role: "member" },
     ]);
-    // Someone else holding the same used invitation gets nothing from it.
-    const other = await signIn("notme@example.com");
-    expect(
-      (await post("/organization/accept-invitation", other.cookie, { invitationId: invitationId(link) })).status,
-    ).toBeGreaterThanOrEqual(400);
-    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("notme@example.com");
-    const status = await db
-      .prepare(`SELECT status FROM "invitation" WHERE id = ?`)
-      .bind(invitationId(link))
-      .first<{ status: string }>();
-    expect(status?.status).toBe("accepted");
   });
 
   it("do not let a removed member come back through their old invitation", async () => {
@@ -269,28 +276,46 @@ describe("roles, revocation and removal", () => {
     expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("former@example.com");
   });
 
-  it("hold one membership per person when a recovered acceptance overlaps the one still running", async () => {
+  it("let only one of two simultaneous acceptances through", async () => {
+    const orgId = await orgFor("twinhost@example.com", "Twins");
+    const { cookie } = await signIn("twinhost@example.com");
+    const { link } = await invite(cookie, "twice@example.com");
+    const twice = await signIn("twice@example.com");
+    const accept = () => post("/organization/accept-invitation", twice.cookie, { invitationId: invitationId(link) });
+    const statuses = (await Promise.all([accept(), accept()])).map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 409]);
+    expect((await membersOf(orgId)).filter((m) => m.email === "twice@example.com")).toHaveLength(1);
+  });
+
+  it("refuse a second use even when Better Auth has set the invitation back to pending", async () => {
+    // Two acceptances overlapping: the one whose membership write fails has Better Auth reset the invitation to
+    // pending (crud-invites.mjs). Removing the member who did join must not leave that invitation usable.
     const orgId = await orgFor("racehost@example.com", "Race");
     const { cookie } = await signIn("racehost@example.com");
-    const { link } = await invite(cookie, "racer@example.com");
-    // Request A has marked it accepted and not yet written its membership; request B recovers it and joins.
-    await db.prepare(`UPDATE "invitation" SET status = 'accepted' WHERE id = ?`).bind(invitationId(link)).run();
+    const { link } = await invite(cookie, "racer@example.com", "admin");
     const racer = await signIn("racer@example.com");
     expect(
       (await post("/organization/accept-invitation", racer.cookie, { invitationId: invitationId(link) })).status,
     ).toBe(200);
-    // A's membership write then lands: the database refuses a second row for the pair.
+    await db.prepare(`UPDATE "invitation" SET status = 'pending' WHERE id = ?`).bind(invitationId(link)).run();
+    expect((await post("/organization/remove-member", cookie, { memberIdOrEmail: "racer@example.com" })).status).toBe(
+      200,
+    );
+    const back = await signIn("racer@example.com");
+    const replay = await post("/organization/accept-invitation", back.cookie, { invitationId: invitationId(link) });
+    expect(replay.status).toBe(409);
+    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("racer@example.com");
+    // And the database holds one membership per person if two writes ever land.
     const racerId = await userId("racer@example.com");
-    const now = new Date().toISOString();
-    await expect(
+    const insert = () =>
       db
         .prepare(
           `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'member', ?)`,
         )
-        .bind(crypto.randomUUID(), orgId, racerId, now)
-        .run(),
-    ).rejects.toThrow(/UNIQUE/);
-    expect((await membersOf(orgId)).filter((m) => m.email === "racer@example.com")).toHaveLength(1);
+        .bind(crypto.randomUUID(), orgId, racerId, new Date().toISOString())
+        .run();
+    await insert();
+    await expect(insert()).rejects.toThrow(/UNIQUE/);
   });
 
   it("revoke an invitation so it cannot be accepted", async () => {

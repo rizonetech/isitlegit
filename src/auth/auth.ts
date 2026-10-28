@@ -140,39 +140,36 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           return;
         }
         if (ctx.path === "/organization/accept-invitation") {
-          // Better Auth marks an invitation accepted before it writes the membership, in separate writes; a Worker
-          // stopped between them leaves the invitation used and the member out, and its retry refused. An invitation
-          // accepted with no membership, unexpired, for this signed-in recipient, is opened again so the retry finishes.
-          // A removal cancels the member's accepted invitations (below), so this cannot bring a removed member back,
-          // and migration 0011 holds one membership per user and organisation if two acceptances overlap.
+          // An invitation is used once: its use is recorded (migration 0012) before the plugin accepts it, only for
+          // the signed-in recipient of a pending, unexpired invitation (so a stranger's attempt spends nothing), and a
+          // second use is refused whatever the invitation's status says. After an interrupted acceptance (Better Auth
+          // writes the status and the membership separately) an owner sends a new invitation.
           const invitationId = (ctx.body as { invitationId?: unknown } | undefined)?.invitationId;
           const signedIn = await getSessionFromCtx(ctx);
           if (typeof invitationId !== "string" || !signedIn) return;
-          const invitation = await ctx.context.adapter.findOne<{
-            status: string;
-            email: string;
-            organizationId: string;
-            expiresAt: Date;
-          }>({ model: "invitation", where: [{ field: "id", value: invitationId }] });
-          if (
-            invitation?.status !== "accepted" ||
-            invitation.email.toLowerCase() !== signedIn.user.email.toLowerCase() ||
-            new Date(invitation.expiresAt) <= new Date()
-          )
-            return;
-          const member = await ctx.context.adapter.findOne({
-            model: "member",
-            where: [
-              { field: "userId", value: signedIn.user.id },
-              { field: "organizationId", value: invitation.organizationId },
-            ],
+          const invitation = await ctx.context.adapter.findOne<{ status: string; email: string; expiresAt: Date }>({
+            model: "invitation",
+            where: [{ field: "id", value: invitationId }],
           });
-          if (!member)
-            await ctx.context.adapter.update({
-              model: "invitation",
-              where: [{ field: "id", value: invitationId }],
-              update: { status: "pending" },
-            });
+          const usable =
+            invitation?.status === "pending" &&
+            invitation.email.toLowerCase() === signedIn.user.email.toLowerCase() &&
+            new Date(invitation.expiresAt) > new Date();
+          const used = await mail()
+            .db.prepare("SELECT 1 FROM invitation_uses WHERE invitation_id = ?")
+            .bind(invitationId)
+            .first();
+          if (used)
+            throw new APIError("CONFLICT", { message: "this invitation has already been used; ask for a new one" });
+          if (!usable) return;
+          const recorded = await mail()
+            .db.prepare(
+              "INSERT INTO invitation_uses (invitation_id, user_id, used_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+            )
+            .bind(invitationId, signedIn.user.id, new Date().toISOString())
+            .run();
+          if (recorded.meta.changes !== 1)
+            throw new APIError("CONFLICT", { message: "this invitation has already been used; ask for a new one" });
           return;
         }
         if (ctx.path === "/sign-out") {
@@ -220,25 +217,11 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           });
         }
         if (ctx.path === "/organization/remove-member") {
-          // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest. Their
-          // accepted invitations there are cancelled, so the recovery above cannot reopen one to bring them back.
+          // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest, and
+          // their old invitation is spent (invitation_uses), so it cannot bring them back.
           const removed = ctx.context.returned as { member?: { userId?: string; organizationId?: string } } | null;
           const member = removed?.member;
           if (!member?.userId || !member.organizationId || isAPIError(removed)) return;
-          const user = await ctx.context.adapter.findOne<{ email: string }>({
-            model: "user",
-            where: [{ field: "id", value: member.userId }],
-          });
-          if (user)
-            await ctx.context.adapter.updateMany({
-              model: "invitation",
-              where: [
-                { field: "organizationId", value: member.organizationId },
-                { field: "email", value: user.email.toLowerCase() },
-                { field: "status", value: "accepted" },
-              ],
-              update: { status: "canceled" },
-            });
           await ctx.context.adapter.deleteMany({
             model: "session",
             where: [
