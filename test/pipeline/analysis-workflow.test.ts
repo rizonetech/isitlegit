@@ -2,8 +2,8 @@ import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict } from "../../src/db/verdicts";
-import { parsedKey, putRaw, readArtefact, type Store } from "../../src/intake/store";
-import { admit, checks, parse, recordFailure, STUB_VERDICT } from "../../src/pipeline/analysis-workflow";
+import { parsedKey, putRaw, readArtefact, type Store, StoreError } from "../../src/intake/store";
+import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
 import { forwards } from "../fixtures/forward/load";
 import { msgs } from "../fixtures/msg/load";
@@ -362,6 +362,53 @@ describe("the parse step", () => {
       { bucket: env.ARTEFACTS, db: headersDown },
     ])
       expect(await parse(broken, id).catch((error: Error) => error.name)).not.toBe("NonRetryableError");
+  });
+});
+
+describe("round 1 cases", () => {
+  it("lets only an error's class leave a step, never its message", async () => {
+    const leaked = await safely(async () => {
+      throw new StoreError("storage", "putting cases/x/attachments/ab/Acme-payroll-March.pdf: R2 down");
+    }).catch((error: Error) => error);
+    expect(leaked).toBeInstanceOf(Error);
+    expect((leaked as Error).message).toBe("StoreError");
+    expect(String((leaked as Error).stack)).not.toContain("Acme");
+    const plain = await safely(async () => {
+      throw new Error("the subject was 'pay now'");
+    }).catch((error: Error) => error.message);
+    expect(plain).toBe("Error");
+  });
+
+  it("retries a reply whose case lookup fails rather than answering ready", async () => {
+    const id = await caseWith(null);
+    const broken = {
+      prepare: () => ({ bind: () => ({ first: () => Promise.reject(new Error("D1 down")) }) }),
+    } as unknown as D1Database;
+    await expect(reply(broken, id, { status: "ready", verdict: "suspicious" })).rejects.toThrow(
+      /reading the case for the reply/,
+    );
+  });
+
+  it("resumes with admission through store cached, running only reply and finish", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    expect((await saveVerdict(env.DB, id, STUB_VERDICT)).ok).toBe(true);
+    expect((await setVerdict(env.DB, ORG, id, "suspicious")).ok).toBe(true);
+    // The results a resumed instance finds cached: those steps' callbacks do not run again.
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
+      await m.mockStepResult({ name: "parse" }, parsedKey(id));
+      await m.mockStepResult({ name: "checks" }, { evidence: [] });
+      await m.mockStepResult({ name: "verdict" }, STUB_VERDICT);
+      await m.mockStepResult({ name: "store" }, "stored");
+    });
+    expect((await events(id)).map((e) => `${e.step}:${e.status}`)).toEqual([
+      "reply:started",
+      "reply:done",
+      "finish:started",
+      "finish:done",
+    ]);
+    expect((await caseRow(id))?.status).toBe("done");
   });
 });
 

@@ -58,8 +58,22 @@ const fatal = (errorClass: (typeof FATAL)[number]) => new NonRetryableError(erro
 // unread.
 function classOf(error: unknown): string {
   if (!(error instanceof Error)) return "Error";
-  const named = error.message.replace(/^NonRetryableError:\s*/, "");
-  return (FATAL as readonly string[]).includes(named) ? named : error.name;
+  const named = error.message.replace(/^(NonRetryableError|Error):\s*/, "");
+  return (FATAL as readonly string[]).includes(named) || CLASS.test(named) ? named : error.name;
+}
+const CLASS = /^[A-Z][A-Za-z0-9]{0,63}$/;
+
+// A step's own error, made safe before it leaves the step: Cloudflare keeps each attempt's error message in the
+// instance's logs, and an error from below can quote the message analysed (a storage error names an attachment's file,
+// round 1). What leaves is the error's class alone; a non-retryable error already carries only its class.
+export async function safely<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof NonRetryableError) throw error;
+    const name = error instanceof Error && CLASS.test(error.name) ? error.name : "Error";
+    throw new Error(name);
+  }
 }
 
 // A typed refusal thrown, so the step retries it; a missing case after admission cannot be repaired by a retry.
@@ -80,26 +94,28 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     // The step that failed after its last attempt: `recordFailure` names it and its error class and ends the case
     // partial, reading the case itself, so it works whichever step failed (admission included).
     const fail = (failedStep: StepName, error: unknown) =>
-      step.do("fail", RETRIES, () => recordFailure(db, caseId, failedStep, classOf(error)));
+      step.do("fail", RETRIES, () => safely(() => recordFailure(db, caseId, failedStep, classOf(error))));
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
-      step.do(name, RETRIES, async () => {
-        const startedAt = new Date().toISOString();
-        const began = Date.now();
-        must(await recordEvent(db, caseId, name, "started", { startedAt }), `recording ${name}`);
-        const result = await work();
-        must(await recordEvent(db, caseId, name, "done", { startedAt, ms: Date.now() - began }), `recording ${name}`);
-        // Step results are plain values (keys, flags, the verdict view), which the Workflow stores as they are.
-        return result as Rpc.Serializable<T>;
-      }) as Promise<T>;
+      step.do(name, RETRIES, () =>
+        safely(async () => {
+          const startedAt = new Date().toISOString();
+          const began = Date.now();
+          must(await recordEvent(db, caseId, name, "started", { startedAt }), `recording ${name}`);
+          const result = await work();
+          must(await recordEvent(db, caseId, name, "done", { startedAt, ms: Date.now() - began }), `recording ${name}`);
+          // Step results are plain values (keys, flags, the verdict view), which the Workflow stores as they are.
+          return result as Rpc.Serializable<T>;
+        }),
+      ) as Promise<T>;
 
     // A case to analyse, or none: no such case (the binding smoke's instances, a case removed since) or one already
     // finished. A lookup failure is thrown and retried, never taken for a missing case; an admission that fails after
     // its last attempt (the case perhaps already running) goes to `fail` and the reply like any other.
     let admitted: Awaited<ReturnType<typeof admit>>;
     try {
-      admitted = await step.do("admit", RETRIES, () => admit(db, caseId));
+      admitted = await step.do("admit", RETRIES, () => safely(() => admit(db, caseId)));
     } catch (error) {
       const state = await fail("admit", error);
       await timed("reply", () => reply(db, caseId, state)).catch((replyError) => fail("reply", replyError));
@@ -136,7 +152,8 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       if (state.status === "ready") state = failed;
     }
 
-    // `done` last, once the reply step has run; a finish that fails after its last attempt goes to `fail` too.
+    // `done` last, once the reply step has run. A finish that fails after its last attempt is recorded and ends the case
+    // partial through `fail`; the reply already handed on stands, since a second one would contradict it.
     if (state.status === "ready") {
       try {
         await timed("finish", async () => must(await setStatus(db, orgId, caseId, "done"), "finishing"));
@@ -224,7 +241,7 @@ const verdictOf = (_found: { evidence: never[] }): VerdictView => STUB_VERDICT;
 
 // Hands the report state on without sending anything (D01 T02 §3 sends it); the case's status at this point is part
 // of the result, so a test can see the case is not yet `done`.
-async function reply(db: D1Database, caseId: string, state: ReportState) {
-  const found = await getCaseForPipeline(db, caseId);
-  return { state, caseStatus: found.ok ? found.value.status : null };
+export async function reply(db: D1Database, caseId: string, state: ReportState) {
+  const found = must(await getCaseForPipeline(db, caseId), "reading the case for the reply");
+  return { state, caseStatus: found.status };
 }
