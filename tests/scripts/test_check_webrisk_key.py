@@ -129,6 +129,18 @@ class Call(unittest.TestCase):
         response.begin()
         truncated = urllib.error.HTTPError("https://x.test", 403, "Forbidden", response.headers, response)
         html = urllib.error.HTTPError("https://x.test", 403, "err", {}, io.BytesIO(b"<html>denied</html>"))
+        # And on a success status: HTTP 200, chunked, the connection closing mid-chunk.
+        chunked = (b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
+                   b"40\r\n{\"threat\": {\"threatTypes\"")
+        ok = http.client.HTTPResponse(Sock(chunked))
+        ok.begin()
+        context = mock.MagicMock()
+        context.__enter__.return_value = ok
+        with mock.patch.object(cwk.urllib.request, "urlopen", return_value=context):
+            with self.assertRaises(cwk.Unreachable):
+                cwk.call(KEY, "https://x.test")
+            code, line = cwk.check(read=lambda: KEY)
+            self.assertEqual(code, 2)
         for error in (truncated, html):
             with self.subTest(error.fp.__class__.__name__):
                 with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):

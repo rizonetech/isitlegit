@@ -67,27 +67,27 @@ def read_key():
     return done.stdout.strip()
 
 
+# Any failure to receive a whole answer, on a success or an error status alike: the connection, the TLS, the HTTP
+# framing (a cut chunk, a short body) or the timeout.
+TRANSPORT = (urllib.error.URLError, OSError, TimeoutError, http.client.HTTPException)
+
+
 def call(key, url):
-    """(HTTP status, JSON body) for a GET with the key in its header."""
+    """(HTTP status, JSON body) for a GET with the key in its header. Only a whole answer that reads as JSON counts;
+    anything else is Google unreachable, so a cut-off answer is never taken for a judgement on the key."""
     request = urllib.request.Request(url, headers={"x-goog-api-key": key, "user-agent": "isitlegit-check-webrisk/1.0"})
     try:
-        with urllib.request.urlopen(request, timeout=HTTP_SECONDS) as response:
-            return response.status, json.loads(response.read(1024 * 1024) or b"{}")
-    except urllib.error.HTTPError as exc:
-        # The headers came but the body may not: a connection that stalls or closes mid-body is Google unreachable,
-        # never a judgement on the key.
         try:
-            raw = exc.read(1024 * 1024)
-        except (OSError, TimeoutError, http.client.HTTPException) as cut:
-            raise Unreachable(f"Google's HTTP {exc.code} answer was cut off ({type(cut).__name__})") from None
-        # Google's error answers are JSON; one that does not read as JSON was cut short or is not Google's, so it says
-        # nothing about the key either.
-        try:
-            return exc.code, json.loads(raw or b"{}")
-        except ValueError:
-            raise Unreachable(f"Google's HTTP {exc.code} answer could not be read whole") from None
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-        raise Unreachable(f"Google could not be reached ({type(exc).__name__})") from None
+            with urllib.request.urlopen(request, timeout=HTTP_SECONDS) as response:
+                status, raw = response.status, response.read(1024 * 1024)
+        except urllib.error.HTTPError as exc:
+            status, raw = exc.code, exc.read(1024 * 1024)
+    except TRANSPORT as exc:
+        raise Unreachable(f"Google could not be reached or its answer was cut off ({type(exc).__name__})") from None
+    try:
+        return status, json.loads(raw or b"{}")
+    except ValueError:
+        raise Unreachable(f"Google's HTTP {status} answer could not be read whole") from None
 
 
 def reasons(body):
