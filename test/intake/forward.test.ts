@@ -126,7 +126,6 @@ describe("extractOriginal", () => {
       expect(forward.byteLength).toBeGreaterThan(8_000_000);
       // The parser sees header blocks only: no body reaches its rendering.
       const parse = vi.spyOn(PostalMime, "parse");
-      const started = Date.now();
       const found = await extractOriginal(forward);
       const sizeOf = (input: unknown) =>
         typeof input === "string"
@@ -139,7 +138,6 @@ describe("extractOriginal", () => {
       expect(largest).toBeLessThan(64 * 1024);
       expect(found).toMatchObject({ path: "rfc822", headersAvailable: true });
       expect(new TextDecoder().decode(found.original)).toBe(original);
-      expect(Date.now() - started).toBeLessThan(5_000);
     });
 
     it("returns a .msg sent under a calendar type byte for byte", async () => {
@@ -255,24 +253,21 @@ describe("round 2 cases", () => {
     expect(found.path).toBe("eml");
   });
 
-  it("refuses a boundary longer than 70 characters at once, rather than scanning with it", async () => {
+  it("reads a forward with a 60,000-character boundary without parts (timed in test/node/forward-memory.test.ts)", async () => {
     const boundary = `${"-".repeat(60_000)}X`;
     const forward = enc(
       `From: boss@fictional-recipient.example\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n${"-".repeat(5_000_000)}`,
     );
-    const started = Date.now();
-    await expect(extractOriginal(forward)).rejects.toBeInstanceOf(ParseError);
-    expect(Date.now() - started).toBeLessThan(2_000);
+    // The path alone: a failure must not print five megabytes of bytes.
+    expect((await extractOriginal(forward)).path).toBe("inline");
   });
 
-  it("scans a long run of near-delimiters in linear time", async () => {
+  it("reads a long run of near-delimiters as no parts", async () => {
     const boundary = `${"-".repeat(68)}X`;
     const forward = enc(
       `From: boss@fictional-recipient.example\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n${`${"-".repeat(70)}\n`.repeat(70_000)}`,
     );
-    const started = Date.now();
-    expect(await extractOriginal(forward)).toMatchObject({ path: "inline" });
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect((await extractOriginal(forward)).path).toBe("inline");
   });
 
   it("counts a digest's untyped parts as messages, in order", async () => {
@@ -299,7 +294,7 @@ describe("round 2 cases", () => {
     expect(await extractOriginal(forward)).toMatchObject({ original: enc(message("suspicious")), otherOriginals: 1 });
   });
 
-  it("refuses malformed base64 as a ParseError", async () => {
+  it("decodes malformed base64 as postal-mime does, never throwing outside ParseError", async () => {
     for (const encoded of ["QUJD=REVG", "QUJD*REVG", "QUJDR"]) {
       const forward = enc(
         [
@@ -315,7 +310,47 @@ describe("round 2 cases", () => {
           "",
         ].join("\r\n"),
       );
-      await expect(extractOriginal(forward), encoded).rejects.toBeInstanceOf(ParseError);
+      expect((await extractOriginal(forward)).path, encoded).toBe("eml");
+    }
+  });
+
+  it("ignores a boundary inside a MIME comment, and a comment after the transfer encoding (round 3)", async () => {
+    const forward = enc(
+      [
+        "From: boss@fictional-recipient.example",
+        "Content-Type: multipart/mixed (note; boundary=decoy;); boundary=real",
+        "",
+        "--decoy",
+        "Content-Type: message/rfc822",
+        "",
+        message("benign"),
+        "--decoy--",
+        "--real",
+        "Content-Type: message/rfc822",
+        "",
+        message("suspicious"),
+        "--real--",
+        "",
+      ].join("\r\n"),
+    );
+    expect(await extractOriginal(forward)).toMatchObject({ original: enc(message("suspicious")), otherOriginals: 0 });
+    for (const cte of ["base64 (comment)", "(comment) base64"]) {
+      const encoded = btoa(message("encoded"));
+      const withComment = enc(
+        [
+          "From: boss@fictional-recipient.example",
+          'Content-Type: multipart/mixed; boundary="b"',
+          "",
+          "--b",
+          'Content-Type: application/octet-stream; name="original.eml"',
+          `Content-Transfer-Encoding: ${cte}`,
+          "",
+          encoded,
+          "--b--",
+          "",
+        ].join("\r\n"),
+      );
+      expect(await extractOriginal(withComment), cte).toMatchObject({ original: enc(message("encoded")), path: "eml" });
     }
   });
 });

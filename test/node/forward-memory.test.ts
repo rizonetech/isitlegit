@@ -16,7 +16,8 @@ function underHeapLimit(build: string) {
   `;
   return spawnSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], {
     encoding: "utf-8",
-    timeout: 60_000,
+    // A real clock: a forward that takes longer than this is a denial of service, not a slow message.
+    timeout: 10_000,
   });
 }
 
@@ -41,5 +42,13 @@ describe("extractOriginal under a 128 MiB heap", () => {
     ].join("\\r\\n"))`);
     expect(run.status, run.stderr.slice(-400)).toBe(0);
     expect(JSON.parse(run.stdout)).toMatchObject({ path: "eml", bytes: 76 * 300_000 - 2 });
+  });
+
+  it("reads a 60,000-character boundary over five million hyphens within the timeout", () => {
+    const run = underHeapLimit(
+      `enc('From: boss@fictional-recipient.example\\r\\nContent-Type: multipart/mixed; boundary="' + "-".repeat(60000) + 'X"\\r\\n\\r\\n' + "-".repeat(5000000))`,
+    );
+    expect(run.status, run.stderr.slice(-400)).toBe(0);
+    expect(JSON.parse(run.stdout)).toMatchObject({ path: "inline" });
   });
 });
