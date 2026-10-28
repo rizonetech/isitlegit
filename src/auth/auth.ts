@@ -19,7 +19,7 @@ import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { ConfigError } from "../config";
 import { type MailDeps, sendMail } from "../mail/smtp2go";
-import { vetAuthentication, vetRegistration } from "./passkey";
+import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 
 export { MAGIC_LINK_SECONDS };
@@ -114,6 +114,11 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           const paths = { callbackURL, newUserCallbackURL: callbackURL, errorCallbackURL: recoveryPath(callbackURL) };
           return { context: { query: { ...query, ...paths } } };
         }
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/passkey/generate-authenticate-options") return;
+        const options = authenticationOptions(ctx.context.returned);
+        if (options) return ctx.json(options);
       }),
     },
   } satisfies BetterAuthOptions;

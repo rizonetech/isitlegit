@@ -80,12 +80,23 @@ describe("passkey options", () => {
     expect(options.authenticatorSelection).toMatchObject({ residentKey: "required", userVerification: "required" });
   });
 
-  it("serves authentication options anonymously, naming no credential", async () => {
-    const response = await call("/api/auth/passkey/generate-authenticate-options");
-    expect(response.status).toBe(200);
-    const options = (await response.json()) as { rpId: string; allowCredentials?: unknown[] };
-    expect(options.rpId).toBe(RP_ID);
-    expect(options.allowCredentials ?? []).toEqual([]);
+  it("serves authentication options requiring user verification and naming no credential, signed in or not", async () => {
+    const authenticator = new SoftAuthenticator();
+    const { cookie } = await signIn("asks@example.com");
+    await register(authenticator, cookie);
+    for (const who of ["", cookie]) {
+      const response = await call("/api/auth/passkey/generate-authenticate-options", { headers: { cookie: who } });
+      expect(response.status).toBe(200);
+      const options = (await response.json()) as {
+        rpId: string;
+        userVerification: string;
+        allowCredentials: unknown[];
+      };
+      expect(options.rpId).toBe(RP_ID);
+      expect(options.userVerification).toBe("required");
+      expect(options.allowCredentials).toEqual([]);
+      expect(response.headers.getSetCookie().some((c) => c.includes("better-auth-passkey"))).toBe(true);
+    }
   });
 });
 
@@ -145,6 +156,7 @@ describe("registration refusals", () => {
     const { cookie } = await signIn("nopin@example.com");
     const refused = await register(new SoftAuthenticator(), cookie, undefined, true);
     expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { code: string }).code).toBe("USER_VERIFICATION_REQUIRED");
     expect(await countPasskeys("nopin@example.com")).toBe(0);
   });
 
@@ -180,6 +192,17 @@ describe("registration refusals", () => {
     const finished = await post("/api/auth/passkey/verify-registration", withChallenge, { response: good });
     expect(finished.status).toBe(200);
     expect(await countPasskeys("badattest@example.com")).toBe(1);
+  });
+
+  it("refuses a sign-in posted with a registration's challenge, leaving the registration to finish", async () => {
+    const authenticator = new SoftAuthenticator();
+    const { cookie } = await signIn("crossed@example.com");
+    const { response, cookie: withChallenge } = await registerOptions(cookie);
+    const created = await authenticator.create(await response.json(), ORIGIN);
+    const crossed = await post("/api/auth/passkey/verify-authentication", withChallenge, { response: created });
+    expect(crossed.status).toBe(400);
+    const finished = await post("/api/auth/passkey/verify-registration", withChallenge, { response: created });
+    expect(finished.status).toBe(200);
   });
 
   it("refuses a credential ID another member already registered", async () => {
@@ -252,7 +275,8 @@ describe("sign-in refusals", () => {
     // Present but not unlocked, as a security key with no PIN answers.
     const authenticator = await holder("unverified@example.com");
     const { answer } = await passkeySignIn(authenticator, { unverified: true });
-    expect(answer.status).toBe(400);
+    expect(answer.status).toBe(401);
+    expect(((await answer.json()) as { code: string }).code).toBe("USER_VERIFICATION_REQUIRED");
     expect(sessionCookie(answer)).toBe("");
   });
 

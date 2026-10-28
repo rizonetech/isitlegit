@@ -12,8 +12,9 @@ type SendMagicLink = Parameters<typeof magicLink>[0]["sendMagicLink"];
 // Passkeys belong to the host the app is served from: the relying party ID is APP_URL's hostname and the only origin
 // accepted is APP_URL's (the plugin would otherwise trust the request's Origin header). Sign-in asks anonymously, with
 // no credential list, so only a discoverable credential can answer it: registration requires one. User verification is
-// asked for too (the device's owner unlocked it, not only that the device was present); the plugin verifies with it off,
-// so src/auth/passkey.ts requires it (WebAuthn Level 3 §7.1 step 16, §7.2 step 17).
+// required too (the device's owner unlocked it, not only that the device was present): asked for here at registration,
+// and in the sign-in options and both checks by src/auth/passkey.ts, since the plugin asks "preferred" at sign-in and
+// verifies with it off (WebAuthn Level 3 §7.1 step 16, §7.2 step 17).
 // The relying party for an app URL: its host is the ID, its origin the only one accepted.
 export const relyingParty = (appURL: string) => {
   const app = new URL(appURL);
