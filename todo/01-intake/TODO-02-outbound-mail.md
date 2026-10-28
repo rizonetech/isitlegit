@@ -253,14 +253,14 @@ When SMTP2GO gives no answer or a 5xx, §1 records the send as uncertain and §5
 **Needs:** none
 **Surface:** no
 
-**Operator decision (open):** keep SMTP2GO and accept §5's delayed recovery, move outbound mail to a provider with idempotency keys, or add a dispatch layer of our own that gives the same guarantee. Recording `Recovery design: <choice> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+**Operator decision (closed 2026-10-28 22:42 SAST, recorded below):** keep SMTP2GO and accept §5's delayed recovery, move outbound mail to a provider with idempotency keys, or add a dispatch layer of our own that gives the same guarantee. Recording `Recovery design: <choice> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
 
 Recovery design: keep SMTP2GO and §5's delayed recovery (2026-10-28). **Operator decision (2026-10-28 22:42 SAST):** an ambiguous send stays settled by §5 from SMTP2GO's activity after 30 minutes, and by the operator after 3 days in the rare case that fails; no provider move and no dispatch layer. Reversing it later means moving outbound mail to a provider with idempotency keys (a new account, domain verification, a key and a privacy-page change). The items below are struck: nothing is built.
 
 **Build order:**
 
 1. Choose the design. Done when: the choice is recorded with what it costs to reverse.
-2. Recover an ambiguous send automatically. Done when: a send whose answer was lost is settled within 60 seconds of the provider answering again, with no operator action and never a second delivery.
+2. ~~Recover an ambiguous send automatically. Done when: a send whose answer was lost is settled within 60 seconds of the provider answering again, with no operator action and never a second delivery.~~ **Superseded 2026-10-28 (operator):** SMTP2GO is kept, so an ambiguous send is settled by §5 (30 minutes, then the operator after 3 days); the checkpoint below proves that design instead.
 
 - [x] Record the choice and its reversal cost here, with the provider's idempotency documentation (window, key format, concurrent-request behaviour) if one is chosen. Done when: the `Recovery design:` line is recorded. Done 2026-10-28: the `Recovery design:` line above records keep SMTP2GO with §5's delayed recovery and the cost of reversing it (no provider was chosen, so no idempotency documentation applies).
 - [x] ~~Send through the chosen design with the send key as the idempotency key, so an uncertain send is retried at once and the provider's replay settles it. Done when: `test/mail/recovery.test.ts` drives an accepted message whose answer is lost, retries it, and finds one delivery and a `sent` row within 60 seconds of the provider answering, and a concurrent duplicate request refused without a second delivery.~~ **Struck 2026-10-28 (operator):** SMTP2GO is kept with §5's recovery; nothing is built.
