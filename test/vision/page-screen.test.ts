@@ -26,6 +26,9 @@ const answer: PageAnswer = {
   confidence: 0.92,
 };
 const NONCE = "0123456789abcdef0123456789abcdef";
+// An integer-safe linear congruential step (Numerical Recipes' constants, 32-bit), so every piece index is reachable;
+// the earlier float arithmetic collapsed to two pieces (round 5).
+const next = (seed: number) => (Math.imul(seed, 1664525) + 1013904223) >>> 0;
 
 describe("PageAnswer and PageScreen", () => {
   it("accepts a valid answer and refuses each missing or mistyped field", () => {
@@ -164,14 +167,17 @@ describe("buildScreenRequest", () => {
     };
     const pieces = ["<", "<<", "END", "<<END", "UNTRUSTED", "<<UNTRUSTED", "x", "E", "N", "D"];
     let seed = 7;
+    const seen = new Set<number>();
     for (let i = 0; i < 500; i++) {
       let text = "";
       for (let j = 0; j < 12; j++) {
-        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        seed = next(seed);
         text += pieces[seed % pieces.length];
+        seen.add(seed % pieces.length);
       }
       expect(stripDelimiters(text), text).toBe(fixpoint(text));
     }
+    expect(seen.size, "every piece is generated").toBe(pieces.length);
   });
 
   it("strips a huge page in one pass without building an array of its characters", () => {
@@ -196,15 +202,18 @@ describe("buildScreenRequest", () => {
   it("keeps the same characters with a limit as stripping everything and then cutting", () => {
     const pieces = ["<", "<<", "END", "<<END", "UNTRUSTED", "<<UNTRUSTED", "x", "😀"];
     let seed = 11;
+    const seen = new Set<number>();
     for (let i = 0; i < 500; i++) {
       let text = "";
       for (let j = 0; j < 20; j++) {
-        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        seed = next(seed);
         text += pieces[seed % pieces.length];
+        seen.add(seed % pieces.length);
       }
       const limit = (seed % 12) + 1;
       expect(stripDelimiters(text, limit), text).toBe(Array.from(stripDelimiters(text)).slice(0, limit).join(""));
     }
+    expect(seen.size, "every piece is generated").toBe(pieces.length);
   });
 
   it("handles a crafted 100,000-character page in linear time", () => {
