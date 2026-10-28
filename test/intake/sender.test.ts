@@ -154,4 +154,16 @@ describe("senderAuthenticated", () => {
       ),
     ).toBe("x y@member.co.za");
   });
+
+  it("for an address verified on its own, takes a signature only by exactly its domain, not a sibling under a shared host (round 2)", () => {
+    const owner = "owner@legitcustomer.duckdns.org";
+    const signed = (d: string) =>
+      new TextEncoder().encode(
+        `Authentication-Results: ${ID}; dkim=pass header.d=${d}\r\nFrom: ${owner}\r\n\r\nbody\r\n`,
+      );
+    expect(senderAuthenticated(signed("legitcustomer.duckdns.org"), owner, "address")).toBe(true);
+    expect(senderAuthenticated(signed("unrelatedsender.duckdns.org"), owner, "address")).toBe(false);
+    expect(senderAuthenticated(signed("duckdns.org"), owner, "address")).toBe(false);
+    expect(senderAuthenticated(signed("mail.legitcustomer.duckdns.org"), owner, "address")).toBe(false);
+  });
 });

@@ -6,9 +6,11 @@
 // organisation verified (`memberOfSender`):
 //   a domain     a pass for the domain: SPF for the envelope sender's own domain, or DKIM signed by a domain with the
 //                same registrable domain. Every mailbox at the domain is the organisation's, so the domain is enough.
-//   an address   the mailbox itself: the message's own From is that address and a DKIM signature by its domain passed
-//                (DKIM always signs From). A domain-level pass is not enough for one address at a shared provider: any
-//                other gmail.com user's signed mail passes DKIM for gmail.com, and only its signed From tells them apart.
+//   an address   the mailbox itself: the message's own From is that address and a DKIM signature by exactly its domain
+//                passed (DKIM always signs From; DMARC's strict alignment). A domain-level pass is not enough for one
+//                address at a shared provider: any other gmail.com user's signed mail passes DKIM for gmail.com, and only
+//                its signed From tells them apart. Nor is a signer that merely shares the registrable domain: names under
+//                a shared host (`*.duckdns.org`) belong to unrelated owners, and none of them proves another's mailbox.
 import { registrable } from "../auth/senders";
 
 // Email Routing's authserv-id in the header it adds. A topmost header naming any other server was not written by it
@@ -44,8 +46,9 @@ export function senderAuthenticated(
       return mailfrom !== undefined && domainOf(mailfrom) === domain;
     }
     if (r.method === "dkim") {
-      const d = r.props.get("header.d") ?? domainOf(r.props.get("header.i") ?? "");
-      return site !== null && !!d && registrable(d) === site;
+      const d = (r.props.get("header.d") ?? domainOf(r.props.get("header.i") ?? "")).toLowerCase();
+      if (!d) return false;
+      return proving === "address" ? d === domain : site !== null && registrable(d) === site;
     }
     return false;
   });
