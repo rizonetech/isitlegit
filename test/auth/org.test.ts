@@ -5,6 +5,7 @@ import { createAuth } from "../../src/auth/auth";
 import { requireSession } from "../../src/auth/gate";
 import { type OrgEnv, requireOrg } from "../../src/auth/org";
 import worker from "../../src/index";
+import { recipientHash } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
 import { authEnv, call, ORIGIN, signIn, stubSmtp2go } from "./helpers";
 
@@ -183,8 +184,10 @@ describe("invitations", () => {
         expect(failed.status, answer).toBe(502);
         // A refusal is a failed send; no answer is an unknown one, which may have gone.
         expect(await failed.text(), answer).toMatch(answer === "refused" ? /could not be sent/ : /not known/);
+        // This invitee's own send: ordering every invitation's sends by time ties within a millisecond.
         const recorded = await db
-          .prepare("SELECT status FROM mail_sends WHERE send_key LIKE 'invite:%' ORDER BY created_at DESC")
+          .prepare("SELECT status FROM mail_sends WHERE send_key LIKE 'invite:%' AND to_hash = ?")
+          .bind(await recipientHash(email))
           .first<{ status: string }>();
         expect(recorded?.status, answer).toBe(answer === "refused" ? "failed" : "uncertain");
         const pending = await db
