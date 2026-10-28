@@ -299,6 +299,135 @@ describe("codes by email", () => {
     expect(row?.locked_until).not.toBeNull();
   });
 
+  it("weighs at most three of many guesses arriving together, whichever they are", async () => {
+    const { cookie, orgId } = await owner("swarm@example.org");
+    await json("/domains", cookie, "POST", { domain: "swarm.co.za" });
+    await json("/domains/swarm.co.za/code", cookie, "POST", { local: "admin" });
+    const right = lastCode();
+    // Twenty guesses at once, the right code among them last.
+    const guesses = Array.from({ length: 19 }, (_, i) => String((Number(right) + i + 1) % 1_000_000).padStart(6, "0"));
+    guesses.push(right);
+    const answers = await Promise.all(
+      guesses.map((code) => json("/domains/swarm.co.za/verify", cookie, "POST", { code })),
+    );
+    const statuses = answers.map((a) => a.status);
+    const wrongWeighed = statuses.filter((s) => s === 400).length;
+    if (statuses.includes(200)) {
+      // The right code got one of the three attempts: at most two wrong guesses were weighed before it.
+      expect(wrongWeighed).toBeLessThanOrEqual(2);
+      expect(await stateOf(orgId, "swarm.co.za")).toBe("verified");
+    } else {
+      // It did not: three attempts were taken, the code is locked, and everything else was refused unweighed.
+      const row = await db
+        .prepare("SELECT attempts, locked_until FROM verification_codes WHERE org_id = ?")
+        .bind(orgId)
+        .first<{ attempts: number; locked_until: string | null }>();
+      expect(row?.attempts).toBe(3);
+      expect(row?.locked_until).not.toBeNull();
+      expect(wrongWeighed).toBe(2);
+      expect(await stateOf(orgId, "swarm.co.za")).toBe("pending");
+    }
+  });
+
+  it("weighs no guess beyond three, even the right one arriving while three wrong ones are under way", async () => {
+    const { cookie, orgId } = await owner("barrier@example.org");
+    await json("/domains", cookie, "POST", { domain: "barrier.co.za" });
+    await json("/domains/barrier.co.za/code", cookie, "POST", { local: "admin" });
+    const right = lastCode();
+    // Three wrong guesses each pause just after their first statement on the code (the point a check-then-count
+    // would leave them uncounted) until the right guess has been answered.
+    let paused = 0;
+    let allPaused: () => void = () => {};
+    const threePaused = new Promise<void>((resolve) => {
+      allPaused = resolve;
+    });
+    let resume: () => void = () => {};
+    const rightAnswered = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    const first = /^(SELECT expires_at, locked_until FROM verification_codes|UPDATE verification_codes SET attempts)/;
+    const pausing = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!first.test(sql)) return statement;
+            return {
+              bind: (...values: unknown[]) => {
+                const bound = statement.bind(...values);
+                const pauseAfter = async <T>(result: T) => {
+                  paused += 1;
+                  if (paused === 3) allPaused();
+                  await rightAnswered;
+                  return result;
+                };
+                return {
+                  first: async <T>() => pauseAfter(await bound.first<T>()),
+                  run: async () => pauseAfter(await bound.run()),
+                };
+              },
+            };
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const withDb = (DB: D1Database) => ({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}`, DB });
+    const guess = (code: string, DB: D1Database) =>
+      call(
+        "/api/org/domains/barrier.co.za/verify",
+        { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ code }) },
+        withDb(DB),
+      );
+    const wrong = (n: number) => String((Number(right) + n) % 1_000_000).padStart(6, "0");
+    const wrongs = [1, 2, 3].map((n) => guess(wrong(n), pausing));
+    await threePaused;
+    const late = await guess(right, db);
+    resume();
+    await Promise.all(wrongs);
+    expect(late.status).toBe(429);
+    expect(await stateOf(orgId, "barrier.co.za")).toBe("pending");
+  });
+
+  it("does not let a resend under way bring back a claim removed meanwhile", async () => {
+    const { cookie, orgId } = await owner("resendrace@example.org");
+    await json("/domains", cookie, "POST", { domain: "resendrace.co.za" });
+    const claim = await db
+      .prepare("SELECT id, org_id, domain, token, state FROM org_domains WHERE domain = 'resendrace.co.za'")
+      .first<Record<string, unknown>>();
+    expect((await json("/domains/resendrace.co.za", cookie, "DELETE")).status).toBe(204);
+    // The resend read the claim before the removal: its lookup still sees it.
+    const staleLookup = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) =>
+            sql.startsWith("SELECT id, org_id, domain, token, state FROM org_domains")
+              ? { bind: () => ({ first: async () => claim }) }
+              : target.prepare(sql);
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const before = world.sends.length;
+    const resent = await call(
+      "/api/org/domains/resendrace.co.za/code",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ local: "admin" }),
+      },
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}`, DB: staleLookup },
+    );
+    expect(resent.status).toBe(404);
+    expect(world.sends.length).toBe(before);
+    expect(await db.prepare("SELECT 1 FROM verification_codes WHERE claim_id = ?").bind(claim?.id).first()).toBeNull();
+    const charged = await db
+      .prepare("SELECT COUNT(*) AS n FROM verification_sends WHERE org_id = ? AND target = 'domain:resendrace.co.za'")
+      .bind(orgId)
+      .first<{ n: number }>();
+    expect(charged?.n).toBe(0);
+  });
+
   it("answers each code send's outcome, and allows five codes an hour", async () => {
     const { cookie } = await owner("sender@example.org");
     await json("/domains", cookie, "POST", { domain: "outcomes.co.za" });

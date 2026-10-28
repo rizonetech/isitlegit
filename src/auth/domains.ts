@@ -111,10 +111,12 @@ async function issueCode(db: D1Database, orgId: string, claimId: string, allowan
   const at = new Date(now).toISOString();
   const code = sixDigits();
   const codeId = crypto.randomUUID();
+  // The send is recorded only while the claim is still pending (a removal or a verification under way wins) and under
+  // the hourly limit; the code is written only if the send was.
   const [counted] = await db.batch([
     db
       .prepare(
-        "INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ?",
+        "INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ? AND EXISTS (SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending')",
       )
       .bind(
         crypto.randomUUID(),
@@ -125,6 +127,10 @@ async function issueCode(db: D1Database, orgId: string, claimId: string, allowan
         allowance,
         new Date(now - HOUR_MS).toISOString(),
         CODES_PER_HOUR,
+        claimId,
+        orgId,
+        claimId,
+        orgId,
       ),
     db
       .prepare(
@@ -139,7 +145,14 @@ async function issueCode(db: D1Database, orgId: string, claimId: string, allowan
         at,
       ),
   ]);
-  return counted?.meta.changes === 1 ? { code, codeId } : null;
+  if (counted?.meta.changes === 1) return { code, codeId };
+  const live = await db
+    .prepare(
+      "SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending'",
+    )
+    .bind(claimId, orgId, claimId, orgId)
+    .first();
+  return live ? ("limit" as const) : ("gone" as const);
 }
 
 // Checks a code and, when right, consumes it and verifies the claim in one batch, so neither happens without the other.
@@ -151,33 +164,43 @@ async function proveByCode(
   code: string,
 ): Promise<"locked" | "expired" | "none" | "wrong" | Verified> {
   const now = new Date().toISOString();
-  const row = await db
-    .prepare("SELECT expires_at, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?")
-    .bind(claimId, orgId)
-    .first<{ expires_at: string; locked_until: string | null }>();
-  if (!row) return "none";
-  if (row.locked_until && row.locked_until > now) return "locked";
-  if (row.expires_at <= now) return "expired";
-  try {
-    const [consumed, verified] = await db.batch([
-      db
-        .prepare(
-          "DELETE FROM verification_codes WHERE claim_id = ? AND org_id = ? AND code_hash = ? AND expires_at > ? AND (locked_until IS NULL OR locked_until <= ?)",
-        )
-        .bind(claimId, orgId, await sha256Hex(`${claimId}:${code.trim()}`), now, now),
-      db.prepare(`${verifySql(table)} AND changes() = 1`).bind(now, "email", claimId),
-    ]);
-    if (consumed?.meta.changes === 1) return verified?.meta.changes === 1 ? "verified" : "gone";
-  } catch (error) {
-    return isUnique(error) ? "taken" : "unavailable";
-  }
-  const counted = await db
+  // A guess is weighed only after it takes one of the three attempts, in one statement: however many arrive together,
+  // at most three are compared (a lock that has run out gives a fresh three).
+  const reserved = await db
     .prepare(
-      "UPDATE verification_codes SET attempts = CASE WHEN locked_until IS NOT NULL THEN 1 ELSE attempts + 1 END, locked_until = CASE WHEN (CASE WHEN locked_until IS NOT NULL THEN 1 ELSE attempts + 1 END) >= ? THEN ? ELSE NULL END WHERE claim_id = ? AND org_id = ? AND (locked_until IS NULL OR locked_until <= ?) RETURNING locked_until",
+      "UPDATE verification_codes SET attempts = CASE WHEN locked_until IS NOT NULL THEN 1 ELSE attempts + 1 END, locked_until = NULL WHERE claim_id = ? AND org_id = ? AND expires_at > ? AND ((locked_until IS NULL AND attempts < ?) OR locked_until <= ?) RETURNING attempts, code_id, code_hash",
     )
-    .bind(MAX_ATTEMPTS, new Date(Date.now() + LOCK_MS).toISOString(), claimId, orgId, now)
-    .first<{ locked_until: string | null }>();
-  return !counted || counted.locked_until ? "locked" : "wrong";
+    .bind(claimId, orgId, now, MAX_ATTEMPTS, now)
+    .first<{ attempts: number; code_id: string; code_hash: string }>();
+  if (!reserved) {
+    const row = await db
+      .prepare("SELECT expires_at, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?")
+      .bind(claimId, orgId)
+      .first<{ expires_at: string; locked_until: string | null }>();
+    if (!row) return "none";
+    if (row.expires_at <= now) return "expired";
+    return "locked";
+  }
+  if (reserved.code_hash === (await sha256Hex(`${claimId}:${code.trim()}`))) {
+    // Right: the code is consumed and the claim verified together, so a failure loses neither.
+    try {
+      const [consumed, verified] = await db.batch([
+        db.prepare("DELETE FROM verification_codes WHERE claim_id = ? AND code_id = ?").bind(claimId, reserved.code_id),
+        db.prepare(`${verifySql(table)} AND changes() = 1`).bind(now, "email", claimId),
+      ]);
+      if (consumed?.meta.changes !== 1) return "none";
+      return verified?.meta.changes === 1 ? "verified" : "gone";
+    } catch (error) {
+      return isUnique(error) ? "taken" : "unavailable";
+    }
+  }
+  // Wrong: the third wrong guess locks the code for an hour.
+  if (reserved.attempts < MAX_ATTEMPTS) return "wrong";
+  await db
+    .prepare("UPDATE verification_codes SET locked_until = ? WHERE claim_id = ? AND code_id = ?")
+    .bind(new Date(Date.now() + LOCK_MS).toISOString(), claimId, reserved.code_id)
+    .run();
+  return "locked";
 }
 
 const verifiedAnswer = (result: Verified, body: Record<string, unknown>, what: "domain" | "address") =>
@@ -369,7 +392,8 @@ domainRoutes.post("/domains/:domain/code", async (c) => {
     return problem(400, "the code goes to admin@ or postmaster@");
   const to = `${body.local}@${claim.domain}`;
   const issued = await issueCode(c.env.DB, org, claim.id, allowanceOf({ domain: claim.domain }));
-  if (!issued) return problem(429, `at most ${CODES_PER_HOUR} codes a domain an hour; try again later`);
+  if (issued === "gone") return problem(404, "no such domain claim");
+  if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes a domain an hour; try again later`);
   const outcome = await sendClaimCode(c.env, {
     to,
     claimId: claim.id,
@@ -431,7 +455,8 @@ async function addressCode(c: Context<OrgEnv>, create: boolean) {
   }
   if (claim.state === "verified") return c.json({ address, state: "verified" });
   const issued = await issueCode(db, org, claim.id, allowanceOf({ address }));
-  if (!issued) return problem(429, `at most ${CODES_PER_HOUR} codes an address an hour; try again later`);
+  if (issued === "gone") return problem(404, "no such address claim");
+  if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes an address an hour; try again later`);
   const outcome = await sendClaimCode(c.env, {
     to: address,
     claimId: claim.id,
