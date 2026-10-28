@@ -83,7 +83,9 @@ Meta credit visible: 2026-10-27
 
 ## 2. Domain verification and nameservers
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:56Z
+
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, so the review comes before the build as the process requires.
 
 `isitlegit.co.za` is on `serverHold` until the registrant contact is verified; the nameserver change to Cloudflare is queued behind it.
 
@@ -118,7 +120,9 @@ Meta credit visible: 2026-10-27
 
 ## 3. Workers Paid plan
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:56Z
+
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, so the review comes before the build as the process requires.
 
 Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"). The Cloudflare API token cannot read billing, so the operator confirms it in the dashboard.
 
@@ -190,7 +194,9 @@ The WhatsApp intake (design spec 4.1a) needs a Meta for Developers app with the 
 
 ## 6. Google Web Risk API key
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:56Z
+
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, so the review comes before the build as the process requires.
 
 URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls a month (design spec 4.3a).
 
