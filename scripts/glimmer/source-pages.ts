@@ -43,7 +43,13 @@ export function decodeHtml(bytes: Uint8Array): string {
       // a label the decoder does not know: the page is read as UTF-8, the web's default
     }
   }
-  return new TextDecoder("utf-8").decode(bytes);
+  // Undeclared: UTF-8 when the bytes are UTF-8, else Windows-1252, the single-byte charset undeclared mail and pages
+  // most often are (an accented name in it would otherwise read as replacement characters, out of every rule's reach).
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
 }
 
 export class PageTimeout extends Error {}

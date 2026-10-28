@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 25 | Checklist items: 293
+Sections: 25 | Checklist items: 305
 
 | Status | Reference   | Deliverable                              | Needs                | Items |
 | ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
@@ -25,7 +25,7 @@ Sections: 25 | Checklist items: 293
 | [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
 | [ ]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
 | [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
-| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 8     |
+| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 20    |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
 | [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 9     |
 | [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 9     |
@@ -305,4 +305,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 46/234 verified sections, 31 ready to run now.
 
-Checklist: 588/1381 items completed (includes Commit items).
+Checklist: 599/1393 items completed (includes Commit items).
