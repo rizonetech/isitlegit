@@ -33,6 +33,7 @@ track: day-6
 | 2 | §2 | Weekly stats, money at risk and CSV export | §1 | [ ] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §7 | [ ] |
+| 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -121,10 +122,38 @@ The organisation's approved domains and sending addresses with their verificatio
 1. Build `GET /settings/domains`. Done when: add, verify link, remove and the forwarding help render.
 
 - [ ] Build `src/web/pages/settings-domains.tsx` listing domains and addresses with state and remove buttons, linking to verification. Done when: `test/web/domains-settings.test.ts` covers add and remove.
+- [ ] Add M8's empty state to `design/SPEC.md` first (an organisation with no domain, after removing its last or onboarding by addresses only: what it says and the one action to add a domain or an address), then build it, and show each pending claim's challenge from `GET /api/org/domains` (D07 T02 §5: `codeExpiresAt`, `lockedUntil`, `nextCodeAt`), so a reloaded page states the remaining wait without a trial request. Done when: the SPEC section and board show the empty state, and `test/web/domains-page.test.ts` renders it for an organisation with none and renders a locked claim's remaining wait from the read alone. Source: D07 T02 §5 completion review (Part 1 item 13, Part 2 item 2).
 - [ ] Add the forwarding-as-attachment help for Outlook (desktop and web) and Gmail, with the reason headers matter. Done when: the help section renders.
 - [ ] Commit: `web: domains and sending addresses page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-settings.test.ts` passes.
+
+
+## 5. Registrar-assisted domain verification
+
+Adding a domain today means copying a TXT record into the registrar by hand and coming back to check (D07 T02 §5). Registrars that support Domain Connect can add the record themselves after the owner approves, so a supported domain verifies with no field typed by hand (D07 T02 §5 completion review, Part 2 item 1). DNS by hand and the emailed code stay as the other ways.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+
+**Fidelity:** `design/SPEC.md` M8 (the domains page), extended with the registrar step; no board yet.
+**Job:** an owner verifies a domain at a supported registrar in at most three actions (add the domain, approve at the registrar, return verified), typing no DNS value.
+**Treatment:** the registrar option first when the domain's registrar supports it, the manual record and the emailed code below it.
+**Chrome:** the domains page's own controls (§4), no new toolbar or dialog shape.
+
+**Build order:**
+
+1. Design the registrar step and find which registrars support it. Done when: the SPEC and its board show the step, and a test lists a domain's Domain Connect support from its DNS.
+2. Build the flow. Done when: a stubbed registrar adds the record and the domain verifies with no value typed.
+
+- [ ] Add the registrar step to M8 in `design/SPEC.md` (the Connect button, the hand-off to the registrar, the return, and what an unsupported registrar shows), with its board. Done when: the SPEC section and the board exist and the controls are named.
+- [ ] Discover Domain Connect support for a claimed domain (its `_domainconnect` TXT record and the provider's settings) in `src/auth/domain-connect.ts`. Done when: `test/auth/domain-connect.test.ts` finds support for a stubbed provider and none for a domain without the record.
+- [ ] Publish IsItLegit's Domain Connect template for the `_isitlegit` TXT record and build the hand-off URL carrying the claim's token, signed as the protocol requires. Done when: the test builds the URL a stubbed provider accepts, and one with a changed token is refused.
+- [ ] Return from the registrar to the domains page and run the DNS check (D07 T02 §5) automatically, showing the outcome. Done when: a rendered-page test returns from a stubbed registrar and finds the domain verified, and an unsupported registrar falls back to the manual record with no dead button.
+- [ ] Commit: `web: registrar-assisted domain verification`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/domain-connect.test.ts test/web/domains-page.test.ts` passes and fails if a domain verifies without its token in DNS or an unsupported registrar shows the Connect button.
 
 ## Verification
 

@@ -185,7 +185,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 210
+Sections: 55 | Checklist items: 211
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -208,7 +208,7 @@ Sections: 55 | Checklist items: 210
 | [ ]    | D07 T04 §1 | Cases list with filters and search         | none                  | 4     |
 | [ ]    | D07 T04 §2 | Weekly stats, money at risk and CSV export | none                  | 4     |
 | [ ]    | D07 T04 §3 | Team and invites page                      | none                  | 5     |
-| [ ]    | D07 T04 §4 | Domains and sending addresses page         | none                  | 3     |
+| [ ]    | D07 T04 §4 | Domains and sending addresses page         | none                  | 4     |
 | [ ]    | D07 T05 §1 | Access application and JWT verification    | cloudflare            | 4     |
 | [ ]    | D07 T05 §2 | Overview, spend and invite codes           | none                  | 5     |
 | [ ]    | D07 T06 §1 | Astro workspace with the design tokens     | none                  | 5     |
@@ -247,7 +247,7 @@ Sections: 55 | Checklist items: 210
 
 ### Phase 7: After the event
 
-Sections: 7 | Checklist items: 29
+Sections: 8 | Checklist items: 35
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -256,7 +256,8 @@ Sections: 7 | Checklist items: 29
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
-| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 6     |
+| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 7     |
+| [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
 
 ### Phase 99: Manual, operator only
@@ -278,6 +279,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 33/209 verified sections, 14 ready to run now.
+Progress: 33/210 verified sections, 14 ready to run now.
 
-Checklist: 386/1132 items completed (includes Commit items).
+Checklist: 386/1139 items completed (includes Commit items).
