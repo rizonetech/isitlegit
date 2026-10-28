@@ -35,7 +35,7 @@ track: day-1
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Attended design session and design/SPEC.md | -- | [x] |
+| 1 | §1 | Attended design session, design/SPEC.md | -- | [x] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [x] |
 | 3 | §3 | App shell and its three frames | §2, §5, §6 | [x] |
 | 4 | §4 | Design change comparison | §1 | [ ] |
@@ -48,7 +48,7 @@ track: day-1
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 
-## 1. Attended design session and design/SPEC.md
+## 1. Attended design session, design/SPEC.md
 
 > **Started:** 2026-10-26T20:21:27Z
 

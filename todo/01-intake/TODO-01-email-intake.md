@@ -41,9 +41,9 @@ track: day-1
 | 4 | §4 | Forward-as-attachment detection | §3 | [x] |
 | 5 | §5 | MIME parsing and attachment extraction | §4 | [x] |
 | 6 | §6 | Outlook .msg parsing | §5 | [x] |
-| 7 | §7 | AnalysisWorkflow skeleton, partial reports | §5 | [x] |
+| 7 | §7 | AnalysisWorkflow skeleton, partials | §5 | [x] |
 | 8 | §8 | Signed expiring report links | §1 | [x] |
-| 9 | §9 | Email Routing for check@ and live smoke | §7, D01 T02 §3, D07 T06 §9 | [ ] |
+| 9 | §9 | check@ routing and live smoke | §7, D01 T02 §3, D07 T06 §9, D07 T02 §10 | [ ] |
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
 | 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
 | 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
@@ -251,7 +251,7 @@ Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno
 > **Verified:** 2026-10-28 | §6 | 5ed1fca1d309637b5181bc06a2669c8c4189af71
 > **Review:** `docs/reviews/d01-t01-s6.json`
 
-## 7. AnalysisWorkflow skeleton, partial reports
+## 7. AnalysisWorkflow skeleton, partials
 
 > **Started:** 2026-10-28T12:32:02Z
 
@@ -318,7 +318,7 @@ The absolute `https://` link a reply carries is built by D01 T02 §3 from a trus
 > **Verified:** 2026-10-27 | §8 | 7c100e4770a4a24c45b47b2b3c0a479f7e3161ff
 > **Review:** `docs/reviews/d01-t01-s8.json`
 
-## 9. Email Routing for check@ and live smoke
+## 9. check@ routing and live smoke
 
 > **Started:** 2026-10-28T23:13Z
 
@@ -340,7 +340,7 @@ The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (st
 - [x] Create a rule `check@isitlegit.co.za` to Worker `isitlegit` on zone `88aeec6df134bc59bfa16a25751241ef` (standing authorisation, `AGENTS.md`; Email Routing was enabled by D99 T01 §2). Done when: the Cloudflare API lists the rule enabled. Done 2026-10-28 23:12 UTC: rule `ba3c41f1cb86483d806607ec00f4958e`, enabled, action `worker` `isitlegit`, read back (`docs/live-checks.md`).
 - [ ] Log why a delivery was not admitted, before admission, without changing what is admitted: one `{"event":"intake","outcome":...}` line per delivery naming the outcome (`dropped`, `automatic`, `too-large`, `duplicate`, `capped`, admitted), and for a drop whether a member matched, the topmost `Authentication-Results` authserv-id and each method's result and aligned domain (no address, no Message-ID). Done when: `test/intake/email.test.ts` finds the line for a drop by an unknown sender and by a failed check, and no address in either.
 - [ ] Deploy the Worker after the gates pass (`AGENTS.md` deploy rule, migrations first). Done when: `/health` on `isitlegit.derick-f5a.workers.dev` returns the deployed SHA.
-- [ ] Register the Rizonetech test organisation (an invite code from `scripts/invite-code.ts`, sign-up as `derick@rizonetech.com`) and verify that address through the address-claim flow (`POST /api/org/addresses`, the code read from the operator's mailbox). Needs D07 T06 §9 (the sign-in and claim mail link to the app host). Done when: `findMemberBySender` returns the organisation for the address, read back with `wrangler d1 execute --remote`.
+- [ ] Register the Rizonetech test organisation (an invite code from `scripts/invite-code.ts`, sign-up as `derick@rizonetech.com`) and verify that address through the address-claim flow (`POST /api/org/addresses`, the code read from the operator's mailbox). Needs D07 T06 §9 (the sign-in mail links to the app host) and D07 T02 §10 (**Corrected 2026-10-29** (at build): the first sign-in link sent to the operator's mailbox was consumed by its link scanner, so signing in needs links that survive one). Done when: `findMemberBySender` returns the organisation for the address, read back with `wrangler d1 execute --remote`.
 - [ ] Write `scripts/live-intake.ts`: given the forward's `internetMessageId` (read from Sent Items through the connector) and a deadline, it finds that run's case by its `message_id` in the live D1, waits for its status `done` and its `reply:<caseId>` send `sent`, and exits non-zero naming the cause on a timeout, a missing case, a failed analysis or an unsent reply, so an earlier run's case can never satisfy it. Done when: `test/node/live-intake.test.ts` drives it against a stand-in for each outcome.
 - [ ] Forward a synthetic suspicious message (sent first to `hello@isitlegit.co.za` through SMTP2GO, so it lands in the operator's mailbox, with a run token in its subject) from `derick@rizonetech.com` to `check@isitlegit.co.za` with the connector's forward, and run `scripts/live-intake.ts` on it. Done when: it exits 0 with the case id. If the intake log shows a drop, the cause is fixed at its layer and the forward repeated until admitted.
 - [ ] Read the reply in the operator's mailbox through the connector: its `In-Reply-To` is the forward's `internetMessageId`, and its report link is signed for the run's case (`verifyReportLink`, D01 T01 §8); record the case id, both message ids and the elapsed seconds in `docs/live-checks.md`. Done when: the file holds them. Opening the link live is D07 T03 §1's.

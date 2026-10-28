@@ -40,50 +40,51 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 40 | Checklist items: 319
+Sections: 41 | Checklist items: 324
 
-| Status | Reference  | Deliverable                                | Needs                 | Items |
-| ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [x]    | D01 T01 §1 | Core D1 schema and migration runner        | none                  | 12    |
-| [x]    | D01 T01 §2 | Case store and R2 artefact layout          | none                  | 9     |
-| [x]    | D01 T01 §8 | Signed expiring report links               | none                  | 6     |
-| [x]    | D01 T02 §1 | SMTP2GO client with retries and send log   | none                  | 7     |
-| [x]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 6     |
-| [x]    | D01 T02 §5 | Reconcile uncertain sends                  | none                  | 8     |
-| [ ]    | D01 T02 §6 | Forwarding failures detected and reported  | operator              | 6     |
-| [x]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | none                  | 4     |
-| [x]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
-| [x]    | D01 T03 §7 | MP3 decoding                               | none                  | 7     |
-| [x]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
-| [x]    | D01 T03 §9 | Filtered resampling for WAV                | none                  | 5     |
-| [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
-| [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
-| [x]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
-| [x]    | D07 T01 §5 | Hashed static assets and fonts             | none                  | 16    |
-| [x]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 9     |
-| [x]    | D07 T02 §2 | Passkey sign-in                            | none                  | 9     |
-| [x]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 9     |
-| [x]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 5     |
-| [x]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 7     |
-| [x]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 10    |
-| [x]    | D01 T01 §3 | Email handler for verified members         | none                  | 13    |
-| [x]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 6     |
-| [x]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 7     |
-| [x]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
-| [x]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 12    |
-| [x]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 12    |
-| [ ]    | D01 T02 §8 | Re-deliver a reply settled failed          | none                  | 3     |
-| [x]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 9     |
-| [x]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 10    |
-| [ ]    | D03 T01 §2 | Budget guard with daily and total caps     | none                  | 7     |
-| [ ]    | D03 T01 §3 | Cost and latency events per model call     | none                  | 7     |
-| [ ]    | D03 T01 §4 | Result cache by artefact hash              | none                  | 4     |
-| [ ]    | D03 T01 §5 | Structured output helper with zod          | none                  | 5     |
-| [ ]    | D03 T01 §6 | Untrusted content blocks                   | none                  | 4     |
-| [ ]    | D07 T02 §6 | Sign-in rate limits and auth audit trail   | none                  | 5     |
-| [ ]    | D07 T02 §8 | Plans, trial and feature flags             | none                  | 4     |
-| [ ]    | D07 T06 §9 | Serve the app on app.isitlegit.co.za       | cloudflare            | 6     |
-| [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 11    |
+| Status | Reference   | Deliverable                               | Needs                 | Items |
+| ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
+| [x]    | D01 T01 §1  | Core D1 schema and migration runner       | none                  | 12    |
+| [x]    | D01 T01 §2  | Case store and R2 artefact layout         | none                  | 9     |
+| [x]    | D01 T01 §8  | Signed expiring report links              | none                  | 6     |
+| [x]    | D01 T02 §1  | SMTP2GO client with retries and send log  | none                  | 7     |
+| [x]    | D01 T02 §4  | Test and demo mail aliases                | cloudflare            | 6     |
+| [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
+| [ ]    | D01 T02 §6  | Forwarding failures detected and reported | operator              | 6     |
+| [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
+| [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
+| [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
+| [x]    | D01 T03 §8  | M4A decoding                              | none                  | 5     |
+| [x]    | D01 T03 §9  | Filtered resampling for WAV               | none                  | 5     |
+| [x]    | D07 T01 §1  | Attended design session, design/SPEC.md   | attended              | 17    |
+| [x]    | D00 T01 §8  | README banner and social preview          | attended              | 7     |
+| [x]    | D07 T01 §2  | Design tokens compiled to the stylesheet  | none                  | 15    |
+| [x]    | D07 T01 §5  | Hashed static assets and fonts            | none                  | 16    |
+| [x]    | D07 T02 §1  | Better Auth on D1 with email magic link   | none                  | 9     |
+| [x]    | D07 T02 §2  | Passkey sign-in                           | none                  | 9     |
+| [x]    | D07 T02 §3  | Organisations, roles, invites and removal | none                  | 9     |
+| [x]    | D01 T02 §2  | Recipient allowlist enforced in code      | none                  | 5     |
+| [x]    | D07 T02 §4  | Invite-code signup and daily case caps    | none                  | 7     |
+| [x]    | D07 T02 §5  | Domain verification and sender lookup     | none                  | 10    |
+| [x]    | D01 T01 §3  | Email handler for verified members        | none                  | 13    |
+| [x]    | D01 T01 §4  | Forward-as-attachment detection           | none                  | 6     |
+| [x]    | D01 T01 §5  | MIME parsing and attachment extraction    | none                  | 7     |
+| [x]    | D01 T01 §6  | Outlook .msg parsing                      | none                  | 6     |
+| [x]    | D01 T01 §7  | AnalysisWorkflow skeleton, partials       | none                  | 12    |
+| [x]    | D01 T02 §3  | Threaded reply with a signed report link  | none                  | 12    |
+| [ ]    | D01 T02 §8  | Re-deliver a reply settled failed         | none                  | 3     |
+| [x]    | D01 T03 §1  | Upload API for mail, documents and audio  | none                  | 9     |
+| [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
+| [ ]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 7     |
+| [ ]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 7     |
+| [ ]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 4     |
+| [ ]    | D03 T01 §5  | Structured output helper with zod         | none                  | 5     |
+| [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
+| [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 5     |
+| [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
+| [ ]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 5     |
+| [ ]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
+| [ ]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 11    |
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
@@ -308,6 +309,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 52/239 verified sections, 28 ready to run now.
+Progress: 52/240 verified sections, 29 ready to run now.
 
-Checklist: 539/1396 items completed (includes Commit items).
+Checklist: 539/1401 items completed (includes Commit items).

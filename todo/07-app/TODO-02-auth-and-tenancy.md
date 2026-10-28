@@ -44,6 +44,7 @@ track: day-1
 | 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [ ] |
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
+| 10 | §10 | Scanner-safe sign-in links | §1 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -310,6 +311,32 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 - [ ] Commit: `app: account closure and the 30-day purge`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts` passes, and fails if the purge touches an open organisation.
+
+
+## 10. Scanner-safe sign-in links
+
+The sign-in link verifies on GET (`/api/auth/magic-link/verify?token=...`, Better Auth's magic-link plugin, §1), so whatever fetches it first signs in. Found live on 2026-10-29 (D01 T01 §9): the first link sent to a Microsoft 365 mailbox was opened by a pre-delivery link scanner 18 seconds after the send and before the mail reached the inbox, which created a session for the user (a scripted Chrome user agent) and left the member's own click `INVALID_TOKEN`. Every member on a mail system that scans links (Microsoft Defender Safe Links, Mimecast, Proofpoint) is locked out, and the scanner holds a valid session. The industry practice is a link that only shows a confirm page, the token consumed by a POST from that page, which scanners do not send.
+
+**Phase:** 1
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` sign-in section (the confirm page follows its sign-in screens)
+**Job:** a member who asked for a sign-in link clicks it and is signed in, even when their mail system opened the link first.
+**Treatment:** one button, plain words; a used or expired link says so and offers a new one
+**Chrome:** `AppShell`, `Button`, `ErrorState` from D07 T01 §3 and §6 to §8
+
+**Build order:**
+
+1. Make the mailed link side-effect free. Done when: a GET of the mailed link creates no session and keeps the token.
+2. Sign in from the confirm page. Done when: the page's button signs the member in once, and a second use of the token is refused.
+
+- [ ] Mail `/signin/confirm?token=<token>` (on `APP_URL`) instead of the verify URL Better Auth hands `sendMagicLink`, and serve that page: a GET answers 200 with one "Sign in to IsItLegit" button in a form that POSTs the token, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and creates nothing. Done when: `test/auth/magic-link-confirm.test.ts` fetches the mailed link twice (as a scanner would) and finds no session, the token still usable, and the page's form.
+- [ ] Add `POST /signin/confirm`, checked for the app's own origin (§1's origin check), that redeems the token through Better Auth's verify endpoint server-side and returns its session cookie and redirect; an expired, used or unknown token answers a page saying the link is used or expired, with a form that sends a new one. Done when: the test signs in once through the POST, refuses the same token again, refuses a cross-origin POST, and refuses an expired token.
+- [ ] Keep the plugin's own GET verify from being a way in: a GET of `/api/auth/magic-link/verify` redirects to the confirm page with the token, so a link mailed before this change still works and a scanner that finds it still creates no session. Done when: the test finds a GET of the old URL creating no session.
+- [ ] Prove it live: sign up or sign in at `app.isitlegit.co.za` with the operator's Microsoft 365 mailbox, record in `docs/live-checks.md` that the scanner's fetch created no session (`session` rows for the user before the click) and that the click signed in. Done when: the record names both.
+- [ ] Commit: `auth: sign-in links survive link scanners`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/magic-link-confirm.test.ts` passes, and fails if a GET of either link creates a session or consumes the token, or if a used, expired or cross-origin token signs in.
 
 ## Verification
 
