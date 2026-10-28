@@ -48,7 +48,9 @@ track: day-0
 
 ## 1. Meta API billing and API key
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:26Z
+
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z, written before the plan review; the section's build (the checkpoint fixes and `scripts/check-meta-key.py`) began after that review, at this commit's time, so the line records that.
 
 Credits apply in batches after the claim form; until they show, every call is charged to the card (`sources/cerebralvalley/2026-10-26-credit-claim.md`).
 
