@@ -8,4 +8,7 @@ interface Env {
   REPORT_LINK_SECRET?: string;
   // SMTP2GO's API key for outbound mail (src/mail/smtp2go.ts), sender restricted to isitlegit.co.za; kept in the vault.
   SMTP2GO_API_KEY?: string;
+  // Better Auth's secret for session tokens and links (src/auth/auth.ts): 32 random bytes as base64url, kept in the vault
+  // as "IsItLegit Better Auth secret". Replacing it signs every member out.
+  BETTER_AUTH_SECRET?: string;
 }

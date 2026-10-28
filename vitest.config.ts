@@ -28,6 +28,9 @@ export default defineConfig({
                 SMOKE_TOKEN: "test-smoke-token",
                 TEST_MIGRATIONS,
                 VOICE_BENCH: process.env.VOICE_BENCH ?? "",
+                // A test-only Better Auth secret and the app's origin as the tests reach it (D07 T02 §1).
+                BETTER_AUTH_SECRET: "test-better-auth-secret-0123456789abcdef",
+                APP_URL: "http://localhost",
               },
             },
           }),

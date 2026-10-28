@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { createAuth } from "./auth/auth";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { smoke } from "./smoke";
 
@@ -10,6 +11,16 @@ const app = new Hono<{ Bindings: Env }>();
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
 // Every binding exercised on the deployed Worker; 404 without the run's token (D00 T01 §5, scripts/smoke.ts).
 app.get("/internal/smoke", (c) => smoke(c.env, c.req.raw, c.executionCtx));
+// Better Auth's endpoints: magic links, sessions, its health check (D07 T02 §1, src/auth/auth.ts).
+app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw));
+// The app shell's Sign out form (D07 T01 §3): only from the app's own pages, then back to /signin, signed in or not.
+app.post("/auth/sign-out", async (c) => {
+  if (c.req.header("origin") !== new URL(c.env.APP_URL).origin) return c.text("Forbidden", 403);
+  const out = new Response(null, { status: 303, headers: { location: "/signin" } });
+  const { headers } = await createAuth(c.env).api.signOut({ headers: c.req.raw.headers, returnHeaders: true });
+  for (const cookie of headers.getSetCookie()) out.headers.append("set-cookie", cookie);
+  return out;
+});
 
 // The Worker: HTTP through the app, and the cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail
 // sends from SMTP2GO's record (D01 T02 §5).
