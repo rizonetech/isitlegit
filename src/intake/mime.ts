@@ -34,6 +34,7 @@ type Reader = {
   hasReportParts(): boolean;
   isInlineTextNode(node: MimeNode): boolean;
   collectNode(node: MimeNode, alternative: false, related: boolean): Promise<void>;
+  collectAttachment(node: MimeNode, ...rest: unknown[]): void;
   renderTextContent(): void;
   buildMessage(): Email;
   encodeAttachments(): void;
@@ -49,8 +50,9 @@ export type Parsing = {
   root: MimeNode;
   // Whether postal-mime would render this node as body text (a text/plain or text/html part that is not an attachment).
   isBodyText(node: MimeNode): boolean;
-  // The second stage over the tree as it now stands.
-  finish(): Promise<Email>;
+  // The second stage over the tree as it now stands, with each attachment's own transfer-decoded bytes beside it in
+  // order: postal-mime rewrites a text/calendar or application/ics attachment as UTF-8 text, which is not what was sent.
+  finish(): Promise<{ email: Email; attachmentBytes: Uint8Array[] }>;
 };
 
 // The first stage over `raw`, every attached message kept as an attachment (`forceRfc822Attachments`).
@@ -58,7 +60,12 @@ export async function readTree(raw: Uint8Array): Promise<Parsing> {
   const reader = new PostalMime({ forceRfc822Attachments: true }) as unknown as Reader;
   try {
     reader.started = true;
-    reader.buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
+    // The caller's bytes, not a copy (a forward is up to 25 MiB), unless they are a view into a larger buffer.
+    reader.buf = (
+      raw.byteOffset === 0 && raw.byteLength === raw.buffer.byteLength
+        ? raw.buffer
+        : raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength)
+    ) as ArrayBuffer;
     reader.av = new Uint8Array(reader.buf);
     reader.readPos = 0;
     while (reader.readPos < reader.av.length) {
@@ -76,13 +83,23 @@ export async function readTree(raw: Uint8Array): Promise<Parsing> {
     isBodyText: (node) => reader.isInlineTextNode(node),
     // postal-mime's own parse() after its read loop, unchanged.
     finish: async () => {
+      const collected: MimeNode[] = [];
+      const collect = reader.collectAttachment.bind(reader);
+      reader.collectAttachment = (node, ...rest) => {
+        collected.push(node);
+        collect(node, ...rest);
+      };
       try {
         reader.forceRfc822Attachments = true;
         await reader.collectNode(reader.root, false, false);
         if (reader.rfc822NestingDepth === 0) reader.renderTextContent();
-        const message = reader.buildMessage();
+        const email = reader.buildMessage();
         reader.encodeAttachments();
-        return message;
+        if (collected.length !== email.attachments.length)
+          throw new Error(
+            `${collected.length} attachment parts were collected for ${email.attachments.length} attachments`,
+          );
+        return { email, attachmentBytes: collected.map((node) => new Uint8Array(node.content ?? new ArrayBuffer(0))) };
       } catch (error) {
         throw new ParseError(`the message could not be parsed: ${(error as Error).message}`);
       }

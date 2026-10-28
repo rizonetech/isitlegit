@@ -15,11 +15,13 @@ function underHeapLimit(build: string, call = "parseMessage(message)") {
     import { parseMessage } from ${JSON.stringify(PARSE)};
     const message = new TextEncoder().encode(${build});
     const parsed = await ${call};
-    console.log(JSON.stringify({ truncated: (parsed.truncated ?? []).length, text: (parsed.text ?? "").length }));
+    gc();
+    const memory = process.memoryUsage();
+    console.log(JSON.stringify({ truncated: (parsed.truncated ?? []).length, text: (parsed.text ?? "").length, held: memory.heapUsed + memory.arrayBuffers }));
   `;
   return spawnSync(
     process.execPath,
-    ["--max-old-space-size=128", "--import", HOOK, "--input-type=module", "-e", script],
+    ["--max-old-space-size=128", "--expose-gc", "--import", HOOK, "--input-type=module", "-e", script],
     {
       encoding: "utf-8",
       timeout: 30_000,
@@ -38,6 +40,10 @@ describe("parseMessage under a 128 MiB heap", () => {
     const run = underHeapLimit(TWENTY);
     expect(run.status, run.stderr.slice(-400)).toBe(0);
     expect(JSON.parse(run.stdout).truncated).toBeGreaterThan(0);
+    // What parsing leaves held once collected, the JavaScript heap and the binary buffers together (the heap limit above
+    // counts only the first): about 52 MB for this 16 MB message, the input included. Not the peak; the deployed
+    // Worker's own headroom on a near-limit forward is measured live (D01 T01 §9).
+    expect(JSON.parse(run.stdout).held).toBeLessThan(64 * 1024 * 1024);
   });
 
   it("parses an 8 MB crafted text part", () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createCase } from "../../src/db/cases";
 import { extractOriginal } from "../../src/intake/forward";
 import { BODY_PART_LIMIT, BODY_TOTAL_LIMIT, ParseError, parseMessage, storeParsed } from "../../src/intake/parse";
-import { parsedKey, type Store } from "../../src/intake/store";
+import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { forwards } from "../fixtures/forward/load";
 
 // D01 T01 §5: the original parsed by postal-mime with its rendering bounded, its attachments stored, then the summary.
@@ -11,7 +11,12 @@ const enc = (text: string) => new TextEncoder().encode(text);
 const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
 const PDF = enc("%PDF-1.4\n% fictional invoice\n%%EOF\n");
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
-const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+// In chunks: one call spreading megabytes of arguments overflows the stack.
+const b64 = (bytes: Uint8Array) => {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+};
 
 // A multipart original: two Received headers, text and HTML alternatives with an inline image, a PDF, a CSV, an
 // unnamed attachment and an attached message.
@@ -244,11 +249,99 @@ describe("storeParsed", () => {
     expect(summary.truncated).toEqual([
       {
         mediaType: "text/plain",
+        charset: null,
         key: expect.stringContaining("body-1.txt"),
         fullBytes: text.length,
         keptBytes: BODY_PART_LIMIT,
       },
     ]);
     expect(new TextDecoder().decode(await bytesAt(summary.truncated[0]?.key as string))).toBe(text);
+  });
+});
+
+describe("completion review cases", () => {
+  const multipart = (parts: string[]) =>
+    enc(
+      [
+        "From: billing@fictional-supplier.example",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        ...parts.flatMap((p) => ["--b", p]),
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+
+  it("stores a calendar-labelled attachment's own bytes, never postal-mime's text rewrite", async () => {
+    const binary = new Uint8Array([0x00, 0xff, 0x0d, 0x0a, 0x80, 0x81, 0x00, 0x0a, 0x0a, 0x0a]);
+    const invite = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n\r\n";
+    const parsed = await parseMessage(
+      multipart([
+        "Content-Type: text/plain\r\n\r\nSee attached.",
+        `Content-Type: text/calendar; charset=utf-8\r\nContent-Disposition: attachment; filename="odd.ics"\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64(binary)}`,
+        `Content-Type: application/ics\r\nContent-Disposition: attachment; filename="invite.ics"\r\nContent-Transfer-Encoding: base64\r\n\r\n${btoa(invite)}`,
+      ]),
+    );
+    expect(parsed.attachments.map((a) => a.bytes)).toEqual([binary, enc(invite)]);
+  });
+
+  it("keeps a cut part's charset, so text past the cut in UTF-16 reads back", async () => {
+    const caseId = await newCase();
+    const utf16 = (text: string) => {
+      const out = new Uint8Array(text.length * 2);
+      for (let i = 0; i < text.length; i++) {
+        out[i * 2] = text.charCodeAt(i) & 0xff;
+        out[i * 2 + 1] = text.charCodeAt(i) >> 8;
+      }
+      return out;
+    };
+    const body = `${"padding line\r\n".repeat(60_000)}https://fictional-lure.example/pay\r\n`;
+    const message = multipart([
+      `Content-Type: text/plain; charset=UTF-16LE\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64(utf16(body))}`,
+    ]);
+    const summary = await storeParsed(store, caseId, await parseMessage(message), await extractOriginal(message));
+    expect(summary.truncated).toMatchObject([{ mediaType: "text/plain", charset: "utf-16le" }]);
+    const read = await readArtefact(store, caseId, summary.truncated[0]?.key as string);
+    if (!read || !("body" in read)) throw new Error("the cut part is missing");
+    const decoded = new TextDecoder(summary.truncated[0]?.charset ?? "utf-8").decode(read.body);
+    expect(decoded).toContain("https://fictional-lure.example/pay");
+    expect(summary.text ?? "").not.toContain("fictional-lure.example");
+  });
+
+  it("stores a summary whose contents match the message, read back through the store and its row", async () => {
+    const caseId = await newCase();
+    const forward = await extractOriginal(forwards["attached-rfc822"]);
+    await storeParsed(store, caseId, await parseMessage(ORIGINAL), forward);
+    const read = await readArtefact(store, caseId, parsedKey(caseId));
+    if (!read || !("body" in read)) throw new Error("the summary is missing");
+    expect(read.stored).toMatchObject({ kind: "raw", mediaType: "application/json" });
+    const summary = JSON.parse(new TextDecoder().decode(read.body));
+    // Values from the fixture itself, not from what storeParsed answered.
+    expect(summary.headers.map((h: { name: string }) => h.name)).toEqual([
+      "Received",
+      "Received",
+      "From",
+      "To",
+      "Subject",
+      "MIME-Version",
+      "Content-Type",
+    ]);
+    expect(summary.text.trim()).toBe("Please pay invoice 42.");
+    expect(summary.html).toContain('<img src="cid:logo@fictional">');
+    expect(
+      summary.attachments.map((a: { filename: string; mediaType: string; bytes: number }) => [
+        a.filename,
+        a.mediaType,
+        a.bytes,
+      ]),
+    ).toEqual([
+      ["attachment-1", "image/png", PNG.byteLength],
+      ["invoice-42.pdf", "application/pdf", PDF.byteLength],
+      ["lines.csv", "text/csv", "item,amount\r\nwidgets,4200".length],
+      ["attachment-4", "application/octet-stream", "unnamed bytes".length],
+      ["attachment-5", "message/rfc822", expect.any(Number)],
+    ]);
+    expect(summary.forward).toEqual({ path: "rfc822", headersAvailable: true, otherOriginals: 0 });
+    expect(summary.truncated).toEqual([]);
   });
 });

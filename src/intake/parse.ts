@@ -30,8 +30,9 @@ export type ParsedMessage = {
   text: string | null;
   html: string | null;
   attachments: ParsedAttachment[];
-  // Body parts cut before rendering: each one's whole bytes, its media type and how much was kept.
-  truncated: { mediaType: string; full: Uint8Array; keptBytes: number }[];
+  // Body parts cut before rendering: each one's whole bytes, its media type and charset (needed to read the bytes back)
+  // and how much was kept.
+  truncated: { mediaType: string; charset: string | null; full: Uint8Array; keptBytes: number }[];
 };
 
 export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
@@ -46,27 +47,24 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
     if (kept === size) continue;
     truncated.push({
       mediaType: leaf.contentType.parsed.value.toLowerCase(),
+      charset: leaf.contentType.parsed.params.charset?.trim().toLowerCase() || null,
       full: new Uint8Array(leaf.content),
       keptBytes: kept,
     });
     leaf.content = leaf.content.slice(0, kept);
   }
-  const email = await parsing.finish();
+  const { email, attachmentBytes } = await parsing.finish();
   return {
     headers: email.headers.map((h) => ({ name: h.originalKey, value: h.value })),
     text: email.text ?? null,
     html: email.html ?? null,
-    attachments: email.attachments.map((a) => ({
+    attachments: email.attachments.map((a, i) => ({
       filename: a.filename,
       mediaType: a.mimeType,
       contentId: a.contentId ?? null,
       disposition: a.disposition ?? null,
-      bytes:
-        a.content instanceof Uint8Array
-          ? a.content
-          : typeof a.content === "string"
-            ? new TextEncoder().encode(a.content)
-            : new Uint8Array(a.content),
+      // The part's own transfer-decoded bytes, never postal-mime's rewrite of a calendar part.
+      bytes: attachmentBytes[i] as Uint8Array,
     })),
     truncated,
   };
@@ -84,7 +82,7 @@ export type ParsedSummary = {
     disposition: string | null;
     bytes: number;
   }[];
-  truncated: { mediaType: string; key: string; fullBytes: number; keptBytes: number }[];
+  truncated: { mediaType: string; charset: string | null; key: string; fullBytes: number; keptBytes: number }[];
   forward: Pick<Forward, "path" | "headersAvailable" | "otherOriginals">;
 };
 
@@ -120,7 +118,13 @@ export async function storeParsed(
   for (const [i, part] of parsed.truncated.entries()) {
     const extension = part.mediaType === "text/html" ? "html" : "txt";
     const stored = await putAttachment(store, caseId, `body-${i + 1}.${extension}`, part.full, part.mediaType);
-    truncated.push({ mediaType: part.mediaType, key: stored.key, fullBytes: stored.bytes, keptBytes: part.keptBytes });
+    truncated.push({
+      mediaType: part.mediaType,
+      charset: part.charset,
+      key: stored.key,
+      fullBytes: stored.bytes,
+      keptBytes: part.keptBytes,
+    });
   }
   const summary: ParsedSummary = {
     headers: parsed.headers,
