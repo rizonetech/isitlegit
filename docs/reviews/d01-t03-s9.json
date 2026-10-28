@@ -1,0 +1,120 @@
+{
+  "ref": "D01 T03 \u00a79",
+  "title": "Filtered resampling for WAV",
+  "implementation_sha": "6017d449c3584693563232b73311b0a7b567efee",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T03-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T03-s9.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T03-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/voice/decode.test.ts test/voice/mp3.test.ts -> Tests  62 passed (62)",
+    "pnpm exec vitest run -> Tests 459 passed | 2 skipped (461)",
+    "python3 scripts/build-wasm.py --check -> both modules match fresh builds",
+    "CI run 40606229380 voice bench -> ours ahead on all eleven inputs"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T03-s9.md",
+    "verdict": "filed",
+    "candidate": "801c7706d8bd90509720d27421aa141d8950abf1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T03 \u00a71"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T03-s9.md",
+    "candidate": "53997888ecbaa6d213446d81a58fea09c4ec3c4a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T03-s9.md",
+    "verdict": "fixed",
+    "candidate": "b3379eb5ebcb7cfd78dfee6ee3a3b0a52ebd8380",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

@@ -41,7 +41,7 @@ Sections: 38 | Checklist items: 263
 | [x]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
 | [x]    | D01 T03 §7 | MP3 decoding                               | none                  | 7     |
 | [x]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
-| [ ]    | D01 T03 §9 | Filtered resampling for WAV                | none                  | 5     |
+| [x]    | D01 T03 §9 | Filtered resampling for WAV                | none                  | 5     |
 | [x]    | D07 T01 §1 | Attended design session and design/SPEC.md | attended              | 17    |
 | [x]    | D00 T01 §8 | README banner and social preview           | attended              | 7     |
 | [x]    | D07 T01 §2 | Design tokens compiled to the stylesheet   | none                  | 15    |
@@ -278,6 +278,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 27/209 verified sections, 11 ready to run now.
+Progress: 28/209 verified sections, 10 ready to run now.
 
-Checklist: 337/1106 items completed (includes Commit items).
+Checklist: 338/1106 items completed (includes Commit items).

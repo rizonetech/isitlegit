@@ -42,7 +42,7 @@ track: day-1
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [ ] |
 | 7 | §7 | MP3 decoding | §2 | [x] |
 | 8 | §8 | M4A decoding | §2 | [x] |
-| 9 | §9 | Filtered resampling for WAV | §2 | [ ] |
+| 9 | §9 | Filtered resampling for WAV | §2 | [x] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
@@ -338,9 +338,12 @@ Ours is faster on every input, first output and completion, and refuses both dam
 
 Evidence after rounds 1 to 3 and the final review, 2026-10-28 02:08 SAST. Round 1 (`8c41630`): the unusual-rate path compared a floating-point position with the input's length (600 s at 8,008 Hz gave a stray sample); positions are compared in integers, and FFmpeg's first output on a short file is taken at its last sample. Round 2 approved. The final review (Muse Wonder at high effort, re-enabled by the operator as optional at 01:44) found the unusual-rate path still JavaScript (`bd81843`): the kernel now blends 512 tap sets for any rate with more phases than are worth holding, so every rate runs in WebAssembly and a 25 MiB WAV at 44,101 Hz decodes in 409 ms on CI against FFmpeg's 554 ms; `Resampler` refuses rates outside 8 to 192 kHz itself; the filter is measured at 96 and 192 kHz and by its residual after a sinusoid fit (at most -80 dB; about -90 dB as built, where reading the wrong tap set leaves about -66 dB); the bench pairs rows by name and states FFmpeg's 1 % allowance. Round 3 approved the fixes. CI run 40606229380 (`bd81843`): green, our decoder ahead of FFmpeg on all eleven inputs and refusing both damaged files. `pnpm exec vitest run`: 459 passed, 2 skipped (the bench halves).
 
-- [ ] Commit: `voice: filtered resampling for WAV, timed against FFmpeg`
+- [x] Commit: `voice: filtered resampling for WAV, timed against FFmpeg`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/decode.test.ts test/voice/mp3.test.ts` passes, and fails if a passband tone moves more than 0.5 dB, a stopband tone or an upsampling image leaves more than -60 dB, an MP3's 12 kHz tone is not suppressed against its decoded level, or a length or continuity test breaks. (**Corrected 2026-10-28**, plan review P2 2.)
+
+> **Verified:** 2026-10-28 | §9 | 6017d449c3584693563232b73311b0a7b567efee
+> **Review:** `docs/reviews/d01-t03-s9.json`
 
 ## 10. M4A with libxaac
 
