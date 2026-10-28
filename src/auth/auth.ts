@@ -16,7 +16,7 @@
 // Passkey responses are vetted by @simplewebauthn's own verifier before the plugin consumes the challenge, with user
 // verification required and a credential ID already registered refused (src/auth/passkey.ts).
 import { type BetterAuthOptions, betterAuth } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "better-auth/api";
 import { ConfigError } from "../config";
 import { type MailDeps, sendMail } from "../mail/smtp2go";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
@@ -54,21 +54,40 @@ const sha256Hex = async (text: string) =>
 export function authOptions(database: BetterAuthOptions["database"], env: Omit<AuthEnv, "DB">, mail: () => MailDeps) {
   return {
     database,
-    ...schemaOptions(async ({ email, url, token }) => {
-      const outcome = await sendMail(mail(), {
-        sendKey: `signin:${await sha256Hex(token)}`,
-        kind: "signin",
-        to: email,
-        from: SIGNIN_FROM,
-        subject: "Your IsItLegit sign-in link",
-        text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${url}\n\nIf you did not ask for it, ignore this mail.`,
-      });
-      const delivered = outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
-      if (!delivered)
-        throw new APIError("BAD_GATEWAY", {
-          message: "the sign-in link could not be sent; try again in a few minutes",
-        });
-    }, env.APP_URL),
+    ...schemaOptions(
+      {
+        sendMagicLink: async ({ email, url, token }) => {
+          const outcome = await sendMail(mail(), {
+            sendKey: `signin:${await sha256Hex(token)}`,
+            kind: "signin",
+            to: email,
+            from: SIGNIN_FROM,
+            subject: "Your IsItLegit sign-in link",
+            text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${url}\n\nIf you did not ask for it, ignore this mail.`,
+          });
+          const delivered =
+            outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
+          if (!delivered)
+            throw new APIError("BAD_GATEWAY", {
+              message: "the sign-in link could not be sent; try again in a few minutes",
+            });
+        },
+        // Better Auth swallows a failure here (it logs and reports the invite made), so its outcome is read back in the
+        // after hook on /organization/invite-member, which answers 502 unless the send was confirmed.
+        sendInvitationEmail: async ({ id, email, organization, inviter, invitation }) => {
+          const who = inviter.user.name || inviter.user.email;
+          await sendMail(mail(), {
+            sendKey: inviteSendKey(invitation),
+            kind: "signin",
+            to: email,
+            from: SIGNIN_FROM,
+            subject: `You are invited to ${organization.name} on IsItLegit`,
+            text: `${who} invited you to join ${organization.name} on IsItLegit. The invitation is open for 48 hours:\n\n${new URL(`/invite/${id}`, env.APP_URL)}\n\nIf you did not expect it, ignore this mail.`,
+          });
+        },
+      },
+      env.APP_URL,
+    ),
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.APP_URL,
     basePath: "/api/auth",
@@ -93,6 +112,33 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
         // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
         if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
+        if (ctx.path === "/organization/set-active") {
+          // Better Auth clears the active organisation before refusing a switch to one the user does not belong to,
+          // leaving them in none; the switch is refused here first, the session as it was.
+          const body = (ctx.body ?? {}) as { organizationId?: unknown; organizationSlug?: unknown };
+          const signedIn = await getSessionFromCtx(ctx);
+          if (!signedIn || (body.organizationId == null && body.organizationSlug == null)) return;
+          const organization =
+            typeof body.organizationId === "string"
+              ? { id: body.organizationId }
+              : typeof body.organizationSlug === "string"
+                ? await ctx.context.adapter.findOne<{ id: string }>({
+                    model: "organization",
+                    where: [{ field: "slug", value: body.organizationSlug }],
+                  })
+                : null;
+          const member =
+            organization &&
+            (await ctx.context.adapter.findOne({
+              model: "member",
+              where: [
+                { field: "userId", value: signedIn.user.id },
+                { field: "organizationId", value: organization.id },
+              ],
+            }));
+          if (!member) throw new APIError("FORBIDDEN", { message: "you are not a member of this organisation" });
+          return;
+        }
         if (ctx.path === "/sign-out") {
           const token = await ctx.getSignedCookie(ctx.context.authCookies.sessionToken.name, ctx.context.secret);
           if (!token) return;
@@ -116,13 +162,64 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
-        if (ctx.path !== "/passkey/generate-authenticate-options") return;
-        const options = authenticationOptions(ctx.context.returned);
-        if (options) return ctx.json(options);
+        if (ctx.path === "/passkey/generate-authenticate-options") {
+          const options = authenticationOptions(ctx.context.returned);
+          if (options) return ctx.json(options);
+          return;
+        }
+        if (ctx.path === "/organization/invite-member") {
+          const invitation = ctx.context.returned as { id?: unknown; expiresAt?: unknown } | null;
+          if (!invitation || typeof invitation.id !== "string" || isAPIError(invitation)) return;
+          const sent = await mail()
+            .db.prepare("SELECT status FROM mail_sends WHERE send_key = ?")
+            .bind(inviteSendKey(invitation as Invitation))
+            .first<{ status: string }>();
+          if (sent?.status !== "sent")
+            throw new APIError("BAD_GATEWAY", {
+              message: "the invitation is saved but its email could not be sent; send it again",
+            });
+          return;
+        }
+        if (ctx.path === "/organization/remove-member") {
+          // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest.
+          const removed = ctx.context.returned as { member?: { userId?: string; organizationId?: string } } | null;
+          const member = removed?.member;
+          if (!member?.userId || !member.organizationId || isAPIError(removed)) return;
+          await ctx.context.adapter.deleteMany({
+            model: "session",
+            where: [
+              { field: "userId", value: member.userId },
+              { field: "activeOrganizationId", value: member.organizationId },
+            ],
+          });
+        }
       }),
+    },
+    // A new session starts in the member's earliest organisation, or none for a user who belongs to none.
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session, ctx) => {
+            const [first] = ctx
+              ? await ctx.context.adapter.findMany<{ organizationId: string }>({
+                  model: "member",
+                  where: [{ field: "userId", value: session.userId }],
+                  sortBy: { field: "createdAt", direction: "asc" },
+                  limit: 1,
+                })
+              : [];
+            return { data: { ...session, activeOrganizationId: first?.organizationId ?? null } };
+          },
+        },
+      },
     },
   } satisfies BetterAuthOptions;
 }
+
+// One send key per invitation email: a resend extends the invitation's expiry, so it is a new send, not a duplicate.
+type Invitation = { id: string; expiresAt: Date | string };
+const inviteSendKey = (invitation: Invitation) =>
+  `invite:${invitation.id}:${new Date(invitation.expiresAt).toISOString()}`;
 
 export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
   if (!env.BETTER_AUTH_SECRET) throw new ConfigError("BETTER_AUTH_SECRET is not set");

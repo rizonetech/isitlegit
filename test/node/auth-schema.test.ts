@@ -24,31 +24,41 @@ const snapshot = (dir: string) =>
 
 describe("Better Auth's migrations", () => {
   it("leave nothing missing for the Worker's options (regenerate with pnpm db:auth-schema <name>)", async () => {
-    expect(authMigrations(MIGRATIONS)).toEqual(["0007_auth.sql", "0008_auth_passkey.sql"]);
+    expect(authMigrations(MIGRATIONS)).toEqual([
+      "0007_auth.sql",
+      "0008_auth_passkey.sql",
+      "0010_auth_organization.sql",
+    ]);
     expect(await missingAuthSchema()).toBe("");
   });
 
-  it("writes only what is missing as the next migration, the committed 0008 byte for byte", async () => {
-    const dir = folderWith("0007_auth.sql");
-    const before = readFileSync(join(dir, "0007_auth.sql"));
-    expect(await writeAuthMigration("passkey", dir)).toBe("0008_auth_passkey.sql");
-    const written = readFileSync(join(dir, "0008_auth_passkey.sql"), "utf-8");
-    expect(written).toBe(readFileSync(join(MIGRATIONS, "0008_auth_passkey.sql"), "utf-8"));
-    expect(written).toMatch(/create table "passkey"/);
-    expect(written).not.toMatch(/create table "(user|session|account|verification)"/);
-    // 0007 is untouched, the two apply in order, and nothing is left missing.
-    expect(readFileSync(join(dir, "0007_auth.sql")).equals(before)).toBe(true);
+  // Each auth migration was written from the ones before it; the newest is what the generator writes from them today.
+  const committed = readdirSync(MIGRATIONS)
+    .filter((name) => /^\d{4}_[a-z0-9_]+\.sql$/.test(name))
+    .sort();
+  const newestAuth = authMigrations(MIGRATIONS).at(-1) as string;
+  const before = committed.filter((name) => name < newestAuth);
+
+  it("writes only what is missing as the next migration, the newest committed one byte for byte", async () => {
+    const dir = folderWith(...before);
+    const earlier = snapshot(dir);
+    expect(await writeAuthMigration(newestAuth.replace(/^\d{4}_auth_|\.sql$/g, ""), dir)).toBe(newestAuth);
+    const written = readFileSync(join(dir, newestAuth), "utf-8");
+    expect(written).toBe(readFileSync(join(MIGRATIONS, newestAuth), "utf-8"));
+    expect(written).not.toMatch(/create table "(user|session|account|verification|passkey)"/);
+    // The earlier migrations are untouched, all apply in order, and nothing is left missing.
+    for (const [name, [bytes]] of Object.entries(earlier))
+      expect(readFileSync(join(dir, name), "utf-8"), name).toBe(bytes);
     const database = new DatabaseSync(":memory:");
-    for (const name of ["0007_auth.sql", "0008_auth_passkey.sql"])
-      database.exec(readFileSync(join(dir, name), "utf-8"));
+    for (const name of authMigrations(dir)) database.exec(readFileSync(join(dir, name), "utf-8"));
     expect(await missingAuthSchema(dir)).toBe("");
   });
 
   it("writes and rewrites nothing when nothing is missing", async () => {
-    const dir = folderWith("0007_auth.sql", "0008_auth_passkey.sql");
-    const before = snapshot(dir);
+    const dir = folderWith(...committed);
+    const earlier = snapshot(dir);
     expect(await writeAuthMigration("again", dir)).toBeNull();
-    expect(snapshot(dir)).toEqual(before);
+    expect(snapshot(dir)).toEqual(earlier);
   });
 
   it("numbers after the last migration of any kind, and refuses an unsafe name", async () => {

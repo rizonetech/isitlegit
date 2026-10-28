@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createAuth } from "./auth/auth";
+import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { smoke } from "./smoke";
@@ -16,6 +17,8 @@ app.get("/internal/smoke", (c) => smoke(c.env, c.req.raw, c.executionCtx));
 app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw));
 // The app shell's Sign out form (D07 T01 §3), src/auth/sign-out.ts.
 app.post("/auth/sign-out", (c) => signOut(c.env, c.req.raw));
+// The app shell's organisation switcher (D07 T01 §3), src/auth/org.ts.
+app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
 
 // The Worker: HTTP through the app, and the cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail
 // sends from SMTP2GO's record (D01 T02 §5).
