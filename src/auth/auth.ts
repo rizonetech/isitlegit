@@ -37,6 +37,7 @@ export type AuthEnv = {
   BETTER_AUTH_SECRET?: string;
   APP_URL: string;
   SMTP2GO_API_KEY?: string;
+  OPERATOR_EMAIL?: string;
 };
 
 // A path on this site, with its query: one leading slash, not two, and no scheme, host or backslash.
@@ -307,6 +308,7 @@ export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
     authOptions(env.DB, env, () => ({
       db: env.DB,
       apiKey: env.SMTP2GO_API_KEY,
+      operator: env.OPERATOR_EMAIL,
       ...(fetchImpl ? { fetch: fetchImpl } : {}),
     })),
   );

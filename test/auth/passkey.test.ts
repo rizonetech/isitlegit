@@ -72,7 +72,7 @@ const whoIs = async (cookie: string) =>
 
 describe("passkey options", () => {
   it("serves registration options for this host, requiring a discoverable credential", async () => {
-    const { cookie } = await signIn("options@example.com");
+    const { cookie } = await signIn("options@demo.isitlegit.co.za");
     const { response } = await registerOptions(cookie);
     expect(response.status).toBe(200);
     const options = (await response.json()) as { rp: { id: string; name: string }; authenticatorSelection: object };
@@ -82,7 +82,7 @@ describe("passkey options", () => {
 
   it("serves authentication options requiring user verification and naming no credential, signed in or not", async () => {
     const authenticator = new SoftAuthenticator();
-    const { cookie } = await signIn("asks@example.com");
+    const { cookie } = await signIn("asks@demo.isitlegit.co.za");
     await register(authenticator, cookie);
     for (const who of ["", cookie]) {
       const response = await call("/api/auth/passkey/generate-authenticate-options", { headers: { cookie: who } });
@@ -103,7 +103,7 @@ describe("passkey options", () => {
 describe("the passkey ceremony", () => {
   it("registers a passkey for a signed-in member, lists it, and signs in with it after signing out", async () => {
     const authenticator = new SoftAuthenticator();
-    const { cookie } = await signIn("keyholder@example.com");
+    const { cookie } = await signIn("keyholder@demo.isitlegit.co.za");
     expect((await register(authenticator, cookie)).status).toBe(200);
     const listed = (await (await call("/api/auth/passkey/list-user-passkeys", { headers: { cookie } })).json()) as {
       name: string;
@@ -113,7 +113,7 @@ describe("the passkey ceremony", () => {
     expect(out.status).toBe(303);
     const { answer } = await passkeySignIn(authenticator);
     expect(answer.status).toBe(200);
-    expect(await whoIs(sessionCookie(answer))).toBe("keyholder@example.com");
+    expect(await whoIs(sessionCookie(answer))).toBe("keyholder@demo.isitlegit.co.za");
     // A member page behind the gate takes the passkey's session as any other.
     const app = new Hono<GateEnv>();
     app.use("/member", requireSession);
@@ -122,7 +122,7 @@ describe("the passkey ceremony", () => {
       new Request(`${ORIGIN}/member`, { headers: { cookie: sessionCookie(answer), accept: "text/html" } }),
       authEnv,
     );
-    expect([through.status, await through.text()]).toEqual([200, "keyholder@example.com"]);
+    expect([through.status, await through.text()]).toEqual([200, "keyholder@demo.isitlegit.co.za"]);
   });
 });
 
@@ -132,7 +132,7 @@ describe("registration refusals", () => {
     expect((await registerOptions("")).response.status).toBe(401);
 
     // Options while fresh, then the session ages past a day before the attestation comes back.
-    const { cookie } = await signIn("stale@example.com");
+    const { cookie } = await signIn("stale@demo.isitlegit.co.za");
     const { response, cookie: withChallenge } = await registerOptions(cookie);
     const created = await authenticator.create(await response.json(), ORIGIN);
     await ageSession(cookie, 2);
@@ -141,28 +141,28 @@ describe("registration refusals", () => {
     expect(late.status).toBe(403);
 
     // Options while signed in, then signed out before the attestation comes back.
-    const second = await signIn("leftearly@example.com");
+    const second = await signIn("leftearly@demo.isitlegit.co.za");
     const asked = await registerOptions(second.cookie);
     const made = await authenticator.create(await asked.response.json(), ORIGIN);
     await call("/auth/sign-out", { method: "POST", headers: { cookie: second.cookie } });
     const orphan = await post("/api/auth/passkey/verify-registration", asked.cookie, { response: made });
     expect(orphan.status).toBe(401);
 
-    expect(await countPasskeys("stale@example.com")).toBe(0);
-    expect(await countPasskeys("leftearly@example.com")).toBe(0);
+    expect(await countPasskeys("stale@demo.isitlegit.co.za")).toBe(0);
+    expect(await countPasskeys("leftearly@demo.isitlegit.co.za")).toBe(0);
   });
 
   it("refuses a passkey made without user verification, saving nothing", async () => {
-    const { cookie } = await signIn("nopin@example.com");
+    const { cookie } = await signIn("nopin@demo.isitlegit.co.za");
     const refused = await register(new SoftAuthenticator(), cookie, undefined, true);
     expect(refused.status).toBe(400);
     expect(((await refused.json()) as { code: string }).code).toBe("USER_VERIFICATION_REQUIRED");
-    expect(await countPasskeys("nopin@example.com")).toBe(0);
+    expect(await countPasskeys("nopin@demo.isitlegit.co.za")).toBe(0);
   });
 
   it("answers a malformed registration 400 before using the challenge, so the registration can still finish", async () => {
     const authenticator = new SoftAuthenticator();
-    const { cookie } = await signIn("badattest@example.com");
+    const { cookie } = await signIn("badattest@demo.isitlegit.co.za");
     const { response, cookie: withChallenge } = await registerOptions(cookie);
     const good = await authenticator.create(await response.json(), ORIGIN);
     const malformed: unknown[] = [
@@ -188,15 +188,15 @@ describe("registration refusals", () => {
       const refused = await post("/api/auth/passkey/verify-registration", withChallenge, { response: attempt });
       expect(refused.status, JSON.stringify(attempt).slice(0, 60)).toBe(400);
     }
-    expect(await countPasskeys("badattest@example.com")).toBe(0);
+    expect(await countPasskeys("badattest@demo.isitlegit.co.za")).toBe(0);
     const finished = await post("/api/auth/passkey/verify-registration", withChallenge, { response: good });
     expect(finished.status).toBe(200);
-    expect(await countPasskeys("badattest@example.com")).toBe(1);
+    expect(await countPasskeys("badattest@demo.isitlegit.co.za")).toBe(1);
   });
 
   it("refuses a sign-in posted with a registration's challenge, leaving the registration to finish", async () => {
     const authenticator = new SoftAuthenticator();
-    const { cookie } = await signIn("crossed@example.com");
+    const { cookie } = await signIn("crossed@demo.isitlegit.co.za");
     const { response, cookie: withChallenge } = await registerOptions(cookie);
     const created = await authenticator.create(await response.json(), ORIGIN);
     const crossed = await post("/api/auth/passkey/verify-authentication", withChallenge, { response: created });
@@ -207,13 +207,13 @@ describe("registration refusals", () => {
 
   it("refuses a credential ID another member already registered", async () => {
     const first = new SoftAuthenticator();
-    const { cookie } = await signIn("first@example.com");
+    const { cookie } = await signIn("first@demo.isitlegit.co.za");
     expect((await register(first, cookie)).status).toBe(200);
     const taken = first.credentials[0]?.id as Uint8Array;
-    const second = await signIn("copycat@example.com");
+    const second = await signIn("copycat@demo.isitlegit.co.za");
     const refused = await register(new SoftAuthenticator(), second.cookie, taken);
     expect(refused.status).toBe(400);
-    expect(await countPasskeys("copycat@example.com")).toBe(0);
+    expect(await countPasskeys("copycat@demo.isitlegit.co.za")).toBe(0);
     expect((await passkeySignIn(first)).answer.status).toBe(200);
   });
 });
@@ -227,7 +227,7 @@ describe("sign-in refusals", () => {
   }
 
   it("refuses an assertion signed by another key, from another origin, or for another relying party", async () => {
-    const authenticator = await holder("forged@example.com");
+    const authenticator = await holder("forged@demo.isitlegit.co.za");
     const otherKey = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
       "sign",
       "verify",
@@ -241,7 +241,7 @@ describe("sign-in refusals", () => {
 
   it("refuses an assertion from another site even when the request itself says it comes from there", async () => {
     // A page on another site running the ceremony: its Origin header and its client data both name that site.
-    const authenticator = await holder("phished@example.com");
+    const authenticator = await holder("phished@demo.isitlegit.co.za");
     const options = await call("/api/auth/passkey/generate-authenticate-options");
     const cookie = jar("", options);
     const assertion = await authenticator.get(await options.json(), ORIGIN, { origin: "https://evil.example" });
@@ -257,7 +257,7 @@ describe("sign-in refusals", () => {
   it("checks the signed client data against the app's origin, not a request header", async () => {
     // Over HTTP Better Auth's own origin check refuses a foreign or missing Origin first (403, above); called through
     // its server API there is no request header at all, and the client data must still be checked against APP_URL.
-    const authenticator = await holder("serverside@example.com");
+    const authenticator = await holder("serverside@demo.isitlegit.co.za");
     const options = await call("/api/auth/passkey/generate-authenticate-options");
     const cookie = jar("", options);
     const assertion = await authenticator.get(await options.json(), ORIGIN);
@@ -268,12 +268,12 @@ describe("sign-in refusals", () => {
       body: { response: assertion },
       headers: new Headers({ cookie }),
     });
-    expect(signedIn.user.email).toBe("serverside@example.com");
+    expect(signedIn.user.email).toBe("serverside@demo.isitlegit.co.za");
   });
 
   it("refuses an assertion without user verification", async () => {
     // Present but not unlocked, as a security key with no PIN answers.
-    const authenticator = await holder("unverified@example.com");
+    const authenticator = await holder("unverified@demo.isitlegit.co.za");
     const { answer } = await passkeySignIn(authenticator, { unverified: true });
     expect(answer.status).toBe(401);
     expect(((await answer.json()) as { code: string }).code).toBe("USER_VERIFICATION_REQUIRED");
@@ -281,7 +281,7 @@ describe("sign-in refusals", () => {
   });
 
   it("refuses a malformed response before using the challenge, so the attempt can still finish", async () => {
-    const authenticator = await holder("malformed@example.com");
+    const authenticator = await holder("malformed@demo.isitlegit.co.za");
     const options = await call("/api/auth/passkey/generate-authenticate-options");
     const cookie = jar("", options);
     const good = await authenticator.get(await options.json(), ORIGIN);
@@ -315,11 +315,11 @@ describe("sign-in refusals", () => {
     }
     const finished = await post("/api/auth/passkey/verify-authentication", cookie, { response: good });
     expect(finished.status).toBe(200);
-    expect(await whoIs(sessionCookie(finished))).toBe("malformed@example.com");
+    expect(await whoIs(sessionCookie(finished))).toBe("malformed@demo.isitlegit.co.za");
   });
 
   it("refuses a replayed assertion", async () => {
-    const authenticator = await holder("replay@example.com");
+    const authenticator = await holder("replay@demo.isitlegit.co.za");
     const { answer, cookie, assertion } = await passkeySignIn(authenticator);
     expect(answer.status).toBe(200);
     const again = await post("/api/auth/passkey/verify-authentication", cookie, { response: assertion });
@@ -344,13 +344,13 @@ describe("sign-in refusals", () => {
 describe("removing a passkey", () => {
   it("removes a member's own passkey, after which it no longer signs in", async () => {
     const authenticator = new SoftAuthenticator();
-    const { cookie } = await signIn("remover@example.com");
+    const { cookie } = await signIn("remover@demo.isitlegit.co.za");
     await register(authenticator, cookie);
     const [key] = (await (await call("/api/auth/passkey/list-user-passkeys", { headers: { cookie } })).json()) as {
       id: string;
     }[];
     expect((await post("/api/auth/passkey/delete-passkey", cookie, { id: key?.id })).status).toBe(200);
-    expect(await countPasskeys("remover@example.com")).toBe(0);
+    expect(await countPasskeys("remover@demo.isitlegit.co.za")).toBe(0);
     const { answer } = await passkeySignIn(authenticator);
     expect(answer.status).toBe(401);
     expect(sessionCookie(answer)).toBe("");
@@ -358,9 +358,9 @@ describe("removing a passkey", () => {
 
   it("lists and renames only a member's own passkeys", async () => {
     const owner = new SoftAuthenticator();
-    const { cookie } = await signIn("lister@example.com");
+    const { cookie } = await signIn("lister@demo.isitlegit.co.za");
     await register(owner, cookie);
-    const other = await signIn("neighbour@example.com");
+    const other = await signIn("neighbour@demo.isitlegit.co.za");
     await register(new SoftAuthenticator(), other.cookie);
     const listOf = async (who: string) =>
       (await (await call("/api/auth/passkey/list-user-passkeys", { headers: { cookie: who } })).json()) as {
@@ -387,15 +387,15 @@ describe("removing a passkey", () => {
 
   it("refuses removing another member's passkey and leaves it in place", async () => {
     const owner = new SoftAuthenticator();
-    const { cookie } = await signIn("owner@example.com");
+    const { cookie } = await signIn("owner@demo.isitlegit.co.za");
     await register(owner, cookie);
     const [key] = (await (await call("/api/auth/passkey/list-user-passkeys", { headers: { cookie } })).json()) as {
       id: string;
     }[];
-    const intruder = await signIn("intruder@example.com");
+    const intruder = await signIn("intruder@demo.isitlegit.co.za");
     const refused = await post("/api/auth/passkey/delete-passkey", intruder.cookie, { id: key?.id });
     expect(refused.status).toBe(401);
-    expect(await countPasskeys("owner@example.com")).toBe(1);
+    expect(await countPasskeys("owner@demo.isitlegit.co.za")).toBe(1);
     expect((await passkeySignIn(owner)).answer.status).toBe(200);
   });
 });

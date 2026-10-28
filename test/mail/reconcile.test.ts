@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ACTIVITY_URL, HEADER, reconcileUncertain, requestTimeout } from "../../src/mail/reconcile";
 import { settleStatement } from "../../src/mail/settle";
 import { type MailMessage, SMTP2GO_URL, sendMail } from "../../src/mail/smtp2go";
+import { addMember } from "../fixtures/auth/members";
 
 // src/mail/reconcile.ts (D01 T02 §5): only SMTP2GO's record of a send settles it; an empty search keeps it uncertain;
 // a retry or another reconciler since the row was read keeps its outcome; an unresolved send reaches the operator once;
@@ -68,6 +69,9 @@ const deps = (stub: typeof fetch, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const band = { olderThanMinutes: 30, youngerThanDays: 3 };
+
+// The recipient is a member, so the allowlist admits it by its records (D01 T02 §2).
+beforeEach(() => addMember(env.DB, "member@example.com"));
 
 describe("reconcileUncertain", () => {
   it("settles a send SMTP2GO has a record of, searching around its latest claim, and keeps a bounce's reason", async () => {

@@ -28,14 +28,14 @@ const expiryOf = async (cookie: string) =>
 
 describe("requireSession", () => {
   it("lets a signed-in request through with its user", async () => {
-    const { cookie } = await signIn("gate@example.com");
+    const { cookie } = await signIn("gate@demo.isitlegit.co.za");
     const through = await page(cookie);
     expect(through.status).toBe(200);
-    expect(await through.json()).toEqual({ email: "gate@example.com" });
+    expect(await through.json()).toEqual({ email: "gate@demo.isitlegit.co.za" });
   });
 
   it("renews a session past its update age, in D1 and on the response's cookie", async () => {
-    const { cookie } = await signIn("renew@example.com");
+    const { cookie } = await signIn("renew@demo.isitlegit.co.za");
     // Two days into a seven-day session: past Better Auth's one-day update age.
     const aged = new Date(Date.now() + 5 * 86_400_000).toISOString();
     await db.prepare(`UPDATE "session" SET "expiresAt" = ? WHERE token = ?`).bind(aged, sessionOf(cookie)).run();
@@ -46,7 +46,7 @@ describe("requireSession", () => {
   });
 
   it("refuses an expired session", async () => {
-    const { cookie } = await signIn("expired@example.com");
+    const { cookie } = await signIn("expired@demo.isitlegit.co.za");
     await db
       .prepare(`UPDATE "session" SET "expiresAt" = ? WHERE token = ?`)
       .bind(new Date(Date.now() - 60_000).toISOString(), sessionOf(cookie))
@@ -112,7 +112,7 @@ describe("POST /auth/sign-out", () => {
     });
 
   it("ends the session, clears the cookie and goes to /signin", async () => {
-    const { cookie } = await signIn("leaving@example.com");
+    const { cookie } = await signIn("leaving@demo.isitlegit.co.za");
     const out = await signOut(cookie);
     expect(out.status).toBe(303);
     expect(out.headers.get("location")).toBe("/signin");
@@ -128,7 +128,7 @@ describe("POST /auth/sign-out", () => {
   });
 
   it("answers 503 and keeps the cookie when the session is not deleted, then finishes on a retry", async () => {
-    const { cookie } = await signIn("stuck@example.com");
+    const { cookie } = await signIn("stuck@demo.isitlegit.co.za");
     const env = { ...authEnv, DB: failingSessionDeletes(db) };
     const stuck = await call("/auth/sign-out", { method: "POST", headers: { cookie, origin: ORIGIN } }, env);
     expect(stuck.status).toBe(503);
@@ -142,7 +142,7 @@ describe("POST /auth/sign-out", () => {
   });
 
   it("holds Better Auth's own sign-out endpoint to the same rule", async () => {
-    const { cookie } = await signIn("api-out@example.com");
+    const { cookie } = await signIn("api-out@demo.isitlegit.co.za");
     const post = (env: Env) =>
       call(
         "/api/auth/sign-out",
@@ -159,7 +159,7 @@ describe("POST /auth/sign-out", () => {
   });
 
   it("refuses a post from another origin and leaves the session", async () => {
-    const { cookie } = await signIn("stays@example.com");
+    const { cookie } = await signIn("stays@demo.isitlegit.co.za");
     const refused = await signOut(cookie, "https://evil.example");
     expect(refused.status).toBe(403);
     expect((await page(cookie)).status).toBe(200);

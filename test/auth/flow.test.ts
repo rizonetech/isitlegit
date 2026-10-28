@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { authOptions } from "../../src/auth/auth";
+import { addMember } from "../fixtures/auth/members";
 import { authEnv, call, pathOf, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "./helpers";
 
 // D07 T02 §1: signing in end to end through the Worker's own fetch: the link requested, sent through SMTP2GO, redeemed
@@ -16,12 +17,12 @@ describe("magic-link sign-in through the Worker", () => {
   it("sends a link, signs in with it, and returns to the page asked for", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    const asked = await requestLink("Member@Example.com", "/cases?verdict=bad");
+    const asked = await requestLink("Member@Demo.IsItLegit.co.za", "/cases?verdict=bad");
     expect(asked.status).toBe(200);
     expect(smtp.sends).toHaveLength(1);
     const sent = smtp.sends[0] as { to: string; link: string; text: string };
     // To the address as typed; the account is the address in lower case.
-    expect(sent.to).toBe("Member@Example.com");
+    expect(sent.to).toBe("Member@Demo.IsItLegit.co.za");
     expect(sent.text).toMatch(/for 15 minutes/);
     // The link is stored to expire 15 minutes from now.
     const stored = await db
@@ -38,7 +39,7 @@ describe("magic-link sign-in through the Worker", () => {
     // The user and the session, in D1.
     const user = await db
       .prepare(`SELECT id FROM "user" WHERE lower(email) = ?`)
-      .bind("member@example.com")
+      .bind("member@demo.isitlegit.co.za")
       .first<{ id: string }>();
     expect(user).not.toBeNull();
     const sessions = await db
@@ -48,13 +49,15 @@ describe("magic-link sign-in through the Worker", () => {
     expect(sessions?.n).toBe(1);
     // The cookie is a session Better Auth knows.
     const read = await call("/api/auth/get-session", { headers: { cookie } });
-    expect(((await read.json()) as { user?: { email: string } } | null)?.user?.email).toBe("member@example.com");
+    expect(((await read.json()) as { user?: { email: string } } | null)?.user?.email).toBe(
+      "member@demo.isitlegit.co.za",
+    );
   });
 
   it("returns to /cases when no destination was asked for", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    await requestLink("nowhere@example.com");
+    await requestLink("nowhere@demo.isitlegit.co.za");
     expect(target(await call(pathOf(smtp.sends[0]?.link ?? "")))).toBe("/cases");
   });
 
@@ -63,16 +66,16 @@ describe("magic-link sign-in through the Worker", () => {
     restore = smtp.restore;
     // Refused by Better Auth's own origin check (403) or by the same-site rule (400).
     for (const callbackURL of ["https://evil.example/", "//evil.example/x", "/\\evil.example", "javascript:alert(1)"])
-      expect([400, 403], callbackURL).toContain((await requestLink("member@example.com", callbackURL)).status);
+      expect([400, 403], callbackURL).toContain((await requestLink("member@demo.isitlegit.co.za", callbackURL)).status);
     // Even the app's own origin written out: a destination is a path, which Better Auth's origin check alone allows.
-    expect((await requestLink("member@example.com", "http://localhost/cases")).status).toBe(400);
+    expect((await requestLink("member@demo.isitlegit.co.za", "http://localhost/cases")).status).toBe(400);
     expect(smtp.sends).toEqual([]);
   });
 
   it("refuses a used link and an expired one", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    await requestLink("used@example.com");
+    await requestLink("used@demo.isitlegit.co.za");
     const link = pathOf(smtp.sends[0]?.link ?? "");
     expect(sessionCookie(await call(link))).toMatch(/session_token=/);
     // The second time: no session, and to sign-in with the destination kept and the reason, to ask for a new link.
@@ -80,7 +83,7 @@ describe("magic-link sign-in through the Worker", () => {
     expect(sessionCookie(again)).toBe("");
     expect(target(again)).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
     // A link past its 15 minutes.
-    await requestLink("late@example.com");
+    await requestLink("late@demo.isitlegit.co.za");
     await db
       .prepare(`UPDATE "verification" SET "expiresAt" = ?`)
       .bind(new Date(Date.now() - 60_000).toISOString())
@@ -93,7 +96,7 @@ describe("magic-link sign-in through the Worker", () => {
   it("sends a failed link for a page back to sign-in with that page kept", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    await requestLink("keep@example.com", "/cases/42?tab=evidence");
+    await requestLink("keep@demo.isitlegit.co.za", "/cases/42?tab=evidence");
     const link = pathOf(smtp.sends[0]?.link ?? "");
     await call(link);
     expect(target(await call(link))).toBe("/signin?next=%2Fcases%2F42%3Ftab%3Devidence&error=INVALID_TOKEN");
@@ -106,7 +109,7 @@ describe("magic-link sign-in through the Worker", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        email: "fresh@example.com",
+        email: "fresh@demo.isitlegit.co.za",
         callbackURL: "/cases",
         errorCallbackURL: "http://localhost/elsewhere",
         newUserCallbackURL: "/welcome",
@@ -134,7 +137,7 @@ describe("magic-link sign-in through the Worker", () => {
   it("lands a link with its return parameters removed on the app's paths, not Better Auth's defaults", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    await requestLink("stripped@example.com", "/cases/7");
+    await requestLink("stripped@demo.isitlegit.co.za", "/cases/7");
     const link = new URL(smtp.sends[0]?.link ?? "");
     // Without the failure path: a used link still goes to sign-in with the page kept.
     const noError = new URL(link);
@@ -144,7 +147,7 @@ describe("magic-link sign-in through the Worker", () => {
       "/signin?next=%2Fcases%2F7&error=INVALID_TOKEN",
     );
     // Changed to another page on this site: the failure still goes to sign-in.
-    await requestLink("moved@example.com", "/cases/8");
+    await requestLink("moved@demo.isitlegit.co.za", "/cases/8");
     const moved = new URL(smtp.sends.at(-1)?.link ?? "");
     moved.searchParams.set("errorCallbackURL", "/cases");
     await call(`${moved.pathname}${moved.search}`);
@@ -152,7 +155,7 @@ describe("magic-link sign-in through the Worker", () => {
       "/signin?next=%2Fcases%2F8&error=INVALID_TOKEN",
     );
     // With all three removed: a redirect to /cases (never session JSON), and a failure to sign-in.
-    await requestLink("bare@example.com");
+    await requestLink("bare@demo.isitlegit.co.za");
     const bare = new URL(smtp.sends.at(-1)?.link ?? "");
     for (const name of ["callbackURL", "errorCallbackURL", "newUserCallbackURL"]) bare.searchParams.delete(name);
     const first = await call(`${bare.pathname}${bare.search}`);
@@ -164,7 +167,7 @@ describe("magic-link sign-in through the Worker", () => {
   it("stores a link's token only as its hash", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    await requestLink("hashed@example.com");
+    await requestLink("hashed@demo.isitlegit.co.za");
     const token = new URL(smtp.sends[0]?.link ?? "").searchParams.get("token") ?? "";
     expect(token.length).toBeGreaterThan(20);
     const rows = await db
@@ -175,11 +178,11 @@ describe("magic-link sign-in through the Worker", () => {
 
   it("keeps outstanding links across a new secret, and voids them only by deleting their records", async () => {
     // Signed in first: signIn stubs SMTP2GO itself, and restoring that stub would remove this test's.
-    const { cookie } = await signIn("rotate@example.com");
+    const { cookie } = await signIn("rotate@demo.isitlegit.co.za");
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    await requestLink("rotate@example.com");
-    await requestLink("rotate@example.com");
+    await requestLink("rotate@demo.isitlegit.co.za");
+    await requestLink("rotate@demo.isitlegit.co.za");
     const [kept, voided] = smtp.sends.slice(-2).map((s) => pathOf(s.link));
     const rotated = { ...authEnv, BETTER_AUTH_SECRET: "a-new-secret-0123456789abcdef-0123456789" };
     // The new secret refuses the session it did not sign: the member is signed out.
@@ -200,8 +203,8 @@ describe("magic-link sign-in through the Worker", () => {
   it("sends a new, usable link for each request, under its own send key", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    await requestLink("twice@example.com");
-    await requestLink("twice@example.com");
+    await requestLink("twice@demo.isitlegit.co.za");
+    await requestLink("twice@demo.isitlegit.co.za");
     expect(smtp.sends).toHaveLength(2);
     expect(smtp.sends[0]?.link).not.toBe(smtp.sends[1]?.link);
     const keys = await db
@@ -217,7 +220,7 @@ describe("magic-link sign-in through the Worker", () => {
     for (const answer of ["refused", "silent"] as const) {
       const smtp = stubSmtp2go(() => answer);
       try {
-        const asked = await requestLink(`${answer}@example.com`);
+        const asked = await requestLink(`${answer}@demo.isitlegit.co.za`);
         expect(asked.status, answer).toBe(502);
         expect(await asked.text(), answer).toMatch(/could not be sent/);
       } finally {
@@ -235,7 +238,11 @@ describe("magic-link sign-in through the Worker", () => {
     }));
     const plugin = options.plugins[0] as unknown as { options: { sendMagicLink: (d: unknown) => Promise<void> } };
     const send = (token: string) =>
-      plugin.options.sendMagicLink({ email: "member@example.com", url: `http://localhost/x?token=${token}`, token });
+      plugin.options.sendMagicLink({
+        email: "member@demo.isitlegit.co.za",
+        url: `http://localhost/x?token=${token}`,
+        token,
+      });
     // The first send of this token gets no clear answer (a 503): uncertain, and an error.
     await expect(send("uncertain-token")).rejects.toThrow(/could not be sent/);
     // Asked again with the same token: a duplicate of an uncertain send, still an error.
@@ -259,9 +266,26 @@ describe("magic-link sign-in through the Worker", () => {
     await expect(send("refused-token")).rejects.toThrow(/could not be sent/);
   });
 
+  it("sends a link to a real member by their membership, and refuses an address that is neither member nor invitee", async () => {
+    await addMember(db, "realmember@example.com");
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    expect((await requestLink("realmember@example.com")).status).toBe(200);
+    expect(smtp.sends.map((s) => s.to)).toEqual(["realmember@example.com"]);
+    const stranger = await requestLink("stranger@example.com");
+    expect(stranger.status).toBe(502);
+    expect(smtp.sends).toHaveLength(1);
+    const refused = await db
+      .prepare("SELECT COUNT(*) AS n FROM mail_sends WHERE kind = 'signin' AND status = 'refused'")
+      .first<{ n: number }>();
+    expect(refused?.n).toBeGreaterThanOrEqual(1);
+  });
+
   it("answers Better Auth's health check", async () => {
     const ok = await call("/api/auth/ok");
     expect(ok.status).toBe(200);
-    expect(await signIn("health@example.com")).toMatchObject({ cookie: expect.stringMatching(/session_token=/) });
+    expect(await signIn("health@demo.isitlegit.co.za")).toMatchObject({
+      cookie: expect.stringMatching(/session_token=/),
+    });
   });
 });

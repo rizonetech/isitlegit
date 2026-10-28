@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ConfigError } from "../../src/config";
 import { createCase } from "../../src/db/cases";
 import { type MailMessage, recipientHash, SMTP2GO_URL, sendMail } from "../../src/mail/smtp2go";
+import { addMember } from "../fixtures/auth/members";
 
 // src/mail/smtp2go.ts (D01 T02 §1): the request SMTP2GO documents, a durable intent before any call so nothing is sent
 // twice, retries only where SMTP2GO did not take the message, typed outcomes, and a log holding no address, body or key.
@@ -53,6 +54,9 @@ const row = (sendKey: string) =>
 beforeEach(() => {
   pauses.length = 0;
 });
+
+// The recipient is a member, so the allowlist admits it by its records (D01 T02 §2).
+beforeEach(() => addMember(env.DB, "member@example.com"));
 
 describe("sendMail", () => {
   it("posts the request SMTP2GO documents, with the key in its header and threading in custom headers", async () => {
@@ -332,10 +336,58 @@ describe("sendMail", () => {
 
   it("sends nothing when the send log cannot be written", async () => {
     const { stub, calls } = smtp2go([ok()]);
-    const broken = { prepare: () => ({ bind: () => ({ run: async () => Promise.reject(new Error("D1 down")) }) }) };
+    // The allowlist reads (it admits the recipient); the log write fails.
+    const broken = {
+      prepare: () => ({
+        bind: () => ({ first: async () => ({}), run: async () => Promise.reject(new Error("D1 down")) }),
+      }),
+    };
     const outcome = await sendMail({ ...deps(stub), db: broken as unknown as D1Database }, message());
     expect(outcome).toMatchObject({ status: "failed", attempts: 0 });
     expect(outcome.status === "failed" && outcome.reason).toMatch(/send log could not be written, so nothing was sent/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses an address the allowlist does not admit: no fetch, one refused row, however often it is asked", async () => {
+    const { stub, calls } = smtp2go([ok(), ok()]);
+    const stranger = message({ to: "someone@example.com", sendKey: "reply:stranger" });
+    for (let i = 0; i < 2; i++) expect(await sendMail(deps(stub), stranger)).toMatchObject({ status: "refused" });
+    expect(calls).toHaveLength(0);
+    const rows = await db
+      .prepare("SELECT status, to_hash FROM mail_sends WHERE send_key = 'reply:stranger'")
+      .all<{ status: string; to_hash: string }>();
+    expect(rows.results).toEqual([{ status: "refused", to_hash: await recipientHash("someone@example.com") }]);
+  });
+
+  it("leaves a send already on record as it was when a later refusal meets its key", async () => {
+    for (const status of ["sent", "failed", "uncertain"]) {
+      const key = `reply:prior-${status}`;
+      const at = new Date().toISOString();
+      await db
+        .prepare(
+          "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, provider_id, attempts, created_at, updated_at) VALUES (?, ?, 'reply', ?, ?, ?, 1, ?, ?)",
+        )
+        .bind(`prior-${status}`, key, "0".repeat(64), status, status === "sent" ? "provider-1" : null, at, at)
+        .run();
+      const { stub, calls } = smtp2go([ok()]);
+      // The member has since left: the same key, now for an address the allowlist refuses.
+      const outcome = await sendMail(deps(stub), message({ to: "gone@example.com", sendKey: key }));
+      expect(outcome.status, status).toBe("refused");
+      expect(calls, status).toHaveLength(0);
+      const row = await db
+        .prepare("SELECT status, provider_id, attempts FROM mail_sends WHERE send_key = ?")
+        .bind(key)
+        .first<{ status: string; provider_id: string | null; attempts: number }>();
+      expect(row, status).toEqual({ status, provider_id: status === "sent" ? "provider-1" : null, attempts: 1 });
+    }
+  });
+
+  it("sends nothing when the allowlist cannot be read", async () => {
+    const { stub, calls } = smtp2go([ok()]);
+    const down = { prepare: () => ({ bind: () => ({ first: async () => Promise.reject(new Error("D1 down")) }) }) };
+    const outcome = await sendMail({ ...deps(stub), db: down as unknown as D1Database }, message());
+    expect(outcome).toMatchObject({ status: "failed", attempts: 0 });
+    expect(outcome.status === "failed" && outcome.reason).toMatch(/allowlist could not be checked/);
     expect(calls).toHaveLength(0);
   });
 

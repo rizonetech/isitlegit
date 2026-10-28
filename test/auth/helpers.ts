@@ -71,7 +71,7 @@ export const sessionCookie = (response: Response) =>
     .join("; ");
 
 // A signed-in member: a link requested and redeemed; the session cookie and the user's id.
-export async function signIn(email = "member@example.com") {
+export async function signIn(email = "member@demo.isitlegit.co.za") {
   const smtp = stubSmtp2go();
   try {
     const asked = await requestLink(email);

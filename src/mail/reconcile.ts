@@ -246,5 +246,8 @@ async function handOver(deps: ReconcileDeps, row: Row, report: ReconcileReport):
     report.handedOver.push(row.send_key);
   else if (outcome.status === "failed")
     report.errors.push(`${row.send_key}: the operator alert failed (${outcome.reason})`);
+  // The allowlist refusing the operator's own address is a configuration fault, final, not a send to retry.
+  else if (outcome.status === "refused")
+    report.errors.push(`${row.send_key}: the operator alert was refused (${outcome.reason}; check OPERATOR_EMAIL)`);
   else report.unresolved.push(row.send_key);
 }

@@ -10,7 +10,7 @@ const db = (env as unknown as Env).DB;
 
 describe("Better Auth on D1", () => {
   it("creates a session whose cookie is Secure, HttpOnly and SameSite=Lax", async () => {
-    const { redeemed } = await signIn("cookie@example.com");
+    const { redeemed } = await signIn("cookie@demo.isitlegit.co.za");
     const cookie = redeemed.headers.getSetCookie().find((c) => c.includes("session_token")) ?? "";
     expect(cookie).toMatch(/;\s*Secure/i);
     expect(cookie).toMatch(/;\s*HttpOnly/i);

@@ -17,6 +17,7 @@
 // The caller always gets a typed outcome. Nothing stored holds the address (only a SHA-256 of it), a body or the key.
 import { ConfigError } from "../config";
 import { ulid } from "../db/ulid";
+import { isAllowedRecipient } from "./allowlist";
 
 export const SMTP2GO_URL = "https://api.smtp2go.com/v3/email/send";
 export const MAX_ATTEMPTS = 3;
@@ -40,7 +41,9 @@ export type SendOutcome =
   | { status: "sent"; providerId: string; attempts: number }
   | { status: "failed"; reason: string; attempts: number }
   | { status: "uncertain"; reason: string; attempts: number }
-  | { status: "duplicate"; previous: "sent" | "uncertain" | "refused"; providerId: string | null };
+  | { status: "duplicate"; previous: "sent" | "uncertain" | "refused"; providerId: string | null }
+  // The recipient is not on the allowlist (src/mail/allowlist.ts): nothing was sent, now or ever, under this key.
+  | { status: "refused"; reason: string };
 export type MailDeps = {
   db: D1Database;
   apiKey: string | undefined;
@@ -48,6 +51,8 @@ export type MailDeps = {
   pause?: (ms: number) => Promise<void>;
   now?: () => Date;
   timeoutMs?: number;
+  // OPERATOR_EMAIL, the one outside address the allowlist admits.
+  operator?: string | undefined;
 };
 
 const encoder = new TextEncoder();
@@ -132,9 +137,33 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
   const now = () => (deps.now ?? (() => new Date()))().toISOString();
   const pause = deps.pause ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const { db } = deps;
+  const toHash = await recipientHash(message.to);
+
+  // 0. The allowlist, before anything else. A refusal is recorded under its key without touching a key already on
+  // record (sent, pending, uncertain, failed or refused keep their row and evidence), and nothing is sent.
+  let allowed: boolean;
+  try {
+    allowed = await isAllowedRecipient(db, message.to, message.kind, deps.operator);
+  } catch {
+    // The allowlist cannot be read (D1 unreachable): nothing is sent, and nothing could be recorded either.
+    return {
+      status: "failed",
+      reason: "the recipient allowlist could not be checked, so nothing was sent",
+      attempts: 0,
+    };
+  }
+  if (!allowed) {
+    const at = now();
+    await db
+      .prepare(
+        "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'refused', 0, ?, ?) ON CONFLICT (send_key) DO NOTHING",
+      )
+      .bind(ulid(), message.sendKey, message.caseId ?? null, message.kind, toHash, at, at)
+      .run();
+    return { status: "refused", reason: "the recipient is not on the allowlist" };
+  }
 
   // 1. The intent, durable before any network call.
-  const toHash = await recipientHash(message.to);
   let claimed: boolean;
   // The attempts the row held when this send claimed it (a failed send tried again keeps its earlier ones).
   let base = 0;

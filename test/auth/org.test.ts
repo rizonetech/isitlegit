@@ -18,9 +18,13 @@ afterEach(() => {
 
 const userId = async (email: string) =>
   (await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>())?.id as string;
-// An organisation made as §4's signup will make it: through the server API, for a user, with no session.
+// An organisation made as §4's signup will make it: the user made through Better Auth, then the organisation through
+// the server API for that user, with no session; the user is then a member, whom the allowlist admits (D01 T02 §2).
 async function orgFor(email: string, name: string) {
-  await signIn(email);
+  if (!(await userId(email))) {
+    const { internalAdapter } = await createAuth(authEnv).$context;
+    await internalAdapter.createUser({ email, name: email, emailVerified: false }, { method: "admin" });
+  }
   const made = await api().createOrganization({
     body: { name, slug: `${name.toLowerCase()}-${crypto.randomUUID().slice(0, 8)}`, userId: await userId(email) },
   });
@@ -103,7 +107,7 @@ describe("organisations", () => {
     await orgFor("twohats@example.com", "Second");
     const { cookie } = await signIn("twohats@example.com");
     expect(await activeOf(cookie)).toBe(first);
-    const loner = await signIn("loner@example.com");
+    const loner = await signIn("loner@demo.isitlegit.co.za");
     expect(await activeOf(loner.cookie)).toBeNull();
   });
 });
@@ -131,17 +135,17 @@ describe("invitations", () => {
     const orgId = await orgFor("gate@example.com", "Strict");
     const { cookie } = await signIn("gate@example.com");
     const sent = await invite(cookie, "meant@example.com");
-    const stranger = await signIn("stranger@example.com");
+    const stranger = await signIn("stranger@demo.isitlegit.co.za");
     const wrong = await post("/organization/accept-invitation", stranger.cookie, {
       invitationId: invitationId(sent.link),
     });
     expect(wrong.status).toBeGreaterThanOrEqual(400);
-    const late = await invite(cookie, "late@example.com");
+    const late = await invite(cookie, "late@demo.isitlegit.co.za");
     await db
       .prepare(`UPDATE "invitation" SET "expiresAt" = ? WHERE id = ?`)
       .bind(new Date(Date.now() - 60 * 60_000).toISOString(), invitationId(late.link))
       .run();
-    const latecomer = await signIn("late@example.com");
+    const latecomer = await signIn("late@demo.isitlegit.co.za");
     const expired = await post("/organization/accept-invitation", latecomer.cookie, {
       invitationId: invitationId(late.link),
     });
@@ -235,7 +239,7 @@ describe("roles, revocation and removal", () => {
     const { cookie } = await signIn("host@example.com");
     const { link } = await invite(cookie, "halfway@example.com");
     // A stranger's attempt spends nothing.
-    const stranger = await signIn("passerby@example.com");
+    const stranger = await signIn("passerby@demo.isitlegit.co.za");
     expect(
       (await post("/organization/accept-invitation", stranger.cookie, { invitationId: invitationId(link) })).status,
     ).toBeGreaterThanOrEqual(400);
@@ -267,18 +271,18 @@ describe("roles, revocation and removal", () => {
   it("do not let a removed member come back through their old invitation", async () => {
     const orgId = await orgFor("strict-host@example.com", "NoReturn");
     const { cookie } = await signIn("strict-host@example.com");
-    const { link } = await invite(cookie, "former@example.com", "admin");
-    const former = await signIn("former@example.com");
+    const { link } = await invite(cookie, "former@demo.isitlegit.co.za", "admin");
+    const former = await signIn("former@demo.isitlegit.co.za");
     expect(
       (await post("/organization/accept-invitation", former.cookie, { invitationId: invitationId(link) })).status,
     ).toBe(200);
-    expect((await post("/organization/remove-member", cookie, { memberIdOrEmail: "former@example.com" })).status).toBe(
-      200,
-    );
-    const back = await signIn("former@example.com");
+    expect(
+      (await post("/organization/remove-member", cookie, { memberIdOrEmail: "former@demo.isitlegit.co.za" })).status,
+    ).toBe(200);
+    const back = await signIn("former@demo.isitlegit.co.za");
     const replay = await post("/organization/accept-invitation", back.cookie, { invitationId: invitationId(link) });
     expect(replay.status).toBeGreaterThanOrEqual(400);
-    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("former@example.com");
+    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("former@demo.isitlegit.co.za");
   });
 
   it("let only one of two simultaneous acceptances through", async () => {
@@ -340,7 +344,7 @@ describe("roles, revocation and removal", () => {
           .first<{ status: string }>()
       )?.status;
     // Anonymous, a signed-in outsider, and a plain member: each refused by Better Auth, and the invitation untouched.
-    const outsider = await signIn("outsider-x@example.com");
+    const outsider = await signIn("outsider-x@demo.isitlegit.co.za");
     const { link: memberLink } = await invite(cookie, "plainmember@example.com");
     const plain = await signIn("plainmember@example.com");
     await post("/organization/accept-invitation", plain.cookie, { invitationId: invitationId(memberLink) });
@@ -360,21 +364,21 @@ describe("roles, revocation and removal", () => {
     // pending (crud-invites.mjs). Removing the member who did join must not leave that invitation usable.
     const orgId = await orgFor("racehost@example.com", "Race");
     const { cookie } = await signIn("racehost@example.com");
-    const { link } = await invite(cookie, "racer@example.com", "admin");
-    const racer = await signIn("racer@example.com");
+    const { link } = await invite(cookie, "racer@demo.isitlegit.co.za", "admin");
+    const racer = await signIn("racer@demo.isitlegit.co.za");
     expect(
       (await post("/organization/accept-invitation", racer.cookie, { invitationId: invitationId(link) })).status,
     ).toBe(200);
     await db.prepare(`UPDATE "invitation" SET status = 'pending' WHERE id = ?`).bind(invitationId(link)).run();
-    expect((await post("/organization/remove-member", cookie, { memberIdOrEmail: "racer@example.com" })).status).toBe(
-      200,
-    );
-    const back = await signIn("racer@example.com");
+    expect(
+      (await post("/organization/remove-member", cookie, { memberIdOrEmail: "racer@demo.isitlegit.co.za" })).status,
+    ).toBe(200);
+    const back = await signIn("racer@demo.isitlegit.co.za");
     const replay = await post("/organization/accept-invitation", back.cookie, { invitationId: invitationId(link) });
     expect(replay.status).toBe(409);
-    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("racer@example.com");
+    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("racer@demo.isitlegit.co.za");
     // And the database holds one membership per person if two writes ever land.
-    const racerId = await userId("racer@example.com");
+    const racerId = await userId("racer@demo.isitlegit.co.za");
     const insert = () =>
       db
         .prepare(
@@ -389,11 +393,11 @@ describe("roles, revocation and removal", () => {
   it("revoke an invitation so it cannot be accepted", async () => {
     await orgFor("revoker@example.com", "Revoke");
     const { cookie } = await signIn("revoker@example.com");
-    const { link } = await invite(cookie, "uninvited@example.com");
+    const { link } = await invite(cookie, "uninvited@demo.isitlegit.co.za");
     expect((await post("/organization/cancel-invitation", cookie, { invitationId: invitationId(link) })).status).toBe(
       200,
     );
-    const uninvited = await signIn("uninvited@example.com");
+    const uninvited = await signIn("uninvited@demo.isitlegit.co.za");
     const accepted = await post("/organization/accept-invitation", uninvited.cookie, {
       invitationId: invitationId(link),
     });
@@ -433,7 +437,7 @@ describe("requireOrg", () => {
     // Naming the other organisation in the request changes nothing.
     expect((await caseRequest(cookie, foreign, `?organizationId=${theirs}`)).status).toBe(404);
     // A session with no active organisation, and one whose membership went without the removal hook.
-    const loner = await signIn("orgless@example.com");
+    const loner = await signIn("orgless@demo.isitlegit.co.za");
     expect((await caseRequest(loner.cookie, own)).status).toBe(403);
     await db
       .prepare(`DELETE FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
