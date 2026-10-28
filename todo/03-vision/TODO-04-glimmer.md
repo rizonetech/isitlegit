@@ -200,6 +200,8 @@ The operator chose Astra (GPT-6 Astra through the Codex CLI) to collect public d
 
 ## 5. Public phishing-page datasets by licence
 
+> **Started:** 2026-10-28T16:40:00Z
+
 Astra researches and downloads public phishing-page datasets under the brief (§4); Claude re-checks every licence at its source, converts the accepted sets into the store and spot-checks their labels. The licence rule is the one D08 T01 §2 applies to mail corpora: anything unclear is not used.
 
 **Phase:** 0
@@ -211,11 +213,13 @@ Astra researches and downloads public phishing-page datasets under the brief (§
 1. Run the collection. Done when: each candidate has a `COLLECTED.md` or a recorded rejection.
 2. Verify and convert. Done when: `docs/glimmer/sources.md` lists every candidate and accepted sets are in the store.
 
-- [ ] Run `python3 scripts/astra-collect.py` in the background and read Astra's report. Done when: every candidate source in the brief has `raw/<source>/COLLECTED.md` or a rejection line with its reason.
+- [ ] Run `python3 scripts/astra-collect.py` in the background and read Astra's report (`<store>/raw/ASTRA-REPORT.md`) and `RUN-STATUS.json`. Done when: every candidate source in the brief has `raw/<source>/COLLECTED.md` or a rejection line with its reason.
 - [ ] Re-read each accepted source's licence at its own URL and check every downloaded file's SHA-256 against `COLLECTED.md`. Done when: each source is confirmed or rejected by Claude, and a mismatch removes the source. Cheaper substitute: trusting Astra's licence summary.
 - [ ] Record every candidate in `docs/glimmer/sources.md` (public: name, URL, licence, decision, reason, item count; no content). Done when: `test/node/glimmer-sources.test.ts` finds a decision and licence link on each row.
 - [ ] Write `extractArchive()` in `scripts/glimmer/archive.ts` unpacking a downloaded archive into a fresh folder with every entry confined to it (absolute paths, `..` and links refused) and the expanded size held to 5 GB a source, stopping cleanly on a full disk with the source marked incomplete (Astra never unpacks, §4 completion review C3). Done when: `test/node/glimmer-archive.test.ts` refuses a `../` entry, a symbolic link and an archive that expands past the limit, and leaves no partial folder.
-- [ ] Write one converter per accepted source, `scripts/glimmer/import-<source>.ts`, storing each item through `putPage` with its source labels (`lure`, `brand`) and `origin: public`. Done when: `counts()` shows the source's pages and the converter's test converts a two-item fixture.
+- [ ] Write `normaliseScreenshot()` in `scripts/glimmer/archive.ts` re-encoding any source image with sharp to a JPEG at most 1280 px wide (resized) and 2000 px tall (cropped from the top), since public sets hold PNGs and full-page captures the store refuses as they are. Done when: the test turns a 2560 by 6000 PNG into a decodable 1280 by 2000 JPEG and refuses a file sharp cannot decode.
+- [ ] Write `visibleText()` in `scripts/glimmer/archive.ts` taking a page's visible text from its HTML (scripts, styles, comments and hidden elements dropped, entities decoded, whitespace collapsed) for sources that ship HTML rather than text. Done when: the test's fixture keeps the heading and the form labels and drops a script and a `display:none` block.
+- [ ] Write one converter per accepted source, `scripts/glimmer/import-<source>.ts`, storing each item through `await putPage` with `origin: public`, its licence, the page's host (from the dataset's URL, or null), `template: null`, `south_africa` from the host's `.za` suffix or the dataset's country field, its source labels (`lure`, `brand`, and `lure_type` when the set gives one) with `label_source` `ground-truth` for each, and `redacted: false`. Done when: `counts()` shows the source's pages and the converter's test converts a two-item fixture, one PNG and one oversized. **Corrected 2026-10-28:** `putPage` is async and its page now carries host, template, the South African marker and per-field label sources (§3).
 - [ ] Spot-check 50 random pages per source by viewing their screenshots against their labels. Done when: the label error rate per source is recorded in `docs/glimmer/training.md` under `Dataset`, and a source above 10 percent errors is relabelled by §9's teacher rather than trusted.
 - [ ] If no source is acceptable, record that in `docs/glimmer/sources.md` and raise §8's synthetic target to 3,000 lures. Done when: either imports exist or the decision is recorded.
 - [ ] Commit: `glimmer: public phishing-page datasets chosen by licence`
