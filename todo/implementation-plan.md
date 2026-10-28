@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 305
+Sections: 38 | Checklist items: 308
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -60,7 +60,7 @@ Sections: 38 | Checklist items: 305
 | [x]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 12    |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 9     |
 | [x]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 9     |
-| [ ]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 7     |
+| [ ]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 10    |
 | [ ]    | D03 T01 §2 | Budget guard with daily and total caps     | none                  | 7     |
 | [ ]    | D03 T01 §3 | Cost and latency events per model call     | none                  | 7     |
 | [ ]    | D03 T01 §4 | Result cache by artefact hash              | none                  | 4     |
@@ -285,4 +285,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 41/214 verified sections, 20 ready to run now.
 
-Checklist: 453/1193 items completed (includes Commit items).
+Checklist: 453/1196 items completed (includes Commit items).
