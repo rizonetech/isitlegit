@@ -159,6 +159,7 @@ describe("registration refusals", () => {
       { ...good, id: "A" },
       { ...good, type: "password" },
       { ...good, response: { ...good.response, attestationObject: "A" } },
+      { ...good, response: { ...good.response, attestationObject: "AA" } },
       { ...good, response: { ...good.response, attestationObject: undefined } },
       { ...good, response: { ...good.response, clientDataJSON: "A" } },
       { ...good, response: { ...good.response, transports: "internal" } },
@@ -251,11 +252,11 @@ describe("sign-in refusals", () => {
     // Present but not unlocked, as a security key with no PIN answers.
     const authenticator = await holder("unverified@example.com");
     const { answer } = await passkeySignIn(authenticator, { unverified: true });
-    expect(answer.status).toBe(401);
+    expect(answer.status).toBe(400);
     expect(sessionCookie(answer)).toBe("");
   });
 
-  it("answers a malformed response 400 before using the challenge, so the attempt can still finish", async () => {
+  it("refuses a malformed response before using the challenge, so the attempt can still finish", async () => {
     const authenticator = await holder("malformed@example.com");
     const options = await call("/api/auth/passkey/generate-authenticate-options");
     const cookie = jar("", options);
@@ -284,7 +285,8 @@ describe("sign-in refusals", () => {
     ];
     for (const response of malformed) {
       const refused = await post("/api/auth/passkey/verify-authentication", cookie, { response });
-      expect(refused.status, JSON.stringify(response).slice(0, 60)).toBe(400);
+      // 400, or 401 where it names a credential no one registered; either way before the challenge is used.
+      expect([400, 401], JSON.stringify(response).slice(0, 60)).toContain(refused.status);
       expect(sessionCookie(refused)).toBe("");
     }
     const finished = await post("/api/auth/passkey/verify-authentication", cookie, { response: good });

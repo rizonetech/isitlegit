@@ -13,16 +13,14 @@
 // fails: Better Auth's own sign-out logs a failed delete and reports success, which would leave a copied cookie
 // signed in after the member was told they were out. The hook covers every way in: /api/auth/sign-out and the app's form.
 //
-// A passkey's credential ID is refused when any member already has it (WebAuthn Level 3 §7.1), which the plugin does not
-// check; migration 0009 makes the column unique as well.
-//
-// A malformed passkey response, at registration or sign-in, is refused before the plugin reads it, which it would do
-// before checking its shape, consuming the challenge or failing with a 500.
+// Passkey responses are vetted by @simplewebauthn's own verifier before the plugin consumes the challenge, with user
+// verification required and a credential ID already registered refused (src/auth/passkey.ts).
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { ConfigError } from "../config";
 import { type MailDeps, sendMail } from "../mail/smtp2go";
-import { MAGIC_LINK_SECONDS, schemaOptions } from "./schema";
+import { vetAuthentication, vetRegistration } from "./passkey";
+import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 
 export { MAGIC_LINK_SECONDS };
 export const SIGNIN_FROM = "IsItLegit <signin@isitlegit.co.za>";
@@ -92,24 +90,9 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           const paths = { callbackURL, newUserCallbackURL: callbackURL, errorCallbackURL: recoveryPath(callbackURL) };
           return { context: { body: { ...body, ...paths } } };
         }
-        if (ctx.path === "/passkey/verify-authentication") {
-          // Checked before the plugin consumes the challenge or looks the credential up: a malformed response is a 400
-          // that leaves the attempt usable. User verification is checked on the verified result (src/auth/schema.ts).
-          if (!wellFormedAssertion((ctx.body as { response?: unknown } | undefined)?.response))
-            throw new APIError("BAD_REQUEST", { message: "the passkey response is malformed" });
-          return;
-        }
-        if (ctx.path === "/passkey/verify-registration") {
-          // As for sign-in: a malformed registration is a 400 before the plugin consumes the challenge.
-          if (!wellFormedAttestation((ctx.body as { response?: unknown } | undefined)?.response))
-            throw new APIError("BAD_REQUEST", { message: "the passkey response is malformed" });
-          const id = (ctx.body as { response?: { id?: unknown } } | undefined)?.response?.id;
-          const taken =
-            typeof id === "string" &&
-            (await ctx.context.adapter.findOne({ model: "passkey", where: [{ field: "credentialID", value: id }] }));
-          if (taken) throw new APIError("BAD_REQUEST", { message: "this passkey is already registered" });
-          return;
-        }
+        // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
+        if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
+        if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/sign-out") {
           const token = await ctx.getSignedCookie(ctx.context.authCookies.sessionToken.name, ctx.context.secret);
           if (!token) return;
@@ -134,57 +117,6 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
       }),
     },
   } satisfies BetterAuthOptions;
-}
-
-// A WebAuthn assertion as the browser serializes it (AuthenticationResponseJSON), checked field by field down to what
-// the plugin and @simplewebauthn decode: base64url that decodes, client data that is a webauthn.get JSON object with a
-// challenge, authenticator data long enough to hold its flags and counter. Anything else is null.
-function bytesOf(value: unknown, max = 4096): string | null {
-  if (typeof value !== "string" || value.length === 0 || value.length > max) return null;
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) return null;
-  // atob refuses what cannot decode (a length of 1 mod 4 among it).
-  try {
-    return atob(value.replace(/-/g, "+").replace(/_/g, "/"));
-  } catch {
-    return null;
-  }
-}
-// The client data both ceremonies sign: a JSON object of the ceremony's type carrying a challenge.
-function clientDataOf(value: unknown, type: "webauthn.create" | "webauthn.get") {
-  try {
-    const parsed = JSON.parse(bytesOf(value) ?? "") as { type?: unknown; challenge?: unknown } | null;
-    return parsed?.type === type && typeof parsed.challenge === "string";
-  } catch {
-    return false;
-  }
-}
-function wellFormedAssertion(value: unknown): boolean {
-  const v = value as Record<string, unknown> | null | undefined;
-  const r = v?.response as Record<string, unknown> | null | undefined;
-  if (v?.type !== "public-key" || !bytesOf(v.id) || !bytesOf(v.rawId)) return false;
-  const authenticatorData = bytesOf(r?.authenticatorData);
-  if (!authenticatorData || authenticatorData.length < 37 || !bytesOf(r?.signature)) return false;
-  if (r?.userHandle !== undefined && !bytesOf(r.userHandle)) return false;
-  return clientDataOf(r?.clientDataJSON, "webauthn.get");
-}
-// A registration as the browser serializes it (RegistrationResponseJSON): the attestation object's bytes, transports a
-// list of short strings when given (the plugin joins them into a column).
-function wellFormedAttestation(value: unknown): boolean {
-  const v = value as Record<string, unknown> | null | undefined;
-  const r = v?.response as Record<string, unknown> | null | undefined;
-  if (v?.type !== "public-key" || !bytesOf(v.id) || !bytesOf(v.rawId)) return false;
-  if (!bytesOf(r?.attestationObject, 65_536)) return false;
-  const transports = r?.transports;
-  if (
-    transports !== undefined &&
-    !(
-      Array.isArray(transports) &&
-      transports.length <= 8 &&
-      transports.every((t) => typeof t === "string" && t.length <= 32)
-    )
-  )
-    return false;
-  return clientDataOf(r?.clientDataJSON, "webauthn.create");
 }
 
 export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {

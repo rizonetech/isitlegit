@@ -23,6 +23,7 @@
   "dependencies": {
     "@better-auth/passkey": "1.7.13",
     "@cloudflare/puppeteer": "1.4.0",
+    "@simplewebauthn/server": "13.3.3",
     "better-auth": "1.7.13",
     "hono": "4.13.14",
     "opus-decoder": "0.7.12",

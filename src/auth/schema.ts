@@ -2,7 +2,6 @@
 // so the migrations Better Auth compiles are the schema the Worker uses. It imports nothing of the Worker's, so the
 // script runs in plain Node.
 import { passkey } from "@better-auth/passkey";
-import { APIError } from "better-auth/api";
 import { magicLink } from "better-auth/plugins/magic-link";
 
 export const MAGIC_LINK_SECONDS = 15 * 60;
@@ -13,33 +12,25 @@ type SendMagicLink = Parameters<typeof magicLink>[0]["sendMagicLink"];
 // Passkeys belong to the host the app is served from: the relying party ID is APP_URL's hostname and the only origin
 // accepted is APP_URL's (the plugin would otherwise trust the request's Origin header). Sign-in asks anonymously, with
 // no credential list, so only a discoverable credential can answer it: registration requires one. User verification is
-// required too (the device's owner unlocked it, not only that the device was present): the plugin verifies with it off,
-// so both ceremonies check @simplewebauthn's verified result in the plugin's own afterVerification hooks, before a
-// passkey is saved or a session made (WebAuthn Level 3 §7.1 step 16, §7.2 step 17).
-const unverified = (status: "BAD_REQUEST" | "UNAUTHORIZED") =>
-  new APIError(status, { message: "the passkey must be unlocked on the device (user verification)" });
+// asked for too (the device's owner unlocked it, not only that the device was present); the plugin verifies with it off,
+// so src/auth/passkey.ts requires it (WebAuthn Level 3 §7.1 step 16, §7.2 step 17).
+// The relying party for an app URL: its host is the ID, its origin the only one accepted.
+export const relyingParty = (appURL: string) => {
+  const app = new URL(appURL);
+  return { id: app.hostname, origin: app.origin };
+};
 
 export function schemaOptions(sendMagicLink: SendMagicLink, appURL: string) {
-  const app = new URL(appURL);
+  const rp = relyingParty(appURL);
   return {
     emailAndPassword: { enabled: false },
     plugins: [
       magicLink({ expiresIn: MAGIC_LINK_SECONDS, storeToken: "hashed", sendMagicLink }),
       passkey({
-        rpID: app.hostname,
+        rpID: rp.id,
         rpName: "IsItLegit",
-        origin: app.origin,
+        origin: rp.origin,
         authenticatorSelection: { residentKey: "required", userVerification: "required" },
-        registration: {
-          afterVerification: async ({ verification }) => {
-            if (!verification.registrationInfo?.userVerified) throw unverified("BAD_REQUEST");
-          },
-        },
-        authentication: {
-          afterVerification: async ({ verification }) => {
-            if (!verification.authenticationInfo.userVerified) throw unverified("UNAUTHORIZED");
-          },
-        },
       }),
     ],
   };
