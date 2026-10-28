@@ -1,0 +1,146 @@
+{
+  "ref": "D01 T01 \u00a76",
+  "title": "Outlook .msg parsing",
+  "implementation_sha": "5ed1fca1d309637b5181bc06a2669c8c4189af71",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/01-intake/D01-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 7,
+      "report": "docs/reviews/01-intake/D01-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 8,
+      "report": "docs/reviews/01-intake/D01-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 9,
+      "report": "docs/reviews/01-intake/D01-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 10,
+      "report": "docs/reviews/01-intake/D01-T01-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/intake/msg.test.ts -> Test Files 1 passed (1), Tests 27 passed (27)",
+    "pnpm exec vitest run --project node test/node/msg-memory.test.ts test/node/cfb-time.test.ts test/node/msg-fixtures.test.ts -> Test Files 3 passed (3), Tests 5 passed (5)",
+    "pnpm exec vitest run -> Tests 710 passed | 2 skipped (712)",
+    "pnpm typecheck -> ok",
+    "pnpm exec biome check . -> ok",
+    "python3 scripts/todo-graph.py validate -> valid: 214 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T01-s6.md",
+    "verdict": "filed",
+    "candidate": "010596f591a027bc0a4e952209b6bfe40cca2ddd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T01 \u00a77",
+      "D01 T02 \u00a73",
+      "D07 T03 \u00a74",
+      "D07 T04 \u00a71",
+      "D01 T01 \u00a713",
+      "D01 T03 \u00a71",
+      "D01 T01 \u00a710",
+      "D01 T01 \u00a711",
+      "D08 T02 \u00a72",
+      "D01 T01 \u00a79"
+    ]
+  },
+  "rounds_spent": 10,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T01-s6.md",
+    "candidate": "b7d0632cafec07e47ce94d96e28ed66818370b7d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T01-s6.md",
+    "verdict": "fixed",
+    "candidate": "e7dd1c4ff7945de2a7143e9f78a4ceb1b42f05cf",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

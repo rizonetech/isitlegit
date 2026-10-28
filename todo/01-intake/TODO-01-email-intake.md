@@ -40,7 +40,7 @@ track: day-1
 | 3 | §3 | Email handler for verified members | §2, D07 T02 §4, D07 T02 §5 | [x] |
 | 4 | §4 | Forward-as-attachment detection | §3 | [x] |
 | 5 | §5 | MIME parsing and attachment extraction | §4 | [x] |
-| 6 | §6 | Outlook .msg parsing | §5 | [ ] |
+| 6 | §6 | Outlook .msg parsing | §5 | [x] |
 | 7 | §7 | AnalysisWorkflow skeleton, partial reports | §5 | [ ] |
 | 8 | §8 | Signed expiring report links | §1 | [x] |
 | 9 | §9 | Email Routing for check@ and live smoke | §7, D01 T02 §3 | [ ] |
@@ -244,9 +244,12 @@ Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno
 - [x] Write `parseMsg(bytes)` in `src/intake/msg.ts` returning §5's `ParsedMessage` with `headersAvailable` (false when there are no transport headers): headers from `PidTagTransportMessageHeaders`, read by `postal-mime` as a header block, in order with repeats; the text body; the HTML body from the binary `PidTagHtml` decoded in `PidTagInternetCodepage` (its label, else UTF-8), else the string `bodyHtml`, the code page's label kept as the `charset` of a cut part; each attachment's filename, declared type, bytes, `contentId` from `PidTagAttachContentId` and disposition (`inline` when it has a content id, else `attachment`); an embedded Outlook message (attach method 5) exported by `msgreader`'s `getAttachment` as `.msg` bytes and stored as an attachment of type `application/vnd.ms-outlook`; the text and HTML bodies cut to §5's limits with the full bytes kept in `truncated`. A file `msgreader` cannot read (it throws, or `getFileData` answers an `error`) is a `ParseError`, as is a message whose body is only compressed RTF (no text and no HTML), so §7 ends it partial naming why rather than as an empty message (**Corrected 2026-10-28**, plan review: embedded messages were to be counted as omitted on the false premise that they had no bytes; inline images, code pages, RTF-only bodies and returned errors were unstated). Done when: `test/intake/msg.test.ts` finds its headers, text, HTML (non-ASCII text intact) and PDF equal to `parseMessage` of the twin; the inline image stored with its content id and the stored HTML's `cid:` reference naming it; the embedded message stored as `.msg` bytes that `msgreader` reopens with its own subject; the draft without headers; a large body cut with its full bytes and code page kept; `rtf-only`, `not-a-msg` and `truncated` each a `ParseError`; and `storeParsed` (§5) storing the result and its summary read back.
 > **Deferred:** reading a body held only in compressed RTF -> XREF: D01 T01 §13 (**Corrected 2026-10-28** at start: the "§5 summary shape" is `ParsedMessage`, which `storeParsed` stores; the limits and embedded items were unstated.)
 - [x] If the library fails in the workers pool, record the error in `docs/frontier-log.md` style under `docs/decisions.md`, make `parseMsg` throw `UnsupportedFormat`, and have the reply say to forward as attachment in Outlook's default format. Done when: either the parse test passes or the fallback test passes; never neither. (Not needed: probed 2026-10-28 at start, `msgreader` 1.29.0 reads the synthetic fixture inside the workers pool under `nodejs_compat`, subject, transport headers and attachment included; the parse test is the proof. A `.msg` it cannot read is a `ParseError`, which §7 turns partial.)
-- [ ] Commit: `intake: Outlook .msg parsing`
+- [x] Commit: `intake: Outlook .msg parsing`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/msg.test.ts` passes, and fails if the transport headers are dropped, the draft claims headers, a body passes §5's limits, the attachment's bytes differ from the twin's, an inline image loses its content id, an embedded message is dropped, non-ASCII HTML is garbled, or an RTF-only or unreadable file parses as an empty success (**Corrected 2026-10-28** at start: "passes" alone could not fail).
+
+> **Verified:** 2026-10-28 | §6 | 5ed1fca1d309637b5181bc06a2669c8c4189af71
+> **Review:** `docs/reviews/d01-t01-s6.json`
 
 ## 7. AnalysisWorkflow skeleton, partial reports
 

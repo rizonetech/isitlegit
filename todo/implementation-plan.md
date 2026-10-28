@@ -55,7 +55,7 @@ Sections: 38 | Checklist items: 293
 | [x]    | D01 T01 §3 | Email handler for verified members         | none                  | 13    |
 | [x]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 6     |
 | [x]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 7     |
-| [ ]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
+| [x]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
 | [ ]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 7     |
 | [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 8     |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 9     |
@@ -283,6 +283,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 37/214 verified sections, 16 ready to run now.
+Progress: 38/214 verified sections, 16 ready to run now.
 
-Checklist: 418/1181 items completed (includes Commit items).
+Checklist: 419/1181 items completed (includes Commit items).
