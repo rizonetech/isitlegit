@@ -102,6 +102,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 - [ ] Build `src/web/pages/settings-account.tsx` with name, email, passkey list and session list. Done when: `test/web/account.test.ts` finds each control by accessible name.
 - [ ] Remove a passkey and sign out other sessions only after a confirmation step, and refuse removing the last sign-in method when no email link is possible. Done when: the test covers both confirmations and the refusal. Cheaper substitute: one-click removal.
+- [ ] Reconcile an uncertain passkey change before acting again: when adding, renaming or removing a passkey gets no answer, re-read `/api/auth/passkey/list-user-passkeys` and show what is saved before offering to try again, so a passkey that was saved is not added twice; a stale session (403) asks the member to sign in again and returns here. On removal, say that the entry may remain in the device's password manager and that signed-in sessions are separate (with "sign out other sessions" beside it). Done when: `test/web/account.test.ts` drops the answer to an add that succeeded and finds one passkey listed with no second registration, and covers the 403 path and the removal wording. Cheaper substitute: a generic error banner with a retry button fails the test. Source: D07 T02 §2 completion review (Part 1 item 10).
 - [ ] Commit: `web: account settings and passkeys`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` passes.

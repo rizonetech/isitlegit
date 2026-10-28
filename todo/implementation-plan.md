@@ -71,7 +71,7 @@ Sections: 38 | Checklist items: 271
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 35 | Checklist items: 190
+Sections: 35 | Checklist items: 191
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -99,7 +99,7 @@ Sections: 35 | Checklist items: 190
 | [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
-| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 7     |
+| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 8     |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -185,7 +185,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 206
+Sections: 55 | Checklist items: 207
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -223,7 +223,7 @@ Sections: 55 | Checklist items: 206
 | [ ]    | D07 T07 §2 | Judge demo organisation                    | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1 | App and site error pages                   | none                  | 4     |
 | [ ]    | D07 T08 §2 | First-run onboarding checklist             | none                  | 4     |
-| [ ]    | D07 T08 §3 | Account settings and passkeys              | none                  | 3     |
+| [ ]    | D07 T08 §3 | Account settings and passkeys              | none                  | 4     |
 | [ ]    | D07 T08 §4 | Plan and trial page                        | none                  | 2     |
 | [ ]    | D07 T08 §5 | Admin org detail and feedback queue        | none                  | 2     |
 | [ ]    | D07 T08 §6 | Sign-in, invite and verification emails    | none                  | 3     |
@@ -280,4 +280,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 29/209 verified sections, 13 ready to run now.
 
-Checklist: 355/1117 items completed (includes Commit items).
+Checklist: 355/1119 items completed (includes Commit items).
