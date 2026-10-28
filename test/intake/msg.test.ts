@@ -193,4 +193,20 @@ describe("parseMsg", () => {
       await expect(parseMsg(twice)).rejects.toThrow(/both named/);
     });
   });
+
+  describe("round 3 cases", () => {
+    it("counts each named-property name as often as entries refer to it", async () => {
+      const once = await parseMsg(makeMsg({ transportHeaders: true, names: { nameBytes: 1024, references: 16 } }));
+      expect(once.parsed.text).toContain("invoice 77");
+      await expect(
+        parseMsg(makeMsg({ transportHeaders: true, names: { nameBytes: STRING_PROPERTY_LIMIT / 4, references: 16 } })),
+      ).rejects.toThrow(/text properties hold \d+ bytes, more than 4194304/);
+    });
+
+    it("refuses a named binary property over the limit", async () => {
+      await expect(
+        parseMsg(makeMsg({ transportHeaders: true, namedBinary: STRING_PROPERTY_LIMIT + 2 })),
+      ).rejects.toThrow(/__substg1\.0_80000102\) is 1048578 bytes/);
+    });
+  });
 });

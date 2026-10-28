@@ -89,6 +89,10 @@ export type Variant = {
   binaryHeaders?: boolean;
   subject?: string;
   pdf?: "short-name" | "binary-name" | "ole";
+  // A named-property map whose one string name, `nameBytes` long, `references` entries point at; and a named property's
+  // binary value of `namedBinary` bytes.
+  names?: { nameBytes: number; references: number };
+  namedBinary?: number;
 };
 
 export function makeMsg({
@@ -103,6 +107,8 @@ export function makeMsg({
   binaryHeaders = false,
   subject = SUBJECT,
   pdf,
+  names,
+  namedBinary,
 }: Variant): Uint8Array {
   const cfb = CFB.utils.cfb_new();
   // The top-level header: 8 reserved bytes, next recipient id, next attachment id, recipient count, attachment count,
@@ -197,7 +203,22 @@ export function makeMsg({
       unicode(0x1000, "The earlier message.\r\n"),
     ]);
   }
-  CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", new Uint8Array(0));
+  if (names) {
+    // [MS-OXMSG] 2.2.3: the GUID stream, the string stream (a 4-byte length, then the name in UTF-16LE) and 8-byte
+    // entries (the name's offset, then a word whose bit 0 marks a string name, then the property index).
+    const strings = new Uint8Array(4 + names.nameBytes).fill(0x78);
+    new DataView(strings.buffer).setUint32(0, names.nameBytes, true);
+    for (let i = 4; i < strings.length; i += 2) strings[i + 1] = 0;
+    const entries = new Uint8Array(8 * names.references);
+    for (let i = 0; i < names.references; i++) {
+      new DataView(entries.buffer).setUint16(8 * i + 4, 5, true);
+      new DataView(entries.buffer).setUint16(8 * i + 6, i, true);
+    }
+    CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", new Uint8Array(16));
+    CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00030102", entries);
+    CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00040102", strings);
+  } else CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", new Uint8Array(0));
+  if (namedBinary) CFB.utils.cfb_add(cfb, "/__substg1.0_80000102", new Uint8Array(namedBinary));
   return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);
 }
 

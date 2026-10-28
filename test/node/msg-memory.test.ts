@@ -35,4 +35,10 @@ describe("parseMsg under a 128 MiB heap", () => {
     expect(result.bytes).toBeGreaterThan(16_000_000);
     expect(result).toMatchObject({ text: 512 * 1024, truncated: ["utf-16le"] });
   });
+
+  it("refuses a 1 MiB named-property name that sixteen entries refer to, before decoding any", () => {
+    const run = underHeapLimit("{ transportHeaders: true, names: { nameBytes: 1024 * 1024, references: 16 } }");
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toMatch(/ParseError: the .msg's text properties hold/);
+  });
 });

@@ -29,7 +29,8 @@ export async function parseMsg(bytes: Uint8Array): Promise<{ parsed: ParsedMessa
 
 type Fields = ReturnType<MsgReader["getFileData"]>;
 
-// String properties other than the top-level bodies: each at most this many bytes, and all of them together at most
+// String properties other than the top-level bodies (with the named-property names and the named binary properties
+// msgreader decodes, below): each at most this many bytes, and all of them together at most
 // STRING_TOTAL_LIMIT. msgreader builds a string a character at a time, so a 17 MB Unicode body exhausted 128 MiB before
 // any limit applied (round 1); the top-level bodies are read and cut here instead, and a larger other property (a
 // subject, the transport headers, an embedded message's body) is a ParseError rather than a crash.
@@ -47,6 +48,40 @@ const typeOf = (entry: CfbEntry) => keyOf(entry)?.slice(4, 8) ?? null;
 const isString = (entry: CfbEntry) => typeOf(entry) === "001f" || typeOf(entry) === "001e";
 const is8Bit = (entry: CfbEntry) => typeOf(entry) === "001e";
 const WELL_FORMED = /^[0-9a-f]{8}$|^[0-9a-f]{4}1[0-9a-f]{3}-[0-9a-f]{8}$/;
+// A named property's value as binary (class 0x8000 and up): msgreader parses some (voting buttons, time zones, a
+// recurrence) into strings, so they count against the same limits as text.
+const isNamedBinary = (entry: CfbEntry) => {
+  const key = keyOf(entry);
+  return key !== null && key.slice(4, 8) === "0102" && Number.parseInt(key.slice(0, 4), 16) >= 0x8000;
+};
+
+// The named-property names msgreader decodes, in bytes, repeats counted: it reads every storage whose name starts
+// "__nameid_version1.0" that holds the GUID (0002), entry (0003) and string (0004) streams, and decodes the string an
+// entry points at once for each entry ([MS-OXMSG] 2.2.3), so one long name referred to by many entries costs each time.
+// An entry pointing outside the string stream is a ParseError.
+const NAMEID = "__nameid_version1.0";
+function namedPropertyNames(file: CompoundFile): number {
+  let total = 0;
+  for (const storage of file.entries) {
+    if (storage.kind !== "storage" || !storage.name.startsWith(NAMEID)) continue;
+    const table = (key: string) => storage.children.find((e) => e.kind === "stream" && keyOf(e) === key) ?? null;
+    const [guids, entries, strings] = [table("00020102"), table("00030102"), table("00040102")];
+    if (!guids || !entries || !strings) continue;
+    const entryBytes = file.read(entries);
+    const stringBytes = file.read(strings);
+    const entryView = new DataView(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength);
+    const stringView = new DataView(stringBytes.buffer, stringBytes.byteOffset, stringBytes.byteLength);
+    for (let at = 0; at + 8 <= entryBytes.byteLength; at += 8) {
+      if (!(entryView.getUint16(at + 4, true) & 1)) continue;
+      const offset = entryView.getUint32(at, true);
+      const length = offset + 4 <= stringBytes.byteLength ? stringView.getUint32(offset, true) : -1;
+      if (length < 0 || offset + 4 + length > stringBytes.byteLength)
+        throw new ParseError("a named property of the .msg names a string outside its string stream");
+      total += length;
+    }
+  }
+  return total;
+}
 
 // The top-level bodies this reads itself ([MS-OXPROPS]: PidTagBody as Unicode or 8-bit, PidTagHtml as Unicode).
 const TEXT_UNICODE = "1000001f";
@@ -81,12 +116,12 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   if (!child(file.root, PROPERTIES) || !(rootProperty(file, "001a001f") || rootProperty(file, "001a001e")))
     throw new ParseError("the .msg is not an Outlook message: it has no message properties");
 
-  const strings = file.entries.filter((entry) => entry.kind === "stream" && isString(entry));
+  const decoded = file.entries.filter((entry) => entry.kind === "stream" && (isString(entry) || isNamedBinary(entry)));
   const bodies = new Set(
     [TEXT_UNICODE, TEXT_8BIT, HTML_UNICODE].map((key) => rootProperty(file, key)).filter((e) => e !== null),
   );
-  let total = 0;
-  for (const entry of strings) {
+  let total = namedPropertyNames(file);
+  for (const entry of decoded) {
     if (bodies.has(entry)) continue;
     if (entry.size > STRING_PROPERTY_LIMIT)
       throw new ParseError(
