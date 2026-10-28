@@ -182,6 +182,12 @@ describe("handleEmail", () => {
   it("rejects a message over 25 MiB before reading it, storing nothing", async () => {
     const { orgId, from } = await member();
     const m = message(from, { rawSize: MAX_MESSAGE_BYTES + 1 });
+    // Reading the message at all fails the test: the size is refused from rawSize alone.
+    Object.defineProperty(m.forwardable, "raw", {
+      get() {
+        throw new Error("the raw message was read");
+      },
+    });
     expect(await handleEmail(m.forwardable, mailEnv)).toEqual({ kind: "too-large" });
     expect(m.rejected).toEqual(["Message too large"]);
     expect(await casesOf(orgId)).toEqual([]);
@@ -385,20 +391,24 @@ describe("a delivery whose later step fails", () => {
 
   it("undoes the case and its raw message when the Workflow did not start", async () => {
     const { orgId, from } = await member();
+    let attempted = "";
     const analysis = {
-      create: async () => Promise.reject(new Error("internal error")),
+      create: async (options: { id: string }) => {
+        attempted = options.id;
+        throw new Error("internal error");
+      },
       get: async () => Promise.reject(new Error("instance.not_found")),
     } as unknown as Env["ANALYSIS"];
     const m = message(from);
     await expect(handleEmail(m.forwardable, failing({ analysis }))).rejects.toBeInstanceOf(RetryDelivery);
+    expect(attempted).not.toBe("");
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);
-    expect(
-      await db
-        .prepare("SELECT COUNT(*) AS n FROM artefacts a JOIN cases c ON c.id = a.case_id WHERE c.org_id = ?")
-        .bind(orgId)
-        .first(),
-    ).toEqual({ n: 0 });
+    // The raw object and its row went with the case, not only out of the joined view.
+    expect(await rawExists(attempted)).toBe(false);
+    expect(await db.prepare("SELECT COUNT(*) AS n FROM artefacts WHERE case_id = ?").bind(attempted).first()).toEqual({
+      n: 0,
+    });
   });
 
   it("keeps the case when the Workflow started but its answer was lost", async () => {
