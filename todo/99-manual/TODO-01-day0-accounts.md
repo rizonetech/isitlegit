@@ -46,6 +46,7 @@ track: day-0
 | 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
 | 9 | §9 | Domain recovery runbook | §2 | [ ] |
+| 10 | §10 | Web Risk key restriction read from Google | §6 | [ ] |
 
 ## 1. Meta API billing and API key
 
@@ -226,7 +227,7 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 - [x] ~~Add a Google Cloud budget alert on the Rizonetech project for the Web Risk API at US$1 (alerts at 50, 90 and 100%), so any charge at all is seen the same day. Done when: Billing, Budgets and alerts lists it.~~ **Struck 2026-10-27:** the budget's Services filter lists only services with billable usage, and Web Risk has none (its free tier is not billed); a project-wide alert would fire on the project's other services. Charges are already bounded: the code caps lookups at 3,000 a day (D02 T06 §1) and a test refuses any Update API call; the metrics check below covers the other path.
 - [ ] Commit: `todo: record the Web Risk key`
 
-**Test checkpoint:** `python3 scripts/check-webrisk-key.py` exits 0: the vault's key has a Google API key's shape, Web Risk `uris.search` flags Google's test phishing page `SOCIAL_ENGINEERING` and finds https://www.google.com/ clean, and another Google API (Books) refuses the key with `API_KEY_SERVICE_BLOCKED`, proving the key is restricted to Web Risk; the key travels only in the `x-goog-api-key` header and is never printed; a placeholder, an invalid or revoked key, an unrestricted key and a lookup that misses the lure exit 1, an unreachable vault or Google exits 2 (`tests/scripts/test_check_webrisk_key.py`); only `uris.search` is called, never the billed `computeDiff` or `hashes.search`. **Corrected 2026-10-28** (plan review): it counted the credential's bytes, which an empty placeholder or a revoked key could pass, and could not show the restriction; the earlier text, kept: `bash -o pipefail -c '~/.local/bin/conclave-op read "op://Conclave/IsItLegit Web Risk/credential" | tr -d "\r\n" | wc -c'` exits 0 and prints a number greater than 1 (the lookup succeeded and the key is filled in; only the count is shown, never the value). **Corrected 2026-10-28** (D99 T01 §1's plan review): it called bare `op item get`, outside WSL's Conclave path (`conclave-op` with the service account), and a failed lookup could still print a count; the earlier text, kept: `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has). Evidence 2026-10-28 23:48 SAST: `check-webrisk-key: the test lure flagged SOCIAL_ENGINEERING, the clean page clean, and another API refused the key (API_KEY_SERVICE_BLOCKED): working and restricted to Web Risk`, exit 0.
+**Test checkpoint:** `python3 scripts/check-webrisk-key.py` exits 0: the vault's key has a Google API key's shape, Web Risk `uris.search` flags Google's test phishing page `SOCIAL_ENGINEERING` and finds https://www.google.com/ clean, and seven other Google APIs each refuse the key (`API_KEY_SERVICE_BLOCKED` or `SERVICE_DISABLED`), at least one by its API restriction, proving the key is restricted and refused by every common Google API probed (the exact allowed-service list needs a Google Cloud credential this repository lacks: D99 T01 §10); a quota (429) or server (5xx) answer at any step exits 2 as inconclusive, never as a bad key or a threat (completion review C2); the key travels only in the `x-goog-api-key` header and is never printed; a placeholder, an invalid or revoked key, an unrestricted key and a lookup that misses the lure exit 1, an unreachable vault or Google exits 2 (`tests/scripts/test_check_webrisk_key.py`); only `uris.search` is called, never the billed `computeDiff` or `hashes.search`. **Corrected 2026-10-28** (plan review): it counted the credential's bytes, which an empty placeholder or a revoked key could pass, and could not show the restriction; the earlier text, kept: `bash -o pipefail -c '~/.local/bin/conclave-op read "op://Conclave/IsItLegit Web Risk/credential" | tr -d "\r\n" | wc -c'` exits 0 and prints a number greater than 1 (the lookup succeeded and the key is filled in; only the count is shown, never the value). **Corrected 2026-10-28** (D99 T01 §1's plan review): it called bare `op item get`, outside WSL's Conclave path (`conclave-op` with the service account), and a failed lookup could still print a count; the earlier text, kept: `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has). Evidence 2026-10-28 23:52 SAST: `check-webrisk-key: the test lure flagged SOCIAL_ENGINEERING, the clean page clean, and all 7 other Google APIs refused the key (4 by its API restriction): working and restricted`, exit 0.
 
 ## 7. Partner credits for Glimmer
 
@@ -315,6 +316,26 @@ D99 T01 §2 set up isitlegit.co.za with DNSSEC (the DS at the registry), Cloudfl
 - [ ] Commit: `todo: domain recovery runbook`
 
 **Test checkpoint:** `grep -c "check-domain.py" docs/operations.md` prints at least 4 (one per procedure), and `python3 scripts/check-domain.py` exits 0.
+
+
+## 10. Web Risk key restriction read from Google
+
+D99 T01 §6's check proves the Web Risk key works and that seven other Google APIs refuse it, at least one by the key's API restriction; it cannot read the key's exact allowed-service list, so a key allowed Web Risk and an eighth, unprobed API would pass. Google's API Keys API reads that list (`keys.lookupKey` with the key string, then `keys.get` for its `restrictions.apiTargets`; https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys), but needs a Google Cloud credential with `apikeys.keys.lookup` and `apikeys.keys.get` on the Rizonetech project, which this repository does not hold. Filed from §6's completion review (gap C1 and E1, 2026-10-28).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Operator action (open):** create a Google Cloud service account in the Rizonetech project with the API Keys Viewer role only, and store its JSON key in the Conclave vault as "IsItLegit Google API keys viewer". Recording `Operator ready: API keys viewer (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Read the Web Risk key's allowed services from Google. Done when: `scripts/check-webrisk-key.py` asserts the allowed-service set is exactly `webrisk.googleapis.com`.
+
+- [ ] Add to `scripts/check-webrisk-key.py` a step that signs a token from the vault's service account (read through `conclave-op`, never printed), calls `apikeys.googleapis.com/v2/keys:lookupKey` with the stored key in the request (not the URL or the output), then `keys.get` on the returned key name, and refuses unless `restrictions.apiTargets` names exactly `webrisk.googleapis.com`. Done when: `tests/scripts/test_check_webrisk_key.py` refuses a key whose targets add any other service, and the live check passes. Cheaper substitute: the seven-API probe alone.
+- [ ] Commit: `todo: read the Web Risk key's restriction from Google`
+
+**Test checkpoint:** `python3 scripts/check-webrisk-key.py` exits 0 and names the exact allowed-service set it read.
 
 ## Verification
 

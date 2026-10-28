@@ -286,24 +286,25 @@ Sections: 13 | Checklist items: 58
 
 ### Phase 99: Manual, operator only
 
-Sections: 13 | Checklist items: 55
+Sections: 14 | Checklist items: 57
 
-| Status | Reference  | Deliverable                                   | Needs    | Items |
-| ------ | ---------- | --------------------------------------------- | -------- | ----- |
-| [x]    | D99 T01 §1 | Meta API billing and API key                  | none     | 5     |
-| [x]    | D99 T01 §2 | Domain verification and nameservers           | none     | 15    |
-| [x]    | D99 T01 §3 | Workers Paid plan                             | none     | 3     |
-| [ ]    | D99 T01 §4 | SMTP2GO sender domain                         | none     | 5     |
-| [ ]    | D99 T01 §6 | Google Web Risk API key                       | none     | 6     |
-| [x]    | D99 T01 §7 | Partner credits for Glimmer                   | none     | 2     |
-| [ ]    | D99 T01 §9 | Domain recovery runbook                       | none     | 4     |
-| [ ]    | D99 T02 §1 | Rizonetech dogfooding from day 2              | operator | 3     |
-| [ ]    | D99 T02 §2 | Pilot client written consent                  | operator | 2     |
-| [ ]    | D99 T02 §3 | Record the demo footage                       | operator | 2     |
-| [ ]    | D99 T02 §4 | Assemble, caption and upload the video        | operator | 3     |
-| [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
-| [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
+| Status | Reference   | Deliverable                                   | Needs    | Items |
+| ------ | ----------- | --------------------------------------------- | -------- | ----- |
+| [x]    | D99 T01 §1  | Meta API billing and API key                  | none     | 5     |
+| [x]    | D99 T01 §2  | Domain verification and nameservers           | none     | 15    |
+| [x]    | D99 T01 §3  | Workers Paid plan                             | none     | 3     |
+| [ ]    | D99 T01 §4  | SMTP2GO sender domain                         | none     | 5     |
+| [ ]    | D99 T01 §6  | Google Web Risk API key                       | none     | 6     |
+| [x]    | D99 T01 §7  | Partner credits for Glimmer                   | none     | 2     |
+| [ ]    | D99 T01 §9  | Domain recovery runbook                       | none     | 4     |
+| [ ]    | D99 T01 §10 | Web Risk key restriction read from Google     | operator | 2     |
+| [ ]    | D99 T02 §1  | Rizonetech dogfooding from day 2              | operator | 3     |
+| [ ]    | D99 T02 §2  | Pilot client written consent                  | operator | 2     |
+| [ ]    | D99 T02 §3  | Record the demo footage                       | operator | 2     |
+| [ ]    | D99 T02 §4  | Assemble, caption and upload the video        | operator | 3     |
+| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
+| [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 49/235 verified sections, 30 ready to run now.
+Progress: 49/236 verified sections, 30 ready to run now.
 
-Checklist: 530/1380 items completed (includes Commit items).
+Checklist: 530/1382 items completed (includes Commit items).

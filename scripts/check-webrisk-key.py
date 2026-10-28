@@ -9,10 +9,15 @@ API key (`AIza` and 35 more characters), then makes three free calls (30 seconds
 
 1. Web Risk `uris.search` on Google's own test phishing page must answer HTTP 200 naming `SOCIAL_ENGINEERING`;
 2. the same lookup of https://www.google.com/ must answer HTTP 200 with no threat;
-3. a call to another Google API (Books) must be refused with `API_KEY_SERVICE_BLOCKED`, the reason Google gives when a
-   key's API restrictions exclude that API, which proves the key is restricted rather than merely unused elsewhere.
+3. seven other Google APIs must each refuse the key (HTTP 403, `API_KEY_SERVICE_BLOCKED` or `SERVICE_DISABLED`), at
+   least one with `API_KEY_SERVICE_BLOCKED`, the reason Google gives when a key's API restrictions exclude that API.
 
-Exit 0 when all hold; 1 with the reason when one does not; 2 when the vault or Google could not be reached. Only
+Step 3 shows the key is restricted and refused by every common Google API probed; it cannot read the exact allowed-
+service list, which needs the API Keys API and a Google Cloud credential this repository does not hold (D99 T01 §10).
+
+Exit 0 when all hold; 1 with the reason when one does not; 2 when nothing could be judged: the vault or Google could
+not be reached, or Google answered a quota (429) or server (5xx) error at any step, which is Google's state, not the
+key's (https://docs.cloud.google.com/web-risk/docs/status-codes). Only
 `uris.search` is called, never `threatLists.computeDiff` or `hashes.search`, which would bill every lookup. Stdlib only.
 """
 import json
@@ -28,7 +33,17 @@ ITEM = "op://Conclave/IsItLegit Web Risk/credential"
 SEARCH = "https://webrisk.googleapis.com/v1/uris:search?threatTypes=SOCIAL_ENGINEERING&threatTypes=MALWARE&uri="
 TEST_LURE = "http://testsafebrowsing.appspot.com/s/phishing.html"
 CLEAN = "https://www.google.com/"
-OTHER_API = "https://www.googleapis.com/books/v1/volumes?q=isitlegit"
+# Free reads on other Google APIs, each of which an exactly-restricted key must be refused.
+OTHER_APIS = [
+    "https://generativelanguage.googleapis.com/v1beta/models",
+    "https://www.googleapis.com/youtube/v3/videos?part=id&id=x",
+    "https://safebrowsing.googleapis.com/v4/threatLists",
+    "https://kgsearch.googleapis.com/v1/entities:search?query=x",
+    "https://www.googleapis.com/books/v1/volumes?q=isitlegit",
+    "https://translation.googleapis.com/language/translate/v2/languages",
+    "https://vision.googleapis.com/v1/operations",
+]
+REFUSED = {"API_KEY_SERVICE_BLOCKED", "SERVICE_DISABLED"}
 KEY_SHAPE = re.compile(r"AIza[0-9A-Za-z_-]{35}")
 VAULT_SECONDS = 60
 HTTP_SECONDS = 30
@@ -71,28 +86,49 @@ def reasons(body):
     return {d.get("reason") for d in details if isinstance(d, dict) and d.get("reason")}
 
 
+def busy(status):
+    """Google's own state, not the key's: a quota or a server error."""
+    return status == 429 or status >= 500
+
+
 def check(read=read_key, get=call):
     """(exit code, line)."""
     try:
         key = read()
         if not KEY_SHAPE.fullmatch(key):
             return 1, "check-webrisk-key: the vault item does not hold a Google API key (AIza...); paste the key again"
-        status, body = get(key, SEARCH + urllib.parse.quote(TEST_LURE, safe=""))
-        if status != 200:
-            return 1, f"check-webrisk-key: Web Risk answered HTTP {status}; the key is invalid, revoked or the API is off"
-        if "SOCIAL_ENGINEERING" not in ((body.get("threat") or {}).get("threatTypes") or []):
-            return 1, "check-webrisk-key: Google's test phishing page was not flagged SOCIAL_ENGINEERING"
-        status, body = get(key, SEARCH + urllib.parse.quote(CLEAN, safe=""))
-        if status != 200 or body.get("threat"):
-            return 1, f"check-webrisk-key: the clean page answered HTTP {status} with a threat; the lookup is unreliable"
-        status, body = get(key, OTHER_API)
-        if status != 403 or "API_KEY_SERVICE_BLOCKED" not in reasons(body):
-            return 1, (f"check-webrisk-key: another Google API answered HTTP {status} without API_KEY_SERVICE_BLOCKED; "
-                       "restrict the key to the Web Risk API")
+        for page, expect_threat in ((TEST_LURE, True), (CLEAN, False)):
+            status, body = get(key, SEARCH + urllib.parse.quote(page, safe=""))
+            if busy(status):
+                return 2, (f"check-webrisk-key: Web Risk answered HTTP {status} for {page} (quota or Google's error); "
+                           "nothing was judged, run it again in a few minutes")
+            if status != 200:
+                return 1, (f"check-webrisk-key: Web Risk answered HTTP {status}; the key is invalid, revoked, or the "
+                           "Web Risk API is off in its project")
+            flagged = "SOCIAL_ENGINEERING" in ((body.get("threat") or {}).get("threatTypes") or [])
+            if expect_threat and not flagged:
+                return 1, "check-webrisk-key: Google's test phishing page was not flagged SOCIAL_ENGINEERING"
+            if not expect_threat and body.get("threat"):
+                return 1, "check-webrisk-key: https://www.google.com/ was flagged; the lookup is unreliable"
+        blocked = 0
+        for url in OTHER_APIS:
+            status, body = get(key, url)
+            host = urllib.parse.urlsplit(url).hostname
+            if busy(status):
+                return 2, (f"check-webrisk-key: {host} answered HTTP {status} (quota or Google's error); nothing was "
+                           "judged, run it again in a few minutes")
+            why = reasons(body)
+            if status != 403 or not why & REFUSED:
+                return 1, (f"check-webrisk-key: {host} accepted the key (HTTP {status}); restrict the key to the Web "
+                           "Risk API only")
+            blocked += "API_KEY_SERVICE_BLOCKED" in why
+        if not blocked:
+            return 1, "check-webrisk-key: no API answered API_KEY_SERVICE_BLOCKED; the key has no API restriction"
     except Unreachable as exc:
         return 2, f"check-webrisk-key: {exc}; nothing was judged"
-    return 0, ("check-webrisk-key: the test lure flagged SOCIAL_ENGINEERING, the clean page clean, and another API "
-               "refused the key (API_KEY_SERVICE_BLOCKED): working and restricted to Web Risk")
+    return 0, (f"check-webrisk-key: the test lure flagged SOCIAL_ENGINEERING, the clean page clean, and all "
+               f"{len(OTHER_APIS)} other Google APIs refused the key ({blocked} by its API restriction): working and "
+               "restricted")
 
 
 if __name__ == "__main__":

@@ -12,14 +12,19 @@ KEY = "AIza" + "x" * 35
 LURE = (200, {"threat": {"threatTypes": ["SOCIAL_ENGINEERING"]}})
 CLEAN = (200, {})
 BLOCKED = (403, {"error": {"status": "PERMISSION_DENIED", "details": [{"reason": "API_KEY_SERVICE_BLOCKED"}]}})
+DISABLED = (403, {"error": {"status": "PERMISSION_DENIED", "details": [{"reason": "SERVICE_DISABLED"}]}})
 
 
-def google(lure=LURE, clean=CLEAN, other=BLOCKED, seen=None):
+def google(lure=LURE, clean=CLEAN, other=BLOCKED, seen=None, others=None):
+    """A stub Google: `others` maps an API's host to its answer; every other API answers `other`."""
     def get(key, url):
         if seen is not None:
             seen.append(url)
         if url.startswith(cwk.SEARCH):
             return lure if "testsafebrowsing" in url else clean
+        for host, answer in (others or {}).items():
+            if host in url:
+                return answer
         return other
     return get
 
@@ -53,12 +58,30 @@ class WebRiskKey(unittest.TestCase):
         self.assertEqual(self.outcome(get=google(lure=(200, {})))[0], 1)
         self.assertEqual(self.outcome(get=google(clean=LURE))[0], 1)
 
-    def test_an_unrestricted_key_is_refused(self):
-        for other in ((200, {"items": []}), (403, {"error": {"details": [{"reason": "SERVICE_DISABLED"}]}})):
-            with self.subTest(other[0]):
-                code, line = self.outcome(get=google(other=other))
-                self.assertEqual(code, 1)
-                self.assertIn("restrict the key to the Web Risk API", line)
+    def test_a_key_allowed_another_api_is_refused(self):
+        # Web Risk plus Generative Language allowed: the extra service answers, so the key fails.
+        code, line = self.outcome(get=google(others={"generativelanguage": (200, {"models": []})}))
+        self.assertEqual(code, 1)
+        self.assertIn("generativelanguage.googleapis.com accepted the key", line)
+        code, line = self.outcome(get=google(others={"youtube": (404, {})}))
+        self.assertEqual(code, 1)
+
+    def test_a_key_with_no_restriction_is_refused(self):
+        code, line = self.outcome(get=google(other=DISABLED))
+        self.assertEqual(code, 1)
+        self.assertIn("no API restriction", line)
+
+    def test_disabled_services_count_as_refusals_beside_a_blocked_one(self):
+        self.assertEqual(self.outcome(get=google(others={"translation": DISABLED, "vision": DISABLED}))[0], 0)
+
+    def test_quota_and_server_errors_are_inconclusive_at_every_step(self):
+        for busy in ((429, {}), (503, {}), (500, {})):
+            for stage in ("lure", "clean", "other"):
+                with self.subTest(status=busy[0], stage=stage):
+                    stub = google(**{stage: busy}) if stage != "other" else google(others={"kgsearch": busy})
+                    code, line = self.outcome(get=stub)
+                    self.assertEqual(code, 2)
+                    self.assertIn("nothing was judged", line)
 
     def test_an_unreachable_vault_or_google_exits_2(self):
         def stalled():
