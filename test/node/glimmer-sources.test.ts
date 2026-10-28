@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseSources, reconcile } from "../../scripts/glimmer/sources.ts";
 import type { StoredPage } from "../../scripts/glimmer/store.ts";
@@ -87,5 +89,16 @@ describe("reconcile", () => {
     const none = { ...base, sources: [header, row("set-b", "rejected")].join("\n"), imports: {}, pages: [] };
     expect(reconcile(none).join()).toContain("§8 still asks for 1,500");
     expect(reconcile({ ...none, synthetic: "Generate at least 3,000 lures ... shows 3,000 lures" })).toEqual([]);
+  });
+});
+
+describe("the benign render lists (D03 T04 §6)", () => {
+  it("credits the Majestic Million with its licence in NOTICE.md and docs/glimmer/sources.md", () => {
+    const root = join(import.meta.dirname, "../..");
+    for (const file of ["NOTICE.md", "docs/glimmer/sources.md"]) {
+      const text = readFileSync(join(root, file), "utf-8");
+      expect(text, file).toMatch(/Majestic Million/);
+      expect(text, file).toMatch(/CC BY 3\.0/);
+    }
   });
 });
