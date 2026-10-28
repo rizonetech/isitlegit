@@ -1,6 +1,8 @@
 import { env } from "cloudflare:test";
+import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { createAuth } from "../../src/auth/auth";
+import { type GateEnv, requireSession } from "../../src/auth/gate";
 import { authEnv, call, ORIGIN, sessionCookie, signIn } from "./helpers";
 import { SoftAuthenticator } from "./webauthn";
 
@@ -70,7 +72,7 @@ describe("passkey options", () => {
     expect(response.status).toBe(200);
     const options = (await response.json()) as { rp: { id: string; name: string }; authenticatorSelection: object };
     expect(options.rp).toEqual({ id: RP_ID, name: "IsItLegit" });
-    expect(options.authenticatorSelection).toMatchObject({ residentKey: "required" });
+    expect(options.authenticatorSelection).toMatchObject({ residentKey: "required", userVerification: "required" });
   });
 
   it("serves authentication options anonymously, naming no credential", async () => {
@@ -96,6 +98,15 @@ describe("the passkey ceremony", () => {
     const { answer } = await passkeySignIn(authenticator);
     expect(answer.status).toBe(200);
     expect(await whoIs(sessionCookie(answer))).toBe("keyholder@example.com");
+    // A member page behind the gate takes the passkey's session as any other.
+    const app = new Hono<GateEnv>();
+    app.use("/member", requireSession);
+    app.get("/member", (c) => c.text(c.get("signedIn").user.email));
+    const through = await app.fetch(
+      new Request(`${ORIGIN}/member`, { headers: { cookie: sessionCookie(answer), accept: "text/html" } }),
+      authEnv,
+    );
+    expect([through.status, await through.text()]).toEqual([200, "keyholder@example.com"]);
   });
 });
 
@@ -191,6 +202,38 @@ describe("sign-in refusals", () => {
     expect(signedIn.user.email).toBe("serverside@example.com");
   });
 
+  it("refuses an assertion without user verification", async () => {
+    // Present but not unlocked, as a security key with no PIN answers.
+    const authenticator = await holder("unverified@example.com");
+    const { answer } = await passkeySignIn(authenticator, { unverified: true });
+    expect(answer.status).toBe(401);
+    expect(sessionCookie(answer)).toBe("");
+  });
+
+  it("answers a malformed response 400 before using the challenge, so the attempt can still finish", async () => {
+    const authenticator = await holder("malformed@example.com");
+    const options = await call("/api/auth/passkey/generate-authenticate-options");
+    const cookie = jar("", options);
+    const good = await authenticator.get(await options.json(), ORIGIN);
+    const malformed: unknown[] = [
+      {},
+      { ...good, id: { $ne: null } },
+      { ...good, type: "password" },
+      { ...good, response: { ...good.response, signature: undefined } },
+      { ...good, response: { ...good.response, authenticatorData: "not base64url!" } },
+      { ...good, response: { ...good.response, userHandle: { toString: 1 } } },
+      "a string",
+    ];
+    for (const response of malformed) {
+      const refused = await post("/api/auth/passkey/verify-authentication", cookie, { response });
+      expect(refused.status, JSON.stringify(response).slice(0, 60)).toBe(400);
+      expect(sessionCookie(refused)).toBe("");
+    }
+    const finished = await post("/api/auth/passkey/verify-authentication", cookie, { response: good });
+    expect(finished.status).toBe(200);
+    expect(await whoIs(sessionCookie(finished))).toBe("malformed@example.com");
+  });
+
   it("refuses a replayed assertion", async () => {
     const authenticator = await holder("replay@example.com");
     const { answer, cookie, assertion } = await passkeySignIn(authenticator);
@@ -227,6 +270,35 @@ describe("removing a passkey", () => {
     const { answer } = await passkeySignIn(authenticator);
     expect(answer.status).toBe(401);
     expect(sessionCookie(answer)).toBe("");
+  });
+
+  it("lists and renames only a member's own passkeys", async () => {
+    const owner = new SoftAuthenticator();
+    const { cookie } = await signIn("lister@example.com");
+    await register(owner, cookie);
+    const other = await signIn("neighbour@example.com");
+    await register(new SoftAuthenticator(), other.cookie);
+    const listOf = async (who: string) =>
+      (await (await call("/api/auth/passkey/list-user-passkeys", { headers: { cookie: who } })).json()) as {
+        id: string;
+        name: string;
+        userId: string;
+      }[];
+    const mine = await listOf(cookie);
+    const theirs = await listOf(other.cookie);
+    expect(mine).toHaveLength(1);
+    expect(theirs).toHaveLength(1);
+    expect(mine[0]?.id).not.toBe(theirs[0]?.id);
+    expect((await call("/api/auth/passkey/list-user-passkeys")).status).toBe(401);
+    // Renaming their own works; renaming the neighbour's is refused and leaves it as it was.
+    expect((await post("/api/auth/passkey/update-passkey", cookie, { id: mine[0]?.id, name: "Phone" })).status).toBe(
+      200,
+    );
+    expect((await listOf(cookie))[0]?.name).toBe("Phone");
+    const refused = await post("/api/auth/passkey/update-passkey", cookie, { id: theirs[0]?.id, name: "Mine now" });
+    expect(refused.status).toBe(401);
+    expect((await post("/api/auth/passkey/update-passkey", "", { id: theirs[0]?.id, name: "x" })).status).toBe(401);
+    expect((await listOf(other.cookie))[0]?.name).toBe("Laptop");
   });
 
   it("refuses removing another member's passkey and leaves it in place", async () => {

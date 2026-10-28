@@ -123,11 +123,11 @@ export class SoftAuthenticator {
 
   // navigator.credentials.get(): a credential this authenticator holds for the relying party, discovered when the
   // options list none. `as` overrides what the assertion claims, to forge one: another origin, another relying party
-  // ID, or a signature by another key.
+  // ID, a signature by another key, or presence without user verification (a security key with no PIN).
   async get(
     options: RequestOptions,
     origin: string,
-    as: { origin?: string; rpId?: string; signWith?: CryptoKeyPair } = {},
+    as: { origin?: string; rpId?: string; signWith?: CryptoKeyPair; unverified?: boolean } = {},
   ) {
     const rpId = options.rpId as string;
     const allowed = (options.allowCredentials ?? []).map((c) => c.id);
@@ -137,7 +137,7 @@ export class SoftAuthenticator {
     if (!credential) throw new Error("NotAllowedError: no credential for this relying party");
     const authData = concat(
       await sha256(encoder.encode(as.rpId ?? rpId)),
-      Uint8Array.of(FLAG_UP | FLAG_UV),
+      Uint8Array.of(as.unverified ? FLAG_UP : FLAG_UP | FLAG_UV),
       new Uint8Array(4),
     );
     const clientData = encoder.encode(

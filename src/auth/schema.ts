@@ -11,7 +11,9 @@ type SendMagicLink = Parameters<typeof magicLink>[0]["sendMagicLink"];
 
 // Passkeys belong to the host the app is served from: the relying party ID is APP_URL's hostname and the only origin
 // accepted is APP_URL's (the plugin would otherwise trust the request's Origin header). Sign-in asks anonymously, with
-// no credential list, so only a discoverable credential can answer it: registration requires one.
+// no credential list, so only a discoverable credential can answer it: registration requires one. User verification is
+// required too (the device's owner unlocked it, not only that the device was present); src/auth/auth.ts refuses a
+// sign-in assertion without it, which the plugin itself does not.
 export function schemaOptions(sendMagicLink: SendMagicLink, appURL: string) {
   const app = new URL(appURL);
   return {
@@ -22,7 +24,7 @@ export function schemaOptions(sendMagicLink: SendMagicLink, appURL: string) {
         rpID: app.hostname,
         rpName: "IsItLegit",
         origin: app.origin,
-        authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+        authenticatorSelection: { residentKey: "required", userVerification: "required" },
       }),
     ],
   };
