@@ -17,6 +17,7 @@ track: day-2
 ## Inputs
 
 - Design spec 4.3 (Evidence shape: nothing downstream may state a fact that is not an Evidence item), 4.6 (citations), `AGENTS.md` safety contract ("Evidence or nothing").
+- -> XREF: D01 T01 §5 -- the parsed summary's `truncated` parts, reported as the `intake.truncated` item
 - -> XREF: D04 T01 §5 -- the citation validator that refuses any claim citing a missing Evidence ID
 - -> XREF: D01 T01 §4 -- the forward's path (`rfc822`, `eml`, `msg` or `inline`) that §1 writes as the `intake.forward` evidence item
 
@@ -54,6 +55,7 @@ One zod schema defines Evidence; every check registers in one list with a name, 
 - [ ] Write `registerCheck({ name, needs, timeoutMs, run })` and `allChecks()` in `src/checks/registry.ts`. Done when: a duplicate name throws.
 - [ ] Write `saveEvidence(caseId, items)` assigning `E<n>` in order, with the same `n` in the `seq` column (**corrected 2026-10-27:** D01 T01 §1's migration `0002_evidence_order.sql` ties `id = 'E' || seq` and requires `detail_json` to be a JSON object and `artefact_keys_json` an array; read in order with `ORDER BY seq`, never by the text id), and inserting rows in one batch. Done when: the test reads IDs `E1` and `E2` back.
 - [ ] Write the `intake.forward` evidence item (info severity, `detail_json.path` from the parsed summary's `forward.path`: `rfc822`, `eml`, `msg` or `inline`, and `detail_json.otherOriginals`, the further attached messages not checked) first for every case, so the report can say how the forward arrived. Done when: a test finds it as `E1` with the path for an attached and an inline fixture. Source: D01 T01 §4 (deferred there 2026-10-28: it has no evidence writer).
+- [ ] Write the `intake.truncated` evidence item (info severity) when the parsed summary's `truncated` is not empty (D01 T01 §5), naming each cut part with its full and kept sizes and saying the links and hidden text were checked across the full part (D02 T07 §1, D02 T05 §1). Done when: the twenty-part fixture yields one item listing every cut part, and an uncut message yields none. Source: D01 T01 §5 plan review, 2026-10-28.
 - [ ] Commit: `checks: evidence type, IDs and registry`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/evidence.test.ts` passes and fails if a summary over 200 characters is accepted.

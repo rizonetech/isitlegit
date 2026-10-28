@@ -18,6 +18,7 @@ track: day-2
 
 - Design spec 4.3 (Hidden text), 4.6a (untrusted content stays data; hidden text extracted and logged first), 5 (demo: white-on-white text telling AI scanners the mail is safe).
 - `AGENTS.md` safety contract.
+- -> XREF: D01 T01 §5 -- the parsed summary's `truncated` parts, whose full HTML the scan still reads
 - -> XREF: D04 T01 §6 -- the injection fixtures that prove hidden instructions change nothing
 
 ## Outcome
@@ -50,6 +51,7 @@ Parse the email HTML, resolve inline styles and `<style>` rules that hide text, 
 2. Register `content.hidden_text` and store `visible.txt`. Done when: the demo fixture's hidden sentence is evidence and absent from `visible.txt`.
 
 - [ ] Parse HTML with `HTMLRewriter` (Workers runtime) collecting text with the element's computed hiding reason: `display:none`, `visibility:hidden`, `font-size` 0 or under 2px, `opacity` 0, `color` equal or near to the background (`background`, `bgcolor`, inherited, delta E under 3), `position` off-screen (negative `left` or `top` over 1000px), `max-height:0;overflow:hidden`, and HTML comments. Done when: `test/checks/hidden-text.test.ts` covers each technique with a synthetic fixture. Cheaper substitute: stripping tags and reading everything as visible.
+- [ ] Run the hidden-text scan over the full HTML of every body part D01 T01 §5 cut for reading (the parsed summary's `truncated`), streaming the artefact through `HTMLRewriter` rather than loading it whole. Done when: a fixture whose hidden instruction sits past the 1 MiB cut is found. Source: D01 T01 §5 plan review, 2026-10-28.
 - [ ] Resolve simple `<style>` class and id selectors and inline styles; record that complex selectors are not resolved. Done when: a class-hidden fixture is caught.
 - [ ] Register `content.hidden_text` (medium for hidden marketing preheaders under 120 characters with no instruction language, high otherwise) quoting up to 300 characters. Done when: the demo fixture is high and a normal preheader is medium.
 - [ ] Write `art/<case>/parsed/visible.txt` with the visible text only, used by every model prompt. Done when: the demo fixture's `visible.txt` lacks the hidden sentence.

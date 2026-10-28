@@ -71,12 +71,12 @@ Sections: 38 | Checklist items: 292
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 35 | Checklist items: 192
+Sections: 35 | Checklist items: 194
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                      | operator | 6     |
-| [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 6     |
+| [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [ ]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
 | [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
@@ -90,7 +90,7 @@ Sections: 35 | Checklist items: 192
 | [ ]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
 | [ ]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
-| [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 5     |
+| [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
 | [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
@@ -113,7 +113,7 @@ Sections: 35 | Checklist items: 192
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 17 | Checklist items: 79
+Sections: 17 | Checklist items: 80
 
 | Status | Reference  | Deliverable                                          | Needs      | Items |
 | ------ | ---------- | ---------------------------------------------------- | ---------- | ----- |
@@ -124,7 +124,7 @@ Sections: 17 | Checklist items: 79
 | [ ]    | D02 T06 §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3 | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4 | Reputation weighting rules                           | none       | 5     |
-| [ ]    | D02 T07 §1 | URL extraction from text, HTML and PDF annotations   | none       | 5     |
+| [ ]    | D02 T07 §1 | URL extraction from text, HTML and PDF annotations   | none       | 6     |
 | [ ]    | D02 T07 §2 | Redirect expansion in Browser Run                    | cloudflare | 6     |
 | [ ]    | D02 T07 §3 | Landing screenshot and form detection                | cloudflare | 4     |
 | [ ]    | D02 T07 §4 | QR code decoding from images and PDF pages           | cloudflare | 4     |
@@ -284,4 +284,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 36/213 verified sections, 15 ready to run now.
 
-Checklist: 407/1173 items completed (includes Commit items).
+Checklist: 407/1176 items completed (includes Commit items).

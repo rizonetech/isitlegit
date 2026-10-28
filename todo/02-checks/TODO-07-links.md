@@ -17,6 +17,7 @@ track: day-3
 
 - Design spec 4.3 (Links, QR codes), 4.4a (the walkthrough runs only when this finds a form or lure button), 8 (cut list: QR decoding first, landing screenshots for links without a form second).
 - Stack doc: `@cloudflare/puppeteer` 1.4.0, `jsqr` 1.4.0 and `pdfjs-dist` 6.4.299 inside the Browser Run page.
+- -> XREF: D01 T01 §5 -- the parsed summary's `truncated` parts, whose full text and HTML the extraction still reads
 - -> XREF: D04 T02 §6 -- the walkthrough trigger that reads this file's form findings
 
 ## Outcome
@@ -52,6 +53,7 @@ All URLs are collected with where they came from, so the report can say "the but
 
 - [ ] Extract from HTML `href`, `src` of forms and frames, `srcset`, `meta refresh`, and plain-text URLs (RFC 3986 with a conservative pattern), keeping anchor text and the source part. Done when: `test/checks/links.test.ts` passes on a fixture with each form.
 - [ ] Extract `/URI` actions from PDF attachments by scanning PDF objects for `/A << /S /URI /URI (...) >>`. Done when: a synthetic PDF with two links yields both.
+- [ ] Extract links from the full text and HTML of every body part D01 T01 §5 cut for reading (the parsed summary's `truncated`, each part's artefact), read in 64 KiB chunks with a carried overlap so a URL across a chunk edge is kept, within the same 50-link cap. Done when: a fixture whose only harmful link sits past the 1 MiB cut yields that link. Source: D01 T01 §5 plan review, 2026-10-28.
 - [ ] Normalise (lower-case host, punycode to Unicode for display, keep the raw form) and deduplicate, capping at 50 links per case with a note when capped. Done when: the cap test passes.
 - [ ] Register `link.text_mismatch` when anchor text contains a domain different from the target's registrable domain. Done when: the fixture yields it.
 - [ ] Commit: `checks: URL extraction`
