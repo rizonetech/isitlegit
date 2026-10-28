@@ -111,4 +111,47 @@ describe("senderAuthenticated", () => {
       ],
     });
   });
+
+  it("for an address verified on its own, admits only mail whose signed From is that mailbox (round 1)", () => {
+    const signed = (
+      from: string,
+      auth = `${ID}; dkim=pass header.d=gmail.com; spf=pass smtp.mailfrom=registered.user@gmail.com`,
+    ) => new TextEncoder().encode(`Authentication-Results: ${auth}\r\nFrom: ${from}\r\nSubject: Fwd\r\n\r\nbody\r\n`);
+    const victim = "registered.user@gmail.com";
+    expect(senderAuthenticated(signed(victim), victim, "address")).toBe(true);
+    expect(senderAuthenticated(signed(`"Registered User" <Registered.User@Gmail.com>`), victim, "address")).toBe(true);
+    // Another gmail.com user's signed mail with the envelope forged to the registered address.
+    expect(senderAuthenticated(signed("attacker@gmail.com"), victim, "address")).toBe(false);
+    expect(senderAuthenticated(signed(`"${victim}" <attacker@gmail.com>`), victim, "address")).toBe(false);
+    // The same mail passes the domain-level check, which is why the level matters.
+    expect(senderAuthenticated(signed("attacker@gmail.com"), victim, "domain")).toBe(true);
+    // SPF proves no mailbox, and a From naming several addresses names none.
+    expect(senderAuthenticated(signed(victim, `${ID}; spf=pass smtp.mailfrom=${victim}`), victim, "address")).toBe(
+      false,
+    );
+    expect(senderAuthenticated(signed(`${victim}, attacker@gmail.com`), victim, "address")).toBe(false);
+    expect(senderAuthenticated(signed(`<${victim}>, <attacker@gmail.com>`), victim, "address")).toBe(false);
+    // A DKIM pass by another domain does not prove a gmail.com mailbox.
+    expect(senderAuthenticated(signed(victim, `${ID}; dkim=pass header.d=evil.com`), victim, "address")).toBe(false);
+  });
+
+  it("reads whitespace RFC 8601 allows around the separators (round 1)", () => {
+    expect(
+      senderAuthenticated(
+        mail(`Authentication-Results: ${ID}; spf = pass smtp . mailfrom = member.co.za`),
+        "boss@member.co.za",
+      ),
+    ).toBe(true);
+    expect(
+      senderAuthenticated(
+        mail(`Authentication-Results: ${ID}; dkim / 1 = pass header.d = "member.co.za"`),
+        "boss@member.co.za",
+      ),
+    ).toBe(true);
+    expect(
+      parseAuthenticationResults(`${ID}; spf = pass (a = b) smtp.mailfrom = "x y@member.co.za"`)?.results[0]?.props.get(
+        "smtp.mailfrom",
+      ),
+    ).toBe("x y@member.co.za");
+  });
 });

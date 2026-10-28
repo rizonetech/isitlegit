@@ -14,23 +14,35 @@ export function registrable(input: string): string | null {
   return getDomain(host, { allowPrivateDomains: false }) ?? null;
 }
 
-// The organisation a sender belongs to, for the email handler: a verified address, else the verified registrable
-// domain of the address, else null.
-export async function findMemberBySender(db: D1Database, sender: string): Promise<string | null> {
+// The organisation a sender belongs to, and by what: the address itself verified on its own (the more specific claim
+// wins), else its verified registrable domain, which admits every mailbox at it. An address whose organisation also
+// verified its domain counts as the domain's, which asks only domain-level authentication of the mail
+// (src/intake/sender.ts). Null for anything else.
+export async function memberOfSender(
+  db: D1Database,
+  sender: string,
+): Promise<{ orgId: string; by: "domain" | "address" } | null> {
   const address = sender.trim().toLowerCase();
   // An address: one @, something on each side.
   const at = address.indexOf("@");
   if (at < 1 || at !== address.lastIndexOf("@") || at === address.length - 1) return null;
-  const byAddress = await db
-    .prepare("SELECT org_id FROM org_addresses WHERE address = ? AND state = 'verified'")
-    .bind(address)
-    .first<{ org_id: string }>();
-  if (byAddress) return byAddress.org_id;
-  const domain = registrable(address.slice(address.lastIndexOf("@") + 1));
-  if (!domain) return null;
-  const byDomain = await db
-    .prepare("SELECT org_id FROM org_domains WHERE domain = ? AND state = 'verified'")
-    .bind(domain)
-    .first<{ org_id: string }>();
-  return byDomain?.org_id ?? null;
+  const domain = registrable(address.slice(at + 1));
+  const [byAddress, byDomain] = await Promise.all([
+    db
+      .prepare("SELECT org_id FROM org_addresses WHERE address = ? AND state = 'verified'")
+      .bind(address)
+      .first<{ org_id: string }>(),
+    domain
+      ? db
+          .prepare("SELECT org_id FROM org_domains WHERE domain = ? AND state = 'verified'")
+          .bind(domain)
+          .first<{ org_id: string }>()
+      : null,
+  ]);
+  if (byAddress) return { orgId: byAddress.org_id, by: byDomain?.org_id === byAddress.org_id ? "domain" : "address" };
+  return byDomain ? { orgId: byDomain.org_id, by: "domain" } : null;
 }
+
+// The organisation alone, for the allowlist and the claim routes.
+export const findMemberBySender = async (db: D1Database, sender: string) =>
+  (await memberOfSender(db, sender))?.orgId ?? null;

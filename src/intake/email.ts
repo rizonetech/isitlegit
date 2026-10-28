@@ -1,6 +1,7 @@
-// The email front door (D01 T01 §3; spec 4.1): a forward to check@ becomes a case only when its envelope sender is
-// authenticated (./sender) and belongs to an organisation (`findMemberBySender`); anything else is dropped with no
-// reply, so the service sends no backscatter.
+// The email front door (D01 T01 §3; spec 4.1): a forward to check@ becomes a case only when its envelope sender belongs
+// to an organisation (`memberOfSender`: a verified domain, or a single verified address) and the mail proves it at that
+// level (./sender: a pass for the domain, or for the one mailbox); anything else is dropped with no reply, so the
+// service sends no backscatter.
 //
 // A delivery is claimed in `intake_messages` before anything else is written (keyed by organisation and Message-ID, or
 // the raw message's SHA-256 without one), then processed in the only order that works: write the new case's id to the
@@ -9,7 +10,7 @@
 // case. A failed step is undone and the delivery thrown, so Email Routing's retry starts clean; when it is unknown
 // whether the Workflow started, the claim is left pending with its case and whoever next reaches it (the same message's
 // retry after five minutes, or the scheduled sweep) settles it by asking the Workflow.
-import { findMemberBySender } from "../auth/senders";
+import { memberOfSender } from "../auth/senders";
 import { admitCase, DEFAULT_DAILY_CASES } from "../db/cases";
 import { ulid } from "../db/ulid";
 import { sendMail } from "../mail/smtp2go";
@@ -56,9 +57,10 @@ export async function handleEmail(
     return { kind: "too-large" };
   }
   const from = message.from.trim().toLowerCase();
-  if (!senderAuthenticated(raw, from)) return { kind: "dropped" };
-  const orgId = await findMemberBySender(env.DB, from);
-  if (!orgId) return { kind: "dropped" };
+  // What the organisation verified decides what the mail must prove: its domain, or this one mailbox.
+  const member = await memberOfSender(env.DB, from);
+  if (!member || !senderAuthenticated(raw, from, member.by)) return { kind: "dropped" };
+  const orgId = member.orgId;
 
   const messageId = headerValue(message.headers.get("Message-ID"));
   const key = messageId ?? `sha256:${await sha256Hex(raw)}`;
@@ -246,7 +248,8 @@ async function sendCapNotice(env: Env, orgId: string, to: string, now: Date) {
   await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
     {
-      sendKey: `cap:${orgId}:${sastDate(now)}:${to}`,
+      // The forwarder by digest: an address can be 254 characters, a send key at most 200.
+      sendKey: `cap:${orgId}:${sastDate(now)}:${(await sha256Hex(new TextEncoder().encode(to))).slice(0, 32)}`,
       kind: "notice",
       to,
       from: NOTICE_FROM,

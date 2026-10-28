@@ -55,7 +55,7 @@ async function member(options: { cap?: number } = {}) {
 // A forward as Email Routing hands it to the Worker.
 function message(
   from: string,
-  options: { messageId?: string | null; auth?: string; body?: string; rawSize?: number } = {},
+  options: { messageId?: string | null; auth?: string; body?: string; rawSize?: number; from?: string } = {},
 ) {
   const domain = from.slice(from.indexOf("@") + 1);
   const messageId = options.messageId === undefined ? `<${crypto.randomUUID()}@${domain}>` : options.messageId;
@@ -64,7 +64,7 @@ function message(
   const text = [
     `Authentication-Results: ${auth}`,
     ...(messageId ? [`Message-ID: ${messageId}`] : []),
-    `From: ${from}`,
+    `From: ${options.from ?? from}`,
     "To: check@isitlegit.co.za",
     "Subject: Fwd: invoice",
     "",
@@ -297,6 +297,51 @@ function failing(overrides: {
   });
   return { ...mailEnv, DB, ARTEFACTS, ANALYSIS: overrides.analysis ?? env.ANALYSIS } as Env;
 }
+
+describe("round 1 cases", () => {
+  it("admits a single verified address only from its own signed mailbox, not another user of its provider", async () => {
+    orgs += 1;
+    const orgId = `org-intake-${orgs}`;
+    const victim = `registered.user${orgs}@gmail.com`;
+    const at = new Date().toISOString();
+    await db
+      .prepare(
+        "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+      )
+      .bind(`a-${orgId}`, orgId, victim, at, at)
+      .run();
+    // Another gmail.com user's own signed message, the envelope forged to the registered address.
+    const forged = message(victim, {
+      auth: `${EMAIL_ROUTING_AUTHSERV_ID}; dkim=pass header.d=gmail.com; spf=pass smtp.mailfrom=${victim}`,
+      from: "attacker@gmail.com",
+    });
+    expect(await handleEmail(forged.forwardable, mailEnv)).toEqual({ kind: "dropped" });
+    expect(await casesOf(orgId)).toEqual([]);
+    // The registered user's own signed message.
+    const own = message(victim, { auth: `${EMAIL_ROUTING_AUTHSERV_ID}; dkim=pass header.d=gmail.com` });
+    expect((await handleEmail(own.forwardable, mailEnv)).kind).toBe("admitted");
+    expect((await casesOf(orgId))[0]?.forwarded_by).toBe(victim);
+  });
+
+  it("sends the cap notice to a forwarder whose address is longer than a send key", async () => {
+    orgs += 1;
+    const orgId = `org-intake-long-${orgs}-${"x".repeat(20)}`;
+    const site = `${"c".repeat(50)}.co.za`;
+    const from = `${"a".repeat(60)}@${"b".repeat(50)}.${site}`;
+    const at = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
+        )
+        .bind(`d-${orgId}`, orgId, site, at, at),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+    ]);
+    expect(from.length).toBeGreaterThan(160);
+    expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends).toEqual([{ to: from, text: expect.stringContaining("limit of 0 checks") }]);
+  });
+});
 
 describe("a delivery whose later step fails", () => {
   it("releases its claim when the case cannot be admitted, so the retry is processed", async () => {
