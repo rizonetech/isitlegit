@@ -36,7 +36,7 @@ track: day-1
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Model client: store false, Standard IDs | D00 T01 §6, D01 T01 §7 | [ ] |
+| 1 | §1 | Model client: store false, Standard IDs | D00 T01 §6, D01 T01 §7 | [x] |
 | 2 | §2 | Budget guard with daily and total caps | §1 | [ ] |
 | 3 | §3 | Cost and latency events per model call | §1 | [ ] |
 | 4 | §4 | Result cache by artefact hash | §1 | [ ] |
@@ -80,9 +80,12 @@ One module, `src/meta/client.ts`, is the only place that talks to `api.meta.ai` 
 - [x] Write `test/node/no-contributor.test.ts` scanning every text file under `src/`, `scripts/` and `eval/` for a contributor model ID (a name ending `-contributor` whose `-contributor` follows a letter, digit or dot, `/[a-z0-9.]-contributor\b/i`), so `refuseContributor`'s bare `"-contributor"` literal and `--contributor-mode` are not matches. Done when: it passes on the tree now, and fails on a planted `muse-spark-1.3-contributor` in a temporary copy of each of the three roots. Cheaper substitute: a literal `-contributor` substring scan, which the defensive check itself fails.
 - [x] Export the smoke's ledger steps from `scripts/meta-smoke.ts` (`reserveSpend`, `settleSpend`, beside `readLedger`, `takeLock` and `checkLog`) and use them unchanged in the smoke. Done when: `test/node/meta-smoke.test.ts` passes as before. Cheaper substitute: a second ledger the guard (§2) would not count.
 - [x] Write `scripts/meta-client-live.ts`: under the smoke's lock and its `RUN_CAP` and `DAY_CAP` over `build/meta-smoke-spend.json`, it checks the caps before reading any secret, reads the Meta key, the Run token and the gateway admin token (log read-back only, never a Worker secret) from the vault through `conclave-op` without printing them, reserves each transport attempt's estimate before it is sent (`max_output_tokens` 64; the client may try three times, and no attempt is sent past a cap), calls `metaResponses` once, settles the answered attempt at Meta's reported cost (any other stays `uncertain` at its estimate), keeps the answered call's log id and counts in `build/meta-client-live-pending.json` until its log check and record are done (a rerun resumes them with no second call), and passes only when `checkLog` finds the log with metadata and no stored request or response body. Done when: `test/node/meta-client-live.test.ts` shows, with stubs, a refusal at an exhausted cap sending nothing and reading no secret, an interrupted call leaving its reservation counted, a retried call reserving each attempt and a retry the cap cannot cover not sent, a failed log check and a failed record each resumed with no second call, a call that failed after sending and may have been answered (a 200 cut off mid-body, a dropped connection) keeping its mark so a rerun refuses, while one Meta refused with an error status on every attempt leaves none, and a missing log, a denied log read (403) and a stored body each failing; and one real run is recorded in `docs/live-checks.md` (model, cost, log id, "no body"). Cheaper substitute: a live call with no ledger, or a successful answer taken as proof of metadata-only logging.
-- [ ] Commit: `meta: model client with store false, Standard IDs and the gateway`
+- [x] Commit: `meta: model client with store false, Standard IDs and the gateway`
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/client.test.ts test/node/no-contributor.test.ts test/node/meta-client-live.test.ts` passes, and fails if a caller's `store: true` reaches the request.
+
+> **Verified:** 2026-10-28 | §1 | f53fe76e69eeae5bb9350b82fe62b92e1de8fa2f
+> **Review:** `docs/reviews/d03-t01-s1.json`
 
 ## 2. Budget guard with daily and total caps
 

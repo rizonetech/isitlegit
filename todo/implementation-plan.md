@@ -74,7 +74,7 @@ Sections: 38 | Checklist items: 308
 | [x]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 12    |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 9     |
 | [x]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 9     |
-| [ ]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 10    |
+| [x]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 10    |
 | [ ]    | D03 T01 §2 | Budget guard with daily and total caps     | none                  | 7     |
 | [ ]    | D03 T01 §3 | Cost and latency events per model call     | none                  | 7     |
 | [ ]    | D03 T01 §4 | Result cache by artefact hash              | none                  | 4     |
@@ -300,6 +300,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 44/231 verified sections, 23 ready to run now.
+Progress: 45/231 verified sections, 26 ready to run now.
 
-Checklist: 519/1361 items completed (includes Commit items).
+Checklist: 520/1361 items completed (includes Commit items).
