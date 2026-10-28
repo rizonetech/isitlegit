@@ -39,7 +39,7 @@ track: day-0
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Meta API billing and API key | -- | [x] |
 | 2 | §2 | Domain verification and nameservers | -- | [x] |
-| 3 | §3 | Workers Paid plan | -- | [ ] |
+| 3 | §3 | Workers Paid plan | -- | [x] |
 | 4 | §4 | SMTP2GO sender domain | §2 | [ ] |
 | 5 | §5 | WhatsApp test number | -- | [ ] |
 | 6 | §6 | Google Web Risk API key | -- | [ ] |
@@ -144,11 +144,14 @@ Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"
 - [x] Record the plan and date in this section as a line `Plan read: Workers Paid, YYYY-MM-DD`. Done when: the line is written here. Evidence 2026-10-27 01:27 SAST: written below.
 The plan line proves the account was on Workers Paid when the operator read it, not that it still is: no token this repository holds can read billing (Wrangler's login has `workers (write)` and no billing scope, HTTP 403 on `/accounts/<id>/subscriptions`, 2026-10-28), so a later downgrade or a lapsed card is the operator's to see, through Cloudflare's billing notices to the account, and shows in the product as Worker limits or refused Browser Run sessions. D00 T01 §5 (stamped) relies on this section through an XREF rather than a dependency; that reliance holds once this section stamps, and the stamped section is not edited.
 
-- [ ] Commit: `todo: record the Workers Paid plan`
+- [x] Commit: `todo: record the Workers Paid plan`
 
 Plan read: Workers Paid, 2026-10-27
 
 **Test checkpoint:** `python3 -c 'import datetime,re,sys; d=re.findall(r"^Plan read: Workers Paid, (\d{4}-\d{2}-\d{2})$", open("todo/99-manual/TODO-01-day0-accounts.md").read(), re.M); [datetime.date.fromisoformat(x) for x in d]; print(len(d)); sys.exit(len(d) != 1)'` prints `1` and exits 0: exactly one plan line whose date is a real calendar date, any year (an impossible date raises and exits 1). **Corrected 2026-10-28** (the final review): the pattern accepted `2026-99-99` and refused a later year; the earlier text, kept: `grep -cE '^Plan read: Workers Paid, 2026-[0-9]{2}-[0-9]{2}$' todo/99-manual/TODO-01-day0-accounts.md` prints `1`.
+
+> **Verified:** 2026-10-28 | §3 | b96582215777d7616c021e9339b88339be8713e1
+> **Review:** `docs/reviews/d99-t01-s3.json`
 
 ## 4. SMTP2GO sender domain
 
