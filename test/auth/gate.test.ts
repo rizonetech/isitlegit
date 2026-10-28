@@ -76,6 +76,27 @@ describe("requireSession", () => {
   });
 });
 
+// D1 failing every session delete, as a lost connection would; every other statement runs.
+function failingSessionDeletes(database: D1Database): D1Database {
+  return new Proxy(database, {
+    get(target, key) {
+      if (key === "prepare")
+        return (sql: string) =>
+          /^delete from "session"/i.test(sql)
+            ? {
+                bind: () => ({
+                  all: async () => {
+                    throw new Error("D1_ERROR: Network connection lost.");
+                  },
+                }),
+              }
+            : target.prepare(sql);
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 describe("POST /auth/sign-out", () => {
   const signOut = (cookie: string, origin = ORIGIN) =>
     call("/auth/sign-out", {
@@ -102,29 +123,8 @@ describe("POST /auth/sign-out", () => {
 
   it("answers 503 and keeps the cookie when the session is not deleted, then finishes on a retry", async () => {
     const { cookie } = await signIn("stuck@example.com");
-    // D1 failing the session delete, as a lost connection would; every other statement runs.
-    const failingDeletes = new Proxy(db, {
-      get(target, key) {
-        if (key === "prepare")
-          return (sql: string) =>
-            /^delete from "session"/i.test(sql)
-              ? {
-                  bind: () => ({
-                    all: async () => {
-                      throw new Error("D1_ERROR: Network connection lost.");
-                    },
-                  }),
-                }
-              : target.prepare(sql);
-        const value = Reflect.get(target, key);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
-    });
-    const stuck = await call(
-      "/auth/sign-out",
-      { method: "POST", headers: { cookie, origin: ORIGIN } },
-      { ...authEnv, DB: failingDeletes },
-    );
+    const env = { ...authEnv, DB: failingSessionDeletes(db) };
+    const stuck = await call("/auth/sign-out", { method: "POST", headers: { cookie, origin: ORIGIN } }, env);
     expect(stuck.status).toBe(503);
     expect(await stuck.text()).toMatch(/did not finish/);
     expect(stuck.headers.getSetCookie()).toEqual([]);
@@ -133,6 +133,23 @@ describe("POST /auth/sign-out", () => {
     const retried = await signOut(cookie);
     expect([retried.status, retried.headers.get("location")]).toEqual([303, "/signin"]);
     expect(await db.prepare(`SELECT 1 FROM "session" WHERE token = ?`).bind(sessionOf(cookie)).first()).toBeNull();
+  });
+
+  it("holds Better Auth's own sign-out endpoint to the same rule", async () => {
+    const { cookie } = await signIn("api-out@example.com");
+    const post = (env: Env) =>
+      call(
+        "/api/auth/sign-out",
+        { method: "POST", headers: { cookie, origin: ORIGIN, "content-type": "application/json" }, body: "{}" },
+        env,
+      );
+    const stuck = await post({ ...authEnv, DB: failingSessionDeletes(db) });
+    expect(stuck.status).toBe(503);
+    expect(stuck.headers.getSetCookie().filter((c) => c.includes("session_token"))).toEqual([]);
+    expect((await page(cookie)).status).toBe(200);
+    const done = await post(authEnv);
+    expect(done.status).toBe(200);
+    expect(target(await page(cookie))).toMatch(/^\/signin/);
   });
 
   it("refuses a post from another origin and leaves the session", async () => {

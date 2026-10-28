@@ -8,6 +8,10 @@
 // `callbackURL` it was asked with, accepted only as a same-site path, else to /cases. A link that fails (used, expired,
 // unknown) goes to the public sign-in page instead, carrying the destination as `next` and Better Auth's `error` code,
 // so the member can ask for a new one (`/signin` renders that state, §7). The return paths are ours, never the client's.
+//
+// Signing out ends the session in D1 before Better Auth clears the cookie, and refuses (503, cookie kept) when that delete
+// fails: Better Auth's own sign-out logs a failed delete and reports success, which would leave a copied cookie
+// signed in after the member was told they were out. The hook covers every way in: /api/auth/sign-out and the app's form.
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { ConfigError } from "../config";
@@ -80,6 +84,17 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           const callbackURL = (body.callbackURL as string | undefined) ?? DEFAULT_RETURN;
           const paths = { callbackURL, newUserCallbackURL: callbackURL, errorCallbackURL: recoveryPath(callbackURL) };
           return { context: { body: { ...body, ...paths } } };
+        }
+        if (ctx.path === "/sign-out") {
+          const token = await ctx.getSignedCookie(ctx.context.authCookies.sessionToken.name, ctx.context.secret);
+          if (!token) return;
+          const ended = await ctx.context.internalAdapter.deleteSession(token).then(
+            () => true,
+            () => false,
+          );
+          if (!ended)
+            throw new APIError("SERVICE_UNAVAILABLE", { message: "signing out did not finish; try again in a moment" });
+          return;
         }
         if (ctx.path === "/magic-link/verify") {
           const query = (ctx.query ?? {}) as Record<string, unknown>;
