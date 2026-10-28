@@ -217,7 +217,15 @@ def run(service_factory, renderer, image_examples, text_examples, train_on, datu
             # Closing the client does not free the session's slot on Fireworks; deleting the session does
             # (https://docs.fireworks.ai/fine-tuning/training-api/serverless#capacity-and-rate-limits). Both are tried,
             # each failure reported beside the results, never instead of them.
-            if receipt.get("session"):
+            # The service may own a session even when making the client failed or was interrupted, so cleanup asks the
+            # service itself rather than trusting the receipt.
+            try:
+                owned = getattr(service, "training_session_id", None)
+            except Exception:  # an SDK that cannot say has no session to name; the receipt keeps any it recorded
+                owned = None
+            if owned and not receipt.get("session"):
+                receipt["session"] = str(owned)
+            if owned or receipt.get("session"):
                 try:
                     service.delete_training_session()
                     receipt["deleted"] = True

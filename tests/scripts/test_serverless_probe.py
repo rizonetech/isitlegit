@@ -214,6 +214,14 @@ class Recovery(Base):
         self.assertIn("connection reset", result["close_error"])
         self.assertEqual(self.saved()["image"]["loss"], 1.5)
 
+    def test_a_session_owned_when_the_client_fails_is_still_recorded_and_deleted(self):
+        service = Service(fail_client="TimeoutError: client creation timed out")
+        result = self.run_probe(service)
+        self.assertEqual(result["session"], "ts-test")
+        self.assertTrue(service.deleted)
+        self.assertTrue(result["deleted"])
+        self.assertTrue(service.closed)
+
     def test_a_session_that_cannot_open_is_recorded_and_closed(self):
         service = Service(fail_client="no capacity")
         result = self.run_probe(service)
