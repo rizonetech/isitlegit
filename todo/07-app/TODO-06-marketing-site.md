@@ -39,7 +39,7 @@ track: day-6
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
 | 7 | §7 | Protect your business page | §2 | [ ] |
 | 8 | §8 | Terms, security and about pages | §2 | [ ] |
-| 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [ ] |
+| 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -232,9 +232,12 @@ Every link the app mails names `https://app.isitlegit.co.za` (`wrangler.jsonc`):
 - [x] Deploy with `wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)` (`AGENTS.md` deploy rule, migrations first) and read the host back: the deploy lists the custom domain, DNS answers through Cloudflare, the certificate is valid, `/health` returns the deployed SHA, and `PUBLIC_ORIGIN` matches the host serving it. Done when: `curl -s https://app.isitlegit.co.za/health` returns `"ok":true` with `git rev-parse HEAD`. Done 2026-10-28 23:30 UTC: `24e43d6` deployed from a clean pushed checkout (no migrations pending), version `261facf8-7495-4d27-b731-ab869cd66a24`; the deploy lists `app.isitlegit.co.za (custom domain)` and the workers.dev host; `app.isitlegit.co.za` resolves through Cloudflare (104.21.47.191, 172.67.172.34), its certificate (Let's Encrypt YE1, valid to 2027-01-24) verifies, and both hosts' `/health` answer 200 with `24e43d6`; `scripts/smoke.ts` passes every binding.
 - [x] Record the host in `docs/live-checks.md` with the date, the deployed SHA tested, and that the apex and `www` stay with §6, after the deploy. Done when: the file holds it.
 - [x] Guard the two hosts and the smoke token's destinations (final review, 2026-10-29): `test/node/wrangler-hosts.test.ts` asserts the custom domain and `workers_dev: true` in the parsed config, and `scripts/smoke.ts` sends its token only to `isitlegit.derick-f5a.workers.dev` or `app.isitlegit.co.za` (it accepted the apex and every subdomain, which are the marketing site or could point elsewhere). Done when: both tests fail on the broken config and the old check, and pass.
-- [ ] Commit: `todo: D07 T06 §9 records the app host's live read-back`
+- [x] Commit: `todo: D07 T06 §9 records the app host's live read-back` (landed as `9b3fcf4`, with the final review's fixes in `ef6a58b`)
 
 **Test checkpoint:** for each of `https://app.isitlegit.co.za/health` and `https://isitlegit.derick-f5a.workers.dev/health`, `curl -sf` answers HTTP 200 with JSON `ok: true` and `commit` equal to the deployed SHA (the configuration commit), and any other status or SHA fails. **Corrected 2026-10-29** (plan review): the commit comes before the deploy, and the workers.dev host must answer 200 with the SHA, not merely answer.
+
+> **Verified:** 2026-10-29 | §9 | 4813b1383186c3060a613247baecab22d9942581
+> **Review:** `docs/reviews/d07-t06-s9.json`
 
 ## Verification
 
