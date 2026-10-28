@@ -19,7 +19,7 @@ describe("parseMsg", () => {
     expect(headersAvailable).toBe(true);
     // The twin adds its own MIME Content-Type after the same transport headers.
     expect(parsed.headers).toEqual(mime.headers.filter((h) => h.name !== "Content-Type"));
-    expect(parsed.headers.filter((h) => h.name === "Received")).toHaveLength(1);
+    expect(parsed.headers.filter((h) => h.name === "Received")).toHaveLength(2);
     expect(parsed.text?.trim()).toBe(mime.text?.trim());
     // The HTML from code page 1252, non-ASCII text intact.
     expect(parsed.html).toBe(mime.html);
@@ -89,5 +89,37 @@ describe("parseMsg", () => {
     expect(new TextEncoder().encode(parsed.text ?? "").byteLength).toBeLessThanOrEqual(BODY_PART_LIMIT);
     expect(parsed.truncated).toMatchObject([{ mediaType: "text/plain", charset: "utf-8", keptBytes: BODY_PART_LIMIT }]);
     expect(parsed.truncated[0]?.full.byteLength).toBeGreaterThan(BODY_PART_LIMIT);
+  });
+
+  describe("completion review cases", () => {
+    it("keeps repeated headers in order", async () => {
+      const { parsed } = await parseMsg(msgs.full);
+      expect(parsed.headers.filter((h) => h.name === "Received").map((h) => h.value.split(" ")[1])).toEqual([
+        "mx.fictional-recipient.example",
+        "mail.fictional-supplier.example",
+      ]);
+    });
+
+    it("reads 8-bit strings in the message's code page, and HTML in its own", async () => {
+      expect((await parseMsg(msgs.ansi)).parsed.text).toContain("Please pay \u20ac100 today.");
+      expect((await parseMsg(msgs.cyrillic)).parsed.html).toBe("<p>\u041f\u0440\u0438\u0432\u0435\u0442</p>");
+      await expect(parseMsg(makeMsg({ transportHeaders: true, messageCodepage: 99_999 }))).rejects.toThrow(
+        /code page 99999/,
+      );
+    });
+
+    it("keeps a cut HTML body whole with its code page", async () => {
+      const { parsed } = await parseMsg(makeMsg({ transportHeaders: true, htmlRepeat: 12_000 }));
+      expect(parsed.truncated).toMatchObject([
+        { mediaType: "text/html", charset: "windows-1252", keptBytes: BODY_PART_LIMIT },
+      ]);
+      expect(new TextDecoder("windows-1252").decode(parsed.truncated[0]?.full)).toContain("Caf\u00e9 S\u00e3o Paulo");
+    });
+
+    it("refuses a malformed property and a forged stream size as ParseError, before allocating", async () => {
+      await expect(parseMsg(msgs.malformedHeaders)).rejects.toThrow(/transport headers is not text/);
+      await expect(parseMsg(msgs.forgedSize)).rejects.toThrow(/declares 268435456 bytes/);
+      await expect(parseMsg(msgs.forgedSize)).rejects.toBeInstanceOf(ParseError);
+    });
   });
 });

@@ -20,6 +20,7 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7
 const EMBEDDED_SUBJECT = "Earlier message from the supplier";
 const PDF = new TextEncoder().encode("%PDF-1.4\n% fictional invoice 77\n%%EOF\n");
 const TRANSPORT_HEADERS = [
+  "Received: from mx.fictional-recipient.example by store.fictional-recipient.example; Tue, 27 Oct 2026 08:00:01 +0200",
   "Received: from mail.fictional-supplier.example by mx.fictional-recipient.example; Tue, 27 Oct 2026 08:00:00 +0200",
   "Authentication-Results: mx.fictional-recipient.example; spf=pass smtp.mailfrom=billing@fictional-supplier.example",
   `From: ${FROM_NAME} <${FROM}>`,
@@ -45,6 +46,7 @@ type Property = { tag: number; type: number; value: Uint8Array | number };
 const PT_LONG = 0x0003;
 const PT_UNICODE = 0x001f;
 const PT_BINARY = 0x0102;
+const PT_STRING8 = 0x001e;
 const unicode = (tag: number, text: string): Property => ({ tag, type: PT_UNICODE, value: utf16(text) });
 const binary = (tag: number, bytes: Uint8Array): Property => ({ tag, type: PT_BINARY, value: bytes });
 const long = (tag: number, value: number): Property => ({ tag, type: PT_LONG, value });
@@ -61,7 +63,7 @@ function addProperties(cfb: CFB.CFB$Container, path: string, header: Uint8Array,
     view.setUint32(at + 4, 0x6, true);
     if (typeof p.value === "number") view.setUint32(at + 8, p.value, true);
     else {
-      view.setUint32(at + 8, p.value.length + (p.type === PT_UNICODE ? 2 : 0), true);
+      view.setUint32(at + 8, p.value.length + (p.type === PT_UNICODE ? 2 : p.type === PT_STRING8 ? 1 : 0), true);
       const id = `${p.tag.toString(16).padStart(4, "0")}${p.type.toString(16).padStart(4, "0")}`.toUpperCase();
       CFB.utils.cfb_add(cfb, `${path}__substg1.0_${id}`, p.value);
     }
@@ -70,9 +72,32 @@ function addProperties(cfb: CFB.CFB$Container, path: string, header: Uint8Array,
 }
 
 // `bodyRepeat` repeats the text body that many times, for the body limits (D01 T01 §5).
-export type Variant = { transportHeaders: boolean; rtfOnly?: boolean; bodyRepeat?: number };
+// `bodyRepeat` and `htmlRepeat` repeat the text and HTML bodies (§5's limits); `ansi` writes the subject and text as 8-bit
+// strings in `messageCodepage` (1252 by default) instead of Unicode; `html` and `internetCodepage` replace the HTML body
+// and its code page; `binaryHeaders` stores the transport headers as binary, a malformed property.
+export type Variant = {
+  transportHeaders: boolean;
+  rtfOnly?: boolean;
+  bodyRepeat?: number;
+  htmlRepeat?: number;
+  ansi?: { subject: Uint8Array; text: Uint8Array };
+  messageCodepage?: number;
+  html?: Uint8Array;
+  internetCodepage?: number;
+  binaryHeaders?: boolean;
+};
 
-export function makeMsg({ transportHeaders, rtfOnly = false, bodyRepeat = 1 }: Variant): Uint8Array {
+export function makeMsg({
+  transportHeaders,
+  rtfOnly = false,
+  bodyRepeat = 1,
+  htmlRepeat = 1,
+  ansi,
+  messageCodepage,
+  html,
+  internetCodepage,
+  binaryHeaders = false,
+}: Variant): Uint8Array {
   const cfb = CFB.utils.cfb_new();
   // The top-level header: 8 reserved bytes, next recipient id, next attachment id, recipient count, attachment count,
   // 8 reserved bytes.
@@ -85,7 +110,19 @@ export function makeMsg({ transportHeaders, rtfOnly = false, bodyRepeat = 1 }: V
   topView.setUint32(20, attachments, true);
   addProperties(cfb, "/", top, [
     unicode(0x001a, "IPM.Note"),
-    unicode(0x0037, SUBJECT),
+    // PidTagStoreSupportMask: STORE_UNICODE_OK, so readers take the Unicode strings as Unicode ([MS-OXMSG] 2.1.3); an
+    // 8-bit message leaves it out and names its code page instead.
+    ...(ansi
+      ? [
+          { tag: 0x0037, type: PT_STRING8, value: ansi.subject },
+          { tag: 0x1000, type: PT_STRING8, value: ansi.text },
+          long(0x3ffd, messageCodepage ?? 1252),
+        ]
+      : [
+          long(0x340d, 0x00040000),
+          unicode(0x0037, SUBJECT),
+          ...(messageCodepage ? [long(0x3ffd, messageCodepage)] : []),
+        ]),
     unicode(0x0c1a, FROM_NAME),
     unicode(0x0c1f, FROM),
     unicode(0x0c1e, "SMTP"),
@@ -93,8 +130,18 @@ export function makeMsg({ transportHeaders, rtfOnly = false, bodyRepeat = 1 }: V
     ...(rtfOnly
       ? // Only a compressed RTF body: the "MELA" (uncompressed) form of [MS-OXRTFCP], no text and no HTML.
         [binary(0x1009, rtfUncompressed("{\\rtf1\\ansi Please pay invoice 77 today.\\par}"))]
-      : [unicode(0x1000, TEXT.repeat(bodyRepeat)), binary(0x1013, cp1252(HTML)), long(0x3fde, 1252)]),
-    ...(transportHeaders ? [unicode(0x007d, TRANSPORT_HEADERS)] : []),
+      : [
+          ...(ansi ? [] : [unicode(0x1000, TEXT.repeat(bodyRepeat))]),
+          binary(0x1013, html ?? cp1252(HTML.repeat(htmlRepeat))),
+          long(0x3fde, internetCodepage ?? 1252),
+        ]),
+    ...(transportHeaders
+      ? [
+          binaryHeaders
+            ? binary(0x007d, new TextEncoder().encode(TRANSPORT_HEADERS))
+            : unicode(0x007d, TRANSPORT_HEADERS),
+        ]
+      : []),
   ]);
   addProperties(cfb, "/__recip_version1.0_#00000000/", new Uint8Array(8), [
     long(0x0c15, 1),
@@ -130,6 +177,20 @@ export function makeMsg({ transportHeaders, rtfOnly = false, bodyRepeat = 1 }: V
   }
   CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", new Uint8Array(0));
   return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);
+}
+
+// A copy of a .msg whose directory entry named `name` declares `size` bytes ([MS-CFB] 2.6: a 128-byte entry, the name in
+// UTF-16LE at its start, the stream size at offset 120), as a hostile file would.
+function forgeSize(msg: Uint8Array, name: string, size: number): Uint8Array {
+  const forged = msg.slice();
+  const needle = utf16(name);
+  for (let i = 0; i + needle.length <= forged.length; i++) {
+    if (forged.subarray(i, i + needle.length).every((b, k) => b === needle[k])) {
+      new DataView(forged.buffer).setUint32(i + 120, size, true);
+      return forged;
+    }
+  }
+  throw new Error(`no directory entry named ${name}`);
 }
 
 // A well-formed .msg holding only its message class: no subject, body, headers or attachments.
@@ -192,6 +253,22 @@ export function fixtures(): Record<string, Uint8Array> {
     "not-a-msg.msg": new TextEncoder().encode("This is a plain text file renamed to .msg.\r\n"),
     "truncated.msg": full.subarray(0, 1024),
     "empty.msg": makeEmptyMsg(),
+    // 8-bit strings in code page 1252: "Pay \u20ac100" is 0x80 for the euro sign there.
+    "ansi.msg": makeMsg({
+      transportHeaders: true,
+      ansi: {
+        subject: Uint8Array.from([...cp1252("Pay "), 0x80, ...cp1252("100")]),
+        text: Uint8Array.from([...cp1252("Please pay "), 0x80, ...cp1252("100 today.\r\n")]),
+      },
+    }),
+    // HTML in ISO-8859-5 (code page 28595): "\u041f\u0440\u0438\u0432\u0435\u0442".
+    "cyrillic-html.msg": makeMsg({
+      transportHeaders: true,
+      html: Uint8Array.from([...cp1252("<p>"), 0xbf, 0xe0, 0xd8, 0xd2, 0xd5, 0xe2, ...cp1252("</p>")]),
+      internetCodepage: 28595,
+    }),
+    "malformed-headers.msg": makeMsg({ transportHeaders: true, binaryHeaders: true }),
+    "forged-size.msg": forgeSize(full, "__substg1.0_1000001F", 0x10000000),
     "invoice-request.eml": new TextEncoder().encode(TWIN),
   };
 }
