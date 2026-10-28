@@ -82,7 +82,8 @@ export type Variant = {
   rtfOnly?: boolean;
   bodyRepeat?: number;
   htmlRepeat?: number;
-  ansi?: { subject: Uint8Array; text: Uint8Array };
+  // `fileName` gives the first attachment an 8-bit file name in the same code page (msgreader decodes it).
+  ansi?: { subject: Uint8Array; text: Uint8Array; fileName?: Uint8Array };
   messageCodepage?: number;
   html?: Uint8Array;
   internetCodepage?: number;
@@ -175,7 +176,9 @@ export function makeMsg({
               : [
                   pdf === "binary-name"
                     ? binary(0x3707, new TextEncoder().encode("bad.pdf"))
-                    : unicode(0x3707, "invoice-77.pdf"),
+                    : ansi?.fileName
+                      ? { tag: 0x3707, type: PT_STRING8, value: ansi.fileName }
+                      : unicode(0x3707, "invoice-77.pdf"),
                 ]),
             unicode(0x3704, pdf === "short-name" ? "INV77.PDF" : "invoice-77.pdf"),
             unicode(0x370e, "application/pdf"),

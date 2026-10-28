@@ -106,6 +106,20 @@ describe("parseMsg", () => {
 
     it("reads 8-bit strings in the message's code page, and HTML in its own", async () => {
       expect((await parseMsg(msgs.ansi)).parsed.text).toContain("Please pay \u20ac100 today.");
+      // An 8-bit attachment file name, which msgreader decodes (round 5): "Facture-\u20ac77.pdf" in code page 1252, where
+      // the euro sign is 0x80 (read byte for byte it would be U+0080).
+      const fileName = Uint8Array.from([
+        ...new TextEncoder().encode("Facture-"),
+        0x80,
+        ...new TextEncoder().encode("77.pdf"),
+      ]);
+      const named = await parseMsg(
+        makeMsg({
+          transportHeaders: true,
+          ansi: { subject: new TextEncoder().encode("Pay"), text: new TextEncoder().encode("Pay."), fileName },
+        }),
+      );
+      expect(named.parsed.attachments[0]?.filename).toBe("Facture-\u20ac77.pdf");
       expect((await parseMsg(msgs.cyrillic)).parsed.html).toBe("<p>\u041f\u0440\u0438\u0432\u0435\u0442</p>");
       await expect(parseMsg(makeMsg({ transportHeaders: true, messageCodepage: 99_999 }))).rejects.toThrow(
         /code page 99999/,
@@ -152,11 +166,16 @@ describe("parseMsg", () => {
       const { parsed } = await parseMsg(
         makeMsg({
           transportHeaders: true,
-          ansi: { subject: new TextEncoder().encode("Pay"), text },
+          ansi: {
+            subject: new TextEncoder().encode("Pay"),
+            text,
+            fileName: new TextEncoder().encode("\u0421\u0447\u0451\u0442.pdf"),
+          },
           messageCodepage: 65001,
         }),
       );
       expect(parsed.text).toBe("Please pay \u20ac100 today. \u041f\u0440\u0438\u0432\u0435\u0442\r\n");
+      expect(parsed.attachments[0]?.filename).toBe("\u0421\u0447\u0451\u0442.pdf");
     });
 
     it("refuses a text property over the limit rather than decoding it", async () => {
