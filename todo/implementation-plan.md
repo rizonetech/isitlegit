@@ -290,7 +290,7 @@ Sections: 12 | Checklist items: 51
 
 | Status | Reference  | Deliverable                                   | Needs    | Items |
 | ------ | ---------- | --------------------------------------------- | -------- | ----- |
-| [ ]    | D99 T01 §1 | Meta API billing and API key                  | none     | 5     |
+| [x]    | D99 T01 §1 | Meta API billing and API key                  | none     | 5     |
 | [ ]    | D99 T01 §2 | Domain verification and nameservers           | none     | 15    |
 | [ ]    | D99 T01 §3 | Workers Paid plan                             | none     | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain                         | none     | 5     |
@@ -303,6 +303,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 46/234 verified sections, 31 ready to run now.
+Progress: 47/234 verified sections, 30 ready to run now.
 
-Checklist: 527/1376 items completed (includes Commit items).
+Checklist: 528/1376 items completed (includes Commit items).

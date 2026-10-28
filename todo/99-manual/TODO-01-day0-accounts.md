@@ -37,7 +37,7 @@ track: day-0
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Meta API billing and API key | -- | [ ] |
+| 1 | §1 | Meta API billing and API key | -- | [x] |
 | 2 | §2 | Domain verification and nameservers | -- | [ ] |
 | 3 | §3 | Workers Paid plan | -- | [ ] |
 | 4 | §4 | SMTP2GO sender domain | §2 | [ ] |
@@ -72,11 +72,14 @@ Credits apply in batches after the claim form; until they show, every call is ch
 - [x] Confirm US$150 under Billing, "free credits", and record it here as a line `Meta credit visible: YYYY-MM-DD`. Done when: the line is written; every `meta-api` section checks for it before its first call. Evidence: the operator reported the credit showing on Billing at 00:40 SAST on 2026-10-27.
 The key and the credit are on one Meta Model API team: the operator created the key in the same Model API dashboard whose Billing shows the hackathon credit (2026-10-27, items above), and the key's live calls are billed there (`docs/meta-smoke-test.md`, `docs/live-checks.md`). The `Meta credit visible` line proves the credit was visible on that date, not what remains; remaining spend is the budget guard's (D03 T01 §2).
 
-- [ ] Commit: `todo: record the Meta Model API account as ready`
+- [x] Commit: `todo: record the Meta Model API account as ready`
 
 Meta credit visible: 2026-10-27
 
 **Test checkpoint:** `python3 scripts/check-meta-key.py` exits 0 and prints `HTTP 200, <n> models listed, muse-spark-1.3 among them; key shape ok`: the vault's key has Meta's shape, is the recorded key (the SHA-256 of its public numeric id matches `EXPECTED_KEY_ID`, so another team's working key fails before any call; round 2 found a working foreign key passed), and Meta accepts it on its free model list, so a placeholder, a revoked or a replaced key fails, and a stalled vault (60 s) or network (30 s) fails with a reason; the key is never printed (`tests/scripts/test_check_meta_key.py`). **Corrected 2026-10-28** (the final review): it counted the credential's bytes, which proved only that something was stored; earlier still it called bare `op item get`. Evidence 2026-10-28 23:12 SAST: `check-meta-key: HTTP 200, 9 models listed, muse-spark-1.3 among them; the recorded key`, exit 0.
+
+> **Verified:** 2026-10-28 | §1 | fa9e5be213fadf9c075c398b2a2cf6a93a7c5552
+> **Review:** `docs/reviews/d99-t01-s1.json`
 
 ## 2. Domain verification and nameservers
 
