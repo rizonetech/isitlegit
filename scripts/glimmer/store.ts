@@ -41,6 +41,8 @@ export const MAX_WIDTH = 1280;
 export const MAX_HEIGHT = 2000;
 
 export const ORIGINS = ["public", "benign", "samples", "synthetic"] as const;
+// What a benign render's list said the page is (D03 T04 §6): a homepage, or a South African page of one kind.
+export const PAGE_KINDS = ["home", "login", "checkout", "account", "shop", "company", "social"] as const;
 // `unverified` marks a label from a public set whose spot check found more than 10 percent errors (D03 T04 §5): it is
 // kept out of evaluation and goes to §9's Astra and Claude adjudication, never trusted as ground truth.
 export const LABEL_SOURCES = [
@@ -81,6 +83,9 @@ export const PageMeta = z
     label_source: LabelSources,
     sha256: z.strictObject({ screenshot: z.string().length(64), text: z.string().length(64) }),
     redacted: z.boolean(),
+    // The listed URL a benign page was rendered from, and its list's kind (§6); other origins leave them out.
+    url: z.string().url().optional(),
+    kind: z.enum(PAGE_KINDS).optional(),
   })
   .refine((meta) => Object.keys(meta.label_source).every((k) => k in meta.labels), {
     message: "every label_source names a label the page has",
