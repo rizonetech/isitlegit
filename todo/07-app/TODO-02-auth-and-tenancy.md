@@ -35,7 +35,7 @@ track: day-1
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Better Auth on D1 with email magic link | D01 T01 §1, D01 T02 §1 | [ ] |
+| 1 | §1 | Better Auth on D1 with email magic link | D01 T01 §1, D01 T02 §1 | [x] |
 | 2 | §2 | Passkey sign-in | §1 | [ ] |
 | 3 | §3 | Organisations, roles, invites and removal | §1 | [ ] |
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [ ] |
@@ -74,9 +74,12 @@ Evidence 2026-10-28 02:35 SAST. `better-auth` 1.7.13 is pinned (`pnpm typecheck`
 
 Completion review 2026-10-28 (`docs/reviews/07-app/D07-T02-s1.md`): a failed link now goes to `/signin?next=<page>&error=<code>` rather than the protected page, the failure and new-user return paths are set server-side and checked on the link, link tokens are stored hashed, and `docs/operations.md` no longer claims a new secret voids sent links (it gives the D1 delete that does), in `761cbf2`; `test/auth` 22 passed, four more mutations caught. The page that renders the failed-link state and the inbox tab finishing by itself are §7's.
 
-- [ ] Commit: `auth: Better Auth on D1 with email magic links`
+- [x] Commit: `auth: Better Auth on D1 with email magic links`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth` passes (`auth.test.ts`, `flow.test.ts`, `gate.test.ts`) and fails if an expired magic link signs in, the HTTP flow breaks, an undelivered link is reported sent, a renewed cookie is dropped, or sign-out leaves the session. (**Corrected 2026-10-28**, plan review P2 4.)
+
+> **Verified:** 2026-10-28 | §1 | 2d1325de9be51b4c0c71d4036a66f55f7567612e
+> **Review:** `docs/reviews/d07-t02-s1.json`
 
 ## 2. Passkey sign-in
 

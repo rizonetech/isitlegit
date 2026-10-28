@@ -149,7 +149,7 @@ One page frame for every app page (`AGENTS.md`: a second toolbar or panel shape 
 **Chrome:** this section defines the frames: `AppShell` (`variant` member, admin or public), built from `Button` and `Pill` (§6). **Corrected 2026-10-27:** §3 now depends on §6, since the board's Check a file, switcher and copy buttons and its count and trial pills are §6's controls; drawing them here would be the second control shape `AGENTS.md` calls a defect.
 
 > **Deferred:** switching the active organisation (`POST /orgs/switch`, whose contract and tests D07 T02 §3 owns) -> XREF: D07 T02 §3
-> **Deferred:** signing out (`POST /auth/sign-out`, whose contract and tests D07 T02 §1 owns) -> XREF: D07 T02 §1
+> **Resolved:** signing out (`POST /auth/sign-out`, whose contract and tests D07 T02 §1 owns) -> XREF: D07 T02 §1. Resolved 2026-10-28 by D07 T02 §1 in `ed84e5d`, `078b08f` and `3ec9b8c`: `src/auth/sign-out.ts` checks the origin, ends the session (refusing with 503 and keeping the cookie when D1 fails the delete, through a Better Auth hook that also holds `/api/auth/sign-out`), clears the cookie and answers 303 to `/signin`.
 > **Deferred:** the report page's own back link to Cases on phones (`Report-Mobile`) -> XREF: D07 T03 §1
 > **Deferred:** the copy and menu behaviour in the browser (`[data-copy]`, the phone menu) -> XREF: D07 T01 §9
 
