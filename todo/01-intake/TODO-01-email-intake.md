@@ -224,6 +224,8 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 
 ## 6. Outlook .msg parsing
 
+> **Started:** 2026-10-28T10:17Z
+
 Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno/msgreader` must run under `nodejs_compat` in Workers; if it does not, `.msg` is cut and the reply explains how to forward as `.eml` (spec section 8 cut list).
 
 **Phase:** 1
@@ -235,14 +237,14 @@ Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno
 1. Prove the library in the workers pool. Done when: a synthetic `.msg` fixture parses in a Vitest workers test, or the failure is recorded and §6 falls back.
 2. Convert `.msg` to the same parsed summary as §5. Done when: the summary matches the `.eml` twin of the fixture field by field.
 
-- [ ] Add exact dependency `@kenjiuno/msgreader` 1.29.0. Done when: `pnpm install` resolves it.
-- [ ] Create synthetic fixture `test/fixtures/msg/invoice-request.msg` and its `.eml` twin from a fictional sender (generate the `.msg` with a script in `scripts/fixtures/`, never from real mail). Done when: both files exist and the generator is committed.
+- [ ] Add exact dependency `@kenjiuno/msgreader` 1.29.0, and `cfb` 1.2.2 as a development dependency for the fixture generator (it writes OLE compound files; **corrected 2026-10-28** at start: nothing could write a synthetic `.msg`). Done when: `pnpm install` resolves both and `NOTICE.md` lists them.
+- [ ] Create synthetic fixture `test/fixtures/msg/invoice-request.msg`, a draft variant `invoice-request-draft.msg` with no transport headers, and the `.eml` twin from a fictional sender, all written by `scripts/fixtures/make-msg.ts` (never from real mail). Done when: the three files exist, the generator is committed, and a test regenerates the `.msg` and finds it equal to the committed file.
 - [ ] When the `.msg` carries no `PidTagTransportMessageHeaders` (a draft or a message saved before sending), set the case's `headers_available` to 0 with `setHeadersAvailable` (D01 T01 §4), since §4 counts an attached `.msg` as having headers. Done when: a fixture without transport headers leaves the case at 0. Source: D01 T01 §4 start, 2026-10-28.
-- [ ] Write `parseMsg(bytes)` in `src/intake/msg.ts` mapping sender, recipients, subject, headers (`PidTagTransportMessageHeaders`), bodies and attachments into the §5 summary shape. Done when: `test/intake/msg.test.ts` compares it with `parseMessage` of the twin.
-- [ ] If the library fails in the workers pool, record the error in `docs/frontier-log.md` style under `docs/decisions.md`, make `parseMsg` throw `UnsupportedFormat`, and have the reply say to forward as attachment in Outlook's default format. Done when: either the parse test passes or the fallback test passes; never neither.
+- [ ] Write `parseMsg(bytes)` in `src/intake/msg.ts` returning §5's `ParsedMessage` (headers from `PidTagTransportMessageHeaders`, read by `postal-mime` as a header block, in order with repeats; the text body; the HTML body; each attachment's filename, declared type and bytes) with `headersAvailable` (false when there are no transport headers), cutting the text and HTML bodies to §5's limits with the full bytes kept in `truncated`, and counting an embedded Outlook item (attach method 5, which `msgreader` reads as fields, not as bytes) in `omitted`. Done when: `test/intake/msg.test.ts` finds its headers, text, HTML and attachment equal to `parseMessage` of the twin, the draft without headers, a large body cut with its full bytes kept, and `storeParsed` (§5) storing the result. (**Corrected 2026-10-28** at start: the "§5 summary shape" is `ParsedMessage`, which `storeParsed` stores; the limits and embedded items were unstated.)
+- [x] If the library fails in the workers pool, record the error in `docs/frontier-log.md` style under `docs/decisions.md`, make `parseMsg` throw `UnsupportedFormat`, and have the reply say to forward as attachment in Outlook's default format. Done when: either the parse test passes or the fallback test passes; never neither. (Not needed: probed 2026-10-28 at start, `msgreader` 1.29.0 reads the synthetic fixture inside the workers pool under `nodejs_compat`, subject, transport headers and attachment included; the parse test is the proof. A `.msg` it cannot read is a `ParseError`, which §7 turns partial.)
 - [ ] Commit: `intake: Outlook .msg parsing`
 
-**Test checkpoint:** `pnpm exec vitest run test/intake/msg.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/intake/msg.test.ts` passes, and fails if the transport headers are dropped, the draft claims headers, a body passes §5's limits, or the attachment's bytes differ from the twin's (**Corrected 2026-10-28** at start: "passes" alone could not fail).
 
 ## 7. AnalysisWorkflow skeleton, partial reports
 
