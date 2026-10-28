@@ -63,6 +63,33 @@ describe("visibleText", () => {
     expect(text).not.toMatch(/ {2}/);
   });
 
+  it("renders HTML to a screenshot the store accepts, with its text", async () => {
+    const out = await reader.renderHtml("<body><h1>Account sign in</h1><p>Welcome back</p></body>");
+    expect(jpegSize(out.screenshot)?.width).toBe(1280);
+    expect(out.text).toBe("Account sign in\nWelcome back");
+  });
+
+  it("sets the form flags as the screener's prompt defines them", async () => {
+    const flags = async (body: string) => {
+      const { has_login_form, has_payment_form } = await reader.renderHtml(`<body>${body}</body>`);
+      return [has_login_form, has_payment_form];
+    };
+    expect(await flags('<label for="u">Username</label><input id="u">')).toEqual([true, false]);
+    expect(await flags('<input type="email" placeholder="you@example.com">')).toEqual([true, false]);
+    expect(await flags('<input type="password">')).toEqual([true, false]);
+    expect(await flags('<input name="q" placeholder="Search">')).toEqual([false, false]);
+    expect(await flags('<input type="hidden" name="username"><input type="password" style="display:none">')).toEqual([
+      false,
+      false,
+    ]);
+    expect(await flags('<input autocomplete="cc-number"><input autocomplete="cc-csc">')).toEqual([false, true]);
+    expect(await flags('<iframe src="https://js.stripe.com/v3/elements" width="300" height="80"></iframe>')).toEqual([
+      false,
+      true,
+    ]);
+    expect(await flags("<p>Just text</p>")).toEqual([false, false]);
+  });
+
   it("fetches nothing a page names", async () => {
     const text = await reader.visibleText(
       `<body><img src="http://example.invalid/x.png" alt="logo"><iframe src="http://example.invalid/"></iframe>ok</body>`,

@@ -101,6 +101,15 @@ class Extract(unittest.TestCase):
         self.assertEqual(saved["status"], "incomplete")
         self.assertIn("No space left", saved["reason"])
 
+    def test_only_unpacks_the_named_part_but_checks_every_entry(self):
+        archive = self.zip_of({**FILES, "evaluation/big.json": b"x" * 500})
+        ex.extract(archive, self.dir / "part", limit=2000, only=("pages",))
+        self.assert_unpacked(self.dir / "part")
+        self.assertFalse((self.dir / "part" / "evaluation").exists())
+        hostile = self.zip_of({**FILES, "../escape.txt": b"x"}, name="hostile.zip")
+        with self.assertRaises(ex.Refused):
+            ex.extract(hostile, self.dir / "part2", only=("pages",))
+
     def test_an_existing_destination_is_never_overwritten(self):
         (self.dir / "out").mkdir()
         with self.assertRaises(ex.Refused):

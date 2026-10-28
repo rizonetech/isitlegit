@@ -65,21 +65,32 @@ def entries(archive):
     raise Refused(f"{archive} is neither a zip nor a tar archive")
 
 
-def plan(archive, limit):
-    """Every entry checked, and the declared total held to the limit, before one byte is written."""
+def wanted(name, only):
+    """Whether an entry lies under one of the `only` prefixes (every entry when none is given)."""
+    if not only:
+        return True
+    path = PurePosixPath(name.replace("\\", "/")).as_posix()
+    return any(path == prefix.rstrip("/") or path.startswith(prefix.rstrip("/") + "/") for prefix in only)
+
+
+def plan(archive, limit, only=()):
+    """Every entry checked, and the declared total held to the limit, before one byte is written. Every entry is
+    checked even when only some are wanted: an archive with a hostile entry anywhere is refused whole."""
     total = 0
     for name, _is_dir, size, _open in entries(archive):
         safe_name(name)
+        if not wanted(name, only):
+            continue
         total += max(size, 0)
         if total > limit:
             raise Refused(f"the archive expands past {limit} bytes")
 
 
-def extract(archive, destination, limit=LIMIT_BYTES):
+def extract(archive, destination, limit=LIMIT_BYTES, only=()):
     destination = Path(destination)
     if destination.exists():
         raise Refused(f"{destination} exists already; remove it or choose another")
-    plan(archive, limit)
+    plan(archive, limit, only)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.parent / f".{destination.name}.extracting-{os.getpid()}"
     shutil.rmtree(temporary, ignore_errors=True)
@@ -87,6 +98,8 @@ def extract(archive, destination, limit=LIMIT_BYTES):
     written = 0
     try:
         for name, is_dir, _size, opener in entries(archive):
+            if not wanted(name, only):
+                continue
             target = temporary / safe_name(name)
             if is_dir:
                 target.mkdir(parents=True, exist_ok=True)
@@ -120,9 +133,11 @@ def main(argv=None):
     parser.add_argument("archive")
     parser.add_argument("destination")
     parser.add_argument("--import-json", help="the source's IMPORT.json, marked incomplete on any failure")
+    parser.add_argument("--only", action="append", default=[],
+                        help="unpack only entries under this path inside the archive (repeatable)")
     args = parser.parse_args(argv)
     try:
-        written = extract(args.archive, args.destination)
+        written = extract(args.archive, args.destination, only=tuple(args.only))
     except (Refused, OSError, zipfile.BadZipFile, tarfile.TarError, EOFError) as error:
         reason = str(error) if isinstance(error, Refused) else f"{type(error).__name__}: {error}"
         if args.import_json:
