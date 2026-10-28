@@ -66,6 +66,29 @@ class DispatchHook(unittest.TestCase):
         result = run(bash(f"{REVIEW} > /tmp/log 2>&1 && echo ok || echo failed &> /dev/null", background=True))
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_an_astra_run_goes_through_the_background_option_only(self):
+        # D03 T04 §4 and §9: collection and judging take hours, so they follow the review rule.
+        for script in ("astra-collect", "astra-judge"):
+            command = f"python3 scripts/{script}.py"
+            self.assertEqual(run(bash(command, background=True)).returncode, 0, command)
+            for background in (False, None):
+                result = run(bash(command, background=background))
+                self.assertEqual(result.returncode, 2, f"{command} {background}")
+                self.assertIn("an Astra run takes hours", result.stderr)
+            for detached in (f"{command} &", f"nohup {command} > /tmp/log 2>&1 &", f"setsid {command}",
+                             f"cd /r; ./scripts/{script}.py & disown"):
+                result = run(bash(detached, background=True))
+                self.assertEqual(result.returncode, 2, detached)
+                self.assertIn("not detached", result.stderr)
+                self.assertIn(script, result.stderr)
+
+    def test_astra_calls_that_run_nothing_pass(self):
+        for script in ("astra-collect", "astra-judge"):
+            module = f"tests.scripts.test_{script.replace('-', '_')}"
+            for command in (f"python3 scripts/{script}.py --dry-run", f"python3 scripts/{script}.py --help",
+                            f"grep -n main scripts/{script}.py", f"python3 -m unittest {module}"):
+                self.assertEqual(run(bash(command)).returncode, 0, command)
+
     def test_an_unreadable_payload_lets_the_call_run(self):
         for payload in ("", "not json", "[]", json.dumps({"tool_name": "Bash", "tool_input": None})):
             self.assertEqual(run(payload).returncode, 0, payload)
