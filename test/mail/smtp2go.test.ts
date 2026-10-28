@@ -359,6 +359,22 @@ describe("sendMail", () => {
     expect(rows.results).toEqual([{ status: "refused", to_hash: await recipientHash("someone@example.com") }]);
   });
 
+  it("holds sign-in mail to one address to five in ten minutes, even under a concurrent burst", async () => {
+    const answers = Array.from({ length: 10 }, () => ok());
+    const { stub, calls } = smtp2go(answers);
+    const link = (n: number) => message({ to: "member@example.com", kind: "signin", sendKey: `signin:burst-${n}` });
+    for (let n = 0; n < 4; n++) expect((await sendMail(deps(stub), link(n))).status).toBe("sent");
+    // Four more at once: only one fits under the limit.
+    const burst = await Promise.all([4, 5, 6, 7].map((n) => sendMail(deps(stub), link(n))));
+    expect(burst.filter((o) => o.status === "sent")).toHaveLength(1);
+    expect(burst.filter((o) => o.status === "refused")).toHaveLength(3);
+    expect(calls).toHaveLength(5);
+    const rows = await db
+      .prepare("SELECT COUNT(*) AS n FROM mail_sends WHERE send_key LIKE 'signin:burst-%'")
+      .first<{ n: number }>();
+    expect(rows?.n).toBe(5);
+  });
+
   it("records no row for a refused sign-in, which anyone can ask for", async () => {
     const { stub, calls } = smtp2go([ok()]);
     const before = await db.prepare("SELECT COUNT(*) AS n FROM mail_sends").first<{ n: number }>();
