@@ -179,6 +179,26 @@ describe("handleEmail", () => {
     expect(world.sends).toEqual([]);
   });
 
+  it("migrates claims whose keys would meet if renamed in place: <a> and email:<a> both kept", async () => {
+    const org = `org-collide-${crypto.randomUUID().slice(0, 8)}`;
+    const at = new Date().toISOString();
+    for (const key of ["<a@fictional.example>", "email:<a@fictional.example>"])
+      await db
+        .prepare(
+          "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'done', NULL, ?)",
+        )
+        .bind(org, key, at)
+        .run();
+    const migration = env.TEST_MIGRATIONS.find((x) => x.name.startsWith("0019"));
+    for (const query of migration?.queries ?? []) await db.prepare(query).run();
+    const keys = (
+      await db.prepare("SELECT message_key FROM intake_messages WHERE org_id = ? ORDER BY message_key").bind(org).all<{
+        message_key: string;
+      }>()
+    ).results.map((r) => r.message_key);
+    expect(keys).toEqual(["email:<a@fictional.example>", "email:email:<a@fictional.example>"]);
+  });
+
   it("finds a claim made before migration 0019 when the same forward is delivered again after it", async () => {
     const { orgId, from } = await member();
     const m = message(from);
