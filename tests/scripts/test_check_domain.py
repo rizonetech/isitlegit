@@ -1,7 +1,9 @@
 """scripts/check-domain.py (D99 T01 §2): the live setup passes; each weakened record and each failed lookup is refused."""
 import importlib.util
 import pathlib
+import subprocess
 import unittest
+from unittest import mock
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("check_domain", REPO / "scripts/check-domain.py")
@@ -86,6 +88,36 @@ class Domain(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertEqual(len(lines), 1)
                 self.assertIn("a lookup failed, so nothing was judged", lines[0])
+
+
+class Dig(unittest.TestCase):
+    """dig() itself: what the subprocess reports becomes LookupFailed, and run() exits 2 on it."""
+
+    def lookup_fails(self, effect, fragment):
+        with mock.patch.object(cd.subprocess, "run", side_effect=effect):
+            with self.assertRaises(cd.LookupFailed) as ctx:
+                cd.dig("NS")
+            self.assertIn(fragment, str(ctx.exception))
+            code, lines = cd.run()
+            self.assertEqual(code, 2)
+            self.assertIn("a lookup failed", lines[0])
+
+    def test_a_timeout_a_failed_dig_and_a_servfail_are_lookup_failures(self):
+        self.lookup_fails(subprocess.TimeoutExpired("dig", 30), "no answer within 30 s")
+        self.lookup_fails(lambda *a, **k: subprocess.CompletedProcess(a[0], 9, "", ";; connection refused"),
+                          "dig exited 9")
+        servfail = ";; ->>HEADER<<- opcode: QUERY, status: SERVFAIL, id: 1\n;; flags: qr rd ra; QUERY: 1\n"
+        self.lookup_fails(lambda *a, **k: subprocess.CompletedProcess(a[0], 0, servfail, ""), "SERVFAIL")
+        self.lookup_fails(lambda *a, **k: subprocess.CompletedProcess(a[0], 0, "", ""), "no DNS response header")
+        self.lookup_fails(OSError(2, "No such file or directory"), "dig could not run")
+
+    def test_an_answer_is_read_from_the_answer_section(self):
+        out = (";; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 1\n;; flags: qr rd ra ad; QUERY: 1, ANSWER: 2\n"
+               "isitlegit.co.za. 300 IN NS carmelo.ns.cloudflare.com.\nisitlegit.co.za. 300 IN NS paris.ns.cloudflare.com.\n")
+        with mock.patch.object(cd.subprocess, "run", return_value=subprocess.CompletedProcess(["dig"], 0, out, "")):
+            rdata, flags = cd.dig("NS")
+        self.assertEqual(rdata, ["carmelo.ns.cloudflare.com.", "paris.ns.cloudflare.com."])
+        self.assertIn(" ad;", flags)
 
 
 if __name__ == "__main__":
