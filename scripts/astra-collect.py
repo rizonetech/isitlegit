@@ -25,6 +25,7 @@ Run it with the Bash tool's run_in_background option (scripts/dispatch_hook.py r
 takes hours.
 """
 import argparse
+import fcntl
 import json
 import os
 import shlex
@@ -43,6 +44,7 @@ MODEL = "gpt-6-astra"
 EFFORT = "high"
 REPORT = "ASTRA-REPORT.md"
 STATUS = "RUN-STATUS.json"
+LOCK = ".astra-collect.lock"
 DEADLINE_SECONDS = 4 * 60 * 60  # the brief's stop condition, held here so it does not rest on the model
 PROGRESS_SECONDS = 60
 KILL_GRACE_SECONDS = 5
@@ -88,7 +90,16 @@ def write_status(raw: Path, status: dict) -> None:
 
 
 def progress(raw: Path, started: float) -> str:
-    """One line on what the collection holds so far, read from the folder the brief tells Astra to fill."""
+    """One line on what the collection holds so far, read from the folder the brief tells Astra to fill.
+
+    A count that cannot be read says so instead of raising: progress must never stop a failure being recorded."""
+    try:
+        return count_progress(raw, started)
+    except OSError as error:
+        return f"astra-collect: progress unavailable: {error.strerror or error}"
+
+
+def count_progress(raw: Path, started: float) -> str:
     accepted = incomplete = 0
     for source in (p for p in raw.iterdir() if p.is_dir() and not p.name.startswith(".")):
         if (source / "COLLECTED.md").is_file():
@@ -146,13 +157,17 @@ def stop(child: subprocess.Popen) -> None:
             time.sleep(0.05)
 
 
-def running_elsewhere(pid) -> bool:
-    """Whether `pid` is a live astra-collect launcher (not merely a live process that reused the number)."""
+def take_lock(raw: Path):
+    """An exclusive lock on the store held for the whole run, or None when another collection holds it.
+
+    The kernel drops the lock when its holder dies, so a crashed run never blocks the next one."""
+    handle = open(raw / LOCK, "a+")  # noqa: SIM115 (held open for the life of the run)
     try:
-        cmdline = Path(f"/proc/{int(pid)}/cmdline").read_bytes()
-    except (OSError, ValueError, TypeError):
-        return False
-    return b"astra-collect" in cmdline and int(pid) != os.getpid()
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    return handle
 
 
 def write_fallback_report(raw: Path, status: dict) -> str:
@@ -215,15 +230,34 @@ def main(argv=None) -> int:
         print(shlex.join(run))
         return 0
 
+    # `raw/` is where Codex works, so it is judged itself: a symlink or a checkout there must not pass on the store's
+    # word. It is judged before it is created (when it already exists) and again after.
+    if raw.exists() and inside_repository(raw.resolve()):
+        return refuse(f"{raw} resolves into a git work tree ({raw.resolve()}); it must lie outside every repository")
     try:
         raw.mkdir(parents=True, exist_ok=True)
     except OSError as error:
         return refuse(f"cannot create {raw}: {error.strerror or error}")
+    raw = raw.resolve()
+    if inside_repository(raw):
+        return refuse(f"{raw} lies in a git work tree; it must lie outside every repository")
     if not raw.is_dir() or not os.access(raw, os.W_OK | os.X_OK):
         return refuse(f"{raw} is not a writable folder")
+    run = command(codex, raw)
 
-    # A status still `running` is either a live run, which this one must not race, or one that died before it could
-    # record its end, which is kept aside as `abandoned` so the relaunch starts clean.
+    lock = take_lock(raw)
+    if lock is None:
+        return refuse(f"another collection is running in {raw}")
+    try:
+        return collect(args, raw, run, lock)
+    finally:
+        lock.close()
+
+
+def collect(args, raw: Path, run: list[str], lock) -> int:
+    """The run itself, holding the store's lock."""
+    # Holding the lock, a status still `running` can only belong to a run that died before it recorded its end: it is
+    # kept aside as `abandoned` so the relaunch starts clean.
     previous_status = raw / STATUS
     if previous_status.is_file():
         try:
@@ -231,9 +265,6 @@ def main(argv=None) -> int:
         except (OSError, ValueError):
             earlier = {"outcome": "unreadable"}
         if earlier.get("outcome") in ("running", "unreadable"):
-            if running_elsewhere(earlier.get("pid")):
-                return refuse(f"another collection is running (pid {earlier.get('pid')}, "
-                              f"started {earlier.get('started')})")
             earlier["outcome"] = "abandoned"
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             try:
@@ -260,8 +291,12 @@ def main(argv=None) -> int:
         return refuse(f"cannot write {STATUS}: {error.strerror or error}")
     print(f"astra-collect: running Astra in {raw}; its report goes to {report}", flush=True)
 
+    stopping = False
+
     def interrupted(signum, _frame):
-        raise Interrupted(signal.Signals(signum).name)
+        # A second signal while the run is already stopping must not cut the shutdown short.
+        if not stopping:
+            raise Interrupted(signal.Signals(signum).name)
 
     previous = {sig: signal.signal(sig, interrupted) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     child = None
@@ -302,10 +337,13 @@ def main(argv=None) -> int:
         outcome, code = "failed", 1
         status["reason"] = f"{error.strerror or error}"
     finally:
-        if child is not None:
-            stop(child)  # also clears anything Codex left running after a normal exit
-        for sig, handler in previous.items():
-            signal.signal(sig, handler)
+        stopping = True
+        try:
+            if child is not None:
+                stop(child)  # also clears anything Codex left running after a normal exit
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
 
     if outcome == "completed" and not (report.is_file() and report.stat().st_size > 0):
         outcome, code = "failed", 1
@@ -320,6 +358,10 @@ def main(argv=None) -> int:
     except OSError as error:
         print(f"astra-collect: could not record the outcome in {STATUS} ({error.strerror or error}); it still reads "
               "running, and the next run sets it aside as abandoned", file=sys.stderr)
+        if code == 0:
+            # A collection whose end is not on record has not completed: the next run would set it aside.
+            outcome, code = "failed", 1
+            status["reason"] = f"its outcome could not be recorded ({error.strerror or error})"
     reason = f" ({status['reason']})" if status.get("reason") else ""
     print(f"astra-collect: {outcome}{reason}, exit {code}; {status['progress'].split(': ', 1)[1]}", flush=True)
     return code

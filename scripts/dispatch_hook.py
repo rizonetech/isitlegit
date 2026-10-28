@@ -15,15 +15,15 @@ import json
 import re
 import sys
 
-# The dispatcher run as a command: after `python`/`python3`, or in command position (the start, after `;`, `&`, `|`,
-# `(`, a newline, `nohup`, `setsid` or `exec`). Text that only mentions it (a heredoc, a commit message) is not a run.
-REVIEW = re.compile(
-    r"(?:\bpython3?\s+|(?:^|[\n;&|(]|\bnohup\b|\bsetsid\b|\bexec\b)\s*)(?:[\w.~/-]*/)?review-dispatch\.py\b"
-)
+# The dispatcher run as a command: after `python`/`python3` and any interpreter options (`-u`, `-X dev`, `-W error`), or
+# in command position (the start, after `;`, `&`, `|`, `(`, a newline, `nohup`, `setsid` or `exec`), its path quoted or
+# not. Text that only mentions it (a heredoc, a commit message) is not a run.
+RUN_PREFIX = (r"(?:\bpython3?(?:\.\d+)?(?:\s+(?:-[XW]\s*\S+|-[A-Za-z]+))*\s+"
+              r"|(?:^|[\n;&|(]|\bnohup\b|\bsetsid\b|\bexec\b)\s*)"
+              r"['\"]?(?:[\w.~/-]*/)?")
+REVIEW = re.compile(RUN_PREFIX + r"review-dispatch\.py\b")
 # The Astra launchers, matched the same way.
-ASTRA = re.compile(
-    r"(?:\bpython3?\s+|(?:^|[\n;&|(]|\bnohup\b|\bsetsid\b|\bexec\b)\s*)(?:[\w.~/-]*/)?(astra-(?:collect|judge))\.py\b"
-)
+ASTRA = re.compile(RUN_PREFIX + r"(astra-(?:collect|judge))\.py\b")
 # A single `&` that backgrounds a command, not `&&`, `&>`, `>&` or `2>&1`.
 DETACH = re.compile(r"(?<![&>])&(?![&>])|\bnohup\b|\bdisown\b|\bsetsid\b")
 

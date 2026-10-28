@@ -89,6 +89,16 @@ class DispatchHook(unittest.TestCase):
                             f"grep -n main scripts/{script}.py", f"python3 -m unittest {module}"):
                 self.assertEqual(run(bash(command)).returncode, 0, command)
 
+    def test_interpreter_options_and_quoted_paths_are_still_runs(self):
+        for command in ("python3 -u scripts/astra-collect.py", "python3 -u scripts/astra-collect.py &",
+                        "python3 -X dev scripts/astra-judge.py", "python3 'scripts/astra-collect.py'",
+                        'python3 -u "scripts/astra-collect.py" > /tmp/log 2>&1', "python3.12 scripts/astra-collect.py",
+                        "python3 -u scripts/review-dispatch.py --prompt /tmp/p.md --record x.md",
+                        "python3 'scripts/review-dispatch.py' --prompt /tmp/p.md --record x.md"):
+            self.assertEqual(run(bash(command)).returncode, 2, command)
+        self.assertEqual(run(bash("python3 -u scripts/astra-collect.py", background=True)).returncode, 0)
+        self.assertEqual(run(bash("python3 -u scripts/astra-collect.py --dry-run")).returncode, 0)
+
     def test_a_dry_run_beside_a_real_astra_run_does_not_let_it_through(self):
         for command in ("python3 scripts/astra-collect.py --dry-run && python3 scripts/astra-collect.py",
                         "python3 scripts/astra-judge.py; python3 scripts/astra-collect.py --dry-run"):

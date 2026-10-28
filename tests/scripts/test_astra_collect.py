@@ -5,6 +5,7 @@ and exits with a chosen code, so each test proves what really ran. The Astra rul
 checked by substance, and each check is shown to fail on a copy with that rule removed.
 """
 import errno
+import fcntl
 import importlib.util
 import json
 import os
@@ -198,13 +199,74 @@ class Launcher(unittest.TestCase):
     def test_a_live_collection_is_not_raced(self):
         raw = self.home / "isitlegit-data" / "glimmer" / "raw"
         raw.mkdir(parents=True)
-        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "astra-collect"])
-        self.addCleanup(lambda: (other.kill(), other.wait()))
-        (raw / "RUN-STATUS.json").write_text(json.dumps({"outcome": "running", "pid": other.pid, "started": "t0"}))
-        result = self.run_script()
+        with open(raw / ".astra-collect.lock", "a+") as held:
+            fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.run_script()
         self.assertEqual(result.returncode, 2)
         self.assertIn("another collection is running", result.stderr)
         self.assertFalse(self.log.exists())
+
+    def test_two_launchers_started_together_run_one_collection(self):
+        environment = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "HOME": str(self.home),
+                       "FAKE_CODEX_LOG": str(self.log), "FAKE_CODEX_SLEEP": "2"}
+        launchers = [subprocess.Popen([sys.executable, str(SCRIPT)], env=environment, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.PIPE, text=True) for _ in range(2)]
+        codes = sorted(launcher.wait(timeout=60) for launcher in launchers)
+        errors = "".join(launcher.stderr.read() for launcher in launchers)
+        for launcher in launchers:
+            launcher.stderr.close()
+        self.assertEqual(codes, [0, 2])
+        self.assertIn("another collection is running", errors)
+
+    def test_a_raw_folder_that_resolves_into_a_repository_is_refused(self):
+        checkout = self.tmp / "checkout"
+        (checkout / "collection").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+        store = self.tmp / "store"
+        store.mkdir()
+        (store / "raw").symlink_to(checkout / "collection")
+        result = self.run_script(GLIMMER_DATA_DIR=str(store))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("git work tree", result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertEqual(list((checkout / "collection").iterdir()), [])
+
+    def test_a_second_signal_does_not_cut_the_shutdown_short(self):
+        environment = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "HOME": str(self.home),
+                       "FAKE_CODEX_LOG": str(self.log), "FAKE_CODEX_SLEEP": "60", "FAKE_CODEX_IGNORE_TERM": "1",
+                       "FAKE_CODEX_DESCENDANT": "1"}
+        launcher = subprocess.Popen([sys.executable, str(SCRIPT)], env=environment, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.PIPE, text=True)
+        deadline = time.monotonic() + 20
+        while not self.log.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        time.sleep(0.2)
+        launcher.send_signal(signal.SIGTERM)
+        time.sleep(1)
+        launcher.send_signal(signal.SIGTERM)  # inside the 5-second grace period
+        code = launcher.wait(timeout=30)
+        stderr = launcher.stderr.read()
+        launcher.stderr.close()
+        self.assertEqual(code, 130, stderr)
+        self.assertNotIn("Traceback", stderr)
+        self.assertEqual(self.status()["outcome"], "interrupted")
+        for pid in (self.recorded()["pid"], self.recorded()["descendant"]):
+            end = time.monotonic() + 3
+            while alive(pid) and time.monotonic() < end:
+                time.sleep(0.05)
+            self.assertFalse(alive(pid))
+
+    def test_an_unreadable_count_does_not_stop_the_outcome_being_recorded(self):
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        raw.mkdir(parents=True)
+        rejected = raw / "REJECTED.md"
+        rejected.write_text("a: unclear\n")
+        rejected.chmod(0)
+        self.addCleanup(lambda: rejected.chmod(0o600))
+        result = self.run_script("--progress-seconds", "0.2", FAKE_CODEX_SLEEP="0.5")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("progress unavailable", result.stdout)
+        self.assertEqual(self.status()["outcome"], "completed")
 
     def test_progress_is_reported_while_codex_runs(self):
         raw = self.home / "isitlegit-data" / "glimmer" / "raw"
@@ -343,7 +405,7 @@ class FaultInjection(unittest.TestCase):
         with mock.patch.object(self.launcher, "write_status", failing), mock.patch("sys.stdout"), \
                 mock.patch("sys.stderr") as stderr:
             code = self.launcher.main([])
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 1)  # a run whose end is not on record has not completed
         self.assertEqual(calls, ["running", "completed"])
         printed = "".join(c.args[0] for c in stderr.write.call_args_list)
         self.assertIn("No space left on device", printed)
