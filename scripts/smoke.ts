@@ -64,9 +64,12 @@ export function refusal(status: number, text: string, commit: string, version: s
   return null;
 }
 
-// The hosts that serve the IsItLegit Worker: its workers.dev address in Rizonetech's account (the subdomain is the
-// account's, so `isitlegit.<other>.workers.dev` is someone else's Worker) and the isitlegit.co.za zone Rizonetech owns.
+// The two hosts that serve the IsItLegit Worker: its workers.dev address in Rizonetech's account (the subdomain is the
+// account's, so `isitlegit.<other>.workers.dev` is someone else's Worker) and its custom domain (D07 T06 §9). Nothing
+// else on the zone is the Worker: the apex and `www` are the marketing site (D07 T06 §6), and any other name could be
+// pointed elsewhere.
 export const WORKER_HOST = "isitlegit.derick-f5a.workers.dev";
+export const APP_HOST = "app.isitlegit.co.za";
 
 // The token goes only over HTTPS to one of those hosts. Checked before the secret is set, so a mistyped, plain-HTTP
 // or other account's address never receives, or even causes, a live token.
@@ -79,8 +82,8 @@ export function destinationProblem(base: string): string | null {
   }
   if (url.protocol !== "https:") return `${base} is not HTTPS; the token is never sent in the clear`;
   const host = url.hostname;
-  if (host !== WORKER_HOST && host !== "isitlegit.co.za" && !host.endsWith(".isitlegit.co.za"))
-    return `${host} is not the IsItLegit Worker (${WORKER_HOST} or isitlegit.co.za)`;
+  if (host !== WORKER_HOST && host !== APP_HOST)
+    return `${host} is not the IsItLegit Worker (${WORKER_HOST} or ${APP_HOST})`;
   return null;
 }
 

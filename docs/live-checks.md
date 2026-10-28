@@ -51,4 +51,4 @@ One call through `src/meta/client.ts` by `node scripts/meta-client-live.ts --con
 
 ## The app host
 
-`https://app.isitlegit.co.za` serves the `isitlegit` Worker as a Workers custom domain from 2026-10-28 23:30 UTC (D07 T06 §9), the host `APP_URL` and `PUBLIC_ORIGIN` name, so sign-in, claim and report links resolve. Tested deployment: `24e43d6` (version `261facf8-7495-4d27-b731-ab869cd66a24`); `/health` answers 200 with that SHA on it and on `isitlegit.derick-f5a.workers.dev`, which stays for `scripts/smoke.ts`. The apex and `www` stay with D07 T06 §6.
+`https://app.isitlegit.co.za` serves the `isitlegit` Worker as a Workers custom domain from 2026-10-28 23:30 UTC (D07 T06 §9), the host `APP_URL` (sign-in and invitation links) and `PUBLIC_ORIGIN` (report links) name, so those links resolve. Tested deployment: `24e43d6` (version `261facf8-7495-4d27-b731-ab869cd66a24`); `/health` answers 200 with that SHA on it and on `isitlegit.derick-f5a.workers.dev`, which stays for `scripts/smoke.ts`. The apex and `www` stay with D07 T06 §6.
