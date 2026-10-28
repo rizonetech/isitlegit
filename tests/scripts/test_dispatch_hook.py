@@ -89,6 +89,13 @@ class DispatchHook(unittest.TestCase):
                             f"grep -n main scripts/{script}.py", f"python3 -m unittest {module}"):
                 self.assertEqual(run(bash(command)).returncode, 0, command)
 
+    def test_a_dry_run_beside_a_real_astra_run_does_not_let_it_through(self):
+        for command in ("python3 scripts/astra-collect.py --dry-run && python3 scripts/astra-collect.py",
+                        "python3 scripts/astra-judge.py; python3 scripts/astra-collect.py --dry-run"):
+            result = run(bash(command))
+            self.assertEqual(result.returncode, 2, command)
+            self.assertIn("an Astra run takes hours", result.stderr)
+
     def test_an_unreadable_payload_lets_the_call_run(self):
         for payload in ("", "not json", "[]", json.dumps({"tool_name": "Bash", "tool_input": None})):
             self.assertEqual(run(payload).returncode, 0, payload)

@@ -6,8 +6,9 @@
 
 Astra follows docs/glimmer/astra-collection-brief.md, given on standard input, in `codex exec --sandbox
 workspace-write` with network access, rooted at the Glimmer data store's `raw/` folder: `GLIMMER_DATA_DIR`, default
-`~/isitlegit-data/glimmer`, the store scripts/glimmer/store.ts uses. A store inside this repository is refused, so
-nothing Astra downloads can be one `git add` from a public leak. The run creates `<store>/raw` first, moves an earlier
+`~/isitlegit-data/glimmer`, the store scripts/glimmer/store.ts uses. A store inside this repository or any other git
+work tree (the main checkout of a worktree included) is refused, so nothing Astra downloads can be one `git add` from a
+public leak. The run creates `<store>/raw` first, moves an earlier
 `ASTRA-REPORT.md` aside under its UTC stamp so a stale report never stands as this run's, and exits with Codex's own
 code. Claude verifies everything Astra collects (D03 T04 §5); Astra never reviews it.
 
@@ -40,7 +41,18 @@ def store_dir(env=None) -> Path:
 
 
 def inside_repository(path: Path) -> bool:
-    return path == ROOT or ROOT in path.parents
+    """Whether `path` is this repository or lies in any git work tree, judged from its nearest existing folder."""
+    if path == ROOT or ROOT in path.parents:
+        return True
+    existing = next((p for p in (path, *path.parents) if p.is_dir()), None)
+    if existing is None:
+        return False
+    git = shutil.which("git")
+    if not git:
+        return True  # unprovable without git, so treated as inside: the store must be shown to be outside
+    probe = subprocess.run([git, "-C", str(existing), "rev-parse", "--is-inside-work-tree"], capture_output=True,
+                           text=True, check=False)
+    return probe.returncode == 0 and probe.stdout.strip() == "true"
 
 
 def command(codex: str, raw: Path) -> list[str]:
@@ -62,7 +74,8 @@ def main(argv=None) -> int:
     store = store_dir()
     raw = store / "raw"
     if inside_repository(store):
-        return refuse(f"the data store {store} is inside the repository; set GLIMMER_DATA_DIR outside it")
+        return refuse(f"the data store {store} is inside the repository or another git work tree; "
+                      "set GLIMMER_DATA_DIR outside every repository")
     codex = shutil.which("codex")
     if not codex:
         return refuse("the Codex CLI (`codex`) is not on PATH")

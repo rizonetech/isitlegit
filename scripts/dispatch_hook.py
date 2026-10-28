@@ -39,10 +39,13 @@ def verdict(payload: dict) -> str | None:
     if REVIEW.search(command) and "--prompt" in command:
         name, job, length = "review-dispatch", "the review", "a review takes minutes"
     else:
-        astra = ASTRA.search(command)
-        if not astra or re.search(r"(?:^|\s)(?:--dry-run|--help|-h)(?:\s|$)", command):
+        # Each call is judged by its own arguments (up to the next `;`, `&`, `|` or newline), so a dry run beside a
+        # real run does not let the real one through.
+        noop = re.compile(r"(?:^|\s)(?:--dry-run|--help|-h)(?=\s|$)")
+        real = [m for m in ASTRA.finditer(command) if not noop.search(re.split(r"[;&|\n]", command[m.end():])[0])]
+        if not real:
             return None
-        name, job, length = astra.group(1), "the Astra run", "an Astra run takes hours"
+        name, job, length = real[0].group(1), "the Astra run", "an Astra run takes hours"
     if DETACH.search(command):
         return (f"{name}: run {job} with the Bash tool's run_in_background option, not detached "
                 "(&, nohup, disown, setsid): only the tool's option tells the session when it finishes")

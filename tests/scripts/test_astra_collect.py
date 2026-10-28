@@ -6,6 +6,7 @@ checked by substance, and each check is shown to fail on a copy with that rule r
 """
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -79,6 +80,16 @@ class Launcher(unittest.TestCase):
             self.assertFalse(self.log.exists())
         self.assertFalse((ROOT / "build" / "glimmer" / "raw").exists())
 
+    def test_a_store_in_another_git_work_tree_is_refused_without_launching(self):
+        other = self.tmp / "other-checkout"
+        other.mkdir()
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        result = self.run_script(GLIMMER_DATA_DIR=str(other / "data" / "glimmer"))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("another git work tree", result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assertFalse((other / "data").exists())
+
     def test_an_uncreatable_store_is_refused_without_launching(self):
         blocker = self.tmp / "file"
         blocker.write_text("not a folder")
@@ -107,9 +118,15 @@ class Launcher(unittest.TestCase):
         self.assertFalse(self.log.exists())
         self.assertFalse((self.home / "isitlegit-data").exists())
 
+    def test_without_git_the_store_cannot_be_shown_outside_a_repository(self):
+        result = self.run_script(PATH=str(self.bin))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("another git work tree", result.stderr)
+        self.assertFalse(self.log.exists())
+
     def test_it_refuses_without_codex(self):
         (self.bin / "codex").unlink()
-        result = self.run_script(PATH=str(self.bin))
+        result = self.run_script(PATH=f"{self.bin}{os.pathsep}{Path(shutil.which('git')).parent}")
         self.assertEqual(result.returncode, 2)
         self.assertIn("not on PATH", result.stderr)
 
