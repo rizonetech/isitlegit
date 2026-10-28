@@ -57,7 +57,7 @@ Sections: 38 | Checklist items: 302
 | [x]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 7     |
 | [x]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
 | [x]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 12    |
-| [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 12    |
+| [x]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 12    |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 9     |
 | [ ]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 6     |
 | [ ]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 7     |
@@ -283,6 +283,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 39/214 verified sections, 19 ready to run now.
+Progress: 40/214 verified sections, 20 ready to run now.
 
-Checklist: 442/1190 items completed (includes Commit items).
+Checklist: 443/1190 items completed (includes Commit items).

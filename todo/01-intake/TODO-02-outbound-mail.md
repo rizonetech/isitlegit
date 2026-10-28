@@ -37,7 +37,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SMTP2GO client with retries and send log | D01 T01 §1 | [x] |
 | 2 | §2 | Recipient allowlist enforced in code | §1, D07 T02 §3 | [x] |
-| 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §7, D01 T01 §8 | [ ] |
+| 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §7, D01 T01 §8 | [x] |
 | 4 | §4 | Test and demo mail aliases | §1 | [x] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [x] |
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
@@ -137,9 +137,12 @@ The member gets the answer as a reply in the same thread (spec 4.1): verdict, to
 - [x] Reply to a `partial` case too: the Workflow's `reply` step (D01 T01 §7) passes `{ status: "partial", failedStep, errorClass }` with no verdict and possibly no parsed summary, and the member is told plainly that the check could not finish, what to try (forward again; for an unreadable attachment, forward as `.eml`), with no verdict implied and no internal step or section names. Done when: `test/mail/reply.test.ts` builds the partial reply for a failed `parse` and a failed `checks` without a verdict or summary, and the Workflow test records one `mail_sends` row of kind `reply` for a partial case. (Assigned by D01 T01 §7's plan review, 2026-10-28.)
 - [x] Prove each send outcome through the Workflow, reading the SMTP2GO stub's request (recipient, sender, `In-Reply-To`, `References`, both bodies, the signed link) and the resulting `mail_sends` status: sent; a failure then success (one row, sent); failure on every attempt (the case `partial` naming `reply`); uncertain (the case `done`, the row `uncertain` for the reconcile job); refused (no provider call); an upload with no forwarder (no row, no call); and a partial case with neither raw message nor summary (the fallback subject, one call). Done when: each passes, and removing the outcome handling fails at least one. (**Added 2026-10-28**, plan review P1 3: a row alone proved nothing about the call.)
 - [x] Never send a second reply for the same case: the step checks `mail_sends` first. Done when: re-running the step sends nothing. Cheaper substitute: none; a retried step would otherwise mail twice. (**Corrected 2026-10-28** at start: `sendMail` already answers a key on record as `duplicate` without sending (D01 T02 §1), so the step's one key per case is the check; the test proves it through the step.)
-- [ ] Commit: `mail: threaded verdict reply with the signed report link`
+- [x] Commit: `mail: threaded verdict reply with the signed report link`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/analysis-workflow.test.ts test/pipeline/reply-step.test.ts` passes and fails if the reply step sends twice. (**Corrected 2026-10-28**, completion review: the send and duplicate proofs are in `test/pipeline/reply-step.test.ts`, which the checkpoint had left out.)
+
+> **Verified:** 2026-10-28 | §3 | 2adb8b3c37d9fa7a6116b066a775f96f48879711
+> **Review:** `docs/reviews/d01-t02-s3.json`
 
 ## 4. Test and demo mail aliases
 
