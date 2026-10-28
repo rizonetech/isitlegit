@@ -34,7 +34,7 @@ track: day-1
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Upload API for mail, documents and audio | D01 T01 §7, D07 T02 §1 | [ ] |
+| 1 | §1 | Upload API for mail, documents and audio | D01 T01 §7, D07 T02 §1 | [x] |
 | 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [x] |
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [ ] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
@@ -47,25 +47,37 @@ track: day-1
 
 ## 1. Upload API for mail, documents and audio
 
+> **Started:** 2026-10-28T14:53:17Z
+
 `POST /api/upload` accepts one file from a signed-in member and creates a case with channel `upload` (spec 4.1). The file is sniffed by content, not trusted by its extension, and routed: mail goes through the D01 T01 parse path; a PDF or image becomes a standalone document case (spec 4.5a); audio goes through §2 to §4.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-28** at start, against the code: the session and organisation come from `requireSession` and `requireOrg` (`src/auth/gate.ts`, `src/auth/org.ts`; a JSON request without a session gets 401, a member of no active organisation 403); `cases` has no `source_kind`, so migration `0018_source_kind.sql` adds it (`mail`, `document`, `image`, `audio`; an email case is `mail`); an uploaded `.eml` or `.msg` is the original message itself, not a forward, so the `parse` step reads it directly (`parseMessage`, or `parseMsg` for a `.msg`) rather than through `extractOriginal`, with headers available as the message carries them (an `.eml` with a `Received` or `Authentication-Results` header; a `.msg` by its own answer, D01 T01 §6), and the branch reads the stored file's media type, recorded when it was stored; and audio is only stored and recorded here, its transcription being D01 T03 §3, not built yet.
+
+**Corrected 2026-10-28** after the plan review (`docs/reviews/01-intake/D01-T03-s1.md`): the stated write order could not work (the store refuses objects for a case that does not exist yet); an upload had no retry identity or recovery, so a lost response or a storage failure could duplicate a case or strand one with its quota spent; `source_kind = image` would have missed D06 T02 §3's document route; the HTTP contract, the bounded read and the container checks were unstated; and nothing proved a non-mail case hands its later steps a usable input. The items below carry each fix.
+
 **Build order:**
 
 1. Write the route in `src/intake/upload.ts`. Done when: a test uploads each accepted type and gets a case id.
 2. Refuse the rest. Done when: an executable, a 30 MiB file and an unauthenticated request are each refused with the right status.
 
-- [ ] Write `POST /api/upload` (Hono) requiring a session from D07 T02 and the organisation's daily case cap from D07 T02 §4. Done when: an anonymous request gets 401 and a capped organisation gets 429 in `test/intake/upload.test.ts`. The case is created through `admitCase` (D07 T02 §4), which applies the daily cap in the same statement (a count then a separate insert would let two uploads take the last slot).
-- [ ] Sniff the type from magic bytes (`%PDF`, PNG, JPEG, WebP, OggS, RIFF/WAVE, ID3 or MPEG frame, `ftyp` M4A, OLE header for `.msg`, RFC 5322 header block for `.eml`). Done when: a renamed PDF uploaded as `x.png` is treated as PDF. Cheaper substitute: trusting the extension.
-- [ ] Refuse anything else with 415 and files over 25 MiB with 413, storing nothing; an M4A (an `ftyp` box with an audio brand) is refused by type with 415 and the message `UnsupportedAudio` gives, naming the formats taken (D01 T03 §8: AAC decoding waits on §10). Done when: both tests pass, an M4A upload gets 415 with that message, and R2 holds no object.
-- [ ] Store the file with `putRaw` for mail and `putAttachment` otherwise (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only derived kinds), create the case with `channel = "upload"` and a `source_kind` of mail, document, image or audio, and start the Workflow. Done when: each accepted fixture creates one case and one Workflow instance.
-- [ ] Make the Workflow's `parse` step branch on `source_kind`. Done when: a PDF case skips MIME parsing and records the document artefact.
-- [ ] Commit: `intake: upload API for mail, documents, images and audio`
+- [x] Take the request as `multipart/form-data` with exactly one file in the field `file`, answering `201 { caseId }` for a new case, `200 { caseId, repeat: true }` for the same file uploaded again within 24 hours, and every refusal as JSON `{ error }` in words a member can act on, with no case, object or Workflow created: 400 for no `file`, a second file or field, or a body that is not readable multipart; 401 without a session; 403 without an active organisation membership; 413 and 415 below; 429 at the daily cap; 503 when the service fails, to be retried. Done when: `test/intake/upload.test.ts` drives each through the Worker's route (`worker.fetch`) and finds no case, object or Workflow after each refusal. (**Added 2026-10-28**, plan review P2 4; the upload page is D01 T03 §6.)
+- [x] Read the body bounded: a `Content-Length` above 25 MiB plus 64 KiB of multipart overhead is refused 413 before reading; without one, the body is read while counting and abandoned the moment it passes that; the file itself may be 25 MiB exactly and not one byte more. Done when: exactly 25 MiB is accepted, 25 MiB plus one byte is refused 413, and a stream with no length that runs past the limit is refused 413 having read no more than the limit, each with nothing persisted. (**Added 2026-10-28**, plan review P2 5.)
+- [x] Write `POST /api/upload` (Hono) behind `requireSession` and `requireOrg`, with the organisation's daily case cap from D07 T02 §4. Done when: an anonymous request gets 401 and a capped organisation gets 429 in `test/intake/upload.test.ts`. The case is created through `admitCase` (D07 T02 §4), which applies the daily cap in the same statement (a count then a separate insert would let two uploads take the last slot).
+- [x] Sniff the type from magic bytes (`%PDF`, PNG, JPEG, WebP, OggS, RIFF/WAVE, ID3 or MPEG frame, `ftyp` M4A, OLE header for `.msg`, RFC 5322 header block for `.eml`). Done when: a renamed PDF uploaded as `x.png` is treated as PDF. Cheaper substitute: trusting the extension. (**Corrected 2026-10-28**, plan review P2 6: a container is looked into, not taken by its signature: an OLE file is a message only when it is an Outlook message (`readCompoundFile` with its property stream and message class, D01 T01 §6), so a Word or Excel file is 415; an Ogg file only with an `OpusHead` in its first page, so Vorbis is 415; WebP only as `RIFF....WEBP`, WAV only as `RIFF....WAVE`. Fixtures: a `.doc`, an `.xls`, an Ogg Vorbis and an AVI each refused 415 with nothing stored.)
+- [x] Refuse anything else with 415 and files over 25 MiB with 413, storing nothing; an M4A (an `ftyp` box with an audio brand) is refused by type with 415 and the message `UnsupportedAudio` gives, naming the formats taken (D01 T03 §8: AAC decoding waits on §10). Done when: both tests pass, an M4A upload gets 415 with that message, and R2 holds no object.
+- [x] Store the file with `putRaw` for mail and `putAttachment` otherwise (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only derived kinds), create the case with `channel = "upload"` and a `source_kind` of mail, document, image or audio, and start the Workflow. Done when: each accepted fixture creates one case and one Workflow instance. (**Corrected 2026-10-28**, plan review P1 1 and 2: in this order: validate the request and the file, claim the upload and admit the case under the cap in one statement (`admitCase`), store the file, then create the Workflow; a capped upload creates no object and no Workflow. The claim, its undo and its settling move from `src/intake/email.ts` into a shared admission module both intakes use: an upload's claim key is `upload:<SHA-256 of the file>` within the organisation, so a retried request answers the first case; a store failure undoes the case and releases the claim and its quota (503); a Workflow creation whose outcome is unknown is reconciled as the email intake does, and the 15-minute sweep settles an upload claim left pending like an email one. Fault-injection tests: R2 failing, the Workflow creation failing and answering unknown, and a repeated request each leave one case or none, never two, and no claim stranded.)
+- [x] Add migration `0018_source_kind.sql` with `cases.source_kind` (`mail`, `document`, `image`, `audio`), `mail` for every existing row, and `sourceKind` on the typed `Case` (`src/db/cases.ts`). Done when: `test/db/schema.test.ts` finds an email case made before the migration read back as `mail`, and `getCaseForPipeline` answers the kind. (**Added 2026-10-28**, plan review P2 7.)
+- [x] Make the Workflow's `parse` step branch on `source_kind`. Done when: a PDF case skips MIME parsing and records the document artefact. (**Corrected 2026-10-28** at start: also an uploaded `.eml` parsed directly with its headers available, an uploaded `.msg` through `parseMsg`, an image recorded like a document, and an audio case recorded for D01 T03 §3, each proven through `env.ANALYSIS`; the case ends `done` with the stub verdict, and no reply is sent, since an upload has no forwarder: the member reads the report.) (**Corrected 2026-10-28**, plan review P2 7: every kind stores a summary its later steps read: mail as today; a document, image or audio case as `{ source: { kind, mediaType, key, bytes }, forward: { headersAvailable: false } }` at the same key, which the `checks` step reads and validates. The tests read each summary back and find the stored file's bytes unchanged at its key.)
+- [x] Commit: `intake: upload API for mail, documents, images and audio`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts` passes and fails if the type sniffing is replaced by the extension.
+
+> **Verified:** 2026-10-28 | §1 | f046a7c79d01d0c98125c0cb729b8b746ba41e17
+> **Review:** `docs/reviews/d01-t03-s1.json`
 
 ## 2. Audio decoding to 16 kHz mono WAV
 

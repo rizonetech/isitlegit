@@ -1,0 +1,11 @@
+{
+  "lanes": {
+    "glimmer": {
+      "branch": "glimmer-screener",
+      "worktree": "../isitlegit-glimmer",
+      "files": [
+        "todo/03-vision/TODO-04-glimmer.md"
+      ]
+    }
+  }
+}

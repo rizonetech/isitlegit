@@ -1,0 +1,132 @@
+{
+  "ref": "D01 T02 \u00a73",
+  "title": "Threaded reply with a signed report link",
+  "implementation_sha": "2adb8b3c37d9fa7a6116b066a775f96f48879711",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T02-s3.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/01-intake/D01-T02-s3.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/mail/reply.test.ts test/pipeline/analysis-workflow.test.ts test/pipeline/reply-step.test.ts -> Test Files 3 passed (3), Tests 59 passed (59)",
+    "pnpm exec vitest run -> Tests 777 passed | 2 skipped (779)",
+    "pnpm typecheck -> ok",
+    "pnpm exec biome check . -> ok",
+    "python3 scripts/todo-graph.py validate -> valid: 214 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s3.md",
+    "verdict": "filed",
+    "candidate": "d15fbf38574d73cc8689f007aed075ce8a15db81",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a71",
+      "D07 T08 \u00a71",
+      "D07 T03 \u00a77",
+      "D01 T01 \u00a79",
+      "D01 T01 \u00a711",
+      "D01 T01 \u00a712",
+      "D08 T02 \u00a72"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s3.md",
+    "candidate": "74c73a8f52587ccd709ddd6a4689bb912f07566c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T02-s3.md",
+    "verdict": "fixed",
+    "candidate": "9f9903fd634c82b69053b8988127fc9e51d4d4ff",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

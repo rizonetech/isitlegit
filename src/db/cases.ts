@@ -15,6 +15,9 @@ import { isUlid, ulid } from "./ulid";
 
 export const Channel = z.enum(["email", "upload"]);
 export const CaseStatus = z.enum(["received", "running", "done", "partial"]);
+// What the case was made from (migration 0018): a forward or an uploaded message is `mail`.
+export const SourceKind = z.enum(["mail", "document", "image", "audio"]);
+export type SourceKind = z.infer<typeof SourceKind>;
 export const Verdict = z.enum(["safe", "suspicious", "malicious"]);
 export type Channel = z.infer<typeof Channel>;
 export type CaseStatus = z.infer<typeof CaseStatus>;
@@ -31,6 +34,7 @@ export type Case = {
   // (D01 T01 §3); null for an upload.
   forwardedBy: string | null;
   messageId: string | null;
+  sourceKind: SourceKind;
   createdAt: string;
   updatedAt: string;
 };
@@ -55,6 +59,7 @@ type Row = {
   headers_available: number;
   forwarded_by: string | null;
   message_id: string | null;
+  source_kind: SourceKind;
   created_at: string;
   updated_at: string;
 };
@@ -67,6 +72,7 @@ const toCase = (row: Row): Case => ({
   headersAvailable: row.headers_available === 1,
   forwardedBy: row.forwarded_by,
   messageId: row.message_id,
+  sourceKind: row.source_kind,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -80,6 +86,7 @@ const NewCase = z.object({
   forwardedBy: z.string().trim().toLowerCase().email().max(254).nullish(),
   // RFC 5322 caps a header line at 998 characters.
   messageId: z.string().min(1).max(998).nullish(),
+  sourceKind: SourceKind.default("mail"),
   // A caller that must record the id before the case exists (the email intake's claim, D01 T01 §3) chooses it.
   id: z.string().refine(isUlid, "a case id is a ULID").optional(),
 });
@@ -127,12 +134,13 @@ export async function admitCase(
       headers_available: parsed.data.headersAvailable ? 1 : 0,
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
+      source_kind: parsed.data.sourceKind,
       created_at: at,
       updated_at: at,
     };
     const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
       )
       .bind(
         row.id,
@@ -143,6 +151,7 @@ export async function admitCase(
         row.headers_available,
         row.forwarded_by,
         row.message_id,
+        row.source_kind,
         row.created_at,
         row.updated_at,
         row.org_id,
@@ -180,12 +189,13 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
       headers_available: parsed.data.headersAvailable ? 1 : 0,
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
+      source_kind: parsed.data.sourceKind,
       created_at: now,
       updated_at: now,
     };
     await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         row.id,
@@ -196,6 +206,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
         row.headers_available,
         row.forwarded_by,
         row.message_id,
+        row.source_kind,
         row.created_at,
         row.updated_at,
       )

@@ -12,4 +12,10 @@ interface Env {
   // as "IsItLegit Better Auth secret". Replacing it signs every member out but leaves sent magic links valid; voiding
   // those is a D1 delete (docs/operations.md, Better Auth secret).
   BETTER_AUTH_SECRET?: string;
+  // Meta's Model API key (src/meta/client.ts), kept in the vault as "IsItLegit Meta Model API"; sent to AI Gateway as
+  // the bearer token, which the gateway passes on to Meta.
+  META_API_KEY?: string;
+  // AI Gateway `isitlegit`'s Run token (src/meta/client.ts), kept in the vault as "IsItLegit AI Gateway token"; sent as
+  // `cf-aig-authorization`, since the gateway requires authentication (D00 T01 §6).
+  CF_AIG_TOKEN?: string;
 }

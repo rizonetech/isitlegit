@@ -194,15 +194,18 @@ The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-
 **Needs:** operator
 **Surface:** no
 
+**Corrected 2026-10-28** (operator, 20:22 SAST): the product calls Meta's Model API and Fireworks AI only; Baseten and Modal are closed. Fireworks is used (Loupe, D03 T04), so its line reads `used`; Modal was offered and never applied for, so the record takes `not applied` beside `applied`, `granted` and `not offered`.
+
 **Build order:**
 
 1. Record each partner credit and that it is not used. Done when: one line per provider below.
 
-- [ ] Record each partner offer as a line `Partner credit <name>: <applied|granted|not offered>, YYYY-MM-DD (<what it covered>; not used: operator decision 2026-10-27)`, for Fireworks, Baseten and Modal. Done when: the three lines exist.
+- [x] Record each partner offer as a line `Partner credit <name>: <applied|granted|not applied|not offered>, YYYY-MM-DD (<what it covered>; <used|not used>: <the operator decision>)`, for Fireworks, Baseten and Modal. Done when: the three lines exist.
 - [ ] Commit: `todo: record partner credits`
 
-Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decision 2026-10-27; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
-Partner credit Fireworks: granted, 2026-10-28 (US$100 loaded, reported by the operator at 09:02 SAST; used: operator decision 2026-10-28 09:05 SAST reversed the 2026-10-27 one, and Muse Glimmer on Fireworks screens the monitor's pages, D03 T04 §1; keys in the vault items "IsItLegit Fireworks" (inference) and "IsItLegit Fireworks Admin" (local scripts), both placeholders until the operator fills them)
+Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decisions 2026-10-27 and 2026-10-28 20:22 SAST, the product calls Meta's Model API and Fireworks AI only, and Baseten is closed; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
+Partner credit Fireworks: granted, 2026-10-28 (US$100 loaded, reported by the operator at 09:02 SAST; used: operator decision 2026-10-28 09:05 SAST reversed the 2026-10-27 one, and Loupe, a Glimmer LoRA trained and served on Fireworks, screens the monitor's pages, D03 T04; keys in the vault items "IsItLegit Fireworks" (inference), "IsItLegit Fireworks Admin" (local scripts) and "IsItLegit Fireworks Owner" (the operator's own, for serverless training), each filled and answering HTTP 200 on 2026-10-28)
+Partner credit Modal: not applied, 2026-10-28 (offered for hosting Muse Glimmer; not used: operator decision 2026-10-28 20:22 SAST, the product calls Meta's Model API and Fireworks AI only, and Modal is closed)
 
 **Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
 

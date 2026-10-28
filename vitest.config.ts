@@ -31,6 +31,11 @@ export default defineConfig({
                 // A test-only Better Auth secret and the app's origin as the tests reach it (D07 T02 §1).
                 BETTER_AUTH_SECRET: "test-better-auth-secret-0123456789abcdef",
                 APP_URL: "http://localhost",
+                // The reply's test settings (D01 T02 §3): an https report origin, a test link secret and a test SMTP2GO
+                // key; SMTP2GO itself is stubbed in every test that sends.
+                PUBLIC_ORIGIN: "https://isitlegit.test",
+                REPORT_LINK_SECRET: "test-report-link-secret-0123456789abcdef",
+                SMTP2GO_API_KEY: `api-${"t".repeat(32)}`,
               },
             },
           }),

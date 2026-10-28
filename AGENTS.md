@@ -41,6 +41,19 @@ A row flips to `[x]` only through `python3 scripts/todo-graph.py stamp`, backed 
 
 `frozen: true` marks a TODO file that touches the safety contract below; each of its sections carries a `**Freeze check:**` naming the tests that must not move.
 
+## Parallel lanes
+
+Work that runs beside main for days runs as a lane: its own branch in its own worktree, worked by its own session. Today there is one, `glimmer` (branch `glimmer-screener` in `../isitlegit-glimmer`): Loupe, the Glimmer LoRA page screener on Fireworks, D03 T04. `todo/lanes.json` names each lane's branch, worktree and the TODO files it alone claims; every other file is main's (operator, 2026-10-28).
+
+- Claiming: `query ready` and `resolve` offer a session only its own lane's rows (the lane follows the checked-out branch; `TODO_LANE` overrides it), so another lane's ready row resolves with exit 4 and a `lane_note`. Which rows are ready, and the generated plan, are the same on every branch.
+- Editing: a lane changes its own TODO files, its own new code and its own data, plus small notes elsewhere (a finding, an XREF, a dated `Corrected` line). What main owns (a shared script, the Meta client, the budget guard, `package.json`) changes on main, or is filed for main through `add-todo`.
+- Dependencies: a lane row that depends on a main row waits until that row is stamped on main and merged into the lane.
+- Merging: the lane merges `origin/main` into its branch after each of its stamps (a merge, never a rebase or a force-push; on a conflict in `todo/implementation-plan.md`, take either side, then `plan --sync`). Main merges the lane at milestones, with every gate green: the screening contract, then Loupe once measured (D03 T04 §13).
+- Spend: every checkout spends Meta credit through one ledger outside the repositories, `~/isitlegit-data/ledgers/meta-spend.json` (`metaLedger()` in `scripts/meta-smoke.ts`; `ISITLEGIT_LEDGER_DIR` moves it), so spec 11's Meta caps hold across lanes; a checkout's old `build/meta-smoke-spend.json` is moved into it on first use. Lane data stays outside the repositories as well (`~/isitlegit-data/`).
+- Machine: one heavy job at a time across both sessions (a full test run, a review, a build, a training job). Check free memory first (`free -m`; wait below about 3000 MB) and run the full suite with `--maxWorkers=2` while the other lane is busy.
+- Campaign runs: each lane runs its own guard and heartbeat from its own worktree (`build/` is per worktree), and never ends or edits the other's.
+- Model providers: the product calls Meta's Model API and Fireworks AI only (operator, 2026-10-28); Baseten and Modal are closed.
+
 ## The safety contract (frozen)
 
 From the design spec sections 4.4a, 4.6, 4.6a and 2a. A change that needs to break one records the correction in the spec first, dated, with the cost of reversing it.

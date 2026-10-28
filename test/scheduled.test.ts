@@ -37,12 +37,15 @@ describe("the scheduled entrypoint", () => {
   });
 
   it("does nothing without the SMTP2GO key, and the HTTP routes still answer", async () => {
-    // Tests set no SMTP2GO_API_KEY secret, as a Worker before the key is put has none: the run says so.
+    // A Worker before the SMTP2GO key is put has none (the tests set a test key for the reply, D01 T02 §3, so it is
+    // taken away here): the run says so.
     const lines: string[] = [];
-    const outcome = await scheduledReconcile(env as unknown as Env, (line) => lines.push(line));
+    const { SMTP2GO_API_KEY: _key, ...rest } = env;
+    const keyless = rest as unknown as Env;
+    const outcome = await scheduledReconcile(keyless, (line) => lines.push(line));
     expect(outcome.state).toBe("disabled");
     expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({ event: "mail-reconcile", state: "disabled" });
-    const response = await worker.fetch(new Request("https://example.com/health"), env, {
+    const response = await worker.fetch(new Request("https://example.com/health"), keyless, {
       waitUntil: () => {},
       passThroughOnException: () => {},
       props: {},

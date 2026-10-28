@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { admitCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
-import { CLAIM_LEASE_MS, handleEmail, MAX_MESSAGE_BYTES, RetryDelivery, sweepIntake } from "../../src/intake/email";
+import {
+  CLAIM_LEASE_MS,
+  handleEmail,
+  isAutomatic,
+  MAX_MESSAGE_BYTES,
+  RetryDelivery,
+  sweepIntake,
+} from "../../src/intake/email";
 import { EMAIL_ROUTING_AUTHSERV_ID } from "../../src/intake/sender";
 import { rawKey } from "../../src/intake/store";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
@@ -55,7 +62,14 @@ async function member(options: { cap?: number } = {}) {
 // A forward as Email Routing hands it to the Worker.
 function message(
   from: string,
-  options: { messageId?: string | null; auth?: string; body?: string; rawSize?: number; from?: string } = {},
+  options: {
+    messageId?: string | null;
+    auth?: string;
+    body?: string;
+    rawSize?: number;
+    from?: string;
+    autoSubmitted?: string;
+  } = {},
 ) {
   const domain = from.slice(from.indexOf("@") + 1);
   const messageId = options.messageId === undefined ? `<${crypto.randomUUID()}@${domain}>` : options.messageId;
@@ -75,6 +89,7 @@ function message(
   const rejected: string[] = [];
   const headers = new Headers();
   if (messageId) headers.set("Message-ID", messageId);
+  if (options.autoSubmitted) headers.set("Auto-Submitted", options.autoSubmitted);
   const forwardable = {
     from,
     to: "check@isitlegit.co.za",
@@ -160,8 +175,104 @@ describe("handleEmail", () => {
       bytes: m.bytes.byteLength,
     });
     expect(await workflowExists(caseId)).toBe(true);
-    expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "done", case_id: caseId }]);
+    expect(await claimsOf(orgId)).toEqual([{ message_key: `email:id:${m.messageId}`, state: "done", case_id: caseId }]);
     expect(world.sends).toEqual([]);
+  });
+
+  it("keeps a Message-ID that reads like a hash apart from the hash of a message without one", async () => {
+    const { orgId, from } = await member();
+    const { sha256Hex } = await import("../../src/intake/admit");
+    const unnamed = message(from, { messageId: null });
+    const spoof = message(from, { messageId: `sha256:${await sha256Hex(unnamed.bytes)}` });
+    expect((await handleEmail(spoof.forwardable, mailEnv)).kind).toBe("admitted");
+    expect((await handleEmail(unnamed.forwardable, mailEnv)).kind).toBe("admitted");
+    expect(await casesOf(orgId)).toHaveLength(2);
+  });
+
+  it("maps a claim keyed by a forward's hash before migration 0019 to the hash form, any other to the id form", async () => {
+    const org = `org-forms-${crypto.randomUUID().slice(0, 8)}`;
+    const hash = `sha256:${"ab".repeat(32)}`;
+    for (const key of [hash, "<b@fictional.example>"])
+      await db
+        .prepare(
+          "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'done', NULL, ?)",
+        )
+        .bind(org, key, new Date().toISOString())
+        .run();
+    const migration = env.TEST_MIGRATIONS.find((x) => x.name.startsWith("0019"));
+    for (const query of migration?.queries ?? []) await db.prepare(query).run();
+    const keys = (
+      await db.prepare("SELECT message_key FROM intake_messages WHERE org_id = ? ORDER BY message_key").bind(org).all<{
+        message_key: string;
+      }>()
+    ).results.map((r) => r.message_key);
+    expect(keys).toEqual(["email:id:<b@fictional.example>", `email:${hash}`]);
+  });
+
+  it("migrates claims whose keys would meet if renamed in place: <a> and email:id:<a> both kept", async () => {
+    const org = `org-collide-${crypto.randomUUID().slice(0, 8)}`;
+    const at = new Date().toISOString();
+    // <a> becomes email:id:<a>, which a claim left from before already holds until it is renamed in its turn.
+    for (const key of ["<a@fictional.example>", "email:id:<a@fictional.example>"])
+      await db
+        .prepare(
+          "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'done', NULL, ?)",
+        )
+        .bind(org, key, at)
+        .run();
+    const migration = env.TEST_MIGRATIONS.find((x) => x.name.startsWith("0019"));
+    for (const query of migration?.queries ?? []) await db.prepare(query).run();
+    const keys = (
+      await db.prepare("SELECT message_key FROM intake_messages WHERE org_id = ? ORDER BY message_key").bind(org).all<{
+        message_key: string;
+      }>()
+    ).results.map((r) => r.message_key);
+    expect(keys).toEqual(["email:id:<a@fictional.example>", "email:id:email:id:<a@fictional.example>"]);
+  });
+
+  it("finds a claim made before migration 0019 when the same forward is delivered again after it", async () => {
+    const { orgId, from } = await member();
+    const m = message(from);
+    // A done claim as the previous version wrote it: the Message-ID alone, no door.
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'done', NULL, ?)",
+      )
+      .bind(orgId, m.messageId, new Date().toISOString())
+      .run();
+    const migration = env.TEST_MIGRATIONS.find((x) => x.name.startsWith("0019"));
+    expect(migration).toBeDefined();
+    for (const query of migration?.queries ?? []) await db.prepare(query).run();
+    expect(await handleEmail(m.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(await claimsOf(orgId)).toEqual([{ message_key: `email:id:${m.messageId}`, state: "done", case_id: null }]);
+  });
+
+  it("reads Auto-Submitted as RFC 3834's keyword, comments and parameters around it", () => {
+    for (const machine of [
+      "auto-replied",
+      "no-reply",
+      "No-Reply",
+      "auto-generated; owner-email=a@b",
+      "(x) auto-replied",
+      "",
+    ])
+      expect(isAutomatic(machine), machine).toBe(true);
+    for (const person of ["no", "No", " no ", "(human) no", "no (sent by a person)", "no; reason=x"])
+      expect(isAutomatic(person), person).toBe(false);
+    expect(isAutomatic(null)).toBe(false);
+  });
+
+  it("ignores a message a machine sent on its own, and takes one marked Auto-Submitted: no", async () => {
+    const { orgId, from } = await member();
+    for (const value of ["auto-replied", "auto-generated", "Auto-Replied; owner-email=x@y"])
+      expect(await handleEmail(message(from, { autoSubmitted: value }).forwardable, mailEnv)).toEqual({
+        kind: "automatic",
+      });
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(world.sends).toEqual([]);
+    const human = await handleEmail(message(from, { autoSubmitted: "no" }).forwardable, mailEnv);
+    expect(human.kind).toBe("admitted");
   });
 
   it("drops mail from an unknown sender, and a member's address in a forward authenticated for another domain", async () => {
@@ -222,7 +333,7 @@ describe("handleEmail", () => {
     expect((await handleEmail(m.forwardable, mailEnv)).kind).toBe("admitted");
     expect(await handleEmail(again(m), mailEnv)).toEqual({ kind: "duplicate" });
     const [claim] = await claimsOf(orgId);
-    expect(claim?.message_key).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(claim?.message_key).toMatch(/^email:sha256:[0-9a-f]{64}$/);
     expect((await casesOf(orgId))[0]?.message_id).toBeNull();
   });
 
@@ -238,7 +349,7 @@ describe("handleEmail", () => {
       .prepare(
         "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
       )
-      .bind(orgId, started.messageId, first.value.id, old)
+      .bind(orgId, `email:id:${started.messageId}`, first.value.id, old)
       .run();
     expect(await handleEmail(started.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
     // Stopped before it: the old case and its raw object go, and the delivery makes one new case.
@@ -250,7 +361,7 @@ describe("handleEmail", () => {
       .prepare(
         "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
       )
-      .bind(orgId, stopped.messageId, orphan.value.id, old)
+      .bind(orgId, `email:id:${stopped.messageId}`, orphan.value.id, old)
       .run();
     const result = await handleEmail(stopped.forwardable, mailEnv);
     expect(result.kind).toBe("admitted");
@@ -437,7 +548,9 @@ describe("a delivery whose later step fails", () => {
     const m = message(from);
     await expect(handleEmail(m.forwardable, failing({ analysis }))).rejects.toBeInstanceOf(RetryDelivery);
     const [made] = await casesOf(orgId);
-    expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "pending", case_id: made?.id }]);
+    expect(await claimsOf(orgId)).toEqual([
+      { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
+    ]);
     // The sweep, after the lease, finds no Workflow and removes the case; the retried delivery then makes one.
     const counts = await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
     expect(counts.removed).toBeGreaterThanOrEqual(1);
@@ -536,7 +649,9 @@ describe("a delivery interrupted around admission (completion review)", () => {
     const m = message(from);
     await expect(handleEmail(m.forwardable, { ...mailEnv, DB: dropping })).rejects.toBeInstanceOf(RetryDelivery);
     const [made] = await casesOf(orgId);
-    expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "pending", case_id: made?.id }]);
+    expect(await claimsOf(orgId)).toEqual([
+      { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
+    ]);
     // After the lease the sweep finds no Workflow for it and removes the case with the claim.
     await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
     expect(await casesOf(orgId)).toEqual([]);

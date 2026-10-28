@@ -1,11 +1,29 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
-import { type CaseResult, getCaseForPipeline, setHeadersAvailable, setStatus, type Verdict } from "../db/cases";
-import { storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
+import {
+  type CaseResult,
+  getCaseForPipeline,
+  type SourceKind,
+  setHeadersAvailable,
+  setStatus,
+  type Verdict,
+} from "../db/cases";
+import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
-import { parseMessage, storeParsed } from "../intake/parse";
-import { parsedKey, rawKey, readArtefact, type Store } from "../intake/store";
+import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
+import { artefactsOf, parsedKey, putParsed, rawKey, readArtefact, type Store } from "../intake/store";
+import {
+  buildReply,
+  HEADER_RANGE,
+  parentHeaders,
+  REPLY_FROM,
+  type ReplyReport,
+  reportOrigin,
+  threading,
+} from "../mail/reply";
+import { sendMail } from "../mail/smtp2go";
+import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
 // The analysis pipeline for one case (D01 T01 §7): durable steps, so a failure resumes without repeating finished work
@@ -30,6 +48,15 @@ export type ReportState =
 const RETRIES: WorkflowStepConfig = {
   retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
   timeout: "30 seconds",
+};
+// The reply's own budget (the final review): its two optional reads (OPTIONAL_READ_MS each), then up to MAX_ATTEMPTS
+// provider calls of REPLY_SEND_TIMEOUT_MS with 1 and 2 seconds between them, all inside one attempt, so the attempt is
+// never stopped while SMTP2GO is still inside its own timeout and the send's outcome unrecorded.
+export const REPLY_SEND_TIMEOUT_MS = 20_000;
+export const REPLY_STEP_TIMEOUT_MS = 90_000;
+const REPLY_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+  timeout: `${REPLY_STEP_TIMEOUT_MS / 1000} seconds`,
 };
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
@@ -104,7 +131,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
-      step.do(name, RETRIES, () =>
+      step.do(name, name === "reply" ? REPLY_RETRIES : RETRIES, () =>
         safely(async () => {
           const startedAt = new Date().toISOString();
           const began = Date.now();
@@ -138,16 +165,16 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       admitted = await step.do("admit", RETRIES, () => safely(() => admit(db, caseId)));
     } catch (error) {
       const state = await fail("admit", error);
-      await timed("reply", () => reply(db, caseId, state)).catch((replyError) => fail("reply", replyError));
+      await timed("reply", () => reply(this.env, caseId, state)).catch((replyError) => fail("reply", replyError));
       return { caseId, state };
     }
     if (!admitted.admit) return { caseId, skipped: true };
-    const { orgId } = admitted;
+    const { orgId, channel, sourceKind, headersAvailable } = admitted;
 
     let state: ReportState;
     let current: StepName = "parse";
     try {
-      const key = await timed("parse", () => parse(store, caseId));
+      const key = await timed("parse", () => parse(store, caseId, { channel, sourceKind, headersAvailable }));
       current = "checks";
       const evidence = await timed("checks", () => checks(store, caseId, key));
       current = "verdict";
@@ -165,7 +192,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     // The reply hands the report state on; D01 T02 §3 sends it. A reply that fails ends a ready case partial, and on a
     // case already partial its failure is recorded too, the first failure kept as the report's.
     try {
-      await timed("reply", () => reply(this.env.DB, caseId, state));
+      await timed("reply", () => reply(this.env, caseId, state));
     } catch (error) {
       const failed = await fail("reply", error);
       if (state.status === "ready") state = failed;
@@ -190,7 +217,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 export async function admit(
   db: D1Database,
   caseId: string,
-): Promise<{ admit: false } | { admit: true; orgId: string }> {
+): Promise<{ admit: false } | ({ admit: true; orgId: string } & Source)> {
   const startedAt = new Date().toISOString();
   const began = Date.now();
   const found = await getCaseForPipeline(db, caseId);
@@ -204,8 +231,17 @@ export async function admit(
   must(await recordEvent(db, caseId, "admit", "started", { startedAt }), "recording admit");
   if (current.status === "received") must(await setStatus(db, current.orgId, caseId, "running"), "starting the case");
   must(await recordEvent(db, caseId, "admit", "done", { startedAt, ms: Date.now() - began }), "recording admit");
-  return { admit: true, orgId: current.orgId };
+  return {
+    admit: true,
+    orgId: current.orgId,
+    channel: current.channel,
+    sourceKind: current.sourceKind,
+    headersAvailable: current.headersAvailable,
+  };
 }
+
+// What the case came from, as the parse step needs it: a forward, an uploaded message or an uploaded file.
+export type Source = { channel: "email" | "upload"; sourceKind: SourceKind; headersAvailable: boolean };
 
 // A step's failure after its last attempt: an event naming the step and its error class, and the case `partial`
 // (moved through `running` if admission failed before it got there). A case already `done` stays so: its `finish`
@@ -231,14 +267,42 @@ export async function recordFailure(
 
 // Reads the forward, parses the original it carries (§4 to §6) and stores the summary (§5); the header state (§4, or
 // the .msg parser's own, §6) goes to the case and the summary alike. A message the parsers refuse is not retried.
-export async function parse(store: Store, caseId: string): Promise<string> {
+export async function parse(store: Store, caseId: string, source: Source): Promise<string> {
   // A case re-driven after an interrupted run keeps the summary it already has (its header state was written with it),
   // so it does not need the raw message, which expires after 30 days.
   const stored = await readArtefact(store, caseId, parsedKey(caseId));
   if (stored && "body" in stored) return parsedKey(caseId);
+  // An uploaded document, image or voice note (D01 T03 §1): no message to parse; its summary names the file, which the
+  // later steps read (the document path, D06 T02 §3; transcription, D01 T03 §3).
+  if (source.sourceKind !== "mail") {
+    const [file] = await artefactsOf(store, caseId, "attachment");
+    if (!file) throw fatal("RawMissing");
+    await putParsed(store, caseId, {
+      source: { kind: source.sourceKind, mediaType: file.mediaType, key: file.key, bytes: file.bytes },
+      forward: { headersAvailable: false },
+    });
+    return parsedKey(caseId);
+  }
   const raw = await readArtefact(store, caseId, rawKey(caseId));
   if (!raw || !("body" in raw)) throw fatal("RawMissing");
   try {
+    // An uploaded message is the original itself, not a forward: read directly, an .eml with the header state its
+    // trace gave it at upload, a .msg by its own answer.
+    if (source.channel === "upload") {
+      const isMsg = raw.stored.mediaType === "application/vnd.ms-outlook";
+      const { parsed, headersAvailable } = isMsg
+        ? await parseMsg(raw.body)
+        : { parsed: await parseMessage(raw.body), headersAvailable: source.headersAvailable };
+      must(await setHeadersAvailable(store.db, caseId, headersAvailable), "storing the header state");
+      await storeParsed(store, caseId, parsed, {
+        original: raw.body,
+        format: isMsg ? "msg" : "eml",
+        headersAvailable,
+        path: isMsg ? "msg" : "eml",
+        otherOriginals: 0,
+      });
+      return parsedKey(caseId);
+    }
     const forward = await extractOriginal(raw.body);
     const { parsed, headersAvailable } =
       forward.format === "msg"
@@ -253,18 +317,96 @@ export async function parse(store: Store, caseId: string): Promise<string> {
   }
 }
 
-// No checks are built yet (D02): the summary is read, so a missing one fails, and no evidence is returned.
+// No checks are built yet (D02): the summary is read and must be one (a parsed message's, or an uploaded file's naming
+// it), so a missing or malformed one fails, and no evidence is returned.
 export async function checks(store: Store, caseId: string, key: string): Promise<{ evidence: never[] }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
+  const read = JSON.parse(new TextDecoder().decode(summary.body)) as { forward?: unknown; source?: { key?: unknown } };
+  if (typeof read.forward !== "object" || (read.source !== undefined && typeof read.source.key !== "string"))
+    throw new Error("the parsed summary is malformed");
   return { evidence: [] };
 }
 
 const verdictOf = (_found: { evidence: never[] }): VerdictView => STUB_VERDICT;
 
-// Hands the report state on without sending anything (D01 T02 §3 sends it); the case's status at this point is part
-// of the result, so a test can see the case is not yet `done`.
-export async function reply(db: D1Database, caseId: string, state: ReportState) {
-  const found = must(await getCaseForPipeline(db, caseId), "reading the case for the reply");
-  return { state, caseStatus: found.status };
+// An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
+// time for the send.
+export const OPTIONAL_READ_MS = 5_000;
+function withinDeadline<T>(read: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("OptionalReadTimeout")), OPTIONAL_READ_MS);
+  });
+  return Promise.race([read, late]).finally(() => clearTimeout(timer));
+}
+
+// Sends the member the answer (D01 T02 §3): the stored verdict, or for a partial case a notice that it could not
+// finish, as a reply in the forward's thread, to the admitted forwarder, under one send key a case. The forward's
+// subject and threading come from its stored header block (read by a bounded range), else from the case's stored
+// Message-ID with a subject made by code. A case with no forwarder (an upload) has no one to reply to. A failed send
+// throws so the step retries; an uncertain one is left to the reconcile job; refused and duplicate are final.
+export async function reply(env: Env, caseId: string, state: ReportState) {
+  const found = must(await getCaseForPipeline(env.DB, caseId), "reading the case for the reply");
+  const base = { state, caseStatus: found.status };
+  if (!found.forwardedBy) return { ...base, mail: "none" as const };
+  const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+
+  let report: ReplyReport;
+  if (state.status === "ready") {
+    const stored = await getVerdict(env.DB, caseId);
+    if (!stored?.ok) throw new Error(`reading the verdict for the reply: ${stored ? stored.error.code : "missing"}`);
+    report = { status: "ready", view: stored.value };
+  } else {
+    report = { status: "partial", failedStep: state.failedStep, errorClass: state.errorClass };
+  }
+  // The summary and the forward's header block are optional: either unreadable (gone, a storage fault, or still not
+  // read after OPTIONAL_READ_MS, so a stalled read cannot use up the attempt) and the reply still goes, with no
+  // other-originals note and the fallback subject and threading.
+  const otherOriginals = await withinDeadline(readArtefact(store, caseId, parsedKey(caseId)))
+    .then((summary) =>
+      summary && "body" in summary
+        ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
+        : 0,
+    )
+    .catch(() => 0);
+  const head = await withinDeadline(
+    env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } }).then(async (object) =>
+      object ? new Uint8Array(await object.arrayBuffer()) : null,
+    ),
+  ).catch(() => null);
+  const parent = (await parentHeaders(head)) ?? {
+    subject: null,
+    messageId: null,
+    references: null,
+    inReplyTo: null,
+  };
+  const link = `${reportOrigin(env.PUBLIC_ORIGIN)}${await signReportLink(env.REPORT_LINK_SECRET, caseId, found.orgId)}`;
+  const built = buildReply({
+    parentSubject: parent.subject,
+    headersAvailable: found.headersAvailable,
+    otherOriginals,
+    report,
+    reportUrl: link,
+  });
+  const outcome = await sendMail(
+    { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, timeoutMs: REPLY_SEND_TIMEOUT_MS },
+    {
+      sendKey: `reply:${caseId}`,
+      kind: "reply",
+      to: found.forwardedBy,
+      from: REPLY_FROM,
+      subject: built.subject,
+      text: built.text,
+      html: built.html,
+      // RFC 3834: an automatic response says so, so a well-behaved responder never answers it.
+      headers: {
+        ...threading({ ...parent, messageId: parent.messageId || found.messageId }),
+        "Auto-Submitted": "auto-replied",
+      },
+      caseId,
+    },
+  );
+  if (outcome.status === "failed") throw new Error("ReplyNotSent");
+  return { ...base, mail: outcome.status };
 }

@@ -1764,6 +1764,89 @@ class CliOutput(Tree):
         self.assertEqual([r["ref"] for r in json.loads(result.stdout.decode("utf-8"))], ["D00 T01 §1"])
 
 
+class Lanes(Tree):
+    """Parallel lanes (todo/lanes.json): a lane's branch alone claims its files' rows; main claims the rest. The plan and
+    which rows are ready stay the same on every branch."""
+
+    def setUp(self):
+        super().setUp()
+        self.write(todo_file([(1, "Main work", 0, "none", "--")]))
+        self.write(todo_file([(1, "Lane work", 0, "none", "--")], ident="beta", domain="03-vision"),
+                   name="TODO-04-g.md", domain="03-vision")
+        self.lane_file = "todo/03-vision/TODO-04-g.md"
+
+    def config(self, lanes):
+        (self.root / "todo/lanes.json").write_text(json.dumps({"lanes": lanes}), encoding="utf-8")
+
+    def glimmer(self, **override):
+        return {"glimmer": {"branch": "glimmer-screener", "worktree": "../isitlegit-glimmer",
+                            "files": [self.lane_file], **override}}
+
+    def claim(self, here):
+        rows, config = tg.graph(self.root), tg.lanes(self.root)
+        return {ref: tg.claimable(row, rows, config, here) for ref, row in rows.items()}
+
+    def test_without_lanes_main_claims_every_ready_row(self):
+        self.assertEqual(tg.lanes(self.root), {})
+        self.assertEqual(self.claim("main"), {"D00 T01 §1": 0, "D03 T04 §1": 0})
+
+    def test_each_lane_claims_only_its_own_rows(self):
+        self.config(self.glimmer())
+        self.assertEqual(self.claim("main"), {"D00 T01 §1": 0, "D03 T04 §1": 4})
+        self.assertEqual(self.claim("glimmer"), {"D00 T01 §1": 4, "D03 T04 §1": 0})
+        # Readiness itself is the same everywhere, so the plan renders identically on both branches.
+        rows = tg.graph(self.root)
+        self.assertEqual({ref: tg.disposition(row, rows) for ref, row in rows.items()},
+                         {"D00 T01 §1": 0, "D03 T04 §1": 0})
+
+    def test_the_lane_follows_the_checked_out_branch_or_todo_lane(self):
+        self.config(self.glimmer())
+        git = lambda *args: subprocess.run(["git", "-C", str(self.root), *args], check=True,  # noqa: E731
+                                           capture_output=True)
+        git("init", "-q", "-b", "main")
+        git("-c", "user.name=t", "-c", "user.email=t@example.test", "commit", "-q", "--allow-empty", "-m", "x")
+        with mock.patch.dict(os.environ, {"TODO_LANE": ""}):
+            self.assertEqual(tg.current_lane(self.root), "main")
+            git("checkout", "-q", "-b", "glimmer-screener")
+            self.assertEqual(tg.current_lane(self.root), "glimmer")
+        with mock.patch.dict(os.environ, {"TODO_LANE": "main"}):
+            self.assertEqual(tg.current_lane(self.root), "main")
+        with mock.patch.dict(os.environ, {"TODO_LANE": "nobody"}), self.assertRaises(tg.Refused):
+            tg.current_lane(self.root)
+
+    def test_a_malformed_lanes_file_refuses_the_graph(self):
+        cases = {
+            "not a TODO file": self.glimmer(files=["todo/03-vision/TODO-09-missing.md"]),
+            "must list its files": self.glimmer(files=[]),
+            "cannot work branch main": self.glimmer(branch="main"),
+            "holds branch, worktree and files": {"glimmer": {"branch": "g", "files": [self.lane_file]}},
+            "must be lower-case": {"Glimmer": self.glimmer()["glimmer"]},
+        }
+        for fragment, lanes in cases.items():
+            with self.subTest(fragment):
+                self.config(lanes)
+                self.refuses(fragment)
+        self.config({**self.glimmer(), "other": {"branch": "other", "worktree": "../o", "files": [self.lane_file]}})
+        self.refuses("is listed by lanes glimmer and other")
+        (self.root / "todo/lanes.json").write_text("{", encoding="utf-8")
+        self.refuses("unreadable todo/lanes.json")
+
+    def test_resolve_and_query_ready_leave_another_lanes_row_to_it(self):
+        self.config(self.glimmer())
+        shutil.copytree(SCRIPTS, self.root / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+        run = lambda *args, lane: subprocess.run(  # noqa: E731
+            [sys.executable, str(self.root / "scripts/todo-graph.py"), *args], capture_output=True, text=True,
+            env={**os.environ, "TODO_LANE": lane})
+        ready = run("query", "ready", lane="main")
+        self.assertEqual([r["ref"] for r in json.loads(ready.stdout)], ["D00 T01 §1"])
+        resolved = run("resolve", "D03 T04 §1", lane="main")
+        self.assertEqual(resolved.returncode, 4)
+        self.assertIn("belongs to lane glimmer (branch glimmer-screener, ../isitlegit-glimmer)",
+                      json.loads(resolved.stdout)["lane_note"])
+        self.assertEqual(run("resolve", "D03 T04 §1", lane="glimmer").returncode, 0)
+        self.assertEqual(run("resolve", "D00 T01 §1", lane="glimmer").returncode, 4)
+
+
 class Repository(unittest.TestCase):
     def test_the_authoring_template_copy_is_identical(self):
         # todo/README.md and create-todo name todo/templates/TODO-template.md and each agent's skill copy as one file.

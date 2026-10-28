@@ -254,3 +254,25 @@ export async function readArtefact(
     throw new StoreError("storage", `reading ${key}: ${(error as Error).message}`);
   }
 }
+
+// A case's recorded artefacts of one kind, oldest key first (the rows only, no bodies): how a step finds what came with
+// an upload (D01 T03 §1). A failure is a `database` refusal like the other reads.
+export async function artefactsOf(store: Store, caseId: string, kind: Kind): Promise<Stored[]> {
+  checkCase(caseId);
+  try {
+    const rows = await store.db
+      .prepare("SELECT * FROM artefacts WHERE case_id = ? AND kind = ? ORDER BY r2_key")
+      .bind(caseId, kind)
+      .all<Row>();
+    return rows.results.map((row) => ({
+      key: row.r2_key,
+      caseId: row.case_id,
+      kind: row.kind,
+      sha256: row.sha256,
+      mediaType: row.media_type,
+      bytes: row.bytes,
+    }));
+  } catch (error) {
+    throw new StoreError("database", `listing the ${kind} artefacts of ${caseId}: ${(error as Error).message}`);
+  }
+}
