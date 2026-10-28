@@ -5,7 +5,7 @@ import { register } from "node:module";
 
 register(
   `data:text/javascript,${encodeURIComponent(`
-    const DEFAULT_EXPORT = new Set(["@kenjiuno/msgreader"]);
+    const DEFAULT_EXPORT = new Set(["@kenjiuno/msgreader", "@kenjiuno/msgreader/lib/const.js"]);
     export async function resolve(specifier, context, next) {
       // The package resolved as usual, then wrapped; the wrapper imports it by its file URL.
       if (DEFAULT_EXPORT.has(specifier))

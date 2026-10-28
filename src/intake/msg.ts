@@ -12,6 +12,7 @@
 // A file msgreader cannot read, one it reads as holding nothing, and one whose body is only compressed RTF are each a
 // ParseError, so the case ends partial naming why rather than as an empty message (reading RTF bodies: D01 T01 §13).
 import MsgReader from "@kenjiuno/msgreader";
+import msgreaderConstants from "@kenjiuno/msgreader/lib/const.js";
 import PostalMime from "postal-mime";
 import { type CfbEntry, type CompoundFile, child, hide, readCompoundFile } from "./cfb";
 import { ParseError } from "./mime";
@@ -37,17 +38,23 @@ type Fields = ReturnType<MsgReader["getFileData"]>;
 export const STRING_PROPERTY_LIMIT = 1024 * 1024;
 export const STRING_TOTAL_LIMIT = 4 * 1024 * 1024;
 
-// A property stream's key as msgreader reads it: the characters after "__substg1.0_", case ignored, whose second four
-// name the type it decodes by (001F Unicode, 001E 8-bit); it reads nothing past the eighth. The bounds below classify
-// streams the same way, and a name [MS-OXMSG] 2.1.4.1 does not allow (a suffix on a single-valued property, which
-// msgreader would still decode as that property) is refused, so no stream escapes them under another spelling.
-const PREFIX = "__substg1.0_";
-const keyOf = (entry: CfbEntry) =>
-  entry.name.startsWith(PREFIX) ? entry.name.slice(PREFIX.length).toLowerCase() : null;
+// msgreader recognises entries by name prefix, from its own constants: a property stream by "__substg1." (its key is
+// then the characters from the twelfth, case ignored, and the second four name the type it decodes by: 001F Unicode,
+// 001E 8-bit), an attachment, a recipient and the named-property map by theirs. Every name in one of those families
+// must be the one spelling [MS-OXMSG] 2.1 gives it, so no entry reaches msgreader under a spelling the bounds below do
+// not see (a suffix on a single-valued property, "__substg1.X_", round 2 and 4). The prefixes come from msgreader
+// itself, so an upgrade that changes them changes these checks with it.
+const FAMILY = msgreaderConstants.MSG.FIELD.PREFIX;
+const SPELLINGS: [string, RegExp][] = [
+  [FAMILY.DOCUMENT, /^__substg1\.0_(?:[0-9a-f]{8}|[0-9a-f]{4}1[0-9a-f]{3}-[0-9a-f]{8})$/i],
+  [FAMILY.ATTACHMENT, /^__attach_version1\.0_#[0-9a-f]{8}$/i],
+  [FAMILY.RECIPIENT, /^__recip_version1\.0_#[0-9a-f]{8}$/i],
+  [FAMILY.NAMEID, /^__nameid_version1\.0$/],
+];
+const keyOf = (entry: CfbEntry) => (entry.name.startsWith(FAMILY.DOCUMENT) ? entry.name.slice(12).toLowerCase() : null);
 const typeOf = (entry: CfbEntry) => keyOf(entry)?.slice(4, 8) ?? null;
 const isString = (entry: CfbEntry) => typeOf(entry) === "001f" || typeOf(entry) === "001e";
 const is8Bit = (entry: CfbEntry) => typeOf(entry) === "001e";
-const WELL_FORMED = /^[0-9a-f]{8}$|^[0-9a-f]{4}1[0-9a-f]{3}-[0-9a-f]{8}$/;
 // A named property's value as binary (class 0x8000 and up): msgreader parses some (voting buttons, time zones, a
 // recurrence) into strings, so they count against the same limits as text.
 const isNamedBinary = (entry: CfbEntry) => {
@@ -59,11 +66,10 @@ const isNamedBinary = (entry: CfbEntry) => {
 // "__nameid_version1.0" that holds the GUID (0002), entry (0003) and string (0004) streams, and decodes the string an
 // entry points at once for each entry ([MS-OXMSG] 2.2.3), so one long name referred to by many entries costs each time.
 // An entry pointing outside the string stream is a ParseError.
-const NAMEID = "__nameid_version1.0";
 function namedPropertyNames(file: CompoundFile): number {
   let total = 0;
   for (const storage of file.entries) {
-    if (storage.kind !== "storage" || !storage.name.startsWith(NAMEID)) continue;
+    if (storage.kind !== "storage" || !storage.name.startsWith(FAMILY.NAMEID)) continue;
     const table = (key: string) => storage.children.find((e) => e.kind === "stream" && keyOf(e) === key) ?? null;
     const [guids, entries, strings] = [table("00020102"), table("00030102"), table("00040102")];
     if (!guids || !entries || !strings) continue;
@@ -108,11 +114,10 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   // message class ([MS-OXMSG] 2.4, [MS-OXCMSG] 2.2.1.3): any other compound file (a Word document renamed .msg) is not
   // one.
   const file = readCompoundFile(bytes);
-  for (const entry of file.entries) {
-    const key = keyOf(entry);
-    if (key !== null && !WELL_FORMED.test(key))
-      throw new ParseError(`a property stream of the .msg has a malformed name (${entry.name})`);
-  }
+  for (const entry of file.entries)
+    for (const [prefix, spelling] of SPELLINGS)
+      if (entry.name.startsWith(prefix) && !spelling.test(entry.name))
+        throw new ParseError(`an entry of the .msg has a malformed name (${entry.name})`);
   if (!child(file.root, PROPERTIES) || !(rootProperty(file, "001a001f") || rootProperty(file, "001a001e")))
     throw new ParseError("the .msg is not an Outlook message: it has no message properties");
 

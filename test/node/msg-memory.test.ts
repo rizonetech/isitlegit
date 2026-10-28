@@ -11,11 +11,12 @@ const BUILDER = join(import.meta.dirname, "../../scripts/fixtures/msg-builder.ts
 // Resolves the source's extensionless relative imports and msgreader's default export in the child process.
 const HOOK = join(import.meta.dirname, "ts-extensionless.mjs");
 
-function underHeapLimit(variant: string) {
+function underHeapLimit(variant: string, rename = "") {
   const script = `
     import { parseMsg } from ${JSON.stringify(MSG)};
-    import { makeMsg } from ${JSON.stringify(BUILDER)};
+    import { makeMsg, renameEntry } from ${JSON.stringify(BUILDER)};
     let msg = makeMsg(${variant});
+    ${rename}
     const bytes = msg.byteLength;
     const { parsed } = await parseMsg(msg);
     console.log(JSON.stringify({ bytes, text: parsed.text.length, truncated: parsed.truncated.map((t) => t.charset) }));
@@ -40,5 +41,14 @@ describe("parseMsg under a 128 MiB heap", () => {
     const run = underHeapLimit("{ transportHeaders: true, names: { nameBytes: 1024 * 1024, references: 16 } }");
     expect(run.status).not.toBe(0);
     expect(run.stderr).toMatch(/ParseError: the .msg's text properties hold/);
+  });
+
+  it("refuses a 17 MB body under a spelling msgreader still reads, before decoding it", () => {
+    const run = underHeapLimit(
+      "{ transportHeaders: true, bodyRepeat: 150000 }",
+      'msg = renameEntry(msg, "__substg1.0_1000001F", "__substg1.X_1000001F");',
+    );
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toMatch(/ParseError: an entry of the .msg has a malformed name/);
   });
 });

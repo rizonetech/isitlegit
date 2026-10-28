@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import MsgReader from "@kenjiuno/msgreader";
+import msgreaderConstants from "@kenjiuno/msgreader/lib/const.js";
 import { describe, expect, it } from "vitest";
 import { makeDecoyCompoundFile, makeMsg, renameEntry } from "../../scripts/fixtures/msg-builder";
 import { createCase } from "../../src/db/cases";
@@ -207,6 +208,31 @@ describe("parseMsg", () => {
       await expect(
         parseMsg(makeMsg({ transportHeaders: true, namedBinary: STRING_PROPERTY_LIMIT + 2 })),
       ).rejects.toThrow(/__substg1\.0_80000102\) is 1048578 bytes/);
+    });
+  });
+
+  describe("round 4 cases", () => {
+    it("refuses every spelling msgreader recognises that the format does not give", async () => {
+      const body = makeMsg({ transportHeaders: true, bodyRepeat: 30_000 });
+      const renames: [string, string][] = [
+        ["__substg1.0_1000001F", "__substg1.X_1000001F"],
+        ["__substg1.0_0037001F", "__substg1.0_0037001"],
+        ["__attach_version1.0_#00000000", "__attach_version1.0_x"],
+        ["__recip_version1.0_#00000000", "__recip_version1.0_#0000000Z"],
+        ["__nameid_version1.0", "__nameid_version1.0x"],
+      ];
+      for (const [from, to] of renames)
+        await expect(parseMsg(renameEntry(body, from, to)), to).rejects.toThrow(/malformed name/);
+    });
+
+    it("takes msgreader's name prefixes from msgreader", () => {
+      // The pinned 1.29.0's values; a change here is an upgrade whose spellings above need reading again.
+      expect(msgreaderConstants.MSG.FIELD.PREFIX).toEqual({
+        ATTACHMENT: "__attach_version1.0",
+        RECIPIENT: "__recip_version1.0",
+        DOCUMENT: "__substg1.",
+        NAMEID: "__nameid_version1.0",
+      });
     });
   });
 });
