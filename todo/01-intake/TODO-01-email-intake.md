@@ -39,7 +39,7 @@ track: day-1
 | 2 | §2 | Case store and R2 artefact layout | §1 | [x] |
 | 3 | §3 | Email handler for verified members | §2, D07 T02 §4, D07 T02 §5 | [x] |
 | 4 | §4 | Forward-as-attachment detection | §3 | [x] |
-| 5 | §5 | MIME parsing and attachment extraction | §4 | [ ] |
+| 5 | §5 | MIME parsing and attachment extraction | §4 | [x] |
 | 6 | §6 | Outlook .msg parsing | §5 | [ ] |
 | 7 | §7 | AnalysisWorkflow skeleton, partial reports | §5 | [ ] |
 | 8 | §8 | Signed expiring report links | §1 | [x] |
@@ -211,13 +211,16 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 - [x] Write the parsed summary (headers, text, html, attachment keys, and `forward` with §4's `path`, `headersAvailable` and `otherOriginals`; **corrected 2026-10-28**, D01 T01 §4 start: the forward's outcome had no home; its completion review: `otherOriginals`, which the evidence (D02 T01 §1) and the reply (D01 T02 §3) read, was missing) with `putParsed(store, caseId, summary)` (**corrected 2026-10-28**, plan review: the store comes first) to `raw/<caseId>/parsed.json`, written last, after every attachment is stored, so a summary never names an attachment that is not there (**corrected 2026-10-27**, D01 T01 §2's plan review: it is the message's content, so it expires with the message under `raw/`; it was `art/<caseId>/parsed/summary.json`). Done when: the test reads it back through the store against D1 and R2, its headers, text, html and attachment keys equal to the fixture's, its `forward` holding §4's three fields for the `two-originals` fixture (`otherOriginals: 1`) and an inline one, and it is under 1 MiB for the fixture.
 - [x] Bound what `postal-mime` renders: its full parse turns a plain-text part into HTML, and an 8 MB crafted text part (`('&'.repeat(900)+'\r\n').repeat(8889)`) exhausted a 128 MiB heap (D01 T01 §4 round 1, which walks only the structure for that reason). Cut each text part to a stated limit (default 1 MiB, the rest kept in R2 and marked truncated in the summary) before rendering. How (**corrected 2026-10-28** at start, the "or parse it in a step whose failure ends the case `partial`" alternative struck: a crafted message would then always end without a verdict, an evasion): run `postal-mime`'s first stage (its line reader building the MIME tree, as D01 T01 §4 does, sharing that marked workaround in one module, `src/intake/mime.ts`), cut the body parts it would render (`text/plain` and `text/html` leaves that are not `Content-Disposition: attachment`; a text or HTML attachment is an attachment and keeps all its bytes) to 1 MiB each and to 2 MiB together across the message (the parts past the total cut to nothing), keep each cut part whole in R2 with `putAttachment`, then run `postal-mime`'s own remaining stages (collect, render, build) on the tree. The summary records the cut as `truncated`: one entry a cut part, with its media type, its artefact key, its full and kept byte counts, which D02 T05 §1 and D02 T07 §1 read to check the full parts and D02 T01 §1 reports. Done when: `test/intake/parse.test.ts` parses that message and one with twenty 800 KB text parts and an HTML part (each under the per-part limit, together over the total), `test/node/` parses both under a 128 MiB Node heap, an oversized text attachment keeps every byte, and the summary's `truncated` names each cut part's artefact (**Corrected 2026-10-28**, plan review: a per-part limit alone let twenty permitted parts exhaust 128 MiB; attachments were being cut; the overflow had no reader). Source: D01 T01 §4 round 1, 2026-10-28.
 - [x] Treat a parse failure as a typed `ParseError` (§4's, from `src/intake/forward.ts`) that the Workflow turns into a partial report (§7): `postal-mime`'s limits (nesting, part count, header size) refused. Done when: a fixture past each limit raises `ParseError`, not a crash, and a message cut off mid-part parses into what it holds (**Corrected 2026-10-28** at start: said a truncated fixture raises `ParseError`; `postal-mime` reads a cut-off message leniently, so that check could not fail).
-- [ ] Commit: `intake: MIME parsing with attachments stored in R2`
+- [x] Commit: `intake: MIME parsing with attachments stored in R2`
 
 > **Deferred:** links in a cut part's full text -> XREF: D02 T07 §1
 > **Deferred:** hidden text in a cut part's full HTML -> XREF: D02 T05 §1
 > **Deferred:** the evidence item saying a body was cut for reading and that the full part was still checked -> XREF: D02 T01 §1
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/parse.test.ts` and `pnpm exec vitest run --project node test/node/parse-memory.test.ts` pass, and fail if duplicate headers are collapsed (the `Received` chain needs them), the total budget is passed, an attachment is cut, or a summary is written before its attachments.
+
+> **Verified:** 2026-10-28 | §5 | d829a15dac92b4dac16470e453f9f440e6a1b20c
+> **Review:** `docs/reviews/d01-t01-s5.json`
 
 ## 6. Outlook .msg parsing
 

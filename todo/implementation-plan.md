@@ -54,7 +54,7 @@ Sections: 38 | Checklist items: 293
 | [x]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 10    |
 | [x]    | D01 T01 §3 | Email handler for verified members         | none                  | 13    |
 | [x]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 6     |
-| [ ]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 7     |
+| [x]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 7     |
 | [ ]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
 | [ ]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 7     |
 | [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 8     |
@@ -282,6 +282,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 36/213 verified sections, 15 ready to run now.
+Progress: 37/213 verified sections, 16 ready to run now.
 
-Checklist: 412/1177 items completed (includes Commit items).
+Checklist: 413/1177 items completed (includes Commit items).
