@@ -48,3 +48,7 @@ One call through `src/meta/client.ts` by `node scripts/meta-client-live.ts --con
 | Run (UTC) | Model | Result | Meta tokens in / out | Cost | Gateway log |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-28T16:43:00.242Z | `muse-spark-1.3` | passed | 15 / 64 | US$0.000291 | `01a18364-d800-7003-ab06-51024533cbdf`: metadata and a matching cost kept, no body |
+
+## The app host
+
+`https://app.isitlegit.co.za` serves the `isitlegit` Worker as a Workers custom domain from 2026-10-28 23:30 UTC (D07 T06 §9), the host `APP_URL` and `PUBLIC_ORIGIN` name, so sign-in, claim and report links resolve. Tested deployment: `24e43d6` (version `261facf8-7495-4d27-b731-ab869cd66a24`); `/health` answers 200 with that SHA on it and on `isitlegit.derick-f5a.workers.dev`, which stays for `scripts/smoke.ts`. The apex and `www` stay with D07 T06 §6.
