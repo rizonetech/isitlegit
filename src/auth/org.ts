@@ -13,7 +13,8 @@ export type OrgEnv = { Bindings: Env; Variables: { signedIn: SignedIn; org: Acti
 const refused = (error: string) => Response.json({ error }, { status: 403, headers: { "cache-control": "no-store" } });
 // Better Auth answers a definite refusal with a 4xx APIError; a 5xx one (its own read failing) or anything else is the
 // service failing (D1 unreachable), which still refuses the request but says so, to be retried, rather than telling a
-// member they do not belong.
+// member they do not belong. Its internal session read turns a failing store into a 401, so callers read the session
+// themselves first (requireSession; the switch below) and do not count on the status alone.
 export const isRefusal = (error: unknown) => isAPIError(error) && error.statusCode < 500;
 const unavailable = () =>
   Response.json(
@@ -24,14 +25,22 @@ const unavailable = () =>
 export const requireOrg = createMiddleware<OrgEnv>(async (c, next) => {
   const active = (c.get("signedIn").session as { activeOrganizationId?: string | null }).activeOrganizationId;
   if (!active) return refused("choose an organisation first");
-  let member: { organizationId: string; role: string } | null;
+  // The membership through Better Auth's adapter for the session the gate already read: a second session read inside
+  // the plugin (getActiveMember) would turn a failing store into "not signed in", a refusal instead of an outage.
+  let member: { role: string } | null;
   try {
-    member = await createAuth(c.env).api.getActiveMember({ headers: c.req.raw.headers });
-  } catch (error) {
-    if (!isRefusal(error)) return unavailable();
-    member = null;
+    const { adapter } = await createAuth(c.env).$context;
+    member = await adapter.findOne<{ role: string }>({
+      model: "member",
+      where: [
+        { field: "userId", value: c.get("signedIn").user.id },
+        { field: "organizationId", value: active },
+      ],
+    });
+  } catch {
+    return unavailable();
   }
-  if (!member || member.organizationId !== active) return refused("you are not a member of this organisation");
+  if (!member) return refused("you are not a member of this organisation");
   c.set("org", { id: active, role: member.role });
   await next();
 });

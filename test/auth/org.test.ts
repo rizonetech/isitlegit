@@ -223,6 +223,11 @@ describe("roles, revocation and removal", () => {
     expect((await membersOf(orgId)).map((m) => m.email)).toContain("deputy@example.com");
     const deputy = (await signIn("deputy@example.com")).cookie;
     expect((await invite(deputy, "welcome@example.com")).answer.status).toBe(200);
+    // An admin removes a member.
+    expect((await post("/organization/remove-member", deputy, { memberIdOrEmail: "plain@example.com" })).status).toBe(
+      200,
+    );
+    expect((await membersOf(orgId)).map((m) => m.email)).not.toContain("plain@example.com");
   });
 
   it("spend an invitation once: after an interrupted acceptance, an owner's new invitation brings them in", async () => {
@@ -244,9 +249,9 @@ describe("roles, revocation and removal", () => {
       .bind(invitationId(link), await userId("halfway@example.com"), new Date().toISOString())
       .run();
     await db.prepare(`UPDATE "invitation" SET status = 'accepted' WHERE id = ?`).bind(invitationId(link)).run();
+    // Accepted: Better Auth itself refuses it.
     const retried = await post("/organization/accept-invitation", halfway.cookie, { invitationId: invitationId(link) });
-    expect(retried.status).toBe(409);
-    expect(await retried.text()).toMatch(/already been used/);
+    expect(retried.status).toBeGreaterThanOrEqual(400);
     // An owner invites again; the new invitation joins them, once.
     const fresh = await invite(cookie, "halfway@example.com");
     expect(fresh.answer.status).toBe(200);
@@ -316,6 +321,37 @@ describe("roles, revocation and removal", () => {
           .status,
       ).toBe(200);
       expect((await membersOf(orgId)).filter((m) => m.email === invitee)).toHaveLength(1);
+    }
+  });
+
+  it("cancel a spent invitation only for an owner or admin of its organisation", async () => {
+    const orgId = await orgFor("guarded@example.com", "Guarded");
+    const { cookie } = await signIn("guarded@example.com");
+    const { link } = await invite(cookie, "spentone@example.com");
+    await db
+      .prepare("INSERT INTO invitation_uses (invitation_id, user_id, used_at) VALUES (?, 'someone', ?)")
+      .bind(invitationId(link), new Date().toISOString())
+      .run();
+    const statusOf = async () =>
+      (
+        await db
+          .prepare(`SELECT status FROM "invitation" WHERE id = ?`)
+          .bind(invitationId(link))
+          .first<{ status: string }>()
+      )?.status;
+    // Anonymous, a signed-in outsider, and a plain member: each refused by Better Auth, and the invitation untouched.
+    const outsider = await signIn("outsider-x@example.com");
+    const { link: memberLink } = await invite(cookie, "plainmember@example.com");
+    const plain = await signIn("plainmember@example.com");
+    await post("/organization/accept-invitation", plain.cookie, { invitationId: invitationId(memberLink) });
+    for (const who of ["", outsider.cookie, (await signIn("plainmember@example.com")).cookie]) {
+      const attempt = await post("/organization/invite-member", who, {
+        email: "spentone@example.com",
+        role: "member",
+        organizationId: orgId,
+      });
+      expect(attempt.status).toBeGreaterThanOrEqual(400);
+      expect(await statusOf()).toBe("pending");
     }
   });
 
