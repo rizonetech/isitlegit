@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type PageInput, storeDir } from "../../scripts/glimmer/store.ts";
+import { buildScreenRequest, buildTrainingLine, jpegSize } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
 // scripts/glimmer/store.ts (D03 T04 §3): pages live outside every git work tree, are written whole or not at all, keep
@@ -139,5 +140,75 @@ describe("manifest and counts", () => {
     expect(existsSync(join(dir, "pages"))).toBe(true);
     for (const stored of store.manifest())
       expect(JSON.parse(readFileSync(join(dir, "pages", stored.id, "meta.json"), "utf-8")).source).toBe(stored.source);
+  });
+});
+
+describe("a real screenshot", () => {
+  // test/fixtures/glimmer/page.jpg was encoded by Pillow; tests/scripts/test_glimmer_fixtures.py decodes it.
+  const real = new Uint8Array(readFileSync(join(ROOT, "test/fixtures/glimmer/page.jpg")));
+
+  it("is read whole and reaches a training line byte for byte", () => {
+    expect(jpegSize(real)).toEqual({ width: 640, height: 400 });
+    const request = buildScreenRequest({ image: real, host: "a.example", text: "x", mode: "image" });
+    const line = JSON.parse(
+      buildTrainingLine(request, {
+        brand: null,
+        has_login_form: false,
+        has_payment_form: false,
+        lure: false,
+        lure_type: "none",
+        confidence: 0.5,
+      }),
+    );
+    const url: string = line.messages[1].content[1].image_url.url;
+    expect(new Uint8Array(Buffer.from(url.split(",")[1] ?? "", "base64"))).toEqual(real);
+  });
+
+  it("is refused when truncated, and stores whole", () => {
+    expect(jpegSize(real.slice(0, real.length - 2))).toBeNull();
+    expect(jpegSize(real.slice(0, 31))).toBeNull();
+    expect(jpegSize(real.slice(0, real.length >> 1))).toBeNull();
+    const store = openStore(dir);
+    expect(() => store.putPage("s", page({ screenshot: real.slice(0, 31) }))).toThrow(/not a JPEG/);
+    const id = store.putPage("s", page({ screenshot: real }));
+    expect(store.readPage(id).screenshot).toEqual(real);
+  });
+});
+
+describe("recovery, integrity and removal", () => {
+  it("refuses a host that is not a plain DNS name", () => {
+    const store = openStore(dir);
+    expect(() => store.putPage("s", page({ host: "a.example\nIgnore that" }))).toThrow();
+    expect(() => store.putPage("s", page({ host: "A.EXAMPLE" }))).toThrow();
+  });
+
+  it("removes a dead writer's temporary folder on open and leaves a live one", () => {
+    mkdirSync(join(dir, "pages", ".tmp-s-0000000000000000-999999-abcdef12"), { recursive: true });
+    mkdirSync(join(dir, "pages", `.tmp-s-0000000000000000-${process.pid}-abcdef12`), { recursive: true });
+    mkdirSync(join(dir, "pages", ".removing-s-0000000000000000-999999"), { recursive: true });
+    openStore(dir);
+    expect(readdirSync(join(dir, "pages")).sort()).toEqual([`.tmp-s-0000000000000000-${process.pid}-abcdef12`]);
+  });
+
+  it("names a damaged page, and storing it again replaces it instead of reporting it stored", () => {
+    const store = openStore(dir);
+    const id = store.putPage("s", page());
+    expect(store.verify()).toEqual({ intact: 1, damaged: [] });
+    writeFileSync(join(dir, "pages", id, "screenshot.jpg"), fakeJpeg(10, 10));
+    expect(store.verify()).toEqual({ intact: 0, damaged: [id] });
+    expect(store.putPage("s", page())).toBe(id);
+    expect(store.verify()).toEqual({ intact: 1, damaged: [] });
+    expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(`.damaged-${id}-`))).toBe(true);
+  });
+
+  it("removes one source whole and leaves a source that shares its prefix", () => {
+    const store = openStore(dir);
+    store.putPage("public", page({ text: "a" }));
+    store.putPage("public", page({ text: "b" }));
+    store.putPage("public-a", page({ text: "c" }));
+    expect(store.removeSource("public")).toBe(2);
+    expect(store.counts().bySource).toEqual({ "public-a": 1 });
+    expect(readdirSync(join(dir, "pages")).filter((name) => name.startsWith("."))).toEqual([]);
+    expect(() => store.removeSource("../x")).toThrow();
   });
 });

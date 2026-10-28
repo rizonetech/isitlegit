@@ -44,7 +44,7 @@ export const SCREENER_SYSTEM_PROMPT = `You are Loupe, IsItLegit's page screener.
 ${UNTRUSTED_WARNING}
 
 Answer with one JSON object and nothing else, with exactly these fields:
-- brand: the brand or organisation the page presents itself as, or null when it presents none;
+- brand: the brand or organisation the page presents itself as, at most 200 characters, or null when it presents none;
 - has_login_form: true when the page asks for a username, email or password;
 - has_payment_form: true when the page asks for card or payment details;
 - lure: true when the page is a fake of any kind;
@@ -70,15 +70,29 @@ function randomNonce(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// No delimiter may survive in the content, including one that removing another would form ("<<<<ENDEND").
-function stripDelimiters(text: string): string {
-  let current = text;
-  for (;;) {
-    const next = current.replaceAll("<<UNTRUSTED", "").replaceAll("<<END", "");
-    if (next === current) return current;
-    current = next;
+const DELIMITERS = ["<<UNTRUSTED", "<<END"];
+
+// No delimiter may survive in the content, including one that removing another would form ("<<<<ENDEND"). One pass:
+// each character goes onto the output, and a delimiter completed at its end is taken off again, so hostile text costs
+// time in proportion to its length.
+export function stripDelimiters(text: string): string {
+  const out: string[] = [];
+  for (const character of text) {
+    out.push(character);
+    for (const delimiter of DELIMITERS) {
+      if (out.length < delimiter.length || character !== delimiter.at(-1)) continue;
+      if (out.slice(out.length - delimiter.length).join("") === delimiter) {
+        out.length -= delimiter.length;
+        break;
+      }
+    }
   }
+  return out.join("");
 }
+
+// A page's host as the request states it outside the untrusted block: a lowercase DNS name (punycode for IDNs), so
+// nothing from an imported dataset can add a line there.
+export const HOST = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
 
 export function base64(bytes: Uint8Array): string {
   let binary = "";
@@ -98,6 +112,9 @@ export function buildScreenRequest(input: {
   const nonce = input.nonce ?? randomNonce();
   if (!NONCE.test(nonce)) throw new TypeError("nonce must be 32 lowercase hex digits (128 bits)");
   if (input.mode === "image" && !input.image) throw new TypeError("image mode needs the screenshot");
+  if (input.host !== null && !HOST.test(input.host)) throw new TypeError("host must be a lowercase DNS name or null");
+  if (input.mode === "image" && input.image && !jpegSize(input.image))
+    throw new TypeError("the screenshot is not a whole JPEG");
   // Cut at a whole character: code points, never half of a surrogate pair.
   const text = Array.from(stripDelimiters(input.text)).slice(0, MAX_TEXT_CHARACTERS).join("");
   const parts: (TextPart | ImagePart)[] = [
@@ -125,26 +142,37 @@ export function buildTrainingLine(request: ScreenRequest, answer: PageAnswer): s
   });
 }
 
-// A JPEG's width and height from its start-of-frame marker, or null when the bytes are not a readable JPEG.
+// A whole JPEG's width and height, or null when the bytes are not one: every header segment must be complete, a frame
+// must come before the scan, and the file must end with the end-of-image marker, so a truncated or damaged screenshot
+// is refused here rather than at Fireworks.
 export function jpegSize(bytes: Uint8Array): { width: number; height: number } | null {
-  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  const n = bytes.length;
+  if (n < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[n - 2] !== 0xff || bytes[n - 1] !== 0xd9) return null;
+  let size: { width: number; height: number } | null = null;
   let at = 2;
-  while (at + 4 <= bytes.length) {
+  while (at + 4 <= n) {
     if (bytes[at] !== 0xff) return null;
     const marker = bytes[at + 1] as number;
-    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+    if (marker === 0xff) {
+      at += 1; // fill byte
+      continue;
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
       at += 2;
       continue;
     }
+    if (marker === 0xd8 || marker === 0xd9) return null; // a second start, or an end before any scan
     const length = ((bytes[at + 2] as number) << 8) | (bytes[at + 3] as number);
+    if (length < 2 || at + 2 + length > n) return null; // a segment cut short
     // SOF0 to SOF15, except DHT (C4), JPG (C8) and DAC (CC), carry the frame size.
     if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      if (at + 9 > bytes.length) return null;
+      if (length < 8) return null;
       const height = ((bytes[at + 5] as number) << 8) | (bytes[at + 6] as number);
       const width = ((bytes[at + 7] as number) << 8) | (bytes[at + 8] as number);
-      return width > 0 && height > 0 ? { width, height } : null;
+      if (width === 0 || height === 0) return null;
+      size = { width, height };
     }
-    if (length < 2) return null;
+    if (marker === 0xda) return size && at + 2 + length < n - 2 ? size : null; // the scan, with data after its header
     at += 2 + length;
   }
   return null;

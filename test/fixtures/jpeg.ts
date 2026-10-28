@@ -1,7 +1,11 @@
-// A JPEG header with a baseline frame of the given size: enough for every size check, which reads only the header.
+// A structurally whole JPEG of the given size: start, JFIF header, baseline frame, a scan with `extra + 1` bytes of
+// data, end. Enough for every size and structure check; it is not decodable, so the training-line test also uses
+// test/fixtures/glimmer/page.jpg, a real JPEG that tests/scripts/test_glimmer_fixtures.py decodes with Pillow.
 export function fakeJpeg(width: number, height: number, extra = 0): Uint8Array {
   const app0 = [0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0, 0];
   const sof0 = [0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 255, width >> 8, width & 255, 0x03];
   const components = [0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01];
-  return Uint8Array.from([0xff, 0xd8, ...app0, ...sof0, ...components, ...new Array(extra).fill(0x55), 0xff, 0xd9]);
+  const sos = [0xff, 0xda, 0x00, 0x0c, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3f, 0x00];
+  const data = [0x55, ...new Array(extra).fill(0x55)];
+  return Uint8Array.from([0xff, 0xd8, ...app0, ...sof0, ...components, ...sos, ...data, 0xff, 0xd9]);
 }

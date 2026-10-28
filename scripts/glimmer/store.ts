@@ -7,16 +7,31 @@
 //                                       sha256, redacted
 //
 // `<id>` is the source and the first 16 hex digits of the SHA-256 of the screenshot and text, so the same page stored
-// twice is one page. A page is written in a temporary folder and renamed into place, so an interrupted write leaves no
-// partial page. The store is `GLIMMER_DATA_DIR`, default `~/isitlegit-data/glimmer`, as scripts/astra-collect.py
-// resolves it.
+// twice is one page. A page is written in a temporary folder, each file and the folder flushed to disk, and renamed
+// into place, then the parent flushed, so a page is either whole or absent after a crash. Opening the store removes
+// temporary folders a dead writer left; `verify()` names any page whose files no longer match their hashes, and a
+// repeated `putPage` replaces such a page instead of reporting it stored. `removeSource()` takes a source's pages out
+// whole (D03 T04 §5 removes a source whose licence or files fail Claude's check). The store is `GLIMMER_DATA_DIR`,
+// default `~/isitlegit-data/glimmer`, as scripts/astra-collect.py resolves it.
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
-import { jpegSize, LURE_TYPES } from "../../src/vision/page-screen.ts";
+import { HOST, jpegSize, LURE_TYPES } from "../../src/vision/page-screen.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const MAX_WIDTH = 1280;
@@ -46,7 +61,7 @@ export const PageMeta = z
     source: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/),
     origin: z.enum(ORIGINS),
     licence: z.string().min(1),
-    host: z.string().min(1).nullable(),
+    host: z.string().regex(HOST, "a lowercase DNS name").nullable(),
     template: z.string().min(1).nullable(),
     south_africa: z.boolean(),
     labels: Labels,
@@ -94,10 +109,55 @@ const sha256 = (data: Uint8Array | string) => createHash("sha256").update(data).
 
 export type Writer = (path: string, data: Uint8Array | string) => void;
 
+// Writes a file and flushes it to disk before returning.
+function durableWrite(path: string, data: Uint8Array | string): void {
+  writeFileSync(path, data);
+  flush(path);
+}
+
+function flush(path: string): void {
+  const fd = openSync(path, "r");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
 export function openStore(dir: string = storeDir(), options: { write?: Writer } = {}) {
   if (insideRepository(resolve(dir))) throw new Error(`the Glimmer store ${dir} lies in a git work tree`);
   const pages = join(dir, "pages");
-  const write: Writer = options.write ?? ((path, data) => writeFileSync(path, data));
+  const write: Writer = options.write ?? durableWrite;
+  // A temporary folder whose writer is gone is an interrupted page: never published, so it is removed.
+  if (existsSync(pages))
+    for (const name of readdirSync(pages)) {
+      const writer = /^\.(?:tmp-.+-(\d+)-[0-9a-f]{8}|removing-.+-(\d+))$/.exec(name);
+      const pid = writer ? Number(writer[1] ?? writer[2]) : 0;
+      if (writer && !processAlive(pid)) rmSync(join(pages, name), { recursive: true, force: true });
+    }
+
+  // Whether a stored page's files still match the hashes its meta.json records.
+  function intact(id: string): boolean {
+    try {
+      const folder = join(pages, id);
+      const meta = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+      return (
+        sha256(readFileSync(join(folder, "screenshot.jpg"))) === meta.sha256.screenshot &&
+        sha256(readFileSync(join(folder, "text.txt"))) === meta.sha256.text
+      );
+    } catch {
+      return false; // a page whose files cannot be read or parsed is not intact: that is the answer, not an error
+    }
+  }
 
   function putPage(source: string, page: PageInput): string {
     const size = jpegSize(page.screenshot);
@@ -110,9 +170,14 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer } 
       source,
       sha256: { screenshot: sha256(screenshot), text: sha256(text) },
     });
-    const id = `${source}-${createHash("sha256").update(screenshot).update("\0").update(text).digest("hex").slice(0, 16)}`;
+    const digest = createHash("sha256").update(screenshot).update("\0").update(text).digest("hex");
+    const id = `${source}-${digest.slice(0, 16)}`;
     const final = join(pages, id);
-    if (existsSync(final)) return id;
+    if (existsSync(final)) {
+      if (intact(id)) return id;
+      // A damaged copy is not this page: it is set aside and the page written again.
+      renameSync(final, join(pages, `.damaged-${id}-${Date.now()}`));
+    }
     mkdirSync(pages, { recursive: true });
     const temporary = join(pages, `.tmp-${id}-${process.pid}-${randomBytes(4).toString("hex")}`);
     mkdirSync(temporary);
@@ -120,8 +185,10 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer } 
       write(join(temporary, "screenshot.jpg"), screenshot);
       write(join(temporary, "text.txt"), text);
       write(join(temporary, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`);
+      if (!options.write) flush(temporary);
       try {
         renameSync(temporary, final);
+        if (!options.write) flush(pages);
       } catch (error) {
         // Another writer stored the same page first: it is the same content, so this copy goes.
         if (!existsSync(final)) throw error;
@@ -140,6 +207,32 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer } 
       .filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory())
       .sort()
       .map((id) => ({ id, ...PageMeta.parse(JSON.parse(readFileSync(join(pages, id, "meta.json"), "utf-8"))) }));
+  }
+
+  // Every stored page whose files no longer match their hashes, or whose meta.json does not read.
+  function verify(): { intact: number; damaged: string[] } {
+    if (!existsSync(pages)) return { intact: 0, damaged: [] };
+    const ids = readdirSync(pages).filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory());
+    const damaged = ids.filter((id) => !intact(id)).sort();
+    return { intact: ids.length - damaged.length, damaged };
+  }
+
+  // Takes every page of one source out of the store, each folder renamed out of view before it is deleted, so a page
+  // is never half removed. Returns how many went.
+  function removeSource(source: string): number {
+    if (!/^[a-z0-9][a-z0-9-]{0,40}$/.test(source)) throw new TypeError("not a source name");
+    if (!existsSync(pages)) return 0;
+    let removed = 0;
+    for (const name of readdirSync(pages)) {
+      if (name.startsWith(".") || !name.startsWith(`${source}-`) || !/-[0-9a-f]{16}$/.test(name)) continue;
+      if (name.slice(0, -17) !== source) continue; // `public-a-…` is not a page of source `public`
+      const gone = join(pages, `.removing-${name}-${process.pid}`);
+      renameSync(join(pages, name), gone);
+      rmSync(gone, { recursive: true, force: true });
+      removed++;
+    }
+    if (!options.write) flush(pages);
+    return removed;
   }
 
   function counts() {
@@ -162,5 +255,5 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer } 
     };
   }
 
-  return { dir, putPage, manifest, counts, readPage };
+  return { dir, putPage, manifest, counts, readPage, verify, removeSource };
 }
