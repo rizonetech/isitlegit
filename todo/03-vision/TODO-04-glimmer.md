@@ -53,6 +53,7 @@ track: day-6
 | 15 | §1 | Glimmer screener, Spark failover | D03 T02 §3, §13, §15 | [ ] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [ ] |
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
+| 18 | §18 | Loupe 1.1 on a larger set, if time allows | §13, §17 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -513,6 +514,34 @@ Each Loupe version gets a model card the judges and the operator can read, gener
 - [ ] Commit: `glimmer: Loupe model card per version`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_model_card` passes and fails if a figure is missing, typed rather than read from the records, or the records disagree.
+
+## 18. Loupe 1.1 on a larger set, if time allows
+
+Loupe 1.0 is held to US$60 of rated tokens a run (§11), which fits only a few thousand screenshot examples, so 1.0 trains on what §5 to §9 gather. If 1.0 is measured early enough, 1.1 trains on a larger set with that cap lifted for this run only: Glimmer's supervised fine-tuning is free until 2026-11-30, so the cap guards against a surprise bill rather than a real one (operator, 2026-10-28 20:25 SAST: "let's plan for it and we can do it if there is time"). More lures matter most, because benign pages already outnumber them and §10 holds lures to 40 to 60 percent of each split.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Decide whether there is time. Done when: `docs/glimmer/training.md` records under `Decisions` that 1.1 runs or that it does not, with the times.
+2. Gather the larger set. Done when: the store holds the added sources and §6's wider benign list, each reconciled.
+3. Train, measure and choose. Done when: 1.1 is measured on 1.0's held-out set and the better version is promoted.
+
+- [ ] Decide from the clock: run 1.1 only when 1.0's §13 measurement is recorded before 2026-10-31 18:00 SAST, which leaves time to gather, build and train before §11's start cutoff of 2026-11-01 12:00 SAST and to measure before 2026-11-02 00:00 SAST. Otherwise record `1.1 not run: <reason>` and tick every remaining item of this section with that line as its result. Done when: the decision line is under `Decisions` in `docs/glimmer/training.md` with 1.0's measurement time.
+- [ ] Fetch three more PhreshPhish train shards to a temporary name, each checked against the dataset's published SHA-256 before it is renamed into place (as §5 checked shards 000 and 001; §16's resumable downloader is Phase 7) into `<store>/raw/phreshphish/`, and import them with `scripts/glimmer/import-phreshphish.ts`. Done when: `raw/phreshphish/IMPORT.json` reads `complete` with the new rows counted and `node scripts/glimmer/sources.ts check` prints `sources: reconciled`.
+- [ ] Re-read the 7 Days Later dataset's licence at https://zenodo.org/records/14885725 and, if it is still CC BY 4.0 with its public sample open, raise the 5 GB source limit for this one source in `docs/glimmer/sources.md` with the reason, download the sample with its published checksum checked, and write `scripts/glimmer/import-7dayslater.ts` with a two-item fixture test as §5's converters have. Done when: the source's row reads `accepted` with its import counts, or `rejected` with the reason found. Cheaper substitute: skipping the source and recording why.
+- [ ] Widen §6's benign homepages from the Majestic Million's top 5,000 to its top 20,000 in `raw/majestic/top.csv` (the 600 `.za` domains kept), and render the new domains with `node scripts/glimmer/render.ts run majestic` in the background; the journal skips what is done. Done when: `benignCoverage()` reports the new total and `raw/benign/progress.jsonl` has an outcome for every new domain.
+- [ ] Run §9's labelling on the new pages that lack labels, and rebuild the set with `scripts/glimmer/build-dataset.ts` as version 1.1, keeping 1.0's held-out evaluation file unchanged so the two versions are compared on the same pages. Done when: `docs/glimmer/dataset-1.1.json` exists and its evaluation SHA-256 equals 1.0's.
+- [ ] Add `--cap-usd <n>` to `scripts/glimmer/train_serverless.py`, refusing a value above US$60 unless the run's version is 1.1 or later and the operator's approval line (date and amount) is under `Decisions` in `docs/glimmer/training.md`; the running count still stops the loop at the given cap. Done when: `tests/scripts/test_train_serverless.py` refuses a raised cap without the line, and stops a fake run at the raised cap.
+- [ ] Record the operator's approval of the raised cap (the amount, at most the US$90 Fireworks budget less what 1.0 spent, rated even though the offer makes it free) under `Decisions`. Done when: the line names the amount and its date. **Needs the operator:** the amount is their decision, asked once in the session.
+- [ ] Train `isitlegit-loupe-1-1` with `train_serverless.py` on the 1.1 set before 2026-11-01 12:00 SAST, the run's progress and records written as §11 writes 1.0's. Done when: `<store>/runs/loupe-1.1/run.json` exists and `Training` in `docs/glimmer/training.md` has the run's lines.
+- [ ] Measure 1.1 with §13's evaluation on the same held-out set and promote it to the deployment only when its lure recall is at least 1.0's and its false-alarm rate no higher; otherwise keep 1.0 deployed and record why. Done when: `Measurements` has both versions' rows and `Decisions` names the deployed version.
+- [ ] Make Loupe 1.1's model card with `python3 scripts/glimmer/model_card.py`. Done when: `python3 scripts/glimmer/model_card.py --check` finds complete cards for 1.0 and 1.1.
+- [ ] Commit: `glimmer: Loupe 1.1 on a larger set`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_train_serverless` passes and fails if a raised cap runs without its recorded approval; `node scripts/glimmer/sources.ts check` prints `sources: reconciled`; `python3 scripts/glimmer/model_card.py --check` passes.
 
 ## Verification
 

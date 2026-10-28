@@ -8,34 +8,35 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 24 | Checklist items: 279
+Sections: 25 | Checklist items: 290
 
-| Status | Reference   | Deliverable                              | Needs                | Items |
-| ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
-| [x]    | D00 T01 §1  | Git repository and public GitHub repo    | attended             | 16    |
-| [x]    | D00 T01 §2  | Worker package and health route          | none                 | 16    |
-| [x]    | D00 T01 §3  | Vitest workers pool and Biome            | none                 | 15    |
-| [x]    | D00 T01 §4  | GitHub Actions CI                        | none                 | 12    |
-| [x]    | D00 T01 §5  | Cloudflare bindings and first deploy     | cloudflare           | 24    |
-| [x]    | D00 T01 §6  | AI Gateway for the Meta Model API        | cloudflare           | 9     |
-| [x]    | D00 T01 §10 | Deploy rollback and re-verification      | cloudflare           | 11    |
-| [x]    | D00 T01 §12 | Rollback from a split deployment         | cloudflare           | 10    |
-| [x]    | D03 T04 §2  | Fireworks account check and image probe  | none                 | 22    |
-| [x]    | D03 T04 §3  | PageScreen contract and training store   | none                 | 15    |
-| [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
-| [ ]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
-| [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
-| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 8     |
-| [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
-| [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 8     |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 9     |
-| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe        | none                 | 10    |
-| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero   | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 9     |
-| [ ]    | D03 T04 §17 | Loupe model card per version             | none                 | 9     |
-| [x]    | D99 T01 §8  | AI Gateway tokens                        | none                 | 9     |
-| [x]    | D00 T01 §7  | Meta smoke test                          | meta-api, cloudflare | 10    |
-| [x]    | D00 T01 §11 | AI Gateway config snapshot and restore   | cloudflare           | 6     |
+| Status | Reference   | Deliverable                               | Needs                | Items |
+| ------ | ----------- | ----------------------------------------- | -------------------- | ----- |
+| [x]    | D00 T01 §1  | Git repository and public GitHub repo     | attended             | 16    |
+| [x]    | D00 T01 §2  | Worker package and health route           | none                 | 16    |
+| [x]    | D00 T01 §3  | Vitest workers pool and Biome             | none                 | 15    |
+| [x]    | D00 T01 §4  | GitHub Actions CI                         | none                 | 12    |
+| [x]    | D00 T01 §5  | Cloudflare bindings and first deploy      | cloudflare           | 24    |
+| [x]    | D00 T01 §6  | AI Gateway for the Meta Model API         | cloudflare           | 9     |
+| [x]    | D00 T01 §10 | Deploy rollback and re-verification       | cloudflare           | 11    |
+| [x]    | D00 T01 §12 | Rollback from a split deployment          | cloudflare           | 10    |
+| [x]    | D03 T04 §2  | Fireworks account check and image probe   | none                 | 22    |
+| [x]    | D03 T04 §3  | PageScreen contract and training store    | none                 | 15    |
+| [x]    | D03 T04 §4  | Astra as dataset collector                | none                 | 17    |
+| [ ]    | D03 T04 §5  | Public phishing-page datasets by licence  | none                 | 12    |
+| [ ]    | D03 T04 §6  | Benign real pages rendered locally        | none                 | 8     |
+| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages   | none                 | 8     |
+| [ ]    | D03 T04 §8  | Synthetic South African lures             | meta-api             | 7     |
+| [ ]    | D03 T04 §9  | Spark teacher labels and human check      | meta-api             | 8     |
+| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set   | none                 | 9     |
+| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe         | none                 | 10    |
+| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero    | none                 | 7     |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured    | meta-api             | 9     |
+| [ ]    | D03 T04 §17 | Loupe model card per version              | none                 | 9     |
+| [ ]    | D03 T04 §18 | Loupe 1.1 on a larger set, if time allows | none                 | 11    |
+| [x]    | D99 T01 §8  | AI Gateway tokens                         | none                 | 9     |
+| [x]    | D00 T01 §7  | Meta smoke test                           | meta-api, cloudflare | 10    |
+| [x]    | D00 T01 §11 | AI Gateway config snapshot and restore    | cloudflare           | 6     |
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
@@ -299,6 +300,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 42/230 verified sections, 22 ready to run now.
+Progress: 42/231 verified sections, 22 ready to run now.
 
-Checklist: 488/1343 items completed (includes Commit items).
+Checklist: 488/1354 items completed (includes Commit items).
