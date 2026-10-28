@@ -36,6 +36,9 @@ export class RetryDelivery extends Error {
 export type IntakeOutcome =
   | { kind: "too-large" }
   | { kind: "dropped" }
+  // A message a machine sent on its own (an auto-reply, an out-of-office): RFC 3834's Auto-Submitted, any value but
+  // "no". It is never a member's forward, and answering it is how two responders loop (D01 T02 §3, round 1).
+  | { kind: "automatic" }
   | { kind: "duplicate" }
   | { kind: "capped" }
   | { kind: "admitted"; caseId: string };
@@ -56,6 +59,8 @@ export async function handleEmail(
     message.setReject("Message too large");
     return { kind: "too-large" };
   }
+  const automatic = message.headers.get("Auto-Submitted")?.trim().toLowerCase();
+  if (automatic && !/^no\b/.test(automatic)) return { kind: "automatic" };
   const from = message.from.trim().toLowerCase();
   // What the organisation verified decides what the mail must prove: its domain, or this one mailbox.
   const member = await memberOfSender(env.DB, from);

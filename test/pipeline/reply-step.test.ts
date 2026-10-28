@@ -87,6 +87,7 @@ describe("the reply step", () => {
     expect(sent.subject).toBe("Re: Fwd: Updated banking details");
     expect(header(sent, "In-Reply-To")).toMatch(/^<.+>$/);
     expect(header(sent, "References")).toContain(header(sent, "In-Reply-To") ?? "?");
+    expect(header(sent, "Auto-Submitted")).toBe("auto-replied");
     expect(sent.text_body).toContain(STUB_VERDICT.headline);
     // An inline forward carries none of the original's headers, and the reply says how to forward it instead.
     expect(sent.text_body).toContain("Forward as attachment");
@@ -211,6 +212,27 @@ describe("the reply step", () => {
       expect(header(requests[0] as Request_, "In-Reply-To")).toBe("<forward-77@fictional-recipient.example>");
       expect(requests[0]?.text_body).toContain("forward the message again");
       vi.restoreAllMocks();
+    }
+  });
+
+  it("sends the fallback when an optional read stalls past its deadline", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { reply, OPTIONAL_READ_MS } = await import("../../src/pipeline/analysis-workflow");
+      const requests = stubSmtp2go(["sent"]);
+      const id = await caseFrom(forwards["inline-forward"]);
+      const stalled = { ...env.ARTEFACTS, get: () => new Promise(() => {}) } as unknown as R2Bucket;
+      const pending = reply({ ...env, ARTEFACTS: stalled }, id, {
+        status: "partial",
+        failedStep: "checks",
+        errorClass: "Error",
+      });
+      await vi.advanceTimersByTimeAsync(OPTIONAL_READ_MS + 1);
+      await vi.advanceTimersByTimeAsync(OPTIONAL_READ_MS + 1);
+      expect((await pending).mail).toBe("sent");
+      expect(requests[0]?.subject).toBe("Re: your IsItLegit check");
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

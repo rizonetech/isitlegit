@@ -273,6 +273,17 @@ export async function checks(store: Store, caseId: string, key: string): Promise
 
 const verdictOf = (_found: { evidence: never[] }): VerdictView => STUB_VERDICT;
 
+// An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
+// time for the send.
+export const OPTIONAL_READ_MS = 5_000;
+function withinDeadline<T>(read: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("OptionalReadTimeout")), OPTIONAL_READ_MS);
+  });
+  return Promise.race([read, late]).finally(() => clearTimeout(timer));
+}
+
 // Sends the member the answer (D01 T02 §3): the stored verdict, or for a partial case a notice that it could not
 // finish, as a reply in the forward's thread, to the admitted forwarder, under one send key a case. The forward's
 // subject and threading come from its stored header block (read by a bounded range), else from the case's stored
@@ -292,18 +303,21 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
   } else {
     report = { status: "partial", failedStep: state.failedStep, errorClass: state.errorClass };
   }
-  // The summary and the forward's header block are optional: either unreadable (gone, or a storage fault) and the reply
-  // still goes, with no other-originals note and the fallback subject and threading.
-  const otherOriginals = await readArtefact(store, caseId, parsedKey(caseId))
+  // The summary and the forward's header block are optional: either unreadable (gone, a storage fault, or still not
+  // read after OPTIONAL_READ_MS, so a stalled read cannot use up the attempt) and the reply still goes, with no
+  // other-originals note and the fallback subject and threading.
+  const otherOriginals = await withinDeadline(readArtefact(store, caseId, parsedKey(caseId)))
     .then((summary) =>
       summary && "body" in summary
         ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
         : 0,
     )
     .catch(() => 0);
-  const head = await env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } })
-    .then(async (object) => (object ? new Uint8Array(await object.arrayBuffer()) : null))
-    .catch(() => null);
+  const head = await withinDeadline(
+    env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } }).then(async (object) =>
+      object ? new Uint8Array(await object.arrayBuffer()) : null,
+    ),
+  ).catch(() => null);
   const parent = (await parentHeaders(head)) ?? {
     subject: null,
     messageId: null,
@@ -328,7 +342,11 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
       subject: built.subject,
       text: built.text,
       html: built.html,
-      headers: threading({ ...parent, messageId: parent.messageId ?? found.messageId }),
+      // RFC 3834: an automatic response says so, so a well-behaved responder never answers it.
+      headers: {
+        ...threading({ ...parent, messageId: parent.messageId ?? found.messageId }),
+        "Auto-Submitted": "auto-replied",
+      },
       caseId,
     },
   );

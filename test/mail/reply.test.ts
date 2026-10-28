@@ -110,6 +110,10 @@ describe("replySubject", () => {
   it("prefixes Re: once, trims to 120 characters and falls back when there is none", () => {
     expect(replySubject("Re: Invoice")).toBe("Re: Invoice");
     expect(replySubject("x".repeat(300))).toHaveLength(120);
+    // Never half an emoji: the cut falls on a character boundary.
+    const cut = replySubject(`${"x".repeat(114)}🚩xx`);
+    expect(cut.isWellFormed()).toBe(true);
+    expect(cut.endsWith("🚩…") || cut.endsWith("x…")).toBe(true);
     expect(replySubject(null)).toBe(FALLBACK_SUBJECT);
     expect(replySubject("a\r\nBcc: someone@example.com")).toBe("Re: a Bcc: someone@example.com");
   });
@@ -131,6 +135,24 @@ describe("threading (RFC 5322 section 3.6.4)", () => {
     expect(threading({ messageId: "<m2@x>", references: null, inReplyTo: "<a@x> <b@x>" })).toEqual({
       "In-Reply-To": "<m2@x>",
       References: "<m2@x>",
+    });
+  });
+
+  it("inherits a lone In-Reply-To when the parent has neither Message-ID nor References", () => {
+    expect(threading({ messageId: null, references: null, inReplyTo: "<m1@x>" })).toEqual({ References: "<m1@x>" });
+  });
+
+  it("ignores identifiers inside comments", () => {
+    expect(
+      threading({
+        messageId: "(tracking <comment@x>) <real@x>",
+        references: "<a@x> (see <b@x>) <c@x>",
+        inReplyTo: null,
+      }),
+    ).toEqual({ "In-Reply-To": "<real@x>", References: "<a@x> <c@x> <real@x>" });
+    expect(threading({ messageId: "(nested (<x@x>) \\) still) <real@x>", references: null, inReplyTo: null })).toEqual({
+      "In-Reply-To": "<real@x>",
+      References: "<real@x>",
     });
   });
 

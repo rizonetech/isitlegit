@@ -55,7 +55,14 @@ async function member(options: { cap?: number } = {}) {
 // A forward as Email Routing hands it to the Worker.
 function message(
   from: string,
-  options: { messageId?: string | null; auth?: string; body?: string; rawSize?: number; from?: string } = {},
+  options: {
+    messageId?: string | null;
+    auth?: string;
+    body?: string;
+    rawSize?: number;
+    from?: string;
+    autoSubmitted?: string;
+  } = {},
 ) {
   const domain = from.slice(from.indexOf("@") + 1);
   const messageId = options.messageId === undefined ? `<${crypto.randomUUID()}@${domain}>` : options.messageId;
@@ -75,6 +82,7 @@ function message(
   const rejected: string[] = [];
   const headers = new Headers();
   if (messageId) headers.set("Message-ID", messageId);
+  if (options.autoSubmitted) headers.set("Auto-Submitted", options.autoSubmitted);
   const forwardable = {
     from,
     to: "check@isitlegit.co.za",
@@ -162,6 +170,18 @@ describe("handleEmail", () => {
     expect(await workflowExists(caseId)).toBe(true);
     expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "done", case_id: caseId }]);
     expect(world.sends).toEqual([]);
+  });
+
+  it("ignores a message a machine sent on its own, and takes one marked Auto-Submitted: no", async () => {
+    const { orgId, from } = await member();
+    for (const value of ["auto-replied", "auto-generated", "Auto-Replied; owner-email=x@y"])
+      expect(await handleEmail(message(from, { autoSubmitted: value }).forwardable, mailEnv)).toEqual({
+        kind: "automatic",
+      });
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(world.sends).toEqual([]);
+    const human = await handleEmail(message(from, { autoSubmitted: "no" }).forwardable, mailEnv);
+    expect(human.kind).toBe("admitted");
   });
 
   it("drops mail from an unknown sender, and a member's address in a forward authenticated for another domain", async () => {

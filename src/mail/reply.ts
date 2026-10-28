@@ -32,7 +32,23 @@ export function reportOrigin(configured: string | undefined): string {
   return url.origin;
 }
 
-const ids = (value: string | null) => value?.match(/<[^<>\s]+>/g) ?? [];
+// RFC 5322's comments, (nested, with \-escapes), removed: an id inside one is not an id (round 1).
+function withoutComments(value: string): string {
+  let out = "";
+  let depth = 0;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === "\\" && depth > 0) {
+      i++;
+      continue;
+    }
+    if (c === "(") depth++;
+    else if (c === ")" && depth > 0) depth--;
+    else if (depth === 0) out += c;
+  }
+  return out;
+}
+const ids = (value: string | null) => (value ? withoutComments(value).match(/<[^<>\s()]+>/g) : null) ?? [];
 
 // RFC 5322 section 3.6.4: In-Reply-To is the parent's Message-ID; References is the parent's References (or, without
 // them, its In-Reply-To when that holds one id) followed by its Message-ID. A parent with none gives neither.
@@ -84,7 +100,9 @@ export function replySubject(parentSubject: string | null): string {
   const subject = parentSubject?.replace(/[\r\n]+/g, " ").trim();
   if (!subject) return FALLBACK_SUBJECT;
   const full = /^re:/i.test(subject) ? subject : `Re: ${subject}`;
-  return full.length > SUBJECT_LIMIT ? `${full.slice(0, SUBJECT_LIMIT - 1)}…` : full;
+  // Cut by code point, so a character outside the BMP (an emoji) is never split into half a surrogate pair.
+  const points = Array.from(full);
+  return points.length > SUBJECT_LIMIT ? `${points.slice(0, SUBJECT_LIMIT - 1).join("")}…` : full;
 }
 
 // What to do, by verdict, when the verdict names no actions of its own.
