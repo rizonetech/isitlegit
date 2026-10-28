@@ -230,5 +230,25 @@ class Request(unittest.TestCase):
                 cwk.read_by(stream, 30.0)
 
 
+class Deadline(unittest.TestCase):
+    """A read that blocks while bytes trickle in cannot hold the call past its deadline."""
+
+    def test_a_blocking_slow_read_ends_at_the_deadline(self):
+        import threading
+        import time as clock
+
+        release = threading.Event()
+        response = mock.MagicMock(status=200, headers={})
+        response.read.side_effect = lambda *args: release.wait(5) and b""
+        context = mock.MagicMock()
+        context.__enter__.return_value = response
+        with mock.patch.object(cwk, "HTTP_SECONDS", 0.2), mock.patch.object(cwk.OPENER, "open", return_value=context):
+            started = clock.monotonic()
+            with self.assertRaises(cwk.Unreachable):
+                cwk.call(KEY, "https://x.test")
+            self.assertLess(clock.monotonic() - started, 2)
+        release.set()
+
+
 if __name__ == "__main__":
     unittest.main()

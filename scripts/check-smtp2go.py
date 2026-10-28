@@ -26,6 +26,7 @@ Each stage is announced before it runs and its result printed as it completes. E
 and the next action when one does not, 2 when the vault, SMTP2GO or DNS could not be reached or answered a quota
 (429) or server (5xx) error, which says nothing about the key. Stdlib only; needs `dig`.
 """
+import concurrent.futures
 import datetime
 import http.client
 import json
@@ -86,7 +87,7 @@ def read_by(stream, deadline, limit=1024 * 1024):
     return b"".join(parts)
 
 
-def post(key, endpoint, body=b"{}", opener=OPENER):
+def _post(key, endpoint, body=b"{}", opener=OPENER):
     """(HTTP status, the answer's data object) for a read-only SMTP2GO call; Unreachable on a transport failure, a
     quota or server error, or an answer that is not a whole JSON object with a data object."""
     deadline = time.monotonic() + SECONDS
@@ -112,6 +113,19 @@ def post(key, endpoint, body=b"{}", opener=OPENER):
     if not isinstance(data, dict):
         raise Unreachable(f"SMTP2GO's HTTP {status} answer for {endpoint} has no data object")
     return status, data
+
+def post(key, endpoint, body=b"{}", opener=OPENER):
+    """(HTTP status, the answer's data object) for a read-only SMTP2GO call.
+    The whole call runs on a worker thread under one deadline (SECONDS): a read that blocks while bytes trickle in
+    cannot hold it past that, since the wait is on the thread, not on the socket."""
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        return pool.submit(_post, key, endpoint, body, opener).result(timeout=SECONDS)
+    except concurrent.futures.TimeoutError:
+        raise Unreachable(f"the answer took longer than {SECONDS} s") from None
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
 
 
 def cname(name):

@@ -158,5 +158,25 @@ class Adapters(unittest.TestCase):
             self.assertEqual(cs.cname("em1027207.isitlegit.co.za"), "return.smtp2go.net.")
 
 
+class Deadline(unittest.TestCase):
+    """A read that blocks while bytes trickle in cannot hold the call past its deadline."""
+
+    def test_a_blocking_slow_read_ends_at_the_deadline(self):
+        import threading
+        import time as clock
+
+        release = threading.Event()
+        response = mock.MagicMock(status=200, headers={})
+        response.read.side_effect = lambda *args: release.wait(5) and b""
+        context = mock.MagicMock()
+        context.__enter__.return_value = response
+        with mock.patch.object(cs, "SECONDS", 0.2), mock.patch.object(cs.OPENER, "open", return_value=context):
+            started = clock.monotonic()
+            with self.assertRaises(cs.Unreachable):
+                cs.post(KEY, "stats/email_summary")
+            self.assertLess(clock.monotonic() - started, 2)
+        release.set()
+
+
 if __name__ == "__main__":
     unittest.main()

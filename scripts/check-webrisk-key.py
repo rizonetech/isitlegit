@@ -22,6 +22,7 @@ never `threatLists.computeDiff` or `hashes.search`, which would bill every looku
 the key is expected to be refused. Redirects are refused, so the key's header never follows one to another host, and
 each call has a 30 second deadline for its whole answer. Stdlib only.
 """
+import concurrent.futures
 import http.client
 import json
 import os
@@ -102,7 +103,7 @@ def read_by(stream, deadline):
     return b"".join(parts)
 
 
-def call(key, url, opener=OPENER):
+def _call(key, url, opener=OPENER):
     """(HTTP status, JSON object) for a GET with the key in its header. Only a whole answer that reads as a JSON object
     counts; anything else is Google unreachable, so a cut-off answer is never taken for a judgement on the key."""
     request = urllib.request.Request(url, headers={"x-goog-api-key": key, "user-agent": "isitlegit-check-webrisk/1.0"})
@@ -129,6 +130,19 @@ def call(key, url, opener=OPENER):
     if not isinstance(body, dict):
         raise Unreachable(f"Google's HTTP {status} answer is not a JSON object")
     return status, body
+
+def call(key, url, opener=OPENER):
+    """(HTTP status, JSON object) for a GET with the key in its header.
+    The whole call runs on a worker thread under one deadline (HTTP_SECONDS): a read that blocks while bytes trickle in
+    cannot hold it past that, since the wait is on the thread, not on the socket."""
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        return pool.submit(_call, key, url, opener).result(timeout=HTTP_SECONDS)
+    except concurrent.futures.TimeoutError:
+        raise Unreachable(f"the answer took longer than {HTTP_SECONDS} s") from None
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
 
 
 def reasons(body):
