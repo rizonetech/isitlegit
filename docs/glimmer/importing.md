@@ -10,7 +10,7 @@ Each source's files sit under `<store>/raw/<source>/` with their SHA-256 (or the
 
 | Source | Command |
 | ------ | ------- |
-| ScamFerret | `python3 scripts/glimmer/extract_archive.py <archive> <store>/raw/scamferret/extracted/<name> --only artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc/dataset/` (the archive's entries start with its commit folder) |
+| ScamFerret | `python3 scripts/glimmer/extract_archive.py <store>/raw/scamferret/artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc.tar.gz <store>/raw/scamferret/extracted --only artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc/dataset/` (the extractor keeps the archive's own paths, so the importer finds `extracted/artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc/dataset/`; the destination must not exist yet) |
 | PhreshPhish | `~/.venvs/fireworks/bin/python scripts/glimmer/phreshphish_rows.py` |
 | CompPhish, Ariyadasa 2021, Kempf HTML, Look For Mallory | `~/.venvs/fireworks/bin/python -I scripts/glimmer/dataset_rows.py <source> [--max 15000]` |
 | 7 Days Later | `~/.venvs/fireworks/bin/python -I scripts/glimmer/sevendays_rows.py [--max 15000]` |
