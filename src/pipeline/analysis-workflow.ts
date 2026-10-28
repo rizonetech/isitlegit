@@ -1,11 +1,22 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type CaseResult, getCaseForPipeline, setHeadersAvailable, setStatus, type Verdict } from "../db/cases";
-import { storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
+import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
-import { parseMessage, storeParsed } from "../intake/parse";
+import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
 import { parsedKey, rawKey, readArtefact, type Store } from "../intake/store";
+import {
+  buildReply,
+  HEADER_RANGE,
+  parentHeaders,
+  REPLY_FROM,
+  type ReplyReport,
+  reportOrigin,
+  threading,
+} from "../mail/reply";
+import { sendMail } from "../mail/smtp2go";
+import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
 // The analysis pipeline for one case (D01 T01 §7): durable steps, so a failure resumes without repeating finished work
@@ -138,7 +149,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       admitted = await step.do("admit", RETRIES, () => safely(() => admit(db, caseId)));
     } catch (error) {
       const state = await fail("admit", error);
-      await timed("reply", () => reply(db, caseId, state)).catch((replyError) => fail("reply", replyError));
+      await timed("reply", () => reply(this.env, caseId, state)).catch((replyError) => fail("reply", replyError));
       return { caseId, state };
     }
     if (!admitted.admit) return { caseId, skipped: true };
@@ -165,7 +176,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     // The reply hands the report state on; D01 T02 §3 sends it. A reply that fails ends a ready case partial, and on a
     // case already partial its failure is recorded too, the first failure kept as the report's.
     try {
-      await timed("reply", () => reply(this.env.DB, caseId, state));
+      await timed("reply", () => reply(this.env, caseId, state));
     } catch (error) {
       const failed = await fail("reply", error);
       if (state.status === "ready") state = failed;
@@ -262,9 +273,59 @@ export async function checks(store: Store, caseId: string, key: string): Promise
 
 const verdictOf = (_found: { evidence: never[] }): VerdictView => STUB_VERDICT;
 
-// Hands the report state on without sending anything (D01 T02 §3 sends it); the case's status at this point is part
-// of the result, so a test can see the case is not yet `done`.
-export async function reply(db: D1Database, caseId: string, state: ReportState) {
-  const found = must(await getCaseForPipeline(db, caseId), "reading the case for the reply");
-  return { state, caseStatus: found.status };
+// Sends the member the answer (D01 T02 §3): the stored verdict, or for a partial case a notice that it could not
+// finish, as a reply in the forward's thread, to the admitted forwarder, under one send key a case. The forward's
+// subject and threading come from its stored header block (read by a bounded range), else from the case's stored
+// Message-ID with a subject made by code. A case with no forwarder (an upload) has no one to reply to. A failed send
+// throws so the step retries; an uncertain one is left to the reconcile job; refused and duplicate are final.
+export async function reply(env: Env, caseId: string, state: ReportState) {
+  const found = must(await getCaseForPipeline(env.DB, caseId), "reading the case for the reply");
+  const base = { state, caseStatus: found.status };
+  if (!found.forwardedBy) return { ...base, mail: "none" as const };
+  const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+
+  let report: ReplyReport;
+  if (state.status === "ready") {
+    const stored = await getVerdict(env.DB, caseId);
+    if (!stored?.ok) throw new Error(`reading the verdict for the reply: ${stored ? stored.error.code : "missing"}`);
+    report = { status: "ready", view: stored.value };
+  } else {
+    report = { status: "partial", failedStep: state.failedStep };
+  }
+  const summary = await readArtefact(store, caseId, parsedKey(caseId));
+  const otherOriginals =
+    summary && "body" in summary
+      ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
+      : 0;
+  const head = await env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } });
+  const parent = (await parentHeaders(head ? new Uint8Array(await head.arrayBuffer()) : null)) ?? {
+    subject: null,
+    messageId: null,
+    references: null,
+    inReplyTo: null,
+  };
+  const link = `${reportOrigin(env.PUBLIC_ORIGIN)}${await signReportLink(env.REPORT_LINK_SECRET, caseId, found.orgId)}`;
+  const built = buildReply({
+    parentSubject: parent.subject,
+    headersAvailable: found.headersAvailable,
+    otherOriginals,
+    report,
+    reportUrl: link,
+  });
+  const outcome = await sendMail(
+    { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
+    {
+      sendKey: `reply:${caseId}`,
+      kind: "reply",
+      to: found.forwardedBy,
+      from: REPLY_FROM,
+      subject: built.subject,
+      text: built.text,
+      html: built.html,
+      headers: threading({ ...parent, messageId: parent.messageId ?? found.messageId }),
+      caseId,
+    },
+  );
+  if (outcome.status === "failed") throw new Error("ReplyNotSent");
+  return { ...base, mail: outcome.status };
 }

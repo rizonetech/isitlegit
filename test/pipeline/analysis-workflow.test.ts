@@ -144,7 +144,8 @@ describe("AnalysisWorkflow", () => {
       ]),
     ]);
     // The reply step ran while the case was still running, with the ready state; nothing was mailed.
-    expect(reply).toEqual({ state: { status: "ready", verdict: "suspicious" }, caseStatus: "running" });
+    // No forwarder on this case, so nothing to send (test/pipeline/reply-step.test.ts sends).
+    expect(reply).toEqual({ state: { status: "ready", verdict: "suspicious" }, caseStatus: "running", mail: "none" });
     const sent = await env.DB.prepare("SELECT COUNT(*) AS n FROM mail_sends WHERE case_id = ?")
       .bind(id)
       .first<{ n: number }>();
@@ -389,7 +390,7 @@ describe("round 1 cases", () => {
     const broken = {
       prepare: () => ({ bind: () => ({ first: () => Promise.reject(new Error("D1 down")) }) }),
     } as unknown as D1Database;
-    await expect(reply(broken, id, { status: "ready", verdict: "suspicious" })).rejects.toThrow(
+    await expect(reply({ ...env, DB: broken }, id, { status: "ready", verdict: "suspicious" })).rejects.toThrow(
       /reading the case for the reply/,
     );
   });
