@@ -9,8 +9,8 @@ import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 # Run by hand or by another script, not gates: the local server, the type-file regenerator, build:css, which
-# build:assets runs first, the D1 migration commands (D01 T01 §1), which the operator runs: the remote one changes
-# the live database and must never run in CI, and db:auth-schema, which regenerates Better Auth's migration (D07 T02 §1)
+# build:assets runs first, the D1 migration commands (D01 T01 §1), run by hand: the remote one changes the live
+# database (before each deploy, AGENTS.md) and must never run in CI, and db:auth-schema, which regenerates Better Auth's migration (D07 T02 §1)
 # and is gated by test/node/auth-schema.test.ts inside `pnpm test`.
 TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote", "db:auth-schema"}
 DOCS = (("AGENTS.md", "## Validation"), ("CONTRIBUTING.md", "## Validation gates"), ("README.md", "### Run the Worker locally"))
