@@ -209,10 +209,11 @@ describe("handleEmail", () => {
     expect(keys).toEqual(["email:id:<b@fictional.example>", `email:${hash}`]);
   });
 
-  it("migrates claims whose keys would meet if renamed in place: <a> and email:<a> both kept", async () => {
+  it("migrates claims whose keys would meet if renamed in place: <a> and email:id:<a> both kept", async () => {
     const org = `org-collide-${crypto.randomUUID().slice(0, 8)}`;
     const at = new Date().toISOString();
-    for (const key of ["<a@fictional.example>", "email:<a@fictional.example>"])
+    // <a> becomes email:id:<a>, which a claim left from before already holds until it is renamed in its turn.
+    for (const key of ["<a@fictional.example>", "email:id:<a@fictional.example>"])
       await db
         .prepare(
           "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'done', NULL, ?)",
@@ -226,7 +227,7 @@ describe("handleEmail", () => {
         message_key: string;
       }>()
     ).results.map((r) => r.message_key);
-    expect(keys).toEqual(["email:id:<a@fictional.example>", "email:id:email:<a@fictional.example>"]);
+    expect(keys).toEqual(["email:id:<a@fictional.example>", "email:id:email:id:<a@fictional.example>"]);
   });
 
   it("finds a claim made before migration 0019 when the same forward is delivered again after it", async () => {
