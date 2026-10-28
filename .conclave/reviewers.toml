@@ -48,14 +48,14 @@ claude = ["astra"]
 severity_stop_after = 0
 
 [schedule.plan]
-effort = "medium"
+effort = "high"
 lenses = ["plan"]
 
 [schedule.completion]
-effort = "medium"
+effort = "high"
 
 [[schedule.rounds]]
-effort = "high"
+effort = "xhigh"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 
 [[schedule.rounds]]
