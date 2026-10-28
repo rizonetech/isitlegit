@@ -38,7 +38,7 @@ track: day-0
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Meta API billing and API key | -- | [x] |
-| 2 | §2 | Domain verification and nameservers | -- | [ ] |
+| 2 | §2 | Domain verification and nameservers | -- | [x] |
 | 3 | §3 | Workers Paid plan | -- | [ ] |
 | 4 | §4 | SMTP2GO sender domain | §2 | [ ] |
 | 5 | §5 | WhatsApp test number | -- | [ ] |
@@ -115,9 +115,12 @@ Meta credit visible: 2026-10-27
 - [x] Add an Email Routing custom address `hello@isitlegit.co.za` forwarding to the operator's mailbox (named on the about page, D07 T06 §8). Done when: a test mail to it arrives. Evidence 2026-10-27 00:59 SAST: the test "IsItLegit routing test (hello@)" from rizonetech@gmail.com, sent 22:58:56 UTC on 2026-10-26, arrived in derick@rizonetech.com seconds later (internetMessageId `<CA+OCnvm2p3BUGO6k=ErfsauOqTjLiufUef5E99C-Lmp9WoiKXg@mail.gmail.com>`).
 - [x] Add an Email Routing custom address `dmarc@isitlegit.co.za` forwarding to the operator's mailbox (DMARC aggregate reports). Done when: the rule reads enabled and a test mail to it arrives in the operator's mailbox (**Corrected 2026-10-28** (plan review): "rule reads enabled" did not prove delivery). Evidence 2026-10-27 00:40 SAST: enabled. Evidence 2026-10-28 23:13 SAST: the test "IsItLegit routing test (dmarc@) 2026-10-28" from rizonetech@gmail.com, sent 21:13:39 UTC, arrived in derick@rizonetech.com at 21:13:48 UTC (internetMessageId `<CA+OCnvkunt34fuzUosHJvddeCsQWO7x3SS0PM-jO0ZkMN-5BKw@mail.gmail.com>`).
 - [x] Add an Email Routing custom address `conduct@isitlegit.co.za` forwarding to the operator's mailbox (named in `CODE_OF_CONDUCT.md` as the private conduct contact). Done when: a test mail to it arrives in the operator's mailbox. Evidence 2026-10-27 00:59 SAST: the test "IsItLegit routing test (conduct@)" from rizonetech@gmail.com, sent 22:58:56 UTC on 2026-10-26, arrived in derick@rizonetech.com seconds later (internetMessageId `<CA+OCnvmAHgudPYBzy2DtAo=cNyWodPTPE-XkgWTMZq4VS82uww@mail.gmail.com>`).
-- [ ] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
+- [x] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
 
 **Test checkpoint:** `python3 scripts/check-domain.py` exits 0 and prints `7 of 7 checks passed`: from public DNS (1.1.1.1), Cloudflare's two nameservers, Email Routing's three MX hosts, exactly one SPF record and exactly one DMARC record, each byte for byte the record published here (`v=spf1 include:_spf.mx.cloudflare.net ~all`; `v=DMARC1; p=reject; sp=reject; adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za`, DMARC's trailing semicolon allowed), so any edit fails, a reordered, repeated, empty or added tag or term included (after four review rounds found what a parser let through, round 4, 2026-10-28), CAA `issue` tags (not `issuewild`) including Let's Encrypt, Google and SSL.com, and `issue` and `issuewild` alike only from Universal SSL's authorities (RFC 8659; Cloudflare adds Sectigo and DigiCert rows itself), exactly the recorded DS at the registry and no other (key tag 2371, algorithm 13, digest type 2, the recorded digest) and the zone validated (`ad`); any missing, duplicated or weakened record fails it (exit 1), and a lookup that could not be made is reported as that (exit 2), never as a wrong record (`tests/scripts/test_check_domain.py`; completion review, 2026-10-28). The registrar's `ok`, auto-renew and lock, and Email Routing's `ready` with its verified destination, are the dated read-backs in the items above. **Corrected 2026-10-28** (plan review): it checked only the nameservers; the earlier text, kept: `dig +short NS isitlegit.co.za @1.1.1.1` prints `carmelo.ns.cloudflare.com.` and `paris.ns.cloudflare.com.`. Evidence 2026-10-28 23:36 SAST (after the final review): `check-domain: 7 of 7 checks passed`, exit 0.
+
+> **Verified:** 2026-10-28 | §2 | f6eb9f4b5e434f266b10259e947a9585c07de6bc
+> **Review:** `docs/reviews/d99-t01-s2.json`
 
 ## 3. Workers Paid plan
 
