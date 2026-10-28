@@ -71,7 +71,7 @@ Sections: 38 | Checklist items: 265
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 35 | Checklist items: 188
+Sections: 35 | Checklist items: 190
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -99,7 +99,7 @@ Sections: 35 | Checklist items: 188
 | [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
-| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 5     |
+| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 7     |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -247,7 +247,7 @@ Sections: 55 | Checklist items: 206
 
 ### Phase 7: After the event
 
-Sections: 7 | Checklist items: 27
+Sections: 7 | Checklist items: 28
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -256,7 +256,7 @@ Sections: 7 | Checklist items: 27
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
-| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 4     |
+| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
 
 ### Phase 99: Manual, operator only
@@ -280,4 +280,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 28/209 verified sections, 10 ready to run now.
 
-Checklist: 346/1108 items completed (includes Commit items).
+Checklist: 346/1111 items completed (includes Commit items).
