@@ -402,6 +402,8 @@ describe("renderPage", () => {
 
   it("stops the whole render at its limit and closes the context", async () => {
     const quick = await openRenderer({ allowOrigins: [origin], limitMs: 1_500 });
+    // The browser starts first, under its own bound, so the clock below times the render alone.
+    await quick.render(`${origin}/page`).catch(() => undefined);
     const started = Date.now();
     await expect(quick.render(`${origin}/slow`)).rejects.toBeInstanceOf(RenderTimeout);
     expect(Date.now() - started).toBeLessThan(5_000);
@@ -438,6 +440,8 @@ describe("renderPage", () => {
 
   it("gives up on a page that stops answering and goes on with the next", async () => {
     const quick = await openRenderer({ allowOrigins: [origin], limitMs: 3_000 });
+    // The browser starts first, under its own bound, so the clock below times the render alone.
+    await quick.render(`${origin}/page`).catch(() => undefined);
     const started = Date.now();
     await expect(quick.render(`${origin}/hang`)).rejects.toBeInstanceOf(RenderTimeout);
     // The render's 3 seconds and at most 5 more for the context's close.
