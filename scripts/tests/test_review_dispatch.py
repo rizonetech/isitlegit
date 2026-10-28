@@ -48,6 +48,7 @@ FAKE_CLI = textwrap.dedent('''\
         log.write(json.dumps({"cli": name, "argv": args, "stdin": stdin, "cwd": os.getcwd(), "from_file": from_file,
                               "in_flight": os.path.exists(os.path.join(os.getcwd(), "build", "review-in-flight.json"))}) + "\\n")
     if mode == "fail":
+        sys.stderr.write("ERROR: the fake reviewer failed\\n")
         sys.exit(3)
     if mode == "sleep":
         time.sleep(30)
@@ -177,6 +178,14 @@ class Dispatch(Harness):
                 self.assertIsNone(summary["review"])
                 self.assertEqual(summary["failover"], [{"reviewer": "sol", "reason": reason}])
                 self.assertEqual([c["cli"] for c in self.calls()], ["codex"])
+
+    def test_a_failed_reviewers_error_output_is_kept_for_diagnosis(self):
+        # The dispatcher once discarded it, so two empty rounds left nothing to say why Codex exited 1.
+        result, summary = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), codex="fail")
+        self.assertEqual(summary["failover"], [{"reviewer": "sol", "reason": "exited 3"}])
+        (kept,) = (self.repo / "build/review-logs").glob("sol-*.log")
+        self.assertEqual(kept.read_text(), "ERROR: the fake reviewer failed\n")
+        self.assertIn(f"the end of its error output is in {kept}", result.stderr)
 
     def test_a_reviewer_that_could_not_reach_the_candidate_returned_no_review(self):
         # A reply ending OVERALL: blocked says the reviewer never saw the work (a sandbox that cannot read the

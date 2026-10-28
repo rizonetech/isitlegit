@@ -80,6 +80,10 @@ NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 ARGV_PROMPT_LIMIT = 24_000 if os.name == "nt" else 100_000
 # A review is prose. Output past this size is a runaway reviewer, not a review.
 MAX_OUTPUT_BYTES = 2_000_000
+# A reviewer's error output (Codex writes its progress there too) is kept up to this size while it runs, and its last
+# ERROR_TAIL_BYTES are saved under ERROR_LOGS when it returns no review, so an outage can be diagnosed.
+MAX_ERROR_BYTES = 64_000_000
+ERROR_TAIL_BYTES = 16_384
 # The prompt's reply format ends with an OVERALL line; `blocked` means the reviewer never saw the work.
 BLOCKED = re.compile(r"^\s*(?:OVERALL|COMPLETION):\s*blocked\b", re.IGNORECASE)
 POLL_SECONDS = 0.2
@@ -420,17 +424,26 @@ def feed(pipe, text):
         pass  # the reviewer stopped reading or exited; its exit code and output decide the round
 
 
-def run(argv, stdin_text, timeout, watched):
-    """Run one reviewer in its own process group, watching the size of every file it writes while it runs, so neither
-    a hang nor a flood of output can take the dispatcher or the disk down. The group is ended afterwards whatever
-    happened. Returns (exit code, None) or (None, the reason it returned no review)."""
+def run(argv, stdin_text, timeout, watched, stderr_path):
+    """Run one reviewer in its own process group, watching the size of every file it writes while it runs (its error
+    output, to `stderr_path`, against MAX_ERROR_BYTES), so neither a hang nor a flood of output can take the dispatcher
+    or the disk down. The group is ended afterwards whatever happened. Returns (exit code, None) or (None, the reason it
+    returned no review)."""
     group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
     stdout_path = watched[0]
-    with open(stdout_path, "wb") as output:
+
+    def flooded():
+        if any(path.is_file() and path.stat().st_size > MAX_OUTPUT_BYTES for path in watched):
+            return f"returned more than {MAX_OUTPUT_BYTES} bytes"
+        if stderr_path.is_file() and stderr_path.stat().st_size > MAX_ERROR_BYTES:
+            return f"wrote more than {MAX_ERROR_BYTES} bytes of error output"
+        return None
+
+    with open(stdout_path, "wb") as output, open(stderr_path, "wb") as errors:
         try:
             process = subprocess.Popen(argv, cwd=ROOT,
                                        stdin=subprocess.PIPE if stdin_text is not None else subprocess.DEVNULL,
-                                       stdout=output, stderr=subprocess.DEVNULL, **group)
+                                       stdout=output, stderr=errors, **group)
         except (OSError, ValueError) as exc:
             return None, f"could not start: {getattr(exc, 'strerror', None) or type(exc).__name__}"
         try:
@@ -439,8 +452,8 @@ def run(argv, stdin_text, timeout, watched):
                 threading.Thread(target=feed, args=(process.stdin, stdin_text), daemon=True).start()
             deadline = time.monotonic() + timeout
             while process.poll() is None:
-                if any(path.is_file() and path.stat().st_size > MAX_OUTPUT_BYTES for path in watched):
-                    return None, f"returned more than {MAX_OUTPUT_BYTES} bytes"
+                if problem := flooded():
+                    return None, problem
                 if time.monotonic() > deadline:
                     return None, "timed out"
                 time.sleep(POLL_SECONDS)
@@ -449,9 +462,28 @@ def run(argv, stdin_text, timeout, watched):
             process.wait()
     if process.returncode != 0:
         return None, f"exited {process.returncode}"
-    if any(path.is_file() and path.stat().st_size > MAX_OUTPUT_BYTES for path in watched):
-        return None, f"returned more than {MAX_OUTPUT_BYTES} bytes"
+    if problem := flooded():
+        return None, problem
     return process.returncode, None
+
+
+ERROR_LOGS = ROOT / "build" / "review-logs"
+
+
+def keep_error_tail(name, stderr_path):
+    """Save the last ERROR_TAIL_BYTES of a reviewer's error output under build/review-logs (ignored, never recorded in
+    a findings file: it can echo anything the reviewer read) and return the path, or None when it wrote nothing."""
+    if not stderr_path.is_file() or stderr_path.stat().st_size == 0:
+        return None
+    with open(stderr_path, "rb") as source:
+        source.seek(max(0, stderr_path.stat().st_size - ERROR_TAIL_BYTES))
+        tail = source.read()
+    ERROR_LOGS.mkdir(parents=True, exist_ok=True)
+    target = ERROR_LOGS / f"{name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{os.getpid()}.log"
+    temporary = target.with_suffix(".tmp")
+    temporary.write_bytes(tail)
+    os.replace(temporary, target)
+    return target
 
 
 def review(pin, writer, prompt_path, timeout, plan=None, reviewer_name=None):
@@ -484,7 +516,7 @@ def review(pin, writer, prompt_path, timeout, plan=None, reviewer_name=None):
     text = None
     tmp = Path(tempfile.mkdtemp())
     try:
-        stdout_path, message_path = tmp / "stdout.txt", tmp / "last-message.md"
+        stdout_path, message_path, stderr_path = tmp / "stdout.txt", tmp / "last-message.md", tmp / "stderr.txt"
         prompt_file = Path(prompt_path).resolve()
         if lenses:
             # The pointer an Antigravity shim gets must name the prompt with its scheduled lenses.
@@ -492,7 +524,9 @@ def review(pin, writer, prompt_path, timeout, plan=None, reviewer_name=None):
             prompt_file.write_text(prompt, encoding="utf-8", newline="\n")
         argv, stdin_text = command(reviewer, executable, prompt, prompt_file, message_path, timeout, effort)
         with in_flight(name, timeout):
-            _, problem = run(argv, stdin_text, timeout, [stdout_path, message_path])
+            _, problem = run(argv, stdin_text, timeout, [stdout_path, message_path], stderr_path)
+        if problem is not None and (kept := keep_error_tail(name, stderr_path)):
+            print(f"review-dispatch: {name} {problem}; the end of its error output is in {kept}", file=sys.stderr)
         if problem is None:
             # Codex writes its final message to the -o file; stdout carries its progress, not the review.
             source = message_path if reviewer["cli"] == "codex" else stdout_path
