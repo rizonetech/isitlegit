@@ -1,0 +1,119 @@
+{
+  "ref": "D01 T02 \u00a72",
+  "title": "Recipient allowlist enforced in code",
+  "implementation_sha": "10344d67140204d4bc5cc1444e7b7c1b9b60f082",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s2.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T02-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/mail test/auth -> Test Files 8 passed (8), Tests 109 passed (109)",
+    "pnpm exec vitest run -> Tests 539 passed | 2 skipped (541)",
+    "pnpm typecheck -> ok; pnpm exec biome check . -> ok; python3 -m unittest discover -s tests/scripts -> OK (skipped=1)"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s2.md",
+    "verdict": "filed",
+    "candidate": "c6d44923978b810053a7a8894ffb65be5329724f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T02 \u00a74"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s2.md",
+    "candidate": "0020b22a98f21a0a2d26ef070850c5e57669509b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T02-s2.md",
+    "verdict": "fixed",
+    "candidate": "951123b94dec5efdaa235b0e0cdfdbd419ec596d",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

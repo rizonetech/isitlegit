@@ -35,7 +35,7 @@ track: day-1
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SMTP2GO client with retries and send log | D01 T01 §1 | [x] |
-| 2 | §2 | Recipient allowlist enforced in code | §1, D07 T02 §3 | [ ] |
+| 2 | §2 | Recipient allowlist enforced in code | §1, D07 T02 §3 | [x] |
 | 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §8 | [ ] |
 | 4 | §4 | Test and demo mail aliases | §1 | [x] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [x] |
@@ -99,9 +99,12 @@ The operator decided that during the event the system mails only registered memb
 - [x] Set `OPERATOR_EMAIL` as a Worker var from the operator's Rizonetech address (design spec section 11, Mailbox). Done when: `wrangler.jsonc` has the var and `pnpm typecheck` sees it. (Already true: `wrangler.jsonc` has `OPERATOR_EMAIL` and `worker-configuration.d.ts` types it, set by D01 T02 §5 for the reconcile handover.)
 Evidence 2026-10-28. `src/mail/allowlist.ts` holds `isAllowedRecipient` by purpose (members by their Better Auth membership, pending unexpired invitees for `signin`, the two demo domains exactly, the operator; `verify` to demo aliases only, `alert` to demo aliases and the operator). `sendMail` asks it first: a refusal is a `refused` row under its key (`ON CONFLICT DO NOTHING`, a key on record untouched) and a `{ status: "refused" }` outcome with no fetch, and an unreadable allowlist is a `failed` outcome with nothing sent. The magic-link sender counts a refusal as not delivered; the reconcile handover reports a refused operator alert as a configuration error, never retried. `pnpm exec vitest run test/mail test/auth`: 8 files, 104 passed: `test/mail/allowlist.test.ts` (each kind for members, invitees, demo aliases and the operator; an unregistered address, a user with no organisation, expired and cancelled invitees, four look-alike domains and an unset operator refused), `sendMail` refusing with no fetch and one row however often asked, a refusal leaving a `sent`, `failed` or `uncertain` row as it was, an unreadable allowlist sending nothing; a real `example.com` member signing in by membership and a stranger's link refused; the organisation tests on `example.com` members made through Better Auth, the demo domain only for non-members. Full suite 534 passed, 2 skipped. Ten mutations each fail them.
 
-- [ ] Commit: `mail: recipient allowlist enforced inside the sender`
+- [x] Commit: `mail: recipient allowlist enforced inside the sender`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail test/auth` passes and fails if the allowlist call is moved out of `sendMail`, a look-alike domain or an unregistered address is allowed, a member is sent `verify` or `alert` mail, a refused send reaches `fetch`, or a refusal overwrites a send already on record.
+
+> **Verified:** 2026-10-28 | §2 | 10344d67140204d4bc5cc1444e7b7c1b9b60f082
+> **Review:** `docs/reviews/d01-t02-s2.json`
 
 ## 3. Threaded reply with a signed report link
 
