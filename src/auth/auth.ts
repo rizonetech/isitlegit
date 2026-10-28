@@ -76,7 +76,8 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
     hooks: {
       // The return paths, on the link request and on the link itself. The request takes only `callbackURL` (a same-site
       // path, else /cases); the failure and new-user paths are set here from it, whatever the client sent. On the link,
-      // all three must still be same-site paths, so an edited link cannot send the member off the site.
+      // all three must still be same-site paths, so an edited link cannot send the member off the site, and the failure and
+      // new-user paths are set again from `callbackURL`, so removing or changing them changes nothing.
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === "/sign-in/magic-link") {
           const body = (ctx.body ?? {}) as Record<string, unknown>;
@@ -100,6 +101,11 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
           const query = (ctx.query ?? {}) as Record<string, unknown>;
           for (const name of RETURN_PARAMS)
             if (query[name] !== undefined && !sameSitePath(query[name])) throw notSameSite();
+          // Set again here, so a link with its return parameters removed still lands on ours, not Better Auth's
+          // defaults (session JSON, `/`, or a failure sent to the destination instead of sign-in).
+          const callbackURL = (query.callbackURL as string | undefined) ?? DEFAULT_RETURN;
+          const paths = { callbackURL, newUserCallbackURL: callbackURL, errorCallbackURL: recoveryPath(callbackURL) };
+          return { context: { query: { ...query, ...paths } } };
         }
       }),
     },

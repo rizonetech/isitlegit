@@ -131,6 +131,36 @@ describe("magic-link sign-in through the Worker", () => {
     expect(target(await call(`${link.pathname}${link.search}`))).toBe("/cases");
   });
 
+  it("lands a link with its return parameters removed on the app's paths, not Better Auth's defaults", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    await requestLink("stripped@example.com", "/cases/7");
+    const link = new URL(smtp.sends[0]?.link ?? "");
+    // Without the failure path: a used link still goes to sign-in with the page kept.
+    const noError = new URL(link);
+    noError.searchParams.delete("errorCallbackURL");
+    expect(target(await call(`${noError.pathname}${noError.search}`))).toBe("/cases/7");
+    expect(target(await call(`${noError.pathname}${noError.search}`))).toBe(
+      "/signin?next=%2Fcases%2F7&error=INVALID_TOKEN",
+    );
+    // Changed to another page on this site: the failure still goes to sign-in.
+    await requestLink("moved@example.com", "/cases/8");
+    const moved = new URL(smtp.sends.at(-1)?.link ?? "");
+    moved.searchParams.set("errorCallbackURL", "/cases");
+    await call(`${moved.pathname}${moved.search}`);
+    expect(target(await call(`${moved.pathname}${moved.search}`))).toBe(
+      "/signin?next=%2Fcases%2F8&error=INVALID_TOKEN",
+    );
+    // With all three removed: a redirect to /cases (never session JSON), and a failure to sign-in.
+    await requestLink("bare@example.com");
+    const bare = new URL(smtp.sends.at(-1)?.link ?? "");
+    for (const name of ["callbackURL", "errorCallbackURL", "newUserCallbackURL"]) bare.searchParams.delete(name);
+    const first = await call(`${bare.pathname}${bare.search}`);
+    expect([first.status, target(first)]).toEqual([302, "/cases"]);
+    expect(sessionCookie(first)).toMatch(/session_token=/);
+    expect(target(await call(`${bare.pathname}${bare.search}`))).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
+  });
+
   it("stores a link's token only as its hash", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;

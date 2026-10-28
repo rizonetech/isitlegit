@@ -53,6 +53,12 @@ describe("requireSession", () => {
       .run();
     const refused = await page(cookie, "application/json");
     expect(refused.status).toBe(401);
+    // Its cookie is deleted, so the browser stops presenting it; the page request is sent to sign-in the same way.
+    const deleted = (r: Response) => r.headers.getSetCookie().find((c) => c.includes("session_token")) ?? "";
+    expect(deleted(refused)).toMatch(/Max-Age=0/i);
+    const browser = await page(cookie);
+    expect(browser.status).toBe(303);
+    expect(deleted(browser)).toMatch(/Max-Age=0/i);
   });
 
   it("sends an anonymous page request to /signin with next, and answers anything else 401", async () => {

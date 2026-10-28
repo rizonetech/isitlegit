@@ -8,16 +8,24 @@ import { type Auth, createAuth, sameSitePath } from "./auth";
 export type SignedIn = NonNullable<Awaited<ReturnType<Auth["api"]["getSession"]>>>;
 export type GateEnv = { Bindings: Env; Variables: { signedIn: SignedIn } };
 
+const notSignedIn = () =>
+  Response.json({ error: "sign in first" }, { status: 401, headers: { "cache-control": "no-store" } });
+
+function toSignIn(requested: string) {
+  const url = new URL(requested);
+  const wanted = `${url.pathname}${url.search}`;
+  const to = sameSitePath(wanted) ? `/signin?next=${encodeURIComponent(wanted)}` : "/signin";
+  return new Response(null, { status: 303, headers: { location: to } });
+}
+
 export const requireSession = createMiddleware<GateEnv>(async (c, next) => {
   const auth = createAuth(c.env);
   const { headers, response } = await auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true });
   if (!response) {
-    if (!(c.req.header("accept") ?? "").includes("text/html"))
-      return c.json({ error: "sign in first" }, 401, { "cache-control": "no-store" });
-    const url = new URL(c.req.url);
-    const wanted = `${url.pathname}${url.search}`;
-    const to = sameSitePath(wanted) ? `/signin?next=${encodeURIComponent(wanted)}` : "/signin";
-    return c.redirect(to, 303);
+    // Better Auth's own headers go too: for an expired session they delete its cookie, so the browser stops sending it.
+    const refused = (c.req.header("accept") ?? "").includes("text/html") ? toSignIn(c.req.url) : notSignedIn();
+    for (const cookie of headers.getSetCookie()) refused.headers.append("set-cookie", cookie);
+    return refused;
   }
   c.set("signedIn", response);
   await next();
