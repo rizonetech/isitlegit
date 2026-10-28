@@ -460,7 +460,7 @@ describe("sendMail", () => {
       ["a two-line subject", { subject: "Hi\r\nBcc: x@y.example" }],
       ["no text body", { text: " " }],
       ["no send key", { sendKey: "" }],
-      // The sender is isitlegit.co.za or a subdomain, never another domain or a look-alike (D99 T01 §4).
+      // The sender is exactly isitlegit.co.za: never another domain, a subdomain or a look-alike (D99 T01 §4).
       ["another sender domain", { from: "IsItLegit <alerts@rizonetech.com>" }],
       ["a look-alike sender domain", { from: "check@isitlegit.co.za.example.net" }],
       ["a bare look-alike", { from: "IsItLegit <check@notisitlegit.co.za>" }],
