@@ -48,11 +48,15 @@ track: day-0
 
 ## 1. Meta API billing and API key
 
+> **Started:** 2026-10-28T20:32:02Z
+
 Credits apply in batches after the claim form; until they show, every call is charged to the card (`sources/cerebralvalley/2026-10-26-credit-claim.md`).
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -72,11 +76,15 @@ Meta credit visible: 2026-10-27
 
 ## 2. Domain verification and nameservers
 
+> **Started:** 2026-10-28T20:32:02Z
+
 `isitlegit.co.za` is on `serverHold` until the registrant contact is verified; the nameserver change to Cloudflare is queued behind it.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -103,11 +111,15 @@ Meta credit visible: 2026-10-27
 
 ## 3. Workers Paid plan
 
+> **Started:** 2026-10-28T20:32:02Z
+
 Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"). The Cloudflare API token cannot read billing, so the operator confirms it in the dashboard.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -123,11 +135,15 @@ Plan read: Workers Paid, 2026-10-27
 
 ## 4. SMTP2GO sender domain
 
+> **Started:** 2026-10-28T20:32:02Z
+
 Replies, verification mails and alerts go out through SMTP2GO from `check@`, `verify@`, `alerts@` and `no-reply@isitlegit.co.za` (stack doc "Outbound mail"; **Corrected 2026-10-26:** `no-reply@` added for sign-in and invitation mail, D07 T08 §6). One verified sender domain covers every address. The DNS records SMTP2GO gives are added to the Cloudflare zone by Claude once the operator starts the sender-domain setup.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -140,7 +156,7 @@ Replies, verification mails and alerts go out through SMTP2GO from `check@`, `ve
 - [x] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account. Done: Evidence 2026-10-27 01:27 SAST: the operator narrowed the key; a send from `no-reply@isitlegit.co.za` to `hello@isitlegit.co.za` ("IsItLegit SMTP2GO send test", SMTP2GO email id `1xLU5R-FnQW0hPtclR-gWDp`, sent 23:26:41 UTC on 2026-10-26) reached the derick@rizonetech.com Inbox nine seconds later (internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>`), passing DMARC `p=reject`. The narrowed key can still read account stats (read-only), which is harmless.
 - [ ] Commit: `todo: record the SMTP2GO sender domain as verified`
 
-**Test checkpoint:** `dig +short CNAME em.isitlegit.co.za @1.1.1.1` (or the record names SMTP2GO gives) resolves to SMTP2GO targets.
+**Test checkpoint:** `dig +short CNAME em1027207.isitlegit.co.za @1.1.1.1` prints `return.smtp2go.net.` and `dig +short CNAME s1027207._domainkey.isitlegit.co.za @1.1.1.1` prints `dkim.smtp2go.net.` (**Corrected 2026-10-28:** it named `em`, a placeholder; SMTP2GO gave `em1027207` and `s1027207._domainkey`, item 2's evidence).
 
 ## 5. WhatsApp test number
 
@@ -167,11 +183,15 @@ The WhatsApp intake (design spec 4.1a) needs a Meta for Developers app with the 
 
 ## 6. Google Web Risk API key
 
+> **Started:** 2026-10-28T20:32:02Z
+
 URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls a month (design spec 4.3a).
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
