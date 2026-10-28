@@ -293,12 +293,21 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return { id, ...meta };
   }
 
-  function manifest(): StoredPage[] {
+  // Every page's record. A `meta.json` that does not read throws, unless `tolerant`: then that page is left out, for a
+  // caller (a resumed import) that finds and repairs damaged pages through `verify()` and `putPage()`.
+  function manifest(options: { tolerant?: boolean } = {}): StoredPage[] {
     if (!existsSync(pages)) return [];
     return readdirSync(pages)
       .filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory())
       .sort()
-      .map((id) => ({ id, ...PageMeta.parse(JSON.parse(readFileSync(join(pages, id, "meta.json"), "utf-8"))) }));
+      .flatMap((id) => {
+        try {
+          return [{ id, ...PageMeta.parse(JSON.parse(readFileSync(join(pages, id, "meta.json"), "utf-8"))) }];
+        } catch (error) {
+          if (options.tolerant) return [];
+          throw error;
+        }
+      });
   }
 
   // Every stored page whose files no longer match their hashes, or whose meta.json does not read; with `source`, only

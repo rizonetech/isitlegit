@@ -175,7 +175,7 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(2);
   }
   const store = openStore(dir);
-  const pages = store.manifest();
+  const pages = store.manifest({ tolerant: true }); // an unreadable record is reported by verify() below
   const imports: Record<string, ImportRecord> = {};
   for (const source of new Set(pages.map((p) => p.source))) {
     const file = join(dir, "raw", source, "IMPORT.json");
@@ -186,6 +186,12 @@ if (import.meta.filename === process.argv[1]) {
     const file = join(dir, "raw", row.source, "IMPORT.json");
     if (!imports[row.source] && existsSync(file)) imports[row.source] = JSON.parse(readFileSync(file, "utf-8"));
   }
+  // Damaged pages of an accepted source fail the check: a count can match while a page no longer reads whole.
+  const damagedBy: Record<string, number> = {};
+  for (const id of store.verify().damaged) {
+    const source = /^(.+)-[0-9a-f]{16}$/.exec(id)?.[1] ?? id;
+    damagedBy[source] = (damagedBy[source] ?? 0) + 1;
+  }
   const problems = reconcile({
     sources: sourcesMd,
     imports,
@@ -193,6 +199,8 @@ if (import.meta.filename === process.argv[1]) {
     notice: readFileSync(join(ROOT, "NOTICE.md"), "utf-8"),
     synthetic: section8(),
   });
+  for (const [source, count] of Object.entries(damagedBy))
+    problems.push(`${source}: ${count} damaged pages in the store`);
   for (const problem of problems) console.log(`sources: ${problem}`);
   console.log(problems.length ? `sources: ${problems.length} problems` : "sources: reconciled");
   process.exit(problems.length ? 1 : 0);

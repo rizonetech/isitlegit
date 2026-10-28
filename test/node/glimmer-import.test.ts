@@ -267,6 +267,37 @@ describe("the import run", () => {
     expect(openStore(storeDir).verify().damaged).toEqual([]);
   });
 
+  it("stays incomplete while a damaged page could not be repaired", async () => {
+    const storeDir = join(dir, "store");
+    const many = Array.from({ length: 20 }, (_, i) => item(`p${i}`, `#${(i * 11 + 16).toString(16).padStart(3, "0")}`));
+    await importSource({ source: "set", licence: "CC0", items: many, store: openStore(storeDir) });
+    const [first] = openStore(storeDir).manifest();
+    writeFileSync(join(storeDir, "pages", first?.id ?? "", "screenshot.jpg"), "truncated");
+    // The damaged page's item now fails to render: one exclusion, under 5 percent, yet the import must not read complete.
+    const failing = many.map((it) =>
+      it.id === first?.item ? { ...it, load: async () => Promise.reject(new Error("render failed")) } : it,
+    );
+    const rerun = await importSource({ source: "set", licence: "CC0", items: failing, store: openStore(storeDir) });
+    expect(rerun.status).toBe("incomplete");
+    expect(rerun.reason).toBe("1 damaged pages remain in the store");
+  });
+
+  it("repairs a page whose meta.json no longer reads, instead of failing on it", async () => {
+    const storeDir = join(dir, "store");
+    await importSource({ source: "set", licence: "CC0", items: [item("meta", "#404")], store: openStore(storeDir) });
+    const [stored] = openStore(storeDir).manifest();
+    writeFileSync(join(storeDir, "pages", stored?.id ?? "", "meta.json"), "{ truncated");
+    const rerun = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [item("meta", "#404")],
+      store: openStore(storeDir),
+    });
+    expect(rerun).toMatchObject({ status: "complete", imported: 1 });
+    expect(openStore(storeDir).verify().damaged).toEqual([]);
+    expect(openStore(storeDir).manifest()).toHaveLength(1);
+  });
+
   it("says running before the first page, so a killed run never leaves an earlier complete standing", async () => {
     const storeDir = join(dir, "store");
     const record = join(storeDir, "raw", "set", "IMPORT.json");

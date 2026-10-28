@@ -84,7 +84,8 @@ export async function importSource(options: {
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
-  const manifest = store.manifest();
+  // Tolerant: a page whose record does not read is damaged, and this run repairs it rather than failing on it.
+  const manifest = store.manifest({ tolerant: true });
   const before = new Set(manifest.map((page) => page.id));
   // An item is skipped only when its stored page is intact: a damaged one is rendered again and `putPage` replaces it.
   const damaged = new Set(store.verify(source).damaged);
@@ -176,8 +177,11 @@ export async function importSource(options: {
   await Promise.all(Array.from({ length: concurrency }, worker));
   const stored = store.manifest().filter((page) => page.source === source).length;
   const tooMany = excluded.length > items.length * MAX_EXCLUDED_SHARE;
+  // A damaged page this run could not repair (its render failed, or nothing in the source names it) keeps the import
+  // incomplete: the store must hold only pages that read whole before a source is used.
+  const stillDamaged = stopped ? 0 : store.verify(source).damaged.length;
   const result: ImportResult = {
-    status: stopped || tooMany ? "incomplete" : "complete",
+    status: stopped || tooMany || stillDamaged ? "incomplete" : "complete",
     expected: items.length,
     imported,
     duplicates,
@@ -187,9 +191,11 @@ export async function importSource(options: {
     skipped,
     ...(stopped
       ? { reason: stopped }
-      : tooMany
-        ? { reason: `${excluded.length} of ${items.length} items excluded (over 5 percent)` }
-        : {}),
+      : stillDamaged
+        ? { reason: `${stillDamaged} damaged pages remain in the store` }
+        : tooMany
+          ? { reason: `${excluded.length} of ${items.length} items excluded (over 5 percent)` }
+          : {}),
     started: started.toISOString(),
     finished: new Date().toISOString(),
     seconds: Math.round((Date.now() - started.getTime()) / 1000),
