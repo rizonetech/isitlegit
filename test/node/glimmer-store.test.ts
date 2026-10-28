@@ -235,6 +235,25 @@ describe("recovery, integrity and removal", () => {
     expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(`.damaged-${id}-`))).toBe(true);
   });
 
+  it("refuses a huge screenshot from its header, before decoding a pixel", async () => {
+    // A 16000 by 16000 image would need 768 MB to decode (round 3); the header says so first.
+    const store = openStore(dir);
+    await expect(store.putPage("s", page({ screenshot: fakeJpeg(16000, 16000, 8) }))).rejects.toThrow(
+      "the screenshot is 16000 by 16000",
+    );
+  });
+
+  it("flushes the parent of every folder the first page creates", async () => {
+    const root = join(dir, "new", "store");
+    const flushed: string[] = [];
+    const store = openStore(root, { sync: (path) => flushed.push(path) });
+    const id = await store.putPage("s", page());
+    for (const parent of [dir, join(dir, "new"), root]) expect(flushed, parent).toContain(parent);
+    // The folders are on disk before the page's publication is flushed.
+    expect(flushed.indexOf(root)).toBeLessThan(flushed.lastIndexOf(join(root, "pages")));
+    expect(openStore(root).readPage(id).text).toBe(page().text);
+  });
+
   it("reports a failed flush after publication as a failed write", async () => {
     const store = openStore(dir, {
       sync: (path) => {

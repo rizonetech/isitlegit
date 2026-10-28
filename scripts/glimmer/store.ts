@@ -154,6 +154,17 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
       if (writer && !processAlive(pid)) rmSync(join(pages, name), { recursive: true, force: true });
     }
 
+  // Creates each missing folder down to `path`, one at a time, flushing the parent of each one it creates: a folder's
+  // entry lives in its parent, so the first page of a new store survives a power loss with every folder above it.
+  function makeDurableDirs(path: string): void {
+    const missing: string[] = [];
+    for (let at = path; !existsSync(at); at = dirname(at)) missing.unshift(at);
+    for (const folder of missing) {
+      mkdirSync(folder);
+      sync(dirname(folder));
+    }
+  }
+
   // Whether a stored page's files still match the hashes its meta.json records.
   function intact(id: string): boolean {
     try {
@@ -169,10 +180,19 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
   }
 
   async function putPage(source: string, page: PageInput): Promise<string> {
-    if (!jpegSize(page.screenshot)) throw new TypeError("the screenshot is not a JPEG");
+    const header = jpegSize(page.screenshot);
+    if (!header) throw new TypeError("the screenshot is not a JPEG");
+    // The size is checked from the header before anything is decoded, and the decoder is held to the same limit, so a
+    // huge image is refused without its pixels ever being allocated.
+    if (header.width > MAX_WIDTH || header.height > MAX_HEIGHT)
+      throw new RangeError(
+        `the screenshot is ${header.width} by ${header.height}; at most ${MAX_WIDTH} by ${MAX_HEIGHT}`,
+      );
     let size: { width: number; height: number };
     try {
-      const decoded = await sharp(page.screenshot, { failOn: "warning" }).raw().toBuffer({ resolveWithObject: true });
+      const decoded = await sharp(page.screenshot, { failOn: "warning", limitInputPixels: MAX_WIDTH * MAX_HEIGHT })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
       size = { width: decoded.info.width, height: decoded.info.height };
     } catch (error) {
       const reason = (error as Error).message.split("\n")[0];
@@ -199,7 +219,7 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
       // A damaged copy is not this page: it is set aside and the page written again.
       renameSync(final, join(pages, `.damaged-${id}-${Date.now()}`));
     }
-    mkdirSync(pages, { recursive: true });
+    makeDurableDirs(pages);
     const temporary = join(pages, `.tmp-${id}-${process.pid}-${randomBytes(4).toString("hex")}`);
     mkdirSync(temporary);
     try {
