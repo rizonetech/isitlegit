@@ -45,8 +45,9 @@ track: day-0
 | 6 | §6 | Google Web Risk API key | -- | [x] |
 | 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
-| 9 | §9 | Domain recovery runbook | §2 | [ ] |
+| 9 | §9 | Domain and mail recovery runbook | §2, §4 | [ ] |
 | 10 | §10 | Web Risk key restriction read from Google | §6 | [ ] |
+| 11 | §11 | SMTP2GO key permissions and senders read back | §4 | [ ] |
 
 ## 1. Meta API billing and API key
 
@@ -176,7 +177,7 @@ Replies, verification mails and alerts go out through SMTP2GO from `check@`, `ve
 - [x] Add `isitlegit.co.za` under SMTP2GO Sending, Verified Senders, Sender Domains. Done when: SMTP2GO shows the records to add. Evidence 2026-10-27 00:50 SAST: SMTP2GO lists the domain.
 - [x] Give Claude the record names and targets (they are not secret) to add in Cloudflare DNS. Done when: the records exist in zone `88aeec6df134bc59bfa16a25751241ef`. Evidence 2026-10-27 00:50 SAST: SMTP2GO's setup added them through Cloudflare Domain Connect: `s1027207._domainkey` and `em1027207` CNAMEs (and an unused `link` tracking CNAME; tracking stays off, the emails promise none).
 - [x] Click verify in SMTP2GO. Done when: the sender domain reads verified. Evidence 2026-10-27 00:50 SAST: DKIM and return path read verified.
-- [x] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item holds a live key that SMTP2GO refuses every account endpoint but sending, its permitted sender is isitlegit.co.za only, and an authenticated send has arrived (**Corrected 2026-10-29** (plan review): "the vault item exists" passed an empty or over-privileged key). Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account. Done: Evidence 2026-10-27 01:27 SAST: the operator narrowed the key; a send from `no-reply@isitlegit.co.za` to `hello@isitlegit.co.za` ("IsItLegit SMTP2GO send test", SMTP2GO email id `1xLU5R-FnQW0hPtclR-gWDp`, sent 23:26:41 UTC on 2026-10-26) reached the derick@rizonetech.com Inbox nine seconds later (internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>`), passing DMARC `p=reject`. The narrowed key can still read account stats (read-only), which is harmless. Evidence 2026-10-29 00:10 SAST: `scripts/check-smtp2go.py` reads the narrowing back from the key itself (stats HTTP 200; `domain/view` and `users/smtp/view` answer `ENDPOINT_PERMISSION_DENIED`). The sender limit: SMTP2GO refused a send as `probe@example.com` to hello@isitlegit.co.za with "From header sender domain not verified (example.com)" (0 sent, 2026-10-29 00:10 SAST), and `sendMail` (`src/mail/smtp2go.ts`) now refuses any sender outside isitlegit.co.za and its subdomains before calling SMTP2GO (`test/mail/smtp2go.test.ts`), since the key cannot list which domains the account has verified.
+- [x] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item holds a live key that SMTP2GO refuses every account endpoint but sending, its permitted sender is isitlegit.co.za only, and an authenticated send has arrived (**Corrected 2026-10-29** (plan review): "the vault item exists" passed an empty or over-privileged key). Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account. Done: Evidence 2026-10-27 01:27 SAST: the operator narrowed the key; a send from `no-reply@isitlegit.co.za` to `hello@isitlegit.co.za` ("IsItLegit SMTP2GO send test", SMTP2GO email id `1xLU5R-FnQW0hPtclR-gWDp`, sent 23:26:41 UTC on 2026-10-26) reached the derick@rizonetech.com Inbox nine seconds later (internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>`), passing DMARC `p=reject`. The narrowed key can still read account stats (read-only), which is harmless. Evidence 2026-10-29 00:10 SAST: `scripts/check-smtp2go.py` reads the narrowing back from the key itself (stats HTTP 200; `domain/view` and `users/smtp/view` answer `ENDPOINT_PERMISSION_DENIED`). The sender limit: SMTP2GO refused a send as `probe@example.com` to hello@isitlegit.co.za with "From header sender domain not verified (example.com)" (0 sent, 2026-10-29 00:10 SAST), and `sendMail` (`src/mail/smtp2go.ts`) now refuses any sender outside isitlegit.co.za and its subdomains before calling SMTP2GO (`test/mail/smtp2go.test.ts`), since the key cannot list which domains the account has verified. What is and is not proven (**Corrected 2026-10-29**, completion review): SMTP2GO's own boundary is account-wide (it refuses unverified sender domains, not every domain but isitlegit.co.za), and the key's complete permission set is a saved setting only an account-level key can read (`apikey/view` answers 404 to this one); the product's boundary is `sendMail`. Reading back the key's full permissions and permitted senders is the operator's, filed as D99 T01 §11.
 - [ ] Commit: `todo: record the SMTP2GO sender domain as verified`
 
 **Test checkpoint:** `python3 scripts/check-smtp2go.py` exits 0: the vault's key has SMTP2GO's shape and reads its stats, SMTP2GO refuses it `domain/view` and `users/smtp/view` (narrowed to sending, read back from the key), and the DKIM and return-path CNAMEs resolve to SMTP2GO; no mail is sent and the key is never printed; a placeholder, a revoked or unnarrowed key, or a wrong record exits 1, an unreachable vault, SMTP2GO or DNS exits 2 (`tests/scripts/test_check_smtp2go.py`). **Corrected 2026-10-29** (plan review): it checked only DNS; the earlier text, kept: `dig +short CNAME em1027207.isitlegit.co.za @1.1.1.1` prints `return.smtp2go.net.` and `dig +short CNAME s1027207._domainkey.isitlegit.co.za @1.1.1.1` prints `dkim.smtp2go.net.` (**Corrected 2026-10-28:** it named `em`, a placeholder; SMTP2GO gave `em1027207` and `s1027207._domainkey`, item 2's evidence). Evidence 2026-10-29 00:11 SAST: `check-smtp2go: the key is live and narrowed to sending, and SMTP2GO's DKIM and return-path records resolve`, exit 0.
@@ -302,7 +303,7 @@ Evidence 2026-10-27 16:35 SAST, after the final review: `node scripts/check-gate
 > **Review:** `docs/reviews/d99-t01-s8.json`
 
 
-## 9. Domain recovery runbook
+## 9. Domain and mail recovery runbook
 
 D99 T01 §2 set up isitlegit.co.za with DNSSEC (the DS at the registry), Cloudflare's nameservers, Email Routing and DMARC `p=reject`. A nameserver or signing change made with the DS still in place stops the domain resolving, and with it the site, mail intake and every report link (Cloudflare's DNSSEC documentation, https://developers.cloudflare.com/dns/dnssec/). The operator needs one ordered procedure for the changes that can break it, each step with its read-back, rather than researching during an incident. Filed from §2's completion review (out-of-scope gap C5 and E2, 2026-10-28).
 
@@ -316,7 +317,8 @@ D99 T01 §2 set up isitlegit.co.za with DNSSEC (the DS at the registry), Cloudfl
 2. Walk it through once. Done when: the walkthrough is recorded with each step's expected read-back.
 
 - [ ] Write `docs/operations.md` "Domain recovery" covering, in order, (a) a planned nameserver move (remove the DS at Domains.co.za, wait two DS TTLs, move, re-sign, publish the new DS), (b) an emergency when resolution fails with a DS present (`dig +cd` against `dig` to tell a DNSSEC failure from an outage, then pulling the DS), (c) restoring Email Routing (MX, SPF, the verified destination and its rules) and (d) restoring DMARC and CAA, citing Cloudflare's DNSSEC and Email Routing pages. Done when: each step names the command or dashboard action and the read-back that shows it worked. Cheaper substitute: a link to Cloudflare's documentation alone.
-- [ ] End every procedure with `python3 scripts/check-domain.py` as the final read-back (7 of 7, or the named refusal), and say what exit 2 (a lookup failed) means during an incident. Done when: each procedure's last step names it.
+- [ ] Add (e) recovering SMTP2GO sending: a revoked or leaked key (create a sending-only key, narrow it, store it in the vault as "IsItLegit SMTP2GO", `wrangler secret put SMTP2GO_API_KEY` from the vault without printing it), and removed sender-domain records (restore `em1027207` and `s1027207._domainkey` from SMTP2GO's Sender Domains page, then verify there), each ending in `python3 scripts/check-smtp2go.py`. Done when: the procedure names each action, its read-back and the order the vault and the Worker change in (filed from D99 T01 §4's completion review, gap C4).
+- [ ] End every domain procedure with `python3 scripts/check-domain.py` as the final read-back (7 of 7, or the named refusal), and say what exit 2 (a lookup failed) means during an incident. Done when: each procedure's last step names it.
 - [ ] Walk the runbook against the live domain without changing it (each read-back command run and its current output recorded), and record the walkthrough under the section with its date. Done when: the record lists every step with its observed read-back.
 - [ ] Commit: `todo: domain recovery runbook`
 
@@ -341,6 +343,26 @@ D99 T01 §6's check proves the Web Risk key works and that seven other Google AP
 - [ ] Commit: `todo: read the Web Risk key's restriction from Google`
 
 **Test checkpoint:** `python3 scripts/check-webrisk-key.py` exits 0 and names the exact allowed-service set it read.
+
+
+## 11. SMTP2GO key permissions and senders read back
+
+D99 T01 §4's check proves the SMTP2GO key is live and refused two account endpoints, and `sendMail` refuses any sender outside isitlegit.co.za, but the key's complete saved permission set and its permitted sender domains are settings only an account-level key can read (SMTP2GO's `apikey/view` answers 404 to the sending key, 2026-10-29). A key granted one extra permission, or allowed another verified domain in the account, would still pass. Filed from §4's completion review (gaps C1, C2 and E1, 2026-10-29).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Operator action (open):** in SMTP2GO, either confirm on the API keys page that the "IsItLegit SMTP2GO" key holds only the sending permission (and the read-only stats it keeps for reconciliation) and that isitlegit.co.za is the only verified sender domain, recording what the page shows with its date, or create an account-level read-only key with the API keys view permission and store it in the vault as "IsItLegit SMTP2GO admin". Recording `Operator ready: <which> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Read the key's saved permissions and senders back. Done when: `scripts/check-smtp2go.py` compares them with the intended minimum, or §4 records the operator's dated read of the API keys page.
+
+- [ ] With the admin key, read the sending key's saved permission set and the account's verified sender domains in `scripts/check-smtp2go.py`, refusing any permission beyond sending and stats, and any sender domain but isitlegit.co.za. Done when: `tests/scripts/test_check_smtp2go.py` refuses an extra permission, a missing send permission and a second domain, and the live check passes. Cheaper substitute: the operator's dated read of the dashboard, recorded in §4.
+- [ ] Commit: `todo: read back the SMTP2GO key's permissions and senders`
+
+**Test checkpoint:** `python3 scripts/check-smtp2go.py` exits 0 and names the permission set and sender domains it read.
 
 ## Verification
 

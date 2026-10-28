@@ -1,7 +1,11 @@
 """scripts/check-smtp2go.py (D99 T01 §4): passes only for a live, narrowed key and SMTP2GO's DNS, never printing the key."""
 import importlib.util
+import io
 import pathlib
+import subprocess
 import unittest
+import urllib.error
+from unittest import mock
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("check_smtp2go", REPO / "scripts/check-smtp2go.py")
@@ -23,7 +27,7 @@ def dns(**override):
 
 class Smtp2go(unittest.TestCase):
     def run_check(self, read=lambda: KEY, call=None, lookup=None):
-        code, line = cs.check(read=read, call=call or smtp2go(), lookup=lookup or dns())
+        code, line = cs.check(read=read, call=call or smtp2go(), lookup=lookup or dns(), say=lambda text: None)
         self.assertNotIn(KEY, line)
         return code, line
 
@@ -34,7 +38,8 @@ class Smtp2go(unittest.TestCase):
         calls = []
         for value in ("", "placeholder", "api-short"):
             with self.subTest(value):
-                code, line = cs.check(read=lambda v=value: v, call=lambda k, e: calls.append(e), lookup=dns())
+                code, line = cs.check(read=lambda v=value: v, call=lambda k, e: calls.append(e), lookup=dns(),
+                                      say=lambda text: None)
                 self.assertEqual(code, 1)
         self.assertEqual(calls, [])
 
@@ -59,6 +64,65 @@ class Smtp2go(unittest.TestCase):
         self.assertEqual(self.run_check(read=down)[0], 2)
         self.assertEqual(self.run_check(call=down)[0], 2)
         self.assertEqual(self.run_check(lookup=down)[0], 2)
+
+
+class Progress(unittest.TestCase):
+    def test_each_stage_is_announced_before_it_blocks(self):
+        said = []
+
+        def stalls(key, endpoint):
+            if endpoint == "domain/view":
+                self.assertIn("check-smtp2go: the key is live", said)
+                self.assertTrue(said[-1].endswith("which a sending key must be refused"))
+                raise cs.Unreachable("no answer")
+            return smtp2go()(key, endpoint)
+
+        code, line = cs.check(read=lambda: KEY, call=stalls, lookup=dns(), say=said.append)
+        self.assertEqual(code, 2)
+        self.assertEqual(said[0], "check-smtp2go: reading the key from the vault (up to 60 s)")
+
+
+class Adapters(unittest.TestCase):
+    """post() and cname() themselves: outages are inconclusive, never a key or record finding."""
+
+    def answer(self, status, body):
+        if status >= 400:
+            return urllib.error.HTTPError("https://api.smtp2go.com/v3/x", status, "err", {}, io.BytesIO(body))
+        response = mock.MagicMock(status=status)
+        response.read.return_value = body
+        context = mock.MagicMock()
+        context.__enter__.return_value = response
+        return context
+
+    def test_quota_server_and_unreadable_answers_are_unreachable(self):
+        for status, body in ((429, b'{"data": {"error": "slow down"}}'), (503, b'{"data": {}}'), (500, b"<html>"),
+                             (200, b"[]"), (200, b"{\"data\": 1}"), (400, b"not json")):
+            with self.subTest(status=status, body=body):
+                effect = self.answer(status, body)
+                kwargs = {"side_effect": effect} if isinstance(effect, Exception) else {"return_value": effect}
+                with mock.patch.object(cs.urllib.request, "urlopen", **kwargs):
+                    with self.assertRaises(cs.Unreachable):
+                        cs.post(KEY, "stats/email_summary")
+
+    def test_a_refusal_with_a_data_object_is_returned(self):
+        effect = self.answer(400, b'{"data": {"error_code": "E_ApiResponseCodes.ENDPOINT_PERMISSION_DENIED"}}')
+        with mock.patch.object(cs.urllib.request, "urlopen", side_effect=effect):
+            self.assertEqual(cs.post(KEY, "domain/view"), (400, {"error_code": cs.DENIED}))
+
+    def test_a_failed_dns_lookup_is_unreachable_and_a_missing_record_is_empty(self):
+        def dig(stdout, code=0):
+            return mock.patch.object(cs.subprocess, "run", return_value=subprocess.CompletedProcess(["dig"], code, stdout, ""))
+
+        with dig(";; ->>HEADER<<- opcode: QUERY, status: SERVFAIL, id: 1\n"), self.assertRaises(cs.Unreachable):
+            cs.cname("em1027207.isitlegit.co.za")
+        with dig("", 9), self.assertRaises(cs.Unreachable):
+            cs.cname("em1027207.isitlegit.co.za")
+        with dig(";; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN, id: 1\n"):
+            self.assertEqual(cs.cname("em1027207.isitlegit.co.za"), "")
+        answer = (";; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 1\n"
+                  "em1027207.isitlegit.co.za. 300 IN CNAME return.smtp2go.net.\n")
+        with dig(answer):
+            self.assertEqual(cs.cname("em1027207.isitlegit.co.za"), "return.smtp2go.net.")
 
 
 if __name__ == "__main__":
