@@ -185,7 +185,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 211
+Sections: 55 | Checklist items: 212
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -229,7 +229,7 @@ Sections: 55 | Checklist items: 211
 | [ ]    | D07 T08 §6 | Sign-in, invite and verification emails    | none                  | 3     |
 | [ ]    | D07 T08 §7 | Renew an expired report link               | operator              | 6     |
 | [ ]    | D08 T02 §1 | Eval runner through the deployed pipeline  | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2 | Metrics against the spec targets           | none                  | 4     |
+| [ ]    | D08 T02 §2 | Metrics against the spec targets           | none                  | 5     |
 | [ ]    | D08 T02 §3 | Model ablation runs                        | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4 | Eval dashboard with production counts      | none                  | 4     |
 | [ ]    | D08 T02 §5 | Fix the worst misses and record results    | meta-api, cloudflare  | 4     |
@@ -247,11 +247,13 @@ Sections: 55 | Checklist items: 211
 
 ### Phase 7: After the event
 
-Sections: 8 | Checklist items: 35
+Sections: 10 | Checklist items: 45
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
 | [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none     | 6     |
+| [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended | 6     |
+| [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -279,6 +281,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 34/210 verified sections, 15 ready to run now.
+Progress: 34/212 verified sections, 15 ready to run now.
 
-Checklist: 399/1146 items completed (includes Commit items).
+Checklist: 399/1157 items completed (includes Commit items).

@@ -44,6 +44,8 @@ track: day-1
 | 7 | §7 | AnalysisWorkflow skeleton, partial reports | §5 | [ ] |
 | 8 | §8 | Signed expiring report links | §1 | [x] |
 | 9 | §9 | Email Routing for check@ and live smoke | §7, D01 T02 §3 | [ ] |
+| 10 | §10 | Outlook report button for check@ | §9 | [ ] |
+| 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -294,6 +296,59 @@ The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (st
 - [ ] Commit: `intake: Email Routing for check@ with a live end-to-end smoke`
 
 **Test checkpoint:** `pnpm exec tsx scripts/send-fixture.ts test/fixtures/forward/attached-rfc822.eml --wait 120` exits 0 after finding the case in D1 with status `done` and a reply logged in SMTP2GO.
+
+
+## 10. Outlook report button for check@
+
+Forwarding to `check@` takes at least three actions (forward, type the address, send), and keeping the original headers needs one more choice, forward as attachment (spec 4.1). Microsoft's own Report button in Outlook takes two selections from an open message. An IsItLegit button in Outlook can send the open message as an attachment to `check@` in at most two actions, with no address typed and the headers always kept (D01 T01 §3 completion review, Part 2 item 1). The email path stays as it is; the button is another way into it.
+
+**Phase:** 7
+**Needs:** attended
+**Surface:** yes
+
+**Fidelity:** `design/SPEC.md` gains an "Outlook report button" section (the button in the ribbon and the message's action menu, its confirmation and failure states) with its board; no board yet.
+**Job:** a member reports the open message to IsItLegit in at most two actions, by keyboard or screen reader as well as by mouse, and the forward always carries the original as an attachment.
+**Treatment:** one button labelled "Check with IsItLegit", one short confirmation, the IsItLegit mark; Outlook's own task-pane layout.
+**Chrome:** Outlook's add-in surfaces only (the ribbon button and a task pane), no second window.
+
+**Build order:**
+
+1. Design the button and its states. Done when: the SPEC section and board name every control and state.
+2. Build the add-in and prove it from Outlook on the web and the desktop. Done when: a report from each reaches `check@` as an attachment forward and makes one case.
+
+- [ ] Add the "Outlook report button" section to `design/SPEC.md` (where the button sits, the confirmation, what a member sees when the send fails or the mailbox is not a member's), with its board in `design/mockups/`. Done when: the section and board exist and every control and state is named.
+- [ ] Write the add-in manifest `addins/outlook/manifest.json` (unified manifest; read item permission only) with one command, "Check with IsItLegit", in the ribbon and the message action menu. Done when: `test/addins/manifest.test.ts` validates it against the schema and finds the one command and no permission beyond reading the item.
+- [ ] Send the open message as an attachment to `check@isitlegit.co.za` from the add-in (`addins/outlook/report.ts`), using Office.js to attach the item, so its headers always travel with it. Done when: a test with a mocked Office.js item builds one message to `check@` with the item attached and no address typed by the member.
+- [ ] Show the confirmation or the failure state in the task pane, both reachable by keyboard and announced to a screen reader. Done when: an accessibility test (axe) on the rendered pane finds no violations, and the failure state names what to do next.
+- [ ] Sideload and report one fixture message from Outlook on the web and from the desktop, attended, from the operator's test mailbox. Done when: each report creates one case with `headers_available = 1` and the run is recorded in `docs/live-checks.md`.
+- [ ] Commit: `intake: Outlook report button for check@`
+
+**Test checkpoint:** `pnpm exec vitest run test/addins` passes and fails if the add-in asks for more than read access to the item, or sends the message inline instead of as an attachment.
+
+## 11. Acceptance acknowledgement for a forward
+
+After a forward, the member hears nothing until the verdict reply (D01 T02 §3), so a forward that was accepted and one that was lost look the same for up to a minute or more (D01 T01 §3 completion review, Part 2 item 2). A short acknowledgement can say the forward was received and give the case reference within seconds of admission. Silent refusal stays for senders intake does not admit (spec 4.1: no backscatter).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+
+**Fidelity:** `design/SPEC.md` gains the acknowledgement's copy and layout beside the reply's (D07 T03 §7); no board yet.
+**Job:** an admitted forward is acknowledged with its case reference within five seconds of admission, and only then; a refused one is never answered.
+**Treatment:** plain text, two lines: received, the case reference, and that the answer follows; no verdict and no link.
+**Chrome:** the reply's own mail template (D01 T02 §3), not a new one.
+
+**Build order:**
+
+1. Decide whether the acknowledgement is sent, and its copy, in the SPEC. Done when: the SPEC records the decision and the copy, or records that none is sent and why.
+2. Send it after admission and prove it is never sent for a refusal. Done when: an admitted forward gets one acknowledgement and a refused one gets nothing.
+
+- [ ] Record in `design/SPEC.md` whether an acknowledgement is sent (weighed against one more mail per check and the reply arriving within a minute), with its copy if so. Done when: the SPEC section states the decision with its reason.
+- [ ] Send the acknowledgement as mail kind `notice` under the send key `ack:<caseId>` from `handleEmail` (`src/intake/email.ts`) after the claim is marked done, its outcome never failing the delivery. Done when: `test/intake/email.test.ts` sees one acknowledgement naming the case reference for an admitted forward, none for a duplicate, a capped, a dropped or a too-large one, and none twice for a retried delivery.
+- [ ] Measure the time from the handler's start to the acknowledgement's send in the live smoke (D01 T01 §9's fixture). Done when: `docs/live-checks.md` records it under five seconds.
+- [ ] Commit: `intake: acceptance acknowledgement for a forward`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if a refused or duplicate forward is acknowledged, or one forward is acknowledged twice.
 
 ## Verification
 
