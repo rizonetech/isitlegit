@@ -179,10 +179,15 @@ describe("visibleText", () => {
 
   it("opens a new browser when the one it had is gone", async () => {
     const own = await openTextReader();
+    // The browser starts lazily, so a page is rendered first: the close then has a browser to close.
+    expect((await own.renderHtml("<p>Before the restart the reader renders</p>")).text).toBe(
+      "Before the restart the reader renders",
+    );
     await own.close();
     expect((await own.renderHtml("<p>After a restart the reader still renders</p>")).text).toBe(
       "After a restart the reader still renders",
     );
+    expect(own.launches()).toBe(2);
     await own.close();
   });
 
