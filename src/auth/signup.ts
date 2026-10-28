@@ -10,11 +10,15 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { z } from "zod";
+import { validOrganisationName } from "./schema";
 
 const SignUp = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   code: z.string().trim().max(200).optional(),
-  organizationName: z.string().trim().min(1).max(120),
+  organizationName: z
+    .string()
+    .trim()
+    .refine(validOrganisationName, "an organisation name is one line of 1 to 120 characters"),
   consent: z.boolean(),
 });
 
@@ -108,6 +112,20 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
           async () => (await internalAdapter.findUserByEmail(email))?.user,
         );
         const slug = `org-${redemption.id}`;
+        // A pending signup resumed for an address that has since joined another organisation (an invitation accepted
+        // meanwhile) is one that address no longer needs: it is told to sign in, not given a second organisation.
+        const memberships = await adapter.findMany<{ organizationId: string }>({
+          model: "member",
+          where: [{ field: "userId", value: user.id }],
+        });
+        if (memberships.length > 0) {
+          const own = await adapter.findOne<{ id: string }>({
+            model: "organization",
+            where: [{ field: "slug", value: slug }],
+          });
+          if (memberships.some((m) => m.organizationId !== own?.id))
+            throw new APIError("CONFLICT", { message: "this address already has an account; sign in instead" });
+        }
         const organization = await orFound(
           () =>
             adapter.create<{ name: string; slug: string; createdAt: Date }, { id: string }>({

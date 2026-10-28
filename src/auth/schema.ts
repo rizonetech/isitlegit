@@ -2,6 +2,7 @@
 // so the migrations Better Auth compiles are the schema the Worker uses. It imports nothing of the Worker's, so the
 // script runs in plain Node.
 import { passkey } from "@better-auth/passkey";
+import { APIError } from "better-auth/api";
 import { magicLink } from "better-auth/plugins/magic-link";
 import { organization } from "better-auth/plugins/organization";
 
@@ -18,6 +19,16 @@ export type Senders = { sendMagicLink: SendMagicLink; sendInvitationEmail: SendI
 // required too (the device's owner unlocked it, not only that the device was present): asked for here at registration,
 // and in the sign-in options and both checks by src/auth/passkey.ts, since the plugin asks "preferred" at sign-in and
 // verifies with it off (WebAuthn Level 3 §7.1 step 16, §7.2 step 17).
+// An organisation's name is shown in pages and put into mail subjects, so it is one line of printable text: no control
+// characters (a line break would make every invitation's subject one SMTP2GO refuses), 1 to 120 characters.
+export const ORGANISATION_NAME = /^[^\p{Cc}\p{Zl}\p{Zp}]{1,120}$/u;
+export const validOrganisationName = (name: unknown): name is string =>
+  typeof name === "string" && name.trim() === name && ORGANISATION_NAME.test(name);
+const checkName = (name: unknown) => {
+  if (name !== undefined && !validOrganisationName(name))
+    throw new APIError("BAD_REQUEST", { message: "an organisation name is one line of 1 to 120 characters" });
+};
+
 // The relying party for an app URL: its host is the ID, its origin the only one accepted.
 export const relyingParty = (appURL: string) => {
   const app = new URL(appURL);
@@ -39,7 +50,15 @@ export function schemaOptions({ sendMagicLink, sendInvitationEmail }: Senders, a
         origin: rp.origin,
         authenticatorSelection: { residentKey: "required", userVerification: "required" },
       }),
-      organization({ allowUserToCreateOrganization: false, disableOrganizationDeletion: true, sendInvitationEmail }),
+      organization({
+        allowUserToCreateOrganization: false,
+        disableOrganizationDeletion: true,
+        sendInvitationEmail,
+        organizationHooks: {
+          beforeCreateOrganization: async ({ organization }) => checkName(organization.name),
+          beforeUpdateOrganization: async ({ organization }) => checkName(organization.name),
+        },
+      }),
     ],
   };
 }

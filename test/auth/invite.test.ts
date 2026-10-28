@@ -105,6 +105,36 @@ describe("invite-code signup", () => {
     expect(smtp.sends).toEqual([]);
   });
 
+  it("refuses an organisation name that is not one line, at signup and on rename", async () => {
+    await addInviteCode(db, "NAMES", { maxUses: 2 });
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    for (const name of ["Acme\n\nUse attacker.example instead", "Ac\rme", "Tab\there", "a".repeat(121), "   "]) {
+      const answer = await signUp({ email: "names@example.org", code: "NAMES", organizationName: name, consent: true });
+      expect(answer.status, JSON.stringify(name)).toBe(400);
+    }
+    expect(await accountOf("names@example.org")).toEqual({ users: 0, organisations: 0, redemptions: 0 });
+    // A good name signs up; the owner then cannot rename it to two lines through Better Auth's own endpoint.
+    expect(
+      (await signUp({ email: "names@example.org", code: "NAMES", organizationName: "Acme (Pty) Ltd", consent: true }))
+        .status,
+    ).toBe(201);
+    const link = smtp.sends.at(-1)?.link ?? "";
+    const cookie = sessionCookie(await call(pathOf(link)));
+    const renamed = await call("/api/auth/organization/update", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ data: { name: "Acme\nInc" } }),
+    });
+    expect(renamed.status).toBe(400);
+    const names = await db
+      .prepare(
+        `SELECT o.name FROM "organization" o JOIN invite_redemptions r ON r.org_id = o.id WHERE r.email = 'names@example.org'`,
+      )
+      .first<{ name: string }>();
+    expect(names?.name).toBe("Acme (Pty) Ltd");
+  });
+
   it("tells an address that already belongs to an organisation to sign in instead", async () => {
     await addInviteCode(db, "TWICE", { maxUses: 2 });
     const smtp = stubSmtp2go();
@@ -192,6 +222,41 @@ describe("invite-code signup", () => {
     expect(answer.status).toBe(201);
     expect(await accountOf("single@example.org")).toEqual({ users: 1, organisations: 1, redemptions: 1 });
     expect(await usesOf(codeId)).toBe(1);
+  });
+
+  it("tells a stopped signup to sign in instead when the address has since joined another organisation", async () => {
+    const codeId = await addInviteCode(db, "JOINED");
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare("UPDATE invite_codes SET uses = 1 WHERE id = ?").bind(codeId),
+      db
+        .prepare(
+          "INSERT INTO invite_redemptions (id, code_id, email, status, consented_at, created_at) VALUES ('joined-1', ?, 'joined@example.org', 'pending', ?, ?)",
+        )
+        .bind(codeId, now, now),
+      // Meanwhile the address accepted an invitation to another organisation.
+      db
+        .prepare(
+          `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES ('joined-user', 'j', 'joined@example.org', 1, ?, ?)`,
+        )
+        .bind(now, now),
+      db
+        .prepare(
+          `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('elsewhere', 'Elsewhere', 'elsewhere', ?)`,
+        )
+        .bind(now),
+      db
+        .prepare(
+          `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES ('joined-member', 'elsewhere', 'joined-user', 'member', ?)`,
+        )
+        .bind(now),
+    ]);
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const retried = await signUp({ email: "joined@example.org", organizationName: "Second", consent: true });
+    expect(retried.status).toBe(409);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE slug = 'org-joined-1'`)).toBe(0);
+    expect(await count(`SELECT COUNT(*) AS n FROM "member" WHERE "userId" = 'joined-user'`)).toBe(1);
   });
 
   it("completes a signup stopped after any of its writes, with one of everything and the code used once", async () => {
