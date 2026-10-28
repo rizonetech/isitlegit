@@ -1,4 +1,5 @@
-// The shared import run for a public dataset (D03 T04 §5): each item becomes a store page, four at a time, and the
+// The shared import run for a public dataset (D03 T04 §5): each item becomes a store page, four at a time by default
+// (`--concurrency`), and the
 // run's account goes to `<store>/raw/<source>/IMPORT.json` (temp-then-rename): items expected, imported (new pages),
 // duplicates (pages already stored, so a rerun stores nothing twice), excluded (each with its item and reason: an item
 // that failed to load or store), filtered (each with its item and reason: a page that loaded but renders almost no
@@ -22,15 +23,23 @@ export type SourceItem = {
 };
 
 export type ImportResult = {
-  status: "complete" | "incomplete";
+  // `running` is written before any work, so a run that is killed, or that cannot write its end for a full disk,
+  // never leaves an earlier `complete` standing.
+  status: "running" | "complete" | "incomplete";
   expected: number;
   imported: number;
   duplicates: number;
   excluded: { item: string; reason: string }[];
   filtered: { item: string; reason: string }[];
   stored: number;
+  // Items a page in the store already came from: not rendered again (a resumed run).
+  skipped: number;
   reason?: string;
-  finished: string;
+  started: string;
+  finished?: string;
+  seconds?: number;
+  pages_per_minute?: number;
+  concurrency: number;
 };
 
 // The host the request states, or null when the URL has none a DNS name can express (an IP, a malformed URL).
@@ -42,6 +51,15 @@ export function hostOf(url: string | null): string | null {
   } catch {
     return null; // not a URL: the page is kept with no host rather than a wrong one
   }
+}
+
+// `--concurrency <n>` from an importer's command line: pages rendered at once, 1 to 16, 4 by default.
+export function concurrencyArg(argv: string[] = process.argv): number {
+  const at = argv.indexOf("--concurrency");
+  if (at < 0) return 4;
+  const n = Number(argv[at + 1]);
+  if (!Number.isInteger(n) || n < 1 || n > 16) throw new Error("--concurrency takes a whole number from 1 to 16");
+  return n;
 }
 
 export function writeImport(path: string, result: ImportResult): void {
@@ -66,7 +84,25 @@ export async function importSource(options: {
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
-  const before = new Set(store.manifest().map((page) => page.id));
+  const manifest = store.manifest();
+  const before = new Set(manifest.map((page) => page.id));
+  const done = new Set(manifest.flatMap((page) => (page.source === source && page.item ? [page.item] : [])));
+  const concurrency = options.concurrency ?? 4;
+  const started = new Date();
+  // The record says `running` before any page is touched; a store that cannot take even that is not imported into.
+  writeImport(importJson, {
+    status: "running",
+    expected: items.length,
+    imported: 0,
+    duplicates: 0,
+    excluded: [],
+    filtered: [],
+    stored: 0,
+    skipped: 0,
+    started: started.toISOString(),
+    concurrency,
+  });
+  let skipped = 0;
   let imported = 0;
   let duplicates = 0;
   let stopped: string | undefined;
@@ -76,6 +112,10 @@ export async function importSource(options: {
   async function worker() {
     while (!stopped && next < items.length) {
       const item = items[next++] as SourceItem;
+      if (done.has(item.id)) {
+        skipped++;
+        continue;
+      }
       let page: Awaited<ReturnType<SourceItem["load"]>>;
       try {
         page = await item.load();
@@ -112,6 +152,7 @@ export async function importSource(options: {
           labels,
           label_source,
           redacted: options.redacted ?? false,
+          item: item.id,
         });
         if (before.has(id)) duplicates++;
         else {
@@ -124,11 +165,11 @@ export async function importSource(options: {
         if ((error as NodeJS.ErrnoException).code) stopped = reason;
         else excluded.push({ item: item.id, reason });
       }
-      const handled = imported + duplicates + excluded.length + filtered.length;
+      const handled = imported + duplicates + skipped + excluded.length + filtered.length;
       if (handled % 250 === 0) options.log?.(`${source}: ${handled} of ${items.length}`);
     }
   }
-  await Promise.all(Array.from({ length: options.concurrency ?? 4 }, worker));
+  await Promise.all(Array.from({ length: concurrency }, worker));
   const stored = store.manifest().filter((page) => page.source === source).length;
   const tooMany = excluded.length > items.length * MAX_EXCLUDED_SHARE;
   const result: ImportResult = {
@@ -139,12 +180,17 @@ export async function importSource(options: {
     excluded,
     filtered,
     stored,
+    skipped,
     ...(stopped
       ? { reason: stopped }
       : tooMany
         ? { reason: `${excluded.length} of ${items.length} items excluded (over 5 percent)` }
         : {}),
+    started: started.toISOString(),
     finished: new Date().toISOString(),
+    seconds: Math.round((Date.now() - started.getTime()) / 1000),
+    pages_per_minute: Math.round(((imported + duplicates) * 60_000) / Math.max(1, Date.now() - started.getTime())),
+    concurrency,
   };
   writeImport(importJson, result);
   return result;

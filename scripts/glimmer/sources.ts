@@ -14,6 +14,7 @@
 // synthetic lures.
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { type ImportResult, writeImport } from "./import-source.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -30,10 +31,12 @@ export type SourceRow = {
 };
 
 export type ImportRecord = {
-  status: "complete" | "incomplete";
+  status: "running" | "complete" | "incomplete";
   expected?: number;
   imported?: number;
   duplicates?: number;
+  skipped?: number;
+  filtered?: { item: string; reason: string }[];
   excluded?: { item: string; reason: string }[];
   stored?: number;
   reason?: string;
@@ -100,6 +103,19 @@ export function reconcile(input: {
       problems.push(`${row.source}: the import is ${record.status}${record.reason ? ` (${record.reason})` : ""}`);
     else if (record.stored !== stored.length)
       problems.push(`${row.source}: IMPORT.json says ${record.stored} stored, the store holds ${stored.length}`);
+    else if (!stored.length) problems.push(`${row.source}: accepted, but the import stored no page`);
+    else {
+      // Every item expected is accounted for exactly once: imported, a duplicate, skipped as already stored, filtered
+      // or excluded.
+      const counted =
+        (record.imported ?? 0) +
+        (record.duplicates ?? 0) +
+        (record.skipped ?? 0) +
+        (record.filtered?.length ?? 0) +
+        (record.excluded?.length ?? 0);
+      if (counted !== record.expected)
+        problems.push(`${row.source}: IMPORT.json accounts for ${counted} of ${record.expected} items`);
+    }
     if (row.labelErrors !== null && row.labelErrors > MAX_LABEL_ERRORS) {
       const trusted = stored.filter((page) => page.label_source.lure === "ground-truth").length;
       if (trusted)
@@ -124,11 +140,40 @@ function section8(): string {
 }
 
 if (import.meta.filename === process.argv[1]) {
-  if (process.argv[2] !== "check") {
-    console.error("usage: node scripts/glimmer/sources.ts check");
+  const [command, name] = process.argv.slice(2);
+  const dir = storeDir();
+  if (command === "status") {
+    // Each source in the store: pages, and its import's status, counts, time and rate.
+    const counts = openStore(dir).counts().bySource;
+    for (const source of Object.keys(counts).sort()) {
+      const file = join(dir, "raw", source, "IMPORT.json");
+      const record = existsSync(file)
+        ? (JSON.parse(readFileSync(file, "utf-8")) as ImportRecord & Record<string, unknown>)
+        : null;
+      console.log(
+        `${source}: ${counts[source]} pages; ${record ? `${record.status}, ${record.expected} expected, ${record.imported} imported, ${record.skipped ?? 0} skipped, ${record.duplicates} duplicates, ${record.filtered?.length ?? 0} filtered, ${record.excluded?.length ?? 0} excluded${record.pages_per_minute ? `, ${record.pages_per_minute} pages a minute` : ""}` : "no import record"}`,
+      );
+    }
+    process.exit(0);
+  }
+  if (command === "remove" && name) {
+    // The reverse of an import: the source's pages leave the store, and its record says so.
+    const removed = openStore(dir).removeSource(name);
+    const file = join(dir, "raw", name, "IMPORT.json");
+    if (existsSync(file))
+      writeImport(file, {
+        ...(JSON.parse(readFileSync(file, "utf-8")) as ImportResult),
+        status: "incomplete",
+        stored: 0,
+        reason: "removed from the store",
+      });
+    console.log(`sources: removed ${removed} pages of ${name}`);
+    process.exit(0);
+  }
+  if (command !== "check") {
+    console.error("usage: node scripts/glimmer/sources.ts check | status | remove <source>");
     process.exit(2);
   }
-  const dir = storeDir();
   const store = openStore(dir);
   const pages = store.manifest();
   const imports: Record<string, ImportRecord> = {};

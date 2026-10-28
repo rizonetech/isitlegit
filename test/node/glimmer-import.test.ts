@@ -254,6 +254,38 @@ describe("the import run", () => {
     expect(result.filtered).toHaveLength(2);
   });
 
+  it("says running before the first page, so a killed run never leaves an earlier complete standing", async () => {
+    const storeDir = join(dir, "store");
+    const record = join(storeDir, "raw", "set", "IMPORT.json");
+    await importSource({ source: "set", licence: "CC0", items: [item("first", "#101")], store: openStore(storeDir) });
+    expect(JSON.parse(readFileSync(record, "utf-8")).status).toBe("complete");
+    let seen = "";
+    const watching: SourceItem = {
+      ...item("second", "#202"),
+      load: async () => {
+        seen = JSON.parse(readFileSync(record, "utf-8")).status;
+        throw new Error("killed");
+      },
+    };
+    await importSource({ source: "set", licence: "CC0", items: [watching], store: openStore(storeDir) });
+    expect(seen).toBe("running");
+  });
+
+  it("excludes a row whose label is neither phish nor benign, and imports the rest", async () => {
+    const odd = phreshItem({ sha256: "z9", url: null, label: "maybe", target: null }, () => "<p>x</p>", reader);
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [
+        odd,
+        ...Array.from({ length: 20 }, (_, i) => item(`ok-${i}`, `#${(i * 9 + 16).toString(16).padStart(3, "0")}`)),
+      ],
+      store: openStore(join(dir, "store")),
+    });
+    expect(result.excluded).toEqual([{ item: "z9", reason: 'label "maybe" is neither phish nor benign' }]);
+    expect(result.imported).toBe(20);
+  });
+
   it("records exclusions and goes incomplete past 5 percent", async () => {
     const store = openStore(join(dir, "store"));
     const result = await importSource({
@@ -295,8 +327,19 @@ describe("the import run", () => {
     expect(stopped.status).toBe("incomplete");
     expect(stopped.reason).toContain("ENOSPC");
     expect(stopped.imported).toBe(1);
-    const rerun = await importSource({ source: "set", licence: "CC0", items, store: openStore(storeDir) });
-    expect(rerun).toMatchObject({ status: "complete", imported: 2, duplicates: 1, stored: 3 });
+    let loads = 0;
+    const counted = items.map((it) => ({ ...it, load: () => (loads++, it.load()) }));
+    const rerun = await importSource({ source: "set", licence: "CC0", items: counted, store: openStore(storeDir) });
+    // The page already stored is skipped by its item id, never rendered again.
+    expect(rerun).toMatchObject({ status: "complete", imported: 2, duplicates: 0, skipped: 1, stored: 3 });
+    expect(loads).toBe(2);
+    expect(
+      openStore(storeDir)
+        .manifest()
+        .filter((p) => p.source === "set")
+        .map((p) => p.item)
+        .sort(),
+    ).toEqual(["one", "three", "two"]);
     expect(openStore(storeDir).counts().bySource).toEqual({ other: 1, set: 3 });
   });
 });

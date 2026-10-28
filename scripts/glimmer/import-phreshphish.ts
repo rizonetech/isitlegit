@@ -9,7 +9,7 @@
 // §9's adjudication, since the set does not say which kind of lure a page is.
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
-import { importSource, type SourceItem } from "./import-source.ts";
+import { concurrencyArg, importSource, type SourceItem } from "./import-source.ts";
 import { normaliseScreenshot, openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
 
@@ -37,7 +37,16 @@ export function phreshItem(
   // text and the form flags.
   shot?: () => Uint8Array,
 ): SourceItem {
-  if (row.label !== "phish" && row.label !== "benign") throw new Error(`row ${row.sha256}: label "${row.label}"`);
+  if (row.label !== "phish" && row.label !== "benign") {
+    const reason = `label "${String(row.label).slice(0, 40)}" is neither phish nor benign`;
+    return {
+      id: row.sha256,
+      url: row.url,
+      labels: {},
+      label_source: {},
+      load: async () => Promise.reject(new Error(reason)),
+    };
+  }
   const lure = row.label === "phish";
   const brand = row.target && row.target.toLowerCase() !== "other" ? row.target.slice(0, 200) : null;
   return {
@@ -130,6 +139,7 @@ if (import.meta.filename === process.argv[1]) {
       items: (await indexRows(rowsFile)).map((entry) => phreshItem(entry, () => readHtml(rowsFile, entry), reader)),
       store: openStore(dir),
       log: (line) => console.log(line),
+      concurrency: concurrencyArg(),
     });
     console.log(JSON.stringify({ ...result, excluded: result.excluded.length }));
     process.exitCode = result.status === "complete" ? 0 : 1;

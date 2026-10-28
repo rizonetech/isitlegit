@@ -20,6 +20,9 @@ import sys
 import tarfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from staging import remove_dead_staging
+
 ARCHIVE = "phishing-alive-measurement_sample_zenodo.tar.gz"
 MAX_FILE = 20 * 1024 * 1024
 CAPTURE = re.compile(r"^(?:\./)?(\d+-([^/]+))/(\d{4}-\d{2}-\d{2}-\d{2}:\d{2})/([^/]+)$")
@@ -117,6 +120,7 @@ def main(argv=None):
     keys = sorted(earliest)
     if len(keys) > args.max:
         keys = sorted(random.Random(args.seed).sample(keys, args.max))
+    remove_dead_staging(folder)
     written = export(path, {key: earliest[key] for key in keys}, folder / "rows.jsonl")
     print(f"sevendays-rows: {written} rows from {len(earliest)} URLs with a live capture into {folder / 'rows.jsonl'}")
     return 0

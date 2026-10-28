@@ -21,6 +21,9 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from staging import remove_dead_staging
+
 LIMIT_BYTES = 5 * 1024**3
 CHUNK = 1024 * 1024
 
@@ -92,6 +95,7 @@ def extract(archive, destination, limit=LIMIT_BYTES, only=()):
         raise Refused(f"{destination} exists already; remove it or choose another")
     plan(archive, limit, only)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    remove_dead_staging(destination.parent)
     temporary = destination.parent / f".{destination.name}.extracting-{os.getpid()}"
     shutil.rmtree(temporary, ignore_errors=True)
     temporary.mkdir()

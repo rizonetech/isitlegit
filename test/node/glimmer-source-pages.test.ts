@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { decodeHtml, normaliseScreenshot, openTextReader, PageTimeout } from "../../scripts/glimmer/source-pages.ts";
@@ -139,6 +141,27 @@ describe("visibleText", () => {
       "After a restart the reader still renders",
     );
     await own.close();
+  });
+
+  it("sends no request for anything a page names, even to a server that would answer", async () => {
+    let requests = 0;
+    const server = createServer((_req, res) => {
+      requests++;
+      res.end("x");
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      const out = await reader.renderHtml(
+        `<link rel=stylesheet href="${origin}/a.css"><img src="${origin}/b.png"><iframe src="${origin}/c"></iframe>` +
+          `<video src="${origin}/d.mp4"></video><p style="background:url(${origin}/e.png)">Inert page text here</p>`,
+      );
+      expect(out.text).toContain("Inert page text here");
+      expect(requests).toBe(0);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((done) => server.close(done));
+    }
   });
 
   it("fetches nothing a page names", async () => {

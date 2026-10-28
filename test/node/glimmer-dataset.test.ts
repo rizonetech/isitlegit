@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -188,6 +188,23 @@ describe("buildDataset", () => {
     await put(50, { origin: "samples", redacted: false }, full(true));
     await put(51, {}, { lure: true });
     const queued = await put(52, {}, full(true, 52));
+    // The source's import reads complete; a second source whose import is still running is left out.
+    mkdirSync(join(dir, "store", "raw", "set"), { recursive: true });
+    writeFileSync(join(dir, "store", "raw", "set", "IMPORT.json"), JSON.stringify({ status: "complete" }));
+    await store.putPage("running-set", {
+      screenshot: await shot(60),
+      text: "a page from an import still running",
+      origin: "public",
+      licence: "CC0",
+      host: null,
+      template: null,
+      south_africa: false,
+      labels: full(true, 60),
+      label_source: Object.fromEntries(Object.keys(full(true, 60)).map((k) => [k, "ground-truth"])),
+      redacted: false,
+    });
+    mkdirSync(join(dir, "store", "raw", "running-set"), { recursive: true });
+    writeFileSync(join(dir, "store", "raw", "running-set", "IMPORT.json"), JSON.stringify({ status: "running" }));
     writeFileSync(
       join(dir, "store", "review-queue.jsonl"),
       `${JSON.stringify({ id: queued, spark: { lure: false } })}\n`,
@@ -196,6 +213,7 @@ describe("buildDataset", () => {
     expect(built.dropped.unredacted).toBe(1);
     expect(built.dropped.unlabelled).toBe(1);
     expect(built.dropped.disputed).toBe(1);
+    expect(built.dropped.incomplete).toBe(1);
     expect(built.train + built.evaluation).toBeGreaterThan(0);
     expect(built.shortfalls.some((s) => s.startsWith("evaluation"))).toBe(true);
     const lines = readFileSync(join(built.dir, "train.jsonl"), "utf-8").trim().split("\n");

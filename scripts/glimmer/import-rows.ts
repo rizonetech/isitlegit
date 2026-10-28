@@ -6,7 +6,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { indexRows, phreshItem, readHtml, readShot } from "./import-phreshphish.ts";
-import { importSource } from "./import-source.ts";
+import { concurrencyArg, importSource } from "./import-source.ts";
 import { openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
 
@@ -47,6 +47,7 @@ if (import.meta.filename === process.argv[1]) {
       ),
       store: openStore(dir),
       log: (line) => console.log(line),
+      concurrency: concurrencyArg(),
     });
     console.log(
       `${source}: ${JSON.stringify({ ...result, excluded: result.excluded.length, filtered: result.filtered.length })}`,

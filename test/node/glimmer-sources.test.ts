@@ -92,6 +92,31 @@ describe("reconcile", () => {
   });
 });
 
+describe("import accounting (D03 T04 §5)", () => {
+  it("fails a complete import that stored nothing or does not account for every item", () => {
+    const sources = [
+      "| Source | Dataset | Licence | Licence link | Decision | Reason | Label errors |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| `set` | https://example.org/set | CC0 | https://example.org/licence | accepted | test | - |",
+    ].join("\n");
+    const page = { id: "set-1", source: "set", origin: "public", label_source: {} } as unknown as StoredPage;
+    const check = (record: Record<string, unknown>, pages: StoredPage[]) =>
+      reconcile({ sources, imports: { set: record as never }, pages, notice: "set", synthetic: "" });
+    expect(check({ status: "complete", expected: 0, imported: 0, stored: 0 }, [])).toContain(
+      "set: accepted, but the import stored no page",
+    );
+    expect(check({ status: "complete", expected: 100, imported: 1, duplicates: 0, stored: 1 }, [page])).toContain(
+      "set: IMPORT.json accounts for 1 of 100 items",
+    );
+    expect(check({ status: "running", expected: 3, stored: 1 }, [page])).toContain("set: the import is running");
+    expect(
+      check({ status: "complete", expected: 3, imported: 1, skipped: 1, filtered: [{}], excluded: [], stored: 1 }, [
+        page,
+      ]),
+    ).toEqual([]);
+  });
+});
+
 describe("the benign render lists (D03 T04 §6)", () => {
   it("credits the Majestic Million with its licence in NOTICE.md and docs/glimmer/sources.md", () => {
     const root = join(import.meta.dirname, "../..");

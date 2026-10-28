@@ -262,6 +262,7 @@ export type Built = {
   evaluation: number;
   dropped: {
     unlabelled: number;
+    incomplete: number;
     disputed: number;
     exact: number;
     near: number;
@@ -281,7 +282,16 @@ export async function buildDataset(options: {
 }): Promise<Built> {
   const { store, version, mode } = options;
   const random = seeded(options.seed ?? 20261101);
-  const dropped = { unlabelled: 0, disputed: 0, exact: 0, near: 0, unredacted: 0, capped: 0, balanced: 0 };
+  const dropped = {
+    unlabelled: 0,
+    incomplete: 0,
+    disputed: 0,
+    exact: 0,
+    near: 0,
+    unredacted: 0,
+    capped: 0,
+    balanced: 0,
+  };
   // A page whose `lure` the teacher disputed waits in the review queue and is left out of both files (§9).
   const queue = join(store.dir, "review-queue.jsonl");
   const disputed = new Set(
@@ -293,7 +303,25 @@ export async function buildDataset(options: {
       : [],
   );
   const entries: Entry[] = [];
+  // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
+  // is not trained on or evaluated, whatever pages it already stored.
+  const importStatus = new Map<string, string>();
+  const usable = (page: StoredPage) => {
+    if (page.origin !== "public" && page.origin !== "samples") return true;
+    if (!importStatus.has(page.source)) {
+      const file = join(store.dir, "raw", page.source, "IMPORT.json");
+      importStatus.set(
+        page.source,
+        existsSync(file) ? ((JSON.parse(readFileSync(file, "utf-8")) as { status?: string }).status ?? "none") : "none",
+      );
+    }
+    return importStatus.get(page.source) === "complete";
+  };
   for (const page of store.manifest()) {
+    if (!usable(page)) {
+      dropped.incomplete++;
+      continue;
+    }
     if (disputed.has(page.id)) {
       dropped.disputed++;
       continue;

@@ -89,6 +89,9 @@ export const PageMeta = z
     // The listed URL a benign page was rendered from, and its list's kind (§6); other origins leave them out.
     url: z.string().url().optional(),
     kind: z.enum(PAGE_KINDS).optional(),
+    // The dataset item a public or sample page came from (its file, row or member id), so every stored page traces
+    // back to its source row and a resumed import skips what it already stored (§5).
+    item: z.string().min(1).max(500).optional(),
   })
   .refine((meta) => Object.keys(meta.label_source).every((k) => k in meta.labels), {
     message: "every label_source names a label the page has",

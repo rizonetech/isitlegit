@@ -12,6 +12,9 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from staging import remove_dead_staging
+
 
 def store_dir():
     configured = os.environ.get("GLIMMER_DATA_DIR")
@@ -33,6 +36,7 @@ def main(parquet=None):
     if not shards:
         print(f"phreshphish-rows: no shards in {folder}", file=sys.stderr)
         return 2
+    remove_dead_staging(folder)
     out = folder / "rows.jsonl"
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     count = 0

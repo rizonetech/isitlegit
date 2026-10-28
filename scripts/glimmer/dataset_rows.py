@@ -19,6 +19,9 @@ import sys
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from staging import remove_dead_staging
+
 MAX_ENTRY = 20 * 1024 * 1024
 SQL_ROW = re.compile(r"\((\d+),\s*'((?:[^'\\]|\\.)*)',\s*'((?:[^'\\]|\\.)*)',\s*(\d+),\s*'((?:[^'\\]|\\.)*)'\)")
 
@@ -114,6 +117,7 @@ def main(argv=None):
     items = list(READERS[args.source](folder))
     if len(items) > args.max:
         items = random.Random(args.seed).sample(items, args.max)
+    remove_dead_staging(folder)
     out = folder / "rows.jsonl"
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     written = skipped = 0
