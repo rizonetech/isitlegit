@@ -5,6 +5,7 @@ import pathlib
 import subprocess
 import unittest
 import urllib.error
+import urllib.request
 from unittest import mock
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -16,9 +17,11 @@ KEY = "api-" + "k" * 32
 DENIED = (400, {"error_code": cs.DENIED})
 
 
-def smtp2go(stats=(200, {"cycle_max": 20000}), domain=DENIED, users=DENIED):
-    answers = {"stats/email_summary": stats, "domain/view": domain, "users/smtp/view": users}
-    return lambda key, endpoint: answers[endpoint]
+def smtp2go(stats=(200, {"cycle_max": 20000}), activity=(200, {"events": []}), domain=DENIED, users=DENIED,
+            keys=DENIED):
+    answers = {"stats/email_summary": stats, "activity/search": activity, "domain/view": domain,
+               "users/smtp/view": users, "api_keys/view": keys}
+    return lambda key, endpoint, body=b"{}": answers[endpoint]
 
 
 def dns(**override):
@@ -38,16 +41,22 @@ class Smtp2go(unittest.TestCase):
         calls = []
         for value in ("", "placeholder", "api-short"):
             with self.subTest(value):
-                code, line = cs.check(read=lambda v=value: v, call=lambda k, e: calls.append(e), lookup=dns(),
+                code, line = cs.check(read=lambda v=value: v, call=lambda k, e, b=b"{}": calls.append(e), lookup=dns(),
                                       say=lambda text: None)
                 self.assertEqual(code, 1)
         self.assertEqual(calls, [])
+
+    def test_a_key_that_cannot_search_activity_is_refused(self):
+        code, line = self.run_check(call=smtp2go(activity=DENIED))
+        self.assertEqual(code, 1)
+        self.assertIn("grant it activity search", line)
 
     def test_an_invalid_or_revoked_key_is_refused(self):
         self.assertEqual(self.run_check(call=smtp2go(stats=(401, {"error": "invalid"})))[0], 1)
 
     def test_an_unnarrowed_key_is_refused(self):
-        for over in ({"domain": (200, {"domains": []})}, {"users": (200, {"results": []})}):
+        for over in ({"domain": (200, {"domains": []})}, {"users": (200, {"results": []})},
+                     {"keys": (200, {"api_keys": []})}):
             with self.subTest(over):
                 code, line = self.run_check(call=smtp2go(**over))
                 self.assertEqual(code, 1)
@@ -70,12 +79,12 @@ class Progress(unittest.TestCase):
     def test_each_stage_is_announced_before_it_blocks(self):
         said = []
 
-        def stalls(key, endpoint):
+        def stalls(key, endpoint, body=b"{}"):
             if endpoint == "domain/view":
-                self.assertIn("check-smtp2go: the key is live", said)
+                self.assertIn("check-smtp2go: activity search allowed", said)
                 self.assertTrue(said[-1].endswith("which a sending key must be refused"))
                 raise cs.Unreachable("no answer")
-            return smtp2go()(key, endpoint)
+            return smtp2go()(key, endpoint, body)
 
         code, line = cs.check(read=lambda: KEY, call=stalls, lookup=dns(), say=said.append)
         self.assertEqual(code, 2)
@@ -100,14 +109,23 @@ class Adapters(unittest.TestCase):
             with self.subTest(status=status, body=body):
                 effect = self.answer(status, body)
                 kwargs = {"side_effect": effect} if isinstance(effect, Exception) else {"return_value": effect}
-                with mock.patch.object(cs.urllib.request, "urlopen", **kwargs):
+                with mock.patch.object(cs.OPENER, "open", **kwargs):
                     with self.assertRaises(cs.Unreachable):
                         cs.post(KEY, "stats/email_summary")
 
     def test_a_refusal_with_a_data_object_is_returned(self):
         effect = self.answer(400, b'{"data": {"error_code": "E_ApiResponseCodes.ENDPOINT_PERMISSION_DENIED"}}')
-        with mock.patch.object(cs.urllib.request, "urlopen", side_effect=effect):
+        with mock.patch.object(cs.OPENER, "open", side_effect=effect):
             self.assertEqual(cs.post(KEY, "domain/view"), (400, {"error_code": cs.DENIED}))
+
+    def test_a_redirect_is_refused_and_never_followed(self):
+        handler = cs.NoRedirect()
+        request = urllib.request.Request("https://api.smtp2go.com/v3/stats/email_summary", headers={"X-Smtp2go-Api-Key": KEY})
+        with self.assertRaises(urllib.error.HTTPError):
+            handler.redirect_request(request, io.BytesIO(b""), 302, "Found", {}, "http://redirect.example/receive")
+        effect = urllib.error.HTTPError("https://api.smtp2go.com/v3/x", 302, "redirect refused", {}, io.BytesIO(b""))
+        with mock.patch.object(cs.OPENER, "open", side_effect=effect), self.assertRaises(cs.Unreachable):
+            cs.post(KEY, "stats/email_summary")
 
     def test_a_failed_dns_lookup_is_unreachable_and_a_missing_record_is_empty(self):
         def dig(stdout, code=0):
