@@ -6,12 +6,16 @@
 Reads "IsItLegit SMTP2GO" from Conclave through conclave-op (60 seconds at most) and checks, the key only in the
 `X-Smtp2go-Api-Key` header:
 
-1. the key has SMTP2GO's shape (`api-` and 32 characters), reads its account's sending stats and searches its
-   activity (HTTP 200), so it is live and can do what the Worker asks of it: send, and settle an uncertain send from
-   `activity/search` (`src/mail/reconcile.ts`);
-2. SMTP2GO refuses it the account endpoints a narrowed key must not reach (`domain/view`, `users/smtp/view`,
-   `api_keys/view`: `ENDPOINT_PERMISSION_DENIED`), so it is narrowed, read back from the key itself;
-3. the DKIM (`s1027207._domainkey`) and return-path (`em1027207`) CNAMEs resolve to SMTP2GO from public DNS.
+1. the key has SMTP2GO's shape (`api-` followed by 32 characters, 36 in all) and reads its account's sending stats
+   (HTTP 200), so it is live;
+2. it may send: an empty `email/send` request is answered `NON_VALIDATING_IN_PAYLOAD`, a payload error SMTP2GO gives
+   only past its permission check (it answers `ENDPOINT_PERMISSION_DENIED` first, as for the account endpoints below),
+   so no mail is sent and the send permission is proven;
+3. it searches activity as the reconciler does (`src/mail/reconcile.ts`: a dated window, a limit), answered with an
+   events list, so an uncertain send can be settled;
+4. SMTP2GO refuses it three account endpoints a sending key must not reach (`domain/view`, `users/smtp/view`,
+   `api_keys/view`: `ENDPOINT_PERMISSION_DENIED`), read back from the key itself;
+5. the DKIM (`s1027207._domainkey`) and return-path (`em1027207`) CNAMEs resolve to SMTP2GO from public DNS.
 
 What it cannot prove: the key's complete permission set and its permitted sender domains are saved settings that only
 a key allowed `api_keys/view` can read (SMTP2GO refuses this one that endpoint), so they are the operator's read-back
@@ -22,12 +26,14 @@ Each stage is announced before it runs and its result printed as it completes. E
 and the next action when one does not, 2 when the vault, SMTP2GO or DNS could not be reached or answered a quota
 (429) or server (5xx) error, which says nothing about the key. Stdlib only; needs `dig`.
 """
+import datetime
 import http.client
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -66,19 +72,34 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 OPENER = urllib.request.build_opener(NoRedirect)
 
 
+def read_by(stream, deadline, limit=1024 * 1024):
+    """At most `limit` bytes, refused once the whole call passes its deadline (not only a stalled read)."""
+    parts, size = [], 0
+    while size < limit:
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"the answer took longer than {SECONDS} s")
+        chunk = stream.read(min(65536, limit - size))
+        if not chunk:
+            break
+        parts.append(chunk)
+        size += len(chunk)
+    return b"".join(parts)
+
+
 def post(key, endpoint, body=b"{}", opener=OPENER):
     """(HTTP status, the answer's data object) for a read-only SMTP2GO call; Unreachable on a transport failure, a
     quota or server error, or an answer that is not a whole JSON object with a data object."""
+    deadline = time.monotonic() + SECONDS
     request = urllib.request.Request(API + endpoint, data=body, headers={
         "X-Smtp2go-Api-Key": key, "Content-Type": "application/json", "accept": "application/json"})
     try:
         try:
             with opener.open(request, timeout=SECONDS) as response:
-                status, raw = response.status, response.read(1024 * 1024)
+                status, raw = response.status, read_by(response, deadline)
         except urllib.error.HTTPError as exc:
             if 300 <= exc.code < 400:
                 raise Unreachable(f"SMTP2GO answered a redirect ({exc.code}), refused so the key stays with it") from None
-            status, raw = exc.code, exc.read(1024 * 1024)
+            status, raw = exc.code, read_by(exc, deadline)
     except (urllib.error.URLError, OSError, TimeoutError, http.client.HTTPException) as exc:
         raise Unreachable(f"SMTP2GO could not be reached ({type(exc).__name__})") from None
     if status == 429 or status >= 500:
@@ -111,6 +132,9 @@ def cname(name):
     return ""
 
 
+NOT_VALID = "E_ApiResponseCodes.NON_VALIDATING_IN_PAYLOAD"
+
+
 def check(read=read_key, call=None, lookup=cname, say=print):
     """(exit code, last line); each stage is announced through `say` before it runs and its result after."""
     call = call or (lambda key, endpoint, body=b"{}": post(key, endpoint, body))
@@ -124,9 +148,18 @@ def check(read=read_key, call=None, lookup=cname, say=print):
         if status != 200 or "cycle_max" not in data:
             return 1, (f"check-smtp2go: the key could not read its stats (HTTP {status}); it is invalid or revoked: "
                        "create a sending key and store it in the vault")
-        say("check-smtp2go: the key is live; searching its activity, as the reconciler does")
-        status, data = call(key, "activity/search", b'{"limit": 1}')
-        if status != 200 or "events" not in data:
+        say("check-smtp2go: the key is live; asking email/send with an empty request (no mail is sent)")
+        status, data = call(key, "email/send")
+        if data.get("error_code") != NOT_VALID:
+            return 1, (f"check-smtp2go: email/send did not answer a payload error (HTTP {status}, "
+                       f"{data.get('error_code')}); grant the key the send permission")
+        say("check-smtp2go: the key may send")
+        now = datetime.datetime.now(datetime.UTC)
+        window = json.dumps({"start_date": (now - datetime.timedelta(hours=1)).isoformat(), "end_date": now.isoformat(),
+                             "limit": 1}).encode()
+        say("check-smtp2go: searching activity as the reconciler does")
+        status, data = call(key, "activity/search", window)
+        if status != 200 or not isinstance(data.get("events"), list):
             return 1, (f"check-smtp2go: the key cannot search activity (HTTP {status}); grant it activity search, which "
                        "settles uncertain sends (src/mail/reconcile.ts)")
         say("check-smtp2go: activity search allowed")
@@ -146,10 +179,14 @@ def check(read=read_key, call=None, lookup=cname, say=print):
             say(f"check-smtp2go: {name} -> {found}")
     except Unreachable as exc:
         return 2, f"check-smtp2go: {exc}; nothing was judged, run it again in a few minutes"
-    return 0, "check-smtp2go: the key is live and narrowed to sending, and SMTP2GO's DKIM and return-path records resolve"
+    return 0, ("check-smtp2go: the key is live, may send and search activity, and was refused the three probed account "
+               "endpoints; SMTP2GO's DKIM and return-path records resolve (its full permission set and senders: D99 T01 §11)")
 
 
 if __name__ == "__main__":
-    code, line = check(say=lambda text: print(text, flush=True))
+    try:
+        code, line = check(say=lambda text: print(text, flush=True))
+    except KeyboardInterrupt:
+        code, line = 2, "check-smtp2go: interrupted; nothing was judged"
     print(line)
     sys.exit(code)

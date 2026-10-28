@@ -17,9 +17,9 @@ KEY = "api-" + "k" * 32
 DENIED = (400, {"error_code": cs.DENIED})
 
 
-def smtp2go(stats=(200, {"cycle_max": 20000}), activity=(200, {"events": []}), domain=DENIED, users=DENIED,
-            keys=DENIED):
-    answers = {"stats/email_summary": stats, "activity/search": activity, "domain/view": domain,
+def smtp2go(stats=(200, {"cycle_max": 20000}), send=(400, {"error_code": cs.NOT_VALID}), activity=(200, {"events": []}),
+            domain=DENIED, users=DENIED, keys=DENIED):
+    answers = {"stats/email_summary": stats, "email/send": send, "activity/search": activity, "domain/view": domain,
                "users/smtp/view": users, "api_keys/view": keys}
     return lambda key, endpoint, body=b"{}": answers[endpoint]
 
@@ -45,6 +45,14 @@ class Smtp2go(unittest.TestCase):
                                       say=lambda text: None)
                 self.assertEqual(code, 1)
         self.assertEqual(calls, [])
+
+    def test_a_key_that_may_not_send_is_refused(self):
+        code, line = self.run_check(call=smtp2go(send=DENIED))
+        self.assertEqual(code, 1)
+        self.assertIn("grant the key the send permission", line)
+
+    def test_an_activity_answer_without_an_events_list_is_refused(self):
+        self.assertEqual(self.run_check(call=smtp2go(activity=(200, {"events": {}})))[0], 1)
 
     def test_a_key_that_cannot_search_activity_is_refused(self):
         code, line = self.run_check(call=smtp2go(activity=DENIED))
@@ -81,7 +89,7 @@ class Progress(unittest.TestCase):
 
         def stalls(key, endpoint, body=b"{}"):
             if endpoint == "domain/view":
-                self.assertIn("check-smtp2go: activity search allowed", said)
+                self.assertIn("check-smtp2go: the key may send", said)
                 self.assertTrue(said[-1].endswith("which a sending key must be refused"))
                 raise cs.Unreachable("no answer")
             return smtp2go()(key, endpoint, body)
@@ -98,7 +106,7 @@ class Adapters(unittest.TestCase):
         if status >= 400:
             return urllib.error.HTTPError("https://api.smtp2go.com/v3/x", status, "err", {}, io.BytesIO(body))
         response = mock.MagicMock(status=status)
-        response.read.return_value = body
+        response.read.side_effect = io.BytesIO(body).read
         context = mock.MagicMock()
         context.__enter__.return_value = response
         return context
@@ -126,6 +134,13 @@ class Adapters(unittest.TestCase):
         effect = urllib.error.HTTPError("https://api.smtp2go.com/v3/x", 302, "redirect refused", {}, io.BytesIO(b""))
         with mock.patch.object(cs.OPENER, "open", side_effect=effect), self.assertRaises(cs.Unreachable):
             cs.post(KEY, "stats/email_summary")
+
+    def test_a_trickle_past_the_deadline_is_refused(self):
+        clock = iter([0.0, 0.0, 31.0])
+        stream = mock.MagicMock()
+        stream.read.return_value = b"{"
+        with mock.patch.object(cs.time, "monotonic", side_effect=lambda: next(clock)), self.assertRaises(TimeoutError):
+            cs.read_by(stream, 30.0)
 
     def test_a_failed_dns_lookup_is_unreachable_and_a_missing_record_is_empty(self):
         def dig(stdout, code=0):

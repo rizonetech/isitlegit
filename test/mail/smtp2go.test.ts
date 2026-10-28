@@ -9,7 +9,7 @@ import { addMember } from "../fixtures/auth/members";
 // twice, retries only where SMTP2GO did not take the message, typed outcomes, and a log holding no address, body or key.
 const db = env.DB;
 const KEY = `api-${"k".repeat(32)}`;
-type Call = { url: string; headers: Headers; body: Record<string, unknown> };
+type Call = { url: string; headers: Headers; body: Record<string, unknown>; redirect?: RequestInit["redirect"] };
 type Answer = Response | "timeout";
 const ok = (id = "1u0SwL-B9zBpi9ffUq-JAB2") =>
   Response.json({ request_id: "r", data: { succeeded: 1, failed: 0, failures: [], email_id: id } });
@@ -21,6 +21,7 @@ function smtp2go(answers: Answer[]) {
       url: String(input),
       headers: new Headers(init?.headers),
       body: JSON.parse(String(init?.body)),
+      ...(init?.redirect ? { redirect: init.redirect } : {}),
     });
     const next = answers.shift() ?? ok();
     if (next === "timeout") throw new DOMException("The operation timed out.", "TimeoutError");
@@ -463,6 +464,7 @@ describe("sendMail", () => {
       ["another sender domain", { from: "IsItLegit <alerts@rizonetech.com>" }],
       ["a look-alike sender domain", { from: "check@isitlegit.co.za.example.net" }],
       ["a bare look-alike", { from: "IsItLegit <check@notisitlegit.co.za>" }],
+      ["a subdomain sender", { from: "alerts@demo.isitlegit.co.za" }],
     ];
     for (const [label, over] of bad) {
       const m = message(over);
@@ -472,15 +474,12 @@ describe("sendMail", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("sends as isitlegit.co.za and its subdomains", async () => {
-    for (const from of [
-      "IsItLegit <check@isitlegit.co.za>",
-      "alerts@demo.isitlegit.co.za",
-      "IsItLegit <signin@ISITLEGIT.CO.ZA>",
-    ]) {
+  it("sends as isitlegit.co.za, never following a redirect", async () => {
+    for (const from of ["IsItLegit <check@isitlegit.co.za>", "IsItLegit <signin@ISITLEGIT.CO.ZA>"]) {
       const { stub, calls } = smtp2go([ok()]);
       await sendMail(deps(stub), message({ from, sendKey: `from:${from}` }));
       expect(calls, from).toHaveLength(1);
+      expect(calls[0]?.redirect, from).toBe("manual");
     }
   });
 });
