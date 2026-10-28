@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 273
+Sections: 38 | Checklist items: 274
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -66,7 +66,7 @@ Sections: 38 | Checklist items: 273
 | [ ]    | D03 T01 §4 | Result cache by artefact hash              | none                  | 4     |
 | [ ]    | D03 T01 §5 | Structured output helper with zod          | none                  | 5     |
 | [ ]    | D03 T01 §6 | Untrusted content blocks                   | none                  | 4     |
-| [ ]    | D07 T02 §6 | Sign-in rate limits and auth audit trail   | none                  | 4     |
+| [ ]    | D07 T02 §6 | Sign-in rate limits and auth audit trail   | none                  | 5     |
 | [ ]    | D07 T02 §8 | Plans, trial and feature flags             | none                  | 4     |
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
@@ -185,7 +185,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 208
+Sections: 55 | Checklist items: 209
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -207,7 +207,7 @@ Sections: 55 | Checklist items: 208
 | [ ]    | D07 T03 §5 | Model trace panel                          | none                  | 5     |
 | [ ]    | D07 T04 §1 | Cases list with filters and search         | none                  | 4     |
 | [ ]    | D07 T04 §2 | Weekly stats, money at risk and CSV export | none                  | 4     |
-| [ ]    | D07 T04 §3 | Team and invites page                      | none                  | 4     |
+| [ ]    | D07 T04 §3 | Team and invites page                      | none                  | 5     |
 | [ ]    | D07 T04 §4 | Domains and sending addresses page         | none                  | 3     |
 | [ ]    | D07 T05 §1 | Access application and JWT verification    | cloudflare            | 4     |
 | [ ]    | D07 T05 §2 | Overview, spend and invite codes           | none                  | 4     |
@@ -280,4 +280,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 30/209 verified sections, 12 ready to run now.
 
-Checklist: 364/1122 items completed (includes Commit items).
+Checklist: 364/1124 items completed (includes Commit items).

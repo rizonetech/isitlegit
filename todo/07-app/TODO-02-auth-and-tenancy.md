@@ -206,9 +206,10 @@ Sign-in routes are rate-limited per address and per IP (stack doc), and every si
 
 1. Add `auth_events` and rate limiting. Done when: the sixth magic-link request in ten minutes for one address is refused.
 
-- [ ] Add migration `0006_auth_events.sql` with `auth_events` (`at`, `kind`, `org_id`, `user_id`, `ip_hash`, `detail_json` without secrets). Done when: it applies locally.
+- [ ] Add migration `src/db/migrations/<next number>_auth_events.sql` (**Corrected 2026-10-28:** said `0006_auth_events.sql`; 0006 is `0006_mail_searched_at.sql` and 0010 is the newest) with `auth_events` (`at`, `kind`, `org_id`, `user_id`, `ip_hash`, `detail_json` without secrets). Done when: it applies locally.
 - [ ] Rate-limit magic-link and verification-code requests to 5 per address and 20 per IP per 10 minutes with KV counters. Done when: `test/auth/ratelimit.test.ts` sees the sixth request refused with 429.
 - [ ] Write an `auth_events` row for sign-in, failure, invite, removal, verification and rate-limit refusal. Done when: the test finds one row per kind.
+- [ ] Record team changes with who did them and to whom, and let owners read them: role changes, invitation revocations and removals each write one `auth_events` row naming the organisation, the actor, the target, the action and the time (after hooks on `/organization/update-member-role`, `/organization/cancel-invitation` and `/organization/remove-member`, beside §3's), kept after the target leaves; an owner-only, organisation-scoped read (`requireOrg`, newest first, filtered by action and date) serves it to D07 T04 §3. Done when: `test/auth/audit.test.ts` finds one attributable row per change, still there after the member is removed, an owner reads them filtered and a member or another organisation's owner is refused. Source: D07 T02 §3 completion review (Part 2 item 3).
 - [ ] Commit: `auth: sign-in rate limits and the audit trail`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/ratelimit.test.ts` passes and fails if the per-address limit is removed.
