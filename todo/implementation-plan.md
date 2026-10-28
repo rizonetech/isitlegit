@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 308
+Sections: 39 | Checklist items: 311
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -73,6 +73,7 @@ Sections: 38 | Checklist items: 308
 | [x]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 12    |
 | [x]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 12    |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 9     |
+| [ ]    | D01 T02 §8 | Re-deliver a reply settled failed          | none                  | 3     |
 | [x]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 9     |
 | [x]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 10    |
 | [ ]    | D03 T01 §2 | Budget guard with daily and total caps     | none                  | 7     |
@@ -306,6 +307,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 51/237 verified sections, 28 ready to run now.
+Progress: 51/238 verified sections, 29 ready to run now.
 
-Checklist: 532/1385 items completed (includes Commit items).
+Checklist: 532/1388 items completed (includes Commit items).
