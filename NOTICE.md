@@ -42,7 +42,9 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `@better-auth/passkey` | 1.7.13 | MIT | Yes: passkey sign-in (D07 T02 §2) |
 | `@simplewebauthn/server` | 13.3.3 | MIT | Yes: verifies passkey ceremonies for `@better-auth/passkey` (D07 T02 §2) |
 | `tldts` | 7.4.19 | MIT | Yes: a domain's registrable form for claims and the sender lookup (D07 T02 §5) |
-| `postal-mime` | 4.1.4 | MIT-0 | Yes: reads the forward's header fields and From address (D01 T01 §3); MIME parsing follows in D01 T01 §5 |
+| `postal-mime` | 4.1.4 | MIT-0 | Yes: reads the forward's header fields and From address (D01 T01 §3), finds the original (§4) and parses it (§5) |
+| `@kenjiuno/msgreader` | 1.29.0 | Apache-2.0 | Yes: reads an attached Outlook .msg (D01 T01 §6) |
+| `cfb` | 1.2.2 | Apache-2.0 | No: writes the synthetic .msg test fixtures (`scripts/fixtures/make-msg.ts`) |
 | `simple-yenc` | 1.0.4 | MIT | Yes: imported by `@wasm-audio-decoders/common`; unused once the WebAssembly is precompiled |
 | `@eshaz/web-worker` | 1.2.2 | Apache-2.0 | No: aliased to `src/voice/no-web-worker.ts`, so the Worker bundles the stub instead |
 | `opusscript` | 0.1.1 | MIT (libopus inside, BSD-3-Clause) | No: encodes the synthetic Opus test fixtures (`scripts/fixtures/make-audio.ts`) |

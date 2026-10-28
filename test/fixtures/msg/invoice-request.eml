@@ -1,0 +1,30 @@
+Received: from mail.fictional-supplier.example by mx.fictional-recipient.example; Tue, 27 Oct 2026 08:00:00 +0200
+Authentication-Results: mx.fictional-recipient.example; spf=pass smtp.mailfrom=billing@fictional-supplier.example
+From: Fictional Supplier <billing@fictional-supplier.example>
+To: Accounts <accounts@fictional-recipient.example>
+Subject: Updated banking details for invoice 77
+Message-ID: <invoice-77@fictional-supplier.example>
+Date: Tue, 27 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mixed"
+
+--mixed
+Content-Type: multipart/alternative; boundary="alt"
+
+--alt
+Content-Type: text/plain; charset=utf-8
+
+Please pay invoice 77 into our new account from today.
+--alt
+Content-Type: text/html; charset=windows-1252
+Content-Transfer-Encoding: base64
+
+PGh0bWw+PGJvZHk+PHA+UGxlYXNlIHBheSBpbnZvaWNlIDc3IGludG8gb3VyIG5ldyBhY2NvdW50IGZyb20gdG9kYXkuIENhZukgU+NvIFBhdWxvLjwvcD48aW1nIHNyYz0iY2lkOmxvZ283N0BmaWN0aW9uYWwiPjwvYm9keT48L2h0bWw+
+--alt--
+--mixed
+Content-Type: application/pdf; name="invoice-77.pdf"
+Content-Disposition: attachment; filename="invoice-77.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJSBmaWN0aW9uYWwgaW52b2ljZSA3NwolJUVPRgo=
+--mixed--
