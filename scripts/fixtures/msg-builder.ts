@@ -94,6 +94,11 @@ export type Variant = {
   // binary value of `namedBinary` bytes.
   names?: { nameBytes: number; references: number };
   namedBinary?: number;
+  // A recurrence (PidLidAppointmentRecur, a numeric named property 0x8216) declaring `deleted` deleted instances it
+  // does not hold; the embedded message without its display name; the HTML body as an 8-bit string instead of binary.
+  recurrence?: { deleted: number };
+  embeddedName?: boolean;
+  html8?: Uint8Array;
 };
 
 export function makeMsg({
@@ -110,6 +115,9 @@ export function makeMsg({
   pdf,
   names,
   namedBinary,
+  recurrence,
+  embeddedName = true,
+  html8,
 }: Variant): Uint8Array {
   const cfb = CFB.utils.cfb_new();
   // The top-level header: 8 reserved bytes, next recipient id, next attachment id, recipient count, attachment count,
@@ -145,7 +153,9 @@ export function makeMsg({
         [binary(0x1009, rtfUncompressed("{\\rtf1\\ansi Please pay invoice 77 today.\\par}"))]
       : [
           ...(ansi ? [] : [unicode(0x1000, TEXT.repeat(bodyRepeat))]),
-          binary(0x1013, html ?? cp1252(HTML.repeat(htmlRepeat))),
+          html8
+            ? { tag: 0x1013, type: PT_STRING8, value: html8 }
+            : binary(0x1013, html ?? cp1252(HTML.repeat(htmlRepeat))),
           long(0x3fde, internetCodepage ?? 1252),
         ]),
     ...(transportHeaders
@@ -198,7 +208,10 @@ export function makeMsg({
     ]);
     // An embedded Outlook message (attach method 5): a message storage of its own inside the attachment.
     const embedded = "/__attach_version1.0_#00000002/";
-    addProperties(cfb, embedded, new Uint8Array(8), [long(0x3705, 5), unicode(0x3001, EMBEDDED_SUBJECT)]);
+    addProperties(cfb, embedded, new Uint8Array(8), [
+      long(0x3705, 5),
+      ...(embeddedName ? [unicode(0x3001, EMBEDDED_SUBJECT)] : []),
+    ]);
     addProperties(cfb, `${embedded}__substg1.0_3701000D/`, new Uint8Array(24), [
       unicode(0x001a, "IPM.Note"),
       unicode(0x0037, EMBEDDED_SUBJECT),
@@ -220,6 +233,22 @@ export function makeMsg({
     CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", new Uint8Array(16));
     CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00030102", entries);
     CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00040102", strings);
+  } else if (recurrence) {
+    // One numeric entry: id 0x8216 in the GUID stream's first set (PSETID_Appointment), property index 0, so the value
+    // is __substg1.0_80000102: a daily pattern, versions 0x3004, then the counts ([MS-OXOCAL] 2.2.1.44.1).
+    const guid = Uint8Array.from([0x02, 0x20, 0x06, 0x00, 0, 0, 0, 0, 0xc0, 0, 0, 0, 0, 0, 0, 0x46]);
+    const entries = new Uint8Array(8);
+    new DataView(entries.buffer).setUint32(0, 0x8216, true);
+    new DataView(entries.buffer).setUint16(4, 3 << 1, true);
+    const blob = new Uint8Array(22 + 12 + 4 + 4 + 8);
+    const view = new DataView(blob.buffer);
+    view.setUint16(0, 0x3004, true);
+    view.setUint16(2, 0x3004, true);
+    view.setUint32(34, recurrence.deleted, true);
+    CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", guid);
+    CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00030102", entries);
+    CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00040102", new Uint8Array(0));
+    CFB.utils.cfb_add(cfb, "/__substg1.0_80000102", blob);
   } else CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", new Uint8Array(0));
   if (namedBinary) CFB.utils.cfb_add(cfb, "/__substg1.0_80000102", new Uint8Array(namedBinary));
   return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);
@@ -227,8 +256,13 @@ export function makeMsg({
 
 // A compound file that is not a message: a Word document's stream beside a decoy body stream, with no property stream
 // and no message class, renamed .msg.
-export function makeDecoyCompoundFile(): Uint8Array {
+// With `orphanClass`, it also has an empty property stream and a message class stream the property stream does not list.
+export function makeDecoyCompoundFile({ orphanClass = false } = {}): Uint8Array {
   const cfb = CFB.utils.cfb_new();
+  if (orphanClass) {
+    CFB.utils.cfb_add(cfb, "/__properties_version1.0", new Uint8Array(32));
+    CFB.utils.cfb_add(cfb, "/__substg1.0_001A001F", utf16("IPM.Note"));
+  }
   CFB.utils.cfb_add(cfb, "/__substg1.0_1000001F", utf16("Nothing to see here.\r\n"));
   CFB.utils.cfb_add(cfb, "/WordDocument", cp1252("Word bytes ".repeat(500)));
   return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);

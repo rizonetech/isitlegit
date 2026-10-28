@@ -3,7 +3,7 @@ import MsgReader from "@kenjiuno/msgreader";
 import msgreaderConstants from "@kenjiuno/msgreader/lib/const.js";
 import { describe, expect, it } from "vitest";
 import { makeDecoyCompoundFile, makeMsg, renameEntry } from "../../scripts/fixtures/msg-builder";
-import { createCase } from "../../src/db/cases";
+import { createCase, setHeadersAvailable } from "../../src/db/cases";
 import { ParseError } from "../../src/intake/mime";
 import { parseMsg, STRING_PROPERTY_LIMIT } from "../../src/intake/msg";
 import { BODY_PART_LIMIT, parseMessage, storeParsed } from "../../src/intake/parse";
@@ -252,6 +252,70 @@ describe("parseMsg", () => {
         DOCUMENT: "__substg1.",
         NAMEID: "__nameid_version1.0",
       });
+    });
+  });
+
+  describe("final review cases", () => {
+    it("refuses a recurrence declaring more instances than it holds, and reads one that holds them", async () => {
+      await expect(parseMsg(makeMsg({ transportHeaders: true, recurrence: { deleted: 33_554_432 } }))).rejects.toThrow(
+        /recurrence in the .msg declares 33554432 deleted instances/,
+      );
+      const fits = await parseMsg(makeMsg({ transportHeaders: true, recurrence: { deleted: 0 } }));
+      expect(fits.parsed.text).toContain("invoice 77");
+    });
+
+    it("leaves an embedded message without a display name unnamed, never undefined.msg", async () => {
+      const { parsed } = await parseMsg(makeMsg({ transportHeaders: true, embeddedName: false }));
+      expect(parsed.attachments[2]).toMatchObject({ filename: null, mediaType: "application/vnd.ms-outlook" });
+      const named = await parseMsg(msgs.full);
+      expect(named.parsed.attachments[2]?.filename).toBe("Earlier message from the supplier.msg");
+    });
+
+    it("cuts a multi-byte body at its last whole character", async () => {
+      // "a" then two-byte characters, so byte 1,048,576 falls inside one.
+      const text = new TextEncoder().encode(`a${"\u00e9".repeat(600_000)}`);
+      const { parsed } = await parseMsg(
+        makeMsg({
+          transportHeaders: true,
+          ansi: { subject: new TextEncoder().encode("Pay"), text },
+          messageCodepage: 65001,
+        }),
+      );
+      expect(parsed.text?.endsWith("\u00e9")).toBe(true);
+      expect(new TextEncoder().encode(parsed.text ?? "").byteLength).toBe(BODY_PART_LIMIT - 1);
+      expect(parsed.truncated[0]).toMatchObject({ charset: "utf-8", keptBytes: BODY_PART_LIMIT });
+    });
+
+    it("refuses a message class stream its property stream does not list", async () => {
+      await expect(parseMsg(makeDecoyCompoundFile({ orphanClass: true }))).rejects.toThrow(/has no message class/);
+    });
+
+    it("reads an HTML body stored as an 8-bit string", async () => {
+      const html8 = Uint8Array.from([
+        ...new TextEncoder().encode("<p>Pay "),
+        0x80,
+        ...new TextEncoder().encode("100</p>"),
+      ]);
+      const { parsed } = await parseMsg(
+        makeMsg({
+          transportHeaders: true,
+          ansi: { subject: new TextEncoder().encode("Pay"), text: new Uint8Array(0) },
+          html8,
+        }),
+      );
+      expect(parsed.html).toBe("<p>Pay \u20ac100</p>");
+    });
+
+    it("leaves a draft's case with headers_available 0 when the parser's answer is applied", async () => {
+      const made = await createCase(env.DB, { orgId: "org-msg", channel: "email", headersAvailable: true });
+      if (!made.ok) throw new Error(made.error.message);
+      const { headersAvailable } = await parseMsg(msgs.draft);
+      const set = await setHeadersAvailable(env.DB, made.value.id, headersAvailable);
+      expect(set.ok).toBe(true);
+      const row = await env.DB.prepare("SELECT headers_available FROM cases WHERE id = ?")
+        .bind(made.value.id)
+        .first<{ headers_available: number }>();
+      expect(row?.headers_available).toBe(0);
     });
   });
 });

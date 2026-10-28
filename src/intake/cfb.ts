@@ -143,6 +143,7 @@ export function readCompoundFile(bytes: Uint8Array): CompoundFile {
   };
   reached[0] = 1;
   const storages: CfbEntry[] = [root as CfbEntry];
+  const names = new Map<CfbEntry, Set<string>>();
   while (storages.length) {
     const storage = storages.pop() as CfbEntry;
     const pending = [link((raw[storage.id] as { child: number }).child)];
@@ -150,9 +151,13 @@ export function readCompoundFile(bytes: Uint8Array): CompoundFile {
       const entry = pending.pop();
       if (!entry) continue;
       entry.parent = storage;
-      // Names are unique within a storage, compared without case ([MS-CFB] 2.6.4); msgreader would read both of two.
-      if (storage.children.some((other) => other.name.toUpperCase() === entry.name.toUpperCase()))
-        refuse(`two entries in one storage are both named ${entry.name}`);
+      // Names are unique within a storage, compared without case ([MS-CFB] 2.6.4); msgreader would read both of two. A
+      // set per storage, so thousands of entries cost one comparison each (the final review).
+      const upper = entry.name.toUpperCase();
+      const seen = names.get(storage) ?? new Set<string>();
+      if (seen.has(upper)) refuse(`two entries in one storage are both named ${entry.name}`);
+      seen.add(upper);
+      names.set(storage, seen);
       storage.children.push(entry);
       if (entry.kind === "root" || entry.kind === "unused")
         refuse("the directory tree links an unused or second root entry");

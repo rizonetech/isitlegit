@@ -65,9 +65,11 @@ const isNamedBinary = (entry: CfbEntry) => {
 // The named-property names msgreader decodes, in bytes, repeats counted: it reads every storage whose name starts
 // "__nameid_version1.0" that holds the GUID (0002), entry (0003) and string (0004) streams, and decodes the string an
 // entry points at once for each entry ([MS-OXMSG] 2.2.3), so one long name referred to by many entries costs each time.
-// An entry pointing outside the string stream is a ParseError.
-function namedPropertyNames(file: CompoundFile): number {
+// An entry pointing outside the string stream is a ParseError. Also the property indexes whose numeric id is 0x8216
+// (PidLidAppointmentRecur, [MS-OXPROPS] 2.22), in any property set: msgreader parses those as a recurrence.
+function namedProperties(file: CompoundFile): { nameBytes: number; recurrences: Set<number> } {
   let total = 0;
+  const recurrences = new Set<number>();
   for (const storage of file.entries) {
     if (storage.kind !== "storage" || !storage.name.startsWith(FAMILY.NAMEID)) continue;
     const table = (key: string) => storage.children.find((e) => e.kind === "stream" && keyOf(e) === key) ?? null;
@@ -78,7 +80,10 @@ function namedPropertyNames(file: CompoundFile): number {
     const entryView = new DataView(entryBytes.buffer, entryBytes.byteOffset, entryBytes.byteLength);
     const stringView = new DataView(stringBytes.buffer, stringBytes.byteOffset, stringBytes.byteLength);
     for (let at = 0; at + 8 <= entryBytes.byteLength; at += 8) {
-      if (!(entryView.getUint16(at + 4, true) & 1)) continue;
+      if (!(entryView.getUint16(at + 4, true) & 1)) {
+        if (entryView.getUint32(at, true) === 0x8216) recurrences.add(entryView.getUint16(at + 6, true));
+        continue;
+      }
       const offset = entryView.getUint32(at, true);
       const length = offset + 4 <= stringBytes.byteLength ? stringView.getUint32(offset, true) : -1;
       if (length < 0 || offset + 4 + length > stringBytes.byteLength)
@@ -86,16 +91,46 @@ function namedPropertyNames(file: CompoundFile): number {
       total += length;
     }
   }
-  return total;
+  return { nameBytes: total, recurrences };
 }
 
-// The top-level bodies this reads itself ([MS-OXPROPS]: PidTagBody as Unicode or 8-bit, PidTagHtml as Unicode).
+// A recurrence as msgreader's parser reads it ([MS-OXOCAL] 2.2.1.44.1): it allocates the deleted and the modified
+// instance dates from their 32-bit counts before reading them, so counts the stream cannot hold are refused here.
+// One whose versions it does not read (not 0x3004) it drops before the counts.
+function checkRecurrence(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.byteLength < 22 || view.getUint16(0, true) !== 0x3004 || view.getUint16(2, true) !== 0x3004) return;
+  const pattern = view.getUint16(6, true);
+  // The pattern-specific part: a week's or a month's 4 bytes, an nth month's 8 (types 1; 2, 4, 10, 12; 3, 11).
+  let at = 22 + ([1, 2, 4, 10, 12].includes(pattern) ? 4 : [3, 11].includes(pattern) ? 8 : 0) + 12;
+  for (const what of ["deleted", "modified"]) {
+    if (at + 4 > bytes.byteLength) return;
+    const count = view.getUint32(at, true);
+    if (count > (bytes.byteLength - at - 4) / 4)
+      throw new ParseError(`a recurrence in the .msg declares ${count} ${what} instances, more than it holds`);
+    at += 4 + 4 * count;
+  }
+}
+
+// The top-level bodies this reads itself ([MS-OXPROPS]: PidTagBody and PidTagHtml as Unicode or 8-bit strings).
 const TEXT_UNICODE = "1000001f";
 const TEXT_8BIT = "1000001e";
 const HTML_UNICODE = "1013001f";
+const HTML_8BIT = "1013001e";
 const PROPERTIES = "__properties_version1.0";
 const rootProperty = (file: CompoundFile, key: string) =>
   file.root.children.find((entry) => entry.kind === "stream" && keyOf(entry) === key) ?? null;
+
+// The type a storage's property stream lists property `id` with, or null.
+function listedType(file: CompoundFile, storage: CfbEntry, header: number, id: number) {
+  const stream = child(storage, PROPERTIES);
+  if (!stream) return null;
+  const bytes = file.read(stream);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let at = header; at + 16 <= bytes.byteLength; at += 16)
+    if (view.getUint16(at + 2, true) === id) return view.getUint16(at, true);
+  return null;
+}
 
 // A fixed-size property from a storage's property stream ([MS-OXMSG] 2.4: a header of `header` bytes, then 16 bytes a
 // property: tag, flags, value); the 32-bit value of property `id` with type `type`, or null.
@@ -118,14 +153,15 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
     for (const [prefix, spelling] of SPELLINGS)
       if (entry.name.startsWith(prefix) && !spelling.test(entry.name))
         throw new ParseError(`an entry of the .msg has a malformed name (${entry.name})`);
-  if (!child(file.root, PROPERTIES) || !(rootProperty(file, "001a001f") || rootProperty(file, "001a001e")))
+  if (!child(file.root, PROPERTIES))
     throw new ParseError("the .msg is not an Outlook message: it has no message properties");
 
   const decoded = file.entries.filter((entry) => entry.kind === "stream" && (isString(entry) || isNamedBinary(entry)));
   const bodies = new Set(
-    [TEXT_UNICODE, TEXT_8BIT, HTML_UNICODE].map((key) => rootProperty(file, key)).filter((e) => e !== null),
+    [TEXT_UNICODE, TEXT_8BIT, HTML_UNICODE, HTML_8BIT].map((key) => rootProperty(file, key)).filter((e) => e !== null),
   );
-  let total = namedPropertyNames(file);
+  const named = namedProperties(file);
+  let total = named.nameBytes;
   for (const entry of decoded) {
     if (bodies.has(entry)) continue;
     if (entry.size > STRING_PROPERTY_LIMIT)
@@ -136,6 +172,9 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   }
   if (total > STRING_TOTAL_LIMIT)
     throw new ParseError(`the .msg's text properties hold ${total} bytes, more than ${STRING_TOTAL_LIMIT}`);
+  for (const entry of decoded)
+    if (isNamedBinary(entry) && named.recurrences.has(Number.parseInt(keyOf(entry)?.slice(0, 4) ?? "0", 16) - 0x8000))
+      checkRecurrence(file.read(entry));
 
   // 8-bit strings are in the message's code page (PidTagMessageCodepage), Windows-1252 when it names none (Outlook's
   // own default); msgreader decodes them with iconv-lite, which knows a few of the labels by other names.
@@ -145,6 +184,17 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   const has8Bit = file.entries.some((entry) => entry.kind === "stream" && is8Bit(entry));
   if (has8Bit && (ansiLabel.startsWith("utf-16") || ansiEncoding === "iso-2022-jp"))
     throw new ParseError(`the .msg's 8-bit text is in code page ${messageCodepage}, which is not read`);
+
+  // A message lists its message class in its property stream and names an Outlook item class ([MS-OXCMSG] 2.2.1.3:
+  // "IPM..." or "REPORT..."); a stream of that name the property stream does not list is no message class.
+  const classType = listedType(file, file.root, 32, 0x001a);
+  const classEntry = rootProperty(file, classType === 0x001e ? "001a001e" : "001a001f");
+  const messageClass =
+    classEntry && classType !== null
+      ? decode(file.read(classEntry), classType === 0x001e ? ansiLabel : "utf-16le").replace(/\0+$/, "")
+      : "";
+  if (!/^(IPM|REPORT)(\.|$)/i.test(messageClass))
+    throw new ParseError("the .msg is not an Outlook message: it has no message class");
 
   // The bodies msgreader would decode a character at a time are hidden from it when they are over the limit.
   const large = [...bodies].filter((entry) => entry.size > STRING_PROPERTY_LIMIT);
@@ -162,15 +212,16 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
     throw new ParseError("the .msg's attachments are malformed");
   const textEntry = rootProperty(file, TEXT_UNICODE) ?? rootProperty(file, TEXT_8BIT);
   const htmlBytes = data.html?.length ? data.html : null;
-  const htmlUnicode = htmlBytes ? null : rootProperty(file, HTML_UNICODE);
-  const hasBody = !!(textEntry?.size || htmlBytes || htmlUnicode?.size);
+  const htmlString = htmlBytes ? null : (rootProperty(file, HTML_UNICODE) ?? rootProperty(file, HTML_8BIT));
+  const hasBody = !!(textEntry?.size || htmlBytes || htmlString?.size);
   if (!hasBody && data.compressedRtf?.length)
     throw new ParseError("the .msg's body is only compressed RTF, which is not read yet (D01 T01 §13)");
   if (!hasBody && !subject && !transport && !data.attachments?.length)
     throw new ParseError("the .msg holds nothing readable (an empty or cut-off file)");
 
-  // The bodies, cut to §5's limits with each cut part kept whole in its own charset; a UTF-16 cut keeps whole code
-  // units.
+  // The bodies, cut to §5's limits with each cut part kept whole in its own charset. A cut part's kept text ends at its
+  // last whole character (a UTF-16 cut keeps whole code units; a decoder in streaming mode holds back a character cut
+  // in two, in any multi-byte charset), so it does not end in a replacement character the full part does not have.
   const truncated: ParsedMessage["truncated"] = [];
   let budget = BODY_TOTAL_LIMIT;
   const bound = (full: Uint8Array, mediaType: string, charset: string) => {
@@ -179,11 +230,13 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
     budget -= kept;
     if (kept < full.byteLength && truncated.length < KEPT_PARTS_LIMIT)
       truncated.push({ mediaType, charset, full, keptBytes: kept });
-    return full.subarray(0, kept);
+    return { kept: full.subarray(0, kept), cut: kept < full.byteLength };
   };
+  const decodeBound = ({ kept, cut }: { kept: Uint8Array; cut: boolean }, charset: string) =>
+    new TextDecoder(charset).decode(kept, { stream: cut });
   // A string stream's text without the terminating NULs some writers leave in it.
   const textOf = (entry: CfbEntry, mediaType: string, charset: string) =>
-    decode(bound(file.read(entry), mediaType, charset), charset).replace(/\0+$/, "");
+    decodeBound(bound(file.read(entry), mediaType, charset), charset).replace(/\0+$/, "");
   const text = textEntry?.size
     ? textOf(textEntry, "text/plain", keyOf(textEntry) === TEXT_UNICODE ? "utf-16le" : ansiLabel)
     : null;
@@ -191,9 +244,9 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   if (htmlBytes) {
     // The HTML's own code page (PidTagInternetCodepage), UTF-8 when it names none.
     const charset = data.internetCodepage === undefined ? "utf-8" : codepageLabel(data.internetCodepage);
-    html = decode(bound(htmlBytes, "text/html", charset), charset);
-  } else if (htmlUnicode?.size) {
-    html = textOf(htmlUnicode, "text/html", "utf-16le");
+    html = decodeBound(bound(htmlBytes, "text/html", charset), charset);
+  } else if (htmlString?.size) {
+    html = textOf(htmlString, "text/html", keyOf(htmlString) === HTML_UNICODE ? "utf-16le" : ansiLabel);
   }
 
   const attachments: ParsedMessage["attachments"] = [];
@@ -214,11 +267,14 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
     const name =
       optionalString(field.fileName, "attachment file name") ||
       optionalString(field.fileNameShort, "attachment file name");
+    const displayName = optionalString(field.name, "attachment display name")?.trim();
     const contentId = optionalString(field.pidContentId, "attachment content id")?.trim()
       ? `<${(field.pidContentId as string).trim().replace(/^<|>$/g, "")}>`
       : null;
     attachments.push({
-      filename: embedded ? exported.fileName || name || null : name || null,
+      // An embedded message's name is its display name (PidTagDisplayName) with ".msg", as Outlook saves it; msgreader's
+      // own export name reads "undefined.msg" when there is none, so it is not used.
+      filename: name || (embedded && displayName ? `${displayName}.msg` : null),
       mediaType: embedded
         ? "application/vnd.ms-outlook"
         : optionalString(field.attachMimeTag, "attachment type")?.trim().toLowerCase() || "application/octet-stream",
