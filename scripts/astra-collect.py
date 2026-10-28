@@ -284,7 +284,14 @@ def collect(args, raw: Path, run: list[str], lock) -> int:
 
     report = raw / REPORT
     try:
-        if report.exists():
+        # stat(), not exists(): from Python 3.14 exists() answers False for a report that cannot be read, which would
+        # let this run overwrite it; stat() raises, and only a missing report means there is nothing to set aside.
+        try:
+            report.stat()
+            present = True
+        except FileNotFoundError:
+            present = False
+        if present:
             aside = raw / f"ASTRA-REPORT.{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.md"
             os.replace(report, aside)
             print(f"astra-collect: the earlier report is now {aside.name}")
