@@ -219,7 +219,7 @@ A page Loupe flags goes to the full pipeline (§4), whose Muse Wonder walkthroug
 
 ## 10. Findings exported to Loupe's training
 
-Loupe gets better on real South African lures only if what the monitor learns flows back into its training set (operator decision 2026-10-28 22:42 SAST: Loupe's learning is "extremely important"). Each labelled outcome becomes a training page: a lure the full pipeline confirmed, a flag Spark declined (§9), and a finding the business dismissed as not a fake (§5). They go into Loupe's training store, which lives outside every repository at `~/isitlegit-data/glimmer` (`GLIMMER_DATA_DIR` moves it; `storeDir()` in `scripts/glimmer/store.ts`), with origin `monitor`, so the glimmer lane's retraining (D03 T04, its own section) takes them into Loupe's next version.
+Loupe gets better on real South African lures only if what the monitor learns flows back into its training set (operator decision 2026-10-28 22:42 SAST: Loupe's learning is "extremely important"). Each labelled outcome becomes a training page: a lure the full pipeline confirmed, a flag Spark declined (§9), and a finding the business dismissed as not a fake (§5). Production deletes stored artefacts after 30 days (spec 4.8), and this machine may be off for days, so a labelled finding's public page is copied in production the moment it is labelled, into R2 under `training/` with its own retention, and a local export drains that prefix into Loupe's training store (operator question 2026-10-28 22:51 SAST: how production data reaches the store). The store lives outside every repository at `~/isitlegit-data/glimmer` (`GLIMMER_DATA_DIR` moves it; `storeDir()` in `scripts/glimmer/store.ts`), with origin `monitor`, so the glimmer lane's retraining (D03 T04, its own section) takes them into Loupe's next version.
 
 **Phase:** 6
 **Needs:** cloudflare
@@ -227,14 +227,18 @@ Loupe gets better on real South African lures only if what the monitor learns fl
 
 **Build order:**
 
-1. Export labelled findings into the training store. Done when: a run of the export adds each new labelled finding once, with its label and origin, and a second run adds nothing.
+1. Copy each labelled finding's public page into R2 `training/` in production when it is labelled. Done when: a labelled finding's copy survives the 30-day deletion of its case artefacts.
+2. Drain `training/` into the training store from this machine. Done when: a run adds each new copy to the store once, removes it from R2 only after the store holds it, and a second run adds nothing.
 
-- [ ] Write `scripts/monitor-export.ts` reading labelled outcomes from production (D1 through `wrangler d1 execute --remote`, screenshots from R2) since the last export, and storing each with `putPage` (`scripts/glimmer/store.ts`) as origin `monitor`, its host, its label (`lure` confirmed, `benign` declined or dismissed) and its finding id. Done when: `test/node/monitor-export.test.ts` stores a confirmed lure, a declined flag and a dismissed finding from stubbed sources with the right labels. Cheaper substitute: copying screenshots by hand.
+- [ ] Write `copyForTraining(finding, label, env)` in `src/monitor/training.ts`, called where a finding gets its label (the full pipeline's confirmation in §4, a declined second look in §9, a dismissal in §5), writing the fetched page's screenshot and visible text with a `meta.json` (finding id, host, URL, fetch time, label `lure` or `benign`, why) to R2 `training/<finding id>/`, once per finding. Done when: `test/monitor/training.test.ts` sees one copy per labelled finding, none for an unlabelled one, and the copy kept after the case's artefacts are deleted. Cheaper substitute: exporting from the case's own artefacts, which are deleted after 30 days.
+- [ ] Disclose the copy: the privacy page (D07 T06) states that public lookalike pages the monitor finds are kept to train Loupe, and for how long. Done when: D07 T06's processors paragraph names it, with a dated note there.
+- [ ] Write `scripts/monitor-export.ts` listing R2 `training/` (through the Cloudflare API with the vault's R2 credentials, never printed), storing each copy with `putPage` (`scripts/glimmer/store.ts`) as origin `monitor` with its host, label and finding id, then deleting the R2 copy only once the store has read it back. Done when: `test/node/monitor-export.test.ts` stores a confirmed lure, a declined flag and a dismissed finding from a stubbed bucket with the right labels and deletes each only after its read-back. Cheaper substitute: copying screenshots by hand.
+- [ ] Run the export daily from this machine (a user systemd timer, `infra/systemd/monitor-export.timer`) and at the start of every Loupe retraining run (the glimmer lane's runbook, `docs/glimmer/retraining.md`). Done when: `systemctl --user list-timers` shows it, and the runbook's first step names the export.
 - [ ] Keep the export resumable and exact: the last exported finding is recorded in the store, an interrupted run resumes after it, and a finding already stored is never stored twice. Done when: the test's interrupted run, rerun, leaves each finding stored once.
 - [ ] Export only the public page the daily run fetched (its screenshot and visible text, with the URL and fetch time), never a walkthrough capture taken after a form was filled or anything from a member's own account, and record in the store's manifest why each left-out item was skipped. Done when: the test exports the fetched page of a walked-through fixture, not its post-form captures, and the manifest names what was left out.
 - [ ] Commit: `monitor: findings exported for Loupe's training`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/monitor-export.test.ts` passes, and fails if a finding is stored twice, mislabelled, or exported with a post-form capture.
+**Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts test/node/monitor-export.test.ts` passes, and fails if a finding is stored twice, mislabelled, or exported with a post-form capture.
 
 ## Verification
 

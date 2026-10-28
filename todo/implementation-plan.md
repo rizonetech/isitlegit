@@ -200,7 +200,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 235
+Sections: 59 | Checklist items: 238
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -221,7 +221,7 @@ Sections: 59 | Checklist items: 235
 | [ ]    | D05 T04 §4  | Full pipeline on flagged pages            | meta-api, cloudflare  | 3     |
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack          | none                  | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
-| [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 4     |
+| [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
@@ -305,4 +305,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 45/234 verified sections, 32 ready to run now.
 
-Checklist: 526/1373 items completed (includes Commit items).
+Checklist: 526/1376 items completed (includes Commit items).
