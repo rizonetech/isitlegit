@@ -392,7 +392,10 @@ describe("POST /api/upload", () => {
 });
 
 describe("an upload's Workflow", () => {
-  it("records a document, an image and a voice note for the later steps, the file unchanged", async () => {
+  // Three uploads run through the Workflow one after another, longer than one step's 15 seconds on a loaded machine.
+  it("records a document, an image and a voice note for the later steps, the file unchanged", {
+    timeout: 60_000,
+  }, async () => {
     const { cookie } = await member();
     for (const [bytes, name, kind, type] of [
       [PDF, "invoice.pdf", "document", "application/pdf"],

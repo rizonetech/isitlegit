@@ -179,6 +179,24 @@ describe("handleEmail", () => {
     expect(world.sends).toEqual([]);
   });
 
+  it("finds a claim made before migration 0019 when the same forward is delivered again after it", async () => {
+    const { orgId, from } = await member();
+    const m = message(from);
+    // A done claim as the previous version wrote it: the Message-ID alone, no door.
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'done', NULL, ?)",
+      )
+      .bind(orgId, m.messageId, new Date().toISOString())
+      .run();
+    const migration = env.TEST_MIGRATIONS.find((x) => x.name.startsWith("0019"));
+    expect(migration).toBeDefined();
+    for (const query of migration?.queries ?? []) await db.prepare(query).run();
+    expect(await handleEmail(m.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(await claimsOf(orgId)).toEqual([{ message_key: `email:${m.messageId}`, state: "done", case_id: null }]);
+  });
+
   it("reads Auto-Submitted as RFC 3834's keyword, comments and parameters around it", () => {
     for (const machine of [
       "auto-replied",
