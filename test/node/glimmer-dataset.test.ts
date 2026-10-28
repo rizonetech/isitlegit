@@ -210,3 +210,19 @@ describe("buildDataset", () => {
     expect(summary.train.lines + summary.evaluation.lines).toBe(built.train + built.evaluation);
   });
 });
+
+describe("evaluation trust", () => {
+  it("needs a trusted lure and no Spark label, and allows a rule-filled brand or type", async () => {
+    const { trusted, labelTrusted } = await import("../../scripts/glimmer/build-dataset.ts");
+    const ruled = page("r", {}, { brand: "FNB", lure: true, lure_type: "credential" });
+    ruled.label_source = { ...ruled.label_source, brand: "rule", lure_type: "rule" };
+    expect(trusted(ruled)).toBe(true);
+    expect(labelTrusted(ruled, "brand")).toBe(false);
+    const unverified = page("u", {}, { lure: true, lure_type: "credential" });
+    unverified.label_source.lure = "unverified";
+    expect(trusted(unverified)).toBe(false);
+    const spark = page("s", {}, { brand: "Bank", lure: false });
+    spark.label_source.brand = "spark";
+    expect(trusted(spark)).toBe(false);
+  });
+});

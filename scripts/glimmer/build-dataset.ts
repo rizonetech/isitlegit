@@ -90,8 +90,16 @@ export function answerOf(page: StoredPage): PageAnswer | null {
   };
 }
 
+// Whether a page may be evaluated on: its `lure` is known to be true (detections and false alarms are what Loupe is
+// judged on, operator 2026-10-28 21:36 SAST) and no label came from Spark. A brand or lure type filled by rule is
+// allowed; §13 scores brand and lure type only on pages whose own label for them is trusted (`labelTrusted`).
 export function trusted(page: StoredPage): boolean {
-  return Object.values(page.label_source).every((source) => source && TRUSTED.has(source));
+  const sources = Object.values(page.label_source);
+  return TRUSTED.has(page.label_source.lure ?? "") && sources.every((source) => source !== "spark");
+}
+
+export function labelTrusted(page: StoredPage, field: keyof StoredPage["labels"]): boolean {
+  return TRUSTED.has(page.label_source[field] ?? "");
 }
 
 // The group a page is held out with: its brand, else its site, else itself.
