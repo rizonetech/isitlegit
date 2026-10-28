@@ -227,12 +227,13 @@ Every link the app mails points at `PUBLIC_ORIGIN`, `https://app.isitlegit.co.za
 
 1. Attach the app host to the Worker. Done when: `https://app.isitlegit.co.za/health` answers with the deployed SHA.
 
-- [ ] Add `app.isitlegit.co.za` as a Workers custom domain of `isitlegit` in `wrangler.jsonc` (`routes`, `custom_domain: true`), keeping `workers_dev` so `scripts/smoke.ts` still reaches its pinned host, and run `pnpm types`. Done when: `pnpm typecheck` passes and the deploy lists the custom domain.
-- [ ] Deploy (`AGENTS.md` deploy rule, migrations first) and read the host back: DNS answers through Cloudflare, the certificate is valid, `/health` returns the deployed SHA, and `PUBLIC_ORIGIN` matches the host serving it. Done when: `curl -s https://app.isitlegit.co.za/health` returns `"ok":true` with `git rev-parse HEAD`.
-- [ ] Record the host in `docs/live-checks.md` with the date, and that the apex and `www` stay with §6. Done when: the file holds it.
-- [ ] Commit: `infra: the app on app.isitlegit.co.za`
+- [x] Add `app.isitlegit.co.za` as a Workers custom domain of `isitlegit` in `wrangler.jsonc` (`routes`, `custom_domain: true`), keeping `workers_dev` so `scripts/smoke.ts` still reaches its pinned host, and run `pnpm types`; `APP_URL` (Better Auth's base URL and origin check) and `PUBLIC_ORIGIN` (report links) already name this host and stay as they are. Done when: `pnpm typecheck` passes. Done 2026-10-29: `routes` and `workers_dev` in `wrangler.jsonc`; `pnpm types` left `worker-configuration.d.ts` unchanged; typecheck, Biome, the full suite (1027 passed, 2 skipped), `pnpm build` and `check-publication` pass.
+- [x] Commit the configuration as `infra: the app on app.isitlegit.co.za` and push it before deploying, so the deploy runs from a clean checkout of a pushed commit (D00 T01 §5). Done when: `git status --porcelain` prints nothing and `HEAD` equals `origin/main`.
+- [ ] Deploy with `wrangler deploy --var COMMIT_SHA:$(git rev-parse HEAD)` (`AGENTS.md` deploy rule, migrations first) and read the host back: the deploy lists the custom domain, DNS answers through Cloudflare, the certificate is valid, `/health` returns the deployed SHA, and `PUBLIC_ORIGIN` matches the host serving it. Done when: `curl -s https://app.isitlegit.co.za/health` returns `"ok":true` with `git rev-parse HEAD`.
+- [ ] Record the host in `docs/live-checks.md` with the date, the deployed SHA tested, and that the apex and `www` stay with §6, after the deploy. Done when: the file holds it.
+- [ ] Commit: `todo: D07 T06 §9 records the app host's live read-back`
 
-**Test checkpoint:** `curl -s https://app.isitlegit.co.za/health` returns `"ok":true` with the SHA of `git rev-parse HEAD`, and `curl -s https://isitlegit.derick-f5a.workers.dev/health` still answers.
+**Test checkpoint:** for each of `https://app.isitlegit.co.za/health` and `https://isitlegit.derick-f5a.workers.dev/health`, `curl -sf` answers HTTP 200 with JSON `ok: true` and `commit` equal to the deployed SHA (the configuration commit), and any other status or SHA fails. **Corrected 2026-10-29** (plan review): the commit comes before the deploy, and the workers.dev host must answer 200 with the SHA, not merely answer.
 
 ## Verification
 
