@@ -2,7 +2,7 @@
 // and its gateway log read back, which must hold the call's metadata and no stored request or response body.
 //
 // It spends under the smoke's guard (scripts/meta-smoke.ts, D00 T01 §7): the same lock, the same caps and the same
-// ledger (build/meta-smoke-spend.json, which D03 T01 §2's budget guard counts). The caps are checked before any secret
+// ledger (`metaLedger()`, outside every checkout, which D03 T01 §2's budget guard counts). The caps are checked before any secret
 // is read; each attempt's estimate is reserved before it is sent (the client may try three times) and the answered one
 // settled at Meta's reported cost after, so an interrupted run still counts what it may have spent. An answered call is
 // kept (its log id and counts, no body) until its log is checked and recorded, so a failed check is resumed by running
@@ -13,10 +13,13 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { ModelError, metaResponses } from "../src/meta/client.ts";
 import {
+  adoptLegacyLedger,
   checkLog,
   DAY_CAP,
   GATEWAY_URL,
+  LEGACY_LEDGER,
   LOGS_URL,
+  metaLedger,
   type Planned,
   RUN_CAP,
   readLedger,
@@ -51,7 +54,8 @@ export type LiveOptions = {
   readSecrets?: () => Promise<Secrets>;
   fetch?: typeof fetch;
   ledger?: string;
-  // The answered call awaiting its log check and record (build/meta-client-live-pending.json).
+  legacyLedger?: string;
+  // The answered call awaiting its log check and record (meta-client-live-pending.json beside the ledger).
   pending?: string;
   record?: string;
   now?: () => Date;
@@ -80,14 +84,29 @@ export async function runClientLive(options: LiveOptions = {}): Promise<LiveOutc
     lines.push(line);
     options.log?.(line);
   };
-  const ledgerFile = options.ledger ?? join(ROOT, "build/meta-smoke-spend.json");
-  const pendingFile = options.pending ?? join(ROOT, "build/meta-client-live-pending.json");
+  // The shared ledger and, beside it, the call in flight: both outside every checkout, so no lane repeats a call another
+  // made or spends past the caps another reached.
+  const ledgerFile = options.ledger ?? metaLedger();
+  const pendingFile = options.pending ?? join(dirname(ledgerFile), "meta-client-live-pending.json");
+  const legacy = options.ledger ? options.legacyLedger : (options.legacyLedger ?? LEGACY_LEDGER);
+  // The shared ledger's folder, made on first use; one that cannot be made is refused by the lock just below, which
+  // names the cause.
+  try {
+    mkdirSync(dirname(ledgerFile), { recursive: true });
+  } catch {
+    // refused by takeLock
+  }
   const unlock = takeLock(`${ledgerFile}.lock`);
   if (typeof unlock === "string") {
     say(`meta-client-live: refused: ${unlock}`);
     return { code: 1, lines };
   }
   try {
+    const unmoved = adoptLegacyLedger(ledgerFile, legacy);
+    if (unmoved) {
+      say(`meta-client-live: refused: ${unmoved}`);
+      return { code: 1, lines };
+    }
     return await run(options, ledgerFile, pendingFile, say, lines);
   } finally {
     unlock();

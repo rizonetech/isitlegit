@@ -62,6 +62,8 @@ One module, `src/meta/client.ts`, is the only place that talks to `api.meta.ai` 
 
 **Corrected 2026-10-28** (completion review, `docs/reviews/03-vision/D03-T01-s1.md`): errors keep no part of Meta's free-text message (it can echo request content) and do keep each attempt's gateway log id and Meta request id; the image-edit endpoint gets the same header, refusal and URL tests as the other two; the live script reserves every transport attempt, not one call, and keeps an answered call to resume its verification without paying again.
 
+**Corrected 2026-10-28** (operator, parallel lanes, `AGENTS.md`): the smoke's ledger moved out of the checkout to `~/isitlegit-data/ledgers/meta-spend.json` (`metaLedger()`), shared by every worktree so the Meta caps hold across lanes, with a checkout's old `build/meta-smoke-spend.json` moved into it on first use; the live check's pending file sits beside it. Where the items below name `build/meta-smoke-spend.json` and `build/meta-client-live-pending.json`, they now mean these.
+
 **Build order:**
 
 1. Write `src/meta/client.ts` with `metaResponses` and `metaRaw` (for endpoints the SDK does not cover). Done when: a stubbed transport test sees the base URL, the headers and `store: false`.
@@ -91,7 +93,7 @@ The operator's caps are enforced in code (design spec section 11): Meta Model AP
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/meta/budget.test.ts` passes unchanged.
 
-**Added 2026-10-27** (D00 T01 §7's plan review): the Meta smoke test spends before this guard exists; its runs are recorded in `docs/meta-smoke-test.md` (and locally in `build/meta-smoke-spend.json`), and the guard's starting totals include that spend, so spec 11's US$120 total counts it.
+**Added 2026-10-27** (D00 T01 §7's plan review): the Meta smoke test spends before this guard exists; its runs are recorded in `docs/meta-smoke-test.md` (and locally in `build/meta-smoke-spend.json`), and the guard's starting totals include that spend, so spec 11's US$120 total counts it. **Corrected 2026-10-28** (parallel lanes, `AGENTS.md`): that ledger is now `~/isitlegit-data/ledgers/meta-spend.json` (`metaLedger()` in `scripts/meta-smoke.ts`), shared by every worktree and lane, and the guard keeps its spend there too, so a lane's Meta calls (D03 T04's teacher labels) count against the same caps.
 
 **Build order:**
 

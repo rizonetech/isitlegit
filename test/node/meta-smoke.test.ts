@@ -2,12 +2,16 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync }
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  adoptLegacyLedger,
   GATEWAY_URL,
+  LEGACY_LEDGER,
   LOGS_URL,
   loadFixtures,
   MODELS,
+  metaLedger,
   parseMetaArgs,
   type RunOptions,
+  readLedger,
   runMetaSmoke,
   takeLock,
   USAGE,
@@ -656,10 +660,57 @@ describe("scripts/meta-smoke.ts", () => {
     }
   });
 
+  it("keeps one Meta ledger outside every checkout, ISITLEGIT_LEDGER_DIR moving it", () => {
+    expect(metaLedger({ HOME: "/srv/ada" })).toBe("/srv/ada/isitlegit-data/ledgers/meta-spend.json");
+    expect(metaLedger({ HOME: "/srv/ada", ISITLEGIT_LEDGER_DIR: "~/spend" })).toBe("/srv/ada/spend/meta-spend.json");
+    expect(metaLedger({ HOME: "/srv/ada", ISITLEGIT_LEDGER_DIR: "/srv/ledgers" })).toBe("/srv/ledgers/meta-spend.json");
+    expect(LEGACY_LEDGER.endsWith("build/meta-smoke-spend.json")).toBe(true);
+  });
+
+  it("moves a checkout's old ledger into the shared one once, losing and repeating nothing", async () => {
+    const shared = join(DIR, "ledgers/meta-spend.json");
+    const legacy = join(DIR, "old-spend.json");
+    const entry = (run: string, cost: number) => ({
+      date: "2026-10-28",
+      run,
+      call: "Spark text",
+      estimate: 0.01,
+      cost,
+      state: "settled",
+    });
+    mkdirSync(join(DIR, "ledgers"));
+    writeFileSync(shared, JSON.stringify([entry("a", 0.001)]));
+    writeFileSync(legacy, JSON.stringify([entry("a", 0.001), entry("b", 0.002)]));
+    expect(adoptLegacyLedger(shared, legacy)).toBeNull();
+    expect(readLedger(shared).map((e) => e.run)).toEqual(["a", "b"]);
+    expect(existsSync(legacy)).toBe(false);
+    expect(existsSync(`${legacy}.moved`)).toBe(true);
+    expect(adoptLegacyLedger(shared, legacy)).toBeNull();
+    expect(readLedger(shared)).toHaveLength(2);
+    writeFileSync(legacy, "not json");
+    expect(adoptLegacyLedger(shared, legacy)).toMatch(/repair the unreadable one rather than delete it/);
+    expect(readLedger(shared)).toHaveLength(2);
+    // A run takes the old ledger in before it counts today's spend, and reads no secret past the cap it then meets.
+    rmSync(legacy);
+    writeFileSync(legacy, JSON.stringify([{ ...entry("c", 1.99), date: "2026-10-27" }]));
+    const { fetchStub, sent } = world();
+    const day = live(fetchStub, { ledger: shared, legacyLedger: legacy });
+    const outcome = await day.run;
+    expect(outcome.lines.at(-1)).toMatch(/spent on smoke runs today/);
+    expect(day.secretsRead()).toBe(0);
+    expect(sent).toHaveLength(0);
+    expect(readLedger(shared).map((e) => e.run)).toContain("c");
+  });
+
   it("has a help text and names a safe recovery for each failed stage (E2)", async () => {
     expect(parseMetaArgs(["--help"]).help).toBe(true);
     for (const model of MODELS) expect(USAGE).toContain(model);
-    for (const fact of ["--confirm-credit", "build/meta-smoke-spend.json", "docs/meta-smoke-test.md", "Exit codes"])
+    for (const fact of [
+      "--confirm-credit",
+      "isitlegit-data/ledgers/meta-spend.json",
+      "docs/meta-smoke-test.md",
+      "Exit codes",
+    ])
       expect(USAGE).toContain(fact);
     expect(() => parseMetaArgs(["--nope"])).toThrow();
     const noFixtures = await runMetaSmoke({ dry: true, confirmCredit: false, fixturesDir: join(DIR, "absent") });

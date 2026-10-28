@@ -8,7 +8,7 @@
     python scripts/todo-graph.py query ready | blocked | stats | deferred | adjacency | plan | rounds
     python scripts/todo-graph.py resolve 'D02 T01 §1'        # exit 0 ready, 1 no such section,
                                                              # 2 no reference in input, 3 verified,
-                                                             # 4 waiting; a pasted plan row works too
+                                                             # 4 waiting (or another lane's); a pasted plan row works too
     python scripts/todo-graph.py classify 'D02 T01 §1' ...   # dispositions as JSON
     python scripts/todo-graph.py stamp 'D02 T01 §1' --sha <40-char commit> \
         --plan '<findings file>' \
@@ -28,9 +28,9 @@ import re
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from todo_graph import (ROOT, Refused, adjacency_report, atomic, deferrals, disposition,  # noqa: E402
-                        extract_ref, graph, ordered, plan_config, projections, require, review_rounds, settled, stamp,
-                        suspects, unstamp)
+from todo_graph import (ROOT, Refused, adjacency_report, atomic, claimable, current_lane,  # noqa: E402
+                        deferrals, disposition, extract_ref, graph, lane_of, lanes, ordered, plan_config, projections,
+                        require, review_rounds, settled, stamp, suspects, unstamp)
 
 
 def review_round(value):
@@ -119,15 +119,24 @@ def main():
             return 1
         row = rows[ref]
         unmet = [d for d in row.depends if not settled(d, rows)]
-        print(json.dumps({**row.public(), "body": row.body, "unmet_depends": unmet,
-                          "skill_arg": ref, "exit": disposition(row, rows)},
+        config, here = lanes(), current_lane()
+        owner = lane_of(row, config)
+        code = claimable(row, rows, config, here)
+        lane = {"lane": owner, "this_lane": here}
+        if owner != here:
+            # Another lane's row is claimed only in that lane's worktree (todo/lanes.json; AGENTS.md, Parallel lanes).
+            where = config[owner] if owner in config else {"branch": "main", "worktree": "the main checkout"}
+            lane["lane_note"] = f"{ref} belongs to lane {owner} (branch {where['branch']}, {where['worktree']})"
+        print(json.dumps({**row.public(), "body": row.body, "unmet_depends": unmet, **lane,
+                          "skill_arg": ref, "exit": code},
                          indent=2, ensure_ascii=False))
-        return disposition(row, rows)
+        return code
     elif args.command == "classify":
         out = {}
+        config, here = lanes(), current_lane()
         for item in args.refs:
             ref, code = extract_ref(item, rows)
-            out[item] = disposition(rows[ref], rows) if code == 0 else code
+            out[item] = claimable(rows[ref], rows, config, here) if code == 0 else code
         print(json.dumps(out, ensure_ascii=False))
     elif args.command == "query":
         if args.kind == "stats":
@@ -149,9 +158,12 @@ def main():
                       "phases": {str(n): name for n, name in sorted(config["phases"].items())},
                       "sections": [{"ref": r.ref, "path": r.path, "title": r.title, "phase": r.phase,
                                     "status": plan_status(r, rows), "depends": r.depends} for r in ordered(rows)]}
+        elif args.kind == "ready":
+            # Ready for this checkout's lane: another lane's ready row is left to its own worktree.
+            config, here = lanes(), current_lane()
+            result = [r.public() for r in ordered(rows) if claimable(r, rows, config, here) == 0]
         else:
-            code = 0 if args.kind == "ready" else 4
-            result = [r.public() for r in ordered(rows) if disposition(r, rows) == code]
+            result = [r.public() for r in ordered(rows) if disposition(r, rows) == 4]
         print(json.dumps(result, indent=2, ensure_ascii=False))
     elif args.command == "build":
         atomic(ROOT / "build/todo-cache.json",

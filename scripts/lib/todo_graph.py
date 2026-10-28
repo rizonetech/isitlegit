@@ -81,6 +81,9 @@ ADJACENCY_KEYS = ["list", "document", "settings", "reporting", "notifications", 
 # todo/plan.json; without it the plan shows bare phase numbers.
 PHASES = (0, 1, 2, 3, 4, 5, 6, 7, 99)
 PLAN_CONFIG = "todo/plan.json"
+# Parallel lanes: each a branch worked in its own worktree, alone claiming the TODO files it lists.
+LANES = "todo/lanes.json"
+MAIN_LANE = "main"
 PLAN_DEFAULTS = {"title": "Implementation plan", "acceptance": None, "phases": {99: "Manual, operator only"}}
 MAX_SECTIONS_PER_FILE = 55
 MAX_ITEMS_PER_SECTION = 30
@@ -735,6 +738,7 @@ def graph(root=ROOT):
     """Parse every TODO file strictly; a malformed row or section refuses, it is never read as empty."""
     root = Path(root)
     plan_config(root)
+    lanes(root)
     legacy_receipts(root)  # a malformed freeze list refuses even before any old receipt is read against it
     sections, ids, files = {}, {}, {}
     head_commits = None
@@ -1015,6 +1019,66 @@ def markdown_table(headers, rows):
 
     return [render(headers), render(["-" * width for width in widths]),
             *(render(row) for row in rows)]
+
+
+def lanes(root=ROOT):
+    """The parallel lanes in todo/lanes.json, loaded strictly: each a branch, worked in its own worktree, that alone
+    claims the TODO files it lists; every other file is the main lane's. Which rows are ready, the plan and its
+    rendering stay the same on every branch: a lane decides only who may claim a ready row (`claimable`)."""
+    path = Path(root) / LANES
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(read_text(path))
+    except ValueError as exc:
+        raise Refused(f"unreadable {LANES}: {exc}") from None
+    require(isinstance(data, dict) and set(data) == {"lanes"} and isinstance(data["lanes"], dict),
+            f"{LANES} holds one object, lanes")
+    result, owner = {}, {}
+    for name, lane in data["lanes"].items():
+        require(re.fullmatch(r"[a-z][a-z0-9-]*", name) is not None and name != MAIN_LANE,
+                f"{LANES}: lane name {name!r} must be lower-case words joined by hyphens, and not {MAIN_LANE!r}")
+        require(isinstance(lane, dict) and set(lane) == {"branch", "worktree", "files"},
+                f"{LANES}: lane {name} holds branch, worktree and files")
+        require(all(isinstance(lane[k], str) and lane[k].strip() for k in ("branch", "worktree")),
+                f"{LANES}: lane {name}'s branch and worktree must be text")
+        require(lane["branch"] not in ("main", "HEAD"), f"{LANES}: lane {name} cannot work branch {lane['branch']}")
+        require(isinstance(lane["files"], list) and lane["files"], f"{LANES}: lane {name} must list its files")
+        for file in lane["files"]:
+            require(isinstance(file, str) and re.fullmatch(r"todo/\d\d-[^/]+/TODO-[^/]+\.md", file) is not None
+                    and (Path(root) / file).is_file(), f"{LANES}: lane {name} lists {file!r}, which is not a TODO file")
+            require(file not in owner, f"{LANES}: {file} is listed by lanes {owner.get(file)} and {name}")
+            owner[file] = name
+        require(all(other["branch"] != lane["branch"] for other in result.values()),
+                f"{LANES}: two lanes work branch {lane['branch']}")
+        result[name] = lane
+    return result
+
+
+def current_lane(root=ROOT, config=None):
+    """The lane this checkout works: TODO_LANE when set, else the lane whose branch is checked out, else main."""
+    config = lanes(root) if config is None else config
+    named = os.environ.get("TODO_LANE", "").strip()
+    if named:
+        require(named == MAIN_LANE or named in config, f"TODO_LANE names {named!r}, which is not a lane in {LANES}")
+        return named
+    try:
+        branch = subprocess.run(["git", "-C", str(root), "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True,
+                                text=True, timeout=30).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        branch = ""
+    return next((name for name, lane in config.items() if lane["branch"] == branch), MAIN_LANE)
+
+
+def lane_of(row, config):
+    """The lane that owns a row: the one listing its file, else main."""
+    return next((name for name, lane in config.items() if row.path in lane["files"]), MAIN_LANE)
+
+
+def claimable(row, rows, config, here):
+    """A row's disposition for the lane `here`: a ready row another lane owns waits (4) for that lane."""
+    code = disposition(row, rows)
+    return 4 if code == 0 and lane_of(row, config) != here else code
 
 
 def plan_config(root=ROOT):

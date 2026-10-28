@@ -13,14 +13,15 @@
 // Every request carries `store: false`, an output ceiling, the gateway's Run token and `cf-aig-collect-log: true` with
 // `cf-aig-collect-log-payload: false`; no `-contributor` model is ever sent (Meta's terms, spec 4.8); one deadline
 // bounds each call from request to the end of its stream. Spend: the run's worst case is refused above US$0.50 or
-// above US$2 of smoke spend that day; each call's estimate is reserved in build/meta-smoke-spend.json before it is
+// above US$2 of smoke spend that day; each call's estimate is reserved in the shared Meta ledger (metaLedger) before it is
 // sent and settled with its real cost after, so an interrupted or failed run never loses a charge. The report,
 // docs/meta-smoke-test.md, is rewritten after each call, so an interrupted run shows as in progress. Secrets come
 // from Conclave through conclave-op and are never printed.
 //
 //   node scripts/meta-smoke.ts --help
 import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
 import OpenAI from "openai";
@@ -58,7 +59,8 @@ gateway's logs (D00 T01 §7).
   --model <id>       only the calls for one model: ${MODELS.join(", ")} (the report says the coverage is partial)
   --help             this text
 
-Spend: refused above US$${RUN_CAP} a run or US$${DAY_CAP} a day; build/meta-smoke-spend.json records it.
+Spend: refused above US$${RUN_CAP} a run or US$${DAY_CAP} a day; ~/isitlegit-data/ledgers/meta-spend.json (shared by
+every checkout; ISITLEGIT_LEDGER_DIR moves it) records it.
 Report: docs/meta-smoke-test.md. Exit codes: 0 every check passed, 1 a check failed, 2 refused before sending.`;
 
 export type Fixtures = {
@@ -266,6 +268,44 @@ export type Spend = {
   cost: number | null;
   state: "reserved" | "settled" | "uncertain";
 };
+// The one Meta spend ledger of every checkout: each lane works its own worktree (todo/lanes.json), whose build/ is its
+// own, so a ledger there would hold the caps per checkout. It lives outside every repository instead, beside the
+// Glimmer store; ISITLEGIT_LEDGER_DIR moves it, `~` expanded as scripts/glimmer/store.ts expands GLIMMER_DATA_DIR.
+export function metaLedger(env: NodeJS.ProcessEnv = process.env): string {
+  const home = env.HOME || homedir();
+  const configured = env.ISITLEGIT_LEDGER_DIR;
+  const expanded =
+    configured === "~" ? home : configured?.startsWith("~/") ? join(home, configured.slice(2)) : configured;
+  return join(resolve(expanded || join(home, "isitlegit-data", "ledgers")), "meta-spend.json");
+}
+// Where each checkout kept its ledger before it was shared.
+export const LEGACY_LEDGER = join(ROOT, "build/meta-smoke-spend.json");
+
+// A checkout's ledger from before is moved into the shared one, under the shared one's lock: every entry not already
+// there is added (an entry is its date, run and call), then the old file is set aside as `.moved`, so no spend it
+// recorded is lost or counted twice. Answers why it could not be moved, or null.
+export function adoptLegacyLedger(file: string, legacy: string | undefined): string | null {
+  if (!legacy || !existsSync(legacy) || resolve(legacy) === resolve(file)) return null;
+  let old: Spend[];
+  let current: Spend[];
+  try {
+    old = readLedger(legacy);
+    current = readLedger(file);
+  } catch (error) {
+    return `${legacy} could not be moved into ${file} (${(error as Error).message}); repair the unreadable one rather than delete it`;
+  }
+  const key = (e: Partial<Spend>) => `${e.date}\n${e.run}\n${e.call}`;
+  const held = new Set(current.map(key));
+  const unsaved = saveLedger(file, [...current, ...old.filter((e) => !held.has(key(e)))]);
+  if (unsaved) return unsaved;
+  try {
+    renameSync(legacy, `${legacy}.moved`);
+  } catch (error) {
+    return `${legacy} was copied into ${file} but could not be set aside (${(error as Error).message}); rename it to ${legacy}.moved`;
+  }
+  return null;
+}
+
 export function readLedger(file: string): Spend[] {
   if (!existsSync(file)) return [];
   const data = JSON.parse(readFileSync(file, "utf-8"));
@@ -487,6 +527,8 @@ export type RunOptions = {
   readSecrets?: () => Promise<Secrets>;
   fetch?: typeof fetch;
   ledger?: string;
+  // A checkout's ledger from before the shared one, moved into it (LEGACY_LEDGER unless `ledger` is given).
+  legacyLedger?: string;
   report?: string;
   now?: () => Date;
   log?: (line: string) => void;
@@ -547,10 +589,21 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
 
   // The spend gate, before any secret is read or call is sent, under the ledger's lock: two runs at once cannot both
   // pass it, or overwrite each other's entries.
-  const ledgerFile = options.ledger ?? join(ROOT, "build/meta-smoke-spend.json");
+  const ledgerFile = options.ledger ?? metaLedger();
+  // A test naming its own ledger moves nothing unless it names the old one too.
+  const legacy = options.ledger ? options.legacyLedger : (options.legacyLedger ?? LEGACY_LEDGER);
+  // The shared ledger's folder, made on first use; one that cannot be made is refused by the lock just below, which
+  // names the cause.
+  try {
+    mkdirSync(dirname(ledgerFile), { recursive: true });
+  } catch {
+    // refused by takeLock
+  }
   const unlock = takeLock(`${ledgerFile}.lock`);
   if (typeof unlock === "string") return refuse(unlock);
   try {
+    const unmoved = adoptLegacyLedger(ledgerFile, legacy);
+    if (unmoved) return refuse(unmoved);
     return await spend({ options, fx, calls, partial, headers, ledgerFile, say, refuse, lines });
   } finally {
     unlock();
