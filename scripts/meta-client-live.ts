@@ -74,7 +74,8 @@ export type Pending = {
   usage: Usage | null;
   cost: number | null;
   estimate: number;
-  // The gateway's log ids of attempts that may have been answered though the call failed, to find them by.
+  // What identifies a call that may have been answered but could not be verified, to find it by: the gateway's log
+  // ids of failed attempts, or Meta's response id when the gateway gave none.
   traces?: string[];
 };
 
@@ -142,7 +143,7 @@ async function run(
       );
     }
     if (pending.logId === null) {
-      const logs = pending.traces?.length ? `, log ${pending.traces.join(" or ")}` : "";
+      const logs = pending.traces?.length ? `, ${pending.traces.join(" or ")}` : "";
       return refuse(
         `the call of ${pending.run} was sent and its answer was not saved, so it is not sent again; find it in the gateway's log (its time, model ${MODEL}${logs}), record it, then remove ${pendingFile} to make a new call`,
       );
@@ -259,7 +260,7 @@ async function run(
     const why = error instanceof ModelError ? `${error.kind}: ${error.message}` : (error as Error).name;
     if (refused) unmark();
     else {
-      const traces = failed.map((a) => a.logId).filter((id): id is string => id !== null);
+      const traces = failed.flatMap((a) => (a.logId === null ? [] : [`log ${a.logId}`]));
       try {
         writeWhole(
           pendingFile,
@@ -270,7 +271,7 @@ async function run(
       }
       say(
         safe(
-          `failed: the call did not complete (${why}) and may have been answered${traces.length ? ` (log ${traces.join(" or ")})` : ""}; a rerun will not call again until it is found in the gateway's log and ${pendingFile} is removed`,
+          `failed: the call did not complete (${why}) and may have been answered${traces.length ? ` (${traces.join(" or ")})` : ""}; a rerun will not call again until it is found in the gateway's log and ${pendingFile} is removed`,
         ),
       );
       if (stopped) say(`meta-client-live: stopped before attempt ${attempts.length + 1}: ${stopped}`);
@@ -297,8 +298,23 @@ async function run(
     if (unsettled) say(`meta-client-live: ${unsettled}; the reservation stands at its estimate`);
   });
   if (!answer.logId) {
-    unmark();
-    say("failed: no cf-aig-log-id came back, so the gateway did not log the call");
+    // Answered and charged, but with nothing to verify by: the mark stays, naming Meta's response id, so a rerun
+    // refuses rather than pays again. After a call is sent, only a finished verification or a call Meta certainly did
+    // not answer removes the mark.
+    const traces = [`response ${answer.data.id}`];
+    try {
+      writeWhole(
+        pendingFile,
+        `${JSON.stringify({ run: runId, logId: null, usage, cost, estimate, traces } satisfies Pending, null, 1)}\n`,
+      );
+    } catch {
+      // The mark from before the call stands, without the response id.
+    }
+    say(
+      safe(
+        `failed: no cf-aig-log-id came back, so the gateway did not log the call (${traces[0]}); a rerun will not call again until ${pendingFile} is removed`,
+      ),
+    );
     return { code: 1, lines };
   }
 

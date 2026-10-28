@@ -154,13 +154,20 @@ describe("meta-client-live", () => {
     expect(outcome.lines.join("\n")).toContain("could not be verified");
   });
 
-  it("fails when the gateway sent no log id", async () => {
+  it("fails when the gateway sent no log id, and a rerun does not pay again", async () => {
     const { options } = world({
       responses: () => json({ id: "resp_1", object: "response", output: [], usage: USAGE }),
     });
     const outcome = await runClientLive(options);
     expect(outcome.code).toBe(1);
     expect(outcome.lines.join("\n")).toContain("no cf-aig-log-id");
+    expect(JSON.parse(readFileSync(PENDING, "utf-8"))).toMatchObject({ logId: null, traces: ["response resp_1"] });
+    const again = world();
+    const second = await runClientLive(again.options);
+    expect(second.code).toBe(1);
+    expect(second.lines.join("\n")).toContain("response resp_1");
+    expect(again.sent).toHaveLength(0);
+    expect(ledgerNow()).toHaveLength(1);
   });
 
   it("reserves every attempt: one that failed stays at its estimate, the answered one is settled", async () => {
@@ -277,7 +284,7 @@ describe("meta-client-live", () => {
     const outcome = await runClientLive(first.options);
     expect(outcome.code).toBe(1);
     expect(outcome.lines.join("\n")).toContain("may have been answered (log log-cut)");
-    expect(JSON.parse(readFileSync(PENDING, "utf-8"))).toMatchObject({ logId: null, traces: ["log-cut"] });
+    expect(JSON.parse(readFileSync(PENDING, "utf-8"))).toMatchObject({ logId: null, traces: ["log log-cut"] });
 
     const again = world();
     const second = await runClientLive(again.options);
