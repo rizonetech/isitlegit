@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 291
+Sections: 38 | Checklist items: 292
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -54,7 +54,7 @@ Sections: 38 | Checklist items: 291
 | [x]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 10    |
 | [x]    | D01 T01 §3 | Email handler for verified members         | none                  | 13    |
 | [ ]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 6     |
-| [ ]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 6     |
+| [ ]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 7     |
 | [ ]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 6     |
 | [ ]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 7     |
 | [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 8     |
@@ -284,4 +284,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 35/213 verified sections, 15 ready to run now.
 
-Checklist: 405/1172 items completed (includes Commit items).
+Checklist: 405/1173 items completed (includes Commit items).
