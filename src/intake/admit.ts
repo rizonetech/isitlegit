@@ -41,6 +41,8 @@ export type Admission =
 
 export type Delivery = {
   orgId: string;
+  // The delivery's identity within its door (a forward's Message-ID or SHA-256, an upload's SHA-256); the claim is
+  // keyed by the door and this together (claimKey).
   key: string;
   channel: "email" | "upload";
   sourceKind: SourceKind;
@@ -52,7 +54,10 @@ export type Delivery = {
 };
 
 export async function admitDelivery(env: Env, delivery: Delivery, now = new Date()): Promise<Admission> {
-  const { orgId, key } = delivery;
+  const { orgId } = delivery;
+  // The claim's key carries its door, so neither can make the other's: an email whose Message-ID reads like an upload's
+  // key would otherwise answer that upload with the email's case (round 1).
+  const key = claimKey(delivery.channel, delivery.key);
   const claim = await claimDelivery(env, orgId, key, now);
   if ("duplicate" in claim) return { kind: "duplicate", caseId: claim.duplicate };
 
@@ -119,6 +124,8 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
   if (marked && marked.meta.changes !== 1) throw new RetryDelivery("the delivery stalled and another took it over");
   return { kind: "admitted", caseId };
 }
+
+export const claimKey = (channel: Delivery["channel"], key: string) => `${channel}:${key}`;
 
 // Claims a delivery, or answers that it is a duplicate (with the first one's case), or throws for a retry while another
 // delivery holds it. A pending claim past its lease is taken over (one taker wins the compare-and-set on its claimed_at)

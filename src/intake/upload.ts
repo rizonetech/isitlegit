@@ -1,6 +1,6 @@
 // The upload front door (D01 T03 §1; spec 4.1): a signed-in member sends one file to have it checked. The request is
 // read bounded, the file sniffed from its bytes (./sniff.ts), and admitted through ./admit.ts like a forward: claimed
-// within the organisation by the file's SHA-256 (the same file again within a day answers the first case), the case
+// within the organisation by the file's SHA-256 (as upload:sha256:<hex>, ./admit.ts) (the same file again within a day answers the first case), the case
 // admitted under the daily cap, the file stored, the Workflow started, each step undone on failure. An upload has no
 // forwarder, so no reply is mailed; the member reads the report (D07 T03). The upload page is D01 T03 §6.
 import { Hono } from "hono";
@@ -69,7 +69,7 @@ uploadRoutes.post("/", async (c) => {
   try {
     admitted = await admitDelivery(c.env, {
       orgId: c.get("org").id,
-      key: `upload:${await sha256Hex(bytes)}`,
+      key: `sha256:${await sha256Hex(bytes)}`,
       channel: "upload",
       sourceKind: sniffed.kind,
       headersAvailable: sniffed.kind === "mail" && sniffed.headersAvailable,

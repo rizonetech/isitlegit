@@ -175,7 +175,7 @@ describe("handleEmail", () => {
       bytes: m.bytes.byteLength,
     });
     expect(await workflowExists(caseId)).toBe(true);
-    expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "done", case_id: caseId }]);
+    expect(await claimsOf(orgId)).toEqual([{ message_key: `email:${m.messageId}`, state: "done", case_id: caseId }]);
     expect(world.sends).toEqual([]);
   });
 
@@ -264,7 +264,7 @@ describe("handleEmail", () => {
     expect((await handleEmail(m.forwardable, mailEnv)).kind).toBe("admitted");
     expect(await handleEmail(again(m), mailEnv)).toEqual({ kind: "duplicate" });
     const [claim] = await claimsOf(orgId);
-    expect(claim?.message_key).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(claim?.message_key).toMatch(/^email:sha256:[0-9a-f]{64}$/);
     expect((await casesOf(orgId))[0]?.message_id).toBeNull();
   });
 
@@ -280,7 +280,7 @@ describe("handleEmail", () => {
       .prepare(
         "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
       )
-      .bind(orgId, started.messageId, first.value.id, old)
+      .bind(orgId, `email:${started.messageId}`, first.value.id, old)
       .run();
     expect(await handleEmail(started.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
     // Stopped before it: the old case and its raw object go, and the delivery makes one new case.
@@ -292,7 +292,7 @@ describe("handleEmail", () => {
       .prepare(
         "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
       )
-      .bind(orgId, stopped.messageId, orphan.value.id, old)
+      .bind(orgId, `email:${stopped.messageId}`, orphan.value.id, old)
       .run();
     const result = await handleEmail(stopped.forwardable, mailEnv);
     expect(result.kind).toBe("admitted");
@@ -479,7 +479,9 @@ describe("a delivery whose later step fails", () => {
     const m = message(from);
     await expect(handleEmail(m.forwardable, failing({ analysis }))).rejects.toBeInstanceOf(RetryDelivery);
     const [made] = await casesOf(orgId);
-    expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "pending", case_id: made?.id }]);
+    expect(await claimsOf(orgId)).toEqual([
+      { message_key: `email:${m.messageId}`, state: "pending", case_id: made?.id },
+    ]);
     // The sweep, after the lease, finds no Workflow and removes the case; the retried delivery then makes one.
     const counts = await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
     expect(counts.removed).toBeGreaterThanOrEqual(1);
@@ -578,7 +580,9 @@ describe("a delivery interrupted around admission (completion review)", () => {
     const m = message(from);
     await expect(handleEmail(m.forwardable, { ...mailEnv, DB: dropping })).rejects.toBeInstanceOf(RetryDelivery);
     const [made] = await casesOf(orgId);
-    expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "pending", case_id: made?.id }]);
+    expect(await claimsOf(orgId)).toEqual([
+      { message_key: `email:${m.messageId}`, state: "pending", case_id: made?.id },
+    ]);
     // After the lease the sweep finds no Workflow for it and removes the case with the claim.
     await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
     expect(await casesOf(orgId)).toEqual([]);

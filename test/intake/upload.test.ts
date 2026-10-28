@@ -284,12 +284,37 @@ describe("POST /api/upload", () => {
       .prepare(
         "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', NULL, ?)",
       )
-      .bind(orgId, `upload:${await sha256Hex(PDF)}`, new Date().toISOString())
+      .bind(orgId, `upload:sha256:${await sha256Hex(PDF)}`, new Date().toISOString())
       .run();
     const answer = await upload(cookie, [file(PDF, "x.pdf")]);
     expect(answer.status).toBe(503);
     expect(Number(answer.headers.get("retry-after"))).toBeGreaterThan(250);
     expect(await casesOf(orgId)).toEqual([]);
+  });
+
+  it("never answers an upload with an email's case, nor an email with an upload's, whichever comes first", async () => {
+    const { admitDelivery, sha256Hex } = await import("../../src/intake/admit");
+    const { cookie, orgId } = await member();
+    const email = (key: string) =>
+      admitDelivery(env as unknown as Env, {
+        orgId,
+        key,
+        channel: "email",
+        sourceKind: "mail",
+        headersAvailable: false,
+        store: async () => {},
+      });
+    // An email first whose Message-ID spells, in every form, what an upload of this PDF is keyed by.
+    const hash = await sha256Hex(PDF);
+    for (const id of [`upload:sha256:${hash}`, `sha256:${hash}`, `upload:${hash}`])
+      expect((await email(id)).kind, id).toBe("admitted");
+    const uploaded = await upload(cookie, [file(PDF, "x.pdf")]);
+    expect(uploaded.status).toBe(201);
+    // The upload first, then an email spelling its key: the email is a case of its own.
+    const other = enc("%PDF-1.4\n% other\n");
+    expect((await upload(cookie, [file(other, "o.pdf")])).status).toBe(201);
+    expect((await email(`sha256:${await sha256Hex(other)}`)).kind).toBe("admitted");
+    expect((await email(`upload:sha256:${await sha256Hex(other)}`)).kind).toBe("admitted");
   });
 
   it("answers the same file again with the first case", async () => {
