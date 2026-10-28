@@ -298,6 +298,20 @@ describe("the import run", () => {
     expect(openStore(storeDir).manifest()).toHaveLength(1);
   });
 
+  it("finishes its own accounting when another source has a page whose meta.json no longer reads", async () => {
+    const storeDir = join(dir, "store");
+    await importSource({ source: "other", licence: "CC0", items: [item("o1", "#505")], store: openStore(storeDir) });
+    const [other] = openStore(storeDir).manifest();
+    writeFileSync(join(storeDir, "pages", other?.id ?? "", "meta.json"), "{ broken");
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [item("s1", "#606")],
+      store: openStore(storeDir),
+    });
+    expect(result).toMatchObject({ status: "complete", imported: 1, stored: 1 });
+  });
+
   it("says running before the first page, so a killed run never leaves an earlier complete standing", async () => {
     const storeDir = join(dir, "store");
     const record = join(storeDir, "raw", "set", "IMPORT.json");

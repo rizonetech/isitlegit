@@ -175,7 +175,8 @@ export async function importSource(options: {
     }
   }
   await Promise.all(Array.from({ length: concurrency }, worker));
-  const stored = store.manifest().filter((page) => page.source === source).length;
+  // Tolerant: another source's unreadable record must not stop this one's accounting (verify() reports it).
+  const stored = store.manifest({ tolerant: true }).filter((page) => page.source === source).length;
   const tooMany = excluded.length > items.length * MAX_EXCLUDED_SHARE;
   // A damaged page this run could not repair (its render failed, or nothing in the source names it) keeps the import
   // incomplete: the store must hold only pages that read whole before a source is used.
