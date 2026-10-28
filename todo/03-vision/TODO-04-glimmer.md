@@ -37,7 +37,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §2 | Fireworks account check and image probe | -- | [ ] |
-| 2 | §3 | PageScreen contract and training store | -- | [ ] |
+| 2 | §3 | PageScreen contract and training store | -- | [x] |
 | 3 | §4 | Astra as dataset collector | -- | [x] |
 | 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [ ] |
 | 5 | §6 | Benign real pages rendered locally | §3 | [ ] |
@@ -141,6 +141,9 @@ One definition of what the screener sees and answers, shared by training and pro
 - [x] Commit: `glimmer: PageScreen contract and training store`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/page-screen.test.ts test/node/glimmer-store.test.ts` passes and fails if the store accepts a path inside the repository or the training line differs from the production request.
+
+> **Verified:** 2026-10-28 | §3 | 1a085b0a55b35fd864f3ad3d8682c321027b378b
+> **Review:** `docs/reviews/d03-t04-s3.json`
 
 ## 4. Astra as dataset collector
 
