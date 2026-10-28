@@ -36,6 +36,9 @@ export const BILL_SETTLE_MS = 24 * 60 * 60 * 1000;
 // The free offer ends 2026-11-30; the probe is refused from the first instant of 2026-12-01 in South Africa.
 export const PROBE_CUTOFF = new Date("2026-12-01T00:00:00+02:00");
 const VAULT_ADMIN = "IsItLegit Fireworks Admin";
+// Fireworks refuses dataset uploads from service-account keys ("dataset uploads are temporarily disabled"), while the
+// operator's own user uploads normally (2026-10-28), so the probe runs on a key of that user.
+const VAULT_OWNER = "IsItLegit Fireworks Owner";
 export const PROBE_FILE = join(ROOT, "build/glimmer/probe.jsonl");
 const FIXTURES = join(ROOT, "test/fixtures/meta-smoke");
 const REQUEST_MS = 60_000;
@@ -210,7 +213,7 @@ function writeAtomic(path: string, text: string): void {
 
 export type RunOptions = {
   mode: Mode;
-  readKey?: () => Promise<string>;
+  readKey?: (item: string) => Promise<string>;
   fetch?: typeof fetch;
   now?: () => Date;
   probeFile?: string;
@@ -237,15 +240,18 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
     return { code: 2, lines };
   }
 
+  // The probe uploads, so it runs as the operator's own user; everything else reads or deletes as the admin service
+  // account.
+  const item = options.mode.kind === "probe" ? VAULT_OWNER : VAULT_ADMIN;
   let key: string;
   try {
-    key = await (options.readKey ?? readKeyFromVault)();
+    key = await (options.readKey ?? ((title: string) => readKeyFromVault(title)))(item);
   } catch (error) {
     say(`refused: ${(error as Error).message}`);
     return { code: 2, lines };
   }
   if (!key) {
-    say(`refused: the vault item "${VAULT_ADMIN}" has an empty credential`);
+    say(`refused: the vault item "${item}" has an empty credential`);
     return { code: 2, lines };
   }
   // Nothing Fireworks returns is printed until this has taken the key out of it.
@@ -464,14 +470,14 @@ function costOf(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-async function readKeyFromVault(): Promise<string> {
+async function readKeyFromVault(item: string): Promise<string> {
   try {
     return (
-      await runCommand("conclave-op", ["read", `op://Conclave/${VAULT_ADMIN}/credential`], "", Date.now() + 60_000)
+      await runCommand("conclave-op", ["read", `op://Conclave/${item}/credential`], "", Date.now() + 60_000)
     ).trim();
   } catch {
     throw new Error(
-      `reading "${VAULT_ADMIN}" from Conclave failed; check the item exists and that conclave-op can reach 1Password`,
+      `reading "${item}" from Conclave failed; check the item exists and that conclave-op can reach 1Password`,
     );
   }
 }

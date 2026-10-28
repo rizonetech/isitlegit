@@ -131,6 +131,28 @@ describe("default mode", () => {
   });
 });
 
+describe("which key", () => {
+  it("runs the probe on the operator's own key and every other mode on the admin service account", async () => {
+    const asked: string[] = [];
+    const readKey = async (item: string) => {
+      asked.push(item);
+      return KEY;
+    };
+    await runFireworksCheck(base({ fetch: stub(lists).impl, readKey }));
+    await runFireworksCheck(base({ fetch: stub({}).impl, readKey, mode: { kind: "delete-probe" } }));
+    await runFireworksCheck(base({ fetch: stub({}).impl, readKey, mode: imageProbe }));
+    expect(asked).toEqual(["IsItLegit Fireworks Admin", "IsItLegit Fireworks Admin", "IsItLegit Fireworks Owner"]);
+  });
+
+  it("names the empty item when the owner key is not filled yet", async () => {
+    const { seen, impl } = stub({});
+    const out = await runFireworksCheck(base({ fetch: impl, readKey: async () => "", mode: imageProbe }));
+    expect(out.code).toBe(2);
+    expect(out.lines).toContain('refused: the vault item "IsItLegit Fireworks Owner" has an empty credential');
+    expect(seen).toHaveLength(0);
+  });
+});
+
 describe("--job", () => {
   it("reads one running job with a single GET and calls its bill pending", async () => {
     const { seen, impl } = stub({
