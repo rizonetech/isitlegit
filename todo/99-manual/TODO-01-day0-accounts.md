@@ -196,7 +196,7 @@ The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-
 **Needs:** none
 **Surface:** no
 
-**Corrected 2026-10-28** (operator, 20:22 SAST): the product calls Meta's Model API and Fireworks AI only; Baseten and Modal are closed. Fireworks is used (Loupe, D03 T04), so its line reads `used`; Modal was offered and never applied for, so the record takes `not applied` beside `applied`, `granted` and `not offered`. With Modal's outcome given, the operator has answered all three, so `operator` leaves Needs.
+**Corrected 2026-10-28** (operator, 20:22 SAST): the product calls Meta's Model API and Fireworks AI only; Baseten and Modal are closed. Fireworks is used (Loupe, D03 T04), so its line reads `used`; Modal was first reported never applied for, so the record takes `not applied` beside `applied`, `granted` and `not offered`; at 22:28 SAST the operator reported US$30 of free Modal credit a month, granted and not used (nothing in the product needs it, and a third provider costs an integration, a key and a processor). With Modal's outcome given, the operator has answered all three, so `operator` leaves Needs.
 
 **Build order:**
 
@@ -207,9 +207,9 @@ The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-
 
 Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decisions 2026-10-27 and 2026-10-28 20:22 SAST, the product calls Meta's Model API and Fireworks AI only, and Baseten is closed; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
 Partner credit Fireworks: granted, 2026-10-28 (US$100 loaded, reported by the operator at 09:02 SAST; used: operator decision 2026-10-28 09:05 SAST reversed the 2026-10-27 one, and Loupe, a Glimmer LoRA trained and served on Fireworks, screens the monitor's pages, D03 T04; keys in the vault items "IsItLegit Fireworks" (inference), "IsItLegit Fireworks Admin" (local scripts) and "IsItLegit Fireworks Owner" (the operator's own, for serverless training), each filled and answering HTTP 200 on 2026-10-28)
-Partner credit Modal: not applied, 2026-10-28 (offered for hosting Muse Glimmer; not used: operator decision 2026-10-28 20:22 SAST, the product calls Meta's Model API and Fireworks AI only, and Modal is closed)
+Partner credit Modal: granted, 2026-10-28 (US$30 of free Modal credit a month, reported by the operator at 22:28 SAST; not used: operator decisions 2026-10-28 20:22 and 22:28 SAST, the product calls Meta's Model API and Fireworks AI only and Modal adds no value worth a third provider, so Modal stays closed)
 
-**Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
+**Test checkpoint:** `F=todo/99-manual/TODO-01-day0-accounts.md; [ "$(grep -c '^Partner credit ' $F)" = 3 ] && [ "$(grep -oE '^Partner credit [A-Za-z]+:' $F | sort -u | wc -l)" = 3 ] && grep -cE '^Partner credit (Fireworks: (applied|granted|not applied|not offered), [0-9]{4}-[0-9]{2}-[0-9]{2} \(.+; used: .+\)|(Baseten|Modal): (applied|granted|not applied|not offered), [0-9]{4}-[0-9]{2}-[0-9]{2} \(.+; not used: .+\))$' $F` prints `3`: exactly three records, one per provider, each with an outcome, a date, its coverage and the decision, Fireworks used and Baseten and Modal not used (**Corrected 2026-10-28** (plan review): a prefix count passed three empty or duplicate records).
 
 ## 8. AI Gateway tokens
 
