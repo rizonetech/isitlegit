@@ -197,3 +197,21 @@ describe("the mail send log", () => {
     expect(keys.results.map((r) => r.send_key)).toEqual(["alert:standalone", `reply:${kept}`]);
   });
 });
+
+describe("cases.source_kind (migration 0018)", () => {
+  it("reads a case written without it as mail, the kind every case before it had", async () => {
+    const { getCaseForPipeline } = await import("../../src/db/cases");
+    const id = "01JD00000000000000000MAIL1";
+    const at = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at) VALUES (?, 'org-old', 'email', 'received', 0, ?, ?)",
+    )
+      .bind(id, at, at)
+      .run();
+    const row = await getCaseForPipeline(env.DB, id);
+    expect(row.ok && row.value.sourceKind).toBe("mail");
+    await expect(env.DB.prepare("UPDATE cases SET source_kind = 'video' WHERE id = ?").bind(id).run()).rejects.toThrow(
+      /CHECK constraint/,
+    );
+  });
+});

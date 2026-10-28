@@ -10,6 +10,8 @@ import { msgs } from "../fixtures/msg/load";
 
 // D01 T01 §7: the analysis Workflow through its binding, sleeps and retry delays disabled.
 const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+// A forward's source, as the admit step answers it for an email case.
+const MAIL = { channel: "email" as const, sourceKind: "mail" as const, headersAvailable: false };
 const ORG = "org-workflow";
 
 async function caseWith(raw: Uint8Array | null) {
@@ -249,7 +251,13 @@ describe("AnalysisWorkflow", () => {
   it("admits a case already running as it is, and skips a finished one", async () => {
     const id = await caseWith(forwards["inline-forward"]);
     expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
-    expect(await admit(env.DB, id)).toEqual({ admit: true, orgId: ORG });
+    expect(await admit(env.DB, id)).toEqual({
+      admit: true,
+      orgId: ORG,
+      channel: "email",
+      sourceKind: "mail",
+      headersAvailable: false,
+    });
     expect((await setVerdict(env.DB, ORG, id, "suspicious")).ok).toBe(true);
     expect((await setStatus(env.DB, ORG, id, "done")).ok).toBe(true);
     expect(await admit(env.DB, id)).toEqual({ admit: false });
@@ -352,14 +360,14 @@ describe("the parse step", () => {
       head: (key: string) => env.ARTEFACTS.head(key),
       put: () => Promise.reject(new Error("R2 down")),
     } as unknown as R2Bucket;
-    await expect(parse({ bucket: bucketDown, db: env.DB }, id)).rejects.toThrow();
+    await expect(parse({ bucket: bucketDown, db: env.DB }, id, MAIL)).rejects.toThrow();
     const headersDown = {
       prepare: (sql: string) =>
         sql.startsWith("UPDATE cases SET headers_available")
           ? { bind: () => ({ first: () => Promise.reject(new Error("D1 down")) }) }
           : env.DB.prepare(sql),
     } as unknown as D1Database;
-    await expect(parse({ bucket: env.ARTEFACTS, db: headersDown }, id)).rejects.toThrow(
+    await expect(parse({ bucket: env.ARTEFACTS, db: headersDown }, id, MAIL)).rejects.toThrow(
       /storing the header state: database/,
     );
     // Neither is a refusal the Workflow would not retry.
@@ -367,7 +375,7 @@ describe("the parse step", () => {
       { bucket: bucketDown, db: env.DB },
       { bucket: env.ARTEFACTS, db: headersDown },
     ])
-      expect(await parse(broken, id).catch((error: Error) => error.name)).not.toBe("NonRetryableError");
+      expect(await parse(broken, id, MAIL).catch((error: Error) => error.name)).not.toBe("NonRetryableError");
   });
 });
 
@@ -470,7 +478,7 @@ describe("final review cases", () => {
     const id = await caseWith(forwards["inline-forward"]);
     await run(id);
     await env.ARTEFACTS.delete(`raw/${id}/message.eml`);
-    expect(await parse(store, id)).toBe(parsedKey(id));
+    expect(await parse(store, id, MAIL)).toBe(parsedKey(id));
   });
 });
 

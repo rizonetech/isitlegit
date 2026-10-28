@@ -4,6 +4,7 @@ import { domainRoutes } from "./auth/domains";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
 import { handleEmail, sweepIntake } from "./intake/email";
+import { uploadRoutes } from "./intake/upload";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { smoke } from "./smoke";
 
@@ -23,6 +24,7 @@ app.post("/auth/sign-out", (c) => signOut(c.env, c.req.raw));
 app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
 // Domain and sending-address verification for owners and admins (D07 T02 §5), src/auth/domains.ts.
 app.route("/api/org", domainRoutes);
+app.route("/api/upload", uploadRoutes);
 
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
 // cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)

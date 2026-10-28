@@ -1,11 +1,18 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
-import { type CaseResult, getCaseForPipeline, setHeadersAvailable, setStatus, type Verdict } from "../db/cases";
+import {
+  type CaseResult,
+  getCaseForPipeline,
+  type SourceKind,
+  setHeadersAvailable,
+  setStatus,
+  type Verdict,
+} from "../db/cases";
 import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
 import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
-import { parsedKey, rawKey, readArtefact, type Store } from "../intake/store";
+import { artefactsOf, parsedKey, putParsed, rawKey, readArtefact, type Store } from "../intake/store";
 import {
   buildReply,
   HEADER_RANGE,
@@ -162,12 +169,12 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       return { caseId, state };
     }
     if (!admitted.admit) return { caseId, skipped: true };
-    const { orgId } = admitted;
+    const { orgId, channel, sourceKind, headersAvailable } = admitted;
 
     let state: ReportState;
     let current: StepName = "parse";
     try {
-      const key = await timed("parse", () => parse(store, caseId));
+      const key = await timed("parse", () => parse(store, caseId, { channel, sourceKind, headersAvailable }));
       current = "checks";
       const evidence = await timed("checks", () => checks(store, caseId, key));
       current = "verdict";
@@ -210,7 +217,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 export async function admit(
   db: D1Database,
   caseId: string,
-): Promise<{ admit: false } | { admit: true; orgId: string }> {
+): Promise<{ admit: false } | ({ admit: true; orgId: string } & Source)> {
   const startedAt = new Date().toISOString();
   const began = Date.now();
   const found = await getCaseForPipeline(db, caseId);
@@ -224,8 +231,17 @@ export async function admit(
   must(await recordEvent(db, caseId, "admit", "started", { startedAt }), "recording admit");
   if (current.status === "received") must(await setStatus(db, current.orgId, caseId, "running"), "starting the case");
   must(await recordEvent(db, caseId, "admit", "done", { startedAt, ms: Date.now() - began }), "recording admit");
-  return { admit: true, orgId: current.orgId };
+  return {
+    admit: true,
+    orgId: current.orgId,
+    channel: current.channel,
+    sourceKind: current.sourceKind,
+    headersAvailable: current.headersAvailable,
+  };
 }
+
+// What the case came from, as the parse step needs it: a forward, an uploaded message or an uploaded file.
+export type Source = { channel: "email" | "upload"; sourceKind: SourceKind; headersAvailable: boolean };
 
 // A step's failure after its last attempt: an event naming the step and its error class, and the case `partial`
 // (moved through `running` if admission failed before it got there). A case already `done` stays so: its `finish`
@@ -251,14 +267,42 @@ export async function recordFailure(
 
 // Reads the forward, parses the original it carries (§4 to §6) and stores the summary (§5); the header state (§4, or
 // the .msg parser's own, §6) goes to the case and the summary alike. A message the parsers refuse is not retried.
-export async function parse(store: Store, caseId: string): Promise<string> {
+export async function parse(store: Store, caseId: string, source: Source): Promise<string> {
   // A case re-driven after an interrupted run keeps the summary it already has (its header state was written with it),
   // so it does not need the raw message, which expires after 30 days.
   const stored = await readArtefact(store, caseId, parsedKey(caseId));
   if (stored && "body" in stored) return parsedKey(caseId);
+  // An uploaded document, image or voice note (D01 T03 §1): no message to parse; its summary names the file, which the
+  // later steps read (the document path, D06 T02 §3; transcription, D01 T03 §3).
+  if (source.sourceKind !== "mail") {
+    const [file] = await artefactsOf(store, caseId, "attachment");
+    if (!file) throw fatal("RawMissing");
+    await putParsed(store, caseId, {
+      source: { kind: source.sourceKind, mediaType: file.mediaType, key: file.key, bytes: file.bytes },
+      forward: { headersAvailable: false },
+    });
+    return parsedKey(caseId);
+  }
   const raw = await readArtefact(store, caseId, rawKey(caseId));
   if (!raw || !("body" in raw)) throw fatal("RawMissing");
   try {
+    // An uploaded message is the original itself, not a forward: read directly, an .eml with the header state its
+    // trace gave it at upload, a .msg by its own answer.
+    if (source.channel === "upload") {
+      const isMsg = raw.stored.mediaType === "application/vnd.ms-outlook";
+      const { parsed, headersAvailable } = isMsg
+        ? await parseMsg(raw.body)
+        : { parsed: await parseMessage(raw.body), headersAvailable: source.headersAvailable };
+      must(await setHeadersAvailable(store.db, caseId, headersAvailable), "storing the header state");
+      await storeParsed(store, caseId, parsed, {
+        original: raw.body,
+        format: isMsg ? "msg" : "eml",
+        headersAvailable,
+        path: isMsg ? "msg" : "eml",
+        otherOriginals: 0,
+      });
+      return parsedKey(caseId);
+    }
     const forward = await extractOriginal(raw.body);
     const { parsed, headersAvailable } =
       forward.format === "msg"
@@ -273,10 +317,14 @@ export async function parse(store: Store, caseId: string): Promise<string> {
   }
 }
 
-// No checks are built yet (D02): the summary is read, so a missing one fails, and no evidence is returned.
+// No checks are built yet (D02): the summary is read and must be one (a parsed message's, or an uploaded file's naming
+// it), so a missing or malformed one fails, and no evidence is returned.
 export async function checks(store: Store, caseId: string, key: string): Promise<{ evidence: never[] }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
+  const read = JSON.parse(new TextDecoder().decode(summary.body)) as { forward?: unknown; source?: { key?: unknown } };
+  if (typeof read.forward !== "object" || (read.source !== undefined && typeof read.source.key !== "string"))
+    throw new Error("the parsed summary is malformed");
   return { evidence: [] };
 }
 
