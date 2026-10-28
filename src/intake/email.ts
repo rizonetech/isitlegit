@@ -66,7 +66,8 @@ export async function handleEmail(
     env,
     {
       orgId,
-      key: messageId ?? `sha256:${await sha256Hex(raw)}`,
+      // The two forms kept apart: a Message-ID reading "sha256:..." cannot stand in for another message's hash.
+      key: messageId ? `id:${messageId}` : `sha256:${await sha256Hex(raw)}`,
       channel: "email",
       sourceKind: "mail",
       headersAvailable: false,

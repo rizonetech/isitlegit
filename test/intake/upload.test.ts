@@ -19,7 +19,7 @@ const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 
 const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46]);
 const WEBP = Uint8Array.from([...enc("RIFF"), 20, 0, 0, 0, ...enc("WEBPVP8 ")]);
 const EML = enc(
-  "Received: from mail.fictional-supplier.example by mx.fictional-recipient.example\r\nFrom: billing@fictional-supplier.example\r\nSubject: Invoice 77\r\nMessage-ID: <inv77@fictional-supplier.example>\r\n\r\nPlease pay invoice 77.\r\n",
+  "Received: from mail.fictional-supplier.example by mx.fictional-recipient.example\r\nFrom: billing@fictional-supplier.example\r\nDate: Tue, 27 Oct 2026 08:00:00 +0200\r\nSubject: Invoice 77\r\nMessage-ID: <inv77@fictional-supplier.example>\r\n\r\nPlease pay invoice 77.\r\n",
 );
 
 // A member of a new organisation, signed in (its first organisation is the session's active one).
@@ -151,11 +151,19 @@ describe("POST /api/upload", () => {
       [avi, "clip.avi"],
       [enc("MZ\x90\x00 an executable"), "setup.exe"],
       [m4a, "memo.m4a"],
+      // MPEG audio the decoder does not take (src/voice/mp3.ts): Layer II, free format, a tag with no frames.
+      [Uint8Array.from([0xff, 0xfd, 0x90, 0x00, ...new Array(400).fill(0)]), "layer2.mp3"],
+      [Uint8Array.from([0xff, 0xfb, 0x00, 0x00, ...new Array(400).fill(0)]), "free.mp3"],
+      [Uint8Array.from([...enc("ID3"), 4, 0, 0, 0, 0, 0, 10, ...new Array(10).fill(0)]), "tag-only.mp3"],
+      // A text file with a Subject line is not a message: RFC 5322 requires From and Date.
+      [enc("Subject: hello\r\n\r\njust some notes\r\n"), "notes.eml"],
     ] as [Uint8Array, string][]) {
       const answer = await upload(cookie, [file(bytes, name)], workerEnv);
       expect(answer.status, name).toBe(415);
       const { error } = (await answer.json()) as { error: string };
       if (name === "memo.m4a") expect(error).toContain("M4A");
+      else if (name === "layer2.mp3") expect(error).toContain("Layer");
+      else if (name === "free.mp3") expect(error).toContain("free format");
       else expect(error.length).toBeGreaterThan(10);
     }
     expect(await casesOf(orgId)).toEqual([]);

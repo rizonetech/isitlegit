@@ -3,6 +3,7 @@
 // signature: an OLE compound file is a message only when it is an Outlook message, Ogg only when it carries Opus, RIFF
 // only as WAVE or WEBP. Anything else is refused, with words a member can act on.
 import { UnsupportedAudio } from "../voice/errors";
+import { scanMp3 } from "../voice/mp3";
 import { child, readCompoundFile } from "./cfb";
 
 export type Sniffed =
@@ -36,7 +37,10 @@ export function sniff(bytes: Uint8Array): Sniffed | Refused {
       ? { kind: "audio", mediaType: "audio/ogg" }
       : { refused: new UnsupportedAudio("audio/ogg; codecs=other").message };
   }
-  if (ascii(bytes, 0, 3) === "ID3" || isMpegAudioFrame(bytes)) return { kind: "audio", mediaType: "audio/mpeg" };
+  // MPEG audio is taken only as the decoder takes it (src/voice/mp3.ts): Layer III with a defined bitrate in every frame,
+  // the tags set aside, so a Layer II, a free-format or a tag-only file is refused here rather than admitted for a
+  // transcription step that cannot read it (D01 T03 §1's final review).
+  if (ascii(bytes, 0, 3) === "ID3" || isMpegAudioFrame(bytes)) return mp3(bytes);
   if (ascii(bytes, 4, 4) === "ftyp") {
     const brand = ascii(bytes, 8, 4);
     // An M4A voice memo is refused by type, with the formats taken (D01 T03 §8: AAC waits on §10).
@@ -57,6 +61,16 @@ export function sniff(bytes: Uint8Array): Sniffed | Refused {
       headersAvailable: headers.has("received") || headers.has("authentication-results"),
     };
   return { refused: NOT_TAKEN };
+}
+
+function mp3(bytes: Uint8Array): Sniffed | Refused {
+  try {
+    scanMp3(bytes);
+    return { kind: "audio", mediaType: "audio/mpeg" };
+  } catch (error) {
+    if (error instanceof UnsupportedAudio) return { refused: error.message };
+    return { refused: "This recording is damaged and cannot be checked. Upload it again, or export it as MP3 or WAV." };
+  }
 }
 
 // An MPEG audio frame header (ISO 11172-3): the 11-bit sync, a valid version and layer, and a bitrate index that is not
@@ -86,7 +100,8 @@ function isOutlookMessage(bytes: Uint8Array): boolean {
 }
 
 // The header names of an RFC 5322 message, or null when the start of the file is not a header block: header fields
-// (a name, a colon) up to a blank line within the first 64 KiB, with at least one of the fields every message has.
+// (a name, a colon) up to a blank line within the first 64 KiB, with the two fields RFC 5322 3.6 requires of every
+// message, From and Date, so a text file with a Subject line is not taken for one.
 function rfc5322Headers(bytes: Uint8Array): Set<string> | null {
   const head = new TextDecoder("latin1").decode(bytes.subarray(0, 64 * 1024));
   const end = head.search(/\r?\n\r?\n/);
@@ -98,5 +113,5 @@ function rfc5322Headers(bytes: Uint8Array): Set<string> | null {
     if (!field) return null;
     names.add((field[1] as string).toLowerCase());
   }
-  return ["from", "date", "subject", "message-id", "received"].some((name) => names.has(name)) ? names : null;
+  return names.has("from") && names.has("date") ? names : null;
 }

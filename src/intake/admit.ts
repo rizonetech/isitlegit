@@ -104,6 +104,8 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
     throw new RetryDelivery(`the delivery could not be stored: ${(error as Error).message}`);
   }
   // A delivery stalled past the lease may have been taken over meanwhile, its case removed: it starts no Workflow then.
+  // A create call that itself stalls past the lease can still start one for a case removed meanwhile; that instance
+  // ends at its admit step, which skips a case that does not exist, so it does nothing.
   if (!(await stillHolds(env.DB, claim))) throw new RetryDelivery("the delivery stalled and another took it over");
   try {
     await env.ANALYSIS.create({ id: caseId, params: { caseId } });
