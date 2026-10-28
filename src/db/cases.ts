@@ -275,7 +275,7 @@ export async function setStatus(
 // read the message: the email path admits every case with 0 because it reads no MIME. Only a case still `received`
 // or `running` changes; a finished one (`done`, `partial`) is a `transition` refusal and stays as it was.
 export async function setHeadersAvailable(db: D1Database, id: string, available: boolean): Promise<CaseResult<Case>> {
-  const parsed = Id.safeParse(id);
+  const parsed = z.object({ id: Id, available: z.boolean() }).safeParse({ id, available });
   if (!parsed.success) return invalid(parsed.error);
   return guarded(async () => {
     const row = await db

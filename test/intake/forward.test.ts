@@ -353,4 +353,50 @@ describe("round 2 cases", () => {
       expect(await extractOriginal(withComment), cte).toMatchObject({ original: enc(message("encoded")), path: "eml" });
     }
   });
+
+  describe("final review cases", () => {
+    it("decodes a whole-message original that declares a transfer encoding", async () => {
+      const forward = enc(
+        `From: boss@fictional-recipient.example\r\nContent-Type: message/rfc822\r\nContent-Transfer-Encoding: base64\r\n\r\n${btoa(message("encoded-root"))}\r\n`,
+      );
+      expect(await extractOriginal(forward)).toMatchObject({ original: enc(message("encoded-root")), path: "rfc822" });
+    });
+
+    it("keeps the last attached part whole when no closing boundary ends the forward", async () => {
+      for (const [cte, body] of [
+        ["base64", btoa(message("unclosed-b64"))],
+        ["quoted-printable", message("unclosed-qp").replaceAll("\r\n", "=0D=0A")],
+      ] as const) {
+        const forward = enc(
+          [
+            "From: boss@fictional-recipient.example",
+            'Content-Type: multipart/mixed; boundary="b"',
+            "",
+            "--b",
+            'Content-Type: application/octet-stream; name="original.eml"',
+            `Content-Transfer-Encoding: ${cte}`,
+            "",
+            body,
+            "",
+          ].join("\r\n"),
+        );
+        // Base64 ignores line breaks; in quoted-printable the forward's final line break is a hard one, part of the
+        // content, since no closing delimiter claims it.
+        const expected = cte === "base64" ? message("unclosed-b64") : `${message("unclosed-qp")}\r\n`;
+        expect(await extractOriginal(forward), cte).toMatchObject({ original: enc(expected), path: "eml" });
+      }
+    });
+
+    it("refuses a forward past postal-mime's part-count and header-size limits as a ParseError", async () => {
+      // 10,001 parts, past maxPartCount's 10,000.
+      const parts = Array.from({ length: 10_001 }, () => "--p\r\nContent-Type: text/plain\r\n\r\nx").join("\r\n");
+      const wide = enc(
+        `From: boss@fictional-recipient.example\r\nContent-Type: multipart/mixed; boundary="p"\r\n\r\n${parts}\r\n--p--\r\n`,
+      );
+      await expect(extractOriginal(wide)).rejects.toBeInstanceOf(ParseError);
+      // 40,000 header lines, each counted as at least 64 bytes against maxHeadersSize's 2 MiB.
+      const tall = enc(`From: boss@fictional-recipient.example\r\n${"X-A: b\r\n".repeat(40_000)}\r\nbody\r\n`);
+      await expect(extractOriginal(tall)).rejects.toBeInstanceOf(ParseError);
+    });
+  });
 });

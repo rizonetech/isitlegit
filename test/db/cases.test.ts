@@ -362,6 +362,11 @@ describe("the case store", () => {
       error: { code: "transition" },
     });
     expect(await setHeadersAvailable(db, ulid(), true)).toMatchObject({ ok: false, error: { code: "not_found" } });
+    // An untyped caller's "false" is refused, not written as true (final review).
+    expect(await setHeadersAvailable(db, id, "false" as unknown as boolean)).toMatchObject({
+      ok: false,
+      error: { code: "invalid" },
+    });
     const broken = {
       prepare: () => ({ bind: () => ({ first: async () => Promise.reject(new Error("D1_ERROR")) }) }),
     } as unknown as D1Database;

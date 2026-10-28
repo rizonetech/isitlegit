@@ -36,6 +36,7 @@ export class ParseError extends Error {
 type Node = {
   contentType: { parsed: { value: string; params: Record<string, string | undefined> }; multipart: string | false };
   contentDisposition: { parsed: { params: Record<string, string | undefined> } };
+  contentTransferEncoding: { encoding: string };
   childNodes: Node[];
   content: ArrayBuffer | null;
 };
@@ -50,6 +51,9 @@ type Reader = {
   finalize(): Promise<void>;
 };
 
+// Transfer encodings that leave the bytes as they are ("" when none is declared).
+const IDENTITY = new Set(["", "7bit", "8bit", "binary"]);
+
 type Candidate = { kind: "rfc822" | "eml" | "msg"; content: Uint8Array };
 
 export async function extractOriginal(raw: Uint8Array): Promise<Forward> {
@@ -57,11 +61,13 @@ export async function extractOriginal(raw: Uint8Array): Promise<Forward> {
   const found: Candidate[] = [];
   collect(root, found);
   // A forward whose whole body is the original: postal-mime ends an unterminated last line with a line break, so the
-  // body's own bytes are taken as sent when it carries no transfer encoding (RFC 2046 allows none for a message).
+  // body's own bytes are taken as sent when it carries no transfer encoding (RFC 2046 allows none for a message); one
+  // that declares base64 or quoted-printable anyway keeps postal-mime's decoded bytes.
   if (
     found.length === 1 &&
     root.contentType.parsed.value.toLowerCase() === "message/rfc822" &&
-    !root.contentType.multipart
+    !root.contentType.multipart &&
+    IDENTITY.has(root.contentTransferEncoding.encoding)
   )
     found[0] = { kind: "rfc822", content: bodyOf(raw) ?? (found[0] as Candidate).content };
   const pick = (kind: Candidate["kind"]) => found.find((c) => c.kind === kind);
@@ -88,7 +94,9 @@ async function structure(raw: Uint8Array): Promise<Node> {
       const line = reader.readLine();
       await reader.processLine(line.bytes, line.lineBreak, line.done);
     }
-    if (reader.av.length === 0) await reader.finalize();
+    // The end-of-input flush for every part still open (a last part with no closing boundary); a no-op for parts already
+    // finished.
+    await reader.finalize();
   } catch (error) {
     throw new ParseError(`the forward could not be parsed: ${(error as Error).message}`);
   }
