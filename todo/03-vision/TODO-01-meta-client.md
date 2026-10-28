@@ -45,6 +45,8 @@ track: day-1
 
 ## 1. Model client: store false, Standard IDs
 
+> **Started:** 2026-10-28T16:29:06Z
+
 One module, `src/meta/client.ts`, is the only place that talks to `api.meta.ai` (through AI Gateway). It uses the stock `openai` SDK with an explicit `baseURL` (spec 9), sends `store: false` on every Responses call, sends the `cf-aig-collect-log-payload: false` header, and refuses model IDs outside an allowlist of Standard IDs (spec 4.8).
 
 **Phase:** 1
@@ -52,12 +54,14 @@ One module, `src/meta/client.ts`, is the only place that talks to `api.meta.ai` 
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/meta/client.test.ts test/meta/no-contributor.test.ts` passes unchanged.
 
+**Corrected 2026-10-28** at start, against the code and D00 T01 §7's smoke (`docs/meta-smoke-test.md`, `scripts/meta-smoke.ts`): the route is chosen now rather than left open. The `openai` SDK with `baseURL` set to `META_GATEWAY_URL` (the gateway's `custom-meta` route), the Meta Model API key as its bearer token and the gateway's Run token as `cf-aig-authorization`, is the route the smoke proved live on 2026-10-27 for every model; the `env.AI` binding's `run` is not used (its custom-provider Responses call is unproven, and the tests have no remote binding). So the Worker reads two secrets, `META_API_KEY` and `CF_AIG_TOKEN` (`src/types/secrets.d.ts`; set with `wrangler secret put` from the vault items "IsItLegit Meta Model API" and the gateway's Run token), and the checkpoint's one live call is made by `scripts/meta-client-live.ts`, which reads both from the vault through `conclave-op`, calls `metaResponses` once and reads the gateway log back (metadata present, no body), recording it in `docs/live-checks.md`. Dependencies `openai` 7.43.0 and `zod` 4.6.7 are already exact in `package.json`.
+
 **Build order:**
 
 1. Write `src/meta/client.ts` with `metaResponses` and `metaRaw` (for endpoints the SDK does not cover). Done when: a stubbed transport test sees the base URL, the headers and `store: false`.
 2. Add the repository-wide guard. Done when: a test fails on a planted `-contributor` string.
 
-- [ ] Add exact dependencies `openai` 7.43.0 and `zod` 4.6.7. Done when: `pnpm install` resolves them.
+- [x] Add exact dependencies `openai` 7.43.0 and `zod` 4.6.7. Done when: `pnpm install` resolves them. (Already in `package.json`, exact, 2026-10-28 at start.)
 - [ ] Define `MODELS` in `src/meta/models.ts` as the Standard IDs `muse-spark-1.3`, `muse-wonder-1.0`, `sam-3.1`, `muse-image-1.0`, `muse-voice-transcribe-1.0`, each with its price per unit from `https://dev.meta.ai/docs/pricing-rate-limits`. Done when: the file exports the map and the docs URL.
 - [ ] Write `metaResponses({ model, input, ...rest }, ctx)` that refuses a model not in `MODELS`, forces `store: false` (overriding any caller value), and sends every request through AI Gateway `isitlegit`'s `custom-meta` route with `cf-aig-collect-log: true` and `cf-aig-collect-log-payload: false` (the gateway collects nothing by default, D00 T01 §6). It reaches the gateway through the Worker's `AI` binding, `env.AI.gateway("isitlegit").run(...)` on the `custom-meta` provider, which is pre-authenticated; if `run` cannot route the custom provider's Responses call, it sends a gateway `AI Gateway Run` token kept as the Worker secret `CF_AIG_TOKEN` to `META_GATEWAY_URL` instead, and records which in this item. Done when: `test/meta/client.test.ts` checks the model refusal, `store: false` and both headers with a stubbed gateway, and this section's checkpoint makes one live call through the chosen route and reads back its gateway log (no body, metadata present). Cheaper substitute: callers setting `store` themselves. (**Corrected 2026-10-27** (D00 T01 §6 plan and final reviews): the gateway requires authentication and collects no logs by default; the binding's `run` and a fetch to the static URL are different routes, and only a live call shows which works.)
 - [ ] Write `metaRaw(path, body, ctx)` for `/v1/asr/transcribe` and `/v1/images/edits` with the same model check and header. Done when: the test covers a transcribe call.
