@@ -227,6 +227,8 @@ def run_json(run_dir, version, model_id, params, started, ended, outcome, sessio
     sessions = sorted({line["session"] for line in lines if line.get("session")} | ({session} if session else set()))
     data = {
         "version": version,
+        # The lines this version trained on: the version gate (§13) promotes only a version that trained on more.
+        "lines_trained": params.get("lines_trained"),
         "model_id": model_id,
         "base_model": BASE_MODEL,
         "hyperparameters": params,
@@ -260,8 +262,10 @@ def read_key():
 def train(loop, train_file, version, run_dir, recorder, examples=None, promote=True, runner_config=None):
     """One cookbook SFT run on `train_file`. `loop` is the cookbook's `recipes.sft_loop` module (a fake in tests)."""
     model_id, _checkpoint = names(version)
+    lines = examples if examples is not None else len(read_lines(train_file)) if Path(train_file).is_file() else None
     params = {"lora_rank": LORA_RANK, "learning_rate": LEARNING_RATE, "batch_size": BATCH_SIZE, "epochs": 1,
-              "max_seq_len": MAX_SEQ_LEN, "checkpoint_every": CHECKPOINT_EVERY, "warmup_steps": 0}
+              "max_seq_len": MAX_SEQ_LEN, "checkpoint_every": CHECKPOINT_EVERY, "warmup_steps": 0,
+              "lines_trained": lines}
     if runner_config is None:
         from training.utils.runner import RunnerConfig as runner_config
 

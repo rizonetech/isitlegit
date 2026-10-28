@@ -131,6 +131,7 @@ class Records(unittest.TestCase):
         self.assertEqual(record["outcome"], "completed")
         self.assertEqual(record["model_id"], "isitlegit-loupe-1-0")
         self.assertEqual(record["sessions"], ["ts-fake-session"])
+        self.assertIsNone(record["lines_trained"])  # the fixture's train.jsonl does not exist
         self.assertEqual(loop.config.output_model_id, "isitlegit-loupe-1-0")
         self.assertEqual(loop.config.dcp_save_interval, 200)
         self.assertTrue(loop.config.serverless)
