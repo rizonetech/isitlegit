@@ -4,7 +4,7 @@ import { makeDecoyCompoundFile, makeMsg, renameEntry } from "../../scripts/fixtu
 import { createCase, setHeadersAvailable } from "../../src/db/cases";
 import { ParseError } from "../../src/intake/mime";
 import { parseMsg, STRING_PROPERTY_LIMIT } from "../../src/intake/msg";
-import { MsgReader, msgreaderConstants } from "../../src/intake/msgreader";
+import { loadMsgReader, loadMsgreaderConstants } from "../../src/intake/msgreader";
 import { BODY_PART_LIMIT, parseMessage, storeParsed } from "../../src/intake/parse";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { msgs, twin } from "../fixtures/msg/load";
@@ -39,7 +39,7 @@ describe("parseMsg", () => {
     expect(parsed.html).toContain("cid:logo77@fictional");
     const embedded = parsed.attachments.find((a) => a.mediaType === "application/vnd.ms-outlook");
     if (!embedded) throw new Error("the embedded message is missing");
-    const reopened = new MsgReader(
+    const reopened = new (loadMsgReader())(
       new DataView(embedded.bytes.buffer, embedded.bytes.byteOffset, embedded.bytes.byteLength),
     );
     expect(reopened.getFileData().subject).toBe("Earlier message from the supplier");
@@ -245,7 +245,7 @@ describe("parseMsg", () => {
 
     it("takes msgreader's name prefixes from msgreader", () => {
       // The pinned 1.29.0's values; a change here is an upgrade whose spellings above need reading again.
-      expect(msgreaderConstants.MSG.FIELD.PREFIX).toEqual({
+      expect(loadMsgreaderConstants().MSG.FIELD.PREFIX).toEqual({
         ATTACHMENT: "__attach_version1.0",
         RECIPIENT: "__recip_version1.0",
         DOCUMENT: "__substg1.",

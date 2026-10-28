@@ -1,10 +1,11 @@
 // A case's step events (D01 T01 §7): the audit trail and the model trace's source (`case_events`, migration 0001).
-// Each Workflow step records `started` and `done`, and a failed one `failed` with its error class; the `error` column
-// never holds message content. A typed write like the case helpers: a failure is a `database` refusal, which the step
+// Each attempt of a Workflow step records `started`, then `done` or `error` (with its error class), so a retried step's
+// attempts are each balanced; a step that failed after its last attempt records `failed` once. The `error` column never
+// holds message content. A typed write like the case helpers: a failure is a `database` refusal, which the step
 // turns into a retry.
 import type { CaseResult } from "../db/cases";
 
-export type EventStatus = "started" | "done" | "failed";
+export type EventStatus = "started" | "done" | "error" | "failed";
 export type CaseEvent = {
   caseId: string;
   step: string;
@@ -19,7 +20,8 @@ export async function recordEvent(
   caseId: string,
   step: string,
   status: EventStatus,
-  extra: { startedAt?: string; ms?: number; errorClass?: string } = {},
+  // `once`: write nothing when this step already has an event of this status (a retried failure record).
+  extra: { startedAt?: string; ms?: number; errorClass?: string; once?: boolean } = {},
 ): Promise<CaseResult<CaseEvent>> {
   const event: CaseEvent = {
     caseId,
@@ -36,10 +38,17 @@ export async function recordEvent(
       : null,
   };
   try {
-    await db
-      .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(event.caseId, event.step, event.status, event.startedAt, event.ms, event.error)
-      .run();
+    const values = [event.caseId, event.step, event.status, event.startedAt, event.ms, event.error];
+    await (extra.once
+      ? db
+          .prepare(
+            "INSERT INTO case_events (case_id, step, status, started_at, ms, error) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = ? AND status = ?)",
+          )
+          .bind(...values, event.caseId, event.step, event.status)
+      : db
+          .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, ?, ?, ?, ?, ?)")
+          .bind(...values)
+    ).run();
     return { ok: true, value: event };
   } catch (error) {
     return { ok: false, error: { code: "database", message: (error as Error).message } };

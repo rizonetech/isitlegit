@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultExport, MsgReader, msgreaderConstants } from "../../src/intake/msgreader";
+import { defaultExport, loadMsgReader, loadMsgreaderConstants } from "../../src/intake/msgreader";
 
 // D01 T01 §7: msgreader's class and constants however the bundler resolved its CommonJS default export.
 class Reader {}
@@ -14,7 +14,7 @@ describe("defaultExport", () => {
   });
 
   it("finds the real class and constants here", () => {
-    expect(typeof MsgReader).toBe("function");
-    expect(msgreaderConstants.MSG.FIELD.PREFIX.DOCUMENT).toBe("__substg1.");
+    expect(typeof loadMsgReader()).toBe("function");
+    expect(loadMsgreaderConstants().MSG.FIELD.PREFIX.DOCUMENT).toBe("__substg1.");
   });
 });

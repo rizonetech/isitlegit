@@ -14,7 +14,7 @@
 import PostalMime from "postal-mime";
 import { type CfbEntry, type CompoundFile, child, hide, readCompoundFile } from "./cfb";
 import { ParseError } from "./mime";
-import { MsgReader, msgreaderConstants } from "./msgreader";
+import { loadMsgReader, loadMsgreaderConstants } from "./msgreader";
 import { BODY_PART_LIMIT, BODY_TOTAL_LIMIT, KEPT_PARTS_LIMIT, type ParsedMessage } from "./parse";
 
 export async function parseMsg(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headersAvailable: boolean }> {
@@ -27,7 +27,7 @@ export async function parseMsg(bytes: Uint8Array): Promise<{ parsed: ParsedMessa
   }
 }
 
-type Fields = ReturnType<InstanceType<typeof MsgReader>["getFileData"]>;
+type Fields = ReturnType<InstanceType<ReturnType<typeof loadMsgReader>>["getFileData"]>;
 
 // String properties other than the top-level bodies (with the named-property names and the named binary properties
 // msgreader decodes, below): each at most this many bytes, and all of them together at most
@@ -43,14 +43,15 @@ export const STRING_TOTAL_LIMIT = 4 * 1024 * 1024;
 // must be the one spelling [MS-OXMSG] 2.1 gives it, so no entry reaches msgreader under a spelling the bounds below do
 // not see (a suffix on a single-valued property, "__substg1.X_", round 2 and 4). The prefixes come from msgreader
 // itself, so an upgrade that changes them changes these checks with it.
-const FAMILY = msgreaderConstants.MSG.FIELD.PREFIX;
-const SPELLINGS: [string, RegExp][] = [
-  [FAMILY.DOCUMENT, /^__substg1\.0_(?:[0-9a-f]{8}|[0-9a-f]{4}1[0-9a-f]{3}-[0-9a-f]{8})$/i],
-  [FAMILY.ATTACHMENT, /^__attach_version1\.0_#[0-9a-f]{8}$/i],
-  [FAMILY.RECIPIENT, /^__recip_version1\.0_#[0-9a-f]{8}$/i],
-  [FAMILY.NAMEID, /^__nameid_version1\.0$/],
+const family = () => loadMsgreaderConstants().MSG.FIELD.PREFIX;
+const spellings = (): [string, RegExp][] => [
+  [family().DOCUMENT, /^__substg1\.0_(?:[0-9a-f]{8}|[0-9a-f]{4}1[0-9a-f]{3}-[0-9a-f]{8})$/i],
+  [family().ATTACHMENT, /^__attach_version1\.0_#[0-9a-f]{8}$/i],
+  [family().RECIPIENT, /^__recip_version1\.0_#[0-9a-f]{8}$/i],
+  [family().NAMEID, /^__nameid_version1\.0$/],
 ];
-const keyOf = (entry: CfbEntry) => (entry.name.startsWith(FAMILY.DOCUMENT) ? entry.name.slice(12).toLowerCase() : null);
+const keyOf = (entry: CfbEntry) =>
+  entry.name.startsWith(family().DOCUMENT) ? entry.name.slice(12).toLowerCase() : null;
 const typeOf = (entry: CfbEntry) => keyOf(entry)?.slice(4, 8) ?? null;
 const isString = (entry: CfbEntry) => typeOf(entry) === "001f" || typeOf(entry) === "001e";
 const is8Bit = (entry: CfbEntry) => typeOf(entry) === "001e";
@@ -70,7 +71,7 @@ function namedProperties(file: CompoundFile): { nameBytes: number; recurrences: 
   let total = 0;
   const recurrences = new Set<number>();
   for (const storage of file.entries) {
-    if (storage.kind !== "storage" || !storage.name.startsWith(FAMILY.NAMEID)) continue;
+    if (storage.kind !== "storage" || !storage.name.startsWith(family().NAMEID)) continue;
     const table = (key: string) => storage.children.find((e) => e.kind === "stream" && keyOf(e) === key) ?? null;
     const [guids, entries, strings] = [table("00020102"), table("00030102"), table("00040102")];
     if (!guids || !entries || !strings) continue;
@@ -149,7 +150,7 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   // one.
   const file = readCompoundFile(bytes);
   for (const entry of file.entries)
-    for (const [prefix, spelling] of SPELLINGS)
+    for (const [prefix, spelling] of spellings())
       if (entry.name.startsWith(prefix) && !spelling.test(entry.name))
         throw new ParseError(`an entry of the .msg has a malformed name (${entry.name})`);
   if (!child(file.root, PROPERTIES))
@@ -197,6 +198,7 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
 
   // The bodies msgreader would decode a character at a time are hidden from it when they are over the limit.
   const large = [...bodies].filter((entry) => entry.size > STRING_PROPERTY_LIMIT);
+  const MsgReader = loadMsgReader();
   const reader = new MsgReader(new DataView(...viewOf(large.length ? hide(bytes, large) : bytes)));
   reader.parserConfig = { ansiEncoding };
   const data: Fields = reader.getFileData();

@@ -1,14 +1,7 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
-import {
-  type CaseResult,
-  getCaseForPipeline,
-  setHeadersAvailable,
-  setStatus,
-  setVerdict,
-  type Verdict,
-} from "../db/cases";
-import { saveVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
+import { type CaseResult, getCaseForPipeline, setHeadersAvailable, setStatus, type Verdict } from "../db/cases";
+import { storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
 import { parseMessage, storeParsed } from "../intake/parse";
@@ -32,10 +25,16 @@ export type ReportState =
   | { status: "partial"; failedStep: StepName; errorClass: string };
 
 // Four attempts (the first and three retries), 2, 4 and 8 seconds apart, each stopped at 30 seconds: a stalled step ends
-// in `fail` within about two minutes, inside the product's three-minute p95 (design spec 4.10), where the platform's
+// in `fail` within about two minutes, inside the product's three-minute p95 (design spec 4.9), where the platform's
 // default of ten minutes an attempt would not (completion review). Later steps that call models set their own budget.
 const RETRIES: WorkflowStepConfig = {
   retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+  timeout: "30 seconds",
+};
+// A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
+// `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
+const FAIL_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 10, delay: "5 seconds", backoff: "exponential" },
   timeout: "30 seconds",
 };
 
@@ -77,7 +76,10 @@ export async function safely<T>(work: () => Promise<T>): Promise<T> {
 }
 
 // A typed refusal thrown, so the step retries it; a missing case after admission cannot be repaired by a retry.
-function must<T>(result: CaseResult<T> | VerdictResult, what: string): T {
+function must<T>(
+  result: CaseResult<T> | VerdictResult | { ok: false; error: { code: "transition"; message: string } },
+  what: string,
+): T {
   if (result.ok) return result.value as T;
   const message = `${what}: ${result.error.code}`;
   if (result.error.code === "not_found" || result.error.code === "invalid" || result.error.code === "conflict")
@@ -94,7 +96,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     // The step that failed after its last attempt: `recordFailure` names it and its error class and ends the case
     // partial, reading the case itself, so it works whichever step failed (admission included).
     const fail = (failedStep: StepName, error: unknown) =>
-      step.do("fail", RETRIES, () => safely(() => recordFailure(db, caseId, failedStep, classOf(error))));
+      // Each failure is its own step, named for the step that failed, so a replay never answers one failure with
+      // another's cached result.
+      step.do(`fail:${failedStep}`, FAIL_RETRIES, () =>
+        safely(() => recordFailure(db, caseId, failedStep, classOf(error))),
+      );
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
@@ -103,7 +109,21 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           const startedAt = new Date().toISOString();
           const began = Date.now();
           must(await recordEvent(db, caseId, name, "started", { startedAt }), `recording ${name}`);
-          const result = await work();
+          let result: T;
+          try {
+            result = await work();
+          } catch (error) {
+            // The attempt's end, so every `started` has one; a refusal here leaves the step's own error to report.
+            // Our own non-retryable errors carry their class as their message; any other error is named by its class.
+            const errorClass =
+              error instanceof NonRetryableError
+                ? error.message
+                : error instanceof Error && CLASS.test(error.name)
+                  ? error.name
+                  : "Error";
+            await recordEvent(db, caseId, name, "error", { startedAt, ms: Date.now() - began, errorClass });
+            throw error;
+          }
           must(await recordEvent(db, caseId, name, "done", { startedAt, ms: Date.now() - began }), `recording ${name}`);
           // Step results are plain values (keys, flags, the verdict view), which the Workflow stores as they are.
           return result as Rpc.Serializable<T>;
@@ -134,8 +154,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       const view = await timed("verdict", async () => verdictOf(evidence));
       current = "store";
       await timed("store", async () => {
-        must(await saveVerdict(db, caseId, view), "storing the verdict");
-        must(await setVerdict(db, orgId, caseId, view.verdict), "setting the verdict");
+        must(await storeVerdict(db, orgId, caseId, view), "storing the verdict");
         return null;
       });
       state = { status: "ready", verdict: view.verdict };
@@ -204,7 +223,7 @@ export async function recordFailure(
     throw new Error(`looking the case up: ${found.error.code}`);
   }
   const { orgId, status } = found.value;
-  must(await recordEvent(db, caseId, failedStep, "failed", { errorClass }), "recording the failure");
+  must(await recordEvent(db, caseId, failedStep, "failed", { errorClass, once: true }), "recording the failure");
   if (status === "received") must(await setStatus(db, orgId, caseId, "running"), "starting the case");
   if (status !== "done") must(await setStatus(db, orgId, caseId, "partial"), "ending the case partial");
   return state;
@@ -213,6 +232,10 @@ export async function recordFailure(
 // Reads the forward, parses the original it carries (§4 to §6) and stores the summary (§5); the header state (§4, or
 // the .msg parser's own, §6) goes to the case and the summary alike. A message the parsers refuse is not retried.
 export async function parse(store: Store, caseId: string): Promise<string> {
+  // A case re-driven after an interrupted run keeps the summary it already has (its header state was written with it),
+  // so it does not need the raw message, which expires after 30 days.
+  const stored = await readArtefact(store, caseId, parsedKey(caseId));
+  if (stored && "body" in stored) return parsedKey(caseId);
   const raw = await readArtefact(store, caseId, rawKey(caseId));
   if (!raw || !("body" in raw)) throw fatal("RawMissing");
   try {

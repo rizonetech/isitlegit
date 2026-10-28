@@ -54,7 +54,9 @@ describe("parseMessage under a 128 MiB heap", () => {
     expect(JSON.parse(run.stdout).truncated).toBe(1);
   });
 
-  it("is what keeps the twenty parts alive: postal-mime's unbounded parse dies on them", () => {
+  // Its child runs until the heap gives out, up to the child's own 30-second limit, so the test waits longer than that:
+  // under a loaded full run the default 15 seconds ended the test before the child (2026-10-28).
+  it("is what keeps the twenty parts alive: postal-mime's unbounded parse dies on them", { timeout: 40_000 }, () => {
     const run = underHeapLimit(TWENTY, "PostalMime.parse(message)");
     expect(run.status).not.toBe(0);
   });

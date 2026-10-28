@@ -95,3 +95,56 @@ export async function getVerdict(db: D1Database, caseId: string): Promise<Verdic
     return fail("database", (error as Error).message);
   }
 }
+
+// The Workflow's `store` step: the verdict row and the case's verdict label in one D1 batch, both written only while
+// the case is `running`, so the two never disagree (the final review: written apart, a failure between them left a
+// verdict row beside a case with none). Read back after: the same view and label again (a retried or replayed step,
+// the case perhaps finished since) answer the stored row; another view is a `conflict`; a case not running and without
+// this verdict is a `transition`.
+export async function storeVerdict(
+  db: D1Database,
+  orgId: string,
+  caseId: string,
+  view: z.input<typeof VerdictView>,
+): Promise<VerdictResult | { ok: false; error: { code: "transition"; message: string } }> {
+  const parsed = VerdictView.safeParse(view);
+  if (!parsed.success) return fail("invalid", parsed.error.issues.map((i) => i.message).join("; "));
+  if (!caseId || !orgId) return fail("invalid", "a verdict needs its case and organisation");
+  const v = parsed.data;
+  const now = new Date().toISOString();
+  const running = "SELECT 1 FROM cases WHERE id = ? AND org_id = ? AND status = 'running'";
+  try {
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (${running}) ON CONFLICT (case_id) DO NOTHING`,
+        )
+        .bind(
+          caseId,
+          v.verdict,
+          v.headline,
+          v.confidence,
+          JSON.stringify(v.reasons),
+          JSON.stringify(v.actions),
+          v.source,
+          now,
+          caseId,
+          orgId,
+        ),
+      db
+        .prepare(`UPDATE cases SET verdict = ?, updated_at = ? WHERE id = ? AND org_id = ? AND status = 'running'`)
+        .bind(v.verdict, now, caseId, orgId),
+    ]);
+    const row = await db.prepare("SELECT * FROM case_verdicts WHERE case_id = ?").bind(caseId).first<Row>();
+    const label = await db
+      .prepare("SELECT verdict FROM cases WHERE id = ? AND org_id = ?")
+      .bind(caseId, orgId)
+      .first<{ verdict: string | null }>();
+    if (row && !same(toVerdict(row), v)) return fail("conflict", `case ${caseId} already has another verdict`);
+    if (!row || label?.verdict !== v.verdict)
+      return { ok: false, error: { code: "transition", message: `case ${caseId} is not running with this verdict` } };
+    return { ok: true, value: toVerdict(row) };
+  } catch (error) {
+    return fail("database", (error as Error).message);
+  }
+}

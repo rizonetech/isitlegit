@@ -1,7 +1,7 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
-import { getVerdict, saveVerdict } from "../../src/db/verdicts";
+import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
 import { parsedKey, putRaw, readArtefact, type Store, StoreError } from "../../src/intake/store";
 import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
@@ -178,7 +178,12 @@ describe("AnalysisWorkflow", () => {
     expect(await caseRow(id)).toMatchObject({ status: "partial", verdict: null });
     const rows = await events(id);
     expect(rows.filter((e) => e.step === "parse" && e.status === "started")).toHaveLength(1);
-    expect(rows.at(-3)).toEqual({ step: "parse", status: "failed", error: "ParseError" });
+    // The attempt's own end, then the step's failure, each once.
+    expect(rows.filter((e) => e.step === "parse").map((e) => `${e.status}:${e.error}`)).toEqual([
+      "started:null",
+      "error:ParseError",
+      "failed:ParseError",
+    ]);
     expect(reply).toMatchObject({ state: { status: "partial", failedStep: "parse", errorClass: "ParseError" } });
   });
 
@@ -409,6 +414,62 @@ describe("round 1 cases", () => {
       "finish:done",
     ]);
     expect((await caseRow(id))?.status).toBe("done");
+  });
+});
+
+describe("final review cases", () => {
+  it("stores the verdict row and the case's label together, or neither", async () => {
+    const id = await caseWith(null);
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    const failing = {
+      prepare: (sql: string) => env.DB.prepare(sql),
+      batch: () => Promise.reject(new Error("D1 down")),
+    } as unknown as D1Database;
+    expect(await storeVerdict(failing, ORG, id, STUB_VERDICT)).toMatchObject({
+      ok: false,
+      error: { code: "database" },
+    });
+    expect(await getVerdict(env.DB, id)).toBeNull();
+    expect((await caseRow(id))?.verdict).toBeNull();
+    expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+    expect((await caseRow(id))?.verdict).toBe("suspicious");
+    // Again, as a replay would: the same answer; another view is a conflict.
+    expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+    expect(await storeVerdict(env.DB, ORG, id, { ...STUB_VERDICT, headline: "Other" })).toMatchObject({
+      ok: false,
+      error: { code: "conflict" },
+    });
+  });
+
+  it("writes no verdict for a case that is not running", async () => {
+    const id = await caseWith(null);
+    expect(await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).toMatchObject({
+      ok: false,
+      error: { code: "transition" },
+    });
+    expect(await getVerdict(env.DB, id)).toBeNull();
+  });
+
+  it("writes a step's failure once, however often its record is retried", async () => {
+    const id = await caseWith(null);
+    for (let i = 0; i < 3; i++) await recordEvent(env.DB, id, "checks", "failed", { errorClass: "Error", once: true });
+    expect((await events(id)).filter((e) => e.status === "failed")).toHaveLength(1);
+  });
+
+  it("gives a failure's record more attempts than a step", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    await run(id, async (m) => {
+      await m.mockStepError({ name: "checks" }, new Error("down"), 4);
+      await m.mockStepError({ name: "fail:checks" }, new Error("down"), 10);
+    });
+    expect((await caseRow(id))?.status).toBe("partial");
+  });
+
+  it("re-drives a case from its stored summary once the raw message is gone", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    await run(id);
+    await env.ARTEFACTS.delete(`raw/${id}/message.eml`);
+    expect(await parse(store, id)).toBe(parsedKey(id));
   });
 });
 
