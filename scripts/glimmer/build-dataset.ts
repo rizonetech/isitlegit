@@ -8,7 +8,7 @@
 // 300 pages, lures stay within 40 to 60 percent of each split, and the evaluation set shares no brand, template, site
 // or near duplicate with training and holds only labels known to be true.
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { getDomain } from "tldts";
@@ -252,7 +252,15 @@ export type Built = {
   dir: string;
   train: number;
   evaluation: number;
-  dropped: { unlabelled: number; exact: number; near: number; unredacted: number; capped: number; balanced: number };
+  dropped: {
+    unlabelled: number;
+    disputed: number;
+    exact: number;
+    near: number;
+    unredacted: number;
+    capped: number;
+    balanced: number;
+  };
   shortfalls: string[];
   sha256: { train: string; evaluation: string };
 };
@@ -265,9 +273,23 @@ export async function buildDataset(options: {
 }): Promise<Built> {
   const { store, version, mode } = options;
   const random = seeded(options.seed ?? 20261101);
-  const dropped = { unlabelled: 0, exact: 0, near: 0, unredacted: 0, capped: 0, balanced: 0 };
+  const dropped = { unlabelled: 0, disputed: 0, exact: 0, near: 0, unredacted: 0, capped: 0, balanced: 0 };
+  // A page whose `lure` the teacher disputed waits in the review queue and is left out of both files (§9).
+  const queue = join(store.dir, "review-queue.jsonl");
+  const disputed = new Set(
+    existsSync(queue)
+      ? readFileSync(queue, "utf-8")
+          .split("\n")
+          .filter((line) => line.trim())
+          .map((line) => (JSON.parse(line) as { id: string }).id)
+      : [],
+  );
   const entries: Entry[] = [];
   for (const page of store.manifest()) {
+    if (disputed.has(page.id)) {
+      dropped.disputed++;
+      continue;
+    }
     const answer = answerOf(page);
     if (!answer) {
       dropped.unlabelled++;

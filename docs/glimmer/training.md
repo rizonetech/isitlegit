@@ -42,5 +42,7 @@ training mode: image
 
 ## Decisions
 
+- 2026-10-28 21:32 SAST, operator: the human checks are dropped to save time (D03 T04 §9, §18): no Astra or Claude judging of queued pages, no 200-page check by eye, no spot check of the second sweep's sources. A page whose `lure` the teacher disputes is left out of training and evaluation; an `unverified` page trains at confidence 0.7 and never enters evaluation; the §5 spot checks (ScamFerret 4 percent, PhreshPhish 6 percent) stand as the recorded label error rates. Reversing it means running both judges over the queue and checking a sample before the next build.
+
 - 2026-10-28 20:50 SAST, operator: the US$60 a-run training cap is lifted until 2026-11-30 23:59 SAST, while Glimmer's supervised fine-tuning is free, and applies again from 2026-12-01 by the date in `scripts/glimmer/train_serverless.py` (D03 T04 §11). The lift holds only once the probe's 24-hour bill reconciliation reads US$0 rated for training; until then, or if it reads more, US$60 stands. Reversing it costs nothing: the cap returns by date. With the cap lifted, the time left before 2026-11-01 12:00 SAST bounds the training set instead.
 - 2026-10-28 20:50 SAST, operator: many more public sources go into Loupe 1.0 rather than a later 1.1 (D03 T04 §18): a second Astra sweep aimed at lures, ten more PhreshPhish shards, the 7 Days Later sample and the Majestic Million's top 20,000.

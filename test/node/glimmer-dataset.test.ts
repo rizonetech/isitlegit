@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -187,9 +187,15 @@ describe("buildDataset", () => {
     for (let i = 0; i < 12; i++) await put(i, {}, full(i % 2 === 0, i));
     await put(50, { origin: "samples", redacted: false }, full(true));
     await put(51, {}, { lure: true });
+    const queued = await put(52, {}, full(true, 52));
+    writeFileSync(
+      join(dir, "store", "review-queue.jsonl"),
+      `${JSON.stringify({ id: queued, spark: { lure: false } })}\n`,
+    );
     const built = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
     expect(built.dropped.unredacted).toBe(1);
     expect(built.dropped.unlabelled).toBe(1);
+    expect(built.dropped.disputed).toBe(1);
     expect(built.train + built.evaluation).toBeGreaterThan(0);
     expect(built.shortfalls.some((s) => s.startsWith("evaluation"))).toBe(true);
     const lines = readFileSync(join(built.dir, "train.jsonl"), "utf-8").trim().split("\n");
