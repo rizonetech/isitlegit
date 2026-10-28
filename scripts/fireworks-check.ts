@@ -166,15 +166,20 @@ const FAILED = new Set(["JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EX
 
 // What a job proves. Only a completed job decides a training mode; a failure decides one only when Fireworks says the
 // images were the problem, and anything else (authentication, quota, outage, a malformed line) decides nothing.
-// Only an explicit statement that the capability is missing proves images are refused: a decode error or an outage is
-// not one (scripts/glimmer/serverless_probe.py holds the same rule).
+// Only an explicit statement that image input as such is missing proves images are refused. A decode error, an outage,
+// or a limit on one image's format, resolution or size is not one (scripts/glimmer/serverless_probe.py holds the same
+// rule).
 const UNSUPPORTED =
-  /(not supported|unsupported|does not support|doesn't support|cannot accept|can't accept|not accepted|not enabled|disabled)[^.\n]{0,60}\b(image|images|vision|multimodal|image_url)\b|\b(image|images|vision|multimodal|image_url)\b[^.\n]{0,60}(not supported|unsupported|not accepted|not enabled|disabled)/i;
+  /(not supported|unsupported|does not support|doesn't support|cannot accept|can't accept|not accepted|not enabled|disabled)[^.\n]{0,60}\b(image inputs?|images|vision|multimodal|image_url)\b|\b(image inputs?|images|vision|multimodal|image_url)\b[^.\n]{0,60}(not supported|unsupported|not accepted|not enabled|disabled)/i;
+const INPUT_LIMIT =
+  /\b(format|resolution|size|dimensions?|too (large|big|small)|larger|smaller|exceed\w*|limit\w*|max(imum)?|tokens?|pixels?|jpe?g|png|decode|corrupt\w*)/i;
 
 export function probeOutcome(state: unknown, message: unknown): Outcome {
   if (state === "JOB_STATE_COMPLETED") return "completed";
   if (typeof state === "string" && FAILED.has(state))
-    return UNSUPPORTED.test(String(message ?? "")) ? "image-refused" : "unresolved";
+    return UNSUPPORTED.test(String(message ?? "")) && !INPUT_LIMIT.test(String(message ?? ""))
+      ? "image-refused"
+      : "unresolved";
   return "running";
 }
 
@@ -334,6 +339,10 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
     });
     const text = await response.text();
     const ok = response.status >= 200 && response.status <= 299;
+    // An empty success is an answer only to a DELETE; a read or a create with no body has said nothing, and is never
+    // taken for an empty account or zero spend.
+    if (ok && !text.trim() && method !== "DELETE")
+      throw new FireworksError(`${method} ${path} answered HTTP ${response.status} with an empty body`);
     let json: unknown = {};
     try {
       json = text ? JSON.parse(text) : {};

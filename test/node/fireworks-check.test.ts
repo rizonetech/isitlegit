@@ -216,6 +216,9 @@ describe("probe outcome", () => {
     // A decode error or an outage says nothing about whether images can train (completion review G4).
     expect(probeOutcome("JOB_STATE_FAILED", "Image decode failed: invalid PNG")).toBe("unresolved");
     expect(probeOutcome("JOB_STATE_FAILED", "image service temporarily unavailable")).toBe("unresolved");
+    expect(probeOutcome("JOB_STATE_FAILED", "Unsupported image format: only JPEG is accepted")).toBe("unresolved");
+    expect(probeOutcome("JOB_STATE_FAILED", "Image resolution is not supported")).toBe("unresolved");
+    expect(probeOutcome("JOB_STATE_FAILED", "images larger than 4096 tokens are not supported")).toBe("unresolved");
     expect(probeOutcome("JOB_STATE_FAILED", "quota exceeded")).toBe("unresolved");
     expect(probeOutcome("JOB_STATE_CANCELLED", "")).toBe("unresolved");
     expect(probeOutcome("JOB_STATE_FAILED", "imagery licence")).toBe("unresolved");
@@ -448,6 +451,16 @@ describe("malformed answers", () => {
     expect(out.code).toBe(1);
     expect(out.lines.join("\n")).toContain("not JSON");
     expect(out.lines.join("\n")).not.toContain("models: 0");
+  });
+
+  it("reads an empty success as no answer, never as zero spend", async () => {
+    const emptyBilling = stub({ ...lists, "GET /billing/summary": { status: 200 } });
+    const out = await runFireworksCheck(base({ fetch: emptyBilling.impl }));
+    expect(out.code).toBe(1);
+    expect(out.lines.join("\n")).toContain("empty body");
+    expect(out.lines.join("\n")).not.toContain("US$0.00");
+    const emptyList = stub({ ...lists, "GET /models": { status: 200 } });
+    expect((await runFireworksCheck(base({ fetch: emptyList.impl }))).code).toBe(1);
   });
 
   it("refuses a collection that is not a list and a cost that is not an amount", async () => {

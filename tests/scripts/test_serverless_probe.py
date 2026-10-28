@@ -51,9 +51,15 @@ class Client:
 
 
 class Service:
-    def __init__(self, client=None, fail_client=None, fail_close=None):
+    def __init__(self, client=None, fail_client=None, fail_close=None, fail_delete=None):
         self.client, self.fail_client, self.fail_close, self.closed = client or Client(), fail_client, fail_close, False
+        self.fail_delete, self.deleted = fail_delete, False
         self.training_session_id = "ts-test"
+
+    def delete_training_session(self):
+        self.deleted = True
+        if self.fail_delete:
+            raise RuntimeError(self.fail_delete)
 
     def create_lora_training_client(self, base_model, rank):
         if self.fail_client:
@@ -118,8 +124,10 @@ class Mode(Base):
         text_ok.image_error = "vision input is disabled for this base model"
         self.assertEqual(self.run_probe(Service(text_ok))["mode"], "text-only")
 
-    def test_decode_errors_outages_and_other_failures_decide_nothing(self):
-        for error in ("Image decode failed: invalid PNG", "image service temporarily unavailable", "quota exceeded"):
+    def test_decode_errors_outages_input_limits_and_other_failures_decide_nothing(self):
+        for error in ("Image decode failed: invalid PNG", "image service temporarily unavailable", "quota exceeded",
+                      "Unsupported image format: only JPEG is accepted", "Image resolution is not supported",
+                      "images larger than 4096 tokens are not supported"):
             self.assertIsNone(self.run_probe(Service(Client(image_error=error)))["mode"], error)
         both = Client(image_error="image inputs not supported", text_error="session expired")
         self.assertIsNone(self.run_probe(Service(both))["mode"])
@@ -174,6 +182,30 @@ class Inputs(Base):
 
 
 class Recovery(Base):
+    def test_the_session_is_deleted_to_free_its_slot_and_a_failed_delete_is_reported(self):
+        service = Service()
+        result = self.run_probe(service)
+        self.assertTrue(service.deleted)
+        self.assertTrue(result["deleted"])
+        failing = Service(fail_delete="not found")
+        result = self.run_probe(failing)
+        self.assertFalse(result["deleted"])
+        self.assertIn("not found", result["delete_error"])
+        self.assertTrue(failing.closed)
+        self.assertEqual(result["mode"], "image")
+
+    def test_a_retry_keeps_the_earlier_attempts_receipt(self):
+        def interrupt(call):
+            if call == 2:
+                os.kill(os.getpid(), signal.SIGTERM)
+        first = self.run_probe(Service(Client(on_call=interrupt)))
+        self.assertEqual(first["image"]["loss"], 1.5)
+        self.run_probe(Service(fail_client="no capacity"))
+        kept = [json.loads(p.read_text()) for p in self.dir.glob("receipt.*.json")]
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0]["image"]["loss"], 1.5)
+        self.assertEqual(self.saved()["stage"], "failed")
+
     def test_a_failed_close_keeps_both_finished_passes(self):
         service = Service(fail_close="connection reset")
         result = self.run_probe(service)

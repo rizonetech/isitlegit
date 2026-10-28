@@ -26,6 +26,7 @@ probe session ts-28111d83258c4bd0b016571ba6d6cc22: image step loss:sum 120.10 ov
 training mode: image
 - Bill: pending until 2026-10-29 16:13 UTC (rated costs lag a day); SFT on Glimmer is free until 2026-11-30 by Fireworks' statement, and §11 reconciles it before the first training run.
 - `--delete-probe` found no managed probe resource left (16:14 UTC).
+- 16:33 UTC: closing the client had not freed the sessions' slots (`ts-28111d83…` still `READY`), so both of today's sessions were deleted through `DELETE /v1/accounts/rizonetech/trainingSessions/<id>` (HTTP 200, read back `EXPIRED`); the probe now deletes its session itself.
 
 ## Dataset
 

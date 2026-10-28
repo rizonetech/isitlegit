@@ -15,8 +15,9 @@ The answer is the training mode. `image` needs the image step to return a finite
 an image; `text-only` needs the image step refused with an explicit unsupported-capability message and the control to
 return a finite loss; anything else (a decode error, an outage, a timeout, no loss) decides nothing, and the probe is
 run again once the cause is fixed. A receipt (`build/glimmer/probe-receipt.json`, written temp-then-rename after each
-stage, without the key) keeps every finished result, so a failed close or a cancel never costs a finished pass, and the
-session is closed on every path, SIGTERM included. Each pass waits at most 300 seconds. At most 20,000 tokens are sent,
+stage, without the key) keeps every finished result, so a failed close or a cancel never costs a finished pass, and an
+earlier attempt's receipt is kept under its start time. The session is deleted (freeing its slot) and the client closed
+on every path, SIGTERM included. Each pass waits at most 300 seconds. At most 20,000 tokens are sent,
 and nothing starts on or after 2026-12-01 SAST, when the free Glimmer training offer has ended. The key is the
 operator's own ("IsItLegit Fireworks Owner", through conclave-op), never printed.
 
@@ -50,14 +51,17 @@ STEP_SECONDS = 300
 # the cutoff scripts/fireworks-check.ts holds for the managed route.
 CUTOFF = datetime(2026, 11, 30, 22, 0, tzinfo=timezone.utc)
 LOSS_KEY = "loss:sum"
-# Only an explicit statement that the capability is missing proves text-only: a decode error or an outage is not one.
+# Only an explicit statement that image input as such is missing proves text-only. A decode error, an outage, or a
+# limit on one image's format, resolution or size is not one: those name something to fix in the input.
 UNSUPPORTED = re.compile(
     r"(not supported|unsupported|does not support|doesn't support|cannot accept|can't accept|not accepted|"
-    r"not enabled|disabled)[^.\n]{0,60}\b(image|images|vision|multimodal|imagechunk)\b"
-    r"|\b(image|images|vision|multimodal|imagechunk)\b[^.\n]{0,60}(not supported|unsupported|not accepted|"
-    r"not enabled|disabled)",
+    r"not enabled|disabled)[^.\n]{0,60}\b(image inputs?|images|vision|multimodal|imagechunks?|image chunks?)\b"
+    r"|\b(image inputs?|images|vision|multimodal|imagechunks?|image chunks?)\b[^.\n]{0,60}(not supported|"
+    r"unsupported|not accepted|not enabled|disabled)",
     re.IGNORECASE,
 )
+INPUT_LIMIT = re.compile(r"\b(format|resolution|size|dimensions?|too (large|big|small)|larger|smaller|exceed\w*|"
+                         r"limit\w*|max(imum)?|tokens?|pixels?|jpe?g|png|decode|corrupt\w*)", re.IGNORECASE)
 
 
 class Refused(Exception):
@@ -141,7 +145,8 @@ def step(client, datums, timeout=STEP_SECONDS):
 def decide(image, text):
     if image and image["ok"]:
         return "image"
-    if image and text and text["ok"] and UNSUPPORTED.search(image.get("error", "")):
+    error = image.get("error", "") if image else ""
+    if image and text and text["ok"] and UNSUPPORTED.search(error) and not INPUT_LIMIT.search(error):
         return "text-only"
     return None
 
@@ -167,6 +172,17 @@ def run(service_factory, renderer, image_examples, text_examples, train_on, datu
     sent = image_tokens + text_tokens
     if sent > cap:
         raise Refused(f"{sent} tokens is over the {cap}-token cap")
+    # An earlier attempt's receipt is kept under its start time, never replaced: a retry cannot erase a finished
+    # pass.
+    earlier = Path(receipt_path)
+    if earlier.exists():
+        try:
+            stamp = json.loads(earlier.read_text(encoding="utf-8")).get("started", "unknown")
+        except (OSError, ValueError):
+            stamp = "unreadable"
+        kept = earlier.with_name(f"{earlier.stem}.{re.sub(r'[^0-9A-Za-z]', '', str(stamp)) or 'unknown'}.json")
+        if not kept.exists():
+            os.replace(earlier, kept)
     receipt = {"started": datetime.now(timezone.utc).isoformat(timespec="seconds"), "tokens": sent,
                "image_tokens": image_tokens, "text_tokens": text_tokens, "stage": "opening"}
     write_receipt(receipt_path, receipt)
@@ -198,10 +214,20 @@ def run(service_factory, renderer, image_examples, text_examples, train_on, datu
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)  # a second signal must not cut the close short
         if service is not None:
+            # Closing the client does not free the session's slot on Fireworks; deleting the session does
+            # (https://docs.fireworks.ai/fine-tuning/training-api/serverless#capacity-and-rate-limits). Both are tried,
+            # each failure reported beside the results, never instead of them.
+            if receipt.get("session"):
+                try:
+                    service.delete_training_session()
+                    receipt["deleted"] = True
+                except Exception as error:
+                    receipt["deleted"] = False
+                    receipt["delete_error"] = f"{type(error).__name__}: {error}"[:300]
             try:
                 service.close()
                 receipt["closed"] = True
-            except Exception as error:  # a failed close is reported beside the results, never instead of them
+            except Exception as error:
                 receipt["closed"] = False
                 receipt["close_error"] = f"{type(error).__name__}: {error}"[:300]
         for sig, handler in previous.items():
