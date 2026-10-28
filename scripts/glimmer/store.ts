@@ -281,10 +281,10 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
 
   // One page's labels and their sources replaced, validated against the page record and written whole (temp then
   // rename, flushed), so a stopped write leaves the old meta.json, never half of one.
-  function setLabels(id: string, labels: Labels, label_source: PageMeta["label_source"]): StoredPage {
+  function setLabels(id: string, labels: Labels, label_source: PageMeta["label_source"], licence?: string): StoredPage {
     const folder = join(pages, id);
     const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
-    const meta = PageMeta.parse({ ...current, labels, label_source });
+    const meta = PageMeta.parse({ ...current, labels, label_source, ...(licence ? { licence } : {}) });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
     write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
     sync(temporary);
@@ -312,14 +312,19 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
 
   // Every stored page whose files no longer match their hashes, or whose meta.json does not read; with `source`, only
   // that source's pages (`<source>-<16 hex>`), so a resumed import checks its own pages, not the whole store.
-  function verify(source?: string): { intact: number; damaged: string[] } {
-    if (!existsSync(pages)) return { intact: 0, damaged: [] };
+  function verify(source?: string): { intact: number; damaged: string[]; setAside: string[] } {
+    if (!existsSync(pages)) return { intact: 0, damaged: [], setAside: [] };
     const own = source ? new RegExp(`^${source.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}-[0-9a-f]{16}$`) : null;
     const ids = readdirSync(pages).filter(
       (name) => !name.startsWith(".") && (!own || own.test(name)) && statSync(join(pages, name)).isDirectory(),
     );
     const damaged = ids.filter((id) => !intact(id)).sort();
-    return { intact: ids.length - damaged.length, damaged };
+    // Damaged copies a repair set aside (`.damaged-<id>-<ms>`): kept for inspection, counted so they never pile up
+    // unseen; `removeSource` clears them with their source.
+    const setAside = readdirSync(pages)
+      .filter((name) => name.startsWith(".damaged-") && (!own || own.test(name.replace(/^\.damaged-|-\d+$/g, ""))))
+      .sort();
+    return { intact: ids.length - damaged.length, damaged, setAside };
   }
 
   // Takes every page of one source out of the store, each folder renamed out of view before it is deleted, so a page

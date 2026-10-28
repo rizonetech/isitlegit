@@ -239,12 +239,17 @@ describe("recovery, integrity and removal", () => {
   it("names a damaged page, and storing it again replaces it instead of reporting it stored", async () => {
     const store = openStore(dir);
     const id = await store.putPage("s", page());
-    expect(store.verify()).toEqual({ intact: 1, damaged: [] });
+    expect(store.verify()).toEqual({ intact: 1, damaged: [], setAside: [] });
     writeFileSync(join(dir, "pages", id, "screenshot.jpg"), fakeJpeg(10, 10));
-    expect(store.verify()).toEqual({ intact: 0, damaged: [id] });
+    expect(store.verify()).toEqual({ intact: 0, damaged: [id], setAside: [] });
     expect(await store.putPage("s", page())).toBe(id);
-    expect(store.verify()).toEqual({ intact: 1, damaged: [] });
-    expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(`.damaged-${id}-`))).toBe(true);
+    // The damaged copy is set aside, and counted, so repairs never pile copies up unseen.
+    const after = store.verify();
+    expect(after).toMatchObject({ intact: 1, damaged: [] });
+    expect(after.setAside).toHaveLength(1);
+    expect(after.setAside[0]?.startsWith(`.damaged-${id}-`)).toBe(true);
+    expect(store.verify("s").setAside).toHaveLength(1);
+    expect(store.verify("other").setAside).toHaveLength(0);
   });
 
   it("refuses a huge screenshot from its header, before decoding a pixel", async () => {

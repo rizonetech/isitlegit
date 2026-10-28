@@ -159,6 +159,17 @@ describe("visibleText", () => {
     ).toBe("");
   });
 
+  it("leaves out text and fields an ancestor hides with opacity 0 or puts off the page", async () => {
+    const out = await reader.renderHtml(
+      "<p>The page a viewer actually sees here</p>" +
+        '<div style="opacity:0"><p>hidden credential text over twenty characters</p><input type="password"></div>' +
+        '<div style="position:absolute;left:-9999px;top:-9999px"><p>off the page entirely, never seen</p><input name="card_number"></div>',
+    );
+    expect(out.text).toBe("The page a viewer actually sees here");
+    expect(out.has_login_form).toBe(false);
+    expect(out.has_payment_form).toBe(false);
+  });
+
   it("counts a card field named as one, without an autocomplete hint", async () => {
     const flags = async (html: string) => (await reader.renderHtml(html)).has_payment_form;
     expect(await flags('<label>Card number <input name="card_number"></label>')).toBe(true);

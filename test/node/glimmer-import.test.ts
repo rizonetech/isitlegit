@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -211,6 +211,51 @@ describe("PhreshPhish rows", () => {
   });
 });
 
+describe("PhreshPhish rows, bounded and pinned", () => {
+  it("excludes a row over 25 MB without parsing it, and imports the rest", async () => {
+    const rows = join(dir, "rows.jsonl");
+    const small = JSON.stringify({
+      sha256: "s1",
+      url: null,
+      html: "<p>An ordinary benign page with words</p>",
+      label: "benign",
+      target: null,
+    });
+    const huge = JSON.stringify({
+      sha256: "h1",
+      url: null,
+      html: `<p>${"x".repeat(26 * 1024 * 1024)}</p>`,
+      label: "phish",
+      target: null,
+    });
+    writeFileSync(rows, `${small}\n${huge}\n`);
+    const index = await indexRows(rows);
+    expect(index.map((e) => [e.sha256, Boolean(e.oversized)])).toEqual([
+      ["s1", false],
+      ["row-2", true],
+    ]);
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: index.map((entry) => phreshItem(entry, () => readHtml(rows, entry), reader)),
+      store: openStore(join(dir, "store")),
+    });
+    expect(result.excluded).toEqual([{ item: "row-2", reason: "the row is over 25 MB" }]);
+    expect(result.imported).toBe(1);
+  }, 60_000);
+
+  it("refuses to read a rows file swapped in after it was indexed", async () => {
+    const rows = join(dir, "rows.jsonl");
+    const line = (id: string, label: string) =>
+      JSON.stringify({ sha256: id, url: null, html: `<p>${id} page text</p>`, label, target: null });
+    writeFileSync(rows, `${line("a", "phish")}\n`);
+    const [entry] = await indexRows(rows);
+    writeFileSync(`${rows}.new`, `${line("b", "benign")}\n`);
+    renameSync(`${rows}.new`, rows);
+    expect(() => readHtml(rows, entry as PhreshIndex)).toThrow(/changed since it was indexed/);
+  });
+});
+
 describe("the import run", () => {
   const item = (id: string, colour: string, fail = false): SourceItem => ({
     id,
@@ -313,6 +358,47 @@ describe("the import run", () => {
       store: openStore(storeDir),
     });
     expect(result).toMatchObject({ status: "complete", imported: 1, stored: 1 });
+  });
+
+  it("stays incomplete while the store holds a page whose item the dataset dropped", async () => {
+    const storeDir = join(dir, "store");
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [item("a1", "#111"), item("b2", "#222")],
+      store: openStore(storeDir),
+    });
+    const again = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [item("a1", "#111")],
+      store: openStore(storeDir),
+    });
+    expect(again).toMatchObject({
+      status: "incomplete",
+      reason: "1 stored pages are not in the dataset any more; remove them",
+    });
+  });
+
+  it("gives a stored page a changed label or licence mapping on resume, without rendering it again", async () => {
+    const storeDir = join(dir, "store");
+    await importSource({ source: "set", licence: "CC0", items: [item("m1", "#121")], store: openStore(storeDir) });
+    let loads = 0;
+    const remapped: SourceItem = {
+      ...item("m1", "#121"),
+      labels: { lure: true, lure_type: "fake_shop" },
+      load: () => (loads++, item("m1", "#121").load()),
+    };
+    const rerun = await importSource({
+      source: "set",
+      licence: "CC BY 4.0",
+      items: [remapped],
+      store: openStore(storeDir),
+    });
+    expect(loads).toBe(0);
+    expect(rerun).toMatchObject({ status: "complete", skipped: 1, relabelled: 1 });
+    const [stored] = openStore(storeDir).manifest();
+    expect(stored).toMatchObject({ licence: "CC BY 4.0", labels: { lure: true, lure_type: "fake_shop" } });
   });
 
   it("says running before the first page, so a killed run never leaves an earlier complete standing", async () => {

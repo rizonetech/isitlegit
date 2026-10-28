@@ -101,6 +101,19 @@ class Extract(unittest.TestCase):
         self.assertEqual(saved["status"], "incomplete")
         self.assertIn("No space left", saved["reason"])
 
+    def test_a_corrupt_stream_or_an_encrypted_entry_marks_the_import_incomplete(self):
+        import zlib
+        archive = self.zip_of(FILES)
+        for error, words in ((zlib.error("Error -3 while decompressing data"), "decompressing"),
+                             (RuntimeError("File 'a.png' is encrypted, password required"), "encrypted")):
+            record = self.dir / "raw" / "set" / "IMPORT.json"
+            with mock.patch.object(ex, "extract", side_effect=error), mock.patch("sys.stderr"):
+                code = ex.main([str(archive), str(self.dir / "out"), "--import-json", str(record)])
+            self.assertEqual(code, 1)
+            saved = json.loads(record.read_text())
+            self.assertEqual(saved["status"], "incomplete")
+            self.assertIn(words, saved["reason"])
+
     def test_only_unpacks_the_named_part_but_checks_every_entry(self):
         archive = self.zip_of({**FILES, "evaluation/big.json": b"x" * 500})
         ex.extract(archive, self.dir / "part", limit=2000, only=("pages",))

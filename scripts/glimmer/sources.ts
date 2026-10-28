@@ -12,7 +12,7 @@
 // store, the store holds a source with no row, a source above 10 percent label errors still has a `lure` read as
 // ground truth, an accepted source is missing from NOTICE.md, or no source is accepted while §8 still asks for 1,500
 // synthetic lures.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type ImportResult, writeImport } from "./import-source.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
@@ -121,7 +121,10 @@ export function reconcile(input: {
       if (trusted)
         problems.push(`${row.source}: ${row.labelErrors}% label errors, yet ${trusted} pages trust its lure`);
     }
-    if (!input.notice.includes(row.source)) problems.push(`${row.source}: accepted, but missing from NOTICE.md`);
+    // Its own row in NOTICE.md's table, which starts with the source's name in code: the name in prose, or inside a
+    // longer name, is not its attribution.
+    const noticed = input.notice.split("\n").some((line) => line.startsWith(`| \`${row.source}\``));
+    if (!noticed) problems.push(`${row.source}: accepted, but missing from NOTICE.md`);
   }
   for (const source of bySource.keys())
     if (!named.has(source)) problems.push(`${source}: in the store with no row in docs/glimmer/sources.md`);
@@ -154,6 +157,11 @@ if (import.meta.filename === process.argv[1]) {
         `${source}: ${counts[source]} pages; ${record ? `${record.status}, ${record.expected} expected, ${record.imported} imported, ${record.skipped ?? 0} skipped, ${record.duplicates} duplicates, ${record.filtered?.length ?? 0} filtered, ${record.excluded?.length ?? 0} excluded${record.pages_per_minute ? `, ${record.pages_per_minute} pages a minute` : ""}` : "no import record"}`,
       );
     }
+    // Damaged copies a repair set aside: kept for inspection, listed so they never pile up unseen.
+    const pagesDir = join(dir, "pages");
+    const setAside = existsSync(pagesDir) ? readdirSync(pagesDir).filter((n) => n.startsWith(".damaged-")).length : 0;
+    if (setAside)
+      console.log(`set aside: ${setAside} damaged copies in ${pagesDir} (remove a source to clear its own)`);
     process.exit(0);
   }
   if (command === "remove" && name) {

@@ -55,10 +55,11 @@ export type FormFlags = { has_login_form: boolean; has_payment_form: boolean };
 // in any frame the page can read; a payment provider's frame counts by its host. Run inside the page.
 export function readFormFlags(): FormFlags {
   const providers = /(stripe|braintree|adyen|checkout\.com|paypal|payfast|peach|paygate|yoco|ozow|square|klarna)/i;
+  // Seen by a viewer: a box, on the page, and not hidden by itself or an ancestor (display, visibility or opacity 0).
   const visible = (el: Element) => {
     const box = (el as HTMLElement).getBoundingClientRect();
-    const style = getComputedStyle(el);
-    return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    if (box.width <= 0 || box.height <= 0 || box.right <= 0 || box.bottom <= 0) return false;
+    return el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   };
   const login = (doc: Document) =>
     [...doc.querySelectorAll("input")].some((input) => {
@@ -104,8 +105,29 @@ export function shownText(): string {
     return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
   };
   if (!shown(document.documentElement) || !shown(body)) return "";
-  // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
-  return body.innerText;
+  // `innerText` leaves out what display and visibility hide, but not what opacity 0 or a position off the page hides.
+  // Those elements (the outermost of each) leave the layout while the text is read, and are put back after, so the
+  // screenshot that follows sees the page as it was.
+  const hidden: HTMLElement[] = [];
+  for (const el of body.querySelectorAll<HTMLElement>("*")) {
+    if (hidden.some((outer) => outer.contains(el))) continue;
+    const box = el.getBoundingClientRect();
+    const offPage = box.width > 0 && box.height > 0 && (box.right <= 0 || box.bottom <= 0);
+    if (offPage || !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) hidden.push(el);
+  }
+  const saved = hidden.map(
+    (el) => [el, el.style.getPropertyValue("display"), el.style.getPropertyPriority("display")] as const,
+  );
+  for (const el of hidden) el.style.setProperty("display", "none", "important");
+  try {
+    // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
+    return body.innerText;
+  } finally {
+    for (const [el, value, priority] of saved) {
+      if (value) el.style.setProperty("display", value, priority);
+      else el.style.removeProperty("display");
+    }
+  }
 }
 
 export type RenderedHtml = { screenshot: Uint8Array; text: string } & FormFlags;

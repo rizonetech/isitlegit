@@ -7,7 +7,7 @@
 // from its HTML in inert Chromium (no script, no request: a phishing page is never live) for its screenshot and text.
 // `lure` comes from the label and `brand` from the target (except `other`), both ground truth; `lure_type` is left for
 // §9's adjudication, since the set does not say which kind of lure a page is.
-import { closeSync, existsSync, openSync, readSync } from "node:fs";
+import { closeSync, existsSync, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { concurrencyArg, importSource, type SourceItem } from "./import-source.ts";
 import { normaliseScreenshot, openTextReader } from "./source-pages.ts";
@@ -27,7 +27,17 @@ export type PhreshRow = {
 };
 // A row without its HTML or screenshot, and where its line sits in rows.jsonl, so thousands of pages never sit in
 // memory at once.
-export type PhreshIndex = Omit<PhreshRow, "html" | "screenshot"> & { offset: number; length: number; shot: boolean };
+export type PhreshIndex = Omit<PhreshRow, "html" | "screenshot"> & {
+  offset: number;
+  length: number;
+  shot: boolean;
+  // Over MAX_ROW_BYTES: never parsed, excluded when its item loads.
+  oversized?: boolean;
+  // The rows file's device, inode, size and modification time when it was indexed.
+  identity?: string;
+};
+// A row (its HTML and any screenshot) over this is refused before it is parsed or rendered.
+export const MAX_ROW_BYTES = 25 * 1024 * 1024;
 
 export function phreshItem(
   row: Omit<PhreshRow, "html" | "screenshot">,
@@ -37,6 +47,16 @@ export function phreshItem(
   // text and the form flags.
   shot?: () => Uint8Array,
 ): SourceItem {
+  if ((row as PhreshIndex).oversized) {
+    const reason = `the row is over ${MAX_ROW_BYTES / 1024 / 1024} MB`;
+    return {
+      id: row.sha256,
+      url: null,
+      labels: {},
+      label_source: {},
+      load: async () => Promise.reject(new Error(reason)),
+    };
+  }
   if (row.label !== "phish" && row.label !== "benign") {
     const reason = `label "${String(row.label).slice(0, 40)}" is neither phish nor benign`;
     return {
@@ -70,29 +90,56 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
   const index: PhreshIndex[] = [];
   const fd = openSync(path, "r");
   try {
+    const identity = fileIdentity(fstatSync(fd));
     const chunk = Buffer.alloc(1 << 20);
     let pending: Buffer[] = [];
+    let held = 0;
     let lineStart = 0;
+    let lineNumber = 0;
     let position = 0;
     const finish = (end: number) => {
+      lineNumber++;
+      const length = end - lineStart;
+      // A row over the limit is neither held whole nor parsed: it becomes one item's exclusion.
+      if (length > MAX_ROW_BYTES) {
+        pending = [];
+        held = 0;
+        index.push({
+          sha256: `row-${lineNumber}`,
+          url: null,
+          label: "",
+          target: null,
+          offset: lineStart,
+          length,
+          shot: false,
+          oversized: true,
+          identity,
+        });
+        return;
+      }
       const line = Buffer.concat(pending).toString("utf-8");
       pending = [];
+      held = 0;
       if (line.trim()) {
         const { html: _html, screenshot, ...row } = JSON.parse(line) as PhreshRow;
-        index.push({ ...row, offset: lineStart, length: end - lineStart, shot: Boolean(screenshot) });
+        index.push({ ...row, offset: lineStart, length, shot: Boolean(screenshot), identity });
       }
+    };
+    const hold = (part: Buffer) => {
+      if (held <= MAX_ROW_BYTES) pending.push(Buffer.from(part));
+      held += part.length;
     };
     for (;;) {
       const read = readSync(fd, chunk, 0, chunk.length, position);
       if (read === 0) break;
       let from = 0;
       for (let newline = chunk.indexOf(10, from); newline !== -1 && newline < read; newline = chunk.indexOf(10, from)) {
-        pending.push(Buffer.from(chunk.subarray(from, newline)));
+        hold(chunk.subarray(from, newline));
         finish(position + newline);
         from = newline + 1;
         lineStart = position + from;
       }
-      pending.push(Buffer.from(chunk.subarray(from, read)));
+      hold(chunk.subarray(from, read));
       position += read;
     }
     finish(position);
@@ -102,9 +149,18 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
   return index;
 }
 
+// A rows file as it was indexed: offsets read from a different file (a re-export swapped in mid-import) would pair
+// rows with the wrong labels, so every read checks the file is the one indexed.
+function fileIdentity(stat: { dev: number; ino: number; size: number; mtimeMs: number }): string {
+  return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+}
+
 export function readRow(path: string, entry: PhreshIndex): PhreshRow {
+  if (entry.oversized) throw new Error(`the row is over ${MAX_ROW_BYTES / 1024 / 1024} MB`);
   const fd = openSync(path, "r");
   try {
+    if (entry.identity && fileIdentity(fstatSync(fd)) !== entry.identity)
+      throw new Error(`${path} changed since it was indexed; rerun the import`);
     const buffer = Buffer.alloc(entry.length);
     readSync(fd, buffer, 0, entry.length, entry.offset);
     return JSON.parse(buffer.toString("utf-8")) as PhreshRow;

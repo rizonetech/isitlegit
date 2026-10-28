@@ -20,7 +20,7 @@ import { type Browser, type BrowserContext, chromium, type Route } from "playwri
 import { getDomain } from "tldts";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { chromiumPath } from "../lib/chromium.ts";
-import { type FormFlags, normaliseScreenshot, readFormFlags } from "./source-pages.ts";
+import { type FormFlags, normaliseScreenshot, readFormFlags, shownText } from "./source-pages.ts";
 import { MAX_HEIGHT, MAX_WIDTH, openStore, PAGE_KINDS, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -269,8 +269,8 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       .catch(
         () => undefined, // a page that keeps polling has still settled enough after 3 seconds
       );
-    // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
-    const text = await page.evaluate(() => document.body?.innerText ?? "");
+    // What a viewer sees: what display, visibility, opacity 0 or a position off the page hides is left out (§5).
+    const text = await page.evaluate(shownText);
     const title = await page.title();
     const flags = await page.evaluate(readFormFlags);
     const walls = await page.evaluate(readWalls);

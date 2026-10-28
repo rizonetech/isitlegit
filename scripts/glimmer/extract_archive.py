@@ -18,6 +18,7 @@ import shutil
 import sys
 import tarfile
 import zipfile
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
@@ -142,7 +143,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         written = extract(args.archive, args.destination, only=tuple(args.only))
-    except (Refused, OSError, zipfile.BadZipFile, tarfile.TarError, EOFError) as error:
+    # A corrupt deflate stream (zlib.error) or an encrypted zip entry (RuntimeError) is a damaged download too: it ends as
+    # an incomplete import with its reason, never as a traceback that leaves an earlier record standing.
+    except (Refused, OSError, zipfile.BadZipFile, tarfile.TarError, EOFError, zlib.error, RuntimeError) as error:
         reason = str(error) if isinstance(error, Refused) else f"{type(error).__name__}: {error}"
         if args.import_json:
             record_incomplete(args.import_json, args.archive, reason)

@@ -32,8 +32,12 @@ export type ImportResult = {
   excluded: { item: string; reason: string }[];
   filtered: { item: string; reason: string }[];
   stored: number;
-  // Items a page in the store already came from: not rendered again (a resumed run).
+  // Items a page in the store already came from: not rendered again (a resumed run); of those, the ones whose stored
+  // labels or licence took a changed mapping.
   skipped: number;
+  relabelled?: number;
+  // The source's pages stored before pages named their item: they cannot be checked against the dataset's list.
+  legacy?: number;
   reason?: string;
   started: string;
   finished?: string;
@@ -89,8 +93,10 @@ export async function importSource(options: {
   const before = new Set(manifest.map((page) => page.id));
   // An item is skipped only when its stored page is intact: a damaged one is rendered again and `putPage` replaces it.
   const damaged = new Set(store.verify(source).damaged);
-  const done = new Set(
-    manifest.flatMap((page) => (page.source === source && page.item && !damaged.has(page.id) ? [page.item] : [])),
+  const intactByItem = new Map(
+    manifest.flatMap((page) =>
+      page.source === source && page.item && !damaged.has(page.id) ? [[page.item, page] as const] : [],
+    ),
   );
   const concurrency = options.concurrency ?? 4;
   const started = new Date();
@@ -108,6 +114,7 @@ export async function importSource(options: {
     concurrency,
   });
   let skipped = 0;
+  let relabelled = 0;
   let imported = 0;
   let duplicates = 0;
   let stopped: string | undefined;
@@ -117,7 +124,20 @@ export async function importSource(options: {
   async function worker() {
     while (!stopped && next < items.length) {
       const item = items[next++] as SourceItem;
-      if (done.has(item.id)) {
+      const stored = intactByItem.get(item.id);
+      if (stored) {
+        // Already stored and whole: not rendered again. When the converter now maps its labels or licence differently,
+        // the stored record takes the new mapping (the DOM's form flags stay as they were read).
+        const labels = { ...stored.labels, ...item.labels };
+        const label_source = { ...stored.label_source, ...item.label_source };
+        const changed =
+          stored.licence !== options.licence ||
+          JSON.stringify(labels) !== JSON.stringify(stored.labels) ||
+          JSON.stringify(label_source) !== JSON.stringify(stored.label_source);
+        if (changed) {
+          store.setLabels(stored.id, labels, label_source, options.licence);
+          relabelled++;
+        }
         skipped++;
         continue;
       }
@@ -175,14 +195,19 @@ export async function importSource(options: {
     }
   }
   await Promise.all(Array.from({ length: concurrency }, worker));
-  // Tolerant: another source's unreadable record must not stop this one's accounting (verify() reports it).
-  const stored = store.manifest({ tolerant: true }).filter((page) => page.source === source).length;
   const tooMany = excluded.length > items.length * MAX_EXCLUDED_SHARE;
   // A damaged page this run could not repair (its render failed, or nothing in the source names it) keeps the import
   // incomplete: the store must hold only pages that read whole before a source is used.
   const stillDamaged = stopped ? 0 : store.verify(source).damaged.length;
+  // A page of this source whose item the dataset no longer lists (an earlier revision, a dropped row) must not be
+  // certified as part of it: it keeps the import incomplete until it is removed. Pages from before item ids are counted.
+  const listed = new Set(items.map((item) => item.id));
+  const sourcePages = store.manifest({ tolerant: true }).filter((page) => page.source === source);
+  const stored = sourcePages.length;
+  const stale = stopped ? 0 : sourcePages.filter((page) => page.item && !listed.has(page.item)).length;
+  const legacy = sourcePages.filter((page) => !page.item).length;
   const result: ImportResult = {
-    status: stopped || tooMany || stillDamaged ? "incomplete" : "complete",
+    status: stopped || tooMany || stillDamaged || stale ? "incomplete" : "complete",
     expected: items.length,
     imported,
     duplicates,
@@ -190,13 +215,17 @@ export async function importSource(options: {
     filtered,
     stored,
     skipped,
+    relabelled,
+    legacy,
     ...(stopped
       ? { reason: stopped }
       : stillDamaged
         ? { reason: `${stillDamaged} damaged pages remain in the store` }
-        : tooMany
-          ? { reason: `${excluded.length} of ${items.length} items excluded (over 5 percent)` }
-          : {}),
+        : stale
+          ? { reason: `${stale} stored pages are not in the dataset any more; remove them` }
+          : tooMany
+            ? { reason: `${excluded.length} of ${items.length} items excluded (over 5 percent)` }
+            : {}),
     started: started.toISOString(),
     finished: new Date().toISOString(),
     seconds: Math.round((Date.now() - started.getTime()) / 1000),

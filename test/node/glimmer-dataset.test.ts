@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -224,6 +224,10 @@ describe("buildDataset", () => {
       expect(PageAnswer.safeParse(JSON.parse(messages.at(-1).content)).success).toBe(true);
       expect(messages[1].content.some((p: { type: string }) => p.type === "image_url")).toBe(true);
     }
+    // A second build replaces the version whole: no building or previous folder is left beside it.
+    const rebuilt = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
+    expect(rebuilt.dir).toBe(built.dir);
+    expect(readdirSync(join(dir, "store", "dataset"))).toEqual(["1.0"]);
     const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
     expect(summary.train.lines + summary.evaluation.lines).toBe(built.train + built.evaluation);
   });

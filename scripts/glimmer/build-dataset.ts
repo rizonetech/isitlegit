@@ -8,7 +8,7 @@
 // 300 pages, lures stay within 40 to 60 percent of each split, and the evaluation set shares no brand, template, site
 // or near duplicate with training and holds only labels known to be true.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { getDomain } from "tldts";
@@ -349,7 +349,11 @@ export async function buildDataset(options: {
   const evaluation = balance(parts.evaluation, random);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
 
-  const dir = join(store.dir, "dataset", version);
+  // The whole version is written into a building folder and swapped in at the end, so a stopped build never leaves new
+  // training lines beside an earlier run's evaluation lines and summary.
+  const final = join(store.dir, "dataset", version);
+  const dir = `${final}.building-${process.pid}`;
+  rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const write = (name: string, chosen: Entry[]) => {
     const lines: string[] = [];
@@ -391,7 +395,7 @@ export async function buildDataset(options: {
     const n = evaluation.filter((e) => e.answer.lure_type === type).length;
     if (n < EVAL_MINIMUMS.perLureType) shortfalls.push(`${type} evaluation ${n} of ${EVAL_MINIMUMS.perLureType}`);
   }
-  const built: Built = { dir, train: train.length, evaluation: evaluation.length, dropped, shortfalls, sha256 };
+  const built: Built = { dir: final, train: train.length, evaluation: evaluation.length, dropped, shortfalls, sha256 };
   const by = (chosen: Entry[], key: (e: Entry) => string) =>
     chosen.reduce<Record<string, number>>((acc, e) => {
       acc[key(e)] = (acc[key(e)] ?? 0) + 1;
@@ -409,6 +413,10 @@ export async function buildDataset(options: {
     join(dir, "summary.json"),
     `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, ...built, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
   );
+  const previous = `${final}.previous-${process.pid}`;
+  if (existsSync(final)) renameSync(final, previous);
+  renameSync(dir, final);
+  rmSync(previous, { recursive: true, force: true });
   return built;
 }
 

@@ -30,7 +30,7 @@ const base = {
     "set-a": { status: "complete" as const, expected: 2, imported: 2, duplicates: 0, excluded: [], stored: 2 },
   },
   pages: [page("set-a"), page("set-a")],
-  notice: "| set-a | CC BY 4.0 |",
+  notice: "| `set-a`: Set A (https://example.org) | CC BY 4.0 | credit |",
   synthetic: "Generate at least 1,500 lures",
 };
 
@@ -83,6 +83,10 @@ describe("reconcile", () => {
 
   it("fails an accepted source missing from NOTICE.md", () => {
     expect(reconcile({ ...base, notice: "" })).toContain("set-a: accepted, but missing from NOTICE.md");
+    // The name in prose, or inside a longer name, is not its attribution row.
+    expect(reconcile({ ...base, notice: "We thank set-a.\n| `set-ab`: Other | CC0 | x |" })).toContain(
+      "set-a: accepted, but missing from NOTICE.md",
+    );
   });
 
   it("fails the no-source fallback until §8 asks for 3,000 lures", () => {
@@ -101,7 +105,13 @@ describe("import accounting (D03 T04 §5)", () => {
     ].join("\n");
     const page = { id: "set-1", source: "set", origin: "public", label_source: {} } as unknown as StoredPage;
     const check = (record: Record<string, unknown>, pages: StoredPage[]) =>
-      reconcile({ sources, imports: { set: record as never }, pages, notice: "set", synthetic: "" });
+      reconcile({
+        sources,
+        imports: { set: record as never },
+        pages,
+        notice: "| `set`: Set | CC0 | x |",
+        synthetic: "",
+      });
     expect(check({ status: "complete", expected: 0, imported: 0, stored: 0 }, [])).toContain(
       "set: accepted, but the import stored no page",
     );
