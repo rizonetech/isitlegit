@@ -38,7 +38,7 @@ track: day-1
 | 1 | §1 | Better Auth on D1 with email magic link | D01 T01 §1, D01 T02 §1 | [x] |
 | 2 | §2 | Passkey sign-in | §1 | [x] |
 | 3 | §3 | Organisations, roles, invites and removal | §1 | [x] |
-| 4 | §4 | Invite-code signup and daily case caps | §3 | [ ] |
+| 4 | §4 | Invite-code signup and daily case caps | §3 | [x] |
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [ ] |
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [ ] |
 | 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
@@ -178,9 +178,12 @@ During the event signup needs an invite code, and each organisation has a daily 
 - [x] Write `admitCase(db, input, now)` in `src/db/cases.ts` (**Corrected 2026-10-28** while building: said `src/auth/caps.ts`, but the case store owns every write to `cases`; and `createCase` makes its own id, so there is no same-id retry: a refused admission creates nothing and the caller answers it), the only way the email and upload paths create a case: one statement inserts the case only while the organisation's cases since 00:00 SAST (UTC+2, no daylight saving) are under `org_limits.daily_cases` (50 when it has no row), and returns whether it was admitted; a case it refuses is not created, and a caller retrying the same case id is answered as before (admitted if it exists). (**Corrected 2026-10-28** after the plan review: a count followed by a separate insert let two arrivals at 49 both pass.) Done when: `test/auth/caps.test.ts` refuses the 51st case of the day, allows it after midnight SAST (23:59 and 00:00 SAST on either side), honours a lower per-organisation limit, and of two cases arriving together at 49 admits exactly one.
 Evidence 2026-10-28. Migration `0013_invite_codes.sql` adds `invite_codes` (hash only, `uses <= max_uses` checked), `invite_redemptions` (one pending per address) and `org_limits`. `scripts/invite-code.ts` prints a random code once and runs `wrangler d1 execute` with its SHA-256 only. `src/auth/signup.ts` is the Better Auth plugin `POST /api/auth/sign-up/invite-code`, registered in `authOptions`: consent required, an existing member told to sign in (409), one D1 batch taking a use and recording the pending redemption (`changes() = 1`), then the user (source `admin`), the organisation (slug from the redemption) and the owner membership found or made, the redemption completed, and the first link sent through the magic-link endpoint (`linkSent` in the 201). `user.validateUserInfo` admits `admin` and, for a magic link, only the addresses the allowlist admits for sign-in mail. `admitCase` in `src/db/cases.ts` creates a case only under the daily cap, in one statement. `pnpm exec vitest run test/auth test/node/invite-code.test.ts`: 8 files, 79 passed, covering signup end to end through the Worker to a session in the new organisation, unknown, expired, used-up and missing codes and missing consent refused alike with nothing made, an existing member 409, two signups racing for a last use giving one, a signup stopped after its redemption, its user or its organisation completing with one of each and one use, `linkSent: false` for a refused and a silent first send then a later link signing in, a stranger's hand-minted link making no account; the cap refusing the 51st case, resetting at SAST midnight, honouring a lower limit and admitting one of two at 49; the script storing the hash only. The organisation tests now make each first organisation through this signup. Full suite 554 passed, 2 skipped. Eleven mutations each fail them.
 
-- [ ] Commit: `auth: invite-code signup and daily case caps`
+- [x] Commit: `auth: invite-code signup and daily case caps`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth test/node/invite-code.test.ts` passes and fails if a used-up code is accepted, a user is created without a code or an invitation, or the 51st case of the day is allowed.
+
+> **Verified:** 2026-10-28 | §4 | 5b466edc0f1f1e9bd132b1291a6b7bdc547f19a3
+> **Review:** `docs/reviews/d07-t02-s4.json`
 
 ## 5. Domain verification and sender lookup
 

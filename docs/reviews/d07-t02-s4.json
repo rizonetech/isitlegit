@@ -1,0 +1,133 @@
+{
+  "ref": "D07 T02 \u00a74",
+  "title": "Invite-code signup and daily case caps",
+  "implementation_sha": "5b466edc0f1f1e9bd132b1291a6b7bdc547f19a3",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T02-s4.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/07-app/D07-T02-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/07-app/D07-T02-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/auth test/node/invite-code.test.ts -> Test Files  8 passed (8), Tests  86 passed (86)",
+    "pnpm exec vitest run -> Tests 561 passed | 2 skipped (563)",
+    "pnpm typecheck -> ok; pnpm exec biome check . -> ok"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s4.md",
+    "verdict": "filed",
+    "candidate": "54dc7eadb4ea8ee42d07a49c0e0f7527c3d1a0c8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T02 \u00a77",
+      "D01 T01 \u00a73",
+      "D01 T03 \u00a71",
+      "D07 T05 \u00a72",
+      "D07 T02 \u00a79"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s4.md",
+    "candidate": "4ee09af51f78f931ba2171f71c2f18e76794fd69",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/07-app/D07-T02-s4.md",
+    "verdict": "fixed",
+    "candidate": "101d66eb4934d37aadbc2ae26fa03ec629648f1b",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
