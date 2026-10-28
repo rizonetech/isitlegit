@@ -100,6 +100,41 @@ describe("POST /auth/sign-out", () => {
     expect([again.status, again.headers.get("location")]).toEqual([303, "/signin"]);
   });
 
+  it("answers 503 and keeps the cookie when the session is not deleted, then finishes on a retry", async () => {
+    const { cookie } = await signIn("stuck@example.com");
+    // D1 failing the session delete, as a lost connection would; every other statement runs.
+    const failingDeletes = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) =>
+            /^delete from "session"/i.test(sql)
+              ? {
+                  bind: () => ({
+                    all: async () => {
+                      throw new Error("D1_ERROR: Network connection lost.");
+                    },
+                  }),
+                }
+              : target.prepare(sql);
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const stuck = await call(
+      "/auth/sign-out",
+      { method: "POST", headers: { cookie, origin: ORIGIN } },
+      { ...authEnv, DB: failingDeletes },
+    );
+    expect(stuck.status).toBe(503);
+    expect(await stuck.text()).toMatch(/did not finish/);
+    expect(stuck.headers.getSetCookie()).toEqual([]);
+    // Still signed in, and told so: not a sign-out that only looked done.
+    expect((await page(cookie)).status).toBe(200);
+    const retried = await signOut(cookie);
+    expect([retried.status, retried.headers.get("location")]).toEqual([303, "/signin"]);
+    expect(await db.prepare(`SELECT 1 FROM "session" WHERE token = ?`).bind(sessionOf(cookie)).first()).toBeNull();
+  });
+
   it("refuses a post from another origin and leaves the session", async () => {
     const { cookie } = await signIn("stays@example.com");
     const refused = await signOut(cookie, "https://evil.example");
