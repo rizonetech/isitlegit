@@ -20,6 +20,8 @@ RECORDS = ROOT / "todo/99-manual/TODO-01-day0-accounts.md"
 PROVIDERS = {"Fireworks": "used", "Baseten": "not used", "Modal": "not used"}
 OUTCOMES = ("not applied", "not offered", "applied", "granted")
 LINE = re.compile(r"^Partner credit (?P<name>[A-Za-z]+): (?P<rest>.*)$")
+# Any line that looks like a record, however it is spaced or cased, is one: a malformed one is refused, never skipped.
+CANDIDATE = re.compile(r"^\s*partner\s*credit\b", re.IGNORECASE)
 # Any spelling of a usage decision: "used:", "not used :", "Not Used:".
 USAGE = re.compile(r"\b(not\s+)?used\s*:", re.IGNORECASE)
 # Real words: at least three letters, so "-" or "x" is not coverage or a decision.
@@ -30,8 +32,11 @@ def check(text):
     """The valid records and the refusals, from the file's text."""
     found, refusals = {}, []
     for number, line in enumerate(text.splitlines(), 1):
+        if not CANDIDATE.match(line):
+            continue
         m = LINE.match(line)
         if not m:
+            refusals.append(f"line {number}: a record must read 'Partner credit <name>: <outcome>, <date> (...)'")
             continue
         name, rest = m["name"], m["rest"]
         where = f"line {number} ({name})"

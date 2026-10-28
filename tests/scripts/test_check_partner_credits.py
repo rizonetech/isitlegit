@@ -57,6 +57,14 @@ class PartnerCredits(unittest.TestCase):
         found, refusals = cpc.check(text() + "Partner credit Acme: granted, 2026-10-28 (x; used: y)\n")
         self.assertTrue(any("not a partner provider" in r for r in refusals))
 
+    def test_a_malformed_extra_record_is_refused_not_skipped(self):
+        for extra in ("Partner credit Modal:granted, 2026-10-28 (US$30 per month; used: operator approves training)",
+                      "partner credit Modal: granted, 2026-10-28 (US$30; used: approves)",
+                      "  Partner credit Modal: granted, 2026-10-28 (US$30; used: approves)"):
+            with self.subTest(extra):
+                found, refusals = cpc.check(text() + extra + "\n")
+                self.assertTrue(refusals, extra)
+
     def test_an_unknown_outcome_is_refused(self):
         self.refused("the outcome must be one of", Modal=GOOD["Modal"].replace("granted,", "maybe,"))
 
