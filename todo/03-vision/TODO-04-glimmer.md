@@ -36,7 +36,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §2 | Fireworks account check and image probe | -- | [ ] |
+| 1 | §2 | Fireworks account check and image probe | -- | [x] |
 | 2 | §3 | PageScreen contract and training store | -- | [x] |
 | 3 | §4 | Astra as dataset collector | -- | [x] |
 | 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [ ] |
@@ -120,6 +120,9 @@ Before any data is built, prove what the account can do: list models, deployment
 - [x] Commit: `glimmer: Fireworks account check and image probe`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/fireworks-check.test.ts` and `python3 -m unittest tests.scripts.test_serverless_probe` pass and fails if the script sends any non-`GET` request outside `--probe` and `--delete-probe` or deletes a resource not named `isitlegit-probe`, fails if an `unresolved` or failed job yields a training mode, and in `docs/glimmer/training.md` `grep -cE '^training mode: (image|text-only)$'` prints `1` and `grep -cE '^probe session ts-[^:]+: ' ` prints at least `1`.
+
+> **Verified:** 2026-10-28 | §2 | e034f46b5a714bd4a820857f630a1cde8055ed92
+> **Review:** `docs/reviews/d03-t04-s2.json`
 
 ## 3. PageScreen contract and training store
 
