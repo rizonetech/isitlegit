@@ -74,7 +74,12 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
                 .bind(id, email, now, now, hash),
             ])
             .catch(() => null);
-          if (!batch) {
+          if (batch && batch[0]?.meta.changes === 1) {
+            redemption = { id, status: "pending", user_id: null, org_id: null };
+          } else {
+            // Not redeemed here: the insert lost to this address's redemption, or the code had no use left (perhaps
+            // because an overlapping signup for this address just took it). Either way, this address's redemption
+            // decides: resume a pending one, refer a completed one to sign-in, or refuse the code.
             const other = await db
               .prepare("SELECT id, status, user_id, org_id FROM invite_redemptions WHERE email = ?")
               .bind(email)
@@ -83,9 +88,6 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
             if (other.status !== "pending")
               throw new APIError("CONFLICT", { message: "this address already has an account; sign in instead" });
             redemption = other;
-          } else {
-            if (batch[0]?.meta.changes !== 1) throw unusable();
-            redemption = { id, status: "pending", user_id: null, org_id: null };
           }
         }
 

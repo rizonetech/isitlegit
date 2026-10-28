@@ -158,6 +158,42 @@ describe("invite-code signup", () => {
     expect(await accountOf("late@example.org")).toEqual({ users: 0, organisations: 0, redemptions: 1 });
   });
 
+  it("resumes when an overlapping signup for the address spent a single-use code first", async () => {
+    // The other request redeemed the code's only use and stopped before provisioning. This request read "no pending
+    // redemption" just before that happened (the race), so its batch finds the code spent and changes nothing: it must
+    // resume the other's redemption, not call the code invalid. The read is made to miss, as in the race.
+    const codeId = await addInviteCode(db, "SINGLE", { maxUses: 1 });
+    const now = new Date().toISOString();
+    await db.batch([
+      db.prepare("UPDATE invite_codes SET uses = 1 WHERE id = ?").bind(codeId),
+      db
+        .prepare(
+          "INSERT INTO invite_redemptions (id, code_id, email, status, consented_at, created_at) VALUES ('first-1', ?, 'single@example.org', 'pending', ?, ?)",
+        )
+        .bind(codeId, now, now),
+    ]);
+    const racedRead = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) =>
+            sql.includes("FROM invite_redemptions WHERE email = ? AND status = 'pending'")
+              ? { bind: () => ({ first: async () => null }) }
+              : target.prepare(sql);
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const answer = await signUp(
+      { email: "single@example.org", code: "SINGLE", organizationName: "Single", consent: true },
+      { ...authEnv, DB: racedRead },
+    );
+    expect(answer.status).toBe(201);
+    expect(await accountOf("single@example.org")).toEqual({ users: 1, organisations: 1, redemptions: 1 });
+    expect(await usesOf(codeId)).toBe(1);
+  });
+
   it("completes a signup stopped after any of its writes, with one of everything and the code used once", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
