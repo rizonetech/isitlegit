@@ -236,7 +236,9 @@ class Recovery(Base):
         self.assertEqual(result["mode"], "image")
         self.assertFalse(result["closed"])
         self.assertIn("connection reset", result["close_error"])
-        self.assertEqual(self.saved()["image"]["loss"], 1.5)
+        saved = self.saved()
+        self.assertEqual((saved["image"]["loss"], saved["text"]["loss"]), (1.5, 1.5))
+        self.assertTrue(saved["image"]["ok"] and saved["text"]["ok"])
 
     def test_a_session_owned_when_the_client_fails_is_still_recorded_and_deleted(self):
         service = Service(fail_client="TimeoutError: client creation timed out")
