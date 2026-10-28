@@ -48,6 +48,26 @@ export function decodeHtml(bytes: Uint8Array): string {
 
 export class PageTimeout extends Error {}
 
+// A browser call that may never answer, given 5 seconds: true when it finished, false when it failed or ran out.
+// (The Kempf import hung for 30 minutes on 2026-10-29 with every worker waiting on such a call.)
+export async function bounded(work: Promise<unknown>, ms = 5_000): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<false>((done) => {
+    timer = setTimeout(() => done(false), ms);
+  });
+  try {
+    return await Promise.race([
+      work.then(
+        () => true,
+        () => false,
+      ),
+      late,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type FormFlags = { has_login_form: boolean; has_payment_form: boolean };
 
 // The page's form flags from its DOM, as the screener's prompt defines them (`src/vision/page-screen.ts`): a login form
@@ -213,7 +233,7 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
         // The renderer stopped answering: this browser is dropped (its pages with it) and the next page gets a new one.
         forget();
         page = undefined;
-        await browser.close().catch(() => undefined);
+        await bounded(browser.close());
         throw error;
       }
       // The browser went away under this page: start a fresh one and try the page once more. A page can fail with the
@@ -230,7 +250,11 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
       throw error;
     } finally {
       clearTimeout(timer);
-      await page?.close().catch(() => undefined); // a page of a crashed browser has nothing left to close
+      // Bounded: a renderer that stopped answering may never close its page; then its browser is dropped instead.
+      if (page && !(await bounded(page.close()))) {
+        forget();
+        void bounded(browser.close());
+      }
     }
   }
   async function visibleText(html: string): Promise<string> {

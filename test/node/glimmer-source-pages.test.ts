@@ -2,7 +2,13 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { decodeHtml, normaliseScreenshot, openTextReader, PageTimeout } from "../../scripts/glimmer/source-pages.ts";
+import {
+  bounded,
+  decodeHtml,
+  normaliseScreenshot,
+  openTextReader,
+  PageTimeout,
+} from "../../scripts/glimmer/source-pages.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/source-pages.ts (D03 T04 §5): a dataset's image becomes a JPEG the store accepts, and its HTML gives
@@ -21,6 +27,16 @@ describe("decodeHtml", () => {
     expect(decodeHtml(Uint8Array.from([...equiv, ...cyr]))).toContain("Привет");
     expect(decodeHtml(new TextEncoder().encode("<p>café</p>"))).toBe("<p>café</p>");
     expect(decodeHtml(new TextEncoder().encode('<meta charset="no-such"><p>é'))).toBe('<meta charset="no-such"><p>é');
+  });
+});
+
+describe("bounded", () => {
+  it("gives up on a browser call that never answers, and reports one that finishes or fails", async () => {
+    const started = Date.now();
+    expect(await bounded(new Promise(() => undefined), 200)).toBe(false);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(await bounded(Promise.resolve(1))).toBe(true);
+    expect(await bounded(Promise.reject(new Error("closed")))).toBe(false);
   });
 });
 

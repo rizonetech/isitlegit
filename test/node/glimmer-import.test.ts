@@ -401,6 +401,23 @@ describe("the import run", () => {
     expect(stored).toMatchObject({ licence: "CC BY 4.0", labels: { lure: true, lure_type: "fake_shop" } });
   });
 
+  it("turns a load that never settles into an exclusion, and the other items still import", async () => {
+    const stuck: SourceItem = { ...item("stuck", "#707"), load: () => new Promise(() => undefined) };
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [
+        stuck,
+        ...Array.from({ length: 25 }, (_, i) => item(`ok${i}`, `#${(i * 13 + 32).toString(16).padStart(3, "0")}`)),
+      ],
+      store: openStore(join(dir, "store")),
+      itemMs: 300,
+      concurrency: 2,
+    });
+    expect(result.excluded).toEqual([{ item: "stuck", reason: "the item did not load within 0.3 seconds" }]);
+    expect(result).toMatchObject({ status: "complete", imported: 25 });
+  });
+
   it("says running before the first page, so a killed run never leaves an earlier complete standing", async () => {
     const storeDir = join(dir, "store");
     const record = join(storeDir, "raw", "set", "IMPORT.json");

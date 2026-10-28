@@ -13,6 +13,17 @@ import type { Labels, openStore, PageInput } from "./store.ts";
 
 export const MAX_EXCLUDED_SHARE = 0.05;
 export const MIN_TEXT_CHARACTERS = 20;
+// An item gets this long to load, whatever its loader does: a load that never settles becomes the item's exclusion,
+// so no worker waits forever (the reader's own page deadline is 30 seconds; this is the backstop around it).
+export const ITEM_DEADLINE_MS = 120_000;
+
+function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`the item did not load within ${ms / 1000} seconds`)), ms);
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
+}
 
 export type SourceItem = {
   id: string; // the item's name inside the dataset, for exclusions
@@ -80,6 +91,8 @@ export async function importSource(options: {
   store: ReturnType<typeof openStore>;
   importJson?: string;
   concurrency?: number;
+  // The per-item load deadline (ITEM_DEADLINE_MS), shorter in tests.
+  itemMs?: number;
   log?: (line: string) => void;
   // Public datasets by default; the pilot client's redacted samples say so (§7).
   origin?: "public" | "samples";
@@ -143,7 +156,7 @@ export async function importSource(options: {
       }
       let page: Awaited<ReturnType<SourceItem["load"]>>;
       try {
-        page = await item.load();
+        page = await withDeadline(item.load(), options.itemMs ?? ITEM_DEADLINE_MS);
       } catch (error) {
         excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
         continue;
