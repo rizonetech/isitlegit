@@ -3,10 +3,11 @@
 
     python3 scripts/check-domain.py
 
-Each record is parsed as its standard defines it, so an edit that weakens it fails rather than passing on a
-substring: the two Cloudflare nameservers; Email Routing's three MX hosts; exactly one SPF record whose
-`include:_spf.mx.cloudflare.net` comes before any `all` (RFC 7208 4.5, 5.1); exactly one DMARC record with `p=reject`
-and reports going only to dmarc@isitlegit.co.za (RFC 7489 6.3, 6.4); CAA `issue` tags (not `issuewild`) naming only
+Each record is parsed as its standard defines it and compared with what §2 published, so any edit to it fails,
+not only the weakenings someone thought of: the two Cloudflare nameservers; Email Routing's three MX hosts; exactly
+one SPF record reading `v=spf1 include:_spf.mx.cloudflare.net ~all` (RFC 7208); exactly one DMARC record with the
+published tags and no others (`p=reject`, `sp=reject`, relaxed alignment, `fo=1`, reports only to
+dmarc@isitlegit.co.za; RFC 7489 6.3); CAA `issue` tags (not `issuewild`) naming only
 Universal SSL's authorities and including Let's Encrypt, Google Trust Services and SSL.com (RFC 8659 4.2, 4.3); the
 registry's DS (key tag 2371, algorithm 13, digest type 2, the recorded digest); and the zone validated (`ad`).
 
@@ -22,8 +23,11 @@ DOMAIN = "isitlegit.co.za"
 RESOLVER = "1.1.1.1"
 NAMESERVERS = {"carmelo.ns.cloudflare.com.", "paris.ns.cloudflare.com."}
 MX_HOSTS = {"route1.mx.cloudflare.net.", "route2.mx.cloudflare.net.", "route3.mx.cloudflare.net."}
-SPF_INCLUDE = "include:_spf.mx.cloudflare.net"
-DMARC_REPORTS = {"mailto:dmarc@isitlegit.co.za"}
+# The records exactly as §2 published them: a check that names what must be there, not what must not, so a weakening
+# nobody foresaw (a tag added, a term reordered) fails too. Changing either record means changing it here as well.
+SPF_TERMS = ["include:_spf.mx.cloudflare.net", "~all"]
+DMARC_TAGS = {"v": "DMARC1", "p": "reject", "sp": "reject", "adkim": "r", "aspf": "r", "fo": "1",
+              "rua": "mailto:dmarc@isitlegit.co.za"}
 # Universal SSL's authorities (https://developers.cloudflare.com/ssl/reference/certificate-authorities/); Cloudflare adds
 # its own CAA rows for them, so Sectigo (comodoca.com) and DigiCert may appear beside the three the section names.
 CLOUDFLARE_CAS = {"letsencrypt.org", "pki.goog", "ssl.com", "comodoca.com", "digicert.com", "sectigo.com"}
@@ -94,29 +98,23 @@ def check(a):
          f"MX hosts are {sorted(a['MX'])}, not Email Routing's three")
 
     spf = [txt(r) for r in a["TXT"] if txt(r).lower().startswith("v=spf1 ") or txt(r).lower() == "v=spf1"]
-    terms = spf[0].split()[1:] if len(spf) == 1 else []
-    reach = next((i for i, t in enumerate(terms) if t.lstrip("+-~?").lower() == "all"), len(terms))
-    # The `all` that ends it must fail or soft-fail other senders: `+all` or `?all` authorizes everyone (RFC 7208 4.6.2).
-    closing = terms[reach].lower() if reach < len(terms) else None
-    need(len(spf) == 1 and SPF_INCLUDE in [t.lstrip("+").lower() for t in terms[:reach]] and closing in ("-all", "~all"),
-         "SPF is not one record whose include:_spf.mx.cloudflare.net comes before a closing -all or ~all"
-         + (f" ({len(spf)} SPF records)" if len(spf) != 1 else ""))
+    terms = [t.lower() for t in spf[0].split()[1:]] if len(spf) == 1 else []
+    need(len(spf) == 1 and terms == SPF_TERMS,
+         f"SPF is not the one published record, v=spf1 {' '.join(SPF_TERMS)}"
+         + (f" ({len(spf)} SPF records)" if len(spf) != 1 else f" (it reads {spf[0]!r})"))
 
     # Any record that begins like a DMARC record counts, so a mistyped version is refused rather than skipped.
     dmarc = [txt(r) for r in a["DMARC"] if txt(r).lower().startswith("v=dmarc")]
-    tags = {}
+    tags, repeated = {}, False
     if len(dmarc) == 1:
         for part in dmarc[0].split(";"):
             key, _, value = part.strip().partition("=")
-            if key:
+            if key.strip():
+                repeated |= key.strip().lower() in tags
                 tags[key.strip().lower()] = value.strip()
-    reports = {re.sub(r"!\d+[kmgt]?$", "", r.strip(), flags=re.I).lower() for r in tags.get("rua", "").split(",") if r.strip()}
-    # The version exactly DMARC1 (RFC 7489 6.3), and pct absent or 100, since pct=0 applies the policy to no message
-    # (6.6.4).
-    need(len(dmarc) == 1 and tags.get("v") == "DMARC1" and tags.get("p", "").lower() == "reject"
-         and tags.get("pct", "100") == "100" and reports == DMARC_REPORTS,
-         "DMARC is not one v=DMARC1 record with p=reject on every message (pct 100) and reports only to "
-         "dmarc@isitlegit.co.za"
+    need(len(dmarc) == 1 and not repeated and tags == DMARC_TAGS,
+         "DMARC is not the one published record (v=DMARC1, p=reject and sp=reject on every message, relaxed "
+         "alignment, reports only to dmarc@isitlegit.co.za, nothing else)"
          + (f" ({len(dmarc)} DMARC records)" if len(dmarc) != 1 else ""))
 
     issuers, wild = set(), set()

@@ -37,6 +37,7 @@ class Domain(unittest.TestCase):
         self.refused("SPF", TXT=['"v=spf1 -all"'])
         self.refused("SPF", TXT=['"v=spf1 -all include:_spf.mx.cloudflare.net"'])
         self.refused("2 SPF records", TXT=GOOD["TXT"] + ['"v=spf1 include:_spf.mx.cloudflare.net -all"'])
+        self.refused("SPF", TXT=['"v=spf1 include:_spf.mx.cloudflare.net ip4:203.0.113.0/24 ~all"'])
         for closing in ("+all", "?all", "all", ""):
             with self.subTest(closing):
                 self.refused("SPF", TXT=[f'"v=spf1 include:_spf.mx.cloudflare.net {closing}"'.replace(" \"", "\"")])
@@ -51,7 +52,10 @@ class Domain(unittest.TestCase):
         self.refused("DMARC", DMARC=['"v=DMARC11; p=reject; rua=mailto:dmarc@isitlegit.co.za"'])
         self.refused("DMARC", DMARC=['"v=DMARC1; p=reject; pct=0; rua=mailto:dmarc@isitlegit.co.za"'])
         self.refused("DMARC", DMARC=['"v=DMARC1; p=reject; pct=50; rua=mailto:dmarc@isitlegit.co.za"'])
-        self.assertEqual(cd.check({**GOOD, "DMARC": ['"v=DMARC1; p=reject; pct=100; rua=mailto:dmarc@isitlegit.co.za"']})[1], [])
+        self.refused("DMARC", DMARC=[GOOD["DMARC"][0][:-1] + '; ruf=mailto:hello@isitlegit.co.za"'])
+        self.refused("DMARC", DMARC=[GOOD["DMARC"][0][:-1] + '; pct=100"'])
+        self.refused("DMARC", DMARC=[GOOD["DMARC"][0].replace("sp=reject", "sp=none")])
+        self.refused("DMARC", DMARC=[GOOD["DMARC"][0][:-1] + '; p=none"'])
 
     def test_caa_issue_not_issuewild_from_universal_ssl_only(self):
         self.refused("CAA", CAA=[line.replace(" issue ", " issuewild ") for line in GOOD["CAA"]])
