@@ -72,6 +72,8 @@ describe.skipIf(!process.env.VOICE_BENCH)("FFmpeg timings", () => {
         // FFmpeg conceals damage rather than refusing it: its outcome on the damaged files is recorded, not compared.
         if (!input.refused) {
           expect(result.code, input.name).toBe(0);
+          // A deliberate allowance for FFmpeg: its pre-skip and end trimming can differ from ours by a few hundred
+          // samples (a frame), so its length is held to within 1 % rather than to the sample; ours is exact.
           const off = Math.abs(result.samples - (input.samples as number)) / (input.samples as number);
           expect(off, input.name).toBeLessThan(0.01);
         }

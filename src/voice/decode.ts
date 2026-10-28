@@ -1,6 +1,6 @@
 // Voice notes and voicemail attachments to the audio Muse Voice Transcribe takes (D01 T03 §2; spec 4.2a): 16 kHz mono
 // 16-bit PCM WAV, at most 10 minutes per request. Ogg Opus (as WhatsApp saves voice notes) and PCM 16-bit WAV are
-// decoded in the Worker, and MP3 through `./mp3` (D01 T03 §7); M4A is refused until D01 T03 §8 decodes it.
+// decoded in the Worker, and MP3 through `./mp3` (D01 T03 §7); M4A is refused until D01 T03 §10 decodes it.
 //
 // Decoding is a stream, so memory holds the input, one chunk and a few seconds of decoded audio, never the whole
 // recording (25 minutes at 48 kHz as 32-bit floats would be 288 MB, past a Worker's 128 MB). An Ogg file is checked
@@ -9,7 +9,7 @@
 // RFC 6716 3.1), whose sum is the recording's length, so a file cannot claim to be shorter than it is and audio over
 // 30 minutes is refused unread. The packets are then decoded in batches of at most 5 seconds by libopus itself at 16
 // kHz (its own filtered rate conversion), mixed down and written into the current chunk, which is yielded when full.
-// A WAV is checked the same way and resampled linearly (`Resampler`). Damaged audio of any kind is refused with
+// A WAV is checked the same way; WAV and MP3 are brought to 16 kHz by a Kaiser-windowed sinc filter (`Resampler`, §9). Damaged audio of any kind is refused with
 // `CorruptAudio`, never passed on as complete; anything the decoder throws becomes `CorruptAudio` too.
 //
 // The Opus decoder's WebAssembly is imported as a module, compiled at deploy (a Worker refuses to compile it at
@@ -30,8 +30,6 @@ const OPUS_RATE = 48_000;
 // Opus packets decoded at a time, by their duration at 48 kHz, and WAV frames read at a time.
 const BATCH_SAMPLES = 5 * OPUS_RATE;
 const WAV_BLOCK_FRAMES = 64 * 1024;
-const MIN_WAV_RATE = 8_000;
-const MAX_WAV_RATE = 192_000;
 // opus-decoder 0.7.12 copies each packet into an input buffer of 3,840 bytes per channel (256 kbit/s for 120 ms).
 const MAX_PACKET_BYTES_PER_CHANNEL = 3_840;
 
@@ -71,16 +69,18 @@ export const createOpusDecoder = ({ channels, preSkip }: OpusLayout): OpusStream
 // each output's exact position in the input (any ratio, 44.1 kHz included), so energy above the lower Nyquist
 // frequency does not fold back as an alias and upsampling leaves no images. The cut-off is 0.95 of that Nyquist, the
 // transition band 0.3 of it (flat to 0.8, at least 60 dB down from 1.1; the window is designed for 70 dB, after
-// Kaiser). Output k sits at input position k x rate / 16000, computed from
-// k so rounding never drifts; samples beyond either end are silence, a lookahead of the filter's half-width is held
-// across blocks, and N input samples always give ceil(N x 16000 / rate) outputs, however the input is split. Input
-// already at 16 kHz passes through unchanged. For the usual rates each output phase's taps are computed once; an
-// unusual rate reads the kernel from a table instead. The usual rates' sums run in native/resample/resample.c, four taps
-// at a time (WebAssembly SIMD), which is most of the time a long recording takes.
+// Kaiser). Output k sits at input position k x p / q (the rate as p / q of 16 kHz in lowest terms), compared in integers
+// so a long recording's length never drifts by a sample; samples beyond either end are silence, and N input samples
+// always give ceil(N x 16000 / rate) outputs, however the input is split. The taps are computed here and the sums run
+// in native/resample/resample.c, four taps at a time (WebAssembly SIMD): one tap set per phase for the usual rates, and
+// for an unusual one (more phases than are worth holding) 512 sets between which each output blends. Input already at
+// 16 kHz passes through unchanged. Rates outside 8 to 192 kHz are refused: the filter grows with the rate.
 const STOPBAND_DB = 70;
-const TABLE_STEPS = 512; // kernel samples per input sample, linearly interpolated
-// Above this many output phases (an unusual sample rate), the kernel is read from the table instead of precomputed.
+// Above this many phases a rate's tap sets are not held one per phase; TABLE_SETS sets are blended instead.
 const MAX_PHASES = 1_024;
+const TABLE_SETS = 512;
+const MIN_RATE = 8_000;
+const MAX_RATE = 192_000;
 
 function besselI0(x: number): number {
   let sum = 1;
@@ -97,7 +97,7 @@ const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 // native/resample/resample.c's exports: the polyphase kernel, four taps at a time.
 type ResampleKernel = {
   memory: WebAssembly.Memory;
-  init: (phases: number, p: bigint, width: number, half: number, block: number) => number;
+  init: (phases: number, p: bigint, width: number, half: number, block: number, table: number) => number;
   taps_offset: () => number;
   input_offset: () => number;
   out_offset: () => number;
@@ -108,36 +108,23 @@ type ResampleKernel = {
 const KERNEL_BLOCK = 16_384;
 
 export class Resampler {
-  // The rate as p / q of 16 kHz in lowest terms: output k sits at input position k x p / q, compared in integers so a
-  // long recording's length never drifts by a sample.
-  private readonly p: number;
-  private readonly q: number;
-  private readonly half: number; // the filter's half-width, in input samples
-  private readonly kernel: (distance: number) => number;
-  // The usual rates: the kernel module, its input and output views.
+  // The kernel module, its input and output views; null when the input is already at 16 kHz.
   private readonly native: { kernel: ResampleKernel; input: Float32Array; out: Float32Array } | null = null;
-  private k = 0;
-  private consumed = 0;
-  // The table path's input samples from global index `base` on: what the next outputs still need.
-  private held = new Float32Array(0);
-  private base = 0;
-  private readonly passThrough: boolean;
   constructor(
     sourceRate: number,
     private readonly emit: (sample: number) => void,
   ) {
+    if (!Number.isInteger(sourceRate) || sourceRate < MIN_RATE || sourceRate > MAX_RATE)
+      throw new UnsupportedAudio(`audio at ${sourceRate} Hz (8,000 to 192,000 Hz are taken)`);
+    if (sourceRate === TARGET_RATE) return;
     const g = gcd(sourceRate, TARGET_RATE);
     const p = sourceRate / g;
     const q = TARGET_RATE / g;
-    this.p = p;
-    this.q = q;
-    this.passThrough = sourceRate === TARGET_RATE;
     const nyquist = Math.min(sourceRate, TARGET_RATE) / 2;
     const cutoff = (0.95 * nyquist) / sourceRate; // cycles per input sample
     const transition = (0.3 * nyquist) / sourceRate;
     const beta = 0.1102 * (STOPBAND_DB - 8.7);
     const half = Math.ceil((STOPBAND_DB - 8) / (2.285 * 2 * Math.PI * transition) / 2);
-    this.half = half;
     const i0Beta = besselI0(beta);
     const exact = (distance: number) => {
       const t = Math.abs(distance);
@@ -146,82 +133,42 @@ export class Resampler {
       const r = t / half;
       return sinc * (besselI0(beta * Math.sqrt(1 - r * r)) / i0Beta);
     };
-    if (this.passThrough || q > MAX_PHASES) {
-      const table = Float32Array.from({ length: half * TABLE_STEPS + 2 }, (_, i) => exact(i / TABLE_STEPS));
-      this.kernel = (distance) => {
-        const at = Math.abs(distance) * TABLE_STEPS;
-        const i = Math.floor(at);
-        const a = table[i] ?? 0;
-        return a + ((table[i + 1] ?? 0) - a) * (at - i);
-      };
-      return;
-    }
-    // Each phase's taps, computed once (`taps[phase x width + j]` weights input floor(t) - half + 1 + j), padded with
-    // zeros to a multiple of 4 for the kernel's four-wide sums.
-    this.kernel = exact;
+    // Tap set s weights input floor(t) - half + 1 + j at fraction s / sets of an input sample past floor(t); its taps
+    // are padded with zeros to a multiple of 4 for the kernel's four-wide sums.
+    const table = q > MAX_PHASES ? TABLE_SETS : 0;
+    const sets = table ? table + 1 : q;
     const width = Math.ceil((2 * half) / 4) * 4;
     const kernel = new WebAssembly.Instance(resampleModule, {}).exports as unknown as ResampleKernel;
-    if (!kernel.init(q, BigInt(p), width, half, KERNEL_BLOCK))
+    if (!kernel.init(q, BigInt(p), width, half, KERNEL_BLOCK, table))
       throw new CorruptAudio("the resampler could not allocate its filter");
-    const taps = new Float32Array(kernel.memory.buffer, kernel.taps_offset(), q * width);
-    for (let phase = 0; phase < q; phase++)
-      for (let j = 0; j < 2 * half; j++) taps[phase * width + j] = exact(phase / q + half - 1 - j);
+    const taps = new Float32Array(kernel.memory.buffer, kernel.taps_offset(), sets * width);
+    for (let set = 0; set < sets; set++)
+      for (let j = 0; j < 2 * half; j++) taps[set * width + j] = exact(set / (table || q) + half - 1 - j);
     this.native = {
       kernel,
       input: new Float32Array(kernel.memory.buffer, kernel.input_offset(), KERNEL_BLOCK),
       out: new Float32Array(kernel.memory.buffer, kernel.out_offset()),
     };
   }
-  private sample(index: number): number {
-    const i = index - this.base;
-    return i >= 0 && i < this.held.length ? (this.held[i] as number) : 0;
-  }
-  // The table path's output k, from the held samples within the half-width either side of its input position.
-  private output(k: number): number {
-    const t = (k * this.p) / this.q;
-    const whole = Math.floor(t);
-    let sum = 0;
-    for (let n = whole - this.half + 1; n <= whole + this.half; n++) sum += this.kernel(t - n) * this.sample(n);
-    return sum;
-  }
   private drain(count: number): void {
     const out = (this.native as { out: Float32Array }).out;
     for (let i = 0; i < count; i++) this.emit(out[i] as number);
   }
   push(mono: Float32Array): void {
-    if (mono.length === 0) return;
-    if (this.passThrough) {
+    if (!this.native) {
       for (const v of mono) this.emit(v);
-      this.consumed += mono.length;
-      this.k = this.consumed;
       return;
     }
-    if (this.native) {
-      for (let at = 0; at < mono.length; at += KERNEL_BLOCK) {
-        const block = mono.subarray(at, at + KERNEL_BLOCK);
-        this.native.input.set(block);
-        this.drain(this.native.kernel.push(block.length));
-      }
-      return;
+    for (let at = 0; at < mono.length; at += KERNEL_BLOCK) {
+      const block = mono.subarray(at, at + KERNEL_BLOCK);
+      this.native.input.set(block);
+      this.drain(this.native.kernel.push(block.length));
     }
-    const keepFrom = Math.max(this.base, Math.floor((this.k * this.p) / this.q) - this.half);
-    const next = new Float32Array(this.base + this.held.length - keepFrom + mono.length);
-    next.set(this.held.subarray(keepFrom - this.base));
-    next.set(mono, this.base + this.held.length - keepFrom);
-    this.held = next;
-    this.base = keepFrom;
-    this.consumed += mono.length;
-    // Every output whose window lies wholly within what has arrived.
-    while (Math.floor((this.k * this.p) / this.q) + this.half < this.consumed) this.emit(this.output(this.k++));
   }
   // The outputs left before the input ends, their windows running into silence.
   end(): void {
-    if (this.passThrough) return;
-    if (this.native) {
-      for (let count = this.native.kernel.finish(); count > 0; count = this.native.kernel.finish()) this.drain(count);
-      return;
-    }
-    while (this.k * this.p < this.consumed * this.q) this.emit(this.output(this.k++));
+    if (!this.native) return;
+    for (let count = this.native.kernel.finish(); count > 0; count = this.native.kernel.finish()) this.drain(count);
   }
 }
 
@@ -558,7 +505,7 @@ function scanWav(bytes: Uint8Array): WavLayout {
   if (fmt.rate === 0) throw new CorruptAudio("the WAV has no sample rate");
   // The resampler's filter grows with the rate; recordings are 8 to 192 kHz, and anything outside is refused before a
   // filter is built (a header can claim up to 4,294,967,295 Hz).
-  if (fmt.rate < MIN_WAV_RATE || fmt.rate > MAX_WAV_RATE)
+  if (fmt.rate < MIN_RATE || fmt.rate > MAX_RATE)
     throw new UnsupportedAudio(`audio/wav at ${fmt.rate} Hz (8,000 to 192,000 Hz are taken)`);
   if (data.size % (fmt.channels * 2) !== 0)
     throw new CorruptAudio("the WAV's data ends partway through a sample frame (cut short or mislabelled)");

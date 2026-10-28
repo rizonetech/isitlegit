@@ -55,6 +55,8 @@ export function benchInputs(toneOgg: Uint8Array, toneMp3: Uint8Array, toneWav: U
   const mp3Samples = (count: number) => Math.ceil((count * 1_152 * 16_000) / 44_100);
   const wav48 = uploadSizedWav(48_000);
   const wav44 = uploadSizedWav(44_100);
+  // An unusual rate: more phases than are held one per phase, so the kernel blends its table's sets.
+  const wavOdd = uploadSizedWav(44_101);
   // A WAV whose data chunk claims more than the file holds.
   const badWav = toneWav.slice();
   new DataView(badWav.buffer).setUint32(40, badWav.length * 2, true);
@@ -77,6 +79,12 @@ export function benchInputs(toneOgg: Uint8Array, toneMp3: Uint8Array, toneWav: U
       type: "audio/wav",
       bytes: wav44.bytes,
       samples: Math.ceil((wav44.frames * 16_000) / 44_100),
+    },
+    {
+      name: "upload-sized (25 MiB, WAV 44.101 kHz)",
+      type: "audio/wav",
+      bytes: wavOdd.bytes,
+      samples: Math.ceil((wavOdd.frames * 16_000) / 44_101),
     },
     { name: "malformed (WAV)", type: "audio/wav", bytes: badWav, refused: true },
   ];

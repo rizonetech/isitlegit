@@ -1,7 +1,9 @@
 // The voice decoder's polyphase resampler kernel (D01 T03 §9), compiled to WebAssembly with SIMD by
 // scripts/build-wasm.py. src/voice/decode.ts computes each output phase's taps (a Kaiser-windowed sinc) and
 // writes them here once; the module holds the input still needed, with half a window of silence before the start,
-// and computes outputs four taps at a time. Output k sits at input position k x p / q.
+// and computes outputs four taps at a time. Output k sits at input position k x p / q. With `table` set to 0 there are
+// q tap sets, one per phase, exact; for an unusual rate (q too large to hold a set per phase) there are `table` + 1
+// sets at fractions 0, 1 / table, ..., 1 of an input sample, and each output blends the two around its own fraction.
 #include <stddef.h>
 #include <stdint.h>
 #include <wasm_simd128.h>
@@ -11,8 +13,8 @@
 extern unsigned char __heap_base;
 static uintptr_t next_free;
 
-static float *taps;      // q phases of `width` taps (a multiple of 4, zero-padded)
-static int32_t q, width, half;
+static float *taps;      // the tap sets, `width` taps each (a multiple of 4, zero-padded)
+static int32_t q, width, half, table;
 static int64_t p;
 static float *held;      // input samples from global index `base` on
 static int32_t held_len, held_cap;
@@ -32,16 +34,18 @@ static void *take(size_t bytes) {
 }
 
 // Lays out the buffers; 0 when memory could not grow. The caller then writes the taps at taps_offset().
-EXPORT("init") int init(int32_t phases, int64_t step_p, int32_t tap_width, int32_t half_width, int32_t block) {
+EXPORT("init") int init(int32_t phases, int64_t step_p, int32_t tap_width, int32_t half_width, int32_t block,
+                        int32_t table_sets) {
   next_free = (uintptr_t)&__heap_base;
   q = phases;
+  table = table_sets;
   p = step_p;
   width = tap_width;
   half = half_width;
   input_cap = block;
   held_cap = block + 2 * tap_width + 8;
   out_cap = (int32_t)((int64_t)(block + 2 * tap_width) * q / p) + 8;
-  taps = take((size_t)q * width * sizeof(float));
+  taps = take((size_t)(table ? table + 1 : q) * width * sizeof(float));
   held = take((size_t)held_cap * sizeof(float));
   input = take((size_t)input_cap * sizeof(float));
   out = take((size_t)out_cap * sizeof(float));
@@ -58,16 +62,27 @@ EXPORT("taps_offset") float *taps_offset(void) { return taps; }
 EXPORT("input_offset") float *input_offset(void) { return input; }
 EXPORT("out_offset") float *out_offset(void) { return out; }
 
-static float output_at(int64_t index) {
-  int64_t at = index * p;
-  int64_t whole = at / q;
-  const float *t = taps + (size_t)(at % q) * width;
-  const float *x = held + (whole - half + 1 - base);
+static float dot(const float *t, const float *x) {
   v128_t sum = wasm_f32x4_splat(0);
   for (int32_t j = 0; j < width; j += 4)
     sum = wasm_f32x4_add(sum, wasm_f32x4_mul(wasm_v128_load(t + j), wasm_v128_load(x + j)));
   return wasm_f32x4_extract_lane(sum, 0) + wasm_f32x4_extract_lane(sum, 1) + wasm_f32x4_extract_lane(sum, 2) +
          wasm_f32x4_extract_lane(sum, 3);
+}
+
+static float output_at(int64_t index) {
+  int64_t at = index * p;
+  int64_t whole = at / q;
+  int64_t rem = at % q;
+  const float *x = held + (whole - half + 1 - base);
+  if (!table) return dot(taps + (size_t)rem * width, x);
+  // The output's fraction of an input sample, between two of the table's sets.
+  double position = (double)rem * table / q;
+  int32_t lower = (int32_t)position;
+  float w = (float)(position - lower);
+  float a = dot(taps + (size_t)lower * width, x);
+  float b = dot(taps + (size_t)(lower + 1) * width, x);
+  return a + (b - a) * w;
 }
 
 // Drops held samples no later output needs, then appends `n` samples (from `src`, or silence when it is 0).

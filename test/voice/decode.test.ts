@@ -146,6 +146,11 @@ describe("Resampler", () => {
     expect(count).toBe(9_600_000);
   });
 
+  it("refuses a rate outside 8 to 192 kHz itself, whoever builds it (final review)", () => {
+    for (const rate of [4_294_967_295, 192_001, 7_999, 44_100.5])
+      expect(() => new Resampler(rate, () => {}), `${rate}`).toThrow(UnsupportedAudio);
+  });
+
   it("keeps every sample, the last included, when the rate is already 16 kHz", () => {
     const input = ramp(1_000);
     expect(run(16_000, split(input, [3, 1, 250]))).toEqual([...input]);
@@ -170,6 +175,35 @@ function amplitudeAt(samples: Int16Array, hz: number, rate = 16_000): number {
   return (2 * Math.sqrt(Math.max(power, 0))) / (to - from);
 }
 const dB = (ratio: number) => 20 * Math.log10(ratio);
+// What is left of a 16 kHz signal after the least-squares sinusoid at `hz` is taken out, over the middle of the
+// signal, in dB against a 0.5-amplitude tone: the filter's noise and distortion, which a level alone does not show.
+function residualDb(samples: Int16Array, hz: number): number {
+  const from = Math.floor(samples.length * 0.2);
+  const to = Math.floor(samples.length * 0.8);
+  const w = (2 * Math.PI * hz) / 16_000;
+  let cc = 0;
+  let ss = 0;
+  let cs = 0;
+  let xc = 0;
+  let xs = 0;
+  for (let i = from; i < to; i++) {
+    const c = Math.cos(w * i);
+    const n = Math.sin(w * i);
+    const x = (samples[i] as number) / 32768;
+    cc += c * c;
+    ss += n * n;
+    cs += c * n;
+    xc += x * c;
+    xs += x * n;
+  }
+  const det = cc * ss - cs * cs;
+  const a = (xc * ss - xs * cs) / det;
+  const b = (xs * cc - xc * cs) / det;
+  let rest = 0;
+  for (let i = from; i < to; i++)
+    rest += ((samples[i] as number) / 32768 - a * Math.cos(w * i) - b * Math.sin(w * i)) ** 2;
+  return dB(Math.sqrt(rest / (to - from)) / (0.5 * Math.SQRT1_2));
+}
 const toneAt = (rate: number, hz: number) => wavFile(tone(rate, 1, hz, 0.5), rate, 1);
 async function resampled(rate: number, hz: number): Promise<Int16Array> {
   const out: Uint8Array[] = [];
@@ -178,14 +212,18 @@ async function resampled(rate: number, hz: number): Promise<Int16Array> {
 }
 
 describe("the resampler's filter (D01 T03 §9)", () => {
-  // 44,101 Hz has 16,000 output phases, past what is precomputed: the table path.
-  for (const rate of [48_000, 44_100, 44_101])
+  // 44,101 Hz has 16,000 output phases, more than are held one per phase: the kernel blends its table's sets. 96 and
+  // 192 kHz are the top of the range taken (the final review).
+  for (const rate of [48_000, 44_100, 44_101, 96_000, 192_000])
     it(`keeps the passband flat and folds nothing back from ${rate} Hz`, async () => {
       // The passband, to 0.4 of the output rate: within 0.5 dB of the input's 0.5 amplitude.
       for (const hz of [300, 1_000, 3_000, 6_400]) {
         const level = dB(amplitudeAt(await resampled(rate, hz), hz) / 0.5);
         expect(Math.abs(level), `${hz} Hz`).toBeLessThan(0.5);
       }
+      // Noise and distortion around the tone: at most -80 dB at 6.4 kHz (a timing error of 1/512 of a sample, from
+      // reading the wrong tap set, leaves about -66 dB; the filter as built, about -90 dB). Final review.
+      expect(residualDb(await resampled(rate, 6_400), 6_400), `${rate} Hz residual`).toBeLessThan(-80);
       // The stopband: what a tone above 8 kHz would fold into is at least 60 dB down.
       for (const [hz, alias] of [
         [9_000, 7_000],

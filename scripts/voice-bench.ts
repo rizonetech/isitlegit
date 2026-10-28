@@ -81,6 +81,9 @@ const ms = (value: number | null) => (value === null ? "-" : `${value} ms`);
 if (import.meta.filename === process.argv[1]) {
   const ours = report("worker", "test/voice/bench.test.ts");
   const ffmpeg = report("node", "test/node/voice-bench.test.ts");
+  // Rows are paired by name: the two halves must time the same inputs in the same order.
+  const names = (r: Report) => r.rows.map((row) => row.name).join("\n");
+  if (names(ours) !== names(ffmpeg)) throw new Error("voice-bench: the two halves timed different inputs");
   const path = join(import.meta.dirname, "../build/voice-bench.json");
   saveReport(path, { at: new Date().toISOString(), ours, ffmpeg });
   console.log(`ours: ${ours.decoder}\nFFmpeg: ${ffmpeg.decoder}\nsaved: build/voice-bench.json\n`);
