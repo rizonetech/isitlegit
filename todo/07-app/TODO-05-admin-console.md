@@ -71,7 +71,8 @@ Every organisation (name, created, domains verified, members, cases this week, t
 
 - [ ] Build `src/web/pages/admin.tsx` with the organisation table and CSV export. Done when: `test/web/admin-page.test.ts` checks rows and the CSV.
 - [ ] Show spend today and in total per provider against the caps and the reserve. Done when: a seeded spend renders the right percentages.
-- [ ] Add invite-code management (create with label and uses, list, revoke). Done when: a revoked code is refused at signup.
+- [ ] Add invite-code management (create with label and uses, list with uses and expiry, revoke by setting its expiry to now in `invite_codes`, migration 0013, D07 T02 §4). Done when: a revoked code is refused at signup and accounts made with it are unaffected.
+- [ ] Set an organisation's daily case cap (`org_limits.daily_cases`, D07 T02 §4) from the organisation table, 0 to 50 (the event maximum), read back after saving. Done when: `test/web/admin-page.test.ts` lowers a cap, reads it back, and the next `admitCase` for that organisation is refused at the new limit. Source: D07 T02 §4 completion review (Part 1 item 11).
 - [ ] Commit: `admin: cross-organisation overview, spend and invite codes`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes.
