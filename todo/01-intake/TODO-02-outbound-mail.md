@@ -139,7 +139,7 @@ The member gets the answer as a reply in the same thread (spec 4.1): verdict, to
 - [x] Never send a second reply for the same case: the step checks `mail_sends` first. Done when: re-running the step sends nothing. Cheaper substitute: none; a retried step would otherwise mail twice. (**Corrected 2026-10-28** at start: `sendMail` already answers a key on record as `duplicate` without sending (D01 T02 §1), so the step's one key per case is the check; the test proves it through the step.)
 - [ ] Commit: `mail: threaded verdict reply with the signed report link`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/analysis-workflow.test.ts` passes and fails if the reply step sends twice.
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/analysis-workflow.test.ts test/pipeline/reply-step.test.ts` passes and fails if the reply step sends twice. (**Corrected 2026-10-28**, completion review: the send and duplicate proofs are in `test/pipeline/reply-step.test.ts`, which the checkpoint had left out.)
 
 ## 4. Test and demo mail aliases
 
