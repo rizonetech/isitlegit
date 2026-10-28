@@ -230,6 +230,8 @@ Astra researches and downloads public phishing-page datasets under the brief (§
 
 ## 6. Benign real pages rendered locally
 
+> **Started:** 2026-10-28T16:58:00Z
+
 The screener must tell lures from the real pages they copy, so the training set needs many real login, checkout and home pages, rendered by our own browser from known-good URLs only. Form flags come from the page's DOM, not a model.
 
 **Phase:** 0
@@ -243,12 +245,13 @@ The screener must tell lures from the real pages they copy, so the training set 
 
 - [ ] Download the Tranco top list and keep its top 5,000 domains in the store as `raw/tranco/top-5000.csv`, recording its licence and list ID in `docs/glimmer/sources.md`. Done when: the file has 5,000 rows and the row exists. Source: https://tranco-list.eu
 - [ ] Write `eval/glimmer/benign-sa-urls.txt`: at least 150 login, checkout and account pages of South African brands lures copy (banks, SARS eFiling, telcos, retailers, couriers, municipalities, Microsoft 365 and Google sign-in), plus at least 50 real shop product and checkout pages, 50 company about and contact pages (including suppliers' banking-details pages where public), and 30 public social network profile or page views, each line tagged with its kind. Done when: `test/node/benign-urls.test.ts` counts at least 150 login, checkout or account URLs and the three new kinds at their minimums, all `https`, none duplicated. **Corrected 2026-10-28:** the shop, company and social kinds added (operator question 2026-10-28 16:12 SAST: fake shops, social networks and corporate sites too; widened 16:15 SAST).
-- [ ] Write `scripts/glimmer/render.ts` with `playwright-core` and `chromiumPath()` (`test/node/browser.ts`): 1280 by 800 viewport, downloads refused, 20-second limit, the full-page screenshot cut to 2000 px, and the visible text. Done when: `test/node/glimmer-render.test.ts` renders a local fixture page with both parts.
+- [ ] Write `renderPage()` in `scripts/glimmer/render.ts` with `playwright-core` and `chromiumPath()` (`scripts/lib/chromium.ts`): a fresh context per page, 1280 by 800 viewport, downloads, permissions, pop-ups and service workers refused, no stored credentials, a 20-second limit, the full-page screenshot as a JPEG cut to 2000 px through `normaliseScreenshot()` (§5), and the visible text (`innerText`). Done when: `test/node/glimmer-render.test.ts` renders a local fixture page with both parts and refuses a page that times out. **Corrected 2026-10-28:** `chromiumPath()` moved to `scripts/lib/chromium.ts` (§5), and the context's limits are named.
 - [ ] Set `has_login_form` from a visible `input[type=password]` and `has_payment_form` from card fields (`autocomplete` `cc-number` or `cc-csc`, or a payment-provider iframe) in `render.ts`. Done when: the test's login, card and plain fixtures get the right flags.
-- [ ] Render the homepage of each Tranco domain and every South African URL, storing results through `putPage` with `lure: false` and `origin: benign`. Done when: `counts()` shows at least 3,000 benign pages and failures are listed in `raw/benign/failures.csv`.
+- [ ] Write the batch run in `render.ts`: four pages at a time, each rendered page stored through `await putPage` with `origin: benign`, `licence` naming its list, `host` (the final URL's lowercase host), `template: null`, `south_africa` (a `.za` host or the South African list), labels `lure: false`, `lure_type: none`, the DOM form flags and, from the South African list, `brand`, with `label_source` `ground-truth` for `lure`, `lure_type` and `brand` and `dom` for the form flags; each URL's outcome appended to `raw/benign/progress.jsonl` so a rerun skips what is done, and each failure (timeout, refused, error page, a redirect to another site's sign-in) to `raw/benign/failures.csv`. Done when: the test renders three local fixture URLs, stores two, records one failure, and a rerun stores nothing twice. **Corrected 2026-10-28:** `putPage` is async and needs §3's page fields; about 5,000 live renders need concurrency and a resumable run.
+- [ ] Render the homepage of each Tranco domain and every South African URL with the batch run in the background. Done when: `counts()` shows at least 3,000 benign pages, at least 300 of them South African, and the failures are listed in `raw/benign/failures.csv`.
 - [ ] Commit: `glimmer: benign real pages rendered locally`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/benign-urls.test.ts` passes and fails if a password field does not set `has_login_form`.
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/benign-urls.test.ts` passes and fails if a password field does not set `has_login_form`, a card field does not set `has_payment_form`, or a rerun stores a page twice.
 
 ## 7. Redacted sample mail converted to pages
 
