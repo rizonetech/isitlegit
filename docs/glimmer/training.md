@@ -30,6 +30,8 @@ training mode: image
 
 ## Dataset
 
+- 2026-10-28 18:50 UTC, label spot check `scamferret`: 50 pages drawn with a fixed seed (20261028) from the 2,349 stored, each screenshot viewed against its `lure` and `lure_type`. No label was clearly wrong; 2 were doubtful (a Dutch crypto-trading course and a Russian cloud-mining service, both from the dataset's legitimate investment category), counted as errors: 4 percent, under the 10 percent line, so the source's labels stay `ground-truth`. The check also found one Shift_JIS page stored as mojibake, which led to `decodeHtml()` and a clean reimport of the source (commit 2d2a94e). Renders of dataset HTML carry no styles or images (the renderer fetches nothing), and some show a cookie banner the page drew itself.
+
 ## Training
 
 ## Deployment
@@ -37,3 +39,6 @@ training mode: image
 ## Measurements
 
 ## Decisions
+
+- 2026-10-28 20:50 SAST, operator: the US$60 a-run training cap is lifted until 2026-11-30 23:59 SAST, while Glimmer's supervised fine-tuning is free, and applies again from 2026-12-01 by the date in `scripts/glimmer/train_serverless.py` (D03 T04 §11). The lift holds only once the probe's 24-hour bill reconciliation reads US$0 rated for training; until then, or if it reads more, US$60 stands. Reversing it costs nothing: the cap returns by date. With the cap lifted, the time left before 2026-11-01 12:00 SAST bounds the training set instead.
+- 2026-10-28 20:50 SAST, operator: many more public sources go into Loupe 1.0 rather than a later 1.1 (D03 T04 §18): a second Astra sweep aimed at lures, ten more PhreshPhish shards, the 7 Days Later sample and the Majestic Million's top 20,000.

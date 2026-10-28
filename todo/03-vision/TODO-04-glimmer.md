@@ -44,7 +44,7 @@ track: day-6
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [ ] |
 | 7 | §8 | Synthetic South African lures | §6, §7 | [ ] |
 | 8 | §9 | Spark teacher labels and human check | §5, §6, §7, §8 | [ ] |
-| 9 | §10 | Deduplicated seed-disjoint training set | §2, §9 | [ ] |
+| 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [ ] |
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [ ] |
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [ ] |
 | 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
@@ -53,7 +53,7 @@ track: day-6
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [ ] |
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
-| 18 | §18 | Loupe 1.1 on a larger set, if time allows | §13, §17 | [ ] |
+| 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -367,7 +367,8 @@ Train the LoRA on Fireworks while the free offer lasts (until 2026-11-30), with 
 2. Train, promote and record. Done when: the promoted model's ID and the run's billed amount are recorded.
 
 - [ ] Write `scripts/glimmer/train_serverless.py` (the SDK in `~/.venvs/fireworks`) that opens a LoRA session on `accounts/fireworks/models/muse-glimmer-30b` (Fireworks' default rank), streams `train.jsonl` in batches as cross-entropy examples built with the session tokenizer (screenshots as `ImageChunk` in `image` mode), steps Adam once a batch for one epoch, saves a training checkpoint every 200 steps for resume, saves the sampler checkpoint `loupe-1-0` (at most 17 characters) at the end, and promotes it to the model `isitlegit-loupe-1-0`. Done when: `tests/scripts/test_train_serverless.py` shows the calls, in order, against a fake SDK. Source: https://docs.fireworks.ai/fine-tuning/training-api/serverless (sessions, checkpoints, promotion). **Corrected 2026-10-28:** was `scripts/glimmer/train.ts` uploading a dataset for a managed job.
-- [ ] Refuse to start when the tokens to send, counted with the session tokenizer, times US$5.86 a million would pass the cap of US$60 for a run (the Fireworks budget is US$90 in all, design spec section 11), and stop the loop when the running count reaches it, saving a checkpoint first. Done when: the test refuses an oversized dataset and stops a run at the cap with a checkpoint saved.
+- [ ] Refuse to start when the tokens to send, counted with the session tokenizer, times US$5.86 a million would pass the cap of US$60 for a run (the Fireworks budget is US$90 in all, design spec section 11), and stop the loop when the running count reaches it, saving a checkpoint first. Until 2026-11-30 23:59 SAST the cap is lifted, but only while the `Probe` reconciliation below reads US$0 rated for training (proof that Glimmer's supervised fine-tuning is free under the offer); a reconciliation that reads more, or none yet, keeps US$60. From 2026-12-01 the US$60 cap applies again by the date in the code, with no step to remember. Done when: `tests/scripts/test_train_serverless.py` refuses an oversized dataset and stops a run at the cap with a checkpoint saved when the cap applies, runs it whole on 2026-11-30 with a US$0 reconciliation, and applies the cap again on 2026-12-01 and with a nonzero or missing reconciliation. **Corrected 2026-10-28 (operator, 20:50 SAST: "lift the cap until 30 November, just remember to put it back"):** the cap held 1.0 to a few thousand screenshot examples; the lift's end date is in the code, and the decision line under `Decisions` in `docs/glimmer/training.md` names it.
+- [ ] Train on as much of `train.jsonl` as fits the time left: from the timed 50-example batch's tokens a second, take a seeded subset (every source and `lure_type` kept in proportion) whose tokens train before 2026-11-01 22:00 SAST, leaving two hours to deploy and measure; the evaluation file is never cut. Done when: the test cuts a fixture set to a fake rate's window, keeps the proportions within 2 points, and records the subset's size and seed under `Training`. **Corrected 2026-10-28:** with the cap lifted, time and not money bounds the set.
 - [ ] Refuse to start on or after 2026-11-01 12:00 SAST (training takes hours, and every test and retrain is finished before 2026-11-02 00:00 SAST for the competition; operator, 2026-10-28 15:29 SAST), which also keeps every run inside the free offer (until 2026-11-30), or when the file's SHA-256 differs from the one recorded in `docs/glimmer/training.md`; a run interrupted before the cutoff may resume after it from its last checkpoint. Done when: the test proves both refusals.
 - [ ] Before the first training run, reconcile §2's probe bill: read the rated training spend over the probe session's window once 24 hours have passed since it completed, and record the result under `Probe` beside the earlier `pending` line. Done when: the line reads `reconciled: US$0.00`; a non-zero amount stops this file and is recorded for the operator.
 - [ ] Record each Loupe version under `Training` in `docs/glimmer/training.md` as `Loupe <version>: <Fireworks model ID>, trained <date>, dataset <train.jsonl SHA-256>, job <id>` when its job is created. Done when: the line exists for every version started, failed ones included.
@@ -515,9 +516,9 @@ Each Loupe version gets a model card the judges and the operator can read, gener
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_model_card` passes and fails if a figure is missing, typed rather than read from the records, or the records disagree.
 
-## 18. Loupe 1.1 on a larger set, if time allows
+## 18. Many more public sources for Loupe 1.0
 
-Loupe 1.0 is held to US$60 of rated tokens a run (§11), which fits only a few thousand screenshot examples, so 1.0 trains on what §5 to §9 gather. If 1.0 is measured early enough, 1.1 trains on a larger set with that cap lifted for this run only: Glimmer's supervised fine-tuning is free until 2026-11-30, so the cap guards against a surprise bill rather than a real one (operator, 2026-10-28 20:25 SAST: "let's plan for it and we can do it if there is time"). More lures matter most, because benign pages already outnumber them and §10 holds lures to 40 to 60 percent of each split.
+Loupe 1.0 trains on as much good data as the time allows (operator, 2026-10-28 20:50 SAST: "lift the cap until 30 November ... Then add many more sources"; §11 lifts the cap while training is free). Lures are the scarce side: benign pages already outnumber them and §10 holds lures to 40 to 60 percent of each split, so every new source is chosen first for its lures. **Corrected 2026-10-28:** was "Loupe 1.1 on a larger set, if time allows", after 1.0; the operator moved the larger set into 1.0.
 
 **Phase:** 0
 **Needs:** none
@@ -525,23 +526,20 @@ Loupe 1.0 is held to US$60 of rated tokens a run (§11), which fits only a few t
 
 **Build order:**
 
-1. Decide whether there is time. Done when: `docs/glimmer/training.md` records under `Decisions` that 1.1 runs or that it does not, with the times.
-2. Gather the larger set. Done when: the store holds the added sources and §6's wider benign list, each reconciled.
-3. Train, measure and choose. Done when: 1.1 is measured on 1.0's held-out set and the better version is promoted.
+1. Widen the search. Done when: a second Astra sweep has recorded every new candidate in `docs/glimmer/sources.md`.
+2. Bring in the larger sets. Done when: each accepted source's `IMPORT.json` reads `complete` and `node scripts/glimmer/sources.ts check` prints `sources: reconciled`.
+3. Widen the benign homepages. Done when: `benignCoverage()` reports the wider Majestic slice.
 
-- [ ] Decide from the clock: run 1.1 only when 1.0's §13 measurement is recorded before 2026-10-31 18:00 SAST, which leaves time to gather, build and train before §11's start cutoff of 2026-11-01 12:00 SAST and to measure before 2026-11-02 00:00 SAST. Otherwise record `1.1 not run: <reason>` and tick every remaining item of this section with that line as its result. Done when: the decision line is under `Decisions` in `docs/glimmer/training.md` with 1.0's measurement time.
-- [ ] Fetch three more PhreshPhish train shards to a temporary name, each checked against the dataset's published SHA-256 before it is renamed into place (as §5 checked shards 000 and 001; §16's resumable downloader is Phase 7) into `<store>/raw/phreshphish/`, and import them with `scripts/glimmer/import-phreshphish.ts`. Done when: `raw/phreshphish/IMPORT.json` reads `complete` with the new rows counted and `node scripts/glimmer/sources.ts check` prints `sources: reconciled`.
+- [ ] Write `docs/glimmer/astra-collection-brief-2.md` for a second Astra sweep aimed at lures (fake shops, social and corporate impersonation, tech-support, investment and delivery scams, phishing kits rendered to pages), with the same licence rule, size limit and refusals as the first brief, and listing the 15 sources already decided so none is researched twice. Done when: the brief exists and `python3 scripts/astra-collect.py --brief docs/glimmer/astra-collection-brief-2.md` accepts it. Cheaper substitute: searching only the sources already known.
+- [ ] Run the second sweep in the background and read its report, re-reading each accepted licence at its source and checking every file's SHA-256 as §5 did. Done when: every new candidate has a row in `docs/glimmer/sources.md` with its decision and licence link.
+- [ ] Fetch ten more PhreshPhish train shards (`train-002` to `train-011`) to a temporary name, each checked against the dataset's published SHA-256 before it is renamed into place (§16's resumable downloader is Phase 7), export them with `scripts/glimmer/phreshphish_rows.py` and import them with `scripts/glimmer/import-phreshphish.ts`. Done when: `raw/phreshphish/IMPORT.json` reads `complete` with the new rows counted, and `sources.md` names the shards.
 - [ ] Re-read the 7 Days Later dataset's licence at https://zenodo.org/records/14885725 and, if it is still CC BY 4.0 with its public sample open, raise the 5 GB source limit for this one source in `docs/glimmer/sources.md` with the reason, download the sample with its published checksum checked, and write `scripts/glimmer/import-7dayslater.ts` with a two-item fixture test as §5's converters have. Done when: the source's row reads `accepted` with its import counts, or `rejected` with the reason found. Cheaper substitute: skipping the source and recording why.
-- [ ] Widen §6's benign homepages from the Majestic Million's top 5,000 to its top 20,000 in `raw/majestic/top.csv` (the 600 `.za` domains kept), and render the new domains with `node scripts/glimmer/render.ts run majestic` in the background; the journal skips what is done. Done when: `benignCoverage()` reports the new total and `raw/benign/progress.jsonl` has an outcome for every new domain.
-- [ ] Run §9's labelling on the new pages that lack labels, and rebuild the set with `scripts/glimmer/build-dataset.ts` as version 1.1, keeping 1.0's held-out evaluation file unchanged so the two versions are compared on the same pages. Done when: `docs/glimmer/dataset-1.1.json` exists and its evaluation SHA-256 equals 1.0's.
-- [ ] Add `--cap-usd <n>` to `scripts/glimmer/train_serverless.py`, refusing a value above US$60 unless the run's version is 1.1 or later and the operator's approval line (date and amount) is under `Decisions` in `docs/glimmer/training.md`; the running count still stops the loop at the given cap. Done when: `tests/scripts/test_train_serverless.py` refuses a raised cap without the line, and stops a fake run at the raised cap.
-- [ ] Record the operator's approval of the raised cap (the amount, at most the US$90 Fireworks budget less what 1.0 spent, rated even though the offer makes it free) under `Decisions`. Done when: the line names the amount and its date. **Needs the operator:** the amount is their decision, asked once in the session.
-- [ ] Train `isitlegit-loupe-1-1` with `train_serverless.py` on the 1.1 set before 2026-11-01 12:00 SAST, the run's progress and records written as §11 writes 1.0's. Done when: `<store>/runs/loupe-1.1/run.json` exists and `Training` in `docs/glimmer/training.md` has the run's lines.
-- [ ] Measure 1.1 with §13's evaluation on the same held-out set and promote it to the deployment only when its lure recall is at least 1.0's and its false-alarm rate no higher; otherwise keep 1.0 deployed and record why. Done when: `Measurements` has both versions' rows and `Decisions` names the deployed version.
-- [ ] Make Loupe 1.1's model card with `python3 scripts/glimmer/model_card.py`. Done when: `python3 scripts/glimmer/model_card.py --check` finds complete cards for 1.0 and 1.1.
-- [ ] Commit: `glimmer: Loupe 1.1 on a larger set`
+- [ ] Write a converter, with its two-item fixture test, for each source the second sweep accepts. Done when: each one's `IMPORT.json` reads `complete`.
+- [ ] Spot-check 50 random pages of each new source as §5 does and mark a source above 10 percent errors `unverified`. Done when: each new source's error rate is under `Dataset` in `docs/glimmer/training.md` and in its `sources.md` row.
+- [ ] Widen §6's benign homepages from the Majestic Million's top 5,000 to its top 20,000 in `raw/majestic/top.csv` (the 600 `.za` domains kept), and render the new domains with `node scripts/glimmer/render.ts run majestic` in the background; the journal skips what is done. Done when: `raw/benign/progress.jsonl` has an outcome for every new domain and `benignCoverage()` reports the new total.
+- [ ] Commit: `glimmer: many more public sources for Loupe 1.0`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_train_serverless` passes and fails if a raised cap runs without its recorded approval; `node scripts/glimmer/sources.ts check` prints `sources: reconciled`; `python3 scripts/glimmer/model_card.py --check` passes.
+**Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`; each new converter's test passes; `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes.
 
 ## Verification
 

@@ -335,7 +335,8 @@ describe("the batch run", () => {
     expect(readFileSync(journal, "utf-8").endsWith("}\n")).toBe(true);
     failing503 = 1;
     const urls = list(["/flaky"]);
-    expect(await runBatch({ list: urls, store, journal, render: renderer.render })).toMatchObject({ retry: 1 });
+    const first = await runBatch({ list: urls, store, journal, render: renderer.render });
+    expect(first, JSON.stringify(readJournal(journal).at(-1))).toMatchObject({ retry: 1 });
     expect(await runBatch({ list: urls, store, journal, render: renderer.render })).toMatchObject({ stored: 1 });
   });
 });
