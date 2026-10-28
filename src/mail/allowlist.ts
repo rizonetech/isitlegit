@@ -10,6 +10,8 @@
 //   verify                    demo aliases only (closed-loop verification goes only to the fictional demo businesses)
 //   alert                     demo aliases and the operator (impersonation and counterparty alerts, the operator's
 //                             unsettled-send handover), never a member's own address
+//   claim                     ownership codes (D07 T02 §5): admin@ or postmaster@ a domain with a pending claim, an
+//                             address with a pending claim, and nothing else (not even the demo aliases)
 import type { MailKind } from "./smtp2go";
 
 const DEMO_DOMAINS = new Set(["isitlegit.co.za", "demo.isitlegit.co.za"]);
@@ -35,6 +37,20 @@ async function isInvitee(db: D1Database, address: string, now: Date) {
   return row !== null;
 }
 
+// A pending ownership claim on this address: on it directly, or on its domain when it is admin@ or postmaster@.
+async function isClaimRecipient(db: D1Database, address: string) {
+  const at = address.lastIndexOf("@");
+  const local = address.slice(0, at);
+  const domain = address.slice(at + 1);
+  const row = await db
+    .prepare(
+      "SELECT 1 FROM org_addresses WHERE address = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_domains WHERE domain = ? AND state = 'pending' AND ? IN ('admin', 'postmaster') LIMIT 1",
+    )
+    .bind(address, domain, local)
+    .first();
+  return row !== null;
+}
+
 export async function isAllowedRecipient(
   db: D1Database,
   to: string,
@@ -48,6 +64,8 @@ export async function isAllowedRecipient(
   switch (kind) {
     case "verify":
       return demo;
+    case "claim":
+      return isClaimRecipient(db, address);
     case "alert":
       return demo || operator;
     case "signin":

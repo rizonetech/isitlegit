@@ -21,7 +21,7 @@ import { isAllowedRecipient } from "./allowlist";
 
 export const SMTP2GO_URL = "https://api.smtp2go.com/v3/email/send";
 export const MAX_ATTEMPTS = 3;
-const KINDS = ["reply", "signin", "verify", "alert", "notice", "renewal"] as const;
+const KINDS = ["reply", "signin", "verify", "alert", "notice", "renewal", "claim"] as const;
 export type MailKind = (typeof KINDS)[number];
 // Headers SMTP2GO refuses in custom_headers.
 const FORBIDDEN_HEADERS = new Set(["content-type", "content-transfer-encoding", "mime-version"]);

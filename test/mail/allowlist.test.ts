@@ -90,6 +90,40 @@ describe("isAllowedRecipient", () => {
     }
   });
 
+  it("sends ownership codes (claim) only to a pending claim's recipients, and closed-loop verify mail never there", async () => {
+    const now = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO org_domains (id, org_id, domain, token, state, created_at) VALUES ('d-pending', 'o1', 'claimed.co.za', 'tttttttttttttttt', 'pending', ?)",
+        )
+        .bind(now),
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO org_domains (id, org_id, domain, token, state, created_at) VALUES ('d-done', 'o1', 'done.co.za', 'tttttttttttttttt', 'verified', ?)",
+        )
+        .bind(now),
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO org_addresses (id, org_id, address, state, created_at) VALUES ('a-pending', 'o1', 'boss@gmail.com', 'pending', ?)",
+        )
+        .bind(now),
+    ]);
+    for (const to of ["admin@claimed.co.za", "postmaster@claimed.co.za", "boss@gmail.com"]) {
+      expect(await allowed(to, "claim"), to).toBe(true);
+      expect(await allowed(to, "verify"), `verify ${to}`).toBe(false);
+    }
+    for (const to of [
+      "sales@claimed.co.za",
+      "admin@done.co.za",
+      "admin@never.co.za",
+      "member@example.com",
+      "contact@demo.isitlegit.co.za",
+      OPERATOR,
+    ])
+      expect(await allowed(to, "claim"), to).toBe(false);
+  });
+
   it("admits no operator when none is configured", async () => {
     expect(await isAllowedRecipient(db, OPERATOR, "alert", undefined)).toBe(false);
     expect(await isAllowedRecipient(db, OPERATOR, "alert", "")).toBe(false);

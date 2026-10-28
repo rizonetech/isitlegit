@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createAuth } from "./auth/auth";
+import { domainRoutes } from "./auth/domains";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
@@ -19,6 +20,8 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.ra
 app.post("/auth/sign-out", (c) => signOut(c.env, c.req.raw));
 // The app shell's organisation switcher (D07 T01 §3), src/auth/org.ts.
 app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
+// Domain and sending-address verification for owners and admins (D07 T02 §5), src/auth/domains.ts.
+app.route("/api/org", domainRoutes);
 
 // The Worker: HTTP through the app, and the cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail
 // sends from SMTP2GO's record (D01 T02 §5).
