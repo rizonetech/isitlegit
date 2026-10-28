@@ -105,6 +105,21 @@ class Tokens(unittest.TestCase):
         self.assertNotIn("image_url", seen)
 
 
+class Choose(unittest.TestCase):
+    def test_time_is_sized_in_lines_and_a_cap_in_tokens(self):
+        groups = ["a/credential"] * 600 + ["b/none"] * 400
+        tokens = [4_000] * 1000
+        now = at(2026, 11, 1, 21, 0)  # one hour before TRAIN_UNTIL
+        by_time = ts.choose(groups, tokens, now, 0.1, None, 5)  # 0.1 lines a second: 360 lines in the hour
+        self.assertLessEqual(len(by_time), 360)
+        self.assertGreaterEqual(len(by_time), 350)
+        share = sum(1 for i in by_time if groups[i] == "a/credential") / len(by_time)
+        self.assertAlmostEqual(share, 0.6, delta=0.02)
+        by_cap = ts.choose(groups, tokens, now, None, 1.0, 5)  # US$1 buys about 170,000 tokens: about 42 lines
+        self.assertLessEqual(sum(tokens[i] for i in by_cap), int(1.0 / ts.USD_PER_TOKEN))
+        self.assertEqual(ts.choose(groups, tokens, now, None, None, 5), list(range(1000)))
+
+
 class FakeLoop:
     """The cookbook's sft_loop as far as the wrapper uses it: a Config, main(), and the W&B logger it calls."""
 

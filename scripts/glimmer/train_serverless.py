@@ -138,6 +138,20 @@ def line_tokens(line, renderer, train_on):
     return sum(c.expected_tokens if c.type == "image" else len(c.tokens) for c in model_input.chunks)
 
 
+def choose(groups, tokens, now, lines_per_second, cap, seed):
+    """The lines to train on: cut first to what trains before TRAIN_UNTIL at the measured lines a second (the trainer's
+    own token metric counts text only, so time is sized in lines), then, when a cap applies, to the tokens it pays for
+    (images included). Each cut keeps sources and lure types in proportion with the seed."""
+    chosen = list(range(len(tokens)))
+    if lines_per_second:
+        window = int(lines_per_second * max(0.0, (TRAIN_UNTIL - now).total_seconds()))
+        chosen = [chosen[i] for i in fit([groups[i] for i in chosen], [1] * len(chosen), window, seed)]
+    if cap is not None:
+        picked = fit([groups[i] for i in chosen], [tokens[i] for i in chosen], int(cap / USD_PER_TOKEN), seed)
+        chosen = [chosen[i] for i in picked]
+    return chosen
+
+
 def read_lines(path):
     with open(path, encoding="utf-8") as handle:
         return [line for line in handle if line.strip()]
@@ -334,7 +348,8 @@ def main(argv=None, now=None):
     parser.add_argument("--train", default=None, help="train.jsonl (default: <store>/dataset/<version>/train.jsonl)")
     parser.add_argument("--measure", action="store_true", help=f"train {MEASURE_EXAMPLES} examples, unpromoted, to "
                                                                "measure tokens a second")
-    parser.add_argument("--tokens-per-second", type=float, help="the measured rate; the set is cut to the window")
+    parser.add_argument("--lines-per-second", type=float, help="the measured rate (the --measure run's lines over its "
+                                                                  "step seconds); the set is cut to the time window")
     parser.add_argument("--seed", type=int, default=20261101)
     args = parser.parse_args(argv)
     now = now or datetime.now(timezone.utc)
@@ -360,12 +375,8 @@ def main(argv=None, now=None):
         tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in lines]
         chosen = list(range(len(lines)))
         if not args.measure and not resuming:
-            budget = sum(tokens)
-            if args.tokens_per_second:
-                budget = min(budget, int(args.tokens_per_second * max(0.0, (TRAIN_UNTIL - now).total_seconds())))
-            if cap is not None:
-                budget = min(budget, int(cap / USD_PER_TOKEN))
-            chosen = fit(read_groups(train_file, len(lines)), tokens, budget, args.seed)
+            groups = read_groups(train_file, len(lines))
+            chosen = choose(groups, tokens, now, args.lines_per_second, cap, args.seed)
             subset = run_dir / "train.subset.jsonl"
             write_atomic(subset, "".join(lines[i] for i in chosen))
             append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(lines)} lines "

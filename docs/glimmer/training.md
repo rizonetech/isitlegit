@@ -37,6 +37,7 @@ training mode: image
 ## Training
 
 - 2026-10-28 19:32 to 19:34 UTC, throughput measure (unpromoted, `runs/loupe-1.0-measure`): 50 lines in 7 steps of 8, 58,143 tokens as the trainer counts them (about 1,160 a line), 1,066 to 1,212 tokens a second once warm, loss 0.880 to 0.047; about 3,400 lines an hour, so 24 hours of training holds about 80,000 lines and 40 hours about 135,000. Rated US$0.34 if billed.
+- 2026-10-29 correction to the 19:32 UTC measure: the trainer's `train/total_tokens` counts text tokens only (a real line is about 788 text and 3,312 image tokens by Glimmer's renderer), so its tokens a second do not size the set. By wall time, steps 2 to 6 trained 40 lines in 34.9 seconds, about 1.15 lines a second (about 4,100 lines an hour) once warm; 50 lines took 69.7 seconds with the first step's warm-up. `train_serverless.py --lines-per-second` sizes the set from this.
 
 ## Deployment
 
