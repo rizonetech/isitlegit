@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import MsgReader from "@kenjiuno/msgreader";
 import { describe, expect, it } from "vitest";
-import { makeMsg } from "../../scripts/fixtures/msg-builder";
+import { makeDecoyCompoundFile, makeMsg } from "../../scripts/fixtures/msg-builder";
 import { createCase } from "../../src/db/cases";
 import { ParseError } from "../../src/intake/mime";
-import { parseMsg } from "../../src/intake/msg";
+import { parseMsg, STRING_PROPERTY_LIMIT } from "../../src/intake/msg";
 import { BODY_PART_LIMIT, parseMessage, storeParsed } from "../../src/intake/parse";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { msgs, twin } from "../fixtures/msg/load";
@@ -58,7 +58,7 @@ describe("parseMsg", () => {
     ] as const)
       await expect(parseMsg(bytes), name).rejects.toBeInstanceOf(ParseError);
     // Each for its own reason: msgreader's returned error, and a well-formed file holding nothing.
-    await expect(parseMsg(msgs.notAMsg)).rejects.toThrow(/Unsupported file type/);
+    await expect(parseMsg(msgs.notAMsg)).rejects.toThrow(/not a compound file/);
     await expect(parseMsg(msgs.empty)).rejects.toThrow(/holds nothing readable/);
   });
 
@@ -84,11 +84,14 @@ describe("parseMsg", () => {
     expect(summary.forward).toEqual({ path: "msg", headersAvailable: true, otherOriginals: 0 });
   });
 
-  it("cuts a large body to §5's limit and keeps it whole", async () => {
+  it("cuts a large body to §5's limit and keeps it whole in its own charset", async () => {
     const { parsed } = await parseMsg(makeMsg({ transportHeaders: true, bodyRepeat: 30_000 }));
-    expect(new TextEncoder().encode(parsed.text ?? "").byteLength).toBeLessThanOrEqual(BODY_PART_LIMIT);
-    expect(parsed.truncated).toMatchObject([{ mediaType: "text/plain", charset: "utf-8", keptBytes: BODY_PART_LIMIT }]);
+    expect(parsed.text?.length).toBe(BODY_PART_LIMIT / 2);
+    expect(parsed.truncated).toMatchObject([
+      { mediaType: "text/plain", charset: "utf-16le", keptBytes: BODY_PART_LIMIT },
+    ]);
     expect(parsed.truncated[0]?.full.byteLength).toBeGreaterThan(BODY_PART_LIMIT);
+    expect(new TextDecoder("utf-16le").decode(parsed.truncated[0]?.full).startsWith(parsed.text ?? "?")).toBe(true);
   });
 
   describe("completion review cases", () => {
@@ -120,6 +123,56 @@ describe("parseMsg", () => {
       await expect(parseMsg(msgs.malformedHeaders)).rejects.toThrow(/transport headers is not text/);
       await expect(parseMsg(msgs.forgedSize)).rejects.toThrow(/declares 268435456 bytes/);
       await expect(parseMsg(msgs.forgedSize)).rejects.toBeInstanceOf(ParseError);
+    });
+  });
+
+  describe("round 1 cases", () => {
+    it("refuses a DIFAT chain that loops, in bounded time", async () => {
+      // The reviewer's file: one more sector, named as the DIFAT's first, whose next link points at itself.
+      const sector = 512;
+      const looped = new Uint8Array(msgs.full.byteLength + sector);
+      looped.set(msgs.full);
+      const view = new DataView(looped.buffer);
+      const id = msgs.full.byteLength / sector - 1;
+      view.setUint32(68, id, true);
+      view.setUint32(msgs.full.byteLength + sector - 4, id, true);
+      view.setUint32(72, 0x7fffffff, true);
+      await expect(parseMsg(looped)).rejects.toThrow(/sector tables are larger than the file/);
+      view.setUint32(72, 2, true);
+      await expect(parseMsg(looped)).rejects.toThrow(/already in use/);
+    });
+
+    it("refuses a compound file that is not a message", async () => {
+      await expect(parseMsg(makeDecoyCompoundFile())).rejects.toThrow(/has no message properties/);
+    });
+
+    it("reads 8-bit strings declared UTF-8", async () => {
+      const text = new TextEncoder().encode("Please pay \u20ac100 today. \u041f\u0440\u0438\u0432\u0435\u0442\r\n");
+      const { parsed } = await parseMsg(
+        makeMsg({
+          transportHeaders: true,
+          ansi: { subject: new TextEncoder().encode("Pay"), text },
+          messageCodepage: 65001,
+        }),
+      );
+      expect(parsed.text).toBe("Please pay \u20ac100 today. \u041f\u0440\u0438\u0432\u0435\u0442\r\n");
+    });
+
+    it("refuses a text property over the limit rather than decoding it", async () => {
+      const subject = "x".repeat(STRING_PROPERTY_LIMIT / 2 + 1);
+      await expect(parseMsg(makeMsg({ transportHeaders: true, subject }))).rejects.toThrow(/more than 1048576/);
+    });
+
+    it("takes a short file name, refuses a binary one, and keeps an OLE object's own name and type", async () => {
+      const short = await parseMsg(makeMsg({ transportHeaders: true, pdf: "short-name" }));
+      expect(short.parsed.attachments[0]).toMatchObject({ filename: "INV77.PDF", mediaType: "application/pdf" });
+      await expect(parseMsg(makeMsg({ transportHeaders: true, pdf: "binary-name" }))).rejects.toThrow(
+        /attachment file name is not text/,
+      );
+      const ole = await parseMsg(makeMsg({ transportHeaders: true, pdf: "ole" }));
+      expect(ole.parsed.attachments[0]).toMatchObject({ filename: "payment.doc", mediaType: "application/msword" });
+      // The embedded message beside it is still one.
+      expect(ole.parsed.attachments[2]).toMatchObject({ mediaType: "application/vnd.ms-outlook" });
     });
   });
 });

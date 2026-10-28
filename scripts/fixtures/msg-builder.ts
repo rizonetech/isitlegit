@@ -74,7 +74,9 @@ function addProperties(cfb: CFB.CFB$Container, path: string, header: Uint8Array,
 // `bodyRepeat` repeats the text body that many times, for the body limits (D01 T01 §5).
 // `bodyRepeat` and `htmlRepeat` repeat the text and HTML bodies (§5's limits); `ansi` writes the subject and text as 8-bit
 // strings in `messageCodepage` (1252 by default) instead of Unicode; `html` and `internetCodepage` replace the HTML body
-// and its code page; `binaryHeaders` stores the transport headers as binary, a malformed property.
+// and its code page; `binaryHeaders` stores the transport headers as binary, a malformed property; `subject` replaces the
+// subject; `pdf` changes the first attachment: only a short file name, its file name stored as binary, or an OLE object
+// (attach method 6, a Word document storage) in its place.
 export type Variant = {
   transportHeaders: boolean;
   rtfOnly?: boolean;
@@ -85,6 +87,8 @@ export type Variant = {
   html?: Uint8Array;
   internetCodepage?: number;
   binaryHeaders?: boolean;
+  subject?: string;
+  pdf?: "short-name" | "binary-name" | "ole";
 };
 
 export function makeMsg({
@@ -97,6 +101,8 @@ export function makeMsg({
   html,
   internetCodepage,
   binaryHeaders = false,
+  subject = SUBJECT,
+  pdf,
 }: Variant): Uint8Array {
   const cfb = CFB.utils.cfb_new();
   // The top-level header: 8 reserved bytes, next recipient id, next attachment id, recipient count, attachment count,
@@ -120,7 +126,7 @@ export function makeMsg({
         ]
       : [
           long(0x340d, 0x00040000),
-          unicode(0x0037, SUBJECT),
+          unicode(0x0037, subject),
           ...(messageCodepage ? [long(0x3ffd, messageCodepage)] : []),
         ]),
     unicode(0x0c1a, FROM_NAME),
@@ -150,13 +156,29 @@ export function makeMsg({
     unicode(0x39fe, TO),
   ]);
   if (!rtfOnly) {
-    addProperties(cfb, "/__attach_version1.0_#00000000/", new Uint8Array(8), [
-      long(0x3705, 1),
-      unicode(0x3707, "invoice-77.pdf"),
-      unicode(0x3704, "invoice-77.pdf"),
-      unicode(0x370e, "application/pdf"),
-      binary(0x3701, PDF),
-    ]);
+    addProperties(
+      cfb,
+      "/__attach_version1.0_#00000000/",
+      new Uint8Array(8),
+      pdf === "ole"
+        ? [long(0x3705, 6), unicode(0x3707, "payment.doc"), unicode(0x370e, "application/msword")]
+        : [
+            long(0x3705, 1),
+            ...(pdf === "short-name"
+              ? []
+              : [
+                  pdf === "binary-name"
+                    ? binary(0x3707, new TextEncoder().encode("bad.pdf"))
+                    : unicode(0x3707, "invoice-77.pdf"),
+                ]),
+            unicode(0x3704, pdf === "short-name" ? "INV77.PDF" : "invoice-77.pdf"),
+            unicode(0x370e, "application/pdf"),
+            binary(0x3701, PDF),
+          ],
+    );
+    // An OLE object's data is a storage of its own ([MS-OXMSG] 2.2.2.1), here a Word document's main stream.
+    if (pdf === "ole")
+      CFB.utils.cfb_add(cfb, "/__attach_version1.0_#00000000/__substg1.0_3701000D/WordDocument", cp1252("Word bytes"));
     // An inline image the HTML names by content id.
     addProperties(cfb, "/__attach_version1.0_#00000001/", new Uint8Array(8), [
       long(0x3705, 1),
@@ -176,6 +198,15 @@ export function makeMsg({
     ]);
   }
   CFB.utils.cfb_add(cfb, "/__nameid_version1.0/__substg1.0_00020102", new Uint8Array(0));
+  return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);
+}
+
+// A compound file that is not a message: a Word document's stream beside a decoy body stream, with no property stream
+// and no message class, renamed .msg.
+export function makeDecoyCompoundFile(): Uint8Array {
+  const cfb = CFB.utils.cfb_new();
+  CFB.utils.cfb_add(cfb, "/__substg1.0_1000001F", utf16("Nothing to see here.\r\n"));
+  CFB.utils.cfb_add(cfb, "/WordDocument", cp1252("Word bytes ".repeat(500)));
   return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);
 }
 

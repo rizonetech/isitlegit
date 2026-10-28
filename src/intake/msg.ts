@@ -1,5 +1,7 @@
 // An attached Outlook .msg parsed into the same ParsedMessage as a MIME original (D01 T01 §6; spec 4.2), which
-// storeParsed (§5) stores. @kenjiuno/msgreader reads the compound file; it runs in the Worker under nodejs_compat.
+// storeParsed (§5) stores. The compound file's structure is checked first (cfb.ts), since @kenjiuno/msgreader trusts it;
+// msgreader then reads the properties (it runs in the Worker under nodejs_compat), except the top-level text and
+// Unicode HTML bodies, which are read and cut here in their own charset.
 //
 // The headers are the message's transport headers (PidTagTransportMessageHeaders), read by postal-mime as a header
 // block; a .msg without them (a draft, or a message saved before sending) has none, so `headersAvailable` is false and
@@ -11,6 +13,7 @@
 // ParseError, so the case ends partial naming why rather than as an empty message (reading RTF bodies: D01 T01 §13).
 import MsgReader from "@kenjiuno/msgreader";
 import PostalMime from "postal-mime";
+import { type CfbEntry, type CompoundFile, child, hide, readCompoundFile } from "./cfb";
 import { ParseError } from "./mime";
 import { BODY_PART_LIMIT, BODY_TOTAL_LIMIT, KEPT_PARTS_LIMIT, type ParsedMessage } from "./parse";
 
@@ -26,83 +29,117 @@ export async function parseMsg(bytes: Uint8Array): Promise<{ parsed: ParsedMessa
 
 type Fields = ReturnType<MsgReader["getFileData"]>;
 
-// Opens the file and reads its properties, 8-bit strings decoded in `ansiEncoding` (msgreader's own option).
-function open(bytes: Uint8Array, ansiEncoding?: string): { reader: MsgReader; data: Fields } {
-  const reader = new MsgReader(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength));
-  if (ansiEncoding) reader.parserConfig = { ansiEncoding };
-  guardSizes(reader, bytes.byteLength);
-  const data = reader.getFileData();
-  if (data.error || data.dataType !== "msg")
-    throw new ParseError(`the .msg could not be read: ${data.error ?? "not a message"}`);
-  return { reader, data };
-}
+// String properties other than the top-level bodies: each at most this many bytes, and all of them together at most
+// STRING_TOTAL_LIMIT. msgreader builds a string a character at a time, so a 17 MB Unicode body exhausted 128 MiB before
+// any limit applied (round 1); the top-level bodies are read and cut here instead, and a larger other property (a
+// subject, the transport headers, an embedded message's body) is a ParseError rather than a crash.
+export const STRING_PROPERTY_LIMIT = 1024 * 1024;
+export const STRING_TOTAL_LIMIT = 4 * 1024 * 1024;
 
-// WORKAROUND: msgreader allocates each stream at the size its directory entry declares before reading it, so one forged
-// size in a 10 KB file asked for 256 MiB (§6 completion review). It has no bound of its own; its directory is read in
-// one step (Reader.parse) before any stream, so that step is wrapped to refuse a declared stream larger than the file,
-// or streams declaring more together than the file can hold. Pinned at 1.29.0; the test with a forged size fails if an
-// upgrade moves the step.
-function guardSizes(reader: MsgReader, fileBytes: number) {
-  const inner = (
-    reader as unknown as { reader: { parse(): void; propertyData?: ({ sizeBlock?: number } | undefined)[] } }
-  ).reader;
-  const parse = inner.parse.bind(inner);
-  inner.parse = () => {
-    parse();
-    let declared = 0;
-    for (const entry of inner.propertyData ?? []) {
-      const size = entry?.sizeBlock ?? 0;
-      if (size > fileBytes)
-        throw new ParseError(`a stream in the .msg declares ${size} bytes, more than the file holds`);
-      declared += size;
-    }
-    // The mini stream lives inside the root entry's stream, so a sound file's streams declare at most about twice it.
-    if (declared > 2 * fileBytes + 65_536)
-      throw new ParseError("the .msg's streams declare more bytes than the file can hold");
-  };
+// The top-level bodies this reads itself ([MS-OXPROPS]: PidTagBody as Unicode or 8-bit, PidTagHtml as Unicode).
+const TEXT_UNICODE = "__substg1.0_1000001F";
+const TEXT_8BIT = "__substg1.0_1000001E";
+const HTML_UNICODE = "__substg1.0_1013001F";
+const PROPERTIES = "__properties_version1.0";
+const isString = (name: string) => /^__substg1\.0_[0-9A-F]{4}(001F|001E)$/i.test(name);
+const is8Bit = (name: string) => /^__substg1\.0_[0-9A-F]{4}001E$/i.test(name);
+
+// A fixed-size property from a storage's property stream ([MS-OXMSG] 2.4: a header of `header` bytes, then 16 bytes a
+// property: tag, flags, value); the 32-bit value of property `id` with type `type`, or null.
+function fixedProperty(file: CompoundFile, storage: CfbEntry, header: number, id: number, type: number) {
+  const stream = child(storage, PROPERTIES);
+  if (!stream) return null;
+  const bytes = file.read(stream);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let at = header; at + 16 <= bytes.byteLength; at += 16)
+    if (view.getUint16(at, true) === type && view.getUint16(at + 2, true) === id) return view.getUint32(at + 8, true);
+  return null;
 }
 
 async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headersAvailable: boolean }> {
-  let { reader, data } = open(bytes);
-  // 8-bit (ANSI) string properties are in the message's own code page (PidTagMessageCodepage); read again in it, so
-  // "€100" in code page 1252 is not "\u0080100".
-  const messageCodepage = data.messageCodepage;
-  if (typeof messageCodepage === "number" && messageCodepage !== 1200 && messageCodepage !== 65001)
-    ({ reader, data } = open(bytes, codepageLabel(messageCodepage)));
+  // The structure is checked before msgreader reads anything (cfb.ts), and a message needs its property stream and
+  // message class ([MS-OXMSG] 2.4, [MS-OXCMSG] 2.2.1.3): any other compound file (a Word document renamed .msg) is not
+  // one.
+  const file = readCompoundFile(bytes);
+  if (
+    !child(file.root, PROPERTIES) ||
+    !(child(file.root, "__substg1.0_001A001F") || child(file.root, "__substg1.0_001A001E"))
+  )
+    throw new ParseError("the .msg is not an Outlook message: it has no message properties");
+
+  const strings = file.entries.filter((entry) => entry.kind === "stream" && isString(entry.name));
+  const bodies = new Set(
+    [TEXT_UNICODE, TEXT_8BIT, HTML_UNICODE].map((name) => child(file.root, name)).filter((e) => e !== null),
+  );
+  let total = 0;
+  for (const entry of strings) {
+    if (bodies.has(entry)) continue;
+    if (entry.size > STRING_PROPERTY_LIMIT)
+      throw new ParseError(
+        `a text property of the .msg (${entry.name}) is ${entry.size} bytes, more than ${STRING_PROPERTY_LIMIT}`,
+      );
+    total += entry.size;
+  }
+  if (total > STRING_TOTAL_LIMIT)
+    throw new ParseError(`the .msg's text properties hold ${total} bytes, more than ${STRING_TOTAL_LIMIT}`);
+
+  // 8-bit strings are in the message's code page (PidTagMessageCodepage), Windows-1252 when it names none (Outlook's
+  // own default); msgreader decodes them with iconv-lite, which knows a few of the labels by other names.
+  const messageCodepage = fixedProperty(file, file.root, 32, 0x3ffd, 0x0003) ?? 1252;
+  const ansiLabel = codepageLabel(messageCodepage);
+  const ansiEncoding = ICONV_NAMES[ansiLabel] ?? ansiLabel;
+  const has8Bit = file.entries.some((entry) => entry.kind === "stream" && is8Bit(entry.name));
+  if (has8Bit && (ansiLabel.startsWith("utf-16") || ansiEncoding === "iso-2022-jp"))
+    throw new ParseError(`the .msg's 8-bit text is in code page ${messageCodepage}, which is not read`);
+
+  // The bodies msgreader would decode a character at a time are hidden from it when they are over the limit.
+  const large = [...bodies].filter((entry) => entry.size > STRING_PROPERTY_LIMIT);
+  const reader = new MsgReader(new DataView(...viewOf(large.length ? hide(bytes, large) : bytes)));
+  reader.parserConfig = { ansiEncoding };
+  const data: Fields = reader.getFileData();
+  if (data.error || data.dataType !== "msg")
+    throw new ParseError(`the .msg could not be read: ${data.error ?? "not a message"}`);
+
   const transport = optionalString(data.headers, "transport headers")?.trim() ? (data.headers as string) : null;
-  const body = optionalString(data.body, "text body");
-  const bodyHtml = optionalString(data.bodyHtml, "HTML body");
   const subject = optionalString(data.subject, "subject");
   if (data.html !== undefined && !(data.html instanceof Uint8Array))
     throw new ParseError("the .msg's HTML property is not binary");
   if (data.attachments !== undefined && !Array.isArray(data.attachments))
     throw new ParseError("the .msg's attachments are malformed");
+  const textEntry = child(file.root, TEXT_UNICODE) ?? child(file.root, TEXT_8BIT);
   const htmlBytes = data.html?.length ? data.html : null;
-  const hasBody = !!(body?.length || htmlBytes || bodyHtml?.length);
+  const htmlUnicode = htmlBytes ? null : child(file.root, HTML_UNICODE);
+  const hasBody = !!(textEntry?.size || htmlBytes || htmlUnicode?.size);
   if (!hasBody && data.compressedRtf?.length)
     throw new ParseError("the .msg's body is only compressed RTF, which is not read yet (D01 T01 §13)");
   if (!hasBody && !subject && !transport && !data.attachments?.length)
     throw new ParseError("the .msg holds nothing readable (an empty or cut-off file)");
 
-  // The bodies, cut to §5's limits with each cut part kept whole.
+  // The bodies, cut to §5's limits with each cut part kept whole in its own charset; a UTF-16 cut keeps whole code
+  // units.
   const truncated: ParsedMessage["truncated"] = [];
   let budget = BODY_TOTAL_LIMIT;
-  const bound = (full: Uint8Array, mediaType: string, charset: string | null) => {
-    const kept = Math.min(full.byteLength, BODY_PART_LIMIT, budget);
+  const bound = (full: Uint8Array, mediaType: string, charset: string) => {
+    let kept = Math.min(full.byteLength, BODY_PART_LIMIT, budget);
+    if (charset.startsWith("utf-16")) kept -= kept % 2;
     budget -= kept;
     if (kept < full.byteLength && truncated.length < KEPT_PARTS_LIMIT)
       truncated.push({ mediaType, charset, full, keptBytes: kept });
     return full.subarray(0, kept);
   };
-  const textBytes = body ? new TextEncoder().encode(body) : null;
-  const text = textBytes ? new TextDecoder().decode(bound(textBytes, "text/plain", "utf-8")) : null;
+  // A string stream's text without the terminating NULs some writers leave in it.
+  const textOf = (entry: CfbEntry, mediaType: string, charset: string) =>
+    decode(bound(file.read(entry), mediaType, charset), charset).replace(/\0+$/, "");
+  const text = textEntry?.size
+    ? textOf(textEntry, "text/plain", textEntry.name === TEXT_UNICODE ? "utf-16le" : ansiLabel)
+    : null;
   let html: string | null = null;
   if (htmlBytes) {
     // The HTML's own code page (PidTagInternetCodepage), UTF-8 when it names none.
     const charset = data.internetCodepage === undefined ? "utf-8" : codepageLabel(data.internetCodepage);
     html = decode(bound(htmlBytes, "text/html", charset), charset);
-  } else if (bodyHtml) {
-    html = new TextDecoder().decode(bound(new TextEncoder().encode(bodyHtml), "text/html", "utf-8"));
+  } else if (htmlUnicode?.size) {
+    html = textOf(htmlUnicode, "text/html", "utf-16le");
   }
 
   const attachments: ParsedMessage["attachments"] = [];
@@ -113,13 +150,24 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
     } catch (error) {
       throw new ParseError(`an attachment of the .msg could not be read: ${(error as Error).message}`);
     }
-    const embedded = field.innerMsgContent === true;
-    const contentId = field.pidContentId?.trim() ? `<${field.pidContentId.trim().replace(/^<|>$/g, "")}>` : null;
+    // An embedded message is attach method 5 (PidTagAttachMethod, afEmbeddedMessage); msgreader marks every
+    // attachment whose data is a storage, which an OLE object (method 6) is too ([MS-OXCMSG] 2.2.2.9).
+    const storage =
+      typeof field.folderId === "number" ? (file.entries.find((e) => e.id === field.folderId) ?? null) : null;
+    const method = storage?.parent ? fixedProperty(file, storage.parent, 8, 0x3705, 0x0003) : null;
+    const embedded = field.innerMsgContent === true && method === 5;
+    // The long file name, else the short one ([MS-OXPROPS] PidTagAttachLongFilename, PidTagAttachFilename).
+    const name =
+      optionalString(field.fileName, "attachment file name") ||
+      optionalString(field.fileNameShort, "attachment file name");
+    const contentId = optionalString(field.pidContentId, "attachment content id")?.trim()
+      ? `<${(field.pidContentId as string).trim().replace(/^<|>$/g, "")}>`
+      : null;
     attachments.push({
-      filename: exported.fileName || field.fileName || null,
+      filename: embedded ? exported.fileName || name || null : name || null,
       mediaType: embedded
         ? "application/vnd.ms-outlook"
-        : field.attachMimeTag?.trim().toLowerCase() || "application/octet-stream",
+        : optionalString(field.attachMimeTag, "attachment type")?.trim().toLowerCase() || "application/octet-stream",
       contentId,
       disposition: contentId ? "inline" : "attachment",
       bytes: exported.content,
@@ -210,6 +258,12 @@ function codepageLabel(codepage: number): string {
   if (!label) throw new ParseError(`the .msg uses code page ${codepage}, which has no decoder here`);
   return label;
 }
+
+// iconv-lite's names for the labels above it knows by another name (msgreader decodes 8-bit strings with it); it has no
+// ISO-2022-JP, so a message whose 8-bit strings are in that code page is refused.
+const ICONV_NAMES: Record<string, string> = { "x-mac-cyrillic": "maccyrillic", "iso-8859-8-i": "iso-8859-8" };
+
+const viewOf = (bytes: Uint8Array) => [bytes.buffer, bytes.byteOffset, bytes.byteLength] as const;
 
 // Bytes in a charset the runtime knows (every label above is a WHATWG one).
 const decode = (bytes: Uint8Array, charset: string) => new TextDecoder(charset).decode(bytes);
