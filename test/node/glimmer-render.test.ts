@@ -9,6 +9,7 @@ import {
   assertListLicence,
   benignCoverage,
   type Capture,
+  HttpStatus,
   isPublicAddress,
   type ListEntry,
   majesticList,
@@ -322,6 +323,19 @@ describe("the batch run", () => {
     expect(rendered).toBe(0);
     expect(store.manifest()).toHaveLength(1);
     expect(readJournal(journal).at(-1)?.event).toBe("stored");
+  });
+
+  it("retries a server error however Chromium reports it, and excludes a client error", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    // Some Chromium builds fail the navigation of an empty 5xx (net::ERR_HTTP_RESPONSE_CODE_FAILURE) instead of
+    // answering it; the renderer reports that as the status.
+    const failing = (status: number) => async () => {
+      throw new HttpStatus(status);
+    };
+    expect(await runBatch({ list: list(["/a"]), store, journal, render: failing(503) })).toMatchObject({ retry: 1 });
+    expect(await runBatch({ list: list(["/b"]), store, journal, render: failing(404) })).toMatchObject({ excluded: 1 });
+    expect(readJournal(journal).at(-1)?.reason).toBe("HTTP 404");
   });
 
   it("repairs a truncated journal and retries a 503 once", async () => {

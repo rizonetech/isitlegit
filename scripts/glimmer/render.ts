@@ -115,6 +115,15 @@ export type Capture = {
 } & FormFlags;
 
 export class RenderTimeout extends Error {}
+// The page's own server answered with an error status that Chromium turned into a failed navigation (an empty 4xx or
+// 5xx body is `net::ERR_HTTP_RESPONSE_CODE_FAILURE` in some Chromium builds): the status, not the browser's error.
+export class HttpStatus extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(`HTTP ${status}`);
+    this.status = status;
+  }
+}
 
 // Signs that the page is not the site but a wall in front of it. Run inside the page.
 export function readWalls(): { captcha: boolean; consentWall: boolean } {
@@ -218,6 +227,8 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
   // Every request is fetched here, one hop at a time, so each redirect's target is checked before it is followed:
   // Playwright calls a route only for a redirect chain's first URL. The browser follows a passed-on redirect as a new
   // request, which comes back through this route.
+  // The status of each page's last main-frame response, as the guard fetched it.
+  const mainStatus = new WeakMap<import("playwright-core").Page, number>();
   async function guard(route: Route) {
     const request = route.request();
     if (!(await allowed(request.url()))) return route.abort("blockedbyclient");
@@ -227,6 +238,8 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       if (response.status() >= 300 && response.status() < 400 && location) {
         if (!(await allowed(new URL(location, request.url()).href))) return route.abort("blockedbyclient");
       }
+      const frame = request.frame();
+      if (request.isNavigationRequest() && !frame.parentFrame()) mainStatus.set(frame.page(), response.status());
       return await route.fulfill({ response });
     } catch {
       return route.abort("failed").catch(() => undefined); // the context closed under it, or the fetch failed
@@ -244,7 +257,13 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     });
     const downloads: Promise<string | null>[] = [];
     page.on("download", (download) => downloads.push(download.path().catch(() => null)));
-    const response = await page.goto(url, { waitUntil: "load", timeout: Math.max(1, deadline - Date.now()) });
+    const response = await page
+      .goto(url, { waitUntil: "load", timeout: Math.max(1, deadline - Date.now()) })
+      .catch((error: Error) => {
+        const status = mainStatus.get(page);
+        if (status !== undefined && status >= 400) throw new HttpStatus(status);
+        throw error;
+      });
     await page
       .waitForLoadState("networkidle", { timeout: Math.min(SETTLE_MS, Math.max(1, deadline - Date.now())) })
       .catch(
@@ -422,7 +441,8 @@ export async function runBatch(options: {
       capture = await options.render(entry.url);
     } catch (error) {
       const reason = (error as Error).message.split("\n")[0] ?? "render failed";
-      if (error instanceof RenderTimeout) return retry(entry, known?.retries ?? 0, reason);
+      if (error instanceof RenderTimeout || (error instanceof HttpStatus && error.status >= 500))
+        return retry(entry, known?.retries ?? 0, reason);
       appendJournal(journal, { url: entry.url, event: "excluded", reason });
       result.excluded++;
       return;
