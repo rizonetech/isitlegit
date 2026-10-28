@@ -99,7 +99,11 @@ export function insideRepository(path: string): boolean {
 
 export function storeDir(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.GLIMMER_DATA_DIR;
-  const path = resolve(configured || join(env.HOME || homedir(), "isitlegit-data", "glimmer"));
+  const home = env.HOME || homedir();
+  // `~` is expanded as scripts/astra-collect.py expands it, so both read one setting the same way.
+  const expanded =
+    configured === "~" ? home : configured?.startsWith("~/") ? join(home, configured.slice(2)) : configured;
+  const path = resolve(expanded || join(home, "isitlegit-data", "glimmer"));
   if (insideRepository(path))
     throw new Error(`the Glimmer store ${path} lies in a git work tree; set GLIMMER_DATA_DIR outside every repository`);
   return path;
@@ -108,12 +112,7 @@ export function storeDir(env: NodeJS.ProcessEnv = process.env): string {
 const sha256 = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
 
 export type Writer = (path: string, data: Uint8Array | string) => void;
-
-// Writes a file and flushes it to disk before returning.
-function durableWrite(path: string, data: Uint8Array | string): void {
-  writeFileSync(path, data);
-  flush(path);
-}
+export type Sync = (path: string) => void;
 
 function flush(path: string): void {
   const fd = openSync(path, "r");
@@ -133,10 +132,17 @@ function processAlive(pid: number): boolean {
   }
 }
 
-export function openStore(dir: string = storeDir(), options: { write?: Writer } = {}) {
+export function openStore(dir: string = storeDir(), options: { write?: Writer; sync?: Sync } = {}) {
   if (insideRepository(resolve(dir))) throw new Error(`the Glimmer store ${dir} lies in a git work tree`);
   const pages = join(dir, "pages");
-  const write: Writer = options.write ?? durableWrite;
+  const sync: Sync = options.sync ?? flush;
+  // Each file is flushed to disk before the page that holds it is published.
+  const write: Writer =
+    options.write ??
+    ((path, data) => {
+      writeFileSync(path, data);
+      sync(path);
+    });
   // A temporary folder whose writer is gone is an interrupted page: never published, so it is removed.
   if (existsSync(pages))
     for (const name of readdirSync(pages)) {
@@ -185,15 +191,18 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer } 
       write(join(temporary, "screenshot.jpg"), screenshot);
       write(join(temporary, "text.txt"), text);
       write(join(temporary, "meta.json"), `${JSON.stringify(meta, null, 2)}\n`);
-      if (!options.write) flush(temporary);
+      sync(temporary);
+      let published = false;
       try {
         renameSync(temporary, final);
-        if (!options.write) flush(pages);
+        published = true;
       } catch (error) {
         // Another writer stored the same page first: it is the same content, so this copy goes.
         if (!existsSync(final)) throw error;
         rmSync(temporary, { recursive: true, force: true });
       }
+      // Outside the rename's catch: a failed flush is a failed write, never "another writer won".
+      if (published) sync(pages);
     } catch (error) {
       rmSync(temporary, { recursive: true, force: true });
       throw error;
@@ -224,14 +233,17 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer } 
     if (!existsSync(pages)) return 0;
     let removed = 0;
     for (const name of readdirSync(pages)) {
-      if (name.startsWith(".") || !name.startsWith(`${source}-`) || !/-[0-9a-f]{16}$/.test(name)) continue;
-      if (name.slice(0, -17) !== source) continue; // `public-a-…` is not a page of source `public`
-      const gone = join(pages, `.removing-${name}-${process.pid}`);
+      // A page `<source>-<16 hex>`, or a damaged copy of one set aside by putPage, `.damaged-<source>-<16 hex>-<ms>`.
+      const page = /^(.+)-[0-9a-f]{16}$/.exec(name);
+      const damaged = /^\.damaged-(.+)-[0-9a-f]{16}-\d+$/.exec(name);
+      const owner = page && !name.startsWith(".") ? page[1] : damaged?.[1];
+      if (owner !== source) continue; // `public-a-…` is not a page of source `public`
+      const gone = join(pages, `.removing-${name.replace(/^\./, "")}-${process.pid}`);
       renameSync(join(pages, name), gone);
       rmSync(gone, { recursive: true, force: true });
-      removed++;
+      if (page && !name.startsWith(".")) removed++;
     }
-    if (!options.write) flush(pages);
+    sync(pages);
     return removed;
   }
 

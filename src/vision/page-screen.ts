@@ -71,13 +71,18 @@ function randomNonce(): string {
 }
 
 const DELIMITERS = ["<<UNTRUSTED", "<<END"];
+const LONGEST_DELIMITER = Math.max(...DELIMITERS.map((d) => d.length));
 
 // No delimiter may survive in the content, including one that removing another would form ("<<<<ENDEND"). One pass:
 // each character goes onto the output, and a delimiter completed at its end is taken off again, so hostile text costs
-// time in proportion to its length.
-export function stripDelimiters(text: string): string {
+// time in proportion to its length. With a `limit`, reading stops once the output holds `limit` characters plus the
+// longest delimiter (a later removal only ever takes characters off the end, at most one delimiter's worth beyond what
+// is kept), and the output is cut to `limit`: memory stays bounded whatever the input's length.
+export function stripDelimiters(text: string, limit = Number.POSITIVE_INFINITY): string {
   const out: string[] = [];
+  const enough = limit + LONGEST_DELIMITER;
   for (const character of text) {
+    if (out.length >= enough) break;
     out.push(character);
     for (const delimiter of DELIMITERS) {
       if (out.length < delimiter.length || character !== delimiter.at(-1)) continue;
@@ -87,7 +92,7 @@ export function stripDelimiters(text: string): string {
       }
     }
   }
-  return out.join("");
+  return (out.length > limit ? out.slice(0, limit) : out).join("");
 }
 
 // A page's host as the request states it outside the untrusted block: a lowercase DNS name (punycode for IDNs), so
@@ -116,7 +121,7 @@ export function buildScreenRequest(input: {
   if (input.mode === "image" && input.image && !jpegSize(input.image))
     throw new TypeError("the screenshot is not a whole JPEG");
   // Cut at a whole character: code points, never half of a surrogate pair.
-  const text = Array.from(stripDelimiters(input.text)).slice(0, MAX_TEXT_CHARACTERS).join("");
+  const text = stripDelimiters(input.text, MAX_TEXT_CHARACTERS);
   const parts: (TextPart | ImagePart)[] = [
     {
       type: "text",
@@ -172,8 +177,26 @@ export function jpegSize(bytes: Uint8Array): { width: number; height: number } |
       if (width === 0 || height === 0) return null;
       size = { width, height };
     }
-    if (marker === 0xda) return size && at + 2 + length < n - 2 ? size : null; // the scan, with data after its header
     at += 2 + length;
+    if (marker === 0xda) {
+      // A scan: entropy-coded data runs to the next marker. Stuffed FF00, restart markers and fill bytes are data;
+      // anything else ends the scan, and the walk goes on (a progressive JPEG has several scans) until the end marker.
+      if (!size) return null;
+      const dataStart = at;
+      while (at < n - 1) {
+        if (bytes[at] !== 0xff) {
+          at += 1;
+          continue;
+        }
+        const next = bytes[at + 1] as number;
+        if (next === 0x00 || (next >= 0xd0 && next <= 0xd7)) at += 2;
+        else if (next === 0xff) at += 1;
+        else break;
+      }
+      if (at === dataStart) return null; // a scan header with no data
+      if (at >= n - 1) return null; // data running off the end with no marker
+      if (bytes[at + 1] === 0xd9) return at === n - 2 ? size : null; // the end marker, and nothing after it
+    }
   }
   return null;
 }

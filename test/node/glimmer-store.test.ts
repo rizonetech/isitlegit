@@ -31,9 +31,12 @@ const page = (over: Partial<PageInput> = {}): PageInput => ({
 });
 
 describe("where the store lives", () => {
-  it("defaults under HOME and honours GLIMMER_DATA_DIR", () => {
+  it("defaults under HOME and honours GLIMMER_DATA_DIR, with ~ expanded as the collector expands it", () => {
     expect(storeDir({ HOME: dir })).toBe(join(dir, "isitlegit-data", "glimmer"));
     expect(storeDir({ HOME: dir, GLIMMER_DATA_DIR: join(dir, "other") })).toBe(join(dir, "other"));
+    expect(storeDir({ HOME: dir, GLIMMER_DATA_DIR: "~/isitlegit-data/glimmer" })).toBe(
+      join(dir, "isitlegit-data", "glimmer"),
+    );
   });
 
   it("refuses a path in this repository or in any other checkout", () => {
@@ -164,6 +167,12 @@ describe("a real screenshot", () => {
     expect(new Uint8Array(Buffer.from(url.split(",")[1] ?? "", "base64"))).toEqual(real);
   });
 
+  it("is refused with a broken second scan, as Pillow refuses it (round 1's reproduction)", () => {
+    const broken = Uint8Array.from([...real.slice(0, 350), 0x55, 0xff, 0xda, 0xff, 0xff, 0xff, 0xd9]);
+    expect(jpegSize(broken)).toBeNull();
+    for (let cut = 3; cut < real.length; cut += 97) expect(jpegSize(real.slice(0, cut)), `cut at ${cut}`).toBeNull();
+  });
+
   it("is refused when truncated, and stores whole", () => {
     expect(jpegSize(real.slice(0, real.length - 2))).toBeNull();
     expect(jpegSize(real.slice(0, 31))).toBeNull();
@@ -199,6 +208,25 @@ describe("recovery, integrity and removal", () => {
     expect(store.putPage("s", page())).toBe(id);
     expect(store.verify()).toEqual({ intact: 1, damaged: [] });
     expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(`.damaged-${id}-`))).toBe(true);
+  });
+
+  it("reports a failed flush after publication as a failed write", () => {
+    const store = openStore(dir, {
+      sync: (path) => {
+        if (path === join(dir, "pages")) throw Object.assign(new Error("EIO: i/o error, fsync"), { code: "EIO" });
+      },
+    });
+    expect(() => store.putPage("s", page())).toThrow("EIO");
+  });
+
+  it("takes a source's damaged copies out with its pages", () => {
+    const store = openStore(dir);
+    const id = store.putPage("public", page());
+    writeFileSync(join(dir, "pages", id, "screenshot.jpg"), fakeJpeg(10, 10));
+    store.putPage("public", page());
+    expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(".damaged-public-"))).toBe(true);
+    expect(store.removeSource("public")).toBe(1);
+    expect(readdirSync(join(dir, "pages"))).toEqual([]);
   });
 
   it("removes one source whole and leaves a source that shares its prefix", () => {

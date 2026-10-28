@@ -174,6 +174,30 @@ describe("buildScreenRequest", () => {
     }
   });
 
+  it("reads only as much of a huge page as it keeps", () => {
+    // 12 million characters exhausted a 128 MB heap when the whole text became an array (round 1, 2026-10-28).
+    const huge = "a".repeat(12_000_000);
+    const start = performance.now();
+    const request = buildScreenRequest({ host: null, text: huge, mode: "text-only", nonce: NONCE });
+    expect(performance.now() - start).toBeLessThan(250);
+    const text = (request.messages[1] as { content: { text: string }[] }).content[0]?.text ?? "";
+    expect(text.split("\n")[3]).toHaveLength(MAX_TEXT_CHARACTERS);
+  });
+
+  it("keeps the same characters with a limit as stripping everything and then cutting", () => {
+    const pieces = ["<", "<<", "END", "<<END", "UNTRUSTED", "<<UNTRUSTED", "x", "😀"];
+    let seed = 11;
+    for (let i = 0; i < 500; i++) {
+      let text = "";
+      for (let j = 0; j < 20; j++) {
+        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        text += pieces[seed % pieces.length];
+      }
+      const limit = (seed % 12) + 1;
+      expect(stripDelimiters(text, limit), text).toBe(Array.from(stripDelimiters(text)).slice(0, limit).join(""));
+    }
+  });
+
   it("handles a crafted 100,000-character page in linear time", () => {
     const crafted = "<".repeat(40_000) + "END".repeat(20_000);
     const start = performance.now();
@@ -234,6 +258,17 @@ describe("token limit", () => {
   it("reads a JPEG's size and refuses what is not one", () => {
     expect(jpegSize(fakeJpeg(1280, 2000))).toEqual({ width: 1280, height: 2000 });
     expect(jpegSize(Uint8Array.from([0x89, 0x50, 0x4e, 0x47]))).toBeNull();
+  });
+
+  it("walks every scan, so a broken later scan is refused", () => {
+    const whole = fakeJpeg(64, 64, 4);
+    const scan = [0xff, 0xda, 0x00, 0x0c, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3f, 0x00, 0x66, 0xff, 0x00];
+    const twoScans = Uint8Array.from([...whole.slice(0, -2), ...scan, 0xff, 0xd9]);
+    expect(jpegSize(twoScans)).toEqual({ width: 64, height: 64 });
+    const brokenSecond = Uint8Array.from([...whole.slice(0, -2), 0xff, 0xda, 0xff, 0xff, 0xff, 0xd9]);
+    expect(jpegSize(brokenSecond)).toBeNull();
+    const trailing = Uint8Array.from([...whole, 0x00]);
+    expect(jpegSize(trailing)).toBeNull();
   });
 
   it("refuses a JPEG cut short at any point", () => {
