@@ -28,6 +28,9 @@ How Claude Code proves the live mail paths without the operator, as authorised o
 
 `demo.isitlegit.co.za` has Email Routing of its own (enabled 2026-10-27 19:19 UTC, D01 T02 §4: its own MX records to `route1` to `route3.mx.cloudflare.net` and SPF `include:_spf.mx.cloudflare.net`); an address there needs a rule like any other. A rule or subdomain is not usable the moment it is created: mail sent 15 s after these were made was refused `550 5.1.1 Address does not exist`, and mail sent about a minute later arrived, so wait a minute or two before testing a new one. `check@` (the intake Worker) joins this table when the intake sections add it.
 
+`check@isitlegit.co.za` routes to the Worker `isitlegit` from 2026-10-28 23:12 UTC (rule `ba3c41f1cb86483d806607ec00f4958e`, D01 T01 §9). A send through SMTP2GO reaches the Worker with an envelope sender on SMTP2GO's return-path domain, not its From address: the probe "IsItLegit envelope probe 2026-10-29" (SMTP2GO email id `1xMCqi-AIkwcC8njzQ-O92i`, From `probe@isitlegit.co.za`) arrived with `mailFrom` `bounce.<token>@em1027207.isitlegit.co.za` and `rawSize` 4971 (`wrangler tail`), and was dropped as from no member. Intake identifies the forwarder by the envelope (D01 T01 §3), so a member's forward must come from a real mailbox, where envelope and From agree.
+
+
 Read back through the Cloudflare API on 2026-10-27 at 19:23:11 UTC (D01 T02 §4): Email Routing `ready`; destination `hostmaster@rizonetech.com` verified 2026-10-26 23:02:41 UTC; six rules enabled, each forwarding to it: `finance@`, `alerts@` and `owner@demo.isitlegit.co.za`, and `dmarc@`, `conduct@` and `hello@isitlegit.co.za`; the catch-all (drop) is disabled, so any other address is refused.
 
 Cloudflare does not pass a delivery failure that happens after it accepted a message back to the sender: a mail that reaches the alias but then fails to reach the destination is lost silently. D01 T02 §6 owns detecting that and telling the operator.

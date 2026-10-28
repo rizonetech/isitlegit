@@ -39,6 +39,7 @@ track: day-6
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
 | 7 | §7 | Protect your business page | §2 | [ ] |
 | 8 | §8 | Terms, security and about pages | §2 | [ ] |
+| 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -150,7 +151,7 @@ What data IsItLegit processes, why, for how long (raw mail and attachments delet
 
 ## 6. Deploy the site and split the app host
 
-The site deploys as Workers static assets on `isitlegit.co.za`; the app answers on `app.isitlegit.co.za`; DNS and routes are set under the standing authorisation.
+The site deploys as Workers static assets on `isitlegit.co.za`; the app answers on `app.isitlegit.co.za`; DNS and routes are set under the standing authorisation. **Corrected 2026-10-29** (D01 T01 §9 plan review): the app host moved to §9 in Phase 1, since every link the app mails (sign-in, claim codes, report links) points at it; this section keeps the site on the apex and `www`.
 
 **Phase:** 6
 **Needs:** cloudflare
@@ -160,7 +161,7 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 1. Route both hosts. Done when: `https://isitlegit.co.za` serves the home page and `https://app.isitlegit.co.za/health` the app.
 
-- [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), and the app Worker route on `app.isitlegit.co.za`. Done when: both hosts answer over HTTPS.
+- [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
 - [ ] Add a deploy script running the site build and checks before `wrangler deploy`. Done when: `pnpm deploy:site` refuses to deploy on a failed check.
 - [ ] Run Lighthouse (mobile) on the five pages and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
 - [ ] Commit: `site: deploy to isitlegit.co.za with the app on its own host`
@@ -210,6 +211,26 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [ ] Commit: `site: terms, security and about pages`
 
 **Test checkpoint:** `pnpm --filter site build && ls site/dist/terms/index.html site/dist/security/index.html site/dist/about/index.html` lists all three.
+
+
+## 9. Serve the app on app.isitlegit.co.za
+
+Every link the app mails points at `PUBLIC_ORIGIN`, `https://app.isitlegit.co.za` (`wrangler.jsonc`): sign-in links, claim codes and report links. The Worker serves only at `isitlegit.derick-f5a.workers.dev` today, so each of those links is dead until the app host answers. Moved forward from §6 by D01 T01 §9's plan review (2026-10-29).
+
+**Phase:** 1
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Attach the app host to the Worker. Done when: `https://app.isitlegit.co.za/health` answers with the deployed SHA.
+
+- [ ] Add `app.isitlegit.co.za` as a Workers custom domain of `isitlegit` in `wrangler.jsonc` (`routes`, `custom_domain: true`), keeping `workers_dev` so `scripts/smoke.ts` still reaches its pinned host, and run `pnpm types`. Done when: `pnpm typecheck` passes and the deploy lists the custom domain.
+- [ ] Deploy (`AGENTS.md` deploy rule, migrations first) and read the host back: DNS answers through Cloudflare, the certificate is valid, `/health` returns the deployed SHA, and `PUBLIC_ORIGIN` matches the host serving it. Done when: `curl -s https://app.isitlegit.co.za/health` returns `"ok":true` with `git rev-parse HEAD`.
+- [ ] Record the host in `docs/live-checks.md` with the date, and that the apex and `www` stay with §6. Done when: the file holds it.
+- [ ] Commit: `infra: the app on app.isitlegit.co.za`
+
+**Test checkpoint:** `curl -s https://app.isitlegit.co.za/health` returns `"ok":true` with the SHA of `git rev-parse HEAD`, and `curl -s https://isitlegit.derick-f5a.workers.dev/health` still answers.
 
 ## Verification
 
