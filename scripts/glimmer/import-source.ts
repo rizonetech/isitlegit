@@ -59,6 +59,10 @@ export async function importSource(options: {
   importJson?: string;
   concurrency?: number;
   log?: (line: string) => void;
+  // Public datasets by default; the pilot client's redacted samples say so (§7).
+  origin?: "public" | "samples";
+  redacted?: boolean;
+  southAfrica?: boolean;
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
@@ -100,14 +104,14 @@ export async function importSource(options: {
         const id = await store.putPage(source, {
           screenshot: page.screenshot,
           text: page.text,
-          origin: "public",
+          origin: options.origin ?? "public",
           licence: options.licence,
           host,
           template: null,
-          south_africa: host?.endsWith(".za") ?? false,
+          south_africa: options.southAfrica || (host?.endsWith(".za") ?? false),
           labels,
           label_source,
-          redacted: false,
+          redacted: options.redacted ?? false,
         });
         if (before.has(id)) duplicates++;
         else {
