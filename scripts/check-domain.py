@@ -26,8 +26,9 @@ MX_HOSTS = {"route1.mx.cloudflare.net.", "route2.mx.cloudflare.net.", "route3.mx
 # The records exactly as §2 published them: a check that names what must be there, not what must not, so a weakening
 # nobody foresaw (a tag added, a term reordered) fails too. Changing either record means changing it here as well.
 SPF_TERMS = ["include:_spf.mx.cloudflare.net", "~all"]
-DMARC_TAGS = {"v": "DMARC1", "p": "reject", "sp": "reject", "adkim": "r", "aspf": "r", "fo": "1",
-              "rua": "mailto:dmarc@isitlegit.co.za"}
+# In order: `v` first and `p` straight after it are required positions (RFC 7489 6.4), the rest as published.
+DMARC_TAGS = [("v", "DMARC1"), ("p", "reject"), ("sp", "reject"), ("adkim", "r"), ("aspf", "r"), ("fo", "1"),
+              ("rua", "mailto:dmarc@isitlegit.co.za")]
 # Universal SSL's authorities (https://developers.cloudflare.com/ssl/reference/certificate-authorities/); Cloudflare adds
 # its own CAA rows for them, so Sectigo (comodoca.com) and DigiCert may appear beside the three the section names.
 CLOUDFLARE_CAS = {"letsencrypt.org", "pki.goog", "ssl.com", "comodoca.com", "digicert.com", "sectigo.com"}
@@ -105,16 +106,15 @@ def check(a):
 
     # Any record that begins like a DMARC record counts, so a mistyped version is refused rather than skipped.
     dmarc = [txt(r) for r in a["DMARC"] if txt(r).lower().startswith("v=dmarc")]
-    tags, repeated = {}, False
+    tags = []
     if len(dmarc) == 1:
         for part in dmarc[0].split(";"):
             key, _, value = part.strip().partition("=")
-            if key.strip():
-                repeated |= key.strip().lower() in tags
-                tags[key.strip().lower()] = value.strip()
-    need(len(dmarc) == 1 and not repeated and tags == DMARC_TAGS,
-         "DMARC is not the one published record (v=DMARC1, p=reject and sp=reject on every message, relaxed "
-         "alignment, reports only to dmarc@isitlegit.co.za, nothing else)"
+            if key.strip() or value.strip():
+                tags.append((key.strip().lower(), value.strip()))
+    need(len(dmarc) == 1 and tags == DMARC_TAGS,
+         "DMARC is not the one published record, tag for tag and in order (v=DMARC1; p=reject; sp=reject; "
+         "adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za)"
          + (f" ({len(dmarc)} DMARC records)" if len(dmarc) != 1 else ""))
 
     issuers, wild = set(), set()

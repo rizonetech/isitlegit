@@ -56,6 +56,9 @@ class Domain(unittest.TestCase):
         self.refused("DMARC", DMARC=[GOOD["DMARC"][0][:-1] + '; pct=100"'])
         self.refused("DMARC", DMARC=[GOOD["DMARC"][0].replace("sp=reject", "sp=none")])
         self.refused("DMARC", DMARC=[GOOD["DMARC"][0][:-1] + '; p=none"'])
+        self.refused("DMARC", DMARC=['"v=DMARC1; sp=reject; p=reject; adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za"'])
+        self.refused("DMARC", DMARC=['"p=reject; v=DMARC1; sp=reject; adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za"'])
+        self.assertEqual(cd.check({**GOOD, "DMARC": [GOOD["DMARC"][0][:-1] + ';"']})[1], [])
 
     def test_caa_issue_not_issuewild_from_universal_ssl_only(self):
         self.refused("CAA", CAA=[line.replace(" issue ", " issuewild ") for line in GOOD["CAA"]])
