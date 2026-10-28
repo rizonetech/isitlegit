@@ -271,6 +271,27 @@ export async function setStatus(
   });
 }
 
+// Whether the original's headers came with the forward (D01 T01 §4), written by the pipeline by case id once it has
+// read the message: the email path admits every case with 0 because it reads no MIME. Only a case still `received`
+// or `running` changes; a finished one (`done`, `partial`) is a `transition` refusal and stays as it was.
+export async function setHeadersAvailable(db: D1Database, id: string, available: boolean): Promise<CaseResult<Case>> {
+  const parsed = Id.safeParse(id);
+  if (!parsed.success) return invalid(parsed.error);
+  return guarded(async () => {
+    const row = await db
+      .prepare(
+        "UPDATE cases SET headers_available = ?, updated_at = ? WHERE id = ? AND status IN ('received', 'running') RETURNING *",
+      )
+      .bind(available ? 1 : 0, new Date().toISOString(), id)
+      .first<Row>();
+    if (row) return { ok: true, value: toCase(row) };
+    const existing = await db.prepare("SELECT status FROM cases WHERE id = ?").bind(id).first<{ status: string }>();
+    return existing
+      ? fail("transition", `a ${existing.status} case keeps its header state`)
+      : fail("not_found", "no such case");
+  });
+}
+
 export async function setVerdict(
   db: D1Database,
   orgId: string,

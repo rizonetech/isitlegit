@@ -1,0 +1,12 @@
+Return-Path: <billing@fictional-supplier.example>
+Received: from mail.fictional-supplier.example (mail.fictional-supplier.example [192.0.2.10]) by mx.fictional-recipient.example; Tue, 27 Oct 2026 08:00:00 +0200
+Authentication-Results: mx.fictional-recipient.example; spf=pass smtp.mailfrom=billing@fictional-supplier.example
+From: Fictional Supplier <billing@fictional-supplier.example>
+To: accounts@fictional-recipient.example
+Subject: Updated banking details
+Message-ID: <first-of-two@fictional-supplier.example>
+Date: Tue, 27 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Please pay invoice first-of-two into our new account from today.

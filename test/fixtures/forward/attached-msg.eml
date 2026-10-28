@@ -1,0 +1,21 @@
+From: Fictional Boss <boss@fictional-recipient.example>
+To: check@isitlegit.co.za
+Subject: Fwd: attached-msg
+Message-ID: <attached-msg-outer@fictional-recipient.example>
+Date: Wed, 28 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fwd-boundary"
+
+--fwd-boundary
+Content-Type: text/plain; charset=utf-8
+
+See the attached message. Is it real?
+--fwd-boundary
+Content-Type: application/vnd.ms-outlook; name="original.msg"
+Content-Disposition: attachment; filename="original.msg"
+Content-Transfer-Encoding: base64
+
+0M8R4KGxGuEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAHBsYWNlaG9sZGVyIE91dGxvb2sgbWVzc2FnZTogRDAxIFQwMSDCpzYgcGFyc2VzIHJl
+YWwgb25lcw==
+--fwd-boundary--

@@ -1,0 +1,47 @@
+From: Fictional Boss <boss@fictional-recipient.example>
+To: check@isitlegit.co.za
+Subject: Fwd: rfc822-and-eml
+Message-ID: <rfc822-and-eml-outer@fictional-recipient.example>
+Date: Wed, 28 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fwd-boundary"
+
+--fwd-boundary
+Content-Type: text/plain; charset=utf-8
+
+See the attached message. Is it real?
+--fwd-boundary
+Content-Type: application/octet-stream; name="first.eml"
+Content-Disposition: attachment; filename="first.eml"
+Content-Transfer-Encoding: base64
+
+UmV0dXJuLVBhdGg6IDxiaWxsaW5nQGZpY3Rpb25hbC1zdXBwbGllci5leGFtcGxlPg0KUmVjZWl2
+ZWQ6IGZyb20gbWFpbC5maWN0aW9uYWwtc3VwcGxpZXIuZXhhbXBsZSAobWFpbC5maWN0aW9uYWwt
+c3VwcGxpZXIuZXhhbXBsZSBbMTkyLjAuMi4xMF0pIGJ5IG14LmZpY3Rpb25hbC1yZWNpcGllbnQu
+ZXhhbXBsZTsgVHVlLCAyNyBPY3QgMjAyNiAwODowMDowMCArMDIwMA0KQXV0aGVudGljYXRpb24t
+UmVzdWx0czogbXguZmljdGlvbmFsLXJlY2lwaWVudC5leGFtcGxlOyBzcGY9cGFzcyBzbXRwLm1h
+aWxmcm9tPWJpbGxpbmdAZmljdGlvbmFsLXN1cHBsaWVyLmV4YW1wbGUNCkZyb206IEZpY3Rpb25h
+bCBTdXBwbGllciA8YmlsbGluZ0BmaWN0aW9uYWwtc3VwcGxpZXIuZXhhbXBsZT4NClRvOiBhY2Nv
+dW50c0BmaWN0aW9uYWwtcmVjaXBpZW50LmV4YW1wbGUNClN1YmplY3Q6IFVwZGF0ZWQgYmFua2lu
+ZyBkZXRhaWxzDQpNZXNzYWdlLUlEOiA8bG9zZXItZW1sQGZpY3Rpb25hbC1zdXBwbGllci5leGFt
+cGxlPg0KRGF0ZTogVHVlLCAyNyBPY3QgMjAyNiAwODowMDowMCArMDIwMA0KTUlNRS1WZXJzaW9u
+OiAxLjANCkNvbnRlbnQtVHlwZTogdGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOA0KDQpQbGVhc2Ug
+cGF5IGludm9pY2UgbG9zZXItZW1sIGludG8gb3VyIG5ldyBhY2NvdW50IGZyb20gdG9kYXkuDQo=
+--fwd-boundary
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="original.eml"
+
+Return-Path: <billing@fictional-supplier.example>
+Received: from mail.fictional-supplier.example (mail.fictional-supplier.example [192.0.2.10]) by mx.fictional-recipient.example; Tue, 27 Oct 2026 08:00:00 +0200
+Authentication-Results: mx.fictional-recipient.example; spf=pass smtp.mailfrom=billing@fictional-supplier.example
+From: Fictional Supplier <billing@fictional-supplier.example>
+To: accounts@fictional-recipient.example
+Subject: Updated banking details
+Message-ID: <winner-rfc822@fictional-supplier.example>
+Date: Tue, 27 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Please pay invoice winner-rfc822 into our new account from today.
+
+--fwd-boundary--

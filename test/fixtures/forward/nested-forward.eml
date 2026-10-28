@@ -1,0 +1,48 @@
+From: Fictional Boss <boss@fictional-recipient.example>
+To: check@isitlegit.co.za
+Subject: Fwd: nested-forward
+Message-ID: <nested-forward-outer@fictional-recipient.example>
+Date: Wed, 28 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fwd-boundary"
+
+--fwd-boundary
+Content-Type: text/plain; charset=utf-8
+
+See the attached message. Is it real?
+--fwd-boundary
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="original.eml"
+
+From: Fictional Supplier <billing@fictional-supplier.example>
+To: accounts@fictional-recipient.example
+Subject: Fwd: earlier thread
+Message-ID: <nested-middle@fictional-supplier.example>
+Date: Tue, 27 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="inner-boundary"
+
+--inner-boundary
+Content-Type: text/plain; charset=utf-8
+
+The earlier thread is attached.
+--inner-boundary
+Content-Type: message/rfc822
+Content-Disposition: attachment; filename="earlier.eml"
+
+Return-Path: <billing@fictional-supplier.example>
+Received: from mail.fictional-supplier.example (mail.fictional-supplier.example [192.0.2.10]) by mx.fictional-recipient.example; Tue, 27 Oct 2026 08:00:00 +0200
+Authentication-Results: mx.fictional-recipient.example; spf=pass smtp.mailfrom=billing@fictional-supplier.example
+From: Fictional Supplier <billing@fictional-supplier.example>
+To: accounts@fictional-recipient.example
+Subject: Updated banking details
+Message-ID: <nested-deepest@fictional-supplier.example>
+Date: Tue, 27 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Please pay invoice nested-deepest into our new account from today.
+
+--inner-boundary--
+
+--fwd-boundary--

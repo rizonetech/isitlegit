@@ -7,6 +7,7 @@ import {
   createCase,
   getCase,
   getCaseForPipeline,
+  setHeadersAvailable,
   setStatus,
   setVerdict,
   type Verdict,
@@ -319,5 +320,37 @@ describe("the case store", () => {
     expect(await admitCase(db, { ...input, id: ulid() })).toMatchObject({ ok: false, error: { code: "capped" } });
     // Another organisation's id is not answered as this one's.
     expect(await admitCase(db, { ...input, orgId: "org-other-retry" })).toMatchObject({ ok: false });
+  });
+
+  it("records whether the original's headers came, while the case is open, and refuses afterwards (D01 T01 §4)", async () => {
+    const orgId = "org-headers";
+    const open = await createCase(db, { orgId, channel: "email", headersAvailable: false });
+    if (!open.ok) throw new Error(open.error.message);
+    const id = open.value.id;
+    expect(await setHeadersAvailable(db, id, true)).toMatchObject({ ok: true, value: { headersAvailable: true } });
+    await setStatus(db, orgId, id, "running");
+    // An attached .msg without transport headers corrects it back (D01 T01 §6); the same write again is the same row.
+    expect(await setHeadersAvailable(db, id, false)).toMatchObject({
+      ok: true,
+      value: { headersAvailable: false, status: "running" },
+    });
+    expect(await setHeadersAvailable(db, id, false)).toMatchObject({ ok: true, value: { headersAvailable: false } });
+    await setVerdict(db, orgId, id, "safe");
+    await setStatus(db, orgId, id, "done");
+    expect(await setHeadersAvailable(db, id, true)).toMatchObject({ ok: false, error: { code: "transition" } });
+    expect((await getCase(db, orgId, id)) as { value: Case }).toMatchObject({ value: { headersAvailable: false } });
+    const partial = await createCase(db, { orgId, channel: "email", headersAvailable: false });
+    if (!partial.ok) throw new Error(partial.error.message);
+    await setStatus(db, orgId, partial.value.id, "running");
+    await setStatus(db, orgId, partial.value.id, "partial");
+    expect(await setHeadersAvailable(db, partial.value.id, true)).toMatchObject({
+      ok: false,
+      error: { code: "transition" },
+    });
+    expect(await setHeadersAvailable(db, ulid(), true)).toMatchObject({ ok: false, error: { code: "not_found" } });
+    const broken = {
+      prepare: () => ({ bind: () => ({ first: async () => Promise.reject(new Error("D1_ERROR")) }) }),
+    } as unknown as D1Database;
+    expect(await setHeadersAvailable(broken, id, true)).toMatchObject({ ok: false, error: { code: "database" } });
   });
 });

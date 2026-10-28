@@ -1,0 +1,30 @@
+From: Fictional Boss <boss@fictional-recipient.example>
+To: check@isitlegit.co.za
+Subject: Fwd: attached-eml-file
+Message-ID: <attached-eml-file-outer@fictional-recipient.example>
+Date: Wed, 28 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fwd-boundary"
+
+--fwd-boundary
+Content-Type: text/plain; charset=utf-8
+
+See the attached message. Is it real?
+--fwd-boundary
+Content-Type: application/octet-stream; name="original.eml"
+Content-Disposition: attachment; filename="original.eml"
+Content-Transfer-Encoding: base64
+
+UmV0dXJuLVBhdGg6IDxiaWxsaW5nQGZpY3Rpb25hbC1zdXBwbGllci5leGFtcGxlPg0KUmVjZWl2
+ZWQ6IGZyb20gbWFpbC5maWN0aW9uYWwtc3VwcGxpZXIuZXhhbXBsZSAobWFpbC5maWN0aW9uYWwt
+c3VwcGxpZXIuZXhhbXBsZSBbMTkyLjAuMi4xMF0pIGJ5IG14LmZpY3Rpb25hbC1yZWNpcGllbnQu
+ZXhhbXBsZTsgVHVlLCAyNyBPY3QgMjAyNiAwODowMDowMCArMDIwMA0KQXV0aGVudGljYXRpb24t
+UmVzdWx0czogbXguZmljdGlvbmFsLXJlY2lwaWVudC5leGFtcGxlOyBzcGY9cGFzcyBzbXRwLm1h
+aWxmcm9tPWJpbGxpbmdAZmljdGlvbmFsLXN1cHBsaWVyLmV4YW1wbGUNCkZyb206IEZpY3Rpb25h
+bCBTdXBwbGllciA8YmlsbGluZ0BmaWN0aW9uYWwtc3VwcGxpZXIuZXhhbXBsZT4NClRvOiBhY2Nv
+dW50c0BmaWN0aW9uYWwtcmVjaXBpZW50LmV4YW1wbGUNClN1YmplY3Q6IFVwZGF0ZWQgYmFua2lu
+ZyBkZXRhaWxzDQpNZXNzYWdlLUlEOiA8ZW1sLTFAZmljdGlvbmFsLXN1cHBsaWVyLmV4YW1wbGU+
+DQpEYXRlOiBUdWUsIDI3IE9jdCAyMDI2IDA4OjAwOjAwICswMjAwDQpNSU1FLVZlcnNpb246IDEu
+MA0KQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04DQoNClBsZWFzZSBwYXkg
+aW52b2ljZSBlbWwtMSBpbnRvIG91ciBuZXcgYWNjb3VudCBmcm9tIHRvZGF5Lg0K
+--fwd-boundary--

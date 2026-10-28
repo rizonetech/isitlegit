@@ -1,0 +1,28 @@
+From: Fictional Boss <boss@fictional-recipient.example>
+To: check@isitlegit.co.za
+Subject: Fwd: Invoice
+Message-ID: <inline-pdf-outer@fictional-recipient.example>
+Date: Wed, 28 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fwd-boundary"
+
+--fwd-boundary
+Content-Type: text/plain; charset=utf-8
+
+Is this real?
+
+---------- Forwarded message ---------
+From: Fictional Supplier <billing@fictional-supplier.example>
+Date: Tue, 27 Oct 2026 08:00
+Subject: Updated banking details
+To: accounts@fictional-recipient.example
+
+Please pay invoice inline-1 into our new account from today.
+--fwd-boundary
+Content-Type: application/pdf; name="invoice.pdf"
+Content-Disposition: attachment; filename="invoice.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJSBmaWN0aW9uYWwgaW52b2ljZQoxIDAgb2JqIDw8ID4+IGVuZG9iagp0cmFpbGVy
+IDw8ID4+CiUlRU9GCg==
+--fwd-boundary--
