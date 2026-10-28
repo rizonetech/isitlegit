@@ -3,11 +3,10 @@
 
     python3 scripts/check-domain.py
 
-Each record is parsed as its standard defines it and compared with what §2 published, so any edit to it fails,
-not only the weakenings someone thought of: the two Cloudflare nameservers; Email Routing's three MX hosts; exactly
-one SPF record reading `v=spf1 include:_spf.mx.cloudflare.net ~all` (RFC 7208); exactly one DMARC record with the
-published tags and no others (`p=reject`, `sp=reject`, relaxed alignment, `fo=1`, reports only to
-dmarc@isitlegit.co.za; RFC 7489 6.3); CAA `issue` tags (not `issuewild`) naming only
+Each record is compared with what §2 published, so any edit to it fails, not only the weakenings someone thought
+of: the two Cloudflare nameservers; Email Routing's three MX hosts; exactly one SPF record, byte for byte
+`v=spf1 include:_spf.mx.cloudflare.net ~all`; exactly one DMARC record, byte for byte the published one (`p=reject`,
+`sp=reject`, relaxed alignment, `fo=1`, reports only to dmarc@isitlegit.co.za), a trailing semicolon allowed; CAA `issue` tags (not `issuewild`) naming only
 Universal SSL's authorities and including Let's Encrypt, Google Trust Services and SSL.com (RFC 8659 4.2, 4.3); the
 registry's DS (key tag 2371, algorithm 13, digest type 2, the recorded digest); and the zone validated (`ad`).
 
@@ -25,10 +24,10 @@ NAMESERVERS = {"carmelo.ns.cloudflare.com.", "paris.ns.cloudflare.com."}
 MX_HOSTS = {"route1.mx.cloudflare.net.", "route2.mx.cloudflare.net.", "route3.mx.cloudflare.net."}
 # The records exactly as §2 published them: a check that names what must be there, not what must not, so a weakening
 # nobody foresaw (a tag added, a term reordered) fails too. Changing either record means changing it here as well.
-SPF_TERMS = ["include:_spf.mx.cloudflare.net", "~all"]
-# In order: `v` first and `p` straight after it are required positions (RFC 7489 6.4), the rest as published.
-DMARC_TAGS = [("v", "DMARC1"), ("p", "reject"), ("sp", "reject"), ("adkim", "r"), ("aspf", "r"), ("fo", "1"),
-              ("rua", "mailto:dmarc@isitlegit.co.za")]
+# Compared as text, byte for byte (DMARC's one optional trailing semicolon aside): four review rounds found reorderings,
+# repeated or empty tags and extra terms that a parser let through, so nothing is parsed, only matched.
+SPF_RECORD = "v=spf1 include:_spf.mx.cloudflare.net ~all"
+DMARC_RECORD = "v=DMARC1; p=reject; sp=reject; adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za"
 # Universal SSL's authorities (https://developers.cloudflare.com/ssl/reference/certificate-authorities/); Cloudflare adds
 # its own CAA rows for them, so Sectigo (comodoca.com) and DigiCert may appear beside the three the section names.
 CLOUDFLARE_CAS = {"letsencrypt.org", "pki.goog", "ssl.com", "comodoca.com", "digicert.com", "sectigo.com"}
@@ -98,24 +97,16 @@ def check(a):
     need({line.split()[-1] for line in a["MX"] if line.split()} == MX_HOSTS and len(a["MX"]) == len(MX_HOSTS),
          f"MX hosts are {sorted(a['MX'])}, not Email Routing's three")
 
-    spf = [txt(r) for r in a["TXT"] if txt(r).lower().startswith("v=spf1 ") or txt(r).lower() == "v=spf1"]
-    terms = [t.lower() for t in spf[0].split()[1:]] if len(spf) == 1 else []
-    need(len(spf) == 1 and terms == SPF_TERMS,
-         f"SPF is not the one published record, v=spf1 {' '.join(SPF_TERMS)}"
+    spf = [txt(r) for r in a["TXT"] if txt(r).lower().startswith("v=spf1")]
+    need(spf == [SPF_RECORD],
+         f"SPF is not the one published record, {SPF_RECORD!r}"
          + (f" ({len(spf)} SPF records)" if len(spf) != 1 else f" (it reads {spf[0]!r})"))
 
     # Any record that begins like a DMARC record counts, so a mistyped version is refused rather than skipped.
     dmarc = [txt(r) for r in a["DMARC"] if txt(r).lower().startswith("v=dmarc")]
-    tags = []
-    if len(dmarc) == 1:
-        for part in dmarc[0].split(";"):
-            key, _, value = part.strip().partition("=")
-            if key.strip() or value.strip():
-                tags.append((key.strip().lower(), value.strip()))
-    need(len(dmarc) == 1 and tags == DMARC_TAGS,
-         "DMARC is not the one published record, tag for tag and in order (v=DMARC1; p=reject; sp=reject; "
-         "adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za)"
-         + (f" ({len(dmarc)} DMARC records)" if len(dmarc) != 1 else ""))
+    need(len(dmarc) == 1 and dmarc[0].strip() in (DMARC_RECORD, DMARC_RECORD + ";"),
+         f"DMARC is not the one published record, {DMARC_RECORD!r}"
+         + (f" ({len(dmarc)} DMARC records)" if len(dmarc) != 1 else f" (it reads {dmarc[0]!r})"))
 
     issuers, wild = set(), set()
     for line in a["CAA"]:
