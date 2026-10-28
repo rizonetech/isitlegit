@@ -26,7 +26,8 @@ export const codeHash = async (code: string) =>
 
 type Redemption = { id: string; status: string; user_id: string | null; org_id: string | null };
 
-// The member's first link: true when SMTP2GO confirmed it, false when it failed or is unknown.
+// The member's first link: true only when SMTP2GO confirmed it, false when it failed, is unknown, or was held back
+// (the sign-in limit), which the magic-link endpoint does not tell apart from a send.
 export type SendFirstLink = (email: string) => Promise<boolean>;
 
 export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirstLink) {
@@ -38,23 +39,21 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
         if (consent !== true) throw new APIError("BAD_REQUEST", { message: "consent is required" });
         const { adapter, internalAdapter } = ctx.context;
         const db = database();
-        const existing = await internalAdapter.findUserByEmail(email);
-        if (existing) {
-          const member = await adapter.findOne({
-            model: "member",
-            where: [{ field: "userId", value: existing.user.id }],
-          });
-          if (member)
-            throw new APIError("CONFLICT", { message: "this address already has an account; sign in instead" });
-        }
         const now = new Date().toISOString();
 
-        // 1. The redemption: this address's pending one, or a use of the code taken with a new pending one.
+        // 1. The redemption: this address's pending one (read first, so a signup stopped even after its membership
+        // resumes), or, for an address that is not yet a member, a use of the code taken with a new pending one.
         let redemption = await db
           .prepare("SELECT id, status, user_id, org_id FROM invite_redemptions WHERE email = ? AND status = 'pending'")
           .bind(email)
           .first<Redemption>();
         if (!redemption) {
+          const existing = await internalAdapter.findUserByEmail(email);
+          const member =
+            existing &&
+            (await adapter.findOne({ model: "member", where: [{ field: "userId", value: existing.user.id }] }));
+          if (member)
+            throw new APIError("CONFLICT", { message: "this address already has an account; sign in instead" });
           const unusable = () => new APIError("BAD_REQUEST", { message: "that invite code is not valid" });
           if (!code) throw unusable();
           const id = crypto.randomUUID();

@@ -134,7 +134,7 @@ describe("invite-code signup", () => {
   it("completes a signup stopped after any of its writes, with one of everything and the code used once", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
-    for (const stop of ["redemption", "user", "organisation"] as const) {
+    for (const stop of ["redemption", "user", "organisation", "membership"] as const) {
       const email = `stopped-${stop}@example.org`;
       const codeId = await addInviteCode(db, `STOP-${stop}`);
       // The first write: the code's use and the pending redemption, together.
@@ -155,11 +155,19 @@ describe("invite-code signup", () => {
           )
           .bind(`user-${stop}`, email, email, now, now)
           .run();
-      if (stop === "organisation")
+      if (stop === "organisation" || stop === "membership")
         await db
           .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Stopped', ?, ?)`)
           .bind(`org-${stop}`, `org-${redemptionId}`, now)
           .run();
+      if (stop === "membership")
+        await db
+          .prepare(
+            `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'owner', ?)`,
+          )
+          .bind(`member-${stop}`, `org-${stop}`, `user-${stop}`, now)
+          .run();
+      const linksBefore = smtp.sends.length;
       // The retry, with no code: it resumes the pending redemption.
       const retried = await signUp({ email, organizationName: "Stopped", consent: true });
       expect(retried.status, stop).toBe(201);
@@ -168,7 +176,37 @@ describe("invite-code signup", () => {
         1,
       );
       expect(await usesOf(codeId), stop).toBe(1);
+      const status = await db
+        .prepare("SELECT status FROM invite_redemptions WHERE id = ?")
+        .bind(redemptionId)
+        .first<{ status: string }>();
+      expect(status?.status, stop).toBe("complete");
+      // The first link is sent on the retry too.
+      expect(smtp.sends.length, stop).toBe(linksBefore + 1);
     }
+  });
+
+  it("answers linkSent false when the sign-in limit holds the first link back", async () => {
+    // An invitee who already had their five sign-in links in ten minutes, then signs up with a code.
+    const email = "limited@example.org";
+    await addInviteCode(db, "LIMITED");
+    const now = new Date().toISOString();
+    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email)))]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    for (let i = 0; i < 5; i++)
+      await db
+        .prepare(
+          "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, 'signin', ?, 'sent', 1, ?, ?)",
+        )
+        .bind(`limit-${i}`, `signin:limit-${i}`, hash, now, now)
+        .run();
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const answer = await signUp({ email, code: "LIMITED", organizationName: "Busy", consent: true });
+    expect(answer.status).toBe(201);
+    expect(await answer.json()).toMatchObject({ registered: true, linkSent: false });
+    expect(smtp.sends).toEqual([]);
   });
 
   it("answers linkSent false when the first link does not go, and a link asked for later signs in, the account unchanged", async () => {

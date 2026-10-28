@@ -19,7 +19,7 @@ import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "better-auth/api";
 import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
-import { type MailDeps, sendMail } from "../mail/smtp2go";
+import { type MailDeps, recipientHash, sendMail } from "../mail/smtp2go";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { inviteSignup, type SendFirstLink } from "./signup";
@@ -336,9 +336,17 @@ export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
   if (!env.BETTER_AUTH_SECRET) throw new ConfigError("BETTER_AUTH_SECRET is not set");
   // The signup's first link goes through the magic-link endpoint itself, so it is the same link a member asks for.
   const origin = new URL(env.APP_URL).origin;
+  // Whether it went is read from the send log: the endpoint answers a held-back link (the sign-in limit) as a sent one,
+  // so a stranger learns nothing, but the new owner must be told the truth (D01 T02 §2).
   const sendFirstLink: SendFirstLink = async (email) => {
+    const since = new Date().toISOString();
     await auth.api.signInMagicLink({ body: { email, callbackURL: DEFAULT_RETURN }, headers: new Headers({ origin }) });
-    return true;
+    const sent = await env.DB.prepare(
+      "SELECT 1 FROM mail_sends WHERE kind = 'signin' AND to_hash = ? AND status = 'sent' AND created_at >= ? LIMIT 1",
+    )
+      .bind(await recipientHash(email), since)
+      .first();
+    return sent !== null;
   };
   const auth = betterAuth(
     authOptions(
