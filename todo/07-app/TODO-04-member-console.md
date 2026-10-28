@@ -48,7 +48,7 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 
 **Build order:**
 
-1. Build `GET /cases`. Done when: filters, search and paging work in a rendered test.
+1. Build `GET /cases` behind `requireSession` (D07 T02 §1). Done when: filters, search and paging work in a rendered test, and an anonymous request is sent to `/sign-in`.
 
 - [ ] Store `subject` and `sender_display` on cases at parse time (members only see their own organisation's). Done when: the parse test stores both.
 - [ ] Build `src/web/pages/cases.tsx` with the table, verdict and channel filters, date range, search box and pager, state in query parameters, updated with htmx. Done when: `test/web/cases-page.test.ts` covers each filter and a search. Cheaper substitute: an unfiltered list.

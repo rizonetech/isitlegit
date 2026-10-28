@@ -47,23 +47,28 @@ track: day-1
 
 ## 1. Better Auth on D1 with email magic link
 
+> **Started:** 2026-10-28T00:09Z
+
 Better Auth 1.7.13 owns users and sessions in D1 (stack doc). The magic-link email goes through the SMTP2GO client (D01 T02 §1); the recipient allowlist (D01 T02 §2) is built on top of these tables right after and then admits invitees and members for `signin` mail.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-28** (validation before building). Migrations 0003 to 0006 are the mail tables (D01 T02), so Better Auth's is `0007_auth.sql`. `better-auth` 1.7.13 (2026-10-25, past pnpm's minimum release age) talks to D1 itself (`@better-auth/kysely-adapter`'s D1 dialect, which uses `batch()` for want of interactive transactions), so `database` takes the `DB` binding directly; and it compiles its own schema SQL (`getMigrations(options).compileMigrations()`), which a script runs against an in-memory SQLite in Node, so no separate CLI is needed and the migration is exactly what Better Auth expects. The base URL is configuration (`APP_URL` in `wrangler.jsonc`, `https://app.isitlegit.co.za`; the tests set their own), since cookies and Better Auth's origin check depend on it. `/cases` and `/sign-in` do not exist yet (D07 T04 §1, D07 T02 §7), so this section adds the session gate every member page uses (`requireSession`), and the sign-out test proves itself through it.
+
 **Build order:**
 
-1. Configure Better Auth in `src/auth/auth.ts` with the D1 adapter and generate its migration. Done when: `pnpm db:migrate:local` creates the Better Auth tables.
+1. Configure Better Auth in `src/auth/auth.ts` on the D1 binding and generate its migration from Better Auth itself. Done when: `pnpm db:migrate:local` creates the Better Auth tables and Better Auth finds nothing left to migrate.
 2. Send magic links through `sendMail`. Done when: a test requests a link and finds one `signin` send.
 
 - [ ] Add exact dependency `better-auth` 1.7.13. Done when: `pnpm install` resolves it and `pnpm typecheck` passes with TypeScript 7.0.2 (or the fallback recorded per D00 T01 §2).
-- [ ] Configure `betterAuth` in `src/auth/auth.ts` with the D1 database, `BETTER_AUTH_SECRET` (Worker secret, vault item "IsItLegit Better Auth secret"), base URL `https://app.isitlegit.co.za`, and secure cookies. Done when: `test/auth/auth.test.ts` creates a session in the workers pool.
-- [ ] Generate the Better Auth schema into `src/db/migrations/0003_auth.sql` with its CLI and review it. Done when: the migration applies locally.
-- [ ] Enable the magic-link plugin with `sendMagicLink` calling `sendMail({ kind: "signin" })`, link expiry 15 minutes. Done when: a test sees the send and an expired link is refused. Cheaper substitute: a password field.
+- [ ] Configure `betterAuth` in `src/auth/auth.ts` with the `DB` binding, `BETTER_AUTH_SECRET` (Worker secret, 32 random bytes, vault item "IsItLegit Better Auth secret"; a test value in `vitest.config.ts`), base URL from `APP_URL` (`https://app.isitlegit.co.za` in `wrangler.jsonc`), and secure, HTTP-only, same-site cookies. Done when: `test/auth/auth.test.ts` creates a session in the workers pool, its cookie carries `Secure`, `HttpOnly` and `SameSite=Lax`, and a Worker without `BETTER_AUTH_SECRET` refuses to build the auth instance with a `ConfigError`. (**Corrected 2026-10-28**, as above.)
+- [ ] Generate the Better Auth schema into `src/db/migrations/0007_auth.sql` with `scripts/auth-schema.ts` (Better Auth's `getMigrations(options).compileMigrations()` for the same options as `src/auth/auth.ts`, against an in-memory SQLite; written to a temporary file and renamed) and review it. Done when: the migration applies locally, and `test/auth/auth.test.ts` runs `getMigrations` against the migrated D1 and finds nothing to create or add. (**Corrected 2026-10-28**: 0003 is taken, and the schema comes from Better Auth itself.)
+- [ ] Enable the magic-link plugin with `sendMagicLink` calling `sendMail({ kind: "signin" })`, link expiry 15 minutes, and a send that does not go (`failed` or `uncertain`) answered as an error, never as "check your email". Done when: a test sees the send, signs in with the link, finds an expired link refused and a used link refused the second time, and gets an error when SMTP2GO refuses the send. Cheaper substitute: a password field.
 - [ ] Mount the auth handler at `/api/auth/*` in the Hono app. Done when: `GET /api/auth/ok` (Better Auth health) returns 200.
-- [ ] Add the browser sign-out route the app shell's Sign out form posts to (D07 T01 §3): `POST /auth/sign-out` with `application/x-www-form-urlencoded`, refused unless the request's `Origin` is the app's own, ends the session (cookie cleared, session row removed) and answers `303` to `/sign-in`; a request with no session also lands on `/sign-in`. Done when: a test submits the form as a browser would, then finds the session gone on a read-back and a request to `/cases` redirected to `/sign-in`, and a cross-origin post refused with `403` and the session intact. (D07 T01 §3 plan review P1, 2026-10-27.)
+- [ ] Add the session gate every member page uses: `requireSession` in `src/auth/gate.ts`, Hono middleware that puts the signed-in user and session on the context, sends an anonymous browser request (one that accepts `text/html`) to `303 /sign-in?next=<the path>` and answers any other anonymous request `401`. Done when: `test/auth/gate.test.ts`, on a route mounted for the test, lets a signed-in request through with its user, sends an anonymous page request to `/sign-in` with `next` set, answers an anonymous JSON request 401, and refuses a `next` that is not a same-site path. (**Added 2026-10-28**: no section owned the gate, and D07 T04 §1's `/cases` needs it.)
+- [ ] Add the browser sign-out route the app shell's Sign out form posts to (D07 T01 §3): `POST /auth/sign-out` with `application/x-www-form-urlencoded`, refused unless the request's `Origin` is the app's own, ends the session (cookie cleared, session row removed) and answers `303` to `/sign-in`; a request with no session also lands on `/sign-in`. Done when: a test submits the form as a browser would, then finds the session row gone on a read-back and a request through `requireSession` sent to `/sign-in`, and a cross-origin post refused with `403` and the session intact. (D07 T01 §3 plan review P1, 2026-10-27; **corrected 2026-10-28**: `/cases` is D07 T04 §1's, so the gate stands in for it.)
 - [ ] Commit: `auth: Better Auth on D1 with email magic links`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/auth.test.ts` passes and fails if an expired magic link signs in.
