@@ -150,6 +150,9 @@ export function readCompoundFile(bytes: Uint8Array): CompoundFile {
       const entry = pending.pop();
       if (!entry) continue;
       entry.parent = storage;
+      // Names are unique within a storage, compared without case ([MS-CFB] 2.6.4); msgreader would read both of two.
+      if (storage.children.some((other) => other.name.toUpperCase() === entry.name.toUpperCase()))
+        refuse(`two entries in one storage are both named ${entry.name}`);
       storage.children.push(entry);
       if (entry.kind === "root" || entry.kind === "unused")
         refuse("the directory tree links an unused or second root entry");

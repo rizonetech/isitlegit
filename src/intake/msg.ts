@@ -36,13 +36,25 @@ type Fields = ReturnType<MsgReader["getFileData"]>;
 export const STRING_PROPERTY_LIMIT = 1024 * 1024;
 export const STRING_TOTAL_LIMIT = 4 * 1024 * 1024;
 
+// A property stream's key as msgreader reads it: the characters after "__substg1.0_", case ignored, whose second four
+// name the type it decodes by (001F Unicode, 001E 8-bit); it reads nothing past the eighth. The bounds below classify
+// streams the same way, and a name [MS-OXMSG] 2.1.4.1 does not allow (a suffix on a single-valued property, which
+// msgreader would still decode as that property) is refused, so no stream escapes them under another spelling.
+const PREFIX = "__substg1.0_";
+const keyOf = (entry: CfbEntry) =>
+  entry.name.startsWith(PREFIX) ? entry.name.slice(PREFIX.length).toLowerCase() : null;
+const typeOf = (entry: CfbEntry) => keyOf(entry)?.slice(4, 8) ?? null;
+const isString = (entry: CfbEntry) => typeOf(entry) === "001f" || typeOf(entry) === "001e";
+const is8Bit = (entry: CfbEntry) => typeOf(entry) === "001e";
+const WELL_FORMED = /^[0-9a-f]{8}$|^[0-9a-f]{4}1[0-9a-f]{3}-[0-9a-f]{8}$/;
+
 // The top-level bodies this reads itself ([MS-OXPROPS]: PidTagBody as Unicode or 8-bit, PidTagHtml as Unicode).
-const TEXT_UNICODE = "__substg1.0_1000001F";
-const TEXT_8BIT = "__substg1.0_1000001E";
-const HTML_UNICODE = "__substg1.0_1013001F";
+const TEXT_UNICODE = "1000001f";
+const TEXT_8BIT = "1000001e";
+const HTML_UNICODE = "1013001f";
 const PROPERTIES = "__properties_version1.0";
-const isString = (name: string) => /^__substg1\.0_[0-9A-F]{4}(001F|001E)$/i.test(name);
-const is8Bit = (name: string) => /^__substg1\.0_[0-9A-F]{4}001E$/i.test(name);
+const rootProperty = (file: CompoundFile, key: string) =>
+  file.root.children.find((entry) => entry.kind === "stream" && keyOf(entry) === key) ?? null;
 
 // A fixed-size property from a storage's property stream ([MS-OXMSG] 2.4: a header of `header` bytes, then 16 bytes a
 // property: tag, flags, value); the 32-bit value of property `id` with type `type`, or null.
@@ -61,15 +73,17 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   // message class ([MS-OXMSG] 2.4, [MS-OXCMSG] 2.2.1.3): any other compound file (a Word document renamed .msg) is not
   // one.
   const file = readCompoundFile(bytes);
-  if (
-    !child(file.root, PROPERTIES) ||
-    !(child(file.root, "__substg1.0_001A001F") || child(file.root, "__substg1.0_001A001E"))
-  )
+  for (const entry of file.entries) {
+    const key = keyOf(entry);
+    if (key !== null && !WELL_FORMED.test(key))
+      throw new ParseError(`a property stream of the .msg has a malformed name (${entry.name})`);
+  }
+  if (!child(file.root, PROPERTIES) || !(rootProperty(file, "001a001f") || rootProperty(file, "001a001e")))
     throw new ParseError("the .msg is not an Outlook message: it has no message properties");
 
-  const strings = file.entries.filter((entry) => entry.kind === "stream" && isString(entry.name));
+  const strings = file.entries.filter((entry) => entry.kind === "stream" && isString(entry));
   const bodies = new Set(
-    [TEXT_UNICODE, TEXT_8BIT, HTML_UNICODE].map((name) => child(file.root, name)).filter((e) => e !== null),
+    [TEXT_UNICODE, TEXT_8BIT, HTML_UNICODE].map((key) => rootProperty(file, key)).filter((e) => e !== null),
   );
   let total = 0;
   for (const entry of strings) {
@@ -88,7 +102,7 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   const messageCodepage = fixedProperty(file, file.root, 32, 0x3ffd, 0x0003) ?? 1252;
   const ansiLabel = codepageLabel(messageCodepage);
   const ansiEncoding = ICONV_NAMES[ansiLabel] ?? ansiLabel;
-  const has8Bit = file.entries.some((entry) => entry.kind === "stream" && is8Bit(entry.name));
+  const has8Bit = file.entries.some((entry) => entry.kind === "stream" && is8Bit(entry));
   if (has8Bit && (ansiLabel.startsWith("utf-16") || ansiEncoding === "iso-2022-jp"))
     throw new ParseError(`the .msg's 8-bit text is in code page ${messageCodepage}, which is not read`);
 
@@ -106,9 +120,9 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
     throw new ParseError("the .msg's HTML property is not binary");
   if (data.attachments !== undefined && !Array.isArray(data.attachments))
     throw new ParseError("the .msg's attachments are malformed");
-  const textEntry = child(file.root, TEXT_UNICODE) ?? child(file.root, TEXT_8BIT);
+  const textEntry = rootProperty(file, TEXT_UNICODE) ?? rootProperty(file, TEXT_8BIT);
   const htmlBytes = data.html?.length ? data.html : null;
-  const htmlUnicode = htmlBytes ? null : child(file.root, HTML_UNICODE);
+  const htmlUnicode = htmlBytes ? null : rootProperty(file, HTML_UNICODE);
   const hasBody = !!(textEntry?.size || htmlBytes || htmlUnicode?.size);
   if (!hasBody && data.compressedRtf?.length)
     throw new ParseError("the .msg's body is only compressed RTF, which is not read yet (D01 T01 §13)");
@@ -131,7 +145,7 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
   const textOf = (entry: CfbEntry, mediaType: string, charset: string) =>
     decode(bound(file.read(entry), mediaType, charset), charset).replace(/\0+$/, "");
   const text = textEntry?.size
-    ? textOf(textEntry, "text/plain", textEntry.name === TEXT_UNICODE ? "utf-16le" : ansiLabel)
+    ? textOf(textEntry, "text/plain", keyOf(textEntry) === TEXT_UNICODE ? "utf-16le" : ansiLabel)
     : null;
   let html: string | null = null;
   if (htmlBytes) {

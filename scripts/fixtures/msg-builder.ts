@@ -210,6 +210,22 @@ export function makeDecoyCompoundFile(): Uint8Array {
   return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);
 }
 
+// A copy of a .msg whose directory entry named `from` is renamed `to` (at most 31 characters), as a malformed file
+// would name it ([MS-CFB] 2.6: the name in UTF-16LE at the entry's start, its byte length with the NUL at offset 64).
+export function renameEntry(msg: Uint8Array, from: string, to: string): Uint8Array {
+  const renamed = msg.slice();
+  const needle = utf16(from);
+  for (let i = 0; i + needle.length <= renamed.length; i++) {
+    if (renamed.subarray(i, i + needle.length).every((b, k) => b === needle[k])) {
+      renamed.fill(0, i, i + 64);
+      renamed.set(utf16(to), i);
+      new DataView(renamed.buffer).setUint16(i + 64, utf16(to).length + 2, true);
+      return renamed;
+    }
+  }
+  throw new Error(`no directory entry named ${from}`);
+}
+
 // A copy of a .msg whose directory entry named `name` declares `size` bytes ([MS-CFB] 2.6: a 128-byte entry, the name in
 // UTF-16LE at its start, the stream size at offset 120), as a hostile file would.
 function forgeSize(msg: Uint8Array, name: string, size: number): Uint8Array {

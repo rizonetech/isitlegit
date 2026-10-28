@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import MsgReader from "@kenjiuno/msgreader";
 import { describe, expect, it } from "vitest";
-import { makeDecoyCompoundFile, makeMsg } from "../../scripts/fixtures/msg-builder";
+import { makeDecoyCompoundFile, makeMsg, renameEntry } from "../../scripts/fixtures/msg-builder";
 import { createCase } from "../../src/db/cases";
 import { ParseError } from "../../src/intake/mime";
 import { parseMsg, STRING_PROPERTY_LIMIT } from "../../src/intake/msg";
@@ -173,6 +173,24 @@ describe("parseMsg", () => {
       expect(ole.parsed.attachments[0]).toMatchObject({ filename: "payment.doc", mediaType: "application/msword" });
       // The embedded message beside it is still one.
       expect(ole.parsed.attachments[2]).toMatchObject({ mediaType: "application/vnd.ms-outlook" });
+    });
+  });
+
+  describe("round 2 cases", () => {
+    it("refuses a single-valued property name with a suffix, which msgreader would still decode", async () => {
+      const body = makeMsg({ transportHeaders: true, bodyRepeat: 30_000 });
+      await expect(
+        parseMsg(renameEntry(body, "__substg1.0_1000001F", "__substg1.0_1000001F-00000000")),
+      ).rejects.toThrow(/malformed name \(__substg1\.0_1000001F-00000000\)/);
+      const subject = makeMsg({ transportHeaders: true, subject: "x".repeat(STRING_PROPERTY_LIMIT / 2 + 1) });
+      await expect(parseMsg(renameEntry(subject, "__substg1.0_0037001F", "__substg1.0_0037001Fx"))).rejects.toThrow(
+        /malformed name/,
+      );
+    });
+
+    it("refuses two entries in one storage with the same name in another case", async () => {
+      const twice = renameEntry(msgs.full, "__substg1.0_0E04001F", "__substg1.0_1000001f");
+      await expect(parseMsg(twice)).rejects.toThrow(/both named/);
     });
   });
 });
