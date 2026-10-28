@@ -30,14 +30,16 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | CONTRIBUTIONS.md by day with commit ranges | D09 T01 §3 | [ ] |
-| 2 | §2 | NOTICE.md audited against every dependency | D09 T01 §3 | [ ] |
+| 1 | §1 | CONTRIBUTIONS.md by day, commit ranges | D09 T01 §3 | [ ] |
+| 2 | §2 | NOTICE.md audited against each dependency | D09 T01 §3 | [ ] |
 | 3 | §3 | Demo script and model-trace demo mode | D07 T03 §5, D07 T07 §2 | [ ] |
 | 4 | §4 | Remotion title cards and animation | §3 | [ ] |
 | 5 | §5 | Final eval run and dashboard screenshot | D08 T02 §5 | [ ] |
 | 6 | §6 | Final README | §1, §2, §5 | [ ] |
 
-## 1. CONTRIBUTIONS.md by day with commit ranges
+## 1. CONTRIBUTIONS.md by day, commit ranges
+
+**Corrected 2026-10-28:** the title read "CONTRIBUTIONS.md by day with commit ranges"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 The rule "identify your contributions" (`docs/hackathon-criteria.md`): what was built each day with its commit range, the pre-existing development tooling declared separately, and third-party code and data listed with licences.
 
@@ -55,7 +57,9 @@ The rule "identify your contributions" (`docs/hackathon-criteria.md`): what was 
 
 **Test checkpoint:** `grep -cE '^\| (Mon|Tue|Wed|Thu|Fri|Sat|Sun) ' CONTRIBUTIONS.md` prints at least `9`.
 
-## 2. NOTICE.md audited against every dependency
+## 2. NOTICE.md audited against each dependency
+
+**Corrected 2026-10-28:** the title read "NOTICE.md audited against every dependency"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 Every runtime and development dependency in the lockfiles, every vendored file and every dataset is listed with version and licence, and checked against our use (`docs/hackathon-criteria.md`: rights to everything used).
 

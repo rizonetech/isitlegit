@@ -30,7 +30,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [ ] |
-| 2 | §2 | Weekly stats, money at risk and CSV export | §1 | [ ] |
+| 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [ ] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §7 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
@@ -58,7 +58,9 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if another organisation's case appears.
 
-## 2. Weekly stats, money at risk and CSV export
+## 2. Weekly stats, money at risk, CSV export
+
+**Corrected 2026-10-28:** the title read "Weekly stats, money at risk and CSV export"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 This week and last: cases checked, verdict mix, median time to verdict, invoice flags and the money at risk caught (sum of flagged invoice amounts), with a CSV export of the counts (never message content).
 

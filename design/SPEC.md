@@ -119,6 +119,8 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | N8 | Daily limit reached | The member | D07 T02 §4 |
 | N9 | Operator notice (budget cap, feedback) | The operator | D03 T01 §2, D07 T03 §6 |
 
+No acknowledgement is mailed when a forward is admitted (operator, 2026-10-28, D01 T01 §11): the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain.
+
 ## 1. Shared parts
 
 Every page is drawn from these parts and from the tokens in `design/tokens/colors.json`; a page never invents its own header, navigation or colour. The approved canvas stylesheet is `mockups/source/ui.css`, and its values are the tokens: colours from `design/tokens/colors.json` (for example ink `#181519`, muted `#4D4953`, orange `#FF4A14` for graphics only, orange text `#CC2E00` for links, eyebrows and the primary button, suspicious `#8A5200` for text and `#B26A00` for graphics, and input borders in control border `#8E8A95`), type from `design/tokens/typography.json` (Exo for headings and figures, Exo 2 for text), spacing, radii and control heights from `design/tokens/spacing.json` (a 4 px scale; 12 px card radius, 16 px panel radius; controls 48 px and 36 px high). Buttons come in primary, dark, ghost, danger and link styles; pills come in safe, suspicious, malicious, partial, running and neutral, and the admin sidebar's brand ("Rizonetech admin", dark on orange) and alert (a count, white on the malicious band) as `AdminNav` draws them (D07 T01 §3).

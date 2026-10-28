@@ -51,7 +51,7 @@ Sections: 38 | Checklist items: 308
 | [x]    | D01 T02 §4 | Test and demo mail aliases                 | cloudflare            | 6     |
 | [x]    | D01 T02 §5 | Reconcile uncertain sends                  | none                  | 8     |
 | [ ]    | D01 T02 §6 | Forwarding failures detected and reported  | operator              | 6     |
-| [ ]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | operator              | 4     |
+| [ ]    | D01 T02 §7 | Automatic recovery of ambiguous sends      | none                  | 4     |
 | [x]    | D01 T03 §2 | Audio decoding to 16 kHz mono WAV          | none                  | 9     |
 | [x]    | D01 T03 §7 | MP3 decoding                               | none                  | 7     |
 | [x]    | D01 T03 §8 | M4A decoding                               | none                  | 5     |
@@ -85,11 +85,10 @@ Sections: 38 | Checklist items: 308
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 35 | Checklist items: 194
+Sections: 34 | Checklist items: 188
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
-| [ ]    | D01 T03 §10 | M4A with libxaac                                      | operator | 6     |
 | [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [ ]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
@@ -201,65 +200,69 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 55 | Checklist items: 217
+Sections: 59 | Checklist items: 235
 
-| Status | Reference  | Deliverable                                | Needs                 | Items |
-| ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
-| [ ]    | D03 T04 §1 | Glimmer screener, Spark failover           | meta-api              | 7     |
-| [ ]    | D04 T01 §1 | Deterministic floor from critical evidence | none                  | 4     |
-| [ ]    | D04 T01 §2 | Rule-based verdict                         | none                  | 3     |
-| [ ]    | D04 T01 §3 | Read-only agent tools with zod validation  | none                  | 5     |
-| [ ]    | D04 T01 §4 | Verdict agent loop on the Responses API    | meta-api              | 9     |
-| [ ]    | D04 T01 §5 | Citation validator with fallback           | none                  | 3     |
-| [ ]    | D04 T01 §6 | Prompt-injection fixture suite             | none                  | 4     |
-| [ ]    | D04 T01 §7 | Prompt Guard as a second classifier        | cloudflare            | 3     |
-| [ ]    | D05 T04 §1 | Lookalike candidate generator              | none                  | 4     |
-| [ ]    | D05 T04 §2 | Daily run with DNS liveness checks         | cloudflare            | 6     |
-| [ ]    | D05 T04 §3 | Screening new or changed live pages        | meta-api              | 3     |
-| [ ]    | D05 T04 §4 | Full pipeline on flagged pages             | meta-api, cloudflare  | 3     |
-| [ ]    | D05 T04 §5 | Monitor alerts and takedown pack           | none                  | 4     |
-| [ ]    | D05 T04 §6 | Demo lookalike site found by the monitor   | cloudflare            | 4     |
-| [ ]    | D06 T01 §4 | Supplier ledger page and CSV import        | none                  | 5     |
-| [ ]    | D07 T03 §5 | Model trace panel                          | none                  | 5     |
-| [ ]    | D07 T04 §1 | Cases list with filters and search         | none                  | 4     |
-| [ ]    | D07 T04 §2 | Weekly stats, money at risk and CSV export | none                  | 4     |
-| [ ]    | D07 T04 §3 | Team and invites page                      | none                  | 5     |
-| [ ]    | D07 T04 §4 | Domains and sending addresses page         | none                  | 4     |
-| [ ]    | D07 T05 §1 | Access application and JWT verification    | cloudflare            | 4     |
-| [ ]    | D07 T05 §2 | Overview, spend and invite codes           | none                  | 5     |
-| [ ]    | D07 T06 §1 | Astro workspace with the design tokens     | none                  | 5     |
-| [ ]    | D07 T06 §2 | Home page                                  | none                  | 4     |
-| [ ]    | D07 T06 §3 | How it works and invoice fraud pages       | none                  | 3     |
-| [ ]    | D07 T06 §4 | Pricing page with launch prices            | none                  | 2     |
-| [ ]    | D07 T06 §5 | Privacy and POPIA page                     | none                  | 3     |
-| [ ]    | D07 T06 §6 | Deploy the site and split the app host     | cloudflare            | 4     |
-| [ ]    | D07 T06 §7 | Protect your business page                 | none                  | 2     |
-| [ ]    | D07 T06 §8 | Terms, security and about pages            | none                  | 4     |
-| [ ]    | D07 T07 §1 | Fictional demo businesses                  | cloudflare            | 3     |
-| [ ]    | D07 T07 §2 | Judge demo organisation                    | meta-api, live-mail   | 4     |
-| [ ]    | D07 T08 §1 | App and site error pages                   | none                  | 4     |
-| [ ]    | D07 T08 §2 | First-run onboarding checklist             | none                  | 4     |
-| [ ]    | D07 T08 §3 | Account settings and passkeys              | none                  | 4     |
-| [ ]    | D07 T08 §4 | Plan and trial page                        | none                  | 2     |
-| [ ]    | D07 T08 §5 | Admin org detail and feedback queue        | none                  | 2     |
-| [ ]    | D07 T08 §6 | Sign-in, invite and verification emails    | none                  | 3     |
-| [ ]    | D07 T08 §7 | Renew an expired report link               | operator              | 6     |
-| [ ]    | D08 T02 §1 | Eval runner through the deployed pipeline  | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2 | Metrics against the spec targets           | none                  | 5     |
-| [ ]    | D08 T02 §3 | Model ablation runs                        | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §4 | Eval dashboard with production counts      | none                  | 4     |
-| [ ]    | D08 T02 §5 | Fix the worst misses and record results    | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T03 §5 | Experiment: Spark on a scam video          | meta-api              | 4     |
-| [ ]    | D08 T03 §6 | Experiment: reasoning effort and cost      | meta-api, cloudflare  | 3     |
-| [ ]    | D09 T01 §1 | Limits and retention verified live         | cloudflare, live-mail | 3     |
-| [ ]    | D09 T01 §2 | Failure injection on every dependency      | cloudflare, live-mail | 3     |
-| [ ]    | D09 T01 §3 | Full-diff independent review               | none                  | 4     |
-| [ ]    | D09 T02 §1 | CONTRIBUTIONS.md by day with commit ranges | none                  | 3     |
-| [ ]    | D09 T02 §2 | NOTICE.md audited against every dependency | none                  | 3     |
-| [ ]    | D09 T02 §3 | Demo script and model-trace demo mode      | none                  | 4     |
-| [ ]    | D09 T02 §4 | Remotion title cards and animation         | none                  | 4     |
-| [ ]    | D09 T02 §5 | Final eval run and dashboard screenshot    | meta-api, cloudflare  | 3     |
-| [ ]    | D09 T02 §6 | Final README                               | none                  | 5     |
+| Status | Reference   | Deliverable                               | Needs                 | Items |
+| ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
+| [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
+| [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
+| [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
+| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
+| [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
+| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 9     |
+| [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 3     |
+| [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 4     |
+| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 3     |
+| [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
+| [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 6     |
+| [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
+| [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
+| [ ]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 4     |
+| [ ]    | D05 T04 §4  | Full pipeline on flagged pages            | meta-api, cloudflare  | 3     |
+| [ ]    | D05 T04 §5  | Monitor alerts and takedown pack          | none                  | 4     |
+| [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
+| [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 4     |
+| [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
+| [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
+| [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
+| [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
+| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 5     |
+| [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
+| [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
+| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 5     |
+| [ ]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 5     |
+| [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
+| [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
+| [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
+| [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
+| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 4     |
+| [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
+| [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
+| [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
+| [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
+| [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
+| [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
+| [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
+| [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 2     |
+| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 2     |
+| [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
+| [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
+| [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 5     |
+| [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
+| [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
+| [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
+| [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
+| [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
+| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 3     |
+| [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
+| [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
+| [ ]    | D09 T02 §1  | CONTRIBUTIONS.md by day, commit ranges    | none                  | 3     |
+| [ ]    | D09 T02 §2  | NOTICE.md audited against each dependency | none                  | 3     |
+| [ ]    | D09 T02 §3  | Demo script and model-trace demo mode     | none                  | 4     |
+| [ ]    | D09 T02 §4  | Remotion title cards and animation        | none                  | 4     |
+| [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot   | meta-api, cloudflare  | 3     |
+| [ ]    | D09 T02 §6  | Final README                              | none                  | 5     |
 
 ### Phase 7: After the event
 
@@ -268,10 +271,10 @@ Sections: 13 | Checklist items: 58
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
 | [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none     | 6     |
-| [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended | 6     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
+| [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
 | [ ]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
@@ -300,6 +303,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 45/231 verified sections, 31 ready to run now.
+Progress: 45/234 verified sections, 32 ready to run now.
 
-Checklist: 520/1361 items completed (includes Commit items).
+Checklist: 526/1373 items completed (includes Commit items).

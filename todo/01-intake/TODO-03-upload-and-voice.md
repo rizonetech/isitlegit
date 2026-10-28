@@ -361,11 +361,13 @@ Evidence after rounds 1 to 3 and the final review, 2026-10-28 02:08 SAST. Round 
 
 §8 found one AAC decoder whose copyright licence allows shipping it in the Worker: libxaac (Ittiam for Android, Apache-2.0). It was not taken because AAC, unlike MP3, is still licensed through a patent pool, and whether decoding uploaded voice notes on a server needs that licence is a business decision. Filed from §8 (2026-10-28) so M4A has an owner.
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** operator
 **Surface:** no
 
 **Operator decision (open):** whether IsItLegit may decode AAC (iPhone voice memos and other `.m4a` recordings) in the Worker, given the AAC patent pool, and if so under which licence. Recording `AAC decoding: <decision> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+AAC decoding: not during the event; M4A stays refused with its MP3-or-WAV message, and the question returns after the event with legal advice (2026-10-28). **Operator decision (2026-10-28 22:42 SAST):** moved to Phase 7 (after the event); `operator` stays in Needs for that later decision.
 
 **Build order:**
 
