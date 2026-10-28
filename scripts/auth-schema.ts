@@ -25,7 +25,10 @@ export const authMigrations = (dir: string) =>
 export async function missingAuthSchema(dir = MIGRATIONS): Promise<string> {
   const database = new DatabaseSync(":memory:");
   for (const name of authMigrations(dir)) database.exec(readFileSync(join(dir, name), "utf-8"));
-  const options = { database, ...schemaOptions(async () => {}, APP_URL) };
+  const options = {
+    database,
+    ...schemaOptions({ sendMagicLink: async () => {}, sendInvitationEmail: async () => {} }, APP_URL),
+  };
   const { toBeCreated, toBeAdded, compileMigrations } = await getMigrations(options as never);
   if (toBeCreated.length === 0 && toBeAdded.length === 0) return "";
   return (await compileMigrations()).trim();
