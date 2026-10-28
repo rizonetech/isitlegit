@@ -5,6 +5,7 @@ import io
 import pathlib
 import unittest
 import urllib.error
+import urllib.request
 from unittest import mock
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -108,7 +109,7 @@ class Call(unittest.TestCase):
                 with self.subTest(status=status, cut=type(cut).__name__):
                     error = urllib.error.HTTPError("https://x.test", status, "err", {}, io.BytesIO(b""))
                     error.read = mock.Mock(side_effect=cut)
-                    with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):
+                    with mock.patch.object(cwk.OPENER, "open", side_effect=error):
                         with self.assertRaises(cwk.Unreachable):
                             cwk.call(KEY, "https://x.test")
                         code, line = cwk.check(read=lambda: KEY)
@@ -136,7 +137,7 @@ class Call(unittest.TestCase):
         ok.begin()
         context = mock.MagicMock()
         context.__enter__.return_value = ok
-        with mock.patch.object(cwk.urllib.request, "urlopen", return_value=context):
+        with mock.patch.object(cwk.OPENER, "open", return_value=context):
             with self.assertRaises(cwk.Unreachable):
                 cwk.call(KEY, "https://x.test")
             code, line = cwk.check(read=lambda: KEY)
@@ -148,20 +149,85 @@ class Call(unittest.TestCase):
             empty.begin()
             context = mock.MagicMock()
             context.__enter__.return_value = empty
-            with self.subTest(raw[-30:]), mock.patch.object(cwk.urllib.request, "urlopen", return_value=context):
+            with self.subTest(raw[-30:]), mock.patch.object(cwk.OPENER, "open", return_value=context):
                 with self.assertRaises(cwk.Unreachable):
                     cwk.call(KEY, "https://x.test")
         whole = http.client.HTTPResponse(Sock(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}"))
         whole.begin()
         context = mock.MagicMock()
         context.__enter__.return_value = whole
-        with mock.patch.object(cwk.urllib.request, "urlopen", return_value=context):
+        with mock.patch.object(cwk.OPENER, "open", return_value=context):
             self.assertEqual(cwk.call(KEY, "https://x.test"), (200, {}))
         for error in (truncated, html):
             with self.subTest(error.fp.__class__.__name__):
-                with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):
+                with mock.patch.object(cwk.OPENER, "open", side_effect=error):
                     with self.assertRaises(cwk.Unreachable):
                         cwk.call(KEY, "https://x.test")
+
+
+class Shapes(unittest.TestCase):
+    """A whole answer in the wrong shape is unreadable (exit 2), never a crash or a substring match."""
+
+    def test_wrong_shapes_are_unreadable(self):
+        for lure in ((200, {"threat": "SOCIAL_ENGINEERING"}), (200, {"threat": {"threatTypes": "SOCIAL_ENGINEERING"}}),
+                     (200, {"threat": {"threatTypes": [1]}})):
+            with self.subTest(lure=lure):
+                self.assertEqual(cwk.check(read=lambda: KEY, get=google(lure=lure))[0], 2)
+        for other in ((403, {"error": "denied"}), (403, {"error": {"details": "x"}})):
+            with self.subTest(other=other):
+                self.assertEqual(cwk.check(read=lambda: KEY, get=google(others={"kgsearch": other}))[0], 2)
+
+    def test_a_non_object_answer_is_unreadable(self):
+        body = io.BytesIO(b"[]")
+        response = mock.MagicMock(status=200, headers={"Content-Length": "2"})
+        response.read.side_effect = body.read
+        context = mock.MagicMock()
+        context.__enter__.return_value = response
+        with mock.patch.object(cwk.OPENER, "open", return_value=context):
+            with self.assertRaises(cwk.Unreachable):
+                cwk.call(KEY, "https://x.test")
+
+    def test_the_older_refusal_shape_counts(self):
+        legacy = (403, {"error": {"errors": [{"reason": "accessNotConfigured"}]}})
+        self.assertEqual(cwk.check(read=lambda: KEY, get=google(others={"books": legacy}))[0], 0)
+
+
+class Request(unittest.TestCase):
+    """The real request: the key only in its header, redirects refused, a deadline over the whole answer."""
+
+    def test_the_key_travels_only_in_the_header(self):
+        sent = []
+        response = mock.MagicMock(status=200, headers={"Content-Length": "2"})
+        response.read.side_effect = io.BytesIO(b"{}").read
+        context = mock.MagicMock()
+        context.__enter__.return_value = response
+
+        def open_(request, timeout):
+            sent.append(request)
+            return context
+
+        with mock.patch.object(cwk.OPENER, "open", side_effect=open_):
+            cwk.call(KEY, cwk.SEARCH + "x")
+        self.assertEqual(sent[0].get_header("X-goog-api-key"), KEY)
+        self.assertNotIn(KEY, sent[0].full_url)
+
+    def test_a_redirect_is_refused(self):
+        handler = cwk.NoRedirect()
+        request = urllib.request.Request("https://webrisk.googleapis.com/v1/uris:search")
+        with self.assertRaises(urllib.error.HTTPError):
+            handler.redirect_request(request, io.BytesIO(b""), 302, "Found", {}, "https://example.invalid/collect")
+        error = urllib.error.HTTPError("https://x.test", 302, "redirect refused", {}, io.BytesIO(b""))
+        with mock.patch.object(cwk.OPENER, "open", side_effect=error):
+            with self.assertRaises(cwk.Unreachable):
+                cwk.call(KEY, "https://x.test")
+
+    def test_a_trickle_past_the_deadline_is_unreachable(self):
+        clock = iter([0.0, 0.0, 31.0, 31.0])
+        stream = mock.MagicMock()
+        stream.read.return_value = b"{"
+        with mock.patch.object(cwk.time, "monotonic", side_effect=lambda: next(clock)):
+            with self.assertRaises(TimeoutError):
+                cwk.read_by(stream, 30.0)
 
 
 if __name__ == "__main__":

@@ -17,8 +17,10 @@ service list, which needs the API Keys API and a Google Cloud credential this re
 
 Exit 0 when all hold; 1 with the reason when one does not; 2 when nothing could be judged: the vault or Google could
 not be reached, or Google answered a quota (429) or server (5xx) error at any step, which is Google's state, not the
-key's (https://docs.cloud.google.com/web-risk/docs/status-codes). Only
-`uris.search` is called, never `threatLists.computeDiff` or `hashes.search`, which would bill every lookup. Stdlib only.
+key's (https://docs.cloud.google.com/web-risk/docs/status-codes). The only Web Risk method called is `uris.search`,
+never `threatLists.computeDiff` or `hashes.search`, which would bill every lookup; the seven other APIs are read-only GETs
+the key is expected to be refused. Redirects are refused, so the key's header never follows one to another host, and
+each call has a 30 second deadline for its whole answer. Stdlib only.
 """
 import http.client
 import json
@@ -26,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -44,7 +47,9 @@ OTHER_APIS = [
     "https://translation.googleapis.com/language/translate/v2/languages",
     "https://vision.googleapis.com/v1/operations",
 ]
-REFUSED = {"API_KEY_SERVICE_BLOCKED", "SERVICE_DISABLED"}
+REFUSED = {"API_KEY_SERVICE_BLOCKED", "SERVICE_DISABLED",
+           # The older error shape some Google APIs still send (error.errors[].reason).
+           "accessNotConfigured", "keyInvalid", "forbidden", "ipRefererBlocked"}
 KEY_SHAPE = re.compile(r"AIza[0-9A-Za-z_-]{35}")
 VAULT_SECONDS = 60
 HTTP_SECONDS = 30
@@ -73,16 +78,43 @@ TRANSPORT = (urllib.error.URLError, OSError, TimeoutError, http.client.HTTPExcep
 LIMIT = 1024 * 1024
 
 
-def call(key, url):
-    """(HTTP status, JSON body) for a GET with the key in its header. Only a whole answer that reads as JSON counts;
-    anything else is Google unreachable, so a cut-off answer is never taken for a judgement on the key."""
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect: the key's header must never follow one to another host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect to another URL refused ({code})", headers, fp)
+
+
+OPENER = urllib.request.build_opener(NoRedirect)
+
+
+def read_by(stream, deadline):
+    """At most LIMIT + 1 bytes of a body, refused once the whole call passes its deadline."""
+    parts, size = [], 0
+    while size <= LIMIT:
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"the answer took longer than {HTTP_SECONDS} s")
+        chunk = stream.read(min(65536, LIMIT + 1 - size))
+        if not chunk:
+            break
+        parts.append(chunk)
+        size += len(chunk)
+    return b"".join(parts)
+
+
+def call(key, url, opener=OPENER):
+    """(HTTP status, JSON object) for a GET with the key in its header. Only a whole answer that reads as a JSON object
+    counts; anything else is Google unreachable, so a cut-off answer is never taken for a judgement on the key."""
     request = urllib.request.Request(url, headers={"x-goog-api-key": key, "user-agent": "isitlegit-check-webrisk/1.0"})
+    deadline = time.monotonic() + HTTP_SECONDS
     try:
         try:
-            with urllib.request.urlopen(request, timeout=HTTP_SECONDS) as response:
-                status, headers, raw = response.status, response.headers, response.read(LIMIT + 1)
+            with opener.open(request, timeout=HTTP_SECONDS) as response:
+                status, headers, raw = response.status, response.headers, read_by(response, deadline)
         except urllib.error.HTTPError as exc:
-            status, headers, raw = exc.code, exc.headers, exc.read(LIMIT + 1)
+            if 300 <= exc.code < 400:
+                raise Unreachable(f"Google answered a redirect ({exc.code}), refused so the key stays with Google") from None
+            status, headers, raw = exc.code, exc.headers, read_by(exc, deadline)
     except TRANSPORT as exc:
         raise Unreachable(f"Google could not be reached or its answer was cut off ({type(exc).__name__})") from None
     # Whole means: some body (Google always sends one; a clean lookup is the two bytes `{}`), no shorter than its
@@ -91,14 +123,39 @@ def call(key, url):
     if not raw or len(raw) > LIMIT or (declared is not None and declared.isdigit() and len(raw) != int(declared)):
         raise Unreachable(f"Google's HTTP {status} answer was not received whole ({len(raw)} bytes)")
     try:
-        return status, json.loads(raw)
+        body = json.loads(raw)
     except ValueError:
         raise Unreachable(f"Google's HTTP {status} answer could not be read whole") from None
+    if not isinstance(body, dict):
+        raise Unreachable(f"Google's HTTP {status} answer is not a JSON object")
+    return status, body
 
 
 def reasons(body):
-    details = (body.get("error") or {}).get("details") or []
-    return {d.get("reason") for d in details if isinstance(d, dict) and d.get("reason")}
+    """The refusal reasons in an error answer, in either shape Google sends: error.details[].reason, or the older
+    error.errors[].reason. A wrong shape is unreadable, not a refusal."""
+    error = body.get("error", {})
+    if not isinstance(error, dict):
+        raise Unreachable("Google's error answer has no error object")
+    found = set()
+    for field in ("details", "errors"):
+        items = error.get(field) or []
+        if not isinstance(items, list):
+            raise Unreachable(f"Google's error answer has a malformed {field} list")
+        found |= {i["reason"] for i in items if isinstance(i, dict) and isinstance(i.get("reason"), str)}
+    return found
+
+
+def threat_types(body):
+    """The threat types of a uris.search answer: absent for a clean page, else a list of names; any other shape is
+    unreadable, never a match by substring."""
+    threat = body.get("threat")
+    if threat is None:
+        return []
+    types = threat.get("threatTypes") if isinstance(threat, dict) else None
+    if not isinstance(types, list) or not all(isinstance(t, str) for t in types):
+        raise Unreachable("Web Risk's answer has a malformed threat")
+    return types
 
 
 def busy(status):
@@ -120,10 +177,10 @@ def check(read=read_key, get=call):
             if status != 200:
                 return 1, (f"check-webrisk-key: Web Risk answered HTTP {status}; the key is invalid, revoked, or the "
                            "Web Risk API is off in its project")
-            flagged = "SOCIAL_ENGINEERING" in ((body.get("threat") or {}).get("threatTypes") or [])
-            if expect_threat and not flagged:
+            types = threat_types(body)
+            if expect_threat and "SOCIAL_ENGINEERING" not in types:
                 return 1, "check-webrisk-key: Google's test phishing page was not flagged SOCIAL_ENGINEERING"
-            if not expect_threat and body.get("threat"):
+            if not expect_threat and types:
                 return 1, "check-webrisk-key: https://www.google.com/ was flagged; the lookup is unreliable"
         blocked = 0
         for url in OTHER_APIS:
