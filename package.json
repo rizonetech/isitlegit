@@ -27,6 +27,7 @@
     "better-auth": "1.7.13",
     "hono": "4.13.14",
     "opus-decoder": "0.7.12",
+    "tldts": "7.4.19",
     "zod": "4.6.7"
   },
   "devDependencies": {
