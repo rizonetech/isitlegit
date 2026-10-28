@@ -71,10 +71,13 @@ class Domain(unittest.TestCase):
         self.refused("CAA", CAA=GOOD["CAA"] + ['0 issue "evil-ca.example"'])
         self.refused("CAA", CAA=['0 issue "comodoca.com"'])
         self.refused("CAA", CAA=GOOD["CAA"] + ['0 issuewild "amazon.com"'])
+        self.refused("CAA", CAA=GOOD["CAA"] + ['0 issue "sectigo.com"'])
 
     def test_a_missing_or_different_ds_or_unvalidated_zone_is_refused(self):
-        self.refused("DS record", DS=[])
-        self.refused("DS record", DS=["2371 13 2 00"])
+        self.refused("DS set", DS=[])
+        self.refused("DS set", DS=["2371 13 2 00"])
+        self.refused("DS set", DS=GOOD["DS"] + ["9999 13 2 AAAA"])
+        self.refused("DS set", DS=GOOD["DS"] + ["2371 13 1 0123456789ABCDEF0123456789ABCDEF01234567"])
         self.refused("ad flag", flags=";; flags: qr rd ra; QUERY: 1")
         self.refused("ad flag", flags=";; flags: qr rd ra; QUERY: 1, ANSWER: 0, ADDITIONAL: 1 (ad)")
 

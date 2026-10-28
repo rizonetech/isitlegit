@@ -29,8 +29,9 @@ MX_HOSTS = {"route1.mx.cloudflare.net.", "route2.mx.cloudflare.net.", "route3.mx
 SPF_RECORD = "v=spf1 include:_spf.mx.cloudflare.net ~all"
 DMARC_RECORD = "v=DMARC1; p=reject; sp=reject; adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za"
 # Universal SSL's authorities (https://developers.cloudflare.com/ssl/reference/certificate-authorities/); Cloudflare adds
-# its own CAA rows for them, so Sectigo (comodoca.com) and DigiCert may appear beside the three the section names.
-CLOUDFLARE_CAS = {"letsencrypt.org", "pki.goog", "ssl.com", "comodoca.com", "digicert.com", "sectigo.com"}
+# its own CAA rows for them, so Sectigo's comodoca.com and DigiCert appear beside the three the section names (all five
+# read back from the zone on 2026-10-28); nothing else is allowed.
+CLOUDFLARE_CAS = {"letsencrypt.org", "pki.goog", "ssl.com", "comodoca.com", "digicert.com"}
 REQUIRED_CAS = {"letsencrypt.org", "pki.goog", "ssl.com"}
 DS = ("2371", "13", "2", "360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B723928504665")
 CHECKS = 7
@@ -118,9 +119,11 @@ def check(a):
          f"CAA issue {sorted(issuers)} and issuewild {sorted(wild)} are not Universal SSL's only, with Let's Encrypt, "
          "Google and SSL.com issuing")
 
+    # Exactly the recorded DS and no other: a second one left from a rollover or a mistyped paste is refused too.
     ds = [line.split() for line in a["DS"]]
-    need(any(r[:3] == list(DS[:3]) and "".join(r[3:]).upper() == DS[3] for r in ds),
-         "the DS record at the registry is not key tag 2371, algorithm 13, digest type 2 with the recorded digest")
+    need(len(ds) == 1 and ds[0][:3] == list(DS[:3]) and "".join(ds[0][3:]).upper() == DS[3],
+         f"the registry's DS set is not exactly the recorded one (key tag 2371, algorithm 13, digest type 2, the "
+         f"recorded digest); it holds {len(ds)} record(s)")
     found = re.search(r"flags:([^;]*);", a["flags"])
     flag_words = found[1].split() if found else []
     need("ad" in flag_words, "the resolver did not validate the zone (no ad flag)")
