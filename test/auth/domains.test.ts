@@ -115,10 +115,26 @@ describe("claiming and verifying a domain", () => {
     const listed = (await (await json("/domains", cookie, "GET")).json()) as {
       domains: { domain: string; state: string; txt?: unknown }[];
     };
-    expect(listed.domains).toEqual([{ domain, state: "pending", method: null, verified_at: null, txt }]);
+    expect(listed.domains).toEqual([
+      {
+        domain,
+        state: "pending",
+        method: null,
+        verified_at: null,
+        txt,
+        codeExpiresAt: null,
+        lockedUntil: null,
+        nextCodeAt: null,
+      },
+    ]);
     world.doh = (name) => (name === txt.name ? txtAnswer(txt.value) : Response.json({ Status: 3 }));
     expect(await (await json(`/domains/${domain}/check`, cookie, "POST")).json()).toEqual({ domain, verified: true });
     expect(await stateOf(orgId, domain)).toBe("verified");
+    const after = (await (await json("/domains", cookie, "GET")).json()) as {
+      domains: { state: string; method: string; txt?: unknown }[];
+    };
+    expect(after.domains[0]).toMatchObject({ state: "verified", method: "dns" });
+    expect(after.domains[0]?.txt).toBeUndefined();
     expect(await findMemberBySender(db, "Accounts@Billing.Acme-Corp.co.za")).toBe(orgId);
     expect((await json(`/domains/${domain}`, cookie, "DELETE")).status).toBe(204);
     expect(((await (await json("/domains", cookie, "GET")).json()) as { domains: unknown[] }).domains).toEqual([]);
@@ -295,7 +311,12 @@ describe("codes by email", () => {
     world.smtp = "sent";
     for (let i = 0; i < 3; i++)
       expect((await json("/domains/outcomes.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+    const lastMailed = lastCode();
     expect((await json("/domains/outcomes.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(429);
+    // A code refused for the limit replaces nothing: the last one mailed still works.
+    expect(
+      await (await json("/domains/outcomes.co.za/verify", cookie, "POST", { code: lastMailed })).json(),
+    ).toMatchObject({ verified: true });
   });
 
   it("verifies a sending address by code, resends, refuses expired codes, and caps claims and codes", async () => {
@@ -362,5 +383,210 @@ describe("removal", () => {
     await json("/domains/removed.co.za", cookie, "DELETE");
     expect(await findMemberBySender(db, "ceo@removed.co.za")).toBe(orgId);
     expect(await findMemberBySender(db, "cfo@removed.co.za")).toBeNull();
+  });
+});
+
+describe("completion review cases", () => {
+  it("lets an admin run a whole address and domain round trip, and refuses a member the address routes too", async () => {
+    const { cookie } = await owner("rtowner@example.org");
+    const admin = await joiner(cookie, "rtadmin@example.org", "admin");
+    await json("/addresses", admin, "POST", { address: "rt@gmail.com" });
+    expect(
+      await (await json("/addresses/verify", admin, "POST", { address: "rt@gmail.com", code: lastCode() })).json(),
+    ).toMatchObject({ verified: true });
+    await json("/domains", admin, "POST", { domain: "rt.co.za" });
+    await json("/domains/rt.co.za/code", admin, "POST", { local: "postmaster" });
+    expect(await (await json("/domains/rt.co.za/verify", admin, "POST", { code: lastCode() })).json()).toMatchObject({
+      verified: true,
+    });
+    const listed = (await (await json("/domains", admin, "GET")).json()) as {
+      domains: { state: string }[];
+      addresses: { state: string }[];
+    };
+    expect([listed.domains[0]?.state, listed.addresses[0]?.state]).toEqual(["verified", "verified"]);
+    const member = await joiner(cookie, "rtmember@example.org", "member");
+    for (const [path, method, body] of [
+      ["/addresses/code", "POST", { address: "rt@gmail.com" }],
+      ["/addresses/rt@gmail.com", "DELETE", undefined],
+    ] as const)
+      expect((await json(path, member, method, body)).status, `${method} ${path}`).toBe(403);
+    expect((await json("/addresses/rt@gmail.com", admin, "DELETE")).status).toBe(204);
+    expect((await json("/domains/rt.co.za", admin, "DELETE")).status).toBe(204);
+  });
+
+  it("keeps another organisation out of an address claim, and gives a contested address to one", async () => {
+    const a = await owner("addra@example.org");
+    const b = await owner("addrb@example.org");
+    await json("/addresses", a.cookie, "POST", { address: "shared@gmail.com" });
+    const codeA = lastCode();
+    const before = world.sends.length;
+    for (const [path, method, body] of [
+      ["/addresses/code", "POST", { address: "shared@gmail.com" }],
+      ["/addresses/verify", "POST", { address: "shared@gmail.com", code: codeA }],
+      ["/addresses/shared@gmail.com", "DELETE", undefined],
+    ] as const)
+      expect((await json(path, b.cookie, method, body)).status, `${method} ${path}`).toBe(404);
+    expect(world.sends.length).toBe(before);
+    await json("/addresses", b.cookie, "POST", { address: "shared@gmail.com" });
+    const codeB = lastCode();
+    const answers = await Promise.all([
+      json("/addresses/verify", a.cookie, "POST", { address: "shared@gmail.com", code: codeA }),
+      json("/addresses/verify", b.cookie, "POST", { address: "shared@gmail.com", code: codeB }),
+    ]);
+    expect(answers.map((r) => r.status).sort()).toEqual([200, 409]);
+    // The loser's code is still waiting: the refused verification rolled back with its consumption.
+    const waiting = await db
+      .prepare("SELECT COUNT(*) AS n FROM verification_codes WHERE org_id IN (?, ?)")
+      .bind(a.orgId, b.orgId)
+      .first<{ n: number }>();
+    expect(waiting?.n).toBe(1);
+  });
+
+  it("holds each limit when requests arrive together at it", async () => {
+    const { cookie } = await owner("limits@example.org");
+    for (let i = 0; i < 9; i++) await json("/domains", cookie, "POST", { domain: `pending${i}.co.za` });
+    const domains = await Promise.all(
+      ["last-a.co.za", "last-b.co.za"].map((d) => json("/domains", cookie, "POST", { domain: d })),
+    );
+    expect(domains.map((r) => r.status).sort()).toEqual([201, 429]);
+    for (let i = 0; i < 19; i++)
+      await db
+        .prepare(
+          "INSERT INTO org_addresses (id, org_id, address, state, created_at) SELECT ?, org_id, ?, 'pending', ? FROM invite_redemptions WHERE email = 'limits@example.org'",
+        )
+        .bind(`pa-${i}`, `p${i}@outlook.com`, new Date().toISOString())
+        .run();
+    const addresses = await Promise.all(
+      ["x1@outlook.com", "x2@outlook.com"].map((a) => json("/addresses", cookie, "POST", { address: a })),
+    );
+    expect(addresses.map((r) => r.status).sort()).toEqual([200, 429]);
+    // One domain's five codes, shared by admin@ and postmaster@, and the last one taken by one of two at once.
+    for (let i = 0; i < 3; i++) await json("/domains/pending0.co.za/code", cookie, "POST", { local: "admin" });
+    await json("/domains/pending0.co.za/code", cookie, "POST", { local: "postmaster" });
+    const codes = await Promise.all(
+      ["admin", "postmaster"].map((local) => json("/domains/pending0.co.za/code", cookie, "POST", { local })),
+    );
+    expect(codes.map((r) => r.status).sort()).toEqual([200, 429]);
+    // A reload sees when the next code may be sent.
+    const listed = (await (await json("/domains", cookie, "GET")).json()) as {
+      domains: { domain: string; nextCodeAt: string | null; codeExpiresAt: string | null }[];
+    };
+    const pending0 = listed.domains.find((d) => d.domain === "pending0.co.za");
+    expect(pending0?.nextCodeAt).not.toBeNull();
+    expect(pending0?.codeExpiresAt).not.toBeNull();
+  });
+
+  it("shows a locked claim's lock on a reload, without a trial guess", async () => {
+    const { cookie } = await owner("relock@example.org");
+    await json("/domains", cookie, "POST", { domain: "relock.co.za" });
+    await json("/domains/relock.co.za/code", cookie, "POST", { local: "admin" });
+    const wrong = lastCode() === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 3; i++) await json("/domains/relock.co.za/verify", cookie, "POST", { code: wrong });
+    const listed = (await (await json("/domains", cookie, "GET")).json()) as {
+      domains: { lockedUntil: string | null }[];
+    };
+    expect(Date.parse(listed.domains[0]?.lockedUntil ?? "") - Date.now()).toBeGreaterThan(50 * 60_000);
+  });
+
+  it("answers a database failure 503, keeping the code, and verifies on the retry", async () => {
+    const { cookie, orgId } = await owner("dbfail@example.org");
+    await json("/addresses", cookie, "POST", { address: "dbfail@gmail.com" });
+    const code = lastCode();
+    const failingBatch = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch") return async () => Promise.reject(new Error("D1_ERROR: Network connection lost."));
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const failed = await call(
+      "/api/org/addresses/verify",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ address: "dbfail@gmail.com", code }),
+      },
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}`, DB: failingBatch },
+    );
+    expect(failed.status).toBe(503);
+    expect(await db.prepare("SELECT 1 FROM verification_codes").first()).not.toBeNull();
+    expect(
+      await (await json("/addresses/verify", cookie, "POST", { address: "dbfail@gmail.com", code })).json(),
+    ).toMatchObject({ verified: true });
+    expect(await findMemberBySender(db, "dbfail@gmail.com")).toBe(orgId);
+  });
+
+  it("refuses malformed requests with 400, changing nothing and sending nothing", async () => {
+    const { cookie } = await owner("malformed@example.org");
+    await json("/domains", cookie, "POST", { domain: "kept.co.za" });
+    const before = world.sends.length;
+    for (const bad of [
+      "https://example.com/path",
+      "person@example.com",
+      "example.com/x",
+      "exa mple.com",
+      "-bad.co.za",
+      "ex_ample.com",
+    ])
+      expect((await json("/domains", cookie, "POST", { domain: bad })).status, bad).toBe(400);
+    for (const body of [null, [], "text", 5])
+      for (const [path, method] of [
+        ["/domains", "POST"],
+        ["/domains/kept.co.za/code", "POST"],
+        ["/domains/kept.co.za/verify", "POST"],
+        ["/addresses", "POST"],
+        ["/addresses/verify", "POST"],
+      ] as const)
+        expect((await json(path, cookie, method, body)).status, `${method} ${path} ${JSON.stringify(body)}`).toBe(400);
+    expect(world.sends.length).toBe(before);
+    const listed = (await (await json("/domains", cookie, "GET")).json()) as {
+      domains: unknown[];
+      addresses: unknown[];
+    };
+    expect([listed.domains.length, listed.addresses.length]).toEqual([1, 0]);
+  });
+
+  it("does not let a DNS check already under way restore a claim removed meanwhile", async () => {
+    const { cookie, orgId } = await owner("inflight@example.org");
+    const { txt } = (await (await json("/domains", cookie, "POST", { domain: "inflight.co.za" })).json()) as {
+      txt: { value: string };
+    };
+    // The claim is removed while the DNS answer is on its way back.
+    world.doh = () => {
+      void db.prepare("DELETE FROM org_domains WHERE domain = 'inflight.co.za'").run();
+      return txtAnswer(txt.value);
+    };
+    const answered = await json("/domains/inflight.co.za/check", cookie, "POST");
+    expect(answered.status).toBe(404);
+    expect(await stateOf(orgId, "inflight.co.za")).toBeNull();
+    // Removing an address keeps the domain's admission.
+    world.doh = () => txtAnswer("isitlegit-verify=none");
+    const again = (await (await json("/domains", cookie, "POST", { domain: "inflight.co.za" })).json()) as {
+      txt: { value: string };
+    };
+    world.doh = () => txtAnswer(again.txt.value);
+    await json("/domains/inflight.co.za/check", cookie, "POST");
+    await json("/addresses", cookie, "POST", { address: "boss@inflight.co.za" });
+    await json("/addresses/verify", cookie, "POST", { address: "boss@inflight.co.za", code: lastCode() });
+    await json("/addresses/boss@inflight.co.za", cookie, "DELETE");
+    expect(await findMemberBySender(db, "boss@inflight.co.za")).toBe(orgId);
+  });
+
+  it("gives up on a DNS provider that never answers after ten seconds", { timeout: 20_000 }, async () => {
+    const { cookie, orgId } = await owner("deadline@example.org");
+    await json("/domains", cookie, "POST", { domain: "deadline.co.za" });
+    spy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.startsWith(DOH_URL)) throw new Error("unexpected fetch");
+      // Never answers; only the request's own deadline ends it.
+      return new Promise<Response>((_, reject) =>
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+      );
+    });
+    const started = Date.now();
+    const answered = await json("/domains/deadline.co.za/check", cookie, "POST");
+    expect(answered.status).toBe(503);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
+    expect(await stateOf(orgId, "deadline.co.za")).toBe("pending");
   });
 });
