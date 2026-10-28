@@ -261,7 +261,7 @@ Controls:
 - protected identity: Register domains, logo and bank account. (ProtectSite)
 - website seal: Seal shown on the real domain, blocked on a copy. (ProtectSite)
 - signature badge: Badge that turns copies into evidence. (ProtectSite)
-- impersonation monitor: Daily lookalike watch with Muse Glimmer screening, Muse Spark as failover (corrected 2026-10-28, operator decision: Glimmer on Fireworks restored; corrected 2026-10-27, was Muse Glimmer). (ProtectSite)
+- impersonation monitor: Daily lookalike watch with Loupe screening (a Muse Glimmer LoRA tuned on Fireworks), Muse Spark as failover (corrected 2026-10-28 20:45 SAST: Loupe, a Muse Glimmer 30B LoRA fine-tuned on Fireworks for this job (D03 T04, the glimmer lane), replaces base Glimmer on serverless, operator decisions 15:01 to 15:16 SAST; corrected 2026-10-28, operator decision: Glimmer on Fireworks restored; corrected 2026-10-27, was Muse Glimmer). (ProtectSite)
 - closed-loop verification: Finance contact confirms changed bank details; the buttons drawn are illustration of the email reply (N5). (ProtectSite)
 - Protect my business: Opens Sign up; See a verify page opens T1; See pricing opens S5. (ProtectSite)
 
@@ -296,7 +296,7 @@ Boards: [PNG](mockups/png/Privacy.png) · [source](mockups/source/Privacy.dc.htm
 
 Controls:
 
-- processors: Cloudflare, Meta Model API with store: false, Fireworks AI (serverless screening of public lookalike pages; no prompt or output retained), SMTP2GO, Google Web Risk (corrected 2026-10-28, operator decision: Fireworks AI returns as the monitor's screener, so the Privacy board's copy is right again on it; corrected 2026-10-27: Fireworks AI and Baseten were removed; this list wins over the board's copy). (Privacy)
+- processors: Cloudflare, Meta Model API with store: false, Fireworks AI (Loupe screening public lookalike pages on a dedicated deployment; Fireworks keeps no prompt or output of open models without opt-in; Loupe is trained through Fireworks' Training API, which stores no dataset file, its checkpoints kept 30 days), SMTP2GO, Google Web Risk (corrected 2026-10-28 20:45 SAST: Loupe replaces serverless Glimmer, and its training is disclosed; whether the no-logging terms cover a dedicated LoRA deployment is confirmed with Fireworks in D03 T04 §12 before launch; corrected 2026-10-28, operator decision: Fireworks AI returns as the monitor's screener, so the Privacy board's copy is right again on it; corrected 2026-10-27: Fireworks AI and Baseten were removed; this list wins over the board's copy). (Privacy)
 - purposes: Mail, account, supplier ledger, feedback. (Privacy)
 - retention: Retention table. (Privacy)
 - information officer: Responsible party and contact hello@isitlegit.co.za. (Privacy)
