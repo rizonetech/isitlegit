@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createAuth } from "../../src/auth/auth";
 import { type GateEnv, requireSession } from "../../src/auth/gate";
 import { authEnv, call, ORIGIN, sessionCookie, signIn } from "./helpers";
-import { SoftAuthenticator } from "./webauthn";
+import { b64url, SoftAuthenticator } from "./webauthn";
 
 // D07 T02 §2: passkeys through the Worker's fetch, with a software authenticator standing in for the browser's.
 const db = (env as unknown as Env).DB;
@@ -47,10 +47,15 @@ async function registerOptions(cookie: string) {
   const response = await call("/api/auth/passkey/generate-register-options", { headers: { cookie } });
   return { response, cookie: jar(cookie, response) };
 }
-async function register(authenticator: SoftAuthenticator, cookie: string, credentialId?: Uint8Array) {
+async function register(
+  authenticator: SoftAuthenticator,
+  cookie: string,
+  credentialId?: Uint8Array,
+  unverified = false,
+) {
   const { response, cookie: withChallenge } = await registerOptions(cookie);
   if (response.status !== 200) return response;
-  const created = await authenticator.create(await response.json(), ORIGIN, credentialId);
+  const created = await authenticator.create(await response.json(), ORIGIN, credentialId, unverified);
   return post("/api/auth/passkey/verify-registration", withChallenge, { response: created, name: "Laptop" });
 }
 type Forgery = Parameters<SoftAuthenticator["get"]>[2];
@@ -134,6 +139,13 @@ describe("registration refusals", () => {
 
     expect(await countPasskeys("stale@example.com")).toBe(0);
     expect(await countPasskeys("leftearly@example.com")).toBe(0);
+  });
+
+  it("refuses a passkey made without user verification, saving nothing", async () => {
+    const { cookie } = await signIn("nopin@example.com");
+    const refused = await register(new SoftAuthenticator(), cookie, undefined, true);
+    expect(refused.status).toBe(400);
+    expect(await countPasskeys("nopin@example.com")).toBe(0);
   });
 
   it("refuses a credential ID another member already registered", async () => {
@@ -222,6 +234,19 @@ describe("sign-in refusals", () => {
       { ...good, response: { ...good.response, signature: undefined } },
       { ...good, response: { ...good.response, authenticatorData: "not base64url!" } },
       { ...good, response: { ...good.response, userHandle: { toString: 1 } } },
+      // Base64url that cannot decode (a length of 1 mod 4), in each field, and client data that is not webauthn.get.
+      { ...good, id: "A", rawId: "A" },
+      { ...good, response: { ...good.response, authenticatorData: "A" } },
+      { ...good, response: { ...good.response, clientDataJSON: "A" } },
+      { ...good, response: { ...good.response, signature: "AAAAA" } },
+      { ...good, response: { ...good.response, authenticatorData: "AAAA" } },
+      {
+        ...good,
+        response: {
+          ...good.response,
+          clientDataJSON: b64url(new TextEncoder().encode('{"type":"webauthn.create","challenge":"x"}')),
+        },
+      },
       "a string",
     ];
     for (const response of malformed) {

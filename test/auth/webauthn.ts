@@ -68,8 +68,9 @@ const FLAG_AT = 0x40;
 export class SoftAuthenticator {
   readonly credentials: Credential[] = [];
 
-  // navigator.credentials.create(): a new key for this relying party, resident when the options require or prefer it.
-  async create(options: CreationOptions, origin: string, credentialId?: Uint8Array) {
+  // navigator.credentials.create(): a new key for this relying party, resident when the options require or prefer it,
+  // and made without user verification when `unverified` (a security key with no PIN).
+  async create(options: CreationOptions, origin: string, credentialId?: Uint8Array, unverified = false) {
     const keys = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
       "sign",
       "verify",
@@ -90,7 +91,7 @@ export class SoftAuthenticator {
     );
     const authData = concat(
       await sha256(encoder.encode(options.rp.id)),
-      Uint8Array.of(FLAG_UP | FLAG_UV | FLAG_AT),
+      Uint8Array.of(unverified ? FLAG_UP | FLAG_AT : FLAG_UP | FLAG_UV | FLAG_AT),
       new Uint8Array(4),
       new Uint8Array(16),
       Uint8Array.of(id.length >> 8, id.length & 0xff),

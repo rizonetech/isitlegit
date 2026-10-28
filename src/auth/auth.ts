@@ -16,8 +16,8 @@
 // A passkey's credential ID is refused when any member already has it (WebAuthn Level 3 §7.1), which the plugin does not
 // check; migration 0009 makes the column unique as well.
 //
-// A passkey sign-in is refused unless its response is well formed and the authenticator says its owner unlocked it
-// (user verified); the plugin verifies with user verification off and reads the response before checking its shape.
+// A malformed passkey sign-in response is refused before the plugin reads it, which it would do before checking its
+// shape, consuming the challenge or failing with a 500.
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { ConfigError } from "../config";
@@ -94,11 +94,9 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
         }
         if (ctx.path === "/passkey/verify-authentication") {
           // Checked before the plugin consumes the challenge or looks the credential up: a malformed response is a 400
-          // that leaves the attempt usable, and an assertion without user verification is refused.
-          const assertion = assertionOf((ctx.body as { response?: unknown } | undefined)?.response);
-          if (!assertion) throw new APIError("BAD_REQUEST", { message: "the passkey response is malformed" });
-          if (!userVerified(assertion.response.authenticatorData))
-            throw new APIError("UNAUTHORIZED", { message: "the passkey must be unlocked on the device to sign in" });
+          // that leaves the attempt usable. User verification is checked on the verified result (src/auth/schema.ts).
+          if (!wellFormedAssertion((ctx.body as { response?: unknown } | undefined)?.response))
+            throw new APIError("BAD_REQUEST", { message: "the passkey response is malformed" });
           return;
         }
         if (ctx.path === "/passkey/verify-registration") {
@@ -135,28 +133,33 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
   } satisfies BetterAuthOptions;
 }
 
-// A WebAuthn assertion as the browser serializes it (AuthenticationResponseJSON): base64url strings throughout.
-const B64URL = /^[A-Za-z0-9_-]+$/;
-type Assertion = { id: string; response: { authenticatorData: string } };
-function assertionOf(value: unknown): Assertion | null {
+// A WebAuthn assertion as the browser serializes it (AuthenticationResponseJSON), checked field by field down to what
+// the plugin and @simplewebauthn decode: base64url that decodes, client data that is a webauthn.get JSON object with a
+// challenge, authenticator data long enough to hold its flags and counter. Anything else is null.
+function bytesOf(value: unknown, max = 4096): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > max) return null;
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) return null;
+  // atob refuses what cannot decode (a length of 1 mod 4 among it).
+  try {
+    return atob(value.replace(/-/g, "+").replace(/_/g, "/"));
+  } catch {
+    return null;
+  }
+}
+function wellFormedAssertion(value: unknown): boolean {
   const v = value as Record<string, unknown> | null | undefined;
   const r = v?.response as Record<string, unknown> | null | undefined;
-  const b64 = (x: unknown) => typeof x === "string" && x.length <= 4096 && B64URL.test(x);
-  const ok =
-    b64(v?.id) &&
-    b64(v?.rawId) &&
-    v?.type === "public-key" &&
-    b64(r?.clientDataJSON) &&
-    b64(r?.authenticatorData) &&
-    b64(r?.signature) &&
-    (r?.userHandle === undefined || b64(r.userHandle));
-  return ok ? (v as Assertion) : null;
-}
-
-// Authenticator data's flags byte follows the 32-byte relying party ID hash: bit 0 user present, bit 2 user verified.
-function userVerified(authenticatorData: string) {
-  const bytes = atob(authenticatorData.replace(/-/g, "+").replace(/_/g, "/"));
-  return bytes.length >= 37 && (bytes.charCodeAt(32) & 0x05) === 0x05;
+  if (v?.type !== "public-key" || !bytesOf(v.id) || !bytesOf(v.rawId)) return false;
+  const authenticatorData = bytesOf(r?.authenticatorData);
+  if (!authenticatorData || authenticatorData.length < 37 || !bytesOf(r?.signature)) return false;
+  if (r?.userHandle !== undefined && !bytesOf(r.userHandle)) return false;
+  const clientData = bytesOf(r?.clientDataJSON);
+  try {
+    const parsed = JSON.parse(clientData ?? "") as { type?: unknown; challenge?: unknown } | null;
+    return parsed?.type === "webauthn.get" && typeof parsed.challenge === "string";
+  } catch {
+    return false;
+  }
 }
 
 export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {

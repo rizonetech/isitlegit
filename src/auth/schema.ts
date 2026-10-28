@@ -2,6 +2,7 @@
 // so the migrations Better Auth compiles are the schema the Worker uses. It imports nothing of the Worker's, so the
 // script runs in plain Node.
 import { passkey } from "@better-auth/passkey";
+import { APIError } from "better-auth/api";
 import { magicLink } from "better-auth/plugins/magic-link";
 
 export const MAGIC_LINK_SECONDS = 15 * 60;
@@ -12,8 +13,12 @@ type SendMagicLink = Parameters<typeof magicLink>[0]["sendMagicLink"];
 // Passkeys belong to the host the app is served from: the relying party ID is APP_URL's hostname and the only origin
 // accepted is APP_URL's (the plugin would otherwise trust the request's Origin header). Sign-in asks anonymously, with
 // no credential list, so only a discoverable credential can answer it: registration requires one. User verification is
-// required too (the device's owner unlocked it, not only that the device was present); src/auth/auth.ts refuses a
-// sign-in assertion without it, which the plugin itself does not.
+// required too (the device's owner unlocked it, not only that the device was present): the plugin verifies with it off,
+// so both ceremonies check @simplewebauthn's verified result in the plugin's own afterVerification hooks, before a
+// passkey is saved or a session made (WebAuthn Level 3 §7.1 step 16, §7.2 step 17).
+const unverified = (status: "BAD_REQUEST" | "UNAUTHORIZED") =>
+  new APIError(status, { message: "the passkey must be unlocked on the device (user verification)" });
+
 export function schemaOptions(sendMagicLink: SendMagicLink, appURL: string) {
   const app = new URL(appURL);
   return {
@@ -25,6 +30,16 @@ export function schemaOptions(sendMagicLink: SendMagicLink, appURL: string) {
         rpName: "IsItLegit",
         origin: app.origin,
         authenticatorSelection: { residentKey: "required", userVerification: "required" },
+        registration: {
+          afterVerification: async ({ verification }) => {
+            if (!verification.registrationInfo?.userVerified) throw unverified("BAD_REQUEST");
+          },
+        },
+        authentication: {
+          afterVerification: async ({ verification }) => {
+            if (!verification.authenticationInfo.userVerified) throw unverified("UNAUTHORIZED");
+          },
+        },
       }),
     ],
   };
