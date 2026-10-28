@@ -43,7 +43,7 @@ track: day-0
 | 4 | §4 | SMTP2GO sender domain | §2 | [ ] |
 | 5 | §5 | WhatsApp test number | -- | [ ] |
 | 6 | §6 | Google Web Risk API key | -- | [ ] |
-| 7 | §7 | Partner credits for Glimmer | -- | [ ] |
+| 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
 
 ## 1. Meta API billing and API key
@@ -223,13 +223,16 @@ The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-
 1. Record each partner credit and whether it is used. Done when: one line per provider below.
 
 - [x] Record each partner offer as a line `Partner credit <name>: <applied|granted|not applied|not offered>, YYYY-MM-DD (<what it covered>; <used|not used>: <the operator decision>)`, for Fireworks, Baseten and Modal. Done when: the three lines exist.
-- [ ] Commit: `todo: record partner credits`
+- [x] Commit: `todo: record partner credits`
 
 Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decisions 2026-10-27 and 2026-10-28 20:22 SAST, the product calls Meta's Model API and Fireworks AI only, and Baseten is closed; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
 Partner credit Fireworks: granted, 2026-10-28 (US$100 loaded, reported by the operator at 09:02 SAST; used: operator decision 2026-10-28 09:05 SAST reversed the 2026-10-27 one, and Loupe, a Glimmer LoRA trained and served on Fireworks, screens the monitor's pages, D03 T04; keys in the vault items "IsItLegit Fireworks" (inference), "IsItLegit Fireworks Admin" (local scripts) and "IsItLegit Fireworks Owner" (the operator's own, for serverless training), each filled and answering HTTP 200 on 2026-10-28)
 Partner credit Modal: granted, 2026-10-28 (US$30 of free Modal credit a month, reported by the operator at 22:28 SAST; not used: operator decisions 2026-10-28 20:22 and 22:28 SAST, the product calls Meta's Model API and Fireworks AI only and Modal adds no value worth a third provider, so Modal stays closed)
 
 **Test checkpoint:** `python3 scripts/check-partner-credits.py` prints `3` and exits 0: exactly three records, one per provider, each with an outcome from the list, a real calendar date, coverage and a decision in words and exactly one usage decision however it is spelled, Fireworks used and Baseten and Modal not used; `python3 -m unittest tests.scripts.test_check_partner_credits` proves each malformed record refused (**Corrected 2026-10-28** (plan review, round 1 and the final review): a prefix count, then two shell patterns, passed empty, duplicate, contradictory, misspelled, placeholder and impossibly dated records, so the proof moved to a parser).
+
+> **Verified:** 2026-10-28 | §7 | 4da4eb41345f30b4748f70ad063e4ef9abe08909
+> **Review:** `docs/reviews/d99-t01-s7.json`
 
 ## 8. AI Gateway tokens
 
