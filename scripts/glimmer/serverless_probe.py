@@ -5,6 +5,8 @@
     ~/.venvs/fireworks/bin/python scripts/glimmer/serverless_probe.py            # 2. the probe (free Glimmer SFT)
     ~/.venvs/fireworks/bin/python scripts/glimmer/serverless_probe.py --dry-run  # render and count, send nothing
 
+Exit codes: 0 a training mode was decided, 1 none was, 2 refused before sending, 3 the session was not released.
+
 Fireworks has closed dataset uploads (support, 2026-10-28), so the probe never uploads: it opens a LoRA session on the
 serverless trainer, renders the three probe examples with Fireworks' own Muse Glimmer renderer (the cookbook's
 `muse_glimmer`, with Glimmer's image processor, so each screenshot is an `ImageChunk` with its exact token count) and
@@ -250,6 +252,16 @@ def run(service_factory, renderer, image_examples, text_examples, train_on, datu
     return receipt
 
 
+def exit_code(result, say=lambda line: print(line, file=sys.stderr)):
+    """0 with a mode, 1 without one, 3 when the session was not released: the mode stands as measured, but a
+    session left holding its slot is a failed clean-up, as the managed --delete-probe treats one."""
+    if result.get("deleted") is False or result.get("closed") is False:
+        say(f"serverless-probe: the session was not released; delete it by hand: DELETE "
+            f"/v1/accounts/rizonetech/trainingSessions/{result.get('session')}")
+        return 3
+    return 0 if result.get("mode") else 1
+
+
 def read_key():
     try:
         out = subprocess.run(["conclave-op", "read", f"op://Conclave/{VAULT_ITEM}/credential"], capture_output=True,
@@ -302,7 +314,7 @@ def main(argv=None, now=None):
         print(f"serverless-probe: refused: {refusal}", file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2).replace(key, "[key]"))
-    return 0 if result.get("mode") else 1
+    return exit_code(result)
 
 
 if __name__ == "__main__":

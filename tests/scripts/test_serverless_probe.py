@@ -173,6 +173,16 @@ class Inputs(Base):
                 probe.load(locked)
             self.assertIn("cannot be read", str(unreadable.exception))
 
+    def test_a_session_not_released_fails_the_command_but_keeps_the_mode(self):
+        said = []
+        result = {"mode": "image", "session": "ts-x", "deleted": False, "closed": True}
+        self.assertEqual(probe.exit_code(result, say=said.append), 3)
+        self.assertIn("trainingSessions/ts-x", said[0])
+        self.assertEqual(result["mode"], "image")
+        self.assertEqual(probe.exit_code({"mode": "image", "deleted": True, "closed": False}, say=said.append), 3)
+        self.assertEqual(probe.exit_code({"mode": "image", "deleted": True, "closed": True}), 0)
+        self.assertEqual(probe.exit_code({"mode": None, "deleted": True, "closed": True}), 1)
+
     def test_nothing_starts_on_or_after_the_free_offer_ends(self):
         with mock.patch.object(probe, "read_key") as read_key, mock.patch("sys.stderr"):
             code = probe.main([], now=probe.CUTOFF)
