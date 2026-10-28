@@ -34,7 +34,7 @@ track: day-1
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Upload API for mail, documents and audio | D01 T01 §7, D07 T02 §1 | [ ] |
+| 1 | §1 | Upload API for mail, documents and audio | D01 T01 §7, D07 T02 §1 | [x] |
 | 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [x] |
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [ ] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
@@ -72,9 +72,12 @@ track: day-1
 - [x] Store the file with `putRaw` for mail and `putAttachment` otherwise (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only derived kinds), create the case with `channel = "upload"` and a `source_kind` of mail, document, image or audio, and start the Workflow. Done when: each accepted fixture creates one case and one Workflow instance. (**Corrected 2026-10-28**, plan review P1 1 and 2: in this order: validate the request and the file, claim the upload and admit the case under the cap in one statement (`admitCase`), store the file, then create the Workflow; a capped upload creates no object and no Workflow. The claim, its undo and its settling move from `src/intake/email.ts` into a shared admission module both intakes use: an upload's claim key is `upload:<SHA-256 of the file>` within the organisation, so a retried request answers the first case; a store failure undoes the case and releases the claim and its quota (503); a Workflow creation whose outcome is unknown is reconciled as the email intake does, and the 15-minute sweep settles an upload claim left pending like an email one. Fault-injection tests: R2 failing, the Workflow creation failing and answering unknown, and a repeated request each leave one case or none, never two, and no claim stranded.)
 - [x] Add migration `0018_source_kind.sql` with `cases.source_kind` (`mail`, `document`, `image`, `audio`), `mail` for every existing row, and `sourceKind` on the typed `Case` (`src/db/cases.ts`). Done when: `test/db/schema.test.ts` finds an email case made before the migration read back as `mail`, and `getCaseForPipeline` answers the kind. (**Added 2026-10-28**, plan review P2 7.)
 - [x] Make the Workflow's `parse` step branch on `source_kind`. Done when: a PDF case skips MIME parsing and records the document artefact. (**Corrected 2026-10-28** at start: also an uploaded `.eml` parsed directly with its headers available, an uploaded `.msg` through `parseMsg`, an image recorded like a document, and an audio case recorded for D01 T03 §3, each proven through `env.ANALYSIS`; the case ends `done` with the stub verdict, and no reply is sent, since an upload has no forwarder: the member reads the report.) (**Corrected 2026-10-28**, plan review P2 7: every kind stores a summary its later steps read: mail as today; a document, image or audio case as `{ source: { kind, mediaType, key, bytes }, forward: { headersAvailable: false } }` at the same key, which the `checks` step reads and validates. The tests read each summary back and find the stored file's bytes unchanged at its key.)
-- [ ] Commit: `intake: upload API for mail, documents, images and audio`
+- [x] Commit: `intake: upload API for mail, documents, images and audio`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts` passes and fails if the type sniffing is replaced by the extension.
+
+> **Verified:** 2026-10-28 | §1 | f046a7c79d01d0c98125c0cb729b8b746ba41e17
+> **Review:** `docs/reviews/d01-t03-s1.json`
 
 ## 2. Audio decoding to 16 kHz mono WAV
 
