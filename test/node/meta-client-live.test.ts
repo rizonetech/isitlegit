@@ -307,6 +307,35 @@ describe("meta-client-live", () => {
     expect(existsSync(PENDING)).toBe(false);
   });
 
+  it("writes a resumed call's record once, even if it was written before the run stopped", async () => {
+    writeFileSync(
+      PENDING,
+      JSON.stringify({
+        run: "2026-10-28T17:00:00.000Z",
+        logId: "log-abc",
+        usage: { input: 15, output: 2, cached: 0 },
+        cost: COST,
+        estimate: 0.0003,
+      }),
+    );
+    const { options, sent } = world();
+    expect((await runClientLive(options)).code).toBe(0);
+    expect((await runClientLive({ ...options })).code).toBe(0);
+    writeFileSync(
+      PENDING,
+      JSON.stringify({
+        run: "2026-10-28T17:00:00.000Z",
+        logId: "log-abc",
+        usage: { input: 15, output: 2, cached: 0 },
+        cost: COST,
+        estimate: 0.0003,
+      }),
+    );
+    expect((await runClientLive(options)).code).toBe(0);
+    expect(readFileSync(RECORD, "utf-8").split("`log-abc`").length - 1).toBe(1);
+    expect(sent.some((u) => !u.startsWith(LOGS_URL))).toBe(true); // the middle run, with nothing pending, made its own call
+  });
+
   it("refuses an unreadable pending call rather than paying for another", async () => {
     writeFileSync(PENDING, "{ not json");
     const { options, sent } = world();

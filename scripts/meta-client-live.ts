@@ -382,7 +382,13 @@ async function verify(
     say(`failed: the record could not be written (${(error as Error).message})${resume}`);
     return { code: 1, lines };
   }
-  rmSync(pendingFile, { force: true });
+  try {
+    rmSync(pendingFile, { force: true });
+  } catch (error) {
+    say(
+      `meta-client-live: ${pendingFile} could not be removed (${(error as Error).message}); remove it before the next run`,
+    );
+  }
   say(safe(`passed: ${MODEL} through src/meta/client.ts; log ${pending.logId}: ${logCheck.detail}`));
   return { code: 0, lines };
 }
@@ -402,6 +408,9 @@ function appendRecord(file: string, row: string): void {
   let text = existsSync(file) ? readFileSync(file, "utf-8") : "";
   if (!text.includes(RECORD_HEADING))
     text = `${text.trimEnd()}\n\n${RECORD_HEADING}\n\nOne call through \`src/meta/client.ts\` by \`node scripts/meta-client-live.ts --confirm-credit\` (D03 T01 §1), its gateway log read back.\n\n| Run (UTC) | Model | Result | Meta tokens in / out | Cost | Gateway log |\n| --- | --- | --- | --- | --- | --- |\n`;
+  // A resumed run whose record was written before it stopped adds no second row for the same log.
+  const logCell = row.split(" | ").at(-1)?.split(":")[0] ?? row;
+  if (text.slice(text.indexOf(RECORD_HEADING)).includes(logCell)) return;
   const at = text.indexOf(RECORD_HEADING);
   const next = text.indexOf("\n## ", at + RECORD_HEADING.length);
   const end = next < 0 ? text.length : next;

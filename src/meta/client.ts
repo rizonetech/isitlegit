@@ -14,12 +14,15 @@ import OpenAI from "openai";
 import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
 // extensionless path.
-import { isModelId, type ModelId } from "./models.ts";
+import { ENDPOINTS, type Endpoint, isModelId, type ModelId } from "./models.ts";
 
 export const DEFAULT_DEADLINE_MS = 60_000;
 export const MAX_ATTEMPTS = 3;
 // A Retry-After longer than this is not waited for: the call ends, carrying it, and the caller's step decides.
 export const MAX_RETRY_AFTER_MS = 20_000;
+// The largest answer read: an image edit's base64 images fit with room to spare; a larger body is refused as it streams,
+// never buffered whole.
+export const MAX_ANSWER_BYTES = 32 * 1024 * 1024;
 const BACKOFF_MS = 1_000;
 const RETRIED = new Set([429, 500, 502, 503]);
 // What an identifier field (Meta's type, code and param; the gateway's and Meta's ids) may hold to be kept: a name,
@@ -83,7 +86,7 @@ export type ResponsesParams = Omit<ResponseCreateParamsNonStreaming, "model" | "
 };
 
 export async function metaResponses(params: ResponsesParams, ctx: MetaContext): Promise<MetaAnswer<MetaResponse>> {
-  const model = standard(params.model);
+  const model = standard(params.model, "responses");
   const { apiKey, token, base } = settings(ctx.env);
   const seen = observe(ctx.fetch ?? fetch);
   const client = new OpenAI({
@@ -128,13 +131,13 @@ export async function metaRaw(
   let contentType: Record<string, string> = {};
   if (path === "/asr/transcribe") {
     const { request, audio, filename } = body as TranscribeBody;
-    standard(request.model);
+    standard(request.model, "/asr/transcribe");
     const form = new FormData();
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
     form.append("audio", audio, filename ?? "audio");
     payload = form;
   } else {
-    standard((body as ImageEditBody).model);
+    standard((body as ImageEditBody).model, "/images/edits");
     payload = JSON.stringify(body);
     contentType = { "content-type": "application/json" };
   }
@@ -170,12 +173,15 @@ export async function metaRaw(
   });
 }
 
-function standard(model: unknown): ModelId {
-  if (isModelId(model)) return model;
-  throw new ModelError(
-    "refused-model",
-    `${String(model).slice(0, 80)} is not a Standard model this service may call (spec 4.8)`,
-  );
+function standard(model: unknown, endpoint: Endpoint): ModelId {
+  if (!isModelId(model))
+    throw new ModelError(
+      "refused-model",
+      `${String(model).slice(0, 80)} is not a Standard model this service may call (spec 4.8)`,
+    );
+  if (ENDPOINTS[model] !== endpoint)
+    throw new ModelError("refused-model", `${model} is not called through ${endpoint}, but ${ENDPOINTS[model]}`);
+  return model;
 }
 
 function settings(env: MetaEnv) {
@@ -208,7 +214,23 @@ function observe(send: typeof fetch): Observed {
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       const response = await send(input, init);
       observed.last = { status: response.status, headers: response.headers };
-      return response;
+      if (!response.body) return response;
+      let read = 0;
+      const bounded = response.body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            read += chunk.byteLength;
+            if (read > MAX_ANSWER_BYTES)
+              controller.error(new ModelError("malformed", `Meta's answer is larger than ${MAX_ANSWER_BYTES} bytes`));
+            else controller.enqueue(chunk);
+          },
+        }),
+      );
+      return new Response(bounded, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
     }) as typeof fetch,
   };
   return observed;
@@ -267,7 +289,19 @@ async function withRetries<T>(
           requestId: failure.details.requestId ?? null,
         });
         if (n >= MAX_ATTEMPTS || status === undefined || !RETRIED.has(status)) throw end(failure);
-        if (retryAfterMs !== undefined && retryAfterMs > MAX_RETRY_AFTER_MS) throw end(failure);
+        // A wait longer than this call may take ends it as rate-limit, carrying the wait, whatever the status: Meta
+        // sends a 503 `service_overloaded` with Retry-After: 60 (sources/meta-api/docs/docs/error-handling.md), and a
+        // caller that retried a plain `server` failure at once would ignore it.
+        if (retryAfterMs !== undefined && retryAfterMs > MAX_RETRY_AFTER_MS)
+          throw end(
+            failure.kind === "rate-limit"
+              ? failure
+              : new ModelError(
+                  "rate-limit",
+                  `${failure.message}, asking to wait ${Math.ceil(retryAfterMs / 1000)} s`,
+                  failure.details,
+                ),
+          );
         // Meta's Retry-After when it gave one, else 1 s then 2 s with full jitter.
         const wait = retryAfterMs ?? random() * BACKOFF_MS * 2 ** (n - 1);
         if (Date.now() - started + wait >= deadlineMs) throw end(failure);
