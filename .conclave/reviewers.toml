@@ -59,19 +59,19 @@ effort = "high"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 
 [[schedule.rounds]]
-effort = "medium"
+effort = "high"
 lenses = ["adversarial"]
 
 [[schedule.rounds]]
-effort = "low"
+effort = "medium"
 lenses = ["adversarial"]
 
 [schedule.rotation]
-effort = "low"
+effort = "medium"
 lenses = ["consistency", "quality", "design", "optimization", "record"]
 
 [schedule.escalation]
-effort = "medium"
+effort = "high"
 lenses = ["adversarial"]
 
 # One final review per section by Muse Wonder, after the rounds stop (the last returned round declares no P1 or
