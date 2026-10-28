@@ -96,11 +96,14 @@ def check(a):
     spf = [txt(r) for r in a["TXT"] if txt(r).lower().startswith("v=spf1 ") or txt(r).lower() == "v=spf1"]
     terms = spf[0].split()[1:] if len(spf) == 1 else []
     reach = next((i for i, t in enumerate(terms) if t.lstrip("+-~?").lower() == "all"), len(terms))
-    need(len(spf) == 1 and SPF_INCLUDE in [t.lstrip("+").lower() for t in terms[:reach]],
-         "SPF is not one record whose include:_spf.mx.cloudflare.net comes before any all"
+    # The `all` that ends it must fail or soft-fail other senders: `+all` or `?all` authorizes everyone (RFC 7208 4.6.2).
+    closing = terms[reach].lower() if reach < len(terms) else None
+    need(len(spf) == 1 and SPF_INCLUDE in [t.lstrip("+").lower() for t in terms[:reach]] and closing in ("-all", "~all"),
+         "SPF is not one record whose include:_spf.mx.cloudflare.net comes before a closing -all or ~all"
          + (f" ({len(spf)} SPF records)" if len(spf) != 1 else ""))
 
-    dmarc = [txt(r) for r in a["DMARC"] if txt(r).startswith("v=DMARC1")]
+    # Any record that begins like a DMARC record counts, so a mistyped version is refused rather than skipped.
+    dmarc = [txt(r) for r in a["DMARC"] if txt(r).lower().startswith("v=dmarc")]
     tags = {}
     if len(dmarc) == 1:
         for part in dmarc[0].split(";"):
@@ -108,17 +111,23 @@ def check(a):
             if key:
                 tags[key.strip().lower()] = value.strip()
     reports = {re.sub(r"!\d+[kmgt]?$", "", r.strip(), flags=re.I).lower() for r in tags.get("rua", "").split(",") if r.strip()}
-    need(len(dmarc) == 1 and tags.get("p", "").lower() == "reject" and reports == DMARC_REPORTS,
-         "DMARC is not one record with p=reject and reports only to dmarc@isitlegit.co.za"
+    # The version exactly DMARC1 (RFC 7489 6.3), and pct absent or 100, since pct=0 applies the policy to no message
+    # (6.6.4).
+    need(len(dmarc) == 1 and tags.get("v") == "DMARC1" and tags.get("p", "").lower() == "reject"
+         and tags.get("pct", "100") == "100" and reports == DMARC_REPORTS,
+         "DMARC is not one v=DMARC1 record with p=reject on every message (pct 100) and reports only to "
+         "dmarc@isitlegit.co.za"
          + (f" ({len(dmarc)} DMARC records)" if len(dmarc) != 1 else ""))
 
-    issuers = set()
+    issuers, wild = set(), set()
     for line in a["CAA"]:
         parts = line.split(None, 2)
-        if len(parts) == 3 and parts[1].lower() == "issue":
-            issuers.add(txt(parts[2]).split(";")[0].strip().lower())
-    need(bool(issuers) and issuers <= CLOUDFLARE_CAS and REQUIRED_CAS <= issuers,
-         f"CAA issue tags {sorted(issuers)} are not Universal SSL's, with Let's Encrypt, Google and SSL.com")
+        if len(parts) == 3 and parts[1].lower() in ("issue", "issuewild"):
+            (issuers if parts[1].lower() == "issue" else wild).add(txt(parts[2]).split(";")[0].strip().lower())
+    # issue authorizes ordinary certificates, issuewild wildcard ones (RFC 8659 4.2, 4.3): both only Universal SSL's.
+    need(bool(issuers) and issuers <= CLOUDFLARE_CAS and REQUIRED_CAS <= issuers and wild <= CLOUDFLARE_CAS,
+         f"CAA issue {sorted(issuers)} and issuewild {sorted(wild)} are not Universal SSL's only, with Let's Encrypt, "
+         "Google and SSL.com issuing")
 
     ds = [line.split() for line in a["DS"]]
     need(any(r[:3] == list(DS[:3]) and "".join(r[3:]).upper() == DS[3] for r in ds),
