@@ -424,6 +424,38 @@ class FaultInjection(unittest.TestCase):
         self.assertIn("closed its input", status["reason"])
         self.assertIsNotNone(real.poll())
 
+    def test_a_report_that_cannot_be_read_ends_as_a_recorded_failure(self):
+        real_stat = Path.stat
+
+        def failing_stat(path, *args, **kwargs):
+            found = real_stat(path, *args, **kwargs)  # a missing file stays missing; an existing report fails to read
+            if path.name == "ASTRA-REPORT.md":
+                raise OSError(errno.EIO, "Input/output error")
+            return found
+
+        with mock.patch.object(Path, "stat", failing_stat), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            code = self.launcher.main([])
+        self.assertEqual(code, 1)
+        status = json.loads((self.raw / "RUN-STATUS.json").read_text())
+        self.assertEqual(status["outcome"], "failed")
+        self.assertIn("could not be read (Input/output error)", status["reason"])
+
+    def test_an_earlier_report_that_cannot_be_read_refuses_before_launching(self):
+        self.raw.mkdir(parents=True)
+        (self.raw / "ASTRA-REPORT.md").write_text("the earlier run")
+        real_stat = Path.stat
+
+        def failing_stat(path, *args, **kwargs):
+            found = real_stat(path, *args, **kwargs)
+            if path.name == "ASTRA-REPORT.md":
+                raise OSError(errno.EIO, "Input/output error")
+            return found
+
+        with mock.patch.object(Path, "stat", failing_stat), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            code = self.launcher.main([])
+        self.assertEqual(code, 2)
+        self.assertFalse((self.tmp / "codex.json").exists())
+
     def test_a_full_disk_at_the_end_is_reported_and_the_next_run_recovers(self):
         write = self.launcher.write_status
         calls = []

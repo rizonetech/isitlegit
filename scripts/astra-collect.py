@@ -283,13 +283,13 @@ def collect(args, raw: Path, run: list[str], lock) -> int:
                   f"recording its outcome; kept as RUN-STATUS.{stamp}.json (abandoned)")
 
     report = raw / REPORT
-    if report.exists():
-        aside = raw / f"ASTRA-REPORT.{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.md"
-        try:
+    try:
+        if report.exists():
+            aside = raw / f"ASTRA-REPORT.{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.md"
             os.replace(report, aside)
-        except OSError as error:
-            return refuse(f"cannot move the earlier report aside: {error.strerror or error}")
-        print(f"astra-collect: the earlier report is now {aside.name}")
+            print(f"astra-collect: the earlier report is now {aside.name}")
+    except OSError as error:
+        return refuse(f"cannot move the earlier report aside: {error.strerror or error}")
 
     status = {"started": utc(), "outcome": "running", "pid": os.getpid(), "deadline_seconds": args.deadline_seconds}
     try:
@@ -355,9 +355,15 @@ def collect(args, raw: Path, run: list[str], lock) -> int:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
 
-    if outcome == "completed" and not (report.is_file() and report.stat().st_size > 0):
-        outcome, code = "failed", 1
-        status["reason"] = "Astra exited without writing its report"
+    if outcome == "completed":
+        try:
+            written = report.is_file() and report.stat().st_size > 0
+            missing = "Astra exited without writing its report"
+        except OSError as error:
+            written, missing = False, f"Astra's report could not be read ({error.strerror or error})"
+        if not written:
+            outcome, code = "failed", 1
+            status["reason"] = missing
     status.update({"ended": utc(), "outcome": outcome, "exit": code, "progress": progress(raw, started)})
     try:
         status["report"] = write_fallback_report(raw, status)
