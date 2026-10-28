@@ -80,10 +80,12 @@ def call(key, url):
             raw = exc.read(1024 * 1024)
         except (OSError, TimeoutError, http.client.HTTPException) as cut:
             raise Unreachable(f"Google's HTTP {exc.code} answer was cut off ({type(cut).__name__})") from None
+        # Google's error answers are JSON; one that does not read as JSON was cut short or is not Google's, so it says
+        # nothing about the key either.
         try:
             return exc.code, json.loads(raw or b"{}")
         except ValueError:
-            return exc.code, {}
+            raise Unreachable(f"Google's HTTP {exc.code} answer could not be read whole") from None
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         raise Unreachable(f"Google could not be reached ({type(exc).__name__})") from None
 

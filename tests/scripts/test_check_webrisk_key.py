@@ -115,10 +115,25 @@ class Call(unittest.TestCase):
                         self.assertEqual(code, 2)
                         self.assertNotIn(KEY, line)
 
-    def test_an_error_body_that_is_not_json_keeps_its_status(self):
-        error = urllib.error.HTTPError("https://x.test", 403, "err", {}, io.BytesIO(b"<html>denied</html>"))
-        with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):
-            self.assertEqual(cwk.call(KEY, "https://x.test"), (403, {}))
+    def test_a_truncated_or_unreadable_error_body_is_unreachable(self):
+        # A real HTTP response that promises 100 bytes and closes after 9: read() returns them without raising.
+        class Sock:
+            def __init__(self, data):
+                self.data = data
+
+            def makefile(self, *args, **kwargs):
+                return io.BytesIO(self.data)
+
+        raw = b"HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n" + b'{"error":'
+        response = http.client.HTTPResponse(Sock(raw))
+        response.begin()
+        truncated = urllib.error.HTTPError("https://x.test", 403, "Forbidden", response.headers, response)
+        html = urllib.error.HTTPError("https://x.test", 403, "err", {}, io.BytesIO(b"<html>denied</html>"))
+        for error in (truncated, html):
+            with self.subTest(error.fp.__class__.__name__):
+                with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):
+                    with self.assertRaises(cwk.Unreachable):
+                        cwk.call(KEY, "https://x.test")
 
 
 if __name__ == "__main__":
