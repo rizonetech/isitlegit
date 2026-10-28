@@ -4,7 +4,13 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { indexRows, phreshItem, readHtml } from "../../scripts/glimmer/import-phreshphish.ts";
+import {
+  indexRows,
+  type PhreshIndex,
+  phreshItem,
+  readHtml,
+  readShot,
+} from "../../scripts/glimmer/import-phreshphish.ts";
 import { lureTypeOf, scamferretItems } from "../../scripts/glimmer/import-scamferret.ts";
 import { hostOf, importSource, type SourceItem } from "../../scripts/glimmer/import-source.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
@@ -145,6 +151,45 @@ describe("PhreshPhish", () => {
     const ip = pages.find((p) => p.host === null);
     expect(ip?.labels.brand).toBeUndefined();
     expect(ip?.labels.lure_type).toBeUndefined();
+  });
+});
+
+describe("rows with the dataset's own screenshot", () => {
+  it("store the real capture, while the HTML still gives the text and form flags", async () => {
+    const rows = join(dir, "rows.jsonl");
+    const capture = await sharp({ create: { width: 1366, height: 3000, channels: 3, background: "#1877f2" } })
+      .jpeg()
+      .toBuffer();
+    writeFileSync(
+      rows,
+      `${JSON.stringify({ sha256: "7dl-1", url: "https://fb-verify.example/", html: "<p>Log in to Facebook to keep your page</p><input type=password>", label: "phish", target: null, screenshot: capture.toString("base64") })}\n`,
+    );
+    const [entry] = await indexRows(rows);
+    expect(entry).toMatchObject({ sha256: "7dl-1", shot: true });
+    expect(entry).not.toHaveProperty("screenshot");
+    const store = openStore(join(dir, "store"));
+    const result = await importSource({
+      source: "7-days-later",
+      licence: "CC BY 4.0",
+      items: [
+        phreshItem(
+          entry as PhreshIndex,
+          () => readHtml(rows, entry as PhreshIndex),
+          reader,
+          () => readShot(rows, entry as PhreshIndex),
+        ),
+      ],
+      store,
+    });
+    expect(result).toMatchObject({ status: "complete", imported: 1 });
+    const [page] = store.manifest();
+    expect(page?.labels).toMatchObject({ lure: true, has_login_form: true });
+    const stored = store.readPage(page?.id ?? "");
+    // The capture, scaled to 1280 wide and cut to 2000 tall: not the inert render's 1280 by 2000 white page.
+    expect(jpegSize(stored.screenshot)).toEqual({ width: 1280, height: 2000 });
+    const { dominant } = await sharp(stored.screenshot).stats();
+    expect(dominant.b).toBeGreaterThan(200);
+    expect(stored.text).toBe("Log in to Facebook to keep your page");
   });
 });
 

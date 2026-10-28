@@ -10,20 +10,32 @@
 import { closeSync, existsSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { importSource, type SourceItem } from "./import-source.ts";
-import { openTextReader } from "./source-pages.ts";
+import { normaliseScreenshot, openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
 
 export const SOURCE = "phreshphish";
-export const LICENCE = "CC BY 4.0 (PhreshPhish, train shards 000 and 001)";
+export const LICENCE = "CC BY 4.0 (PhreshPhish train shards)";
 
-export type PhreshRow = { sha256: string; url: string | null; html: string; label: string; target: string | null };
-// A row without its HTML, and where its line sits in rows.jsonl, so thousands of pages never sit in memory at once.
-export type PhreshIndex = Omit<PhreshRow, "html"> & { offset: number; length: number };
+// `screenshot` (base64 JPEG) is there when the dataset captured the live page itself (7 Days Later, §18).
+export type PhreshRow = {
+  sha256: string;
+  url: string | null;
+  html: string;
+  label: string;
+  target: string | null;
+  screenshot?: string;
+};
+// A row without its HTML or screenshot, and where its line sits in rows.jsonl, so thousands of pages never sit in
+// memory at once.
+export type PhreshIndex = Omit<PhreshRow, "html" | "screenshot"> & { offset: number; length: number; shot: boolean };
 
 export function phreshItem(
-  row: Omit<PhreshRow, "html">,
+  row: Omit<PhreshRow, "html" | "screenshot">,
   html: () => string,
   reader: Awaited<ReturnType<typeof openTextReader>>,
+  // The dataset's own capture of the live page, used instead of the inert render's picture; the HTML still gives the
+  // text and the form flags.
+  shot?: () => Uint8Array,
 ): SourceItem {
   if (row.label !== "phish" && row.label !== "benign") throw new Error(`row ${row.sha256}: label "${row.label}"`);
   const lure = row.label === "phish";
@@ -35,7 +47,10 @@ export function phreshItem(
     label_source: lure
       ? { lure: "ground-truth", ...(brand ? { brand: "ground-truth" } : {}) }
       : { lure: "ground-truth", lure_type: "ground-truth" },
-    load: () => reader.renderHtml(html()),
+    load: async () => {
+      const page = await reader.renderHtml(html());
+      return shot ? { ...page, screenshot: await normaliseScreenshot(shot()) } : page;
+    },
   };
 }
 
@@ -54,8 +69,8 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
       const line = Buffer.concat(pending).toString("utf-8");
       pending = [];
       if (line.trim()) {
-        const { html: _html, ...row } = JSON.parse(line) as PhreshRow;
-        index.push({ ...row, offset: lineStart, length: end - lineStart });
+        const { html: _html, screenshot, ...row } = JSON.parse(line) as PhreshRow;
+        index.push({ ...row, offset: lineStart, length: end - lineStart, shot: Boolean(screenshot) });
       }
     };
     for (;;) {
@@ -78,15 +93,26 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
   return index;
 }
 
-export function readHtml(path: string, entry: PhreshIndex): string {
+export function readRow(path: string, entry: PhreshIndex): PhreshRow {
   const fd = openSync(path, "r");
   try {
     const buffer = Buffer.alloc(entry.length);
     readSync(fd, buffer, 0, entry.length, entry.offset);
-    return (JSON.parse(buffer.toString("utf-8")) as PhreshRow).html;
+    return JSON.parse(buffer.toString("utf-8")) as PhreshRow;
   } finally {
     closeSync(fd);
   }
+}
+
+export function readHtml(path: string, entry: PhreshIndex): string {
+  return readRow(path, entry).html;
+}
+
+// The row's own screenshot, when the dataset captured the live page.
+export function readShot(path: string, entry: PhreshIndex): Uint8Array {
+  const shot = readRow(path, entry).screenshot;
+  if (!shot) throw new Error(`row ${entry.sha256} has no screenshot`);
+  return new Uint8Array(Buffer.from(shot, "base64"));
 }
 
 if (import.meta.filename === process.argv[1]) {

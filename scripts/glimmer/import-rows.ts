@@ -5,7 +5,7 @@
 //   node scripts/glimmer/import-rows.ts <source>
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { indexRows, phreshItem, readHtml } from "./import-phreshphish.ts";
+import { indexRows, phreshItem, readHtml, readShot } from "./import-phreshphish.ts";
 import { importSource } from "./import-source.ts";
 import { openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
@@ -16,6 +16,7 @@ export const ROW_SOURCES: Record<string, string> = {
   "ariyadasa-2021": "CC BY 4.0",
   "kempf-html": "CC BY-SA 3.0",
   "look-for-mallory": "Apache 2.0",
+  "7-days-later": "CC BY 4.0",
 };
 
 if (import.meta.filename === process.argv[1]) {
@@ -36,7 +37,14 @@ if (import.meta.filename === process.argv[1]) {
     const result = await importSource({
       source,
       licence,
-      items: (await indexRows(rowsFile)).map((entry) => phreshItem(entry, () => readHtml(rowsFile, entry), reader)),
+      items: (await indexRows(rowsFile)).map((entry) =>
+        phreshItem(
+          entry,
+          () => readHtml(rowsFile, entry),
+          reader,
+          entry.shot ? () => readShot(rowsFile, entry) : undefined,
+        ),
+      ),
       store: openStore(dir),
       log: (line) => console.log(line),
     });
