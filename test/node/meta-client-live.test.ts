@@ -262,6 +262,37 @@ describe("meta-client-live", () => {
     expect(ledgerNow()).toEqual([]);
   });
 
+  it("keeps the mark when an answered call's body is cut off, so a rerun pays for nothing", async () => {
+    const cut = () =>
+      new Response(
+        new ReadableStream({
+          start: (c) => {
+            c.enqueue(new TextEncoder().encode('{"id":"resp_1","object":"resp'));
+            c.error(new TypeError("connection reset"));
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json", "cf-aig-log-id": "log-cut" } },
+      );
+    const first = world({ responses: cut });
+    const outcome = await runClientLive(first.options);
+    expect(outcome.code).toBe(1);
+    expect(outcome.lines.join("\n")).toContain("may have been answered (log log-cut)");
+    expect(JSON.parse(readFileSync(PENDING, "utf-8"))).toMatchObject({ logId: null, traces: ["log-cut"] });
+
+    const again = world();
+    const second = await runClientLive(again.options);
+    expect(second.code).toBe(1);
+    expect(second.lines.join("\n")).toContain("log log-cut");
+    expect(again.sent).toHaveLength(0);
+    expect(ledgerNow()).toHaveLength(1);
+  });
+
+  it("keeps the mark when the connection drops after sending", async () => {
+    const { options } = world({ responses: () => Promise.reject(new TypeError("connection reset")) });
+    expect((await runClientLive(options)).code).toBe(1);
+    expect(existsSync(PENDING)).toBe(true);
+  });
+
   it("leaves no mark when the call failed, so a new run may call again", async () => {
     const { options } = world({ responses: () => json({ error: { type: "invalid_request_error" } }, 400) });
     const outcome = await runClientLive(options);

@@ -74,6 +74,8 @@ export type Pending = {
   usage: Usage | null;
   cost: number | null;
   estimate: number;
+  // The gateway's log ids of attempts that may have been answered though the call failed, to find them by.
+  traces?: string[];
 };
 
 type Say = (line: string) => void;
@@ -139,10 +141,12 @@ async function run(
         `${pendingFile} is unreadable (${(error as Error).message}); it holds an answered call's log id, so repair it rather than delete it`,
       );
     }
-    if (pending.logId === null)
+    if (pending.logId === null) {
+      const logs = pending.traces?.length ? `, log ${pending.traces.join(" or ")}` : "";
       return refuse(
-        `the call of ${pending.run} was sent and its answer was not saved, so it is not sent again; find it in the gateway's log (its time, model ${MODEL}), record it, then remove ${pendingFile} to make a new call`,
+        `the call of ${pending.run} was sent and its answer was not saved, so it is not sent again; find it in the gateway's log (its time, model ${MODEL}${logs}), record it, then remove ${pendingFile} to make a new call`,
       );
+    }
     const answered = { ...pending, logId: pending.logId };
     let secrets: Secrets;
     try {
@@ -245,10 +249,34 @@ async function run(
       const unsettled = settleSpend(ledgerFile, ledger, entry, null);
       if (unsettled) say(`meta-client-live: ${unsettled}`);
     }
-    // Nothing was answered, so there is nothing to verify, and a new run may call again.
-    unmark();
-    if (stopped) return refuse(`stopped before attempt ${attempts.length + 1}: ${stopped}`);
+    // Only a call Meta certainly did not answer may be made again: nothing was sent, or Meta refused every attempt
+    // with an error status. Any other failure after sending (a 200 cut off mid-body, a timeout, a dropped connection)
+    // may have been answered and charged, so the mark stays, naming what the gateway logged, and a rerun refuses.
+    const failed = (error instanceof ModelError ? (error.details.attempts ?? []) : []).slice(0, attempts.length);
+    const refused =
+      failed.length === attempts.length &&
+      failed.every((a) => a.status !== undefined && a.status >= 400 && a.kind !== "timeout");
     const why = error instanceof ModelError ? `${error.kind}: ${error.message}` : (error as Error).name;
+    if (refused) unmark();
+    else {
+      const traces = failed.map((a) => a.logId).filter((id): id is string => id !== null);
+      try {
+        writeWhole(
+          pendingFile,
+          `${JSON.stringify({ run: runId, logId: null, usage: null, cost: null, estimate, traces } satisfies Pending, null, 1)}\n`,
+        );
+      } catch {
+        // The mark from before the call stands, without the log ids.
+      }
+      say(
+        safe(
+          `failed: the call did not complete (${why}) and may have been answered${traces.length ? ` (log ${traces.join(" or ")})` : ""}; a rerun will not call again until it is found in the gateway's log and ${pendingFile} is removed`,
+        ),
+      );
+      if (stopped) say(`meta-client-live: stopped before attempt ${attempts.length + 1}: ${stopped}`);
+      return { code: 1, lines };
+    }
+    if (stopped) return refuse(`stopped before attempt ${attempts.length + 1}: ${stopped}`);
     say(safe(`failed: the call did not complete (${why})`));
     return { code: 1, lines };
   }
