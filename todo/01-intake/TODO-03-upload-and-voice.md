@@ -47,22 +47,26 @@ track: day-1
 
 ## 1. Upload API for mail, documents and audio
 
+> **Started:** 2026-10-28T14:53:17Z
+
 `POST /api/upload` accepts one file from a signed-in member and creates a case with channel `upload` (spec 4.1). The file is sniffed by content, not trusted by its extension, and routed: mail goes through the D01 T01 parse path; a PDF or image becomes a standalone document case (spec 4.5a); audio goes through §2 to §4.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-28** at start, against the code: the session and organisation come from `requireSession` and `requireOrg` (`src/auth/gate.ts`, `src/auth/org.ts`; a JSON request without a session gets 401, a member of no active organisation 403); `cases` has no `source_kind`, so migration `0018_source_kind.sql` adds it (`mail`, `document`, `image`, `audio`; an email case is `mail`); an uploaded `.eml` or `.msg` is the original message itself, not a forward, so the `parse` step reads it directly (`parseMessage`, or `parseMsg` for a `.msg`) rather than through `extractOriginal`, with headers available as the message carries them (an `.eml` with a `Received` or `Authentication-Results` header; a `.msg` by its own answer, D01 T01 §6), and the branch reads the stored file's media type, recorded when it was stored; and audio is only stored and recorded here, its transcription being D01 T03 §3, not built yet.
+
 **Build order:**
 
 1. Write the route in `src/intake/upload.ts`. Done when: a test uploads each accepted type and gets a case id.
 2. Refuse the rest. Done when: an executable, a 30 MiB file and an unauthenticated request are each refused with the right status.
 
-- [ ] Write `POST /api/upload` (Hono) requiring a session from D07 T02 and the organisation's daily case cap from D07 T02 §4. Done when: an anonymous request gets 401 and a capped organisation gets 429 in `test/intake/upload.test.ts`. The case is created through `admitCase` (D07 T02 §4), which applies the daily cap in the same statement (a count then a separate insert would let two uploads take the last slot).
+- [ ] Write `POST /api/upload` (Hono) behind `requireSession` and `requireOrg`, with the organisation's daily case cap from D07 T02 §4. Done when: an anonymous request gets 401 and a capped organisation gets 429 in `test/intake/upload.test.ts`. The case is created through `admitCase` (D07 T02 §4), which applies the daily cap in the same statement (a count then a separate insert would let two uploads take the last slot).
 - [ ] Sniff the type from magic bytes (`%PDF`, PNG, JPEG, WebP, OggS, RIFF/WAVE, ID3 or MPEG frame, `ftyp` M4A, OLE header for `.msg`, RFC 5322 header block for `.eml`). Done when: a renamed PDF uploaded as `x.png` is treated as PDF. Cheaper substitute: trusting the extension.
 - [ ] Refuse anything else with 415 and files over 25 MiB with 413, storing nothing; an M4A (an `ftyp` box with an audio brand) is refused by type with 415 and the message `UnsupportedAudio` gives, naming the formats taken (D01 T03 §8: AAC decoding waits on §10). Done when: both tests pass, an M4A upload gets 415 with that message, and R2 holds no object.
 - [ ] Store the file with `putRaw` for mail and `putAttachment` otherwise (**corrected 2026-10-27**, D01 T01 §2's plan review: `putArtefact` takes only derived kinds), create the case with `channel = "upload"` and a `source_kind` of mail, document, image or audio, and start the Workflow. Done when: each accepted fixture creates one case and one Workflow instance.
-- [ ] Make the Workflow's `parse` step branch on `source_kind`. Done when: a PDF case skips MIME parsing and records the document artefact.
+- [ ] Make the Workflow's `parse` step branch on `source_kind`. Done when: a PDF case skips MIME parsing and records the document artefact. (**Corrected 2026-10-28** at start: also an uploaded `.eml` parsed directly with its headers available, an uploaded `.msg` through `parseMsg`, an image recorded like a document, and an audio case recorded for D01 T03 §3, each proven through `env.ANALYSIS`; the case ends `done` with the stub verdict, and no reply is sent, since an upload has no forwarder: the member reads the report.)
 - [ ] Commit: `intake: upload API for mail, documents, images and audio`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts` passes and fails if the type sniffing is replaced by the extension.
