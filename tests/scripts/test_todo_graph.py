@@ -1847,6 +1847,48 @@ class Lanes(Tree):
         self.assertEqual(run("resolve", "D00 T01 §1", lane="glimmer").returncode, 4)
 
 
+class MergeInProgress(unittest.TestCase):
+    """A lane merging main concludes a merge whose stamps are on MERGE_HEAD, not yet on HEAD (AGENTS.md Parallel lanes):
+    the stamp commit is accepted while that merge is open, and refused once it is aborted."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self.tmp.name)
+        self.git("init", "-q", "-b", "main")
+        for args in (("config", "maintenance.auto", "false"), ("config", "user.email", "t@example.com"),
+                     ("config", "user.name", "T")):
+            self.git(*args)
+        (self.root / "a.txt").write_text("a\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "base")
+        self.git("checkout", "-qb", "lane")
+        (self.root / "lane.txt").write_text("lane\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "lane work")
+        self.git("checkout", "-q", "main")
+        (self.root / "stamp.txt").write_text("stamped\n", encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "main's stamp")
+        self.stamp = self.git("rev-parse", "HEAD").strip()
+        self.git("checkout", "-q", "lane")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True, text=True).stdout
+
+    def test_a_stamp_on_the_merged_branch_counts_while_the_merge_is_open(self):
+        with self.assertRaises(tg.Refused):
+            tg.commit_ok(self.root, self.stamp)
+        self.git("merge", "--no-commit", "--no-ff", "main")
+        tg.commit_ok(self.root, self.stamp)
+        self.assertIn(self.stamp, tg._head_commits(self.root))
+        self.git("merge", "--abort")
+        with self.assertRaises(tg.Refused):
+            tg.commit_ok(self.root, self.stamp)
+
+
 class Repository(unittest.TestCase):
     def test_the_authoring_template_copy_is_identical(self):
         # todo/README.md and create-todo name todo/templates/TODO-template.md and each agent's skill copy as one file.

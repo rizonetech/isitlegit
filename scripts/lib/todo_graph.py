@@ -198,17 +198,25 @@ def front_matter(text, relative):
     return front, parts[2]
 
 
+def _tips(root):
+    """The commits the next commit will descend from: HEAD, and MERGE_HEAD while a merge is being concluded, whose
+    stamps (a parallel lane merging main, AGENTS.md Parallel lanes) are reachable from it and not yet from HEAD."""
+    merging = subprocess.run(["git", "-C", str(root), "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+                             capture_output=True, text=True, timeout=30)
+    return ["HEAD", "MERGE_HEAD"] if merging.returncode == 0 else ["HEAD"]
+
+
 def commit_ok(root, sha):
     kind = subprocess.run(["git", "-C", str(root), "cat-file", "-t", sha],
                           capture_output=True, text=True, timeout=30)
     require(kind.returncode == 0 and kind.stdout.strip() == "commit", "not a commit: " + sha)
-    on_branch = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", sha, "HEAD"],
-                               capture_output=True, timeout=30)
-    require(on_branch.returncode == 0, "commit is not on this branch: " + sha)
+    on_branch = any(subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", sha, tip],
+                                   capture_output=True, timeout=30).returncode == 0 for tip in _tips(root))
+    require(on_branch, "commit is not on this branch: " + sha)
 
 
 def _head_commits(root):
-    res = subprocess.run(["git", "-C", str(root), "rev-list", "HEAD"],
+    res = subprocess.run(["git", "-C", str(root), "rev-list", *_tips(root)],
                          capture_output=True, text=True, timeout=30)
     require(res.returncode == 0, f"git repository with HEAD commit required for stamped sections: {root}")
     return set(res.stdout.splitlines())

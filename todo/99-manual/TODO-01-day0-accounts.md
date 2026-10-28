@@ -74,7 +74,7 @@ The key and the credit are on one Meta Model API team: the operator created the 
 
 Meta credit visible: 2026-10-27
 
-**Test checkpoint:** `python3 scripts/check-meta-key.py` exits 0 and prints `HTTP 200, <n> models listed, muse-spark-1.3 among them; key shape ok`: the vault's key has Meta's shape and Meta accepts it on its free model list, so a placeholder, a revoked or another team's key fails, and a stalled vault (60 s) or network (30 s) fails with a reason; the key is never printed (`tests/scripts/test_check_meta_key.py`). **Corrected 2026-10-28** (the final review): it counted the credential's bytes, which proved only that something was stored; earlier still it called bare `op item get`. Evidence 2026-10-28 23:10 SAST: `check-meta-key: HTTP 200, 9 models listed, muse-spark-1.3 among them; key shape ok`, exit 0.
+**Test checkpoint:** `python3 scripts/check-meta-key.py` exits 0 and prints `HTTP 200, <n> models listed, muse-spark-1.3 among them; key shape ok`: the vault's key has Meta's shape, is the recorded key (the SHA-256 of its public numeric id matches `EXPECTED_KEY_ID`, so another team's working key fails before any call; round 2 found a working foreign key passed), and Meta accepts it on its free model list, so a placeholder, a revoked or a replaced key fails, and a stalled vault (60 s) or network (30 s) fails with a reason; the key is never printed (`tests/scripts/test_check_meta_key.py`). **Corrected 2026-10-28** (the final review): it counted the credential's bytes, which proved only that something was stored; earlier still it called bare `op item get`. Evidence 2026-10-28 23:12 SAST: `check-meta-key: HTTP 200, 9 models listed, muse-spark-1.3 among them; the recorded key`, exit 0.
 
 ## 2. Domain verification and nameservers
 
