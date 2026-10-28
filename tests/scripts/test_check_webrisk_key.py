@@ -141,6 +141,22 @@ class Call(unittest.TestCase):
                 cwk.call(KEY, "https://x.test")
             code, line = cwk.check(read=lambda: KEY)
             self.assertEqual(code, 2)
+        # An empty or short body on a success status: never read as `{}`, the clean answer.
+        for raw in (b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n",
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"):
+            empty = http.client.HTTPResponse(Sock(raw))
+            empty.begin()
+            context = mock.MagicMock()
+            context.__enter__.return_value = empty
+            with self.subTest(raw[-30:]), mock.patch.object(cwk.urllib.request, "urlopen", return_value=context):
+                with self.assertRaises(cwk.Unreachable):
+                    cwk.call(KEY, "https://x.test")
+        whole = http.client.HTTPResponse(Sock(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}"))
+        whole.begin()
+        context = mock.MagicMock()
+        context.__enter__.return_value = whole
+        with mock.patch.object(cwk.urllib.request, "urlopen", return_value=context):
+            self.assertEqual(cwk.call(KEY, "https://x.test"), (200, {}))
         for error in (truncated, html):
             with self.subTest(error.fp.__class__.__name__):
                 with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):

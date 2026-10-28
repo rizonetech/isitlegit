@@ -70,6 +70,7 @@ def read_key():
 # Any failure to receive a whole answer, on a success or an error status alike: the connection, the TLS, the HTTP
 # framing (a cut chunk, a short body) or the timeout.
 TRANSPORT = (urllib.error.URLError, OSError, TimeoutError, http.client.HTTPException)
+LIMIT = 1024 * 1024
 
 
 def call(key, url):
@@ -79,13 +80,18 @@ def call(key, url):
     try:
         try:
             with urllib.request.urlopen(request, timeout=HTTP_SECONDS) as response:
-                status, raw = response.status, response.read(1024 * 1024)
+                status, headers, raw = response.status, response.headers, response.read(LIMIT + 1)
         except urllib.error.HTTPError as exc:
-            status, raw = exc.code, exc.read(1024 * 1024)
+            status, headers, raw = exc.code, exc.headers, exc.read(LIMIT + 1)
     except TRANSPORT as exc:
         raise Unreachable(f"Google could not be reached or its answer was cut off ({type(exc).__name__})") from None
+    # Whole means: some body (Google always sends one; a clean lookup is the two bytes `{}`), no shorter than its
+    # Content-Length, within the read limit, and JSON. An empty or short read is a dropped connection, never `{}`.
+    declared = headers.get("Content-Length") if headers is not None else None
+    if not raw or len(raw) > LIMIT or (declared is not None and declared.isdigit() and len(raw) != int(declared)):
+        raise Unreachable(f"Google's HTTP {status} answer was not received whole ({len(raw)} bytes)")
     try:
-        return status, json.loads(raw or b"{}")
+        return status, json.loads(raw)
     except ValueError:
         raise Unreachable(f"Google's HTTP {status} answer could not be read whole") from None
 
