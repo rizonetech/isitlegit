@@ -47,6 +47,7 @@ track: day-1
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
 | 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
 | 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
+| 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -238,13 +239,14 @@ Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno
 2. Convert `.msg` to the same parsed summary as §5. Done when: the summary matches the `.eml` twin of the fixture field by field.
 
 - [ ] Add exact dependency `@kenjiuno/msgreader` 1.29.0, and `cfb` 1.2.2 as a development dependency for the fixture generator (it writes OLE compound files; **corrected 2026-10-28** at start: nothing could write a synthetic `.msg`). Done when: `pnpm install` resolves both and `NOTICE.md` lists them.
-- [ ] Create synthetic fixture `test/fixtures/msg/invoice-request.msg`, a draft variant `invoice-request-draft.msg` with no transport headers, and the `.eml` twin from a fictional sender, all written by `scripts/fixtures/make-msg.ts` (never from real mail). Done when: the three files exist, the generator is committed, and a test regenerates the `.msg` and finds it equal to the committed file.
+- [ ] Create synthetic fixtures with `scripts/fixtures/make-msg.ts` (never from real mail; fictional senders): `invoice-request.msg` (transport headers, text, binary HTML in code page 1252 with non-ASCII text, a PDF, an inline image with `PidTagAttachContentId` referenced from the HTML as `cid:`, and an embedded Outlook message, attach method 5), its `.eml` twin, `invoice-request-draft.msg` (no transport headers), `rtf-only.msg` (a body only in `PidTagRtfCompressed`), and as refusals `not-a-msg.msg` (other bytes) and `truncated.msg` (a compound file cut short). Done when: the files exist, the generator is committed, and a test regenerates them and finds them equal to the committed files (**Corrected 2026-10-28**, plan review: inline images, embedded messages, code pages, RTF and unreadable files had no fixture).
 - [ ] When the `.msg` carries no `PidTagTransportMessageHeaders` (a draft or a message saved before sending), set the case's `headers_available` to 0 with `setHeadersAvailable` (D01 T01 §4), since §4 counts an attached `.msg` as having headers. Done when: a fixture without transport headers leaves the case at 0. Source: D01 T01 §4 start, 2026-10-28.
-- [ ] Write `parseMsg(bytes)` in `src/intake/msg.ts` returning §5's `ParsedMessage` (headers from `PidTagTransportMessageHeaders`, read by `postal-mime` as a header block, in order with repeats; the text body; the HTML body; each attachment's filename, declared type and bytes) with `headersAvailable` (false when there are no transport headers), cutting the text and HTML bodies to §5's limits with the full bytes kept in `truncated`, and counting an embedded Outlook item (attach method 5, which `msgreader` reads as fields, not as bytes) in `omitted`. Done when: `test/intake/msg.test.ts` finds its headers, text, HTML and attachment equal to `parseMessage` of the twin, the draft without headers, a large body cut with its full bytes kept, and `storeParsed` (§5) storing the result. (**Corrected 2026-10-28** at start: the "§5 summary shape" is `ParsedMessage`, which `storeParsed` stores; the limits and embedded items were unstated.)
+- [ ] Write `parseMsg(bytes)` in `src/intake/msg.ts` returning §5's `ParsedMessage` with `headersAvailable` (false when there are no transport headers): headers from `PidTagTransportMessageHeaders`, read by `postal-mime` as a header block, in order with repeats; the text body; the HTML body from the binary `PidTagHtml` decoded in `PidTagInternetCodepage` (its label, else UTF-8), else the string `bodyHtml`, the code page's label kept as the `charset` of a cut part; each attachment's filename, declared type, bytes, `contentId` from `PidTagAttachContentId` and disposition (`inline` when it has a content id, else `attachment`); an embedded Outlook message (attach method 5) exported by `msgreader`'s `getAttachment` as `.msg` bytes and stored as an attachment of type `application/vnd.ms-outlook`; the text and HTML bodies cut to §5's limits with the full bytes kept in `truncated`. A file `msgreader` cannot read (it throws, or `getFileData` answers an `error`) is a `ParseError`, as is a message whose body is only compressed RTF (no text and no HTML), so §7 ends it partial naming why rather than as an empty message (**Corrected 2026-10-28**, plan review: embedded messages were to be counted as omitted on the false premise that they had no bytes; inline images, code pages, RTF-only bodies and returned errors were unstated). Done when: `test/intake/msg.test.ts` finds its headers, text, HTML (non-ASCII text intact) and PDF equal to `parseMessage` of the twin; the inline image stored with its content id and the stored HTML's `cid:` reference naming it; the embedded message stored as `.msg` bytes that `msgreader` reopens with its own subject; the draft without headers; a large body cut with its full bytes and code page kept; `rtf-only`, `not-a-msg` and `truncated` each a `ParseError`; and `storeParsed` (§5) storing the result and its summary read back.
+> **Deferred:** reading a body held only in compressed RTF -> XREF: D01 T01 §13 (**Corrected 2026-10-28** at start: the "§5 summary shape" is `ParsedMessage`, which `storeParsed` stores; the limits and embedded items were unstated.)
 - [x] If the library fails in the workers pool, record the error in `docs/frontier-log.md` style under `docs/decisions.md`, make `parseMsg` throw `UnsupportedFormat`, and have the reply say to forward as attachment in Outlook's default format. Done when: either the parse test passes or the fallback test passes; never neither. (Not needed: probed 2026-10-28 at start, `msgreader` 1.29.0 reads the synthetic fixture inside the workers pool under `nodejs_compat`, subject, transport headers and attachment included; the parse test is the proof. A `.msg` it cannot read is a `ParseError`, which §7 turns partial.)
 - [ ] Commit: `intake: Outlook .msg parsing`
 
-**Test checkpoint:** `pnpm exec vitest run test/intake/msg.test.ts` passes, and fails if the transport headers are dropped, the draft claims headers, a body passes §5's limits, or the attachment's bytes differ from the twin's (**Corrected 2026-10-28** at start: "passes" alone could not fail).
+**Test checkpoint:** `pnpm exec vitest run test/intake/msg.test.ts` passes, and fails if the transport headers are dropped, the draft claims headers, a body passes §5's limits, the attachment's bytes differ from the twin's, an inline image loses its content id, an embedded message is dropped, non-ASCII HTML is garbled, or an RTF-only or unreadable file parses as an empty success (**Corrected 2026-10-28** at start: "passes" alone could not fail).
 
 ## 7. AnalysisWorkflow skeleton, partial reports
 
@@ -260,7 +262,7 @@ Cloudflare Workflows run the pipeline as durable steps (stack doc), so a failure
 2. Add the failure path. Done when: a forced failure in `checks` ends the case `partial` with an event naming the step.
 
 - [ ] Replace the D00 T01 §5 stub with an `AnalysisWorkflow` whose `run` calls `step.do` for `parse`, `checks`, `verdict`, `store` and `reply`, passing R2 keys between steps. Done when: `pnpm typecheck` passes and the class is still exported as `ANALYSIS`.
-- [ ] Make the `parse` step read the raw message, call `extractOriginal` (§4), store `headers_available` with `setHeadersAvailable` (§4) and parse the original (§5, or §6 for `format: "msg"`), so the forward's outcome reaches the case before the checks. A refused or failed `setHeadersAvailable` fails the step (retried, then `partial` like any step), so the checks never run on an unknown header state. Done when: the inline fixture's case ends with `headers_available = 0` and the attached one's with 1, and a forced `database` refusal ends the case `partial` naming `parse`. Source: D01 T01 §4 start and plan review, 2026-10-28.
+- [ ] Make the `parse` step read the raw message, call `extractOriginal` (§4), store `headers_available` with `setHeadersAvailable` (§4) and parse the original (§5, or §6 for `format: "msg"`), so the forward's outcome reaches the case before the checks. For a `.msg` the parser's own `headersAvailable` (§6: false without transport headers) is the one applied, to the case with `setHeadersAvailable` and to the `Forward` passed to `storeParsed`, so the case row and `parsed.json` agree. A refused or failed `setHeadersAvailable` fails the step (retried, then `partial` like any step), so the checks never run on an unknown header state. Done when: the inline fixture's case ends with `headers_available = 0` and the attached one's with 1, a forced `database` refusal ends the case `partial` naming `parse`, and an attached draft `.msg` (§6) ends with `headers_available = 0` in the case row and `forward.headersAvailable: false` in `parsed.json`, read back from both. Source: D01 T01 §4 start and plan review, 2026-10-28.
 - [ ] Write `recordEvent(caseId, step, status, extra)` in `src/pipeline/events.ts` and call it at the start and end of each step with duration. Done when: a test run leaves two events per step in `case_events`.
 - [ ] Add a stub `checks` step returning no evidence and a stub `verdict` step returning `suspicious` with headline "Analysis in progress: checks are not built yet" and confidence 0. Done when: the fixture case ends `done` with that stub verdict. Cheaper substitute: returning `safe`, which would mislead a member.
 - [ ] Configure `retries` per step (`limit: 3`, exponential backoff) and catch the final failure into `setStatus(caseId, "partial")` plus an event with the error class (no message content). Done when: a test that throws in `checks` three times ends `partial`.
@@ -405,6 +407,26 @@ A member who attaches several suspicious messages to one forward gets only the f
 - [ ] Commit: `intake: several originals in one forward`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/forward.test.ts test/intake/email.test.ts` passes and fails if a second original is dropped unseen, a retried delivery makes a case twice, or the cap is passed.
+
+
+## 13. Compressed-RTF message bodies
+
+Outlook can store a message's body only as compressed RTF (`PidTagRtfCompressed`), with no plain-text or HTML body (Microsoft, "Supporting formatted text in outgoing messages"). §6 refuses such a `.msg` as a `ParseError`, so its case ends partial naming why rather than as an empty message (D01 T01 §6 plan review, finding 5). This section reads those bodies.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Decompress and de-encapsulate. Done when: an RTF-only fixture yields its text, and one encapsulating HTML (`\fromhtml1`) yields that HTML.
+
+- [ ] Decompress `PidTagRtfCompressed` ([MS-OXRTFCP]) in `src/intake/rtf.ts`, bounded to §5's body limits, refusing a stream whose declared size exceeds them. Done when: `test/intake/rtf.test.ts` decompresses the §6 `rtf-only.msg` body and refuses a stream claiming 50 MiB.
+- [ ] De-encapsulate HTML from RTF that carries `\fromhtml1` ([MS-OXRTFEX]), else extract the plain text (control words dropped, `\par` and `\line` as line breaks, `\'xx` decoded in the RTF's code page). Done when: an HTML-encapsulating fixture yields its HTML and a plain RTF one its text, non-ASCII intact.
+- [ ] Use it in `parseMsg` (§6) when there is no text and no HTML body, instead of the `ParseError`. Done when: `rtf-only.msg` parses with its text, and a message with text or HTML ignores its RTF.
+- [ ] Commit: `intake: compressed-RTF message bodies`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/rtf.test.ts test/intake/msg.test.ts` passes and fails if an RTF-only message parses empty or a decompression passes the body limits.
 
 ## Verification
 
