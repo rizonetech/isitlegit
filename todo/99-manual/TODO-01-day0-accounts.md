@@ -87,7 +87,7 @@ Meta credit visible: 2026-10-27
 
 **Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, so the review comes before the build as the process requires.
 
-`isitlegit.co.za` is on `serverHold` until the registrant contact is verified; the nameserver change to Cloudflare is queued behind it.
+`isitlegit.co.za` was on `serverHold` until the registrar released it; the nameserver change to Cloudflare was queued behind it. **Corrected 2026-10-28** (plan review): it read "until the registrant contact is verified", but Domains.co.za needs no contact verification (struck item below, operator 2026-10-27); what mattered was the hold lifting.
 
 **Phase:** 99
 **Needs:** none
@@ -97,7 +97,7 @@ Meta credit visible: 2026-10-27
 
 **Build order:**
 
-1. Verify the registrant contact from the Domains.co.za email to Rizonetech's registrant contact mailbox. Done when: Domains.co.za shows the registrant verified and the hold lifted.
+1. Get the domain released from `serverHold` and delegated to Cloudflare. Done when: the registrar reads status `ok` and public DNS names Cloudflare's nameservers (**Corrected 2026-10-28:** it required a verified registrant contact, which the operator's 2026-10-27 decision below made unnecessary).
 2. Confirm the nameservers. Done when: the Cloudflare zone reads `active`.
 
 - [x] Find the Domains.co.za verification email in Rizonetech's registrant contact mailbox and complete it. Done when: the Domains.co.za domain page no longer shows `serverHold`. Evidence 2026-10-27 00:30 SAST: the registrar reports status `ok` (EPP `ok`); its registrant contact still reads `Unverified`, covered by the next item.
@@ -112,11 +112,11 @@ Meta credit visible: 2026-10-27
 - [x] Turn on the registrar transfer lock once DNSSEC is active (operator 2026-10-27). Done when: the registrar reads `locked`. Evidence 2026-10-27 00:55 SAST: the registrar reads `locked`.
 - [x] Click the Cloudflare Email Routing verification link sent to the operator's Rizonetech mailbox once Claude has added it as a destination address (design spec section 11, Mailbox). Done when: the zone's Email Routing destination addresses list it as verified. Evidence 2026-10-27 00:40 SAST: the destination reads verified; the `hello@`, `conduct@` and `dmarc@` rules are enabled.
 - [x] Add an Email Routing custom address `hello@isitlegit.co.za` forwarding to the operator's mailbox (named on the about page, D07 T06 §8). Done when: a test mail to it arrives. Evidence 2026-10-27 00:59 SAST: the test "IsItLegit routing test (hello@)" from rizonetech@gmail.com, sent 22:58:56 UTC on 2026-10-26, arrived in derick@rizonetech.com seconds later (internetMessageId `<CA+OCnvm2p3BUGO6k=ErfsauOqTjLiufUef5E99C-Lmp9WoiKXg@mail.gmail.com>`).
-- [x] Add an Email Routing custom address `dmarc@isitlegit.co.za` forwarding to the operator's mailbox (DMARC aggregate reports). Done when: the rule reads enabled. Evidence 2026-10-27 00:40 SAST: enabled.
+- [x] Add an Email Routing custom address `dmarc@isitlegit.co.za` forwarding to the operator's mailbox (DMARC aggregate reports). Done when: the rule reads enabled and a test mail to it arrives in the operator's mailbox (**Corrected 2026-10-28** (plan review): "rule reads enabled" did not prove delivery). Evidence 2026-10-27 00:40 SAST: enabled. Evidence 2026-10-28 23:13 SAST: the test "IsItLegit routing test (dmarc@) 2026-10-28" from rizonetech@gmail.com, sent 21:13:39 UTC, arrived in derick@rizonetech.com at 21:13:48 UTC (internetMessageId `<CA+OCnvkunt34fuzUosHJvddeCsQWO7x3SS0PM-jO0ZkMN-5BKw@mail.gmail.com>`).
 - [x] Add an Email Routing custom address `conduct@isitlegit.co.za` forwarding to the operator's mailbox (named in `CODE_OF_CONDUCT.md` as the private conduct contact). Done when: a test mail to it arrives in the operator's mailbox. Evidence 2026-10-27 00:59 SAST: the test "IsItLegit routing test (conduct@)" from rizonetech@gmail.com, sent 22:58:56 UTC on 2026-10-26, arrived in derick@rizonetech.com seconds later (internetMessageId `<CA+OCnvmAHgudPYBzy2DtAo=cNyWodPTPE-XkgWTMZq4VS82uww@mail.gmail.com>`).
 - [ ] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
 
-**Test checkpoint:** `dig +short NS isitlegit.co.za @1.1.1.1` prints `carmelo.ns.cloudflare.com.` and `paris.ns.cloudflare.com.`.
+**Test checkpoint:** `python3 scripts/check-domain.py` exits 0 and prints `7 of 7 checks passed`: from public DNS (1.1.1.1), Cloudflare's two nameservers, Email Routing's three MX hosts and SPF include, DMARC `p=reject` reporting to dmarc@, CAA issuers only from Universal SSL's authorities and including Let's Encrypt, Google and SSL.com (Cloudflare adds Sectigo and DigiCert rows itself), the registry's DS record (key tag 2371, algorithm 13, digest type 2, the recorded digest) and the zone validated (`ad`); any missing or wrong record fails it (`tests/scripts/test_check_domain.py`). The registrar's `ok`, auto-renew and lock, and Email Routing's `ready` with its verified destination, are the dated read-backs in the items above. **Corrected 2026-10-28** (plan review): it checked only the nameservers; the earlier text, kept: `dig +short NS isitlegit.co.za @1.1.1.1` prints `carmelo.ns.cloudflare.com.` and `paris.ns.cloudflare.com.`. Evidence 2026-10-28 23:14 SAST: `check-domain: 7 of 7 checks passed`, exit 0.
 
 ## 3. Workers Paid plan
 

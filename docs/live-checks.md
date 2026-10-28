@@ -14,7 +14,7 @@ How Claude Code proves the live mail paths without the operator, as authorised o
 | --- | --- | --- | --- |
 | `hello@` | `hostmaster@rizonetech.com` | Contact on the about page | 2026-10-26 22:58 UTC |
 | `conduct@` | `hostmaster@rizonetech.com` | Private conduct contact (`CODE_OF_CONDUCT.md`) | 2026-10-26 22:58 UTC |
-| `dmarc@` | `hostmaster@rizonetech.com` | DMARC aggregate reports | rule enabled |
+| `dmarc@` | `hostmaster@rizonetech.com` | DMARC aggregate reports | 2026-10-28 21:13 UTC |
 | `finance@demo.` | `hostmaster@rizonetech.com` | Demo organisation finance contact (D07 T07) | 2026-10-27 19:20 UTC |
 | `alerts@demo.` | `hostmaster@rizonetech.com` | Demo organisation alerts contact (D07 T07) | 2026-10-27 19:20 UTC |
 | `owner@demo.` | `hostmaster@rizonetech.com` | Demo organisation owner contact (D07 T07) | 2026-10-27 19:20 UTC |
