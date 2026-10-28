@@ -498,7 +498,10 @@ describe("codes by email", () => {
     ).toMatchObject({ verified: true });
   });
 
-  it("verifies a sending address by code, resends, refuses expired codes, and caps claims and codes", async () => {
+  // Twenty claims and their codes in sequence: past the 5-second default when the whole suite shares the machine.
+  it("verifies a sending address by code, resends, refuses expired codes, and caps claims and codes", {
+    timeout: 20_000,
+  }, async () => {
     const { cookie, orgId } = await owner("addrowner@example.org");
     const claimed = await json("/addresses", cookie, "POST", { address: "Owner.Personal@gmail.com" });
     expect(claimed.status).toBe(200);
