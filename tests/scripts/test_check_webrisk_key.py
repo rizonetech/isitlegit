@@ -1,7 +1,11 @@
 """scripts/check-webrisk-key.py (D99 T01 §6): passes only for a working, Web-Risk-restricted key, never printing it."""
+import http.client
 import importlib.util
+import io
 import pathlib
 import unittest
+import urllib.error
+from unittest import mock
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("check_webrisk_key", REPO / "scripts/check-webrisk-key.py")
@@ -93,6 +97,28 @@ class WebRiskKey(unittest.TestCase):
             raise cwk.Unreachable("Google could not be reached (URLError)")
 
         self.assertEqual(self.outcome(get=down)[0], 2)
+
+
+class Call(unittest.TestCase):
+    """call() itself: an error answer whose body is cut off is Google unreachable (exit 2), never a judgement."""
+
+    def test_a_cut_off_error_body_is_unreachable(self):
+        for status in (403, 429, 503):
+            for cut in (TimeoutError("read timed out"), http.client.IncompleteRead(b"{"), ConnectionResetError()):
+                with self.subTest(status=status, cut=type(cut).__name__):
+                    error = urllib.error.HTTPError("https://x.test", status, "err", {}, io.BytesIO(b""))
+                    error.read = mock.Mock(side_effect=cut)
+                    with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):
+                        with self.assertRaises(cwk.Unreachable):
+                            cwk.call(KEY, "https://x.test")
+                        code, line = cwk.check(read=lambda: KEY)
+                        self.assertEqual(code, 2)
+                        self.assertNotIn(KEY, line)
+
+    def test_an_error_body_that_is_not_json_keeps_its_status(self):
+        error = urllib.error.HTTPError("https://x.test", 403, "err", {}, io.BytesIO(b"<html>denied</html>"))
+        with mock.patch.object(cwk.urllib.request, "urlopen", side_effect=error):
+            self.assertEqual(cwk.call(KEY, "https://x.test"), (403, {}))
 
 
 if __name__ == "__main__":

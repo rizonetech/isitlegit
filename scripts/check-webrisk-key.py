@@ -20,6 +20,7 @@ not be reached, or Google answered a quota (429) or server (5xx) error at any st
 key's (https://docs.cloud.google.com/web-risk/docs/status-codes). Only
 `uris.search` is called, never `threatLists.computeDiff` or `hashes.search`, which would bill every lookup. Stdlib only.
 """
+import http.client
 import json
 import os
 import re
@@ -73,8 +74,14 @@ def call(key, url):
         with urllib.request.urlopen(request, timeout=HTTP_SECONDS) as response:
             return response.status, json.loads(response.read(1024 * 1024) or b"{}")
     except urllib.error.HTTPError as exc:
+        # The headers came but the body may not: a connection that stalls or closes mid-body is Google unreachable,
+        # never a judgement on the key.
         try:
-            return exc.code, json.loads(exc.read(1024 * 1024) or b"{}")
+            raw = exc.read(1024 * 1024)
+        except (OSError, TimeoutError, http.client.HTTPException) as cut:
+            raise Unreachable(f"Google's HTTP {exc.code} answer was cut off ({type(cut).__name__})") from None
+        try:
+            return exc.code, json.loads(raw or b"{}")
         except ValueError:
             return exc.code, {}
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
