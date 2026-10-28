@@ -30,6 +30,7 @@ training mode: image
 
 ## Dataset
 
+- 2026-10-28 19:35 UTC, label spot check `phreshphish`: 50 pages drawn with a fixed seed (20261028) from the 6,760 stored at the time, each screenshot and text viewed against its labels. 3 wrong: a page labelled phishing that is now a parked "domain for sale" page (the lure was gone when it was captured), a print-on-demand marketplace labelled phishing for TikTok (doubtful), and an Apple-store clone whose brand reads Naver: 6 percent, under the 10 percent line, so the labels stay `ground-truth`.
 - 2026-10-28 18:50 UTC, label spot check `scamferret`: 50 pages drawn with a fixed seed (20261028) from the 2,349 stored, each screenshot viewed against its `lure` and `lure_type`. No label was clearly wrong; 2 were doubtful (a Dutch crypto-trading course and a Russian cloud-mining service, both from the dataset's legitimate investment category), counted as errors: 4 percent, under the 10 percent line, so the source's labels stay `ground-truth`. The check also found one Shift_JIS page stored as mojibake, which led to `decodeHtml()` and a clean reimport of the source (commit 2d2a94e). Renders of dataset HTML carry no styles or images (the renderer fetches nothing), and some show a cookie banner the page drew itself.
 
 ## Training
