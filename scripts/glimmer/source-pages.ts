@@ -46,6 +46,8 @@ export function decodeHtml(bytes: Uint8Array): string {
   return new TextDecoder("utf-8").decode(bytes);
 }
 
+export class PageTimeout extends Error {}
+
 export type FormFlags = { has_login_form: boolean; has_payment_form: boolean };
 
 // The page's form flags from its DOM, as the screener's prompt defines them (`src/vision/page-screen.ts`): a login form
@@ -87,7 +89,12 @@ export type RenderedHtml = { screenshot: Uint8Array; text: string } & FormFlags;
 
 // One inert browser for many pages: open it once, read every page through it, close it. Nothing runs and nothing is
 // fetched (no JavaScript; every request refused), so a dataset's phishing HTML is laid out as a picture, never live.
-export async function openTextReader(): Promise<{
+// A page gets 30 seconds in all. Playwright's `evaluate` has no time limit of its own, and one page that never answers
+// held all four import workers for good (CompPhish, 2026-10-28): a page past its deadline fails, and its browser is
+// closed and replaced, since a renderer that stopped answering may not close a page either.
+export const PAGE_DEADLINE_MS = 30_000;
+
+export async function openTextReader(options: { pageMs?: number } = {}): Promise<{
   visibleText: (html: string) => Promise<string>;
   renderHtml: (html: string) => Promise<RenderedHtml>;
   close: () => Promise<void>;
@@ -131,11 +138,29 @@ export async function openTextReader(): Promise<{
   async function withPage<T>(html: string, read: (page: Page) => Promise<T>, retried = false): Promise<T> {
     const { browser, context } = await current();
     let page: Page | undefined;
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = options.pageMs ?? PAGE_DEADLINE_MS;
     try {
-      page = await context.newPage();
-      await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 10_000 });
-      return await read(page);
+      const work = (async () => {
+        page = await context.newPage();
+        await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 10_000 });
+        return await read(page);
+      })();
+      const late = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new PageTimeout(`the page did not render within ${deadline / 1000} seconds`)),
+          deadline,
+        );
+      });
+      return await Promise.race([work, late]);
     } catch (error) {
+      if (error instanceof PageTimeout) {
+        // The renderer stopped answering: this browser is dropped (its pages with it) and the next page gets a new one.
+        if (session) session = null;
+        page = undefined;
+        await browser.close().catch(() => undefined);
+        throw error;
+      }
       // The browser went away under this page: start a fresh one and try the page once more.
       if (!browser.isConnected() && !retried) {
         session = null;
@@ -143,6 +168,7 @@ export async function openTextReader(): Promise<{
       }
       throw error;
     } finally {
+      clearTimeout(timer);
       await page?.close().catch(() => undefined); // a page of a crashed browser has nothing left to close
     }
   }

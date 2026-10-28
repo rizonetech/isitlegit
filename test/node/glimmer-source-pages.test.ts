@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { decodeHtml, normaliseScreenshot, openTextReader } from "../../scripts/glimmer/source-pages.ts";
+import { decodeHtml, normaliseScreenshot, openTextReader, PageTimeout } from "../../scripts/glimmer/source-pages.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/source-pages.ts (D03 T04 §5): a dataset's image becomes a JPEG the store accepts, and its HTML gives
@@ -105,6 +105,19 @@ describe("visibleText", () => {
     ]);
     expect(await flags("<p>Just text</p>")).toEqual([false, false]);
   });
+
+  it("fails a page that never finishes within its deadline, and renders the next page on a fresh browser", async () => {
+    const quick = await openTextReader({ pageMs: 1_500 });
+    // Ten million layout boxes: the renderer is still laying them out when the deadline passes.
+    const huge = `<div>${"<span>word </span>".repeat(2_000_000)}</div>`;
+    const started = Date.now();
+    await expect(quick.renderHtml(huge)).rejects.toBeInstanceOf(PageTimeout);
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect((await quick.renderHtml("<p>The next page renders on a new browser</p>")).text).toBe(
+      "The next page renders on a new browser",
+    );
+    await quick.close();
+  }, 60_000);
 
   it("stays on a page whose meta refresh points elsewhere", async () => {
     const out = await reader.renderHtml(
