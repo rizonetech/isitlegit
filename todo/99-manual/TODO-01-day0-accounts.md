@@ -156,7 +156,9 @@ Plan read: Workers Paid, 2026-10-27
 
 ## 4. SMTP2GO sender domain
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T22:07:52Z
+
+**Corrected 2026-10-29:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, once §2 (its prerequisite) stamped.
 
 Replies, verification mails and alerts go out through SMTP2GO from `check@`, `verify@`, `alerts@` and `no-reply@isitlegit.co.za` (stack doc "Outbound mail"; **Corrected 2026-10-26:** `no-reply@` added for sign-in and invitation mail, D07 T08 §6). One verified sender domain covers every address. The DNS records SMTP2GO gives are added to the Cloudflare zone by Claude once the operator starts the sender-domain setup.
 
