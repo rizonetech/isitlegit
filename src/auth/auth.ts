@@ -18,9 +18,11 @@
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "better-auth/api";
 import { ConfigError } from "../config";
+import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, sendMail } from "../mail/smtp2go";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
+import { inviteSignup, type SendFirstLink } from "./signup";
 
 export { MAGIC_LINK_SECONDS };
 export const SIGNIN_FROM = "IsItLegit <signin@isitlegit.co.za>";
@@ -52,46 +54,71 @@ const sha256Hex = async (text: string) =>
     .join("");
 
 // The Worker's options: the table-shaping ones from ./schema, which scripts/auth-schema.ts compiles the migration from.
-export function authOptions(database: BetterAuthOptions["database"], env: Omit<AuthEnv, "DB">, mail: () => MailDeps) {
+export function authOptions(
+  database: BetterAuthOptions["database"],
+  env: Omit<AuthEnv, "DB">,
+  mail: () => MailDeps,
+  sendFirstLink: SendFirstLink = async () => false,
+) {
+  const schema = schemaOptions(
+    {
+      sendMagicLink: async ({ email, url, token }) => {
+        const outcome = await sendMail(mail(), {
+          sendKey: `signin:${await sha256Hex(token)}`,
+          kind: "signin",
+          to: email,
+          from: SIGNIN_FROM,
+          subject: "Your IsItLegit sign-in link",
+          text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${url}\n\nIf you did not ask for it, ignore this mail.`,
+        });
+        // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
+        // never tells a stranger who is registered; a failed or unknown send is still an error.
+        if (outcome.status === "refused") return;
+        const delivered = outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
+        if (!delivered)
+          throw new APIError("BAD_GATEWAY", {
+            message: "the sign-in link could not be sent; try again in a few minutes",
+          });
+      },
+      // Better Auth swallows a failure here (it logs and reports the invite made), so its outcome is read back in the
+      // after hook on /organization/invite-member, which answers 502 unless the send was confirmed.
+      sendInvitationEmail: async ({ id, email, organization, inviter, invitation }) => {
+        const who = inviter.user.name || inviter.user.email;
+        await sendMail(mail(), {
+          sendKey: inviteSendKey(invitation),
+          kind: "signin",
+          to: email,
+          from: SIGNIN_FROM,
+          subject: `You are invited to ${organization.name} on IsItLegit`,
+          text: `${who} invited you to join ${organization.name} on IsItLegit. The invitation is open for 48 hours:\n\n${new URL(`/invite/${id}`, env.APP_URL)}\n\nIf you did not expect it, ignore this mail.`,
+        });
+      },
+    },
+    env.APP_URL,
+  );
   return {
     database,
-    ...schemaOptions(
-      {
-        sendMagicLink: async ({ email, url, token }) => {
-          const outcome = await sendMail(mail(), {
-            sendKey: `signin:${await sha256Hex(token)}`,
-            kind: "signin",
-            to: email,
-            from: SIGNIN_FROM,
-            subject: "Your IsItLegit sign-in link",
-            text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${url}\n\nIf you did not ask for it, ignore this mail.`,
-          });
-          // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
-          // never tells a stranger who is registered; a failed or unknown send is still an error.
-          if (outcome.status === "refused") return;
-          const delivered =
-            outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
-          if (!delivered)
-            throw new APIError("BAD_GATEWAY", {
-              message: "the sign-in link could not be sent; try again in a few minutes",
-            });
-        },
-        // Better Auth swallows a failure here (it logs and reports the invite made), so its outcome is read back in the
-        // after hook on /organization/invite-member, which answers 502 unless the send was confirmed.
-        sendInvitationEmail: async ({ id, email, organization, inviter, invitation }) => {
-          const who = inviter.user.name || inviter.user.email;
-          await sendMail(mail(), {
-            sendKey: inviteSendKey(invitation),
-            kind: "signin",
-            to: email,
-            from: SIGNIN_FROM,
-            subject: `You are invited to ${organization.name} on IsItLegit`,
-            text: `${who} invited you to join ${organization.name} on IsItLegit. The invitation is open for 48 hours:\n\n${new URL(`/invite/${id}`, env.APP_URL)}\n\nIf you did not expect it, ignore this mail.`,
-          });
-        },
+    ...schema,
+    // Invite-code signup (D07 T02 §4, src/auth/signup.ts) beside the table-shaping plugins; it adds no table of Better
+    // Auth's own (its tables are migration 0013).
+    plugins: [...schema.plugins, inviteSignup(() => mail().db, sendFirstLink)],
+    // Every user creation passes here with its source: the signup endpoint (`admin`) has redeemed a code; a magic link
+    // makes an account only for a pending invitee, a demo alias or the operator (the addresses the recipient
+    // allowlist admits for sign-in mail, D01 T02 §2, less members, who already have one). Nothing else makes one.
+    user: {
+      validateUserInfo: async ({ user, source }) => {
+        if (source.method === "admin") return;
+        const email = typeof user.email === "string" ? user.email : "";
+        if (
+          source.method === "magic-link" &&
+          (await isAllowedRecipient(mail().db, email, "signin", env.OPERATOR_EMAIL))
+        )
+          return;
+        throw new APIError("FORBIDDEN", {
+          message: "accounts are made by invitation or with an invite code during the event",
+        });
       },
-      env.APP_URL,
-    ),
+    },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.APP_URL,
     basePath: "/api/auth",
@@ -307,14 +334,26 @@ const inviteSendKey = (invitation: Invitation) =>
 
 export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
   if (!env.BETTER_AUTH_SECRET) throw new ConfigError("BETTER_AUTH_SECRET is not set");
-  return betterAuth(
-    authOptions(env.DB, env, () => ({
-      db: env.DB,
-      apiKey: env.SMTP2GO_API_KEY,
-      operator: env.OPERATOR_EMAIL,
-      ...(fetchImpl ? { fetch: fetchImpl } : {}),
-    })),
+  // The signup's first link goes through the magic-link endpoint itself, so it is the same link a member asks for.
+  const origin = new URL(env.APP_URL).origin;
+  const sendFirstLink: SendFirstLink = async (email) => {
+    await auth.api.signInMagicLink({ body: { email, callbackURL: DEFAULT_RETURN }, headers: new Headers({ origin }) });
+    return true;
+  };
+  const auth = betterAuth(
+    authOptions(
+      env.DB,
+      env,
+      () => ({
+        db: env.DB,
+        apiKey: env.SMTP2GO_API_KEY,
+        operator: env.OPERATOR_EMAIL,
+        ...(fetchImpl ? { fetch: fetchImpl } : {}),
+      }),
+      sendFirstLink,
+    ),
   );
+  return auth;
 }
 
 export type Auth = ReturnType<typeof createAuth>;

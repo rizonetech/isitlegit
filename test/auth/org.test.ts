@@ -5,6 +5,7 @@ import { createAuth } from "../../src/auth/auth";
 import { requireSession } from "../../src/auth/gate";
 import { type OrgEnv, requireOrg } from "../../src/auth/org";
 import worker from "../../src/index";
+import { addInviteCode } from "../fixtures/auth/members";
 import { authEnv, call, ORIGIN, signIn, stubSmtp2go } from "./helpers";
 
 // D07 T02 §3: organisations, their roles, invitations, removal, requireOrg and the switcher's route.
@@ -18,17 +19,35 @@ afterEach(() => {
 
 const userId = async (email: string) =>
   (await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>())?.id as string;
-// An organisation made as §4's signup will make it: the user made through Better Auth, then the organisation through
-// the server API for that user, with no session; the user is then a member, whom the allowlist admits (D01 T02 §2).
+// An organisation as members get one: a user's first through invite-code signup through the Worker (D07 T02 §4), the
+// user then a member, whom the allowlist admits (D01 T02 §2); a later one through the server API for that user.
 async function orgFor(email: string, name: string) {
-  if (!(await userId(email))) {
-    const { internalAdapter } = await createAuth(authEnv).$context;
-    await internalAdapter.createUser({ email, name: email, emailVerified: false }, { method: "admin" });
+  const existing = await userId(email);
+  if (existing) {
+    const made = await api().createOrganization({
+      body: { name, slug: `${name.toLowerCase()}-${crypto.randomUUID().slice(0, 8)}`, userId: existing },
+    });
+    return (made as { id: string }).id;
   }
-  const made = await api().createOrganization({
-    body: { name, slug: `${name.toLowerCase()}-${crypto.randomUUID().slice(0, 8)}`, userId: await userId(email) },
-  });
-  return (made as { id: string }).id;
+  const code = `code-${crypto.randomUUID()}`;
+  await addInviteCode(db, code);
+  const smtp = stubSmtp2go();
+  try {
+    const signedUp = await call("/api/auth/sign-up/invite-code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, code, organizationName: name, consent: true }),
+    });
+    if (signedUp.status !== 201) throw new Error(`signup answered ${signedUp.status}: ${await signedUp.text()}`);
+  } finally {
+    smtp.restore();
+  }
+  return (
+    await db
+      .prepare("SELECT org_id FROM invite_redemptions WHERE email = ? AND status = 'complete'")
+      .bind(email.toLowerCase())
+      .first<{ org_id: string }>()
+  )?.org_id as string;
 }
 const activeOf = async (cookie: string) =>
   (

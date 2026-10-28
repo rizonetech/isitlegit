@@ -31,7 +31,7 @@ export type Case = {
   updatedAt: string;
 };
 
-export type CaseError = { code: "invalid" | "not_found" | "transition" | "database"; message: string };
+export type CaseError = { code: "invalid" | "not_found" | "transition" | "database" | "capped"; message: string };
 export type CaseResult<T> = { ok: true; value: T } | { ok: false; error: CaseError };
 
 // The only moves a case makes: picked up by the pipeline, then finished whole or in part.
@@ -78,6 +78,61 @@ async function guarded<T>(work: () => Promise<CaseResult<T>>): Promise<CaseResul
   } catch (error) {
     return fail("database", (error as Error).message);
   }
+}
+
+// The organisation's daily case cap (D07 T02 §4; design spec section 11): cases since 00:00 SAST against
+// `org_limits.daily_cases`, 50 when the organisation has no row. SAST is UTC+2 with no daylight saving.
+export const DEFAULT_DAILY_CASES = 50;
+const SAST_OFFSET_MS = 2 * 60 * 60_000;
+export const sastDayStart = (now: Date) => {
+  const local = now.getTime() + SAST_OFFSET_MS;
+  return new Date(local - (local % 86_400_000) - SAST_OFFSET_MS).toISOString();
+};
+
+// The only way the email and upload paths create a case: one statement inserts it only while the organisation is under
+// its daily cap, so two arrivals for the last slot cannot both get in. A refused case is not created (`capped`); the
+// caller answers it (the email path's daily notice, the upload's 429).
+export async function admitCase(
+  db: D1Database,
+  input: z.input<typeof NewCase>,
+  now = new Date(),
+): Promise<CaseResult<Case>> {
+  const parsed = NewCase.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  return guarded(async () => {
+    const at = now.toISOString();
+    const row: Row = {
+      id: ulid(),
+      org_id: parsed.data.orgId,
+      channel: parsed.data.channel,
+      status: "received",
+      verdict: null,
+      headers_available: parsed.data.headersAvailable ? 1 : 0,
+      created_at: at,
+      updated_at: at,
+    };
+    const inserted = await db
+      .prepare(
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?)",
+      )
+      .bind(
+        row.id,
+        row.org_id,
+        row.channel,
+        row.status,
+        row.verdict,
+        row.headers_available,
+        row.created_at,
+        row.updated_at,
+        row.org_id,
+        sastDayStart(now),
+        row.org_id,
+        DEFAULT_DAILY_CASES,
+      )
+      .run();
+    if (inserted.meta.changes !== 1) return fail("capped", "the organisation's daily case limit is reached");
+    return { ok: true, value: toCase(row) };
+  });
 }
 
 export async function createCase(db: D1Database, input: z.input<typeof NewCase>): Promise<CaseResult<Case>> {

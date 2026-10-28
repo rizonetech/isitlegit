@@ -41,12 +41,16 @@ export function call(path: string, init: RequestInit = {}, workerEnv: Env = auth
   );
 }
 
-export const requestLink = (email: string, callbackURL?: string) =>
-  call("/api/auth/sign-in/magic-link", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, ...(callbackURL === undefined ? {} : { callbackURL }) }),
-  });
+export const requestLink = (email: string, callbackURL?: string, workerEnv: Env = authEnv) =>
+  call(
+    "/api/auth/sign-in/magic-link",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, ...(callbackURL === undefined ? {} : { callbackURL }) }),
+    },
+    workerEnv,
+  );
 
 // The emailed link as a path on the app (the tests' origin is the app's).
 export const pathOf = (link: string) => {

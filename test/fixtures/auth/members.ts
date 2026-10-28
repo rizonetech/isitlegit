@@ -21,3 +21,26 @@ export async function addMember(db: D1Database, email: string) {
       .bind(`member-${email}`, orgId, userId, now),
   ]);
 }
+
+// An invite code as scripts/invite-code.ts stores one: only its SHA-256 (D07 T02 §4).
+export async function addInviteCode(
+  db: D1Database,
+  code: string,
+  {
+    maxUses = 1,
+    uses = 0,
+    expiresAt = new Date(Date.now() + 86_400_000),
+  }: { maxUses?: number; uses?: number; expiresAt?: Date } = {},
+) {
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code)))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, 'test', ?, ?, ?, ?)",
+    )
+    .bind(id, hash, maxUses, uses, expiresAt.toISOString(), new Date().toISOString())
+    .run();
+  return id;
+}
