@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ulid } from "./ulid";
+import { isUlid, ulid } from "./ulid";
 
 // The case store's typed queries (D01 T01 §1). Every member-facing read and change names the organisation and matches
 // it in SQL, so another organisation's case reads as missing and is never changed; the one lookup by id alone,
@@ -80,6 +80,8 @@ const NewCase = z.object({
   forwardedBy: z.string().trim().toLowerCase().email().max(254).nullish(),
   // RFC 5322 caps a header line at 998 characters.
   messageId: z.string().min(1).max(998).nullish(),
+  // A caller that must record the id before the case exists (the email intake's claim, D01 T01 §3) chooses it.
+  id: z.string().refine(isUlid, "a case id is a ULID").optional(),
 });
 const fail = (code: CaseError["code"], message: string): { ok: false; error: CaseError } => ({
   ok: false,
@@ -117,7 +119,7 @@ export async function admitCase(
   return guarded(async () => {
     const at = now.toISOString();
     const row: Row = {
-      id: ulid(),
+      id: parsed.data.id ?? ulid(),
       org_id: parsed.data.orgId,
       channel: parsed.data.channel,
       status: "received",
@@ -160,7 +162,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
   return guarded(async () => {
     const now = new Date().toISOString();
     const row: Row = {
-      id: ulid(),
+      id: parsed.data.id ?? ulid(),
       org_id: parsed.data.orgId,
       channel: parsed.data.channel,
       status: "received",

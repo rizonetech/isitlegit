@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { admitCase } from "../../src/db/cases";
+import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
 import { CLAIM_LEASE_MS, handleEmail, MAX_MESSAGE_BYTES, RetryDelivery, sweepIntake } from "../../src/intake/email";
 import { EMAIL_ROUTING_AUTHSERV_ID } from "../../src/intake/sender";
@@ -389,6 +390,120 @@ describe("a delivery whose later step fails", () => {
     const result = await handleEmail(again(m), mailEnv, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
     expect(result.kind).toBe("admitted");
     expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(result as { caseId: string }).caseId]);
+  });
+});
+
+describe("a delivery interrupted around admission (completion review)", () => {
+  it("removes a case whose insert committed while its answer was lost, so the retry makes exactly one", async () => {
+    const { orgId, from } = await member();
+    // The case insert runs, then the call fails as if the connection dropped on the way back.
+    const lost = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.startsWith("INSERT INTO cases")) return statement;
+            const bind = statement.bind.bind(statement);
+            statement.bind = (...values: unknown[]) => {
+              const bound = bind(...values);
+              const run = bound.run.bind(bound);
+              return Object.assign(bound, {
+                run: async () => {
+                  await run();
+                  throw new Error("D1_ERROR: Network connection lost.");
+                },
+              });
+            };
+            return statement;
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const m = message(from);
+    await expect(handleEmail(m.forwardable, { ...mailEnv, DB: lost })).rejects.toBeInstanceOf(RetryDelivery);
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(await claimsOf(orgId)).toEqual([]);
+    expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
+    expect(await casesOf(orgId)).toHaveLength(1);
+  });
+
+  it("leaves a claim naming its case when the connection drops right after the case is made, which the sweep settles", async () => {
+    const { orgId, from } = await member();
+    // The case insert commits, then every later database call fails: nothing after it can be written or undone.
+    let dropped = false;
+    const dropping = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (dropped) throw new Error("D1_ERROR: Network connection lost.");
+            const statement = target.prepare(sql);
+            if (!sql.startsWith("INSERT INTO cases")) return statement;
+            const bind = statement.bind.bind(statement);
+            statement.bind = (...values: unknown[]) => {
+              const bound = bind(...values);
+              const run = bound.run.bind(bound);
+              return Object.assign(bound, {
+                run: async () => {
+                  await run();
+                  dropped = true;
+                  throw new Error("D1_ERROR: Network connection lost.");
+                },
+              });
+            };
+            return statement;
+          };
+        if (key === "batch" && dropped)
+          return async () => Promise.reject(new Error("D1_ERROR: Network connection lost."));
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const m = message(from);
+    await expect(handleEmail(m.forwardable, { ...mailEnv, DB: dropping })).rejects.toBeInstanceOf(RetryDelivery);
+    const [made] = await casesOf(orgId);
+    expect(await claimsOf(orgId)).toEqual([{ message_key: m.messageId, state: "pending", case_id: made?.id }]);
+    // After the lease the sweep finds no Workflow for it and removes the case with the claim.
+    await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(await claimsOf(orgId)).toEqual([]);
+  });
+
+  it("settles a delivery that stopped before or after its case was made, leaving no case without a Workflow", async () => {
+    const { orgId, from } = await member();
+    const old = new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString();
+    // Stopped after the claim named its case, before the case was made.
+    const never = ulid();
+    // Stopped after the case was made, before its raw message or Workflow.
+    const made = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
+    if (!made.ok) throw new Error(made.error.message);
+    const insert = (key: string, caseId: string) =>
+      db
+        .prepare(
+          "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
+        )
+        .bind(orgId, key, caseId, old);
+    const before = message(from);
+    const after = message(from);
+    await db.batch([insert(before.messageId as string, never), insert(after.messageId as string, made.value.id)]);
+    const counts = await sweepIntake(env as unknown as Env);
+    expect(counts.removed).toBeGreaterThanOrEqual(2);
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(await claimsOf(orgId)).toEqual([]);
+    // Each message's retry then makes one case.
+    for (const m of [before, after]) expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
+    expect(await casesOf(orgId)).toHaveLength(2);
+  });
+
+  it("sends no notice when the organisation's cap cannot be read, and the next capped forward sends it with the cap", async () => {
+    const { from } = await member({ cap: 1 });
+    expect((await handleEmail(message(from).forwardable, mailEnv)).kind).toBe("admitted");
+    const unreadable = failing({ db: (sql) => sql.startsWith("SELECT daily_cases FROM org_limits") });
+    expect(await handleEmail(message(from).forwardable, unreadable)).toEqual({ kind: "capped" });
+    expect(world.sends).toEqual([]);
+    expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends).toHaveLength(1);
+    expect(world.sends[0]?.text).toContain("limit of 1 checks");
   });
 });
 

@@ -3,13 +3,15 @@
 // reply, so the service sends no backscatter.
 //
 // A delivery is claimed in `intake_messages` before anything else is written (keyed by organisation and Message-ID, or
-// the raw message's SHA-256 without one), then processed in the only order that works: admit the case under the daily
-// cap, write its id to the claim, store the raw message (its artefact row names the case), start the Workflow (instance
-// id = case id), mark the claim done. A failed step is undone and the delivery thrown, so Email Routing's retry starts
-// clean; when it is unknown whether the Workflow started, the claim is left pending with its case and whoever next
-// reaches it (the same message's retry after five minutes, or the scheduled sweep) settles it by asking the Workflow.
+// the raw message's SHA-256 without one), then processed in the only order that works: write the new case's id to the
+// claim, admit the case under that id and the daily cap, store the raw message (its artefact row names the case), start
+// the Workflow (instance id = case id), mark the claim done. So a delivery that stops anywhere leaves a claim naming its
+// case. A failed step is undone and the delivery thrown, so Email Routing's retry starts clean; when it is unknown
+// whether the Workflow started, the claim is left pending with its case and whoever next reaches it (the same message's
+// retry after five minutes, or the scheduled sweep) settles it by asking the Workflow.
 import { findMemberBySender } from "../auth/senders";
 import { admitCase, DEFAULT_DAILY_CASES } from "../db/cases";
+import { ulid } from "../db/ulid";
 import { sendMail } from "../mail/smtp2go";
 import { senderAuthenticated } from "./sender";
 import { putRaw, rawKey, type Store } from "./store";
@@ -63,9 +65,22 @@ export async function handleEmail(
   const claim = await claimDelivery(env, orgId, key, now);
   if (claim === "duplicate") return { kind: "duplicate" };
 
+  // The case's id is on the claim before the case exists, so a delivery that stops anywhere after this leaves a claim
+  // naming its case (or a case never made), which the takeover or the sweep settles; no case is ever left unowned.
+  const caseId = ulid();
+  const linked = await env.DB.prepare(
+    "UPDATE intake_messages SET case_id = ? WHERE org_id = ? AND message_key = ? AND state = 'pending' AND claimed_at = ?",
+  )
+    .bind(caseId, claim.orgId, claim.key, claim.claimedAt)
+    .run()
+    .catch(() => null);
+  if (linked?.meta.changes !== 1) {
+    await releaseClaim(env.DB, claim).catch(() => {});
+    throw new RetryDelivery("the delivery's claim could not be recorded");
+  }
   const admitted = await admitCase(
     env.DB,
-    { orgId, channel: "email", headersAvailable: false, forwardedBy: from, messageId },
+    { id: caseId, orgId, channel: "email", headersAvailable: false, forwardedBy: from, messageId },
     now,
   );
   if (!admitted.ok) {
@@ -75,19 +90,11 @@ export async function handleEmail(
       await sendCapNotice(env, orgId, from, now);
       return { kind: "capped" };
     }
-    await releaseClaim(env.DB, claim).catch(() => {});
+    // The insert may have committed with its answer lost: the case goes too, or the claim stays for the sweep.
+    await undo(env, claim, caseId);
     throw new RetryDelivery(`the case could not be admitted: ${admitted.error.message}`);
   }
-  const caseId = admitted.value.id;
-  await settle(env, claim, caseId, async () => {
-    const recorded = await env.DB.prepare(
-      "UPDATE intake_messages SET case_id = ? WHERE org_id = ? AND message_key = ? AND state = 'pending' AND claimed_at = ?",
-    )
-      .bind(caseId, claim.orgId, claim.key, claim.claimedAt)
-      .run();
-    if (recorded.meta.changes !== 1) throw new Error("the claim was taken over");
-    await putRaw(store(env), caseId, raw);
-  });
+  await settle(env, claim, caseId, () => putRaw(store(env), caseId, raw).then(() => {}));
   try {
     await env.ANALYSIS.create({ id: caseId, params: { caseId } });
   } catch (error) {
@@ -225,11 +232,17 @@ const markDone = (db: D1Database, claim: Claim) =>
 // failed send is retried by the next capped forward that day (a failed send key can be claimed again), an uncertain one
 // is settled by the reconciler (D01 T02 §5), and a refused one (an address the allowlist does not admit) sends nothing.
 async function sendCapNotice(env: Env, orgId: string, to: string, now: Date) {
-  const cap = await env.DB.prepare("SELECT daily_cases FROM org_limits WHERE org_id = ?")
-    .bind(orgId)
-    .first<{ daily_cases: number }>()
-    .then((row) => row?.daily_cases ?? DEFAULT_DAILY_CASES)
-    .catch(() => DEFAULT_DAILY_CASES);
+  // The organisation's own cap, never a default in its place: unreadable, no notice is sent now, and the next capped
+  // forward that day sends it (its send key was not used).
+  let cap: number;
+  try {
+    const row = await env.DB.prepare("SELECT daily_cases FROM org_limits WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ daily_cases: number }>();
+    cap = row?.daily_cases ?? DEFAULT_DAILY_CASES;
+  } catch {
+    return;
+  }
   await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
     {
