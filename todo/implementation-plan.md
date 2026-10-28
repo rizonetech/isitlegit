@@ -50,7 +50,6 @@ Sections: 38 | Checklist items: 276
 | [x]    | D07 T02 §2 | Passkey sign-in                            | none                  | 9     |
 | [x]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 9     |
 | [x]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 5     |
-| [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 7     |
 | [ ]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 7     |
 | [ ]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 7     |
 | [ ]    | D01 T01 §3 | Email handler for verified members         | none                  | 7     |
@@ -58,6 +57,7 @@ Sections: 38 | Checklist items: 276
 | [ ]    | D01 T01 §5 | MIME parsing and attachment extraction     | none                  | 6     |
 | [ ]    | D01 T01 §6 | Outlook .msg parsing                       | none                  | 5     |
 | [ ]    | D01 T01 §7 | AnalysisWorkflow skeleton, partial reports | none                  | 6     |
+| [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 7     |
 | [ ]    | D01 T01 §9 | Email Routing for check@ and live smoke    | cloudflare, live-mail | 6     |
 | [ ]    | D01 T03 §1 | Upload API for mail, documents and audio   | none                  | 6     |
 | [ ]    | D03 T01 §1 | Model client: store false, Standard IDs    | none                  | 7     |
@@ -278,6 +278,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 32/209 verified sections, 15 ready to run now.
+Progress: 32/209 verified sections, 14 ready to run now.
 
 Checklist: 370/1126 items completed (includes Commit items).

@@ -36,7 +36,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SMTP2GO client with retries and send log | D01 T01 §1 | [x] |
 | 2 | §2 | Recipient allowlist enforced in code | §1, D07 T02 §3 | [x] |
-| 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §8 | [ ] |
+| 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §7, D01 T01 §8 | [ ] |
 | 4 | §4 | Test and demo mail aliases | §1 | [x] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [x] |
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
@@ -109,6 +109,8 @@ Evidence 2026-10-28. `src/mail/allowlist.ts` holds `isAllowedRecipient` by purpo
 ## 3. Threaded reply with a signed report link
 
 The member gets the answer as a reply in the same thread (spec 4.1): verdict, top three reasons, what to do now, and the signed report link. Subject, recipient and template come from code; the model only fills validated fields later (spec 4.6a). The final visual design is D07 T03 §7; this section ships the plain-text and minimal HTML version that works from day one.
+
+**Corrected 2026-10-28:** this section listed only §2 and D01 T01 §8, but its reply step is a step of D01 T01 §7's AnalysisWorkflow (today one `accept` step) and its threading and recipient read the forward's `Message-ID`, `References`, subject and forwarder that intake stores (D01 T01 §3 to §5, before §7); built before them, `buildReply` would invent its input. It now depends on D01 T01 §7, which needs those. No cycle: D01 T01 §9 depends on §7 and on this section.
 
 **Phase:** 1
 **Needs:** none
