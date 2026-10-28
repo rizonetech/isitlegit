@@ -1,0 +1,118 @@
+{
+  "ref": "D03 T04 \u00a74",
+  "title": "Astra as dataset collector",
+  "implementation_sha": "7fcf7b1efafa30c77eab49992fa6293763257fc7",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_astra_collect tests.scripts.test_dispatch_hook -> Ran 44 tests, OK",
+    "pnpm exec vitest run test/node/astra-brief.test.ts -> Tests 3 passed (3)",
+    "python3 -m unittest discover -s tests/scripts -> Ran 452 tests, OK",
+    "python3 scripts/todo-graph.py validate -> valid: 229 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s4.md",
+    "verdict": "filed",
+    "candidate": "f1dd32d445a64521c004d6af2605c1ffb8ae10a0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a716"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s4.md",
+    "candidate": "b56b5b2f2eb105aba0d3a27835b0bb2857cbeed6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  }
+}

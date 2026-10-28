@@ -38,7 +38,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §2 | Fireworks account check and image probe | -- | [ ] |
 | 2 | §3 | PageScreen contract and training store | §2 | [ ] |
-| 3 | §4 | Astra as dataset collector | -- | [ ] |
+| 3 | §4 | Astra as dataset collector | -- | [x] |
 | 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [ ] |
 | 5 | §6 | Benign real pages rendered locally | §3 | [ ] |
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [ ] |
@@ -166,6 +166,9 @@ The operator chose Astra (GPT-6 Astra through the Codex CLI) to collect public d
 - [x] Commit: `glimmer: Astra as dataset collector with its brief`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_astra_collect tests.scripts.test_dispatch_hook` and `pnpm exec vitest run test/node/astra-brief.test.ts` pass, and fail if a collection run can start inside the repository, the launcher never runs Codex, or a brief or `AGENTS.md` rule is removed.
+
+> **Verified:** 2026-10-28 | §4 | 7fcf7b1efafa30c77eab49992fa6293763257fc7
+> **Review:** `docs/reviews/d03-t04-s4.json`
 
 ## 5. Public phishing-page datasets by licence
 

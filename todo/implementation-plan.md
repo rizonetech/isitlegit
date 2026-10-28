@@ -22,7 +22,7 @@ Sections: 23 | Checklist items: 244
 | [x]    | D00 T01 §12 | Rollback from a split deployment         | cloudflare           | 10    |
 | [ ]    | D03 T04 §2  | Fireworks account check and image probe  | operator             | 11    |
 | [ ]    | D03 T04 §3  | PageScreen contract and training store   | none                 | 9     |
-| [ ]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
+| [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
 | [ ]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 8     |
 | [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 6     |
 | [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 8     |
@@ -298,6 +298,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 39/229 verified sections, 20 ready to run now.
+Progress: 40/229 verified sections, 20 ready to run now.
 
 Checklist: 455/1307 items completed (includes Commit items).
