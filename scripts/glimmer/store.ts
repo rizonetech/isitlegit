@@ -154,14 +154,27 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
       if (writer && !processAlive(pid)) rmSync(join(pages, name), { recursive: true, force: true });
     }
 
-  // Creates each missing folder down to `path`, one at a time, flushing the parent of each one it creates: a folder's
-  // entry lives in its parent, so the first page of a new store survives a power loss with every folder above it.
+  // Folders whose entry in their parent is not yet known to be on disk: the parents still to flush. A folder's entry
+  // lives in its parent, so the first page of a new store is durable only once every folder created above it has had
+  // its parent flushed. A parent whose flush failed stays here, so a retry flushes it again rather than trusting that
+  // the folder exists. Opening an existing store adds its own parents once, since an earlier process may have created
+  // them and died before flushing.
+  const unflushed = new Set<string>();
+  if (existsSync(dir)) {
+    unflushed.add(dirname(dir));
+    if (existsSync(pages)) unflushed.add(dir);
+  }
+
   function makeDurableDirs(path: string): void {
     const missing: string[] = [];
     for (let at = path; !existsSync(at); at = dirname(at)) missing.unshift(at);
     for (const folder of missing) {
       mkdirSync(folder);
-      sync(dirname(folder));
+      unflushed.add(dirname(folder));
+    }
+    for (const parent of [...unflushed]) {
+      sync(parent);
+      unflushed.delete(parent);
     }
   }
 

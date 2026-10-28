@@ -254,6 +254,25 @@ describe("recovery, integrity and removal", () => {
     expect(openStore(root).readPage(id).text).toBe(page().text);
   });
 
+  it("flushes again on a retry the parent of a folder whose first flush failed", async () => {
+    // Round 4: the store folder was created, its parent's flush failed, and a retry saw the folder and moved on.
+    const root = join(dir, "data", "glimmer");
+    let failing = true;
+    const flushed: string[] = [];
+    const store = openStore(root, {
+      sync: (path) => {
+        flushed.push(path);
+        if (failing && path === join(dir, "data")) throw Object.assign(new Error("EIO"), { code: "EIO" });
+      },
+    });
+    await expect(store.putPage("s", page())).rejects.toThrow("EIO");
+    expect(existsSync(root)).toBe(true);
+    failing = false;
+    flushed.length = 0;
+    await store.putPage("s", page());
+    expect(flushed).toContain(join(dir, "data"));
+  });
+
   it("reports a failed flush after publication as a failed write", async () => {
     const store = openStore(dir, {
       sync: (path) => {
