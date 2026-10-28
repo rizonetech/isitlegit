@@ -10,7 +10,6 @@
 // reaches it (the same delivery's retry after five minutes, or the scheduled sweep) settles it by asking the Workflow.
 import { admitCase, type SourceKind } from "../db/cases";
 import { ulid } from "../db/ulid";
-import { rawKey } from "./store";
 
 // A pending claim younger than this belongs to a delivery still being processed; an older one to a delivery that
 // stopped. Well above a handler's run time.
@@ -22,6 +21,14 @@ export const DUPLICATE_WINDOW_MS = 24 * 60 * 60_000;
 // being processed by another right now.
 export class RetryDelivery extends Error {
   override name = "RetryDelivery";
+  // When the same delivery is held by another under its lease, how long until the lease runs out: retrying sooner is
+  // refused again, so a client should wait this long (an upload's Retry-After).
+  constructor(
+    message: string,
+    readonly retryAfterMs = 5_000,
+  ) {
+    super(message);
+  }
 }
 
 type Claim = { orgId: string; key: string; claimedAt: string };
@@ -137,7 +144,10 @@ async function claimDelivery(
   if (!held) throw new RetryDelivery("the delivery's claim changed while it was read");
   if (held.state === "done") return { duplicate: held.case_id };
   if (held.claimed_at > new Date(now.getTime() - CLAIM_LEASE_MS).toISOString())
-    throw new RetryDelivery("the same delivery is being processed by another");
+    throw new RetryDelivery(
+      "the same delivery is being processed by another",
+      Math.max(1_000, Date.parse(held.claimed_at) + CLAIM_LEASE_MS - now.getTime()),
+    );
   const taken = await takeOver(env.DB, { orgId, key, claimedAt: held.claimed_at }, at);
   if (!taken) throw new RetryDelivery("another delivery took over the same one");
   const settled = await settleStale(env, taken, held.case_id);
@@ -204,15 +214,19 @@ async function undo(env: Env, claim: Claim, caseId: string) {
   }
 }
 
-// The intake path's own undo, before a case has a Workflow: every object its artefact rows name (a forward's raw
-// message, an upload's file) and the raw key besides, then its rows (artefacts first, though they cascade). The store
-// itself never deletes; the closure purge (D07 T02 §9) removes finished cases.
+// The intake path's own undo, before a case has a Workflow: every object under the case's own prefixes (raw/<case>/
+// and art/<case>/, src/intake/store.ts), listed rather than taken from its artefact rows, so an object whose row was
+// never written (R2 took the file, then D1 failed) goes too; then its rows (artefacts first, though they cascade). The
+// store itself never deletes; the closure purge (D07 T02 §9) removes finished cases.
 async function removeCase(env: Env, caseId: string) {
-  const objects = await env.DB.prepare("SELECT r2_key FROM artefacts WHERE case_id = ?")
-    .bind(caseId)
-    .all<{ r2_key: string }>();
-  const keys = new Set([rawKey(caseId), ...objects.results.map((row) => row.r2_key)]);
-  await env.ARTEFACTS.delete([...keys]);
+  for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
+    let cursor: string | undefined;
+    do {
+      const page = await env.ARTEFACTS.list({ prefix, ...(cursor ? { cursor } : {}) });
+      if (page.objects.length) await env.ARTEFACTS.delete(page.objects.map((object) => object.key));
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor);
+  }
   await env.DB.batch([
     env.DB.prepare("DELETE FROM artefacts WHERE case_id = ?").bind(caseId),
     env.DB.prepare("DELETE FROM cases WHERE id = ? AND status = 'received'").bind(caseId),

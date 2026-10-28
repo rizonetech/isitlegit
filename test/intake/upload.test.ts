@@ -63,9 +63,42 @@ const casesOf = async (orgId: string) =>
   (await db.prepare("SELECT id, channel, source_kind FROM cases WHERE org_id = ?").bind(orgId).all()).results;
 const claimsOf = async (orgId: string) =>
   (await db.prepare("SELECT state FROM intake_messages WHERE org_id = ?").bind(orgId).all()).results;
+// Every object a case can own is under raw/<case>/ or art/<case>/ (src/intake/store.ts).
 const objectsOf = async (caseId: string) =>
   (await env.ARTEFACTS.list({ prefix: `raw/${caseId}/` })).objects.length +
-  (await env.ARTEFACTS.list({ prefix: `att/${caseId}/` })).objects.length;
+  (await env.ARTEFACTS.list({ prefix: `art/${caseId}/` })).objects.length;
+
+// The Worker's environment with every R2 write and Workflow start counted, so a refusal can be shown to make neither.
+function counted() {
+  const seen = { puts: [] as string[], starts: 0 };
+  const bucket = new Proxy(env.ARTEFACTS, {
+    get: (target, name) =>
+      name === "put"
+        ? (key: string, ...rest: unknown[]) => {
+            seen.puts.push(key);
+            return (target.put as (...a: unknown[]) => unknown)(key, ...rest);
+          }
+        : Reflect.get(target, name).bind(target),
+  });
+  const analysis = new Proxy(env.ANALYSIS, {
+    get: (target, name) =>
+      name === "create"
+        ? (...args: unknown[]) => {
+            seen.starts++;
+            return (target.create as (...a: unknown[]) => unknown)(...args);
+          }
+        : Reflect.get(target, name).bind(target),
+  });
+  return { seen, workerEnv: { ...(env as unknown as Env), ARTEFACTS: bucket, ANALYSIS: analysis } as Env };
+}
+
+// An Excel workbook: a compound file whose only stream is the workbook, no message properties.
+async function xls() {
+  const CFB = (await import("cfb")).default;
+  const cfb = CFB.utils.cfb_new();
+  CFB.utils.cfb_add(cfb, "/Workbook", new Uint8Array(600));
+  return new Uint8Array(CFB.write(cfb, { type: "buffer" }) as Uint8Array);
+}
 
 async function finished(caseId: string) {
   const instance = await env.ANALYSIS.get(caseId);
@@ -107,17 +140,19 @@ describe("POST /api/upload", () => {
 
   it("refuses what it does not take with 415, storing nothing", async () => {
     const { cookie, orgId } = await member();
+    const { seen, workerEnv } = counted();
     const oggVorbis = Uint8Array.from([...enc("OggS"), 0, 2, ...new Array(20).fill(0), 1, 30, ...enc("\x01vorbis")]);
     const avi = Uint8Array.from([...enc("RIFF"), 0, 0, 0, 0, ...enc("AVI LIST")]);
     const m4a = Uint8Array.from([0, 0, 0, 24, ...enc("ftypM4A "), 0, 0, 0, 0]);
     for (const [bytes, name] of [
       [makeDecoyCompoundFile(), "report.doc"],
+      [await xls(), "sheet.xls"],
       [oggVorbis, "song.ogg"],
       [avi, "clip.avi"],
       [enc("MZ\x90\x00 an executable"), "setup.exe"],
       [m4a, "memo.m4a"],
     ] as [Uint8Array, string][]) {
-      const answer = await upload(cookie, [file(bytes, name)]);
+      const answer = await upload(cookie, [file(bytes, name)], workerEnv);
       expect(answer.status, name).toBe(415);
       const { error } = (await answer.json()) as { error: string };
       if (name === "memo.m4a") expect(error).toContain("M4A");
@@ -125,10 +160,12 @@ describe("POST /api/upload", () => {
     }
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);
+    expect(seen).toEqual({ puts: [], starts: 0 });
   });
 
   it("refuses a request without exactly one file in the field `file`", async () => {
     const { cookie, orgId } = await member();
+    const { seen, workerEnv } = counted();
     for (const parts of [
       [],
       [file(PDF, "a.pdf"), file(PNG, "b.png")],
@@ -136,7 +173,7 @@ describe("POST /api/upload", () => {
       [["file", "not a file"] as [string, string]],
       [["other", new Blob([PDF]), "a.pdf"] as [string, Blob, string]],
     ])
-      expect((await upload(cookie, parts)).status).toBe(400);
+      expect((await upload(cookie, parts, workerEnv)).status).toBe(400);
     const malformed = await call("/api/upload", {
       method: "POST",
       body: "not multipart",
@@ -144,6 +181,34 @@ describe("POST /api/upload", () => {
     });
     expect(malformed.status).toBe(400);
     expect(await casesOf(orgId)).toEqual([]);
+    expect(seen).toEqual({ puts: [], starts: 0 });
+  });
+
+  it("answers a body that breaks off mid-upload with a JSON refusal, creating nothing", async () => {
+    const { cookie, orgId } = await member();
+    const { seen, workerEnv } = counted();
+    let sent = 0;
+    const broken = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent++ < 2) controller.enqueue(new Uint8Array(1024));
+        else controller.error(new Error("connection reset"));
+      },
+    });
+    const answer = await call(
+      "/api/upload",
+      {
+        method: "POST",
+        body: broken,
+        headers: { cookie, accept: "application/json", "content-type": "multipart/form-data; boundary=x" },
+        duplex: "half",
+      } as RequestInit,
+      workerEnv,
+    );
+    expect(answer.status).toBe(400);
+    expect(answer.headers.get("content-type")).toContain("application/json");
+    expect(((await answer.json()) as { error: string }).error).toContain("interrupted");
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(seen).toEqual({ puts: [], starts: 0 });
   });
 
   it("takes 25 MiB exactly, refuses one byte more, and stops reading a body without a length past the limit", async () => {
@@ -204,10 +269,27 @@ describe("POST /api/upload", () => {
 
   it("refuses at the daily cap with 429, storing nothing", async () => {
     const { cookie, orgId } = await member();
+    const { seen, workerEnv } = counted();
     await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId).run();
-    expect((await upload(cookie, [file(PDF, "x.pdf")])).status).toBe(429);
+    expect((await upload(cookie, [file(PDF, "x.pdf")], workerEnv)).status).toBe(429);
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);
+    expect(seen).toEqual({ puts: [], starts: 0 });
+  });
+
+  it("tells a client the same file is still being taken, with the lease's remaining time", async () => {
+    const { cookie, orgId } = await member();
+    const { sha256Hex } = await import("../../src/intake/admit");
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', NULL, ?)",
+      )
+      .bind(orgId, `upload:${await sha256Hex(PDF)}`, new Date().toISOString())
+      .run();
+    const answer = await upload(cookie, [file(PDF, "x.pdf")]);
+    expect(answer.status).toBe(503);
+    expect(Number(answer.headers.get("retry-after"))).toBeGreaterThan(250);
+    expect(await casesOf(orgId)).toEqual([]);
   });
 
   it("answers the same file again with the first case", async () => {
@@ -229,6 +311,37 @@ describe("POST /api/upload", () => {
     expect(
       (await upload(cookie, [file(PDF, "x.pdf")], { ...(env as unknown as Env), ARTEFACTS: brokenR2 })).status,
     ).toBe(503);
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(await claimsOf(orgId)).toEqual([]);
+
+    // R2 takes the file, then D1 cannot record its row: the undo still finds the object, by its case's prefix.
+    const written: string[] = [];
+    const recordingBucket = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "put"
+          ? (key: string, ...rest: unknown[]) => {
+              written.push(key);
+              return (target.put as (...a: unknown[]) => unknown)(key, ...rest);
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    const rowsDown = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "prepare"
+          ? (sql: string) =>
+              sql.startsWith("INSERT INTO artefacts")
+                ? { bind: () => ({ run: () => Promise.reject(new Error("D1 down")) }) }
+                : target.prepare(sql)
+          : Reflect.get(target, name).bind(target),
+    });
+    const orphaned = await upload(cookie, [file(JPEG, "z.jpg")], {
+      ...(env as unknown as Env),
+      ARTEFACTS: recordingBucket,
+      DB: rowsDown,
+    });
+    expect(orphaned.status).toBe(503);
+    expect(written.length).toBeGreaterThan(0);
+    for (const key of written) expect(await env.ARTEFACTS.head(key), key).toBeNull();
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);
 

@@ -199,19 +199,30 @@ describe("the mail send log", () => {
 });
 
 describe("cases.source_kind (migration 0018)", () => {
-  it("reads a case written without it as mail, the kind every case before it had", async () => {
-    const { getCaseForPipeline } = await import("../../src/db/cases");
-    const id = "01JD00000000000000000MAIL1";
+  it("gives a row written before it the kind every case then had, mail, and refuses another", async () => {
+    // The table as it stood before 0018 (the same columns, without source_kind), a row in it, then 0018's own statement
+    // run against it: the upgrade itself, not a row written after it.
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0018"));
+    expect(migration).toBeDefined();
+    const columns = (await env.DB.prepare("PRAGMA table_info(cases)").all<{ name: string; type: string }>()).results
+      .filter((c) => c.name !== "source_kind")
+      .map((c) => `${c.name} ${c.type}`);
+    await env.DB.prepare(`CREATE TABLE cases_before_0018 (${columns.join(", ")})`).run();
     const at = new Date().toISOString();
     await env.DB.prepare(
-      "INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at) VALUES (?, 'org-old', 'email', 'received', 0, ?, ?)",
+      "INSERT INTO cases_before_0018 (id, org_id, channel, status, headers_available, created_at, updated_at) VALUES ('old-1', 'org-old', 'email', 'done', 1, ?, ?)",
     )
-      .bind(id, at, at)
+      .bind(at, at)
       .run();
-    const row = await getCaseForPipeline(env.DB, id);
-    expect(row.ok && row.value.sourceKind).toBe("mail");
-    await expect(env.DB.prepare("UPDATE cases SET source_kind = 'video' WHERE id = ?").bind(id).run()).rejects.toThrow(
-      /CHECK constraint/,
-    );
+    for (const query of migration?.queries ?? [])
+      await env.DB.prepare(query.replace(/ALTER TABLE cases ADD/, "ALTER TABLE cases_before_0018 ADD")).run();
+    const row = await env.DB.prepare("SELECT source_kind FROM cases_before_0018 WHERE id = 'old-1'").first<{
+      source_kind: string;
+    }>();
+    expect(row?.source_kind).toBe("mail");
+    await expect(
+      env.DB.prepare("UPDATE cases_before_0018 SET source_kind = 'video' WHERE id = 'old-1'").run(),
+    ).rejects.toThrow(/CHECK constraint/);
+    await env.DB.prepare("DROP TABLE cases_before_0018").run();
   });
 });

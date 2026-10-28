@@ -6,7 +6,7 @@
 import { Hono } from "hono";
 import { requireSession } from "../auth/gate";
 import { type OrgEnv, requireOrg } from "../auth/org";
-import { admitDelivery, sha256Hex } from "./admit";
+import { admitDelivery, RetryDelivery, sha256Hex } from "./admit";
 import { sniff } from "./sniff";
 import { putAttachment, putRaw, type Store } from "./store";
 
@@ -15,10 +15,16 @@ export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 export const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 const BODY_LIMIT = MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES;
 
-const problem = (status: 400 | 413 | 415 | 429 | 503, error: string) =>
+const problem = (status: 400 | 413 | 415 | 429 | 503, error: string, retryAfterMs = 5_000) =>
   Response.json(
     { error },
-    { status, headers: { "cache-control": "no-store", ...(status === 503 ? { "retry-after": "5" } : {}) } },
+    {
+      status,
+      headers: {
+        "cache-control": "no-store",
+        ...(status === 503 ? { "retry-after": String(Math.ceil(retryAfterMs / 1000)) } : {}),
+      },
+    },
   );
 
 export const uploadRoutes = new Hono<OrgEnv>();
@@ -28,8 +34,11 @@ uploadRoutes.post("/", async (c) => {
   // 1. The body, bounded: a declared length past the limit is refused unread, and one with none is read only so far.
   const declared = Number(c.req.header("content-length") ?? "NaN");
   if (Number.isFinite(declared) && declared > BODY_LIMIT) return tooLarge();
-  const body = await readBounded(c.req.raw.body, BODY_LIMIT);
+  // A connection that drops mid-upload is the member's to try again, answered like every other refusal.
+  const body = await readBounded(c.req.raw.body, BODY_LIMIT).catch(() => "interrupted" as const);
   if (body === "too-large") return tooLarge();
+  if (body === "interrupted")
+    return problem(400, "The upload was interrupted before the whole file arrived. Try again.");
 
   // 2. One file, in the field `file`, and nothing else.
   let form: FormData;
@@ -76,8 +85,15 @@ uploadRoutes.post("/", async (c) => {
           );
       },
     });
-  } catch {
-    // A step failed and was undone (RetryDelivery), or the service failed: either way, nothing is left half-made.
+  } catch (error) {
+    // A step failed and was undone, or the service failed: either way, nothing is left half-made. The same file still
+    // being taken by an earlier request is answered with the time until that one's lease runs out.
+    if (error instanceof RetryDelivery && error.retryAfterMs > 5_000)
+      return problem(
+        503,
+        "This file is still being taken from an earlier upload. Try again shortly.",
+        error.retryAfterMs,
+      );
     return problem(503, "The file could not be taken just now. Try again in a moment.");
   }
   if (admitted.kind === "capped")
