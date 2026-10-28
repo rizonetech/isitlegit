@@ -293,7 +293,7 @@ Sections: 15 | Checklist items: 60
 | [x]    | D99 T01 §1  | Meta API billing and API key                  | none     | 5     |
 | [x]    | D99 T01 §2  | Domain verification and nameservers           | none     | 15    |
 | [x]    | D99 T01 §3  | Workers Paid plan                             | none     | 3     |
-| [ ]    | D99 T01 §4  | SMTP2GO sender domain                         | none     | 5     |
+| [x]    | D99 T01 §4  | SMTP2GO sender domain                         | none     | 5     |
 | [x]    | D99 T01 §6  | Google Web Risk API key                       | none     | 6     |
 | [x]    | D99 T01 §7  | Partner credits for Glimmer                   | none     | 2     |
 | [ ]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 5     |
@@ -306,6 +306,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 50/237 verified sections, 28 ready to run now.
+Progress: 51/237 verified sections, 28 ready to run now.
 
-Checklist: 531/1385 items completed (includes Commit items).
+Checklist: 532/1385 items completed (includes Commit items).

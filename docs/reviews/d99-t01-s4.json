@@ -1,0 +1,127 @@
+{
+  "ref": "D99 T01 \u00a74",
+  "title": "SMTP2GO sender domain",
+  "implementation_sha": "29f6881cd227e5e65c77abb97b460187cd52ac82",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/99-manual/D99-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/99-manual/D99-T01-s4.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/99-manual/D99-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/99-manual/D99-T01-s4.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "python3 scripts/check-smtp2go.py -> exit 0 (live, may send and search activity, refused three account endpoints, DKIM and return-path resolve)",
+    "python3 -m unittest tests.scripts.test_check_smtp2go -> OK",
+    "pnpm exec vitest run --maxWorkers=2 -> Tests 1026 passed | 2 skipped",
+    "python3 scripts/todo-graph.py validate -> valid: 237 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/99-manual/D99-T01-s4.md",
+    "verdict": "filed",
+    "candidate": "b446f960e7a0931591c5438ab1d7b1bd8741746f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D99 T01 \u00a711",
+      "D99 T01 \u00a79"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "cap_outcome": "round 4's one P3 (a stale test comment on the sender rule) fixed in 29f6881; nothing left to file",
+  "plan": {
+    "report": "docs/reviews/99-manual/D99-T01-s4.md",
+    "candidate": "e0259fc0474c2a3885daadf9cb5b10124e2f6c08",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/99-manual/D99-T01-s4.md",
+    "verdict": "fixed",
+    "candidate": "d8c14f44ec21250d4d64c9dfa3fd09a7066e104f",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
