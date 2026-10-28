@@ -258,6 +258,10 @@ The screener must tell lures from the real pages they copy, so the training set 
 
 ## 7. Redacted sample mail converted to pages
 
+> **Started:** 2026-10-28T23:36Z
+
+**Corrected 2026-10-29:** this section's code was written on 2026-10-28 (6b04f54, 9ff7619) beside §5's importers, before a `Started:` line or a plan review existed, so the plan review runs now against the section as written and every gap it names is fixed in code before the stamp. §6 (its prerequisite) has finished its reviews and waits only on its live render, so this review runs ahead of §6's stamp to keep §9 to §11 inside the 2026-11-01 12:00 SAST training cutoff; §7 stamps only after §6.
+
 The 543 sample emails carry real South African lures: credential-harvest HTML attachments that are login pages in themselves, and brand-styled bodies. Under the consent extension recorded 2026-10-28 15:16 SAST, redacted content may go into Fireworks training lines; unredacted content goes only to the Meta Model API. Nothing from `samples/` reaches the repository.
 
 **Phase:** 0
