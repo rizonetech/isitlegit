@@ -37,14 +37,14 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §2 | Fireworks account check and image probe | -- | [ ] |
-| 2 | §3 | PageScreen contract and training store | §2 | [ ] |
+| 2 | §3 | PageScreen contract and training store | -- | [ ] |
 | 3 | §4 | Astra as dataset collector | -- | [x] |
 | 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [ ] |
 | 5 | §6 | Benign real pages rendered locally | §3 | [ ] |
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [ ] |
 | 7 | §8 | Synthetic South African lures | §6, §7 | [ ] |
 | 8 | §9 | Spark teacher labels and human check | §5, §6, §7, §8 | [ ] |
-| 9 | §10 | Deduplicated seed-disjoint training set | §9 | [ ] |
+| 9 | §10 | Deduplicated seed-disjoint training set | §2, §9 | [ ] |
 | 10 | §11 | Free SFT job on Muse Glimmer 30B | §10 | [ ] |
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [ ] |
 | 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
@@ -127,7 +127,7 @@ One definition of what the screener sees and answers, shared by training and pro
 - [ ] Write `scripts/glimmer/store.ts` resolving the store at `GLIMMER_DATA_DIR` (default `~/isitlegit-data/glimmer`) and refusing any path inside the repository. Done when: `test/node/glimmer-store.test.ts` shows a repository path is refused. Cheaper substitute: a git-ignored folder in the repository, one `git add -f` from a public leak.
 - [ ] Write `putPage(source, page)` storing `pages/<id>/screenshot.jpg` (at most 1280 px wide and 2000 px tall), `text.txt` and `meta.json` (`source`, `origin`, `licence`, `labels`, `sha256`, `redacted`), each through a temporary file and rename. Done when: the test writes a page, reads every file back equal, and an interrupted write leaves no partial page. Cheaper substitute: writing files in place.
 - [ ] Write `manifest()` listing every stored page with source, labels and hashes, and `counts()` by source and label. Done when: the test's three stored pages appear with correct counts.
-- [ ] Estimate one line's token count for the training mode recorded in §2 and refuse lines above 30,000 tokens (under Fireworks' 32,768 training context). Done when: the test refuses an oversized line. Source: https://docs.fireworks.ai/fine-tuning/fine-tuning-vlm
+- [ ] Write `estimateTokens(line, mode)` for both training modes (`image` counts the screenshot's image tokens, `text-only` none) and refuse lines above 30,000 tokens (under Fireworks' 32,768 training context). Done when: the test refuses an oversized line in each mode. **Corrected 2026-10-28:** was the mode recorded in §2, which made §3 and every data section behind it wait on the Fireworks upload block (D03 T04 §2, `operator`); §10 applies the recorded mode instead and now depends on §2. Source: https://docs.fireworks.ai/fine-tuning/fine-tuning-vlm
 - [ ] Commit: `glimmer: PageScreen contract and training store`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/page-screen.test.ts test/node/glimmer-store.test.ts` passes and fails if the store accepts a path inside the repository or the training line differs from the production request.
@@ -305,7 +305,7 @@ The store becomes two files: training and held-out evaluation. Duplicates go, no
 - [ ] Cap pages per brand at 300 and keep lures between 40 and 60 percent of each split. Done when: the test's oversized brand is cut to 300 and the ratio holds.
 - [ ] Split by group: hold out 10 percent of brands entirely plus every page of one synthetic template, and put at least 1,000 pages in evaluation, at least 300 of them South African (sample-derived, synthetic or South African benign) and at least 50 of each `lure_type`, so the comparison covers the lures this product exists for. Done when: the test finds no brand, template or near duplicate in both splits and counts the South African slice and each `lure_type`.
 - [ ] Keep in evaluation only pages whose every label is ground truth, Claude's decision by eye, or Astra and Claude's agreement (no field filled by Spark, no page marked `ambiguous`), so the test measures the truth rather than agreement with Spark. Done when: the test refuses an evaluation line with a Spark-filled field.
-- [ ] Write `train.jsonl` and `eval.jsonl` to the store with `buildTrainingLine`, refusing lines over the token limit (§3) and lines from a page not marked `redacted` when its origin is `samples`. Done when: every line parses and validates against `PageScreen`, and the test proves both refusals. Cheaper substitute: a separate prompt string in the script.
+- [ ] Write `train.jsonl` and `eval.jsonl` to the store with `buildTrainingLine` in the training mode §2 recorded (`training mode:` in `docs/glimmer/training.md`), refusing lines over the token limit for that mode (§3) and lines from a page not marked `redacted` when its origin is `samples`. Done when: every line parses and validates against `PageScreen`, and the test proves both refusals. Cheaper substitute: a separate prompt string in the script.
 - [ ] Run the leak check (§7) over both files. Done when: it finds nothing.
 - [ ] Record line counts by origin and label, the brand count, and the SHA-256 of both files under `Dataset` in `docs/glimmer/training.md`, plus the screenshot hash list `docs/glimmer/eval-hashes.txt` (hashes only) for §1's set to check against. Done when: the figures and the hash list exist.
 - [ ] Commit: `glimmer: deduplicated, balanced, seed-disjoint training set`
