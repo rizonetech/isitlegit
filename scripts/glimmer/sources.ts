@@ -88,8 +88,12 @@ export function reconcile(input: {
 }): string[] {
   const { rows, problems } = parseSources(input.sources);
   const bySource = new Map<string, StoredPage[]>();
-  for (const page of input.pages.filter((p) => p.origin === "public"))
-    bySource.set(page.source, [...(bySource.get(page.source) ?? []), page]);
+  // Appended in place: copying a source's list for every page made the check quadratic (seconds at 40,000 pages).
+  for (const page of input.pages.filter((p) => p.origin === "public")) {
+    const group = bySource.get(page.source);
+    if (group) group.push(page);
+    else bySource.set(page.source, [page]);
+  }
   const named = new Set(rows.map((row) => row.source));
   for (const row of rows) {
     const stored = bySource.get(row.source) ?? [];

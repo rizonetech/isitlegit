@@ -109,6 +109,13 @@ export function groupOf(page: StoredPage): string {
   return `page:${page.id}`;
 }
 
+// A value added to its key's list in place: copying the list for each value made grouping quadratic.
+function append<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
 function seeded(seed: number) {
   let state = seed >>> 0 || 1;
   return () => {
@@ -162,7 +169,7 @@ export function dedupe(entries: Entry[]): { kept: Entry[]; exact: number; near: 
     kept.push(entry);
     keys.forEach((value, band) => {
       const bucket = bands[band] as Map<number, Entry[]>;
-      bucket.set(value, [...(bucket.get(value) ?? []), entry]);
+      append(bucket, value, entry);
     });
   }
   return { kept, exact, near };
@@ -175,7 +182,7 @@ export function capBrands(entries: Entry[], random: () => number): Entry[] {
   for (const entry of entries) {
     const brand = entry.answer.brand?.toLowerCase();
     if (!brand) out.push(entry);
-    else byBrand.set(brand, [...(byBrand.get(brand) ?? []), entry]);
+    else append(byBrand, brand, entry);
   }
   for (const group of byBrand.values()) out.push(...shuffle(group, random).slice(0, BRAND_CAP));
   return out;
@@ -200,7 +207,7 @@ export type Split = { train: Entry[]; evaluation: Entry[]; heldOut: string[]; te
 // trained on, so no brand, site or template is on both sides.
 export function split(entries: Entry[], random: () => number): Split {
   const groups = new Map<string, Entry[]>();
-  for (const entry of entries) groups.set(groupOf(entry.page), [...(groups.get(groupOf(entry.page)) ?? []), entry]);
+  for (const entry of entries) append(groups, groupOf(entry.page), entry);
   const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
   const brands = shuffle(
