@@ -78,7 +78,8 @@ export function readFormFlags(): FormFlags {
   // Seen by a viewer: a box, on the page, and not hidden by itself or an ancestor (display, visibility or opacity 0).
   const visible = (el: Element) => {
     const box = (el as HTMLElement).getBoundingClientRect();
-    if (box.width <= 0 || box.height <= 0 || box.right <= 0 || box.bottom <= 0) return false;
+    // Off the page to the left, above it, or to the right of the 1280-pixel viewport no viewer scrolls across.
+    if (box.width <= 0 || box.height <= 0 || box.right <= 0 || box.bottom <= 0 || box.left >= innerWidth) return false;
     return el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   };
   const login = (doc: Document) =>
@@ -108,7 +109,10 @@ export function readFormFlags(): FormFlags {
   for (const frame of document.querySelectorAll("iframe")) {
     try {
       // A field's own visibility stops at its frame: a frame no one can see shows none of its fields.
-      if (visible(frame) && frame.contentDocument) docs.push(frame.contentDocument);
+      // Nor does one below the 2000 pixels the screenshot keeps (`MAX_HEIGHT`; this runs in the page, so the number is
+      // written here).
+      if (visible(frame) && frame.getBoundingClientRect().top < 2000 && frame.contentDocument)
+        docs.push(frame.contentDocument);
     } catch {
       // a cross-origin frame cannot be read; a payment provider's is still counted by its host above
     }
@@ -131,7 +135,7 @@ export function shownText(): string {
   for (const el of body.querySelectorAll<HTMLElement>("*")) {
     if (hidden.some((outer) => outer.contains(el))) continue;
     const box = el.getBoundingClientRect();
-    const offPage = box.width > 0 && box.height > 0 && (box.right <= 0 || box.bottom <= 0);
+    const offPage = box.width > 0 && box.height > 0 && (box.right <= 0 || box.bottom <= 0 || box.left >= innerWidth);
     if (offPage || !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) hidden.push(el);
   }
   const saved = hidden.map(

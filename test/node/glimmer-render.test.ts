@@ -80,6 +80,17 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
   "/hidden-frame": (res) => html(res, `<iframe src="/frame-login" style="opacity:0" width=400 height=300></iframe>`),
   "/offscreen-frame": (res) =>
     html(res, `<iframe src="/frame-login" style="position:absolute;left:-10000px" width=400 height=300></iframe>`),
+  "/far-frame": (res) =>
+    html(
+      res,
+      `<iframe src="/frame-login" style="position:absolute;left:10000px" width=400 height=300></iframe><iframe src="/frame-login" style="position:absolute;top:10000px" width=400 height=300></iframe>`,
+    ),
+  // A consent manager's full-screen banner drawn inside an open shadow root.
+  "/shadow-consent": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div id=host></div><script>host.attachShadow({ mode: 'open' }).innerHTML = '<div style="position:fixed;inset:0;background:#fff">We use cookies. Accept all cookies to continue.</div>'</script>`,
+    ),
   "/frame-login": (res) => html(res, `<p>${words}</p><input type=password>`),
   // A server that drops the connection before it answers.
   "/reset": (res) => res.socket?.destroy(),
@@ -282,6 +293,8 @@ describe("addresses", () => {
     serverHits = [];
     const port = new URL(origin).port;
     await expect(rebinding.render(`http://rebind.example:${port}/page`)).rejects.toBeInstanceOf(RefusedAddress);
+    // An https page goes through the proxy's CONNECT tunnel, which checks the same way.
+    await expect(rebinding.render(`https://rebind.example:${port}/page`)).rejects.toBeInstanceOf(RefusedAddress);
     expect(serverHits).toEqual([]);
     await rebinding.close();
   }, 30_000);
@@ -412,6 +425,10 @@ describe("renderPage", () => {
     const away = await renderer.render(`${origin}/offscreen-frame`);
     expect(away.has_login_form).toBe(false);
     expect(away.text).not.toContain("Welcome");
+    // Past the 1280 by 2000 pixels the screenshot keeps, to the right or below.
+    const far = await renderer.render(`${origin}/far-frame`);
+    expect(far.has_login_form).toBe(false);
+    expect(far.text).not.toContain("Welcome");
   });
 
   it("judges a page that moves on by the document captured", async () => {
@@ -471,6 +488,7 @@ describe("usable", () => {
     expect(unusable(await live("/framed-login"), local)).toBeNull();
     expect(unusable(await live("/backdrop-consent"), local)).toBe("a cookie wall covering the page");
     expect(unusable(await live("/cmp-frame"), local)).toBe("a cookie wall covering the page");
+    expect(unusable(await live("/shadow-consent"), local)).toBe("a cookie wall covering the page");
     expect(unusable(await live("/captcha-challenge"), local)).toBe("a CAPTCHA frame");
     // A protection badge in a corner is not a challenge the viewer must solve.
     expect(unusable(await live("/captcha-badge"), local)).toBeNull();
@@ -482,6 +500,14 @@ describe("usable", () => {
     const cart = { url: "https://www.checkers.co.za/cart", kind: "checkout" as const, brand: "Checkers", also: [] };
     const fallback = capture({ finalUrl: cart.url, title: "Checkers | Page not found", text: `Sorry. ${words}` });
     expect(unusable(fallback, cart)).toBe("an error page answered with 200");
+    // Its message after a long header of navigation and a cart subtotal.
+    const header = `Checkers Home Shop Specials Recipes Stores Sixty60 Cart Subtotal R 0.00 ${"Departments ".repeat(40)}`;
+    const late = capture({
+      finalUrl: cart.url,
+      title: "Checkers",
+      text: `${header}Sorry, this page could not be found.`,
+    });
+    expect(unusable(late, cart)).toBe("an error page answered with 200");
   });
 
   it("excludes a listed page that lands on a sign-in page or does not show its brand", () => {
@@ -596,6 +622,22 @@ describe("the batch run", () => {
     expect(await runBatch({ list: list(["/a"]), store, journal, render: failing(503) })).toMatchObject({ retry: 1 });
     expect(await runBatch({ list: list(["/b"]), store, journal, render: failing(404) })).toMatchObject({ excluded: 1 });
     expect(readJournal(journal).at(-1)?.reason).toBe("HTTP 404");
+  });
+
+  it("records a second URL that renders the same page as excluded, not stored twice", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const same = await renderer.render(`${origin}/page`);
+    const result = await runBatch({
+      list: list(["/one", "/two"]),
+      store,
+      journal,
+      render: async () => same,
+      concurrency: 1,
+    });
+    expect(result).toMatchObject({ stored: 1, excluded: 1 });
+    expect(readJournal(journal).at(-1)?.reason).toBe(`the same page as ${origin}/one`);
+    expect(store.manifest()).toHaveLength(1);
   });
 
   it("retries a connection the server dropped, through the real renderer", async () => {
@@ -713,7 +755,27 @@ describe("benignCoverage", () => {
         kind: "home",
         url: undefined,
       });
+      // A page whose text went missing, and one whose record does not read, are problems; the count goes on.
+      const lost = await store.putPage("benign-sa", {
+        ...base,
+        text: "a page whose text goes",
+        origin: "benign",
+        south_africa: true,
+        kind: "home",
+      });
+      rmSync(join(dir, "pages", lost, "text.txt"));
+      const broken = await store.putPage("benign-sa", {
+        ...base,
+        text: "a page whose record breaks",
+        origin: "benign",
+        south_africa: true,
+        kind: "home",
+      });
+      writeFileSync(join(dir, "pages", broken, "meta.json"), "{ not json");
       const coverage = benignCoverage(store);
+      expect(coverage.problems).toEqual(
+        expect.arrayContaining([`${lost}: its files do not read`, `${broken}: damaged`]),
+      );
       expect(coverage).toMatchObject({ total: 2, southAfrica: 1, signIn: 1, shop: 0, met: false });
       expect(coverage.short).toContain("total 2 of 3000");
       expect(coverage.problems.map((line) => line.split(": ")[1])).toEqual(

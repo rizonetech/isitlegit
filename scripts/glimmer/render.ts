@@ -4,8 +4,8 @@
 //   node scripts/glimmer/render.ts run [majestic|benign-sa]   # render the lists (both by default), resumable
 //   node scripts/glimmer/render.ts coverage                    # what the benign pages in the store cover
 //
-// Lists: `raw/majestic/top.csv` in the store (the Majestic Million's top 5,000 domains and 600 highest-ranked `.za`,
-// CC BY 3.0) and `eval/glimmer/benign-sa-urls.txt` (our own: `<kind>\t<url>\t<brand>[\t<also domains>]`). A list is
+// Lists: `raw/majestic/top.csv` in the store (the Majestic Million's top 20,000 domains and the 576 highest-ranked `.za`
+// not among them, CC BY 3.0) and `eval/glimmer/benign-sa-urls.txt` (our own: `<kind>\t<url>\t<brand>[\t<also domains>]`). A list is
 // rendered only when its licence is on the commercial-use allowlist. Each render gets a fresh browser context: 1280 by
 // 800, downloads, permissions, pop-ups, service workers and WebSockets refused, no stored credentials, 20 seconds in
 // all; every request and every redirect hop goes only to public addresses. A capture is stored only when usable: HTTP
@@ -138,7 +138,16 @@ export function readWalls(): { captcha: boolean; consentWall: boolean } {
     );
   };
   const shown = (el: Element) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
-  const frames = [...document.querySelectorAll("iframe")];
+  // Every element, those inside open shadow roots included: a consent manager often draws its banner in one.
+  const all: Element[] = [];
+  const walk = (root: Document | ShadowRoot) => {
+    for (const el of root.querySelectorAll("*")) {
+      all.push(el);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  const frames = all.filter((el): el is HTMLIFrameElement => el instanceof HTMLIFrameElement);
   // A challenge the viewer must solve, not a protection badge: a visible CAPTCHA frame larger than a corner badge.
   const captcha = frames.some((frame) => {
     if (
@@ -162,7 +171,8 @@ export function readWalls(): { captcha: boolean; consentWall: boolean } {
   let covering = false;
   let backdrop = false;
   let dialog = false;
-  for (const el of document.querySelectorAll("body *")) {
+  for (const el of all) {
+    if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
     const style = getComputedStyle(el);
     if (style.position !== "fixed" && style.position !== "absolute") continue;
     if (!shown(el)) continue;
@@ -196,7 +206,8 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
     )
   )
     return "a challenge page";
-  if (NOT_FOUND.test(`${capture.title}\n${capture.text.slice(0, 300)}`)) return "an error page answered with 200";
+  // Past a site's navigation, too: an error page's message often follows a long header.
+  if (NOT_FOUND.test(`${capture.title}\n${capture.text.slice(0, 3000)}`)) return "an error page answered with 200";
   if (capture.captcha) return "a CAPTCHA frame";
   if (capture.consentWall) return "a cookie wall covering the page";
   if (capture.text.trim().length < MIN_TEXT) return `under ${MIN_TEXT} characters of visible text`;
@@ -441,7 +452,11 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
           executablePath,
           chromiumSandbox: true,
           // WebRTC sends UDP of its own, outside any proxy: only proxied traffic may leave, so it has none.
-          args: ["--no-first-run", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp"],
+          args: [
+            "--no-first-run",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+          ],
           timeout: BROWSER_START_MS,
         })
         .then((browser) => {
@@ -515,18 +530,19 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       for (let at: Frame | null = frame; at && at !== page.mainFrame(); at = at.parentFrame()) {
         const element = await at.frameElement().catch(() => null);
         const shown = await element
-          ?.evaluate((node) => {
+          ?.evaluate((node, height) => {
             const el = node as Element;
             const box = el.getBoundingClientRect();
-            // On the page, too: a frame moved off it (a negative offset) is not seen.
-            const onPage = box.right > 0 && box.bottom > 0;
+            // On the captured page, too: a frame moved off it (a negative offset, or past the 1280 by 2000 pixels the
+            // screenshot keeps) is not seen.
+            const onPage = box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < height;
             return (
               box.width > 0 &&
               box.height > 0 &&
               onPage &&
               el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
             );
-          })
+          }, MAX_HEIGHT)
           .catch(() => false);
         if (!shown) return false;
       }
@@ -720,7 +736,12 @@ export async function runBatch(options: {
     }
     state.set(event.url, entry);
   }
-  const byUrl = new Map(store.manifest().flatMap((page) => (page.url ? [[page.url, page.id] as const] : [])));
+  // A damaged page's record is left out here (coverage reports it); it does not stop the run.
+  const stored = store.manifest({ tolerant: true });
+  const byUrl = new Map(stored.flatMap((page) => (page.url ? [[page.url, page.id] as const] : [])));
+  // The listed URL each stored page was rendered from: a page is its content, so a second URL that renders the same
+  // bytes is the same page, recorded as excluded, never as a second store.
+  const urlById = new Map(stored.flatMap((page) => (page.url ? [[page.id, page.url] as const] : [])));
   const result: BatchResult = { stored: 0, excluded: 0, retry: 0, skipped: 0, recovered: 0 };
   const source = list.name === "majestic" ? "benign-majestic" : `benign-${list.name.replace(/^benign-/, "")}`;
   let next = 0;
@@ -789,6 +810,13 @@ export async function runBatch(options: {
       url: entry.url,
       kind: capturedKind(entry, capture),
     });
+    const first = urlById.get(id);
+    if (first && first !== entry.url) {
+      appendJournal(journal, { url: entry.url, event: "excluded", reason: `the same page as ${first}` });
+      result.excluded++;
+      return;
+    }
+    urlById.set(id, entry.url);
     options.afterStore?.(entry.url);
     appendJournal(journal, { url: entry.url, event: "stored", id });
     result.stored++;
@@ -818,12 +846,14 @@ export async function runBatch(options: {
 export const COVERAGE_MINIMUMS = { total: 3000, southAfrica: 300, signIn: 120, shop: 40, company: 40, social: 20 };
 
 // What the store's benign renders cover, counted from pages of origin `benign` only, each read back whole first.
-export function benignCoverage(store: Pick<ReturnType<typeof openStore>, "manifest" | "readPage">) {
+export function benignCoverage(store: Pick<ReturnType<typeof openStore>, "manifest" | "readPage" | "verify">) {
   const problems: string[] = [];
+  // A benign page whose record does not read is a problem, not the end of the count.
+  for (const id of store.verify().damaged.filter((id) => id.startsWith("benign-"))) problems.push(`${id}: damaged`);
   const byKind: Record<string, number> = {};
   let total = 0;
   let southAfrica = 0;
-  for (const page of store.manifest().filter((p) => p.origin === "benign")) {
+  for (const page of store.manifest({ tolerant: true }).filter((p) => p.origin === "benign")) {
     const fault = pageFault(store, page);
     if (fault) {
       problems.push(`${page.id}: ${fault}`);
@@ -849,7 +879,13 @@ export function benignCoverage(store: Pick<ReturnType<typeof openStore>, "manife
 }
 
 function pageFault(store: Pick<ReturnType<typeof openStore>, "readPage">, page: StoredPage): string | null {
-  const { screenshot, text } = store.readPage(page.id);
+  let screenshot: Uint8Array;
+  let text: string;
+  try {
+    ({ screenshot, text } = store.readPage(page.id));
+  } catch {
+    return "its files do not read";
+  }
   const hash = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
   if (hash(screenshot) !== page.sha256.screenshot || hash(text) !== page.sha256.text) return "files do not match";
   if (page.labels.lure !== false || page.label_source.lure !== "ground-truth") return "not a ground-truth benign page";

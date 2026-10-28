@@ -59,8 +59,8 @@ home	https://www.gems.gov.za/	GEMS
 home	https://www.gov.za/	South African Government
 home	https://www.labour.gov.za/	Department of Labour
 home	https://www.vodacom.co.za/	Vodacom
-account	https://www.vodacom.co.za/vodacom/shopping	Vodacom
-login	https://www.mtn.co.za/home/	MTN
+shop	https://www.vodacom.co.za/vodacom/shopping	Vodacom
+home	https://www.mtn.co.za/home/	MTN
 home	https://www.telkom.co.za/	Telkom
 home	https://www.cellc.co.za/	Cell C
 home	https://www.rain.co.za/	Rain
@@ -157,12 +157,12 @@ home	https://portal.thecourierguy.co.za/	The Courier Guy
 home	https://www.aramex.co.za/	Aramex
 home	https://www.postnet.co.za/	PostNet
 home	https://www.postoffice.co.za/	SA Post Office
-account	https://www.dhl.com/za-en/home.html	DHL
+home	https://www.dhl.com/za-en/home.html	DHL
 home	https://pargo.co.za/	Pargo
 home	https://www.pudo.co.za/	Pudo
 home	https://www.dawnwing.co.za/	Dawn Wing
 home	https://www.ram.co.za/	RAM
-account	https://www.fedex.com/en-za/home.html	FedEx
+home	https://www.fedex.com/en-za/home.html	FedEx
 home	https://www.courierit.co.za/	Courier IT
 account	https://eservices1.capetown.gov.za/	City of Cape Town
 home	https://www.capetown.gov.za/	City of Cape Town
@@ -284,7 +284,7 @@ home	https://www.standardbank.com/	Standard Bank Group
 home	https://group.nedbank.co.za/	Nedbank Group
 home	https://www.firstrand.co.za/	FirstRand
 company	https://www.capitecbank.co.za/about-us/	Capitec
-company	https://www.discovery.co.za/corporate/home	Discovery
+home	https://www.discovery.co.za/corporate/home	Discovery
 home	https://www.oldmutual.com/	Old Mutual
 home	https://www.sanlam.com/	Sanlam
 home	https://www.remgro.com/	Remgro
@@ -491,7 +491,7 @@ company	https://mrpricegroup.com/about-us/	Mr Price Group
 company	https://tfglimited.co.za/about-us/vision-values/	TFG
 company	https://www.clicksgroup.co.za/contact-us/	Clicks Group
 company	https://www.netcare.co.za/Who-We-Are/Group-at-a-glance	Netcare
-company	https://www.mediclinic.co.za/en/corporate/home.html	Mediclinic
+home	https://www.mediclinic.co.za/en/corporate/home.html	Mediclinic
 company	https://www.lifehealthcare.co.za/about-us/	Life Healthcare
 company	https://www.multichoice.com/about-us.php	Multichoice
 company	https://www.psg.co.za/about	PSG
