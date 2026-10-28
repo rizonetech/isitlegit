@@ -68,7 +68,7 @@ describe("the sample importer", () => {
     ]);
     expect(labelOf("gmail/a.eml", manifest)).toEqual({ lure: true, source: "ground-truth" });
     expect(labelOf("outlook/g.eml", manifest)).toEqual({ lure: false, source: "ground-truth" });
-    expect(labelOf("client/1-2-3_4_5_HighConfPhish.eml", manifest)).toEqual({ lure: true, source: "unverified" });
+    expect(labelOf("client/1-2-3_4_5_HighConfPhish.eml", manifest)).toEqual({ lure: true, source: "ground-truth" });
     expect(labelOf("client/1-2-3_4_5_Phish.eml", manifest)).toEqual({ lure: true, source: "unverified" });
     expect(labelOf("client/1-2-3_4_5_Spam.eml", manifest)).toEqual({ source: "none" });
   });

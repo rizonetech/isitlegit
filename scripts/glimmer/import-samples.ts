@@ -8,8 +8,8 @@
 // `samples/pilot-consent.md` holds the "Extension: Fireworks training (2026-10-28 15:16 SAST)" section. Each HTML
 // attachment and HTML body is redacted (`redact.ts`) before it is rendered, so the screenshot and the text both carry
 // the placeholders, and is stored with `origin: samples`, `redacted: true`. Labels: an operator-labelled message
-// (`manifest.csv`) is ground truth; a quarantined message's Microsoft verdict (`HighConfPhish`, `Phish` in its file
-// name) is a lure marked `unverified` until Claude confirms it (§9); a `Spam` or `Bulk` verdict leaves `lure` unset.
+// (`manifest.csv`) is ground truth; a quarantined message's Microsoft verdict in its file name is a lure, ground truth
+// when `HighConfPhish` and `unverified` when `Phish`; a `Spam` or `Bulk` verdict leaves `lure` unset.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import PostalMime, { type Email } from "postal-mime";
@@ -37,7 +37,10 @@ export function labelOf(file: string, manifest: Map<string, string>): Label {
   if (listed === "attack") return { lure: true, source: "ground-truth" };
   if (listed === "genuine") return { lure: false, source: "ground-truth" };
   const verdict = /_([A-Za-z]+)\.eml$/.exec(file)?.[1];
-  if (verdict === "HighConfPhish" || verdict === "Phish") return { lure: true, source: "unverified" };
+  // Microsoft's high-confidence phishing verdict counts as ground truth (operator, 2026-10-28 21:41 SAST), which gives
+  // the evaluation its South African lures; a plain `Phish` verdict stays unverified: trained on, never evaluated.
+  if (verdict === "HighConfPhish") return { lure: true, source: "ground-truth" };
+  if (verdict === "Phish") return { lure: true, source: "unverified" };
   return { source: "none" }; // Spam, Bulk or no verdict: §9 decides
 }
 

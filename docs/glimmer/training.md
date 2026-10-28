@@ -44,6 +44,8 @@ training mode: image
 
 ## Decisions
 
+- 2026-10-28 21:41 SAST, operator: D03 T04 §8 (synthetic South African lures) is removed, since Claude will not generate realistic lure pages impersonating real brands. Microsoft's high-confidence phishing verdict on the redacted pilot-client mail counts as ground truth (155 lure pages after duplicates) and gives evaluation its South African lures; a plain phishing verdict stays `unverified` (105 pages, trained on, never evaluated). Reversing it means a source of real South African lure pages with known labels.
+
 - 2026-10-28 21:36 SAST, operator: quality matters as much as quantity, low false positives and high detection alike. Each Loupe version aims at more training lines, better labels, fewer false alarms and more detections than the one before; a version is promoted only when, on the same held-out set, it trained on more lines, its lure recall is at least the previous version's and its false-alarm rate no higher, overall and on the South African slice (D03 T04 §13). Rule labels (§9) add lines; the held-out set, which holds trusted labels only, is what shows whether they cost quality.
 
 - 2026-10-28 21:32 SAST, operator: the human checks are dropped to save time (D03 T04 §9, §18): no Astra or Claude judging of queued pages, no 200-page check by eye, no spot check of the second sweep's sources. A page whose `lure` the teacher disputes is left out of training and evaluation; an `unverified` page trains at confidence 0.7 and never enters evaluation; the §5 spot checks (ScamFerret 4 percent, PhreshPhish 6 percent) stand as the recorded label error rates. Reversing it means running both judges over the queue and checking a sample before the next build.
