@@ -132,7 +132,7 @@ export async function admitCase(
     };
     const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?)",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
       )
       .bind(
         row.id,
@@ -151,7 +151,17 @@ export async function admitCase(
         DEFAULT_DAILY_CASES,
       )
       .run();
-    if (inserted.meta.changes !== 1) return fail("capped", "the organisation's daily case limit is reached");
+    if (inserted.meta.changes !== 1) {
+      // A caller-chosen id already admitted (a retry) is answered with that case, never as capped.
+      if (parsed.data.id) {
+        const existing = await db
+          .prepare("SELECT * FROM cases WHERE id = ? AND org_id = ?")
+          .bind(row.id, row.org_id)
+          .first<Row>();
+        if (existing) return { ok: true, value: toCase(existing) };
+      }
+      return fail("capped", "the organisation's daily case limit is reached");
+    }
     return { ok: true, value: toCase(row) };
   });
 }

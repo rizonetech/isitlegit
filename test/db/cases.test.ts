@@ -307,4 +307,17 @@ describe("the case store", () => {
       }),
     ).toMatchObject({ ok: false, error: { code: "invalid" } });
   });
+
+  it("answers a caller-chosen id admitted before with that case, under the cap and at it (final review)", async () => {
+    const id = ulid();
+    const input = { id, orgId: "org-retry", channel: "email" as const, headersAvailable: false };
+    const first = await admitCase(db, input);
+    expect(first).toMatchObject({ ok: true, value: { id } });
+    expect(await admitCase(db, input)).toMatchObject({ ok: true, value: { id } });
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES ('org-retry', 1)").run();
+    expect(await admitCase(db, input)).toMatchObject({ ok: true, value: { id } });
+    expect(await admitCase(db, { ...input, id: ulid() })).toMatchObject({ ok: false, error: { code: "capped" } });
+    // Another organisation's id is not answered as this one's.
+    expect(await admitCase(db, { ...input, orgId: "org-other-retry" })).toMatchObject({ ok: false });
+  });
 });

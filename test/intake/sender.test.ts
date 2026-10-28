@@ -22,7 +22,7 @@ describe("senderAuthenticated", () => {
     ).toBe(true);
   });
 
-  it("admits a DKIM pass signed by the sender's registrable domain, from header.d or header.i", async () => {
+  it("admits a DKIM pass whose reported signer (header.d) has the sender's registrable domain, not header.i alone", async () => {
     expect(
       await senderAuthenticated(
         mail(
@@ -33,10 +33,17 @@ describe("senderAuthenticated", () => {
     ).toBe(true);
     expect(
       await senderAuthenticated(
-        mail(`Authentication-Results: ${ID}; dkim=pass header.i=@member.co.za`),
+        mail(`Authentication-Results: ${ID}; dkim=pass header.d=member.co.za header.i=@sales.member.co.za`),
         "boss@sales.member.co.za",
       ),
     ).toBe(true);
+    // header.i is the identity, not necessarily the signer (final review): without header.d nothing is proven.
+    expect(
+      await senderAuthenticated(
+        mail(`Authentication-Results: ${ID}; dkim=pass header.i=@member.co.za`),
+        "boss@sales.member.co.za",
+      ),
+    ).toBe(false);
   });
 
   it("reads a folded header with comments, quoted values and a method version", async () => {
@@ -197,5 +204,14 @@ describe("senderAuthenticated", () => {
       `Authentication-Results: ${ID}; spf=pass smtp.mailfrom=member.co.za\r\n${"X-Pad: y\r\n".repeat(30_000)}`,
     );
     expect(await senderAuthenticated(endless, "boss@member.co.za")).toBe(false);
+  });
+
+  it("refuses, rather than throws on, a header block the parser will not read (final review)", async () => {
+    // postal-mime counts each line as at least 64 bytes against 2 MiB: 32,769 tiny lines pass our 256 KiB limit.
+    const tiny = new TextEncoder().encode(
+      `Authentication-Results: ${ID}; spf=pass smtp.mailfrom=member.co.za\r\n${"A:\r\n".repeat(32_769)}\r\nbody\r\n`,
+    );
+    expect(tiny.byteLength).toBeLessThan(256 * 1024);
+    await expect(senderAuthenticated(tiny, "boss@member.co.za")).resolves.toBe(false);
   });
 });

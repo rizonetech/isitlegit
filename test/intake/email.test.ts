@@ -125,6 +125,25 @@ const outcome = (p: Promise<unknown>) =>
     (e: Error) => ({ thrown: e.name }),
   );
 
+// A pause: `hold` waits until `release`; `reached` resolves once `count` are held.
+function held(count: number) {
+  let holding = 0;
+  let reach: () => void = () => {};
+  let release: () => void = () => {};
+  const reached = new Promise<void>((resolve) => {
+    reach = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const hold = async () => {
+    holding += 1;
+    if (holding === count) reach();
+    await released;
+  };
+  return { reached, release, hold };
+}
+
 describe("handleEmail", () => {
   it("makes one case from a verified member's forward: the forwarder stored, the raw message, the Workflow, a done claim", async () => {
     const { orgId, from } = await member();
@@ -549,6 +568,82 @@ describe("a delivery interrupted around admission (completion review)", () => {
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
     expect(world.sends).toHaveLength(1);
     expect(world.sends[0]?.text).toContain("limit of 1 checks");
+  });
+});
+
+describe("final review cases", () => {
+  it("starts no Workflow for a delivery that stalled while another took it over", async () => {
+    const { orgId, from } = await member();
+    const m = message(from);
+    // The first delivery stalls just before it would start its Workflow.
+    const pause = held(1);
+    const stalling = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.startsWith("SELECT 1 FROM intake_messages")) return statement;
+            const bind = statement.bind.bind(statement);
+            statement.bind = (...values: unknown[]) => {
+              const bound = bind(...values);
+              const first = bound.first.bind(bound) as () => Promise<unknown>;
+              return Object.assign(bound, {
+                first: async () => {
+                  await pause.hold();
+                  return first();
+                },
+              });
+            };
+            return statement;
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const stalled = outcome(handleEmail(m.forwardable, { ...mailEnv, DB: stalling }));
+    await Promise.race([pause.reached, stalled]);
+    const [firstCase] = await casesOf(orgId);
+    // Past the lease, the same message's retry takes over: no Workflow for the first case, so it is removed.
+    const later = new Date(Date.now() + CLAIM_LEASE_MS + 60_000);
+    const retried = await handleEmail(again(m), mailEnv, later);
+    expect(retried.kind).toBe("admitted");
+    pause.release();
+    expect(await stalled).toEqual({ thrown: "RetryDelivery" });
+    expect(await workflowExists(firstCase?.id as string)).toBe(false);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(retried as { caseId: string }).caseId]);
+  });
+
+  it("leaves a stale claim's case alone once the pipeline has moved it on", async () => {
+    const { orgId, from } = await member();
+    const moved = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
+    if (!moved.ok) throw new Error(moved.error.message);
+    await db.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(moved.value.id).run();
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, 'moved', 'pending', ?, ?)",
+      )
+      .bind(orgId, moved.value.id, new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString())
+      .run();
+    await sweepIntake(env as unknown as Env);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([moved.value.id]);
+    expect(await claimsOf(orgId)).toEqual([{ message_key: "moved", state: "done", case_id: moved.value.id }]);
+  });
+
+  it("sends the cap notice for an organisation whose id is long", async () => {
+    orgs += 1;
+    const orgId = `org-${"o".repeat(150)}-${orgs}`;
+    const domain = `longorg${orgs}.co.za`;
+    const at = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
+        )
+        .bind(`d-long-${orgs}`, orgId, domain, at, at),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+    ]);
+    expect(await handleEmail(message(`boss@${domain}`).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends).toHaveLength(1);
   });
 });
 

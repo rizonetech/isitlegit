@@ -97,6 +97,8 @@ export async function handleEmail(
     throw new RetryDelivery(`the case could not be admitted: ${admitted.error.message}`);
   }
   await settle(env, claim, caseId, () => putRaw(store(env), caseId, raw).then(() => {}));
+  // A delivery stalled past the lease may have been taken over meanwhile, its case removed: it starts no Workflow then.
+  if (!(await stillHolds(env.DB, claim))) throw new RetryDelivery("the delivery stalled and another took it over");
   try {
     await env.ANALYSIS.create({ id: caseId, params: { caseId } });
   } catch (error) {
@@ -110,8 +112,10 @@ export async function handleEmail(
       throw new RetryDelivery(`the Workflow did not start: ${(error as Error).message}`);
     }
   }
-  // The case is in the pipeline; a claim left pending here is marked done by the sweep, which finds its Workflow.
-  await markDone(env.DB, claim).catch(() => {});
+  // The case is in the pipeline. A claim this delivery no longer holds was taken over (the taker settles it by its
+  // Workflow); one it could not mark is marked done by the sweep, which finds the Workflow.
+  const marked = await markDone(env.DB, claim).catch(() => null);
+  if (marked && marked.meta.changes !== 1) throw new RetryDelivery("the delivery stalled and another took it over");
   return { kind: "admitted", caseId };
 }
 
@@ -173,6 +177,12 @@ async function settleStale(env: Env, claim: Claim, caseId: string | null): Promi
     await markDone(env.DB, claim);
     return "done";
   }
+  // Only a case nothing has picked up is removed; one the pipeline has moved on (`running` or later) is its, not ours.
+  const status = await env.DB.prepare("SELECT status FROM cases WHERE id = ?").bind(caseId).first<{ status: string }>();
+  if (status && status.status !== "received") {
+    await markDone(env.DB, claim);
+    return "done";
+  }
   await removeCase(env, caseId);
   await env.DB.prepare(
     "UPDATE intake_messages SET case_id = NULL WHERE org_id = ? AND message_key = ? AND claimed_at = ?",
@@ -214,6 +224,15 @@ async function removeCase(env: Env, caseId: string) {
   ]);
 }
 
+// Whether this delivery still holds its claim (nobody took it over).
+const stillHolds = async (db: D1Database, claim: Claim) =>
+  (await db
+    .prepare(
+      "SELECT 1 FROM intake_messages WHERE org_id = ? AND message_key = ? AND state = 'pending' AND claimed_at = ?",
+    )
+    .bind(claim.orgId, claim.key, claim.claimedAt)
+    .first()) !== null;
+
 const releaseClaim = (db: D1Database, claim: Claim) =>
   db
     .prepare(
@@ -248,8 +267,9 @@ async function sendCapNotice(env: Env, orgId: string, to: string, now: Date) {
   await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
     {
-      // The forwarder by digest: an address can be 254 characters, a send key at most 200.
-      sendKey: `cap:${orgId}:${sastDate(now)}:${(await sha256Hex(new TextEncoder().encode(to))).slice(0, 32)}`,
+      // The organisation, the SAST day and the forwarder by one digest: an address can be 254 characters and an
+      // organisation id 200, a send key at most 200.
+      sendKey: `cap:${(await sha256Hex(new TextEncoder().encode(`${orgId}\n${sastDate(now)}\n${to}`))).slice(0, 48)}`,
       kind: "notice",
       to,
       from: NOTICE_FROM,

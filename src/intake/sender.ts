@@ -48,7 +48,8 @@ export async function senderAuthenticated(
       return mailfrom !== undefined && domainOf(mailfrom) === domain;
     }
     if (r.method === "dkim") {
-      const d = (r.props.get("header.d") ?? domainOf(r.props.get("header.i") ?? "")).toLowerCase();
+      // The signing domain as reported (`header.d`); `header.i` is the identity, not necessarily the signer.
+      const d = (r.props.get("header.d") ?? "").toLowerCase();
       if (!d) return false;
       return proving === "address" ? d === domain : site !== null && registrable(d) === site;
     }
@@ -69,8 +70,15 @@ async function headersOf(raw: Uint8Array): Promise<{ name: string; value: string
   const head = new TextDecoder().decode(raw.subarray(0, MAX_HEADER_BYTES));
   const end = head.search(/\r?\n\r?\n/);
   if (end < 0) return null;
-  const parsed = await PostalMime.parse(`${head.slice(0, end)}\r\n\r\n`);
-  return parsed.headers.map((h) => ({ name: h.key.trim().toLowerCase(), value: h.value }));
+  // postal-mime refuses a header block past its own budget (each line counted as at least 64 bytes against 2 MiB,
+  // `EMAXHEADERSIZE`), which a message of many tiny lines reaches inside our limit: anything it cannot read proves
+  // nothing.
+  try {
+    const parsed = await PostalMime.parse(`${head.slice(0, end)}\r\n\r\n`);
+    return parsed.headers.map((h) => ({ name: h.key.trim().toLowerCase(), value: h.value }));
+  } catch {
+    return null;
+  }
 }
 
 // The one mailbox of the message's one From field, lower case, or "" for anything else. DKIM verifies a repeated
