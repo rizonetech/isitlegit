@@ -27,6 +27,25 @@ export async function normaliseScreenshot(bytes: Uint8Array): Promise<Uint8Array
   return new Uint8Array(await image.flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer());
 }
 
+// A dataset's HTML bytes as text, in the encoding the page declares, as a browser's prescan reads it: a byte order mark
+// first, then a `<meta charset>` or `http-equiv` content type in the first 1,024 bytes, else UTF-8. A Shift_JIS or
+// windows-1251 page decoded as UTF-8 would train Loupe on mojibake.
+export function decodeHtml(bytes: Uint8Array): string {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder("utf-8").decode(bytes);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes);
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes);
+  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 1024));
+  const declared = /<meta[^>]+charset\s*=\s*["']?\s*([\w.:-]+)/i.exec(head)?.[1];
+  if (declared) {
+    try {
+      return new TextDecoder(declared).decode(bytes);
+    } catch {
+      // a label the decoder does not know: the page is read as UTF-8, the web's default
+    }
+  }
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
 export type FormFlags = { has_login_form: boolean; has_payment_form: boolean };
 
 // The page's form flags from its DOM, as the screener's prompt defines them (`src/vision/page-screen.ts`): a login form

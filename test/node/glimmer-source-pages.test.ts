@@ -1,10 +1,26 @@
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { normaliseScreenshot, openTextReader } from "../../scripts/glimmer/source-pages.ts";
+import { decodeHtml, normaliseScreenshot, openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/source-pages.ts (D03 T04 §5): a dataset's image becomes a JPEG the store accepts, and its HTML gives
 // the text a viewer would see.
+
+describe("decodeHtml", () => {
+  it("reads a page in the encoding it declares, else UTF-8", () => {
+    // 「お問合せ」 in Shift_JIS, and Привет in windows-1251.
+    const sjis = Uint8Array.from([0x82, 0xa8, 0x96, 0xe2, 0x8d, 0x87, 0x82, 0xb9]);
+    const meta = new TextEncoder().encode('<meta charset="Shift_JIS"><p>');
+    expect(decodeHtml(Uint8Array.from([...meta, ...sjis]))).toBe('<meta charset="Shift_JIS"><p>お問合せ');
+    const cyr = Uint8Array.from([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2]);
+    const equiv = new TextEncoder().encode(
+      '<meta http-equiv="Content-Type" content="text/html; charset=windows-1251">',
+    );
+    expect(decodeHtml(Uint8Array.from([...equiv, ...cyr]))).toContain("Привет");
+    expect(decodeHtml(new TextEncoder().encode("<p>café</p>"))).toBe("<p>café</p>");
+    expect(decodeHtml(new TextEncoder().encode('<meta charset="no-such"><p>é'))).toBe('<meta charset="no-such"><p>é');
+  });
+});
 
 describe("normaliseScreenshot", () => {
   it("turns a full-page PNG into a 1280 by 2000 JPEG that decodes", async () => {

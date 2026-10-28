@@ -12,7 +12,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { importSource, type SourceItem } from "./import-source.ts";
-import { normaliseScreenshot, openTextReader } from "./source-pages.ts";
+import { decodeHtml, normaliseScreenshot, openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
 
 export const SOURCE = "scamferret";
@@ -48,7 +48,7 @@ export function scamferretItems(datasetDir: string, reader: Awaited<ReturnType<t
           labels: { lure: scam, ...(lureType ? { lure_type: lureType } : {}) },
           label_source: { lure: "ground-truth", ...(lureType ? { lure_type: "ground-truth" } : {}) },
           load: async () => {
-            const html = gunzipSync(readFileSync(join(htmlDir, file))).toString("utf-8");
+            const html = decodeHtml(gunzipSync(readFileSync(join(htmlDir, file))));
             const rendered = await reader.renderHtml(html);
             if (!existsSync(png)) return rendered;
             return { ...rendered, screenshot: await normaliseScreenshot(new Uint8Array(readFileSync(png))) };
