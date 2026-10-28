@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { getDefaultAutoSelectFamilyAttemptTimeout, setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -71,6 +71,7 @@ const base = (over: Partial<RunOptions>): RunOptions => ({
   readKey: async () => KEY,
   now: () => new Date("2026-10-28T14:00:00Z"),
   probeFile: join(DIR, "probe.jsonl"),
+  probeTextFile: join(DIR, "probe-text.jsonl"),
   pollMs: 1,
   ...over,
 });
@@ -184,7 +185,7 @@ describe("--job", () => {
     expect(seen.find((s) => s.url.includes("/billingUsage"))?.url).toContain("usageType=TRAINING");
     expect(seen.find((s) => s.url.includes("/billing/summary"))?.url).toContain("startTime=2026-10-27T10%3A00%3A00Z");
     expect(out.lines).toContain("  outcome: image-refused");
-    expect(out.lines).toContain("  bill: US$0.00 rated in the job's window");
+    expect(out.lines).toContain("  bill: US$0.00 of training rated in the job's window");
   });
 
   it("shows a failed billing read as unavailable, never as zero", async () => {
@@ -211,7 +212,10 @@ describe("probe outcome", () => {
   it("decides a mode only from a completed job or an image-specific refusal", () => {
     expect(probeOutcome("JOB_STATE_COMPLETED", "")).toBe("completed");
     expect(probeOutcome("JOB_STATE_FAILED", "Model does not support image inputs")).toBe("image-refused");
-    expect(probeOutcome("JOB_STATE_FAILED", "vision fine-tuning is not available")).toBe("image-refused");
+    expect(probeOutcome("JOB_STATE_FAILED", "vision fine-tuning is not supported")).toBe("image-refused");
+    // A decode error or an outage says nothing about whether images can train (completion review G4).
+    expect(probeOutcome("JOB_STATE_FAILED", "Image decode failed: invalid PNG")).toBe("unresolved");
+    expect(probeOutcome("JOB_STATE_FAILED", "image service temporarily unavailable")).toBe("unresolved");
     expect(probeOutcome("JOB_STATE_FAILED", "quota exceeded")).toBe("unresolved");
     expect(probeOutcome("JOB_STATE_CANCELLED", "")).toBe("unresolved");
     expect(probeOutcome("JOB_STATE_FAILED", "imagery licence")).toBe("unresolved");
@@ -250,7 +254,7 @@ describe("bill state", () => {
       "unavailable",
     );
   });
-  it("sums every rated series in the window", () => {
+  it("counts only training as the job's bill and lists other spend apart", () => {
     const bill = billingState({
       jobId: "p",
       completedTime: ended,
@@ -261,7 +265,9 @@ describe("bill state", () => {
         { series: "serverless", totalCost: "0.25" },
       ],
     });
-    expect(describeBill(bill)).toBe("bill: US$2.75 rated in the job's window (training US$2.50, serverless US$0.25)");
+    expect(describeBill(bill)).toBe(
+      "bill: US$2.50 of training rated in the job's window (training US$2.50); not the job's, excluded: serverless US$0.25",
+    );
   });
 });
 
@@ -347,7 +353,9 @@ describe("--probe", () => {
     const { seen, impl } = stub(fresh(PROBE_TEXT));
     const out = await runFireworksCheck(base({ fetch: impl, mode: { kind: "probe", variant: "text" } }));
     expect(out.code).toBe(0);
-    expect(readFileSync(join(DIR, "probe.jsonl"), "utf-8")).not.toContain("image_url");
+    expect(readFileSync(join(DIR, "probe-text.jsonl"), "utf-8")).not.toContain("image_url");
+    // The text control has its own file: the image probe is never overwritten (completion review G2).
+    expect(existsSync(join(DIR, "probe.jsonl"))).toBe(false);
     const writes = seen.filter((s) => s.method !== "GET");
     expect(
       writes.every(
@@ -433,6 +441,29 @@ describe("--delete-probe", () => {
   });
 });
 
+describe("malformed answers", () => {
+  it("reads a success that is not JSON as no answer, never as an empty account", async () => {
+    const html = (async () => new Response("<html>gateway error</html>", { status: 200 })) as typeof fetch;
+    const out = await runFireworksCheck(base({ fetch: html }));
+    expect(out.code).toBe(1);
+    expect(out.lines.join("\n")).toContain("not JSON");
+    expect(out.lines.join("\n")).not.toContain("models: 0");
+  });
+
+  it("refuses a collection that is not a list and a cost that is not an amount", async () => {
+    const notList = stub({ ...lists, "GET /models": { status: 200, body: { models: "none" } } });
+    expect((await runFireworksCheck(base({ fetch: notList.impl }))).code).toBe(1);
+    const badCost = stub({
+      ...lists,
+      "GET /billing/summary": { status: 200, body: { lineItems: [{ series: "training", totalCost: "n/a" }] } },
+    });
+    const out = await runFireworksCheck(base({ fetch: badCost.impl }));
+    expect(out.code).toBe(1);
+    expect(out.lines.join("\n")).toContain("not an amount");
+    expect(out.lines.join("\n")).not.toContain("US$0.00");
+  });
+});
+
 describe("--write-probe-lines", () => {
   it("writes both probe files without a key or a request", async () => {
     const { seen, impl } = stub({});
@@ -449,6 +480,27 @@ describe("--write-probe-lines", () => {
     expect([image.length, text.length]).toEqual([3, 3]);
     expect(image.every((line) => line.includes("image_url"))).toBe(true);
     expect(text.some((line) => line.includes("image_url"))).toBe(false);
+  });
+
+  it("keeps the earlier files and says why when it cannot write", async () => {
+    const folder = join(DIR, "locked");
+    mkdirSync(folder);
+    writeFileSync(join(folder, "probe.jsonl"), "earlier\n");
+    chmodSync(folder, 0o500);
+    try {
+      const out = await runFireworksCheck(
+        base({
+          mode: { kind: "write-probe-lines" },
+          probeFile: join(folder, "probe.jsonl"),
+          probeTextFile: join(folder, "probe-text.jsonl"),
+        }),
+      );
+      expect(out.code).toBe(1);
+      expect(out.lines.at(-1)).toContain("could not write");
+      expect(readFileSync(join(folder, "probe.jsonl"), "utf-8")).toBe("earlier\n");
+    } finally {
+      chmodSync(folder, 0o700);
+    }
   });
 });
 

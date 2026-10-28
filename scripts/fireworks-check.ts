@@ -19,7 +19,7 @@
 // comes from Conclave through conclave-op, is sent only in the Authorization header and is never printed.
 //
 //   node scripts/fireworks-check.ts --help
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
@@ -51,16 +51,21 @@ export function configureNetwork(): void {
   setDefaultAutoSelectFamilyAttemptTimeout(CONNECT_ATTEMPT_MS);
 }
 
-export const USAGE = `node scripts/fireworks-check.ts [--probe | --job <id> | --delete-probe]
+export const USAGE = `node scripts/fireworks-check.ts [--write-probe-lines | --job <id> | --delete-probe | --probe]
 
-Lists what the Fireworks account ${ACCOUNT} holds, and runs the Glimmer image probe (D03 T04 §2).
-  (no option)      models, deployments, datasets, fine-tuning jobs, credit redemptions, this month's rated spend
-  --probe          upload ${PROBE} (3 image lines) and start one SFT job on ${BASE_MODEL}
-  --probe text     the text control, ${PROBE_TEXT}: only after the image probe was refused for its images
-  --job <id>       one fine-tuning job's state, outcome and bill state
-  --delete-probe   delete both probes' job, model and dataset
-  --write-probe-lines  write the image probe and its text control to build/glimmer/ for the serverless probe (local)
-  --help           this text
+Lists what the Fireworks account ${ACCOUNT} holds, and prepares the Glimmer image probe (D03 T04 §2).
+
+The probe runs on the Serverless Training API (Fireworks closed dataset uploads on 2026-10-28), in two commands:
+  node scripts/fireworks-check.ts --write-probe-lines
+  ~/.venvs/fireworks/bin/python scripts/glimmer/serverless_probe.py
+
+  (no option)          models, deployments, datasets, fine-tuning jobs, credit redemptions, this month's rated spend
+  --write-probe-lines  write the image probe and its text control to build/glimmer/ (local, no key, no request)
+  --job <id>           one managed fine-tuning job's state, outcome and training bill
+  --delete-probe       delete both managed probes' job, model and dataset
+  --probe [text]       UNAVAILABLE while Fireworks keeps dataset uploads closed: the managed probe, uploading
+                       ${PROBE} (or ${PROBE_TEXT}) and starting one SFT job on ${BASE_MODEL}
+  --help               this text
 
 Exit codes: 0 done, 1 Fireworks refused or failed a request, 2 refused before sending.`;
 
@@ -161,20 +166,30 @@ const FAILED = new Set(["JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EX
 
 // What a job proves. Only a completed job decides a training mode; a failure decides one only when Fireworks says the
 // images were the problem, and anything else (authentication, quota, outage, a malformed line) decides nothing.
+// Only an explicit statement that the capability is missing proves images are refused: a decode error or an outage is
+// not one (scripts/glimmer/serverless_probe.py holds the same rule).
+const UNSUPPORTED =
+  /(not supported|unsupported|does not support|doesn't support|cannot accept|can't accept|not accepted|not enabled|disabled)[^.\n]{0,60}\b(image|images|vision|multimodal|image_url)\b|\b(image|images|vision|multimodal|image_url)\b[^.\n]{0,60}(not supported|unsupported|not accepted|not enabled|disabled)/i;
+
 export function probeOutcome(state: unknown, message: unknown): Outcome {
   if (state === "JOB_STATE_COMPLETED") return "completed";
   if (typeof state === "string" && FAILED.has(state))
-    return /\b(image|images|vision|multimodal|image_url)\b/i.test(String(message ?? ""))
-      ? "image-refused"
-      : "unresolved";
+    return UNSUPPORTED.test(String(message ?? "")) ? "image-refused" : "unresolved";
   return "running";
 }
+
+const TRAINING_SERIES = /train|fine.?tun|\bsft\b/i;
 
 export type BillState =
   | { kind: "pending"; until: string }
   | { kind: "unattributable"; jobs: string[] }
   | { kind: "unavailable"; reason: string }
-  | { kind: "rated"; total: number; series: { series: string; cost: number }[] };
+  | {
+      kind: "rated";
+      total: number;
+      series: { series: string; cost: number }[];
+      other?: { series: string; cost: number }[];
+    };
 
 // A job's bill from the account's rated spend over the job's window. Rated costs lag, so the bill is pending for a day
 // after the job ends; another job's training usage in the window makes the total unattributable; a failed read is
@@ -195,8 +210,12 @@ export function billingState(input: {
     return { kind: "unavailable", reason: input.error ?? "no billing read" };
   const others = [...new Set(input.trainingJobIds.filter((id) => id && id !== input.jobId))];
   if (others.length) return { kind: "unattributable", jobs: others };
+  // Only training is the job's: billing/summary's categories are the account's, so inference or deployment spend in
+  // the same window is listed apart and never added to the job's bill.
   const series = input.lineItems.map((item) => ({ series: item.series ?? "unnamed", cost: costOf(item.totalCost) }));
-  return { kind: "rated", total: series.reduce((sum, s) => sum + s.cost, 0), series };
+  const training = series.filter((s) => TRAINING_SERIES.test(s.series));
+  const other = series.filter((s) => !TRAINING_SERIES.test(s.series) && s.cost !== 0);
+  return { kind: "rated", total: training.reduce((sum, s) => sum + s.cost, 0), series: training, other };
 }
 
 export function describeBill(bill: BillState): string {
@@ -207,16 +226,26 @@ export function describeBill(bill: BillState): string {
       return `bill: unattributable (other training jobs in the window: ${bill.jobs.join(", ")})`;
     case "unavailable":
       return `bill: unavailable (${bill.reason})`;
-    case "rated":
-      return `bill: US$${bill.total.toFixed(2)} rated in the job's window${bill.series.length ? ` (${bill.series.map((s) => `${s.series} US$${s.cost.toFixed(2)}`).join(", ")})` : ""}`;
+    case "rated": {
+      const list = (items: { series: string; cost: number }[]) =>
+        items.map((s) => `${s.series} US$${s.cost.toFixed(2)}`).join(", ");
+      const own = bill.series.length ? ` (${list(bill.series)})` : "";
+      const other = bill.other?.length ? `; not the job's, excluded: ${list(bill.other)}` : "";
+      return `bill: US$${bill.total.toFixed(2)} of training rated in the job's window${own}${other}`;
+    }
   }
 }
 
 function writeAtomic(path: string, text: string): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  writeFileSync(temporary, text);
-  renameSync(temporary, path);
+  try {
+    writeFileSync(temporary, text);
+    renameSync(temporary, path);
+  } catch (error) {
+    rmSync(temporary, { force: true });
+    throw error;
+  }
 }
 
 export type RunOptions = {
@@ -250,12 +279,18 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
       ["image", options.probeFile ?? PROBE_FILE],
       ["text", options.probeTextFile ?? PROBE_TEXT_FILE],
     ] as const) {
-      writeAtomic(
-        file,
-        `${probeLines(variant, options.fixturesDir)
-          .map((line) => JSON.stringify(line))
-          .join("\n")}\n`,
-      );
+      try {
+        writeAtomic(
+          file,
+          `${probeLines(variant, options.fixturesDir)
+            .map((line) => JSON.stringify(line))
+            .join("\n")}\n`,
+        );
+      } catch (error) {
+        // The rename never ran, so an earlier good file is still in place.
+        say(`could not write ${file} (${(error as Error).message}); free space or fix the folder's permissions`);
+        return { code: 1, lines };
+      }
       say(`wrote ${variant} probe lines: ${file}`);
     }
     return { code: 0, lines };
@@ -298,12 +333,18 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
       signal: AbortSignal.timeout(REQUEST_MS),
     });
     const text = await response.text();
+    const ok = response.status >= 200 && response.status <= 299;
     let json: unknown = {};
     try {
       json = text ? JSON.parse(text) : {};
     } catch {
+      // A success that is not JSON (an HTML error page behind a proxy) is no answer: never read as an empty account.
+      if (ok)
+        throw new FireworksError(`${method} ${path} answered HTTP ${response.status} with a body that is not JSON`);
       json = { message: text.slice(0, 300) };
     }
+    if (ok && (json === null || typeof json !== "object" || Array.isArray(json)))
+      throw new FireworksError(`${method} ${path} answered HTTP ${response.status} with no JSON object`);
     return { status: response.status, json: json as Record<string, unknown> };
   }
   async function must(method: "GET" | "POST" | "DELETE", path: string, body?: unknown | FormData) {
@@ -324,7 +365,11 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
         "GET",
         `/${collection}?pageSize=200${token ? `&pageToken=${encodeURIComponent(token)}` : ""}`,
       );
-      items.push(...((page[collection] as Record<string, unknown>[] | undefined) ?? []));
+      const found = page[collection];
+      // Fireworks leaves an empty list out of its JSON; anything other than a list or nothing is not an answer.
+      if (found !== undefined && !Array.isArray(found))
+        throw new FireworksError(`GET /${collection} answered without a list of ${collection}`);
+      items.push(...((found as Record<string, unknown>[] | undefined) ?? []));
       token = typeof page.nextPageToken === "string" ? page.nextPageToken : "";
     } while (token);
     return items;
@@ -362,8 +407,8 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
           "GET",
           `/billing/summary?startTime=${start.toISOString()}&endTime=${at.toISOString()}`,
         );
-        const items = (summary.lineItems as { series?: string; totalCost?: unknown }[] | undefined) ?? [];
-        const total = items.reduce((sum, item) => sum + Number(costOf(item.totalCost)), 0);
+        const items = lineItemsOf(summary);
+        const total = items.reduce((sum, item) => sum + costOf(item.totalCost), 0);
         say(`rated spend ${start.toISOString().slice(0, 10)} to now: US$${total.toFixed(2)}`);
         for (const item of items) say(`  ${item.series ?? "unnamed"}: US$${Number(costOf(item.totalCost)).toFixed(2)}`);
         say("credit balance: not exposed by the Fireworks API (the operator's figure is the balance of record)");
@@ -392,7 +437,7 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
               trainingJobIds: ((usage.trainingCosts as { jobId?: string }[] | undefined) ?? []).map(
                 (row) => row.jobId ?? "",
               ),
-              lineItems: (summary.lineItems as { series?: string; totalCost?: unknown }[] | undefined) ?? [],
+              lineItems: lineItemsOf(summary),
             });
           } catch (error) {
             bill = billingState({
@@ -433,7 +478,11 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
           }
         const probe = probeLines(options.mode.variant, options.fixturesDir);
         const text = `${probe.map((line) => JSON.stringify(line)).join("\n")}\n`;
-        const file = options.probeFile ?? PROBE_FILE;
+        // Each variant has its own file, so the text control can never overwrite the image probe.
+        const file =
+          options.mode.variant === "image"
+            ? (options.probeFile ?? PROBE_FILE)
+            : (options.probeTextFile ?? PROBE_TEXT_FILE);
         writeAtomic(file, text);
         const display = options.mode.variant === "image" ? "IsItLegit image probe" : "IsItLegit text control probe";
         await must("POST", "/datasets", {
@@ -487,13 +536,24 @@ export async function runFireworksCheck(options: RunOptions): Promise<RunOutcome
 }
 
 // Rated costs arrive as a google.type.Money ({ currencyCode, units, nanos }) or a plain number or string.
+// Rated costs arrive as a google.type.Money ({ currencyCode, units, nanos }) or a plain number or numeric string. A
+// value that is none of those is malformed, never zero.
 function costOf(value: unknown): number {
+  let amount: number;
   if (value && typeof value === "object") {
-    const money = value as { units?: string | number; nanos?: number };
-    return Number(money.units ?? 0) + Number(money.nanos ?? 0) / 1e9;
-  }
-  const n = Number(value ?? 0);
-  return Number.isFinite(n) ? n : 0;
+    const money = value as { units?: unknown; nanos?: unknown };
+    amount = Number(money.units ?? 0) + Number(money.nanos ?? 0) / 1e9;
+  } else if (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) amount = Number(value);
+  else amount = Number.NaN;
+  if (!Number.isFinite(amount)) throw new FireworksError(`a rated cost is not an amount (${JSON.stringify(value)})`);
+  return amount;
+}
+
+function lineItemsOf(summary: Record<string, unknown>): { series?: string; totalCost?: unknown }[] {
+  const items = summary.lineItems;
+  if (items === undefined) return [];
+  if (!Array.isArray(items)) throw new FireworksError("billing/summary answered without a list of lineItems");
+  return items as { series?: string; totalCost?: unknown }[];
 }
 
 async function readKeyFromVault(item: string): Promise<string> {
