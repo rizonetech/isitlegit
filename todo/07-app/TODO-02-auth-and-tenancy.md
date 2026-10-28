@@ -36,7 +36,7 @@ track: day-1
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Better Auth on D1 with email magic link | D01 T01 §1, D01 T02 §1 | [x] |
-| 2 | §2 | Passkey sign-in | §1 | [ ] |
+| 2 | §2 | Passkey sign-in | §1 | [x] |
 | 3 | §3 | Organisations, roles, invites and removal | §1 | [ ] |
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [ ] |
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [ ] |
@@ -110,9 +110,12 @@ Evidence 2026-10-28. `@better-auth/passkey` 1.7.13 is enabled in `schemaOptions`
 
 Completion review 2026-10-28 (`docs/reviews/07-app/D07-T02-s2.md`): a passkey's session now passes `requireSession` in the ceremony test; listing and renaming are proven member-only (and refused anonymously); a sign-in response is checked for shape before the plugin consumes the challenge or looks the credential up (a 400 that leaves the attempt usable). **Decision 2026-10-28:** user verification is required, not preferred (**Corrected 2026-10-28** after the final review, which found the item above still saying "preferred" and this line a bare 401): registration options and sign-in options both ask for it, and `src/auth/passkey.ts` refuses a response from a device that was present but not unlocked, 400 at registration and 401 at sign-in, each with the code `USER_VERIFICATION_REQUIRED` so §7 can say what to do; the industry reading of a passkey as proof of the device and its unlocked owner; the plugin itself verifies with it off. Reversing it is one line in `schemaOptions` and the check in `src/auth/auth.ts`; the cost of keeping it is that a security key with no PIN cannot sign in (the email link still can). `test/auth/passkey.test.ts`: 15 passed; four more mutations caught.
 
-- [ ] Commit: `auth: passkey sign-in`
+- [x] Commit: `auth: passkey sign-in`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth test/node/auth-schema.test.ts` passes, and fails if a passkey registers (options or verification) without a fresh session, registration options stop requiring a resident key (whether a credential is discoverable is not in what the authenticator attests, so the server can ask for it but not check it; **Corrected 2026-10-28**, the line claimed more), an assertion from another origin or key signs in, a member removes another member's passkey, or the schema generator rewrites an applied migration or writes one when nothing is missing.
+
+> **Verified:** 2026-10-28 | §2 | f743b035bc9bd52d96319a272691deff85c62085
+> **Review:** `docs/reviews/d07-t02-s2.json`
 
 ## 3. Organisations, roles, invites and removal
 
