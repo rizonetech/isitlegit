@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 25 | Checklist items: 288
+Sections: 25 | Checklist items: 291
 
 | Status | Reference   | Deliverable                              | Needs                | Items |
 | ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
@@ -27,12 +27,12 @@ Sections: 25 | Checklist items: 288
 | [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
 | [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 8     |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
-| [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 8     |
+| [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 9     |
 | [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 8     |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 9     |
+| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 10    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe        | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero   | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 9     |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 10    |
 | [ ]    | D03 T04 §17 | Loupe model card per version             | none                 | 9     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                        | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                          | meta-api, cloudflare | 10    |
@@ -305,4 +305,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 46/234 verified sections, 31 ready to run now.
 
-Checklist: 527/1376 items completed (includes Commit items).
+Checklist: 564/1379 items completed (includes Commit items).
