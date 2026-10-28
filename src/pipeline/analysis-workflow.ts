@@ -31,8 +31,13 @@ export type ReportState =
   | { status: "ready"; verdict: Verdict }
   | { status: "partial"; failedStep: StepName; errorClass: string };
 
-// Four attempts (the first and three retries), 2, 4 and 8 seconds apart.
-const RETRIES: WorkflowStepConfig = { retries: { limit: 3, delay: "2 seconds", backoff: "exponential" } };
+// Four attempts (the first and three retries), 2, 4 and 8 seconds apart, each stopped at 30 seconds: a stalled step ends
+// in `fail` within about two minutes, inside the product's three-minute p95 (design spec 4.10), where the platform's
+// default of ten minutes an attempt would not (completion review). Later steps that call models set their own budget.
+const RETRIES: WorkflowStepConfig = {
+  retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
+  timeout: "30 seconds",
+};
 
 // The stub verdict until the checks and the agent exist: never `safe`, which would mislead a member.
 export const STUB_VERDICT: VerdictView = {
@@ -72,11 +77,10 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     const db = this.env.DB;
     const store: Store = { bucket: this.env.ARTEFACTS, db };
 
-    // A case to analyse, or none: no such case (the binding smoke's instances, a case removed since) or one already
-    // finished. A lookup failure is thrown and retried, never taken for a missing case.
-    const admitted = await step.do("admit", RETRIES, () => admit(db, caseId));
-    if (!admitted.admit) return { caseId, skipped: true };
-    const { orgId } = admitted;
+    // The step that failed after its last attempt: `recordFailure` names it and its error class and ends the case
+    // partial, reading the case itself, so it works whichever step failed (admission included).
+    const fail = (failedStep: StepName, error: unknown) =>
+      step.do("fail", RETRIES, () => recordFailure(db, caseId, failedStep, classOf(error)));
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
@@ -90,14 +94,19 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
         return result as Rpc.Serializable<T>;
       }) as Promise<T>;
 
-    // The step that failed after its last attempt: its event names it and its error class, and the case ends partial.
-    const fail = (failedStep: StepName, error: unknown) =>
-      step.do("fail", RETRIES, async (): Promise<ReportState> => {
-        const errorClass = classOf(error);
-        must(await recordEvent(db, caseId, failedStep, "failed", { errorClass }), "recording the failure");
-        must(await setStatus(db, orgId, caseId, "partial"), "ending the case partial");
-        return { status: "partial", failedStep, errorClass };
-      });
+    // A case to analyse, or none: no such case (the binding smoke's instances, a case removed since) or one already
+    // finished. A lookup failure is thrown and retried, never taken for a missing case; an admission that fails after
+    // its last attempt (the case perhaps already running) goes to `fail` and the reply like any other.
+    let admitted: Awaited<ReturnType<typeof admit>>;
+    try {
+      admitted = await step.do("admit", RETRIES, () => admit(db, caseId));
+    } catch (error) {
+      const state = await fail("admit", error);
+      await timed("reply", () => reply(db, caseId, state)).catch((replyError) => fail("reply", replyError));
+      return { caseId, state };
+    }
+    if (!admitted.admit) return { caseId, skipped: true };
+    const { orgId } = admitted;
 
     let state: ReportState;
     let current: StepName = "parse";
@@ -118,16 +127,23 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       state = await fail(current, error);
     }
 
-    // The reply hands the report state on; D01 T02 §3 sends it. A reply that fails ends a ready case partial.
+    // The reply hands the report state on; D01 T02 §3 sends it. A reply that fails ends a ready case partial, and on a
+    // case already partial its failure is recorded too, the first failure kept as the report's.
     try {
       await timed("reply", () => reply(this.env.DB, caseId, state));
     } catch (error) {
-      if (state.status === "ready") state = await fail("reply", error);
+      const failed = await fail("reply", error);
+      if (state.status === "ready") state = failed;
     }
 
-    // `done` last, once the reply step has run.
-    if (state.status === "ready")
-      await timed("finish", async () => must(await setStatus(db, orgId, caseId, "done"), "finishing"));
+    // `done` last, once the reply step has run; a finish that fails after its last attempt goes to `fail` too.
+    if (state.status === "ready") {
+      try {
+        await timed("finish", async () => must(await setStatus(db, orgId, caseId, "done"), "finishing"));
+      } catch (error) {
+        state = await fail("finish", error);
+      }
+    }
     return { caseId, state };
   }
 }
@@ -139,6 +155,8 @@ export async function admit(
   db: D1Database,
   caseId: string,
 ): Promise<{ admit: false } | { admit: true; orgId: string }> {
+  const startedAt = new Date().toISOString();
+  const began = Date.now();
   const found = await getCaseForPipeline(db, caseId);
   if (!found.ok) {
     if (found.error.code === "not_found" || found.error.code === "invalid") return { admit: false };
@@ -146,14 +164,38 @@ export async function admit(
   }
   const current = found.value;
   if (current.status === "done" || current.status === "partial") return { admit: false };
+  // Its events once the case is known to exist (an event needs its case row).
+  must(await recordEvent(db, caseId, "admit", "started", { startedAt }), "recording admit");
   if (current.status === "received") must(await setStatus(db, current.orgId, caseId, "running"), "starting the case");
-  must(await recordEvent(db, caseId, "admit", "done"), "recording admit");
+  must(await recordEvent(db, caseId, "admit", "done", { startedAt, ms: Date.now() - began }), "recording admit");
   return { admit: true, orgId: current.orgId };
+}
+
+// A step's failure after its last attempt: an event naming the step and its error class, and the case `partial`
+// (moved through `running` if admission failed before it got there). A case already `done` stays so: its `finish`
+// committed and only what followed failed. A case that no longer exists has nothing to record.
+export async function recordFailure(
+  db: D1Database,
+  caseId: string,
+  failedStep: StepName,
+  errorClass: string,
+): Promise<ReportState> {
+  const state: ReportState = { status: "partial", failedStep, errorClass };
+  const found = await getCaseForPipeline(db, caseId);
+  if (!found.ok) {
+    if (found.error.code === "not_found" || found.error.code === "invalid") return state;
+    throw new Error(`looking the case up: ${found.error.code}`);
+  }
+  const { orgId, status } = found.value;
+  must(await recordEvent(db, caseId, failedStep, "failed", { errorClass }), "recording the failure");
+  if (status === "received") must(await setStatus(db, orgId, caseId, "running"), "starting the case");
+  if (status !== "done") must(await setStatus(db, orgId, caseId, "partial"), "ending the case partial");
+  return state;
 }
 
 // Reads the forward, parses the original it carries (§4 to §6) and stores the summary (§5); the header state (§4, or
 // the .msg parser's own, §6) goes to the case and the summary alike. A message the parsers refuse is not retried.
-async function parse(store: Store, caseId: string): Promise<string> {
+export async function parse(store: Store, caseId: string): Promise<string> {
   const raw = await readArtefact(store, caseId, rawKey(caseId));
   if (!raw || !("body" in raw)) throw fatal("RawMissing");
   try {

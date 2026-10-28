@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict } from "../../src/db/verdicts";
 import { parsedKey, putRaw, readArtefact, type Store } from "../../src/intake/store";
-import { admit, checks, STUB_VERDICT } from "../../src/pipeline/analysis-workflow";
+import { admit, checks, parse, recordFailure, STUB_VERDICT } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
 import { forwards } from "../fixtures/forward/load";
 import { msgs } from "../fixtures/msg/load";
@@ -55,6 +55,50 @@ const summary = async (id: string) => {
   return JSON.parse(new TextDecoder().decode(read.body));
 };
 
+// A forward carrying, as an attached message, an original with a text body and a small PDF.
+const ORIGINAL_PDF = "%PDF-1.4\n% invoice 77\n%%EOF\n";
+function forwardWithOriginal() {
+  const original = [
+    "From: billing@fictional-supplier.example",
+    "To: accounts@fictional-recipient.example",
+    "Subject: Invoice 77 with new bank details",
+    "Message-ID: <inv77@fictional-supplier.example>",
+    'Content-Type: multipart/mixed; boundary="o"',
+    "",
+    "--o",
+    "Content-Type: text/plain",
+    "",
+    "Please pay invoice 77 into our new account.",
+    "--o",
+    'Content-Type: application/pdf; name="invoice-77.pdf"',
+    'Content-Disposition: attachment; filename="invoice-77.pdf"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    btoa(ORIGINAL_PDF),
+    "--o--",
+    "",
+  ].join("\r\n");
+  return new TextEncoder().encode(
+    [
+      "From: boss@fictional-recipient.example",
+      "To: check@isitlegit.co.za",
+      "Subject: Fwd: Invoice 77",
+      'Content-Type: multipart/mixed; boundary="f"',
+      "",
+      "--f",
+      "Content-Type: text/plain",
+      "",
+      "Is this real?",
+      "--f",
+      "Content-Type: message/rfc822",
+      "",
+      original,
+      "--f--",
+      "",
+    ].join("\r\n"),
+  );
+}
+
 // A forward carrying `bytes` as an attached Outlook message.
 function forwardWithMsg(bytes: Uint8Array) {
   const base64 = btoa(String.fromCharCode(...bytes)).replace(/.{76}/g, "$&\r\n");
@@ -94,8 +138,10 @@ describe("AnalysisWorkflow", () => {
     });
     const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
     expect(steps).toEqual([
-      "admit:done",
-      ...["parse", "checks", "verdict", "store", "reply", "finish"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      ...["admit", "parse", "checks", "verdict", "store", "reply", "finish"].flatMap((s) => [
+        `${s}:started`,
+        `${s}:done`,
+      ]),
     ]);
     // The reply step ran while the case was still running, with the ready state; nothing was mailed.
     expect(reply).toEqual({ state: { status: "ready", verdict: "suspicious" }, caseStatus: "running" });
@@ -226,6 +272,96 @@ describe("AnalysisWorkflow", () => {
     expect((await setVerdict(env.DB, ORG, id, "suspicious")).ok).toBe(true);
     await run(id);
     expect(await caseRow(id)).toMatchObject({ status: "done", verdict: "suspicious" });
+  });
+});
+
+describe("failures past their last attempt", () => {
+  it("ends a case partial when admission fails after it was already running", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    const { reply } = await run(id, (m) => m.mockStepError({ name: "admit" }, new Error("down"), 4));
+    expect((await caseRow(id))?.status).toBe("partial");
+    expect((await events(id)).find((e) => e.status === "failed")).toEqual({
+      step: "admit",
+      status: "failed",
+      error: "Error",
+    });
+    expect(reply).toMatchObject({ state: { status: "partial", failedStep: "admit" } });
+  });
+
+  it("ends a case partial when finish fails, its verdict kept", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    await run(id, (m) => m.mockStepError({ name: "finish" }, new Error("down"), 4));
+    expect(await caseRow(id)).toMatchObject({ status: "partial", verdict: "suspicious" });
+    expect((await events(id)).find((e) => e.status === "failed")?.step).toBe("finish");
+  });
+
+  it("records a partial reply's own failure and keeps the first failure as the report's", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    const { output } = await run(id, async (m) => {
+      await m.mockStepError({ name: "checks" }, new Error("down"), 4);
+      await m.mockStepError({ name: "reply" }, new Error("down"), 4);
+    });
+    expect((await caseRow(id))?.status).toBe("partial");
+    expect((await events(id)).filter((e) => e.status === "failed").map((e) => e.step)).toEqual(["checks", "reply"]);
+    expect(output).toMatchObject({ state: { status: "partial", failedStep: "checks" } });
+  });
+
+  it("leaves a done case done when only what followed its finish failed", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    await run(id);
+    expect(await recordFailure(env.DB, id, "finish", "Error")).toEqual({
+      status: "partial",
+      failedStep: "finish",
+      errorClass: "Error",
+    });
+    expect((await caseRow(id))?.status).toBe("done");
+    expect((await events(id)).at(-1)).toEqual({ step: "finish", status: "failed", error: "Error" });
+  });
+
+  it("ends a step that times out on every attempt partial", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    await run(id, (m) => m.forceStepTimeout({ name: "checks" }, 4));
+    expect((await caseRow(id))?.status).toBe("partial");
+    expect((await events(id)).find((e) => e.status === "failed")?.step).toBe("checks");
+  });
+});
+
+describe("the parse step", () => {
+  it("stores the attached original's body and attachment bytes, not the forward's", async () => {
+    const id = await caseWith(forwardWithOriginal());
+    await run(id);
+    const stored = await summary(id);
+    expect(stored.text).toContain("Please pay invoice 77 into our new account.");
+    expect(stored.text).not.toContain("Is this real?");
+    const pdf = stored.attachments.find((a: { filename: string }) => a.filename === "invoice-77.pdf");
+    const bytes = await readArtefact(store, id, pdf.key);
+    expect(bytes && "body" in bytes ? new TextDecoder().decode(bytes.body) : "").toBe(ORIGINAL_PDF);
+  });
+
+  it("throws, to be retried, when storage or the header write fails", async () => {
+    const id = await caseWith(forwardWithOriginal());
+    const bucketDown = {
+      get: (key: string) => env.ARTEFACTS.get(key),
+      head: (key: string) => env.ARTEFACTS.head(key),
+      put: () => Promise.reject(new Error("R2 down")),
+    } as unknown as R2Bucket;
+    await expect(parse({ bucket: bucketDown, db: env.DB }, id)).rejects.toThrow();
+    const headersDown = {
+      prepare: (sql: string) =>
+        sql.startsWith("UPDATE cases SET headers_available")
+          ? { bind: () => ({ first: () => Promise.reject(new Error("D1 down")) }) }
+          : env.DB.prepare(sql),
+    } as unknown as D1Database;
+    await expect(parse({ bucket: env.ARTEFACTS, db: headersDown }, id)).rejects.toThrow(
+      /storing the header state: database/,
+    );
+    // Neither is a refusal the Workflow would not retry.
+    for (const broken of [
+      { bucket: bucketDown, db: env.DB },
+      { bucket: env.ARTEFACTS, db: headersDown },
+    ])
+      expect(await parse(broken, id).catch((error: Error) => error.name)).not.toBe("NonRetryableError");
   });
 });
 
