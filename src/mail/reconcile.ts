@@ -240,14 +240,20 @@ async function handOver(deps: ReconcileDeps, row: Row, report: ReconcileReport):
       "docs/operations.md has the steps.",
     ].join("\n"),
   };
-  const outcome = await sendMail(deps, message);
+  // A malformed OPERATOR_EMAIL makes sendMail throw; that is this row's error, not the end of the run.
+  let outcome: Awaited<ReturnType<typeof sendMail>>;
+  try {
+    outcome = await sendMail(deps, message);
+  } catch (error) {
+    report.errors.push(
+      `${row.send_key}: the operator alert could not be sent (${(error as Error).message}; check OPERATOR_EMAIL)`,
+    );
+    return;
+  }
   // Handed over only when the alert is known to have gone; an uncertain alert is reconciled as a send of its own.
   if (outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent"))
     report.handedOver.push(row.send_key);
   else if (outcome.status === "failed")
     report.errors.push(`${row.send_key}: the operator alert failed (${outcome.reason})`);
-  // The allowlist refusing the operator's own address is a configuration fault, final, not a send to retry.
-  else if (outcome.status === "refused")
-    report.errors.push(`${row.send_key}: the operator alert was refused (${outcome.reason}; check OPERATOR_EMAIL)`);
   else report.unresolved.push(row.send_key);
 }

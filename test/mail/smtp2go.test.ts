@@ -359,8 +359,20 @@ describe("sendMail", () => {
     expect(rows.results).toEqual([{ status: "refused", to_hash: await recipientHash("someone@example.com") }]);
   });
 
+  it("records no row for a refused sign-in, which anyone can ask for", async () => {
+    const { stub, calls } = smtp2go([ok()]);
+    const before = await db.prepare("SELECT COUNT(*) AS n FROM mail_sends").first<{ n: number }>();
+    const outcome = await sendMail(
+      deps(stub),
+      message({ to: "nobody@example.com", kind: "signin", sendKey: "signin:nobody" }),
+    );
+    expect(outcome.status).toBe("refused");
+    expect(calls).toHaveLength(0);
+    expect((await db.prepare("SELECT COUNT(*) AS n FROM mail_sends").first<{ n: number }>())?.n).toBe(before?.n);
+  });
+
   it("leaves a send already on record as it was when a later refusal meets its key", async () => {
-    for (const status of ["sent", "failed", "uncertain"]) {
+    for (const status of ["sent", "failed", "uncertain", "pending"]) {
       const key = `reply:prior-${status}`;
       const at = new Date().toISOString();
       await db

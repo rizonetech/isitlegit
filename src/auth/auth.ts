@@ -66,6 +66,9 @@ export function authOptions(database: BetterAuthOptions["database"], env: Omit<A
             subject: "Your IsItLegit sign-in link",
             text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${url}\n\nIf you did not ask for it, ignore this mail.`,
           });
+          // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
+          // never tells a stranger who is registered; a failed or unknown send is still an error.
+          if (outcome.status === "refused") return;
           const delivered =
             outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
           if (!delivered)

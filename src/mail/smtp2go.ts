@@ -131,6 +131,10 @@ async function attempt(deps: MailDeps, apiKey: string, payload: string): Promise
   return { kind: "uncertain", reason: `SMTP2GO answered HTTP ${response.status} without confirming the message` };
 }
 
+// Sign-in mail to one address: at most this many in this window.
+export const SIGNIN_PER_ADDRESS = 5;
+export const SIGNIN_WINDOW_MS = 10 * 60_000;
+
 export async function sendMail(deps: MailDeps, message: MailMessage): Promise<SendOutcome> {
   if (!deps.apiKey) throw new ConfigError("SMTP2GO_API_KEY is not set");
   checkMessage(message);
@@ -142,8 +146,20 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
   // 0. The allowlist, before anything else. A refusal is recorded under its key without touching a key already on
   // record (sent, pending, uncertain, failed or refused keep their row and evidence), and nothing is sent.
   let allowed: boolean;
+  let overLimit = false;
   try {
     allowed = await isAllowedRecipient(db, message.to, message.kind, deps.operator);
+    // Sign-in mail is asked for by anyone: at most SIGNIN_PER_ADDRESS to one address in SIGNIN_WINDOW_MS, counted from
+    // the sends already on record, so a stranger cannot fill a member's or the operator's mailbox (D07 T02 §6 adds the
+    // per-IP limit and the audit trail).
+    if (allowed && message.kind === "signin") {
+      const since = new Date(Date.parse(now()) - SIGNIN_WINDOW_MS).toISOString();
+      const recent = await db
+        .prepare("SELECT COUNT(*) AS n FROM mail_sends WHERE kind = 'signin' AND to_hash = ? AND created_at > ?")
+        .bind(toHash, since)
+        .first<{ n: number }>();
+      overLimit = (recent?.n ?? 0) >= SIGNIN_PER_ADDRESS;
+    }
   } catch {
     // The allowlist cannot be read (D1 unreachable): nothing is sent, and nothing could be recorded either.
     return {
@@ -152,7 +168,11 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
       attempts: 0,
     };
   }
+  if (overLimit) return { status: "refused", reason: "too many sign-in links to this address; try again later" };
   if (!allowed) {
+    // A refused sign-in is a stranger's request, anonymous input: not recorded, so it cannot grow the table. A refusal
+    // of any other kind is the system's own send and is recorded under its key.
+    if (message.kind === "signin") return { status: "refused", reason: "the recipient is not on the allowlist" };
     const at = now();
     try {
       await db

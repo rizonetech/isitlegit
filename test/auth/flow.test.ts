@@ -272,13 +272,26 @@ describe("magic-link sign-in through the Worker", () => {
     restore = smtp.restore;
     expect((await requestLink("realmember@example.com")).status).toBe(200);
     expect(smtp.sends.map((s) => s.to)).toEqual(["realmember@example.com"]);
+    // A stranger is answered exactly as a member is, sent nothing, and leaves no row behind.
+    const before = await db.prepare("SELECT COUNT(*) AS n FROM mail_sends").first<{ n: number }>();
+    const member = await requestLink("realmember@example.com");
     const stranger = await requestLink("stranger@example.com");
-    expect(stranger.status).toBe(502);
-    expect(smtp.sends).toHaveLength(1);
-    const refused = await db
-      .prepare("SELECT COUNT(*) AS n FROM mail_sends WHERE kind = 'signin' AND status = 'refused'")
-      .first<{ n: number }>();
-    expect(refused?.n).toBeGreaterThanOrEqual(1);
+    expect([stranger.status, await stranger.text()]).toEqual([member.status, await member.text()]);
+    expect(smtp.sends.map((s) => s.to)).toEqual(["realmember@example.com", "realmember@example.com"]);
+    const after = await db.prepare("SELECT COUNT(*) AS n FROM mail_sends").first<{ n: number }>();
+    expect((after?.n ?? 0) - (before?.n ?? 0)).toBe(1);
+  });
+
+  it("sends at most five sign-in links to one address in ten minutes, answering the sixth the same", async () => {
+    await addMember(db, "busy@example.com");
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    for (let i = 0; i < 6; i++) expect((await requestLink("busy@example.com")).status, `request ${i + 1}`).toBe(200);
+    expect(smtp.sends).toHaveLength(5);
+    // Another address is not held back by it.
+    await addMember(db, "calm@example.com");
+    await requestLink("calm@example.com");
+    expect(smtp.sends).toHaveLength(6);
   });
 
   it("answers Better Auth's health check", async () => {

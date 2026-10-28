@@ -193,6 +193,20 @@ describe("reconcileUncertain", () => {
     expect(without.errors).toContain(`${noOperator}: no operator address (OPERATOR_EMAIL) to hand it to`);
   });
 
+  it("reports a malformed OPERATOR_EMAIL against each row and carries on, instead of ending the run", async () => {
+    const first = await row("uncertain", 3 * 24 * 60 + 10);
+    const second = await row("uncertain", 3 * 24 * 60 + 30);
+    const world = smtp2go({ events: [] });
+    const report = await reconcileUncertain(deps(world.stub, { operator: "hostmaster@rizonetech" }), band);
+    for (const key of [first, second])
+      expect(
+        report.errors.some(
+          (e) => e.startsWith(`${key}: the operator alert could not be sent`) && e.includes("OPERATOR_EMAIL"),
+        ),
+      ).toBe(true);
+    expect(world.sends).toEqual([]);
+  });
+
   it("does not count an uncertain alert as handed over, reconciles it, and never alerts about an alert (completion review)", async () => {
     const stuck = await row("uncertain", 3 * 24 * 60 + 10);
     // The alert's own send gets no answer.
