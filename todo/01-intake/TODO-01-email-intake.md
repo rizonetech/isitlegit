@@ -348,7 +348,7 @@ The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (st
 
 Forwarding to `check@` takes at least three actions (forward, type the address, send), and keeping the original headers needs one more choice, forward as attachment (spec 4.1). Microsoft's own Report button in Outlook takes two selections from an open message. An IsItLegit button in Outlook can send the open message as an attachment to `check@` in at most two actions, with no address typed and the headers always kept (D01 T01 §3 completion review, Part 2 item 1). The email path stays as it is; the button is another way into it.
 
-**Phase:** 7
+**Phase:** 6
 **Needs:** attended
 **Surface:** yes
 
@@ -356,6 +356,8 @@ Forwarding to `check@` takes at least three actions (forward, type the address, 
 **Job:** a member reports the open message to IsItLegit in at most two actions, by keyboard or screen reader as well as by mouse, and the forward always carries the original as an attachment.
 **Treatment:** one button labelled "Check with IsItLegit", one short confirmation, the IsItLegit mark; Outlook's own task-pane layout.
 **Chrome:** Outlook's add-in surfaces only (the ribbon button and a task pane), no second window.
+
+**Operator decision (2026-10-28 22:42 SAST):** build it once the core path (forward, verdict, report) is stamped and before the demo footage (D99 T02 §3), so the demo can show it; moved from Phase 7 to Phase 6 (Sun 1 to Wed 4 Nov), before the footage. The operator's Microsoft 365 admin deploys the add-in once (`attended`).
 
 **Build order:**
 
@@ -384,14 +386,16 @@ After a forward, the member hears nothing until the verdict reply (D01 T02 §3),
 **Treatment:** plain text, two lines: received, the case reference, and that the answer follows; no verdict and no link.
 **Chrome:** the reply's own mail template (D01 T02 §3), not a new one.
 
+**Operator decision (2026-10-28 22:42 SAST):** no acknowledgement is sent: the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain. `design/SPEC.md` 0.7 records it; the send and measure items are struck.
+
 **Build order:**
 
 1. Decide whether the acknowledgement is sent, and its copy, in the SPEC. Done when: the SPEC records the decision and the copy, or records that none is sent and why.
 2. Send it after admission and prove it is never sent for a refusal. Done when: an admitted forward gets one acknowledgement and a refused one gets nothing.
 
-- [ ] Record in `design/SPEC.md` whether an acknowledgement is sent (weighed against one more mail per check and the reply arriving within a minute), with its copy if so. Done when: the SPEC section states the decision with its reason.
-- [ ] Send the acknowledgement as mail kind `notice` under the send key `ack:<caseId>` from `handleEmail` (`src/intake/email.ts`) after the claim is marked done, its outcome never failing the delivery. Done when: `test/intake/email.test.ts` sees one acknowledgement naming the case reference for an admitted forward, none for a duplicate, a capped, a dropped or a too-large one, and none twice for a retried delivery.
-- [ ] Measure the time from the handler's start to the acknowledgement's send in the live smoke (D01 T01 §9's fixture). Done when: `docs/live-checks.md` records it under five seconds.
+- [x] Record in `design/SPEC.md` whether an acknowledgement is sent (weighed against one more mail per check and the reply arriving within a minute), with its copy if so. Done when: the SPEC section states the decision with its reason. Done 2026-10-28: SPEC 0.7 records that none is sent, and why.
+- [x] ~~Send the acknowledgement as mail kind `notice` under the send key `ack:<caseId>` from `handleEmail` (`src/intake/email.ts`) after the claim is marked done, its outcome never failing the delivery. Done when: `test/intake/email.test.ts` sees one acknowledgement naming the case reference for an admitted forward, none for a duplicate, a capped, a dropped or a too-large one, and none twice for a retried delivery.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
+- [x] ~~Measure the time from the handler's start to the acknowledgement's send in the live smoke (D01 T01 §9's fixture). Done when: `docs/live-checks.md` records it under five seconds.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
 - [ ] Commit: `intake: acceptance acknowledgement for a forward`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if a refused or duplicate forward is acknowledged, or one forward is acknowledged twice.

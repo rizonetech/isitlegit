@@ -119,6 +119,8 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | N8 | Daily limit reached | The member | D07 T02 §4 |
 | N9 | Operator notice (budget cap, feedback) | The operator | D03 T01 §2, D07 T03 §6 |
 
+No acknowledgement is mailed when a forward is admitted (operator, 2026-10-28, D01 T01 §11): the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain.
+
 ## 1. Shared parts
 
 Every page is drawn from these parts and from the tokens in `design/tokens/colors.json`; a page never invents its own header, navigation or colour. The approved canvas stylesheet is `mockups/source/ui.css`, and its values are the tokens: colours from `design/tokens/colors.json` (for example ink `#181519`, muted `#4D4953`, orange `#FF4A14` for graphics only, orange text `#CC2E00` for links, eyebrows and the primary button, suspicious `#8A5200` for text and `#B26A00` for graphics, and input borders in control border `#8E8A95`), type from `design/tokens/typography.json` (Exo for headings and figures, Exo 2 for text), spacing, radii and control heights from `design/tokens/spacing.json` (a 4 px scale; 12 px card radius, 16 px panel radius; controls 48 px and 36 px high). Buttons come in primary, dark, ghost, danger and link styles; pills come in safe, suspicious, malicious, partial, running and neutral, and the admin sidebar's brand ("Rizonetech admin", dark on orange) and alert (a count, white on the malicious band) as `AdminNav` draws them (D07 T01 §3).
@@ -261,7 +263,7 @@ Controls:
 - protected identity: Register domains, logo and bank account. (ProtectSite)
 - website seal: Seal shown on the real domain, blocked on a copy. (ProtectSite)
 - signature badge: Badge that turns copies into evidence. (ProtectSite)
-- impersonation monitor: Daily lookalike watch with Muse Glimmer screening, Muse Spark as failover (corrected 2026-10-28, operator decision: Glimmer on Fireworks restored; corrected 2026-10-27, was Muse Glimmer). (ProtectSite)
+- impersonation monitor: Daily lookalike watch with Loupe screening (a Muse Glimmer LoRA tuned on Fireworks), Muse Spark as failover (corrected 2026-10-28 20:45 SAST: Loupe, a Muse Glimmer 30B LoRA fine-tuned on Fireworks for this job (D03 T04, the glimmer lane), replaces base Glimmer on serverless, operator decisions 15:01 to 15:16 SAST; corrected 2026-10-28, operator decision: Glimmer on Fireworks restored; corrected 2026-10-27, was Muse Glimmer). (ProtectSite)
 - closed-loop verification: Finance contact confirms changed bank details; the buttons drawn are illustration of the email reply (N5). (ProtectSite)
 - Protect my business: Opens Sign up; See a verify page opens T1; See pricing opens S5. (ProtectSite)
 
@@ -296,7 +298,7 @@ Boards: [PNG](mockups/png/Privacy.png) · [source](mockups/source/Privacy.dc.htm
 
 Controls:
 
-- processors: Cloudflare, Meta Model API with store: false, Fireworks AI (serverless screening of public lookalike pages; no prompt or output retained), SMTP2GO, Google Web Risk (corrected 2026-10-28, operator decision: Fireworks AI returns as the monitor's screener, so the Privacy board's copy is right again on it; corrected 2026-10-27: Fireworks AI and Baseten were removed; this list wins over the board's copy). (Privacy)
+- processors: Cloudflare, Meta Model API with store: false, Fireworks AI (Loupe screening public lookalike pages on a dedicated deployment; Fireworks keeps no prompt or output of open models without opt-in; Loupe is trained through Fireworks' Training API, which stores no dataset file, its checkpoints kept 30 days), SMTP2GO, Google Web Risk (corrected 2026-10-28 20:45 SAST: Loupe replaces serverless Glimmer, and its training is disclosed; whether the no-logging terms cover a dedicated LoRA deployment is confirmed with Fireworks in D03 T04 §12 before launch; corrected 2026-10-28, operator decision: Fireworks AI returns as the monitor's screener, so the Privacy board's copy is right again on it; corrected 2026-10-27: Fireworks AI and Baseten were removed; this list wins over the board's copy). (Privacy)
 - purposes: Mail, account, supplier ledger, feedback. (Privacy)
 - retention: Retention table. (Privacy)
 - information officer: Responsible party and contact hello@isitlegit.co.za. (Privacy)

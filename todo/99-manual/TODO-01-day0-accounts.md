@@ -43,16 +43,20 @@ track: day-0
 | 4 | §4 | SMTP2GO sender domain | §2 | [ ] |
 | 5 | §5 | WhatsApp test number | -- | [ ] |
 | 6 | §6 | Google Web Risk API key | -- | [ ] |
-| 7 | §7 | Partner credits for Glimmer | -- | [ ] |
+| 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
 
 ## 1. Meta API billing and API key
 
+> **Started:** 2026-10-28T20:32:02Z
+
 Credits apply in batches after the claim form; until they show, every call is charged to the card (`sources/cerebralvalley/2026-10-26-credit-claim.md`).
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -64,19 +68,25 @@ Credits apply in batches after the claim form; until they show, every call is ch
 - [x] Set a Spend Limit notification at US$150. Done when: Billing shows it. Evidence 2026-10-27 01:37 SAST: the operator confirmed it on the Meta Model API Billing page.
 - [x] Create an API key named `isitlegit-hackathon` and store it in the Conclave vault as "IsItLegit Meta Model API" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Cheaper substitute: pasting the key into chat or a file. Evidence 2026-10-27 00:50 SAST: the operator filled the vault item; a free model listing with it returned 200 and lists muse-spark-1.3, muse-wonder-1.0, sam-3.1 and muse-voice-transcribe-1.0.
 - [x] Confirm US$150 under Billing, "free credits", and record it here as a line `Meta credit visible: YYYY-MM-DD`. Done when: the line is written; every `meta-api` section checks for it before its first call. Evidence: the operator reported the credit showing on Billing at 00:40 SAST on 2026-10-27.
+The key and the credit are on one Meta Model API team: the operator created the key in the same Model API dashboard whose Billing shows the hackathon credit (2026-10-27, items above), and the key's live calls are billed there (`docs/meta-smoke-test.md`, `docs/live-checks.md`). The `Meta credit visible` line proves the credit was visible on that date, not what remains; remaining spend is the budget guard's (D03 T01 §2).
+
 - [ ] Commit: `todo: record the Meta Model API account as ready`
 
 Meta credit visible: 2026-10-27
 
-**Test checkpoint:** `op item get "IsItLegit Meta Model API" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has) (the item exists; the value is never printed).
+**Test checkpoint:** `python3 scripts/check-meta-key.py` exits 0 and prints `HTTP 200, <n> models listed, muse-spark-1.3 among them; key shape ok`: the vault's key has Meta's shape and Meta accepts it on its free model list, so a placeholder, a revoked or another team's key fails, and a stalled vault (60 s) or network (30 s) fails with a reason; the key is never printed (`tests/scripts/test_check_meta_key.py`). **Corrected 2026-10-28** (the final review): it counted the credential's bytes, which proved only that something was stored; earlier still it called bare `op item get`. Evidence 2026-10-28 23:10 SAST: `check-meta-key: HTTP 200, 9 models listed, muse-spark-1.3 among them; key shape ok`, exit 0.
 
 ## 2. Domain verification and nameservers
+
+> **Started:** 2026-10-28T20:32:02Z
 
 `isitlegit.co.za` is on `serverHold` until the registrant contact is verified; the nameserver change to Cloudflare is queued behind it.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -103,11 +113,15 @@ Meta credit visible: 2026-10-27
 
 ## 3. Workers Paid plan
 
+> **Started:** 2026-10-28T20:32:02Z
+
 Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"). The Cloudflare API token cannot read billing, so the operator confirms it in the dashboard.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -123,11 +137,15 @@ Plan read: Workers Paid, 2026-10-27
 
 ## 4. SMTP2GO sender domain
 
+> **Started:** 2026-10-28T20:32:02Z
+
 Replies, verification mails and alerts go out through SMTP2GO from `check@`, `verify@`, `alerts@` and `no-reply@isitlegit.co.za` (stack doc "Outbound mail"; **Corrected 2026-10-26:** `no-reply@` added for sign-in and invitation mail, D07 T08 §6). One verified sender domain covers every address. The DNS records SMTP2GO gives are added to the Cloudflare zone by Claude once the operator starts the sender-domain setup.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -140,7 +158,7 @@ Replies, verification mails and alerts go out through SMTP2GO from `check@`, `ve
 - [x] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account. Done: Evidence 2026-10-27 01:27 SAST: the operator narrowed the key; a send from `no-reply@isitlegit.co.za` to `hello@isitlegit.co.za` ("IsItLegit SMTP2GO send test", SMTP2GO email id `1xLU5R-FnQW0hPtclR-gWDp`, sent 23:26:41 UTC on 2026-10-26) reached the derick@rizonetech.com Inbox nine seconds later (internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>`), passing DMARC `p=reject`. The narrowed key can still read account stats (read-only), which is harmless.
 - [ ] Commit: `todo: record the SMTP2GO sender domain as verified`
 
-**Test checkpoint:** `dig +short CNAME em.isitlegit.co.za @1.1.1.1` (or the record names SMTP2GO gives) resolves to SMTP2GO targets.
+**Test checkpoint:** `dig +short CNAME em1027207.isitlegit.co.za @1.1.1.1` prints `return.smtp2go.net.` and `dig +short CNAME s1027207._domainkey.isitlegit.co.za @1.1.1.1` prints `dkim.smtp2go.net.` (**Corrected 2026-10-28:** it named `em`, a placeholder; SMTP2GO gave `em1027207` and `s1027207._domainkey`, item 2's evidence).
 
 ## 5. WhatsApp test number
 
@@ -167,11 +185,15 @@ The WhatsApp intake (design spec 4.1a) needs a Meta for Developers app with the 
 
 ## 6. Google Web Risk API key
 
+> **Started:** 2026-10-28T20:32:02Z
+
 URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls a month (design spec 4.3a).
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+
+**Corrected 2026-10-28** (at start): every operator step below is done and carries its evidence, so `operator` leaves Needs; the checkpoint was re-run today and passes.
 
 **Build order:**
 
@@ -184,30 +206,35 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 - [x] ~~Add a Google Cloud budget alert on the Rizonetech project for the Web Risk API at US$1 (alerts at 50, 90 and 100%), so any charge at all is seen the same day. Done when: Billing, Budgets and alerts lists it.~~ **Struck 2026-10-27:** the budget's Services filter lists only services with billable usage, and Web Risk has none (its free tier is not billed); a project-wide alert would fire on the project's other services. Charges are already bounded: the code caps lookups at 3,000 a day (D02 T06 §1) and a test refuses any Update API call; the metrics check below covers the other path.
 - [ ] Commit: `todo: record the Web Risk key`
 
-**Test checkpoint:** `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has).
+**Test checkpoint:** `bash -o pipefail -c '~/.local/bin/conclave-op read "op://Conclave/IsItLegit Web Risk/credential" | tr -d "\r\n" | wc -c'` exits 0 and prints a number greater than 1 (the lookup succeeded and the key is filled in; only the count is shown, never the value). **Corrected 2026-10-28** (D99 T01 §1's plan review): it called bare `op item get`, outside WSL's Conclave path (`conclave-op` with the service account), and a failed lookup could still print a count; the earlier text, kept: `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has).
 
 ## 7. Partner credits for Glimmer
+
+> **Started:** 2026-10-28T20:27:46Z
 
 The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-27 (operator decision, 10:47 SAST):** the outside providers are removed from the plan, and Standard Muse Spark on the Meta Model API screens the monitor's pages (D03 T04; the operator first chose Muse Spark 1.3 Contributor and withdrew it at 11:05 SAST, as lure pages carry personal data), so no partner credit is used. This section now only records what each offer came to. Its earlier items (apply for the Fireworks, Baseten and Modal credits; store the provider key; lift `third-party` from D03 T04's Needs) are superseded: D03 T04 no longer names a provider or that Need.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
-**Corrected 2026-10-28** (operator, 20:22 SAST): the product calls Meta's Model API and Fireworks AI only; Baseten and Modal are closed. Fireworks is used (Loupe, D03 T04), so its line reads `used`; Modal was offered and never applied for, so the record takes `not applied` beside `applied`, `granted` and `not offered`.
+**Corrected 2026-10-28** (operator, 20:22 SAST): the product calls Meta's Model API and Fireworks AI only; Baseten and Modal are closed. Fireworks is used (Loupe, D03 T04), so its line reads `used`; Modal was first reported never applied for, so the record takes `not applied` beside `applied`, `granted` and `not offered`; at 22:28 SAST the operator reported US$30 of free Modal credit a month, granted and not used (nothing in the product needs it, and a third provider costs an integration, a key and a processor). With Modal's outcome given, the operator has answered all three, so `operator` leaves Needs.
 
 **Build order:**
 
-1. Record each partner credit and that it is not used. Done when: one line per provider below.
+1. Record each partner credit and whether it is used. Done when: one line per provider below.
 
 - [x] Record each partner offer as a line `Partner credit <name>: <applied|granted|not applied|not offered>, YYYY-MM-DD (<what it covered>; <used|not used>: <the operator decision>)`, for Fireworks, Baseten and Modal. Done when: the three lines exist.
-- [ ] Commit: `todo: record partner credits`
+- [x] Commit: `todo: record partner credits`
 
 Partner credit Baseten: granted, 2026-10-27 (US$100 and up to 2M tokens per minute for `meta-models/muse-spark-open-1026` only, Meta's open-weights Muse Spark; verified 10:30 SAST with a text and an image call; not used: operator decisions 2026-10-27 and 2026-10-28 20:22 SAST, the product calls Meta's Model API and Fireworks AI only, and Baseten is closed; the key stays in Conclave as "Baseten x Meta Hackathon Key" until the operator deletes it)
 Partner credit Fireworks: granted, 2026-10-28 (US$100 loaded, reported by the operator at 09:02 SAST; used: operator decision 2026-10-28 09:05 SAST reversed the 2026-10-27 one, and Loupe, a Glimmer LoRA trained and served on Fireworks, screens the monitor's pages, D03 T04; keys in the vault items "IsItLegit Fireworks" (inference), "IsItLegit Fireworks Admin" (local scripts) and "IsItLegit Fireworks Owner" (the operator's own, for serverless training), each filled and answering HTTP 200 on 2026-10-28)
-Partner credit Modal: not applied, 2026-10-28 (offered for hosting Muse Glimmer; not used: operator decision 2026-10-28 20:22 SAST, the product calls Meta's Model API and Fireworks AI only, and Modal is closed)
+Partner credit Modal: granted, 2026-10-28 (US$30 of free Modal credit a month, reported by the operator at 22:28 SAST; not used: operator decisions 2026-10-28 20:22 and 22:28 SAST, the product calls Meta's Model API and Fireworks AI only and Modal adds no value worth a third provider, so Modal stays closed)
 
-**Test checkpoint:** `grep -cE '^Partner credit (Fireworks|Baseten|Modal): ' todo/99-manual/TODO-01-day0-accounts.md` prints `3`.
+**Test checkpoint:** `python3 scripts/check-partner-credits.py` prints `3` and exits 0: exactly three records, one per provider, each with an outcome from the list, a real calendar date, coverage and a decision in words and exactly one usage decision however it is spelled, Fireworks used and Baseten and Modal not used; `python3 -m unittest tests.scripts.test_check_partner_credits` proves each malformed record refused (**Corrected 2026-10-28** (plan review, round 1 and the final review): a prefix count, then two shell patterns, passed empty, duplicate, contradictory, misspelled, placeholder and impossibly dated records, so the proof moved to a parser).
+
+> **Verified:** 2026-10-28 | §7 | 4da4eb41345f30b4748f70ad063e4ef9abe08909
+> **Review:** `docs/reviews/d99-t01-s7.json`
 
 ## 8. AI Gateway tokens
 

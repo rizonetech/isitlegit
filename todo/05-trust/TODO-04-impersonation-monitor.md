@@ -9,7 +9,7 @@ track: day-6
 
 # TODO-04 -- Impersonation Monitor for Fake Websites
 
-> **Goal:** Every day the monitor generates lookalike domains for each protected business, checks which resolve, screens new or changed live pages cheaply (Muse Glimmer on Fireworks with Muse Spark as failover, D03 T04 §1; corrected 2026-10-28, operator decision; corrected 2026-10-27, was Glimmer or Spark), sends flagged pages through the full vision pipeline and, where a form exists, the walkthrough, and alerts the business with a takedown pack (domain, registrar and host from RDAP, screenshots, abuse contacts).
+> **Goal:** Every day the monitor generates lookalike domains for each protected business, checks which resolve, screens new or changed live pages cheaply (Loupe, a Muse Glimmer LoRA tuned on Fireworks, with Muse Spark as failover, D03 T04 §1; corrected 2026-10-28 20:45 SAST: Loupe replaces base Glimmer; corrected 2026-10-28, operator decision; corrected 2026-10-27, was Glimmer or Spark), sends flagged pages through the full vision pipeline and, where a form exists, the walkthrough, and alerts the business with a takedown pack (domain, registrar and host from RDAP, screenshots, abuse contacts).
 
 > **Current state:** Measured 2026-10-26 20:00 SAST. The confusables module (D02 T03 §1), vision pipeline (D03) and walkthrough (D04 T02) are planned before this file. Certificate-transparency search is first on the cut list (spec section 8) and is after the event.
 
@@ -34,10 +34,13 @@ track: day-6
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [ ] |
 | 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [ ] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [ ] |
-| 4 | §4 | Full pipeline on flagged pages | §3, D04 T02 §6 | [ ] |
+| 4 | §4 | Full pipeline on flagged pages | §3, §9, D04 T02 §6 | [ ] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
 | 6 | §6 | Demo lookalike site found by the monitor | §5 | [ ] |
 | 7 | §7 | Certificate-transparency search for brand tokens | §5 | [ ] |
+| 8 | §8 | Daily re-screen of live candidates | §3 | [ ] |
+| 9 | §9 | Spark second look before walkthrough | §3 | [ ] |
+| 10 | §10 | Findings exported to Loupe's training | §5 | [ ] |
 
 ## 1. Lookalike candidate generator
 
@@ -81,7 +84,7 @@ A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, re
 
 ## 3. Screening new or changed live pages
 
-Each fetched page's screenshot and visible text go to `screenPage` with the screener `MONITOR_SCREENER` names (D03 T04 §1: Muse Glimmer on Fireworks, Muse Spark when it fails; corrected 2026-10-28, operator decision; corrected 2026-10-27: was D03 T04 §2 with a later switch to Glimmer, removed); only pages judged as lures go further (spec 4.11).
+Each fetched page's screenshot and visible text go to `screenPage` with the screener `MONITOR_SCREENER` names (D03 T04 §1: Loupe on Fireworks, Muse Spark when it is warming, out of minutes or failing; corrected 2026-10-28 20:45 SAST: Loupe replaces base Glimmer; corrected 2026-10-28, operator decision; corrected 2026-10-27: was D03 T04 §2 with a later switch to Glimmer, removed); only pages judged as lures go further (spec 4.11).
 
 **Phase:** 6
 **Needs:** meta-api
@@ -174,6 +177,68 @@ New certificates whose names contain the business's brand tokens reveal lookalik
 - [ ] Commit: `monitor: certificate-transparency search`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/ct.test.ts` passes.
+
+
+## 8. Daily re-screen of live candidates
+
+§3 screens a page when it is new or has changed, so a parked domain whose page stays byte-identical for days and then flips is caught only when its bytes change. Every candidate that still resolves is screened again each day, so a lookalike that turns into a lure is flagged the day it flips (operator decision 2026-10-28 22:42 SAST; spec 4.11). Loupe makes the daily volume cheap; the day's screening stays inside Loupe's 30 minutes and the Fireworks caps (D03 T04 §14), and pages past them go to Spark under the Meta caps.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Re-screen every live candidate daily. Done when: an unchanged live page is screened again on the next day's run, and a page that flipped to a lure is flagged that day.
+
+- [ ] In the daily run (`src/monitor/run.ts`, §2), queue every candidate whose DNS still resolves for screening, not only new or changed pages, keeping §3's parked-page rule. Done when: `test/monitor/rescreen.test.ts` shows an unchanged live page screened on day two, and a parked page skipped. Cheaper substitute: screening only changed pages.
+- [ ] Order the queue so new and changed pages go first, then unchanged ones by how long since their last screening, so a day cut short by Loupe's minutes or the caps screens the likeliest flips first. Done when: the test's capped day screens the new page and the longest-unscreened page before the others.
+- [ ] Record each screening's day, screener (Loupe or Spark) and verdict on the candidate, so a flip shows when it happened. Done when: the test reads day one's benign and day two's lure verdicts for the flipped fixture.
+- [ ] Commit: `monitor: re-screen every live candidate daily`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/rescreen.test.ts` passes, and fails if an unchanged live page is skipped or a parked one is screened.
+
+## 9. Spark second look before walkthrough
+
+A page Loupe flags goes to the full pipeline (§4), whose Muse Wonder walkthrough is the costliest step. A Muse Spark second look on the flagged page's screenshot and text, a few cents, confirms the flag before the walkthrough runs, so a false flag costs a Spark call instead of a walkthrough (operator decision 2026-10-28 22:42 SAST; spec 4.11). A page Spark already screened (Loupe was warming or out of minutes) needs no second look.
+
+**Phase:** 6
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Confirm a Loupe flag with Spark before §4 runs. Done when: a page Spark does not confirm stops before the walkthrough, and a confirmed one goes on.
+
+- [ ] Write `secondLook(page, ctx)` in `src/monitor/second-look.ts` asking `muse-spark-1.3` through `metaResponses` (D03 T01 §1) the same `PageScreen` question (`src/vision/page-screen.ts`) on the flagged page's screenshot and text in an untrusted block. Done when: `test/monitor/second-look.test.ts` confirms a lure fixture and declines a benign one with a stubbed transport. Cheaper substitute: walking every flagged page.
+- [ ] Call it in the daily run between §3 and §4 for pages Loupe flagged, skipping pages Spark screened, and record both verdicts on the candidate. Done when: the test shows a declined flag never reaching §4 and a Spark-screened page not asked twice.
+- [ ] Keep a declined flag as a training example for Loupe (a likely false positive), named in §10's export. Done when: the declined candidate carries `second_look = declined` in the store §10 reads.
+- [ ] Commit: `monitor: Spark second look before the walkthrough`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/second-look.test.ts` passes, and fails if a declined flag reaches the walkthrough.
+
+## 10. Findings exported to Loupe's training
+
+Loupe gets better on real South African lures only if what the monitor learns flows back into its training set (operator decision 2026-10-28 22:42 SAST: Loupe's learning is "extremely important"). Each labelled outcome becomes a training page: a lure the full pipeline confirmed, a flag Spark declined (§9), and a finding the business dismissed as not a fake (§5). Production deletes stored artefacts after 30 days (spec 4.8), and this machine may be off for days, so a labelled finding's public page is copied in production the moment it is labelled, into R2 under `training/`, and a local export copies it into Loupe's training store (operator question 2026-10-28 22:51 SAST: how production data reaches the store). **Operator decision (2026-10-28 22:56 SAST):** no retention is set on `training/`: no lifecycle rule and no deletion, so the R2 copies stay as the durable record of every monitor-labelled page, and the local store can be rebuilt from them. The store lives outside every repository at `~/isitlegit-data/glimmer` (`GLIMMER_DATA_DIR` moves it; `storeDir()` in `scripts/glimmer/store.ts`), with origin `monitor`, so the glimmer lane's retraining (D03 T04, its own section) takes them into Loupe's next version.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Copy each labelled finding's public page into R2 `training/` in production when it is labelled. Done when: a labelled finding's copy survives the 30-day deletion of its case artefacts.
+2. Copy `training/` into the training store from this machine. Done when: a run adds each new copy to the store once, leaves R2 unchanged, and a second run adds nothing.
+
+- [ ] Write `copyForTraining(finding, label, env)` in `src/monitor/training.ts`, called where a finding gets its label (the full pipeline's confirmation in §4, a declined second look in §9, a dismissal in §5), writing the fetched page's screenshot and visible text with a `meta.json` (finding id, host, URL, fetch time, label `lure` or `benign`, why) to R2 `training/<finding id>/`, once per finding. Done when: `test/monitor/training.test.ts` sees one copy per labelled finding, none for an unlabelled one, and the copy kept after the case's artefacts are deleted; no lifecycle rule covers `training/` (`wrangler r2 bucket lifecycle list` names none for it). Cheaper substitute: exporting from the case's own artefacts, which are deleted after 30 days.
+- [ ] Disclose the copy: the privacy page (D07 T06) states that public lookalike pages the monitor finds are kept to train Loupe, with no fixed expiry, and that a business can ask for its findings' pages to be removed. Done when: D07 T06's processors paragraph names it, with a dated note there.
+- [ ] Write `scripts/monitor-export.ts` listing R2 `training/` (through the Cloudflare API with the vault's R2 credentials, never printed), storing each copy with `putPage` (`scripts/glimmer/store.ts`) as origin `monitor` with its host, label and finding id, and never deleting or changing anything in R2 (no retention is set, operator 2026-10-28). Done when: `test/node/monitor-export.test.ts` stores a confirmed lure, a declined flag and a dismissed finding from a stubbed bucket with the right labels, and sends the bucket no delete or write. Cheaper substitute: copying screenshots by hand.
+- [ ] Run the export daily from this machine (a user systemd timer, `infra/systemd/monitor-export.timer`) and at the start of every Loupe retraining run (the glimmer lane's runbook, `docs/glimmer/retraining.md`). Done when: `systemctl --user list-timers` shows it, and the runbook's first step names the export.
+- [ ] Keep the export resumable and exact: the last exported finding is recorded in the store, an interrupted run resumes after it, and a finding already stored is never stored twice. Done when: the test's interrupted run, rerun, leaves each finding stored once.
+- [ ] Export only the public page the daily run fetched (its screenshot and visible text, with the URL and fetch time), never a walkthrough capture taken after a form was filled or anything from a member's own account, and record in the store's manifest why each left-out item was skipped. Done when: the test exports the fetched page of a walked-through fixture, not its post-form captures, and the manifest names what was left out.
+- [ ] Commit: `monitor: findings exported for Loupe's training`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts test/node/monitor-export.test.ts` passes, and fails if a finding is stored twice, mislabelled, or exported with a post-form capture.
 
 ## Verification
 

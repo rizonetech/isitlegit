@@ -154,13 +154,20 @@ describe("meta-client-live", () => {
     expect(outcome.lines.join("\n")).toContain("could not be verified");
   });
 
-  it("fails when the gateway sent no log id", async () => {
+  it("fails when the gateway sent no log id, and a rerun does not pay again", async () => {
     const { options } = world({
       responses: () => json({ id: "resp_1", object: "response", output: [], usage: USAGE }),
     });
     const outcome = await runClientLive(options);
     expect(outcome.code).toBe(1);
     expect(outcome.lines.join("\n")).toContain("no cf-aig-log-id");
+    expect(JSON.parse(readFileSync(PENDING, "utf-8"))).toMatchObject({ logId: null, traces: ["response resp_1"] });
+    const again = world();
+    const second = await runClientLive(again.options);
+    expect(second.code).toBe(1);
+    expect(second.lines.join("\n")).toContain("response resp_1");
+    expect(again.sent).toHaveLength(0);
+    expect(ledgerNow()).toHaveLength(1);
   });
 
   it("reserves every attempt: one that failed stays at its estimate, the answered one is settled", async () => {
@@ -262,11 +269,71 @@ describe("meta-client-live", () => {
     expect(ledgerNow()).toEqual([]);
   });
 
+  it("keeps the mark when an answered call's body is cut off, so a rerun pays for nothing", async () => {
+    const cut = () =>
+      new Response(
+        new ReadableStream({
+          start: (c) => {
+            c.enqueue(new TextEncoder().encode('{"id":"resp_1","object":"resp'));
+            c.error(new TypeError("connection reset"));
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json", "cf-aig-log-id": "log-cut" } },
+      );
+    const first = world({ responses: cut });
+    const outcome = await runClientLive(first.options);
+    expect(outcome.code).toBe(1);
+    expect(outcome.lines.join("\n")).toContain("may have been answered (log log-cut)");
+    expect(JSON.parse(readFileSync(PENDING, "utf-8"))).toMatchObject({ logId: null, traces: ["log log-cut"] });
+
+    const again = world();
+    const second = await runClientLive(again.options);
+    expect(second.code).toBe(1);
+    expect(second.lines.join("\n")).toContain("log log-cut");
+    expect(again.sent).toHaveLength(0);
+    expect(ledgerNow()).toHaveLength(1);
+  });
+
+  it("keeps the mark when the connection drops after sending", async () => {
+    const { options } = world({ responses: () => Promise.reject(new TypeError("connection reset")) });
+    expect((await runClientLive(options)).code).toBe(1);
+    expect(existsSync(PENDING)).toBe(true);
+  });
+
   it("leaves no mark when the call failed, so a new run may call again", async () => {
     const { options } = world({ responses: () => json({ error: { type: "invalid_request_error" } }, 400) });
     const outcome = await runClientLive(options);
     expect(outcome.code).toBe(1);
     expect(existsSync(PENDING)).toBe(false);
+  });
+
+  it("writes a resumed call's record once, even if it was written before the run stopped", async () => {
+    writeFileSync(
+      PENDING,
+      JSON.stringify({
+        run: "2026-10-28T17:00:00.000Z",
+        logId: "log-abc",
+        usage: { input: 15, output: 2, cached: 0 },
+        cost: COST,
+        estimate: 0.0003,
+      }),
+    );
+    const { options, sent } = world();
+    expect((await runClientLive(options)).code).toBe(0);
+    expect((await runClientLive({ ...options })).code).toBe(0);
+    writeFileSync(
+      PENDING,
+      JSON.stringify({
+        run: "2026-10-28T17:00:00.000Z",
+        logId: "log-abc",
+        usage: { input: 15, output: 2, cached: 0 },
+        cost: COST,
+        estimate: 0.0003,
+      }),
+    );
+    expect((await runClientLive(options)).code).toBe(0);
+    expect(readFileSync(RECORD, "utf-8").split("`log-abc`").length - 1).toBe(1);
+    expect(sent.some((u) => !u.startsWith(LOGS_URL))).toBe(true); // the middle run, with nothing pending, made its own call
   });
 
   it("refuses an unreadable pending call rather than paying for another", async () => {

@@ -1,0 +1,122 @@
+{
+  "ref": "D99 T01 \u00a77",
+  "title": "Partner credits for Glimmer",
+  "implementation_sha": "4da4eb41345f30b4748f70ad063e4ef9abe08909",
+  "date": "2026-10-28",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/99-manual/D99-T01-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/99-manual/D99-T01-s7.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/99-manual/D99-T01-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/99-manual/D99-T01-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 scripts/check-partner-credits.py -> 3, exit 0",
+    "python3 -m unittest tests.scripts.test_check_partner_credits -> Ran 9 tests, OK",
+    "python3 scripts/todo-graph.py validate -> valid: 234 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/99-manual/D99-T01-s7.md",
+    "verdict": "complete",
+    "candidate": "fb46973d8aa111b7cfba0ef4c22085afee771ad4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/99-manual/D99-T01-s7.md",
+    "candidate": "78a4cd06872e3b006a9cb2c0ee7292550d10197b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/99-manual/D99-T01-s7.md",
+    "verdict": "fixed",
+    "candidate": "4152a0a311218e0a5e93d8bdec81492f508b7f86",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

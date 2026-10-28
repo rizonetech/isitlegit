@@ -227,6 +227,8 @@ Cloudflare accepts mail for an alias and then forwards it; a failure after that 
 
 **Operator action (open):** (1) create a Cloudflare API token with Zone Analytics Read on `isitlegit.co.za` and store it in the Conclave vault as "IsItLegit Cloudflare analytics token"; (2) when the live check is due, add the Exchange Online mail flow rule rejecting the test subject, and remove it after. Recording `Operator ready: <what> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section; the 550 5.1.1 bounces of the first demo messages (D01 T02 §4, 2026-10-27, `docs/live-checks.md`) are real failures to read the status values from.
 
+**Operator decision (2026-10-28 22:42 SAST):** build it; the operator creates the Cloudflare API token with Zone Analytics Read on `isitlegit.co.za` and stores it as "IsItLegit Cloudflare analytics token". `operator` stays in Needs until that item holds a credential; then `Operator ready: analytics token (2026-10-28)` is recorded here and the Need lifted.
+
 **Build order:**
 
 1. Find where Cloudflare reports a forwarding failure. Done when: the source, its fields and the permission it needs are recorded here.
@@ -246,19 +248,21 @@ Cloudflare accepts mail for an alias and then forwards it; a failure after that 
 When SMTP2GO gives no answer or a 5xx, §1 records the send as uncertain and §5 settles it from SMTP2GO's activity, first after 30 minutes and, failing that, by the operator after 3 days. A provider that takes an idempotency key (Resend replays the original response to a repeated request for 24 hours, https://resend.com/docs/dashboard/emails/idempotency-keys) lets the caller retry at once with no duplicate and no operator. SMTP2GO takes none (§1's finding), so this is a choice of provider or of dispatch design. Filed from §5's completion review (out-of-scope gap, 2026-10-27).
 
 **Phase:** 1
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Operator decision (open):** keep SMTP2GO and accept §5's delayed recovery, move outbound mail to a provider with idempotency keys, or add a dispatch layer of our own that gives the same guarantee. Recording `Recovery design: <choice> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+Recovery design: keep SMTP2GO and §5's delayed recovery (2026-10-28). **Operator decision (2026-10-28 22:42 SAST):** an ambiguous send stays settled by §5 from SMTP2GO's activity after 30 minutes, and by the operator after 3 days in the rare case that fails; no provider move and no dispatch layer. Reversing it later means moving outbound mail to a provider with idempotency keys (a new account, domain verification, a key and a privacy-page change). The items below are struck: nothing is built.
 
 **Build order:**
 
 1. Choose the design. Done when: the choice is recorded with what it costs to reverse.
 2. Recover an ambiguous send automatically. Done when: a send whose answer was lost is settled within 60 seconds of the provider answering again, with no operator action and never a second delivery.
 
-- [ ] Record the choice and its reversal cost here, with the provider's idempotency documentation (window, key format, concurrent-request behaviour) if one is chosen. Done when: the `Recovery design:` line is recorded.
-- [ ] Send through the chosen design with the send key as the idempotency key, so an uncertain send is retried at once and the provider's replay settles it. Done when: `test/mail/recovery.test.ts` drives an accepted message whose answer is lost, retries it, and finds one delivery and a `sent` row within 60 seconds of the provider answering, and a concurrent duplicate request refused without a second delivery.
-- [ ] Keep §5's reconciliation for anything older than the provider's idempotency window, and never retry past it blind. Done when: the test shows a send older than the window left to §5.
+- [x] ~~Record the choice and its reversal cost here, with the provider's idempotency documentation (window, key format, concurrent-request behaviour) if one is chosen. Done when: the `Recovery design:` line is recorded.~~ **Struck 2026-10-28 (operator):** SMTP2GO is kept with §5's recovery; nothing is built.
+- [x] ~~Send through the chosen design with the send key as the idempotency key, so an uncertain send is retried at once and the provider's replay settles it. Done when: `test/mail/recovery.test.ts` drives an accepted message whose answer is lost, retries it, and finds one delivery and a `sent` row within 60 seconds of the provider answering, and a concurrent duplicate request refused without a second delivery.~~ **Struck 2026-10-28 (operator):** SMTP2GO is kept with §5's recovery; nothing is built.
+- [x] ~~Keep §5's reconciliation for anything older than the provider's idempotency window, and never retry past it blind. Done when: the test shows a send older than the window left to §5.~~ **Struck 2026-10-28 (operator):** SMTP2GO is kept with §5's recovery; nothing is built.
 - [ ] Commit: `mail: automatic recovery of ambiguous sends`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/recovery.test.ts` passes, and fails if an ambiguous send is delivered twice or needs the operator inside the idempotency window.

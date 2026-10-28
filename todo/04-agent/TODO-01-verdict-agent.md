@@ -36,7 +36,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Deterministic floor from critical evidence | D02 T01 §2 | [ ] |
+| 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [ ] |
 | 2 | §2 | Rule-based verdict | §1 | [ ] |
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D03 T03 §3, D04 T02 §6, D06 T01 §2 | [ ] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [ ] |
@@ -44,7 +44,9 @@ track: day-6
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
 
-## 1. Deterministic floor from critical evidence
+## 1. Deterministic floor on critical evidence
+
+**Corrected 2026-10-28:** the title read "Deterministic floor from critical evidence"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 Critical evidence (bank details changed, credential form on a lookalike domain, malware-type attachment) caps the verdict at suspicious or malicious whatever the model says; the model can raise severity, never lower it below the floor (spec 4.6). Reputation listings alone cap at suspicious (D02 T06 §4).
 

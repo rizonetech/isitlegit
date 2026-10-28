@@ -166,6 +166,19 @@ describe.each(Object.entries(entries))("%s: models and settings", (_, entry) => 
     expect(request.headers.get("cf-aig-collect-log-payload")).toBe("false");
   });
 
+  it("refuses a Standard model this endpoint does not serve before the network", async () => {
+    const wrong = {
+      responses: "muse-voice-transcribe-1.0",
+      transcribe: "muse-image-1.0",
+      "image edit": "muse-spark-1.3",
+    }[_];
+    const { sent, ctx } = transport(entry.ok);
+    const error = await failure(entry.with(ctx, wrong as string));
+    expect(error.kind).toBe("refused-model");
+    expect(error.message).toContain("is not called through");
+    expect(sent).toHaveLength(0);
+  });
+
   it("refuses a contributor or unknown model before the network", async () => {
     for (const model of [
       "muse-spark-1.3-contributor",
@@ -233,6 +246,35 @@ describe.each(Object.entries(entries))("%s: retries", (_, entry) => {
     expect(error.kind).toBe("rate-limit");
     expect(error.details.retryAfterMs).toBe(60_000);
     expect(long.sent).toHaveLength(1);
+  });
+
+  it("ends a long Retry-After on a 503 as rate-limit, carrying the wait", async () => {
+    const { sent, ctx } = transport(
+      () => json(503, envelope("server_error", "service_overloaded"), { "retry-after": "60" }),
+      entry.ok,
+    );
+    const error = await failure(entry.call(ctx));
+    expect(error.kind).toBe("rate-limit");
+    expect(error.details).toMatchObject({ status: 503, code: "service_overloaded", retryAfterMs: 60_000 });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("refuses an answer larger than the limit as it streams", async () => {
+    let pulled = 0;
+    const huge = () =>
+      new Response(
+        new ReadableStream({
+          pull: (c) => {
+            pulled++;
+            c.enqueue(new Uint8Array(1024 * 1024).fill(32));
+          },
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+    const { ctx } = transport(huge);
+    const error = await failure(entry.call(ctx));
+    expect(error.kind).toBe("malformed");
+    expect(pulled).toBeLessThan(40);
   });
 
   it("sends 400, 408, 409 and 504 once", async () => {

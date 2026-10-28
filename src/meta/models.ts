@@ -23,3 +23,15 @@ export type ModelId = keyof typeof MODELS;
 
 export const isModelId = (model: unknown): model is ModelId =>
   typeof model === "string" && Object.hasOwn(MODELS, model);
+
+// Where each model is called: the Responses API for the reasoning and segmentation models (SAM's image stream, D00 T01
+// §7), the raw endpoints for transcription and image edits (sources/meta-api/docs/docs/api-reference/). A model sent to
+// another endpoint is refused before the network rather than by Meta.
+export type Endpoint = "responses" | "/asr/transcribe" | "/images/edits";
+export const ENDPOINTS: Record<ModelId, Endpoint> = {
+  "muse-spark-1.3": "responses",
+  "muse-wonder-1.0": "responses",
+  "sam-3.1": "responses",
+  "muse-image-1.0": "/images/edits",
+  "muse-voice-transcribe-1.0": "/asr/transcribe",
+};

@@ -185,6 +185,8 @@ A recipient whose report link has passed its 7 days (D01 T01 §8) reaches the 41
 
 **Operator decision (open):** the renewal control is a design change to the approved `Error-410` board (an email field, or a button that mails the original recipient), drawn and approved first. Recording `Renewal approved: YYYY-MM-DD (<board>)` here and removing `operator` from Needs releases the section.
 
+**Operator decision (2026-10-28 22:42 SAST):** the 410 page offers one button, "Send me a new link", which mails a fresh link to the address the reply originally went to; the page answers the same whatever happens, so an old link's holder learns nothing and cannot redirect it. The `Error-410` board's change is drawn in that direction and approved before the build; `operator` stays in Needs until `Renewal approved: YYYY-MM-DD (Error-410)` is recorded here.
+
 **Build order:**
 
 1. Draw and approve the renewal. Done when: the board and the SPEC entry exist and the approval line is recorded.
