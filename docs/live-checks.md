@@ -36,3 +36,11 @@ Cloudflare does not pass a delivery failure that happens after it accepted a mes
 1. Send from `rizonetech@gmail.com` to the alias with a subject that names it, for example `IsItLegit routing test (hello@)`.
 2. Search `derick@rizonetech.com` for that subject; it normally arrives within seconds. Cloudflare's Email Routing analytics lag, so the inbox is the proof.
 3. Record the subject, sender, send time and the arriving message's `internetMessageId` in the TODO item the test closes.
+
+## Meta model client
+
+One call through `src/meta/client.ts` by `node scripts/meta-client-live.ts --confirm-credit` (D03 T01 §1), its gateway log read back.
+
+| Run (UTC) | Model | Result | Meta tokens in / out | Cost | Gateway log |
+| --- | --- | --- | --- | --- | --- |
+| 2026-10-28T16:43:00.242Z | `muse-spark-1.3` | passed | 15 / 64 | US$0.000291 | `01a18364-d800-7003-ab06-51024533cbdf`: metadata and a matching cost kept, no body |

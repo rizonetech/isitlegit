@@ -99,7 +99,7 @@ const userInput = (text: string, image?: string) => [
   },
 ];
 export type Usage = { input: number; cached: number; output: number }; // `input` includes `cached`
-const tokenCost = (model: keyof typeof PRICES, input: number, output: number, cached = 0) =>
+export const tokenCost = (model: keyof typeof PRICES, input: number, output: number, cached = 0) =>
   ((input - cached) * PRICES[model].input + cached * PRICES[model].cached + output * PRICES[model].output) / 1_000_000;
 
 // A native computer tool declares the display's size; this function stands in for one, so it says the same.
@@ -273,6 +273,39 @@ export function readLedger(file: string): Spend[] {
   return data;
 }
 const counted = (entry: Partial<Spend>) => (typeof entry.cost === "number" ? entry.cost : Number(entry.estimate ?? 0));
+// A day's spend: every entry's cost, else its estimate.
+export const spentOn = (ledger: Spend[], date: string) =>
+  ledger.filter((e) => e.date === date).reduce((sum, e) => sum + counted(e), 0);
+// The ledger written whole; answers why it could not be, or null.
+export function saveLedger(file: string, ledger: Spend[]): string | null {
+  try {
+    writeAtomically(file, `${JSON.stringify(ledger, null, 1)}\n`);
+    return null;
+  } catch (error) {
+    return `${file} could not be written (${(error as NodeJS.ErrnoException).code ?? (error as Error).message}); free space or fix its permissions, then run again`;
+  }
+}
+// A call's estimate reserved before it is sent, so an interrupted run still counts it. A ledger that cannot be written
+// takes nothing, and the call must not be sent: answers why, or the entry to settle.
+export function reserveSpend(
+  file: string,
+  ledger: Spend[],
+  call: Omit<Spend, "cost" | "state">,
+): { entry: Spend } | { refused: string } {
+  const entry: Spend = { ...call, cost: null, state: "reserved" };
+  ledger.push(entry);
+  const unsaved = saveLedger(file, ledger);
+  if (!unsaved) return { entry };
+  ledger.pop();
+  return { refused: unsaved };
+}
+// Settled at Meta's reported cost when there is one; otherwise the reservation stands at the estimate, uncertain.
+// Answers why the ledger could not be written, or null.
+export function settleSpend(file: string, ledger: Spend[], entry: Spend, cost: number | null): string | null {
+  entry.cost = cost;
+  entry.state = cost === null ? "uncertain" : "settled";
+  return saveLedger(file, ledger);
+}
 function writeAtomically(file: string, text: string): void {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
@@ -551,7 +584,7 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
       `${ledgerFile} is unreadable (${(error as Error).message}); it records Meta spend, so repair it (a list of { date, run, call, estimate, cost, state }) rather than delete it`,
     );
   }
-  const spentToday = ledger.filter((e) => e.date === today).reduce((sum, e) => sum + counted(e), 0);
+  const spentToday = spentOn(ledger, today);
   const runCap = options.runCap ?? RUN_CAP;
   const dayCap = options.dayCap ?? DAY_CAP;
   if (estimate > runCap) return refuse(`the run could cost US$${estimate.toFixed(4)}, over the US$${runCap} cap`);
@@ -559,14 +592,6 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     return refuse(
       `US$${spentToday.toFixed(4)} spent on smoke runs today; this run's US$${estimate.toFixed(4)} would pass the US$${dayCap} a day`,
     );
-  const saveLedger = (): string | null => {
-    try {
-      writeAtomically(ledgerFile, `${JSON.stringify(ledger, null, 1)}\n`);
-      return null;
-    } catch (error) {
-      return `${ledgerFile} could not be written (${(error as NodeJS.ErrnoException).code ?? (error as Error).message}); free space or fix its permissions, then run again`;
-    }
-  };
 
   let secrets: Secrets;
   try {
@@ -661,22 +686,17 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
   }
 
   for (const call of calls) {
-    // Reserved before the call is sent, so an interrupted run still counts it.
-    const entry: Spend = {
+    const reserved = reserveSpend(ledgerFile, ledger, {
       date: today,
       run: runId,
       call: call.name,
       estimate: call.estimate,
-      cost: null,
-      state: "reserved",
-    };
-    ledger.push(entry);
-    const unsaved = saveLedger();
-    if (unsaved) {
-      ledger.pop();
-      say(`meta-smoke: stopped before ${call.name}: ${unsaved}`);
+    });
+    if ("refused" in reserved) {
+      say(`meta-smoke: stopped before ${call.name}: ${reserved.refused}`);
       return { code: 1, lines };
     }
+    const { entry } = reserved;
     say(`Calling ${call.name} (${call.model})...`);
     const started = Date.now();
     let check: Check;
@@ -746,12 +766,10 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
         : usage
           ? tokenCost(call.model as keyof typeof PRICES, usage.input, usage.output, usage.cached)
           : null;
-    entry.cost = cost;
-    entry.state = cost === null ? "uncertain" : "settled";
     const passed = check.ok && logCheck.ok;
     rows.push({ call, passed, detail: check.detail, excerpt: check.excerpt, ms, usage, log: logCheck, cost });
     say(`${passed ? "passed" : "failed"}: ${call.name} (${check.detail}; log: ${logCheck.detail})`);
-    const unsettled = saveLedger();
+    const unsettled = settleSpend(ledgerFile, ledger, entry, cost);
     if (unsettled) say(`meta-smoke: ${unsettled}; the reservation for ${call.name} stands at its estimate`);
     try {
       writeReport("in progress");
@@ -777,7 +795,7 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
   return { code: ok ? 0 : 1, lines };
 }
 
-async function readSecretsFromVault(): Promise<Secrets> {
+export async function readSecretsFromVault(): Promise<Secrets> {
   const read = async (title: string) => {
     try {
       return (

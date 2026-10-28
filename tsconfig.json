@@ -8,6 +8,9 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
+    // A module a Node script also runs (src/meta/client.ts, by scripts/meta-client-live.ts) names its imports with
+    // their extension, the only form Node's type stripping resolves; Wrangler's bundler takes either.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "jsx": "react-jsx",
