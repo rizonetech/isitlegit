@@ -37,7 +37,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Core D1 schema and migration runner | D00 T01 §5 | [x] |
 | 2 | §2 | Case store and R2 artefact layout | §1 | [x] |
-| 3 | §3 | Email handler for verified members | §2, D07 T02 §4, D07 T02 §5 | [ ] |
+| 3 | §3 | Email handler for verified members | §2, D07 T02 §4, D07 T02 §5 | [x] |
 | 4 | §4 | Forward-as-attachment detection | §3 | [ ] |
 | 5 | §5 | MIME parsing and attachment extraction | §4 | [ ] |
 | 6 | §6 | Outlook .msg parsing | §5 | [ ] |
@@ -152,9 +152,12 @@ The `email()` handler is the front door (spec 4.1). Only mail from a verified me
 - [x] Undo or hand over a delivery whose later step fails, then throw so it is retried: an admission failure releases the claim; a raw-store failure deletes the case and any raw object and releases the claim; a Workflow create that throws is checked with `env.ANALYSIS.get(caseId)`, an instance found counting as started (the claim marked `done`), none found undone like a raw-store failure, and a check that itself fails leaving the claim `pending` with its case for the takeover above or the sweep below. A failed undo leaves the same. Done when: tests make the database, the bucket's `put`, `ANALYSIS.create` (once failing outright, once recording the instance and then throwing) and the undo each fail, and every one ends with either no case, raw object or claim, or one case with one Workflow after the retry or sweep. Cheaper substitute: deleting the case whenever create throws, which orphans a Workflow that did start. **Corrected 2026-10-28:** an unconditional undo (plan review: a create can succeed while its answer is lost). Whether Email Routing retries a delivery whose handler threw is not documented; D01 T01 §9's live smoke records what the sender sees.
 - [x] Sweep intake claims in the scheduled run (`scheduled()` in `src/index.ts`, every 15 minutes): delete `done` claims older than 24 hours, and reconcile `pending` claims older than five minutes as the takeover does (Workflow found: `done`; not found: the case and raw object deleted, then the claim; a case the pipeline has moved past `received` is left to it and the claim marked `done`), at most 50 a run so a run stays bounded, the rest in the next run 15 minutes later (**Corrected 2026-10-28**, final review: the bound and the moved case were unstated). Done when: a test of the sweep leaves a 25-hour `done` claim deleted and a 1-hour one kept, completes a stale claim whose Workflow exists, removes a stale claim's orphan case and raw object, and touches no other organisation's rows. Cheaper substitute: leaving the rows, which keeps organisation-linked Message-IDs indefinitely. **Corrected 2026-10-28** (plan review): the claims had no deletion owner.
 - [x] Export `email` from `src/index.ts` next to `fetch`, calling `handleEmail`. Done when: a test calls the default export's `email` with a synthetic `ForwardableEmailMessage` from a verified member and finds the case, the raw object and the Workflow create, and `pnpm typecheck` passes. Cheaper substitute: a dry-run bundle listing the handler, which an empty handler passes. **Corrected 2026-10-28:** the proof was `wrangler deploy --dry-run` (plan review: it does not exercise delivery).
-- [ ] Commit: `intake: email handler for verified members`
+- [x] Commit: `intake: email handler for verified members`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts test/intake/sender.test.ts test/mail/allowlist.test.ts test/db/cases.test.ts` passes, and fails if the member check or the sender authentication is removed, a duplicate delivery creates a second case, a failed step leaves a case with no Workflow or a claim that blocks the retry, or the forwarder is not stored.
+
+> **Verified:** 2026-10-28 | §3 | f114a62e87857a73af5a394ca5bac1c895405281
+> **Review:** `docs/reviews/d01-t01-s3.json`
 
 ## 4. Forward-as-attachment detection
 
