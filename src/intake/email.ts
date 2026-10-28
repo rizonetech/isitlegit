@@ -59,7 +59,7 @@ export async function handleEmail(
   const from = message.from.trim().toLowerCase();
   // What the organisation verified decides what the mail must prove: its domain, or this one mailbox.
   const member = await memberOfSender(env.DB, from);
-  if (!member || !senderAuthenticated(raw, from, member.by)) return { kind: "dropped" };
+  if (!member || !(await senderAuthenticated(raw, from, member.by))) return { kind: "dropped" };
   const orgId = member.orgId;
 
   const messageId = headerValue(message.headers.get("Message-ID"));

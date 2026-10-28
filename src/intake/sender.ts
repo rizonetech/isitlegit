@@ -11,6 +11,7 @@
 //                address at a shared provider: any other gmail.com user's signed mail passes DKIM for gmail.com, and only
 //                its signed From tells them apart. Nor is a signer that merely shares the registrable domain: names under
 //                a shared host (`*.duckdns.org`) belong to unrelated owners, and none of them proves another's mailbox.
+import PostalMime, { addressParser } from "postal-mime";
 import { registrable } from "../auth/senders";
 
 // Email Routing's authserv-id in the header it adds. A topmost header naming any other server was not written by it
@@ -23,21 +24,22 @@ const MAX_HEADER_BYTES = 256 * 1024;
 
 type Result = { method: string; result: string; props: Map<string, string> };
 
-export function senderAuthenticated(
+export async function senderAuthenticated(
   raw: Uint8Array,
   envelopeFrom: string,
   proving: "domain" | "address" = "domain",
-): boolean {
+): Promise<boolean> {
   const sender = envelopeFrom.trim().toLowerCase();
   const at = sender.indexOf("@");
   if (at < 1 || at !== sender.lastIndexOf("@") || at === sender.length - 1) return false;
   const domain = sender.slice(at + 1);
-  const headers = headerLines(raw);
-  const header = firstHeader(headers, "authentication-results");
+  const headers = await headersOf(raw);
+  if (!headers) return false;
+  const header = headers.find((h) => h.name === "authentication-results")?.value;
   if (!header) return false;
   const parsed = parseAuthenticationResults(header);
   if (!parsed || parsed.authservId !== EMAIL_ROUTING_AUTHSERV_ID) return false;
-  if (proving === "address" && addressOf(firstHeader(headers, "from") ?? "") !== sender) return false;
+  if (proving === "address" && singleFromMailbox(headers) !== sender) return false;
   const site = registrable(domain);
   return parsed.results.some((r) => {
     if (r.result !== "pass") return false;
@@ -60,32 +62,29 @@ const domainOf = (value: string) => {
   return v.includes("@") ? v.slice(v.lastIndexOf("@") + 1) : v;
 };
 
-// The header block's lines, unfolded.
-function headerLines(raw: Uint8Array): string[] {
+// The message's header fields in order, as postal-mime reads them (unfolded; names lower-cased and trimmed, since DKIM's
+// relaxed canonicalization treats `From :` as From), or null when the header block has no end within the limit. Only
+// the header block is parsed: the body plays no part here.
+async function headersOf(raw: Uint8Array): Promise<{ name: string; value: string }[] | null> {
   const head = new TextDecoder().decode(raw.subarray(0, MAX_HEADER_BYTES));
   const end = head.search(/\r?\n\r?\n/);
-  return (end < 0 ? head : head.slice(0, end)).replace(/\r?\n[ \t]+/g, " ").split(/\r?\n/);
+  if (end < 0) return null;
+  const parsed = await PostalMime.parse(`${head.slice(0, end)}\r\n\r\n`);
+  return parsed.headers.map((h) => ({ name: h.key.trim().toLowerCase(), value: h.value }));
 }
 
-// The first header of that name (lower case), or null.
-function firstHeader(lines: string[], name: string): string | null {
-  for (const line of lines) {
-    const colon = line.indexOf(":");
-    if (colon > 0 && line.slice(0, colon).trim().toLowerCase() === name) return line.slice(colon + 1).trim();
-  }
-  return null;
-}
-
-// The first `Authentication-Results` header in the header block, unfolded, or null.
-export const topmostAuthenticationResults = (raw: Uint8Array) =>
-  firstHeader(headerLines(raw), "authentication-results");
-
-// The one address a From header names (`"Name" <a@b>` or `a@b`), lower case; empty when it names none or several.
-function addressOf(from: string): string {
-  const value = stripComments(from).trim();
-  const angled = [...value.matchAll(/<([^<>]*)>/g)];
-  const address = angled.length === 1 ? angled[0]?.[1] : angled.length === 0 && !value.includes(",") ? value : "";
-  return (address ?? "").trim().toLowerCase();
+// The one mailbox of the message's one From field, lower case, or "" for anything else. DKIM verifies a repeated
+// header from the bottom (RFC 6376 section 8.15), so with two From fields a passing signature may cover the other one;
+// and a From naming a list or a group names no single sender. postal-mime's address parser reads the field.
+function singleFromMailbox(headers: { name: string; value: string }[]): string {
+  const froms = headers.filter((h) => h.name === "from");
+  if (froms.length !== 1) return "";
+  const list = addressParser(froms[0]?.value ?? "");
+  const only = list.length === 1 ? list[0] : undefined;
+  if (!only || "group" in only) return "";
+  const address = (only.address ?? "").trim().toLowerCase();
+  const at = address.indexOf("@");
+  return at > 0 && at === address.lastIndexOf("@") && at < address.length - 1 && !/\s/.test(address) ? address : "";
 }
 
 // RFC 8601 section 2.2: `authserv-id [version] *( ";" resinfo )`, each resinfo `method[/version]=result` then
