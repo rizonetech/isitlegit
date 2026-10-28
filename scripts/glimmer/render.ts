@@ -14,13 +14,10 @@
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
-import { isIP } from "node:net";
+import { createServer, request as httpRequest } from "node:http";
+import { type AddressInfo, isIP, connect as netConnect, type Socket } from "node:net";
 import { join, resolve } from "node:path";
-import type { Readable } from "node:stream";
-import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
-import { type Browser, type BrowserContext, chromium, type Page, type Route } from "playwright-core";
+import { type Browser, type BrowserContext, chromium, type Frame } from "playwright-core";
 import { getDomain } from "tldts";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { chromiumPath } from "../lib/chromium.ts";
@@ -199,6 +196,7 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
     )
   )
     return "a challenge page";
+  if (NOT_FOUND.test(`${capture.title}\n${capture.text.slice(0, 300)}`)) return "an error page answered with 200";
   if (capture.captcha) return "a CAPTCHA frame";
   if (capture.consentWall) return "a cookie wall covering the page";
   if (capture.text.trim().length < MIN_TEXT) return `under ${MIN_TEXT} characters of visible text`;
@@ -211,15 +209,23 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
   return null;
 }
 
+const NOT_FOUND =
+  /page not found|404 not found|error 404|\b404\b.{0,20}(page|error)|(page|file) (you|you're) (were )?looking for|(doesn't|does not|could not|can't|cannot) be found|no longer (exists|available)/i;
+
 const SIGN_IN_PATH =
   /(^|\/)(log-?in|sign-?in|signin|auth|authenticate|accounts?\/login|session\/new|oauth2?)(\/|$|\?|\.)/i;
 
 const ROOT_PATH = /^\/([a-z]{2}([-_][a-z]{2})?\/?)?(index\.html?)?$/i;
 const ACCOUNT_PATH = /(^|\/)(my-?account|account|profile|e-?services|self-?service|portal|online-?services)(\/|$|\.)/i;
 const CART_PATH = /(^|\/)(cart|basket|checkout|bag|trolley|mycart)(\/|$|\.)/i;
-const PRODUCT_PATH = /(^|\/)(p|pd|product|products|item|dp)\/[^/]{3,}/i;
 const COMPANY_PATH =
   /(^|\/|-)(about|who-?we-?are|our-?(story|company)|company-?profile|at-a-glance|contact|corporate|investors?|group)(\/|$|\.|-|_)/i;
+
+const ACCOUNT_WORDS = /my account|sign ?in|log ?in|log on|profile|e-?services|self.?service|register/i;
+const CART_WORDS = /\b(cart|basket|trolley|bag|checkout|subtotal|order summary)\b/i;
+const SHOP_WORDS = /add to (cart|basket|bag|trolley)|buy now|in stock|out of stock|\bR ?\d[\d ,]*(\.\d{2})?\b/i;
+const COMPANY_WORDS =
+  /about us|about the|who we are|contact us|our story|our history|our mission|company profile|at a glance|head office|our (company|group|people|values)/i;
 
 // The kind a capture shows: its listed kind when the page bears it out, otherwise `home` (a real page of the site, but
 // not the sign-in, cart, product or about page the list names), so a kind's count is of pages of that kind.
@@ -232,19 +238,20 @@ export function capturedKind(
   switch (entry.kind) {
     case "login":
       return capture.has_login_form ? "login" : "home";
+    // A path names what a page should be; its content must say so too (a stale URL answered with a site's 200
+    // fallback page is not its cart).
     case "account":
-      return capture.has_login_form || ACCOUNT_PATH.test(path) ? "account" : "home";
+      return capture.has_login_form || (ACCOUNT_PATH.test(path) && ACCOUNT_WORDS.test(shown)) ? "account" : "home";
     case "checkout":
-      return capture.has_payment_form || CART_PATH.test(path) ? "checkout" : "home";
+      return capture.has_payment_form || (CART_PATH.test(path) && CART_WORDS.test(shown)) ? "checkout" : "home";
     case "shop":
-      return !ROOT_PATH.test(path) &&
-        (CART_PATH.test(path) || PRODUCT_PATH.test(path) || /add to (cart|basket|bag|trolley)|buy now/i.test(shown))
+      return !ROOT_PATH.test(path) && (SHOP_WORDS.test(shown) || (CART_PATH.test(path) && CART_WORDS.test(shown)))
         ? "shop"
         : "home";
     case "company":
       return !ROOT_PATH.test(path) &&
-        (COMPANY_PATH.test(path) ||
-          /about us|who we are|contact us|our story|company profile|at a glance/i.test(capture.title))
+        COMPANY_WORDS.test(shown) &&
+        (COMPANY_PATH.test(path) || COMPANY_WORDS.test(capture.title))
         ? "company"
         : "home";
     default:
@@ -298,77 +305,124 @@ export function publicLookup(resolve: Resolve = systemResolve) {
   };
 }
 
-export const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
-type Hop = { status: number; headers: Record<string, string>; body: Buffer };
+// A request the egress proxy refused because its address is not public: excluded, never retried.
+export class RefusedAddress extends Error {}
+const REFUSED = "x-glimmer-refused";
+const HOP_BY_HOP =
+  /^(connection|keep-alive|proxy-connection|proxy-authenticate|proxy-authorization|te|trailer|upgrade)$/i;
 
-// One request, one hop, no redirect followed, over a socket whose address `lookup` checked; uncompressed, so the bytes
-// reach the browser as they are; at most 20 MB.
-function fetchHop(
-  url: URL,
-  method: string,
-  headers: Record<string, string>,
-  body: Buffer | null,
-  lookupFn: ReturnType<typeof publicLookup> | undefined,
-  timeoutMs: number,
-): Promise<Hop> {
-  const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-  const outgoing = Object.fromEntries(
-    Object.entries(headers).filter(([name]) => !/^(host|connection|accept-encoding|content-length|:)/i.test(name)),
-  );
-  return new Promise((resolveHop, reject) => {
-    const req = send(
-      url,
+// The one way out of a render's browser: an HTTP proxy on loopback that Chromium sends every request through, each
+// redirect hop included (a Playwright route sees only a chain's first request, so a second hop to a private address
+// went straight past it). A plain request is forwarded and a CONNECT tunnelled only over a socket whose address
+// `publicLookup` checked as it connected; anything else answers 403 with `x-glimmer-refused` and is recorded. Closing
+// it ends every connection it holds, so no request outlives its render.
+function openEgress(allowOrigins: Set<string>, checked: ReturnType<typeof publicLookup>) {
+  const sockets = new Set<Socket>();
+  const refused: string[] = [];
+  const track = (socket: Socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+    return socket;
+  };
+  const isRefused = (error: unknown) => (error as NodeJS.ErrnoException).code === "EPRIVATE";
+  const literalRefused = (host: string) => isIP(host) !== 0 && !isPublicAddress(host);
+
+  const server = createServer((req, res) => {
+    let target: URL;
+    try {
+      target = new URL(req.url ?? "");
+    } catch {
+      res.writeHead(400).end();
+      return;
+    }
+    const host = target.hostname.replace(/^\[|\]$/g, "");
+    const allowed = allowOrigins.has(target.origin);
+    const refuse = () => {
+      refused.push(target.host);
+      res.writeHead(403, { [REFUSED]: "non-public address", "content-type": "text/plain" }).end("refused");
+    };
+    if (target.protocol !== "http:" || (!allowed && literalRefused(host))) return refuse();
+    const headers = Object.fromEntries(Object.entries(req.headers).filter(([name]) => !HOP_BY_HOP.test(name)));
+    const upstream = httpRequest(
       {
-        method,
-        headers: { ...outgoing, "accept-encoding": "identity" },
-        ...(lookupFn ? { lookup: lookupFn as never } : {}),
-        timeout: timeoutMs,
+        hostname: host,
+        port: target.port || 80,
+        path: `${target.pathname}${target.search}`,
+        method: req.method,
+        headers,
+        ...(allowed ? {} : { lookup: checked as never }),
       },
-      (res) => {
-        const chunks: Buffer[] = [];
-        let size = 0;
-        // A server may compress although asked not to: the body reaches the browser decoded, since the encoding header
-        // is not passed on, and the 20 MB bound counts the decoded bytes.
-        const encoding = String(res.headers["content-encoding"] ?? "")
-          .toLowerCase()
-          .trim();
-        const decoder =
-          encoding === "gzip" || encoding === "x-gzip"
-            ? createGunzip()
-            : encoding === "deflate"
-              ? createInflate()
-              : encoding === "br"
-                ? createBrotliDecompress()
-                : null;
-        const stream: Readable = decoder ? res.pipe(decoder) : res;
-        stream.on("data", (chunk: Buffer) => {
-          size += chunk.length;
-          if (size > MAX_RESPONSE_BYTES) {
-            req.destroy(new Error(`the response is over ${MAX_RESPONSE_BYTES / 1024 / 1024} MB`));
-            decoder?.destroy();
-            return;
-          }
-          chunks.push(chunk);
-        });
-        decoder?.on("error", reject);
-        stream.on("end", () => {
-          const flat: Record<string, string> = {};
-          for (const [name, value] of Object.entries(res.headers)) {
-            if (value === undefined || /^(content-encoding|transfer-encoding|content-length|connection)$/i.test(name))
-              continue;
-            flat[name] = Array.isArray(value) ? value.join("\n") : String(value);
-          }
-          resolveHop({ status: res.statusCode ?? 0, headers: flat, body: Buffer.concat(chunks) });
-        });
-        res.on("error", reject);
+      (answer) => {
+        const raw: string[] = [];
+        for (let i = 0; i < answer.rawHeaders.length; i += 2) {
+          const name = answer.rawHeaders[i] as string;
+          if (!HOP_BY_HOP.test(name)) raw.push(name, answer.rawHeaders[i + 1] as string);
+        }
+        res.writeHead(answer.statusCode ?? 502, raw);
+        answer.pipe(res);
       },
     );
-    req.on("timeout", () => req.destroy(new Error("the request timed out")));
-    req.on("error", reject);
-    if (body?.length) req.write(body);
-    req.end();
+    upstream.on("socket", track);
+    upstream.on("error", (error) => {
+      if (res.headersSent) return res.destroy();
+      if (isRefused(error)) return refuse();
+      // A connection the server reset or refused is a 502 the batch tries again, not the browser's bare failure.
+      res.writeHead(502, { "x-glimmer-upstream": (error as NodeJS.ErrnoException).code ?? "failed" }).end();
+    });
+    res.on("close", () => upstream.destroy());
+    req.pipe(upstream);
   });
+  server.on("connection", track);
+  server.on("connect", (req, client: Socket, head: Buffer) => {
+    const authority = req.url ?? "";
+    const split = /^\[?([^\]]+?)\]?:(\d+)$/.exec(authority);
+    const host = split?.[1] ?? "";
+    const port = Number(split?.[2] ?? 0);
+    const allowed = allowOrigins.has(`https://${authority}`);
+    const answer = (line: string) => client.end(`HTTP/1.1 ${line}\r\n\r\n`);
+    if (!split || (!allowed && literalRefused(host))) {
+      refused.push(authority);
+      return answer(`403 Forbidden\r\n${REFUSED}: non-public address`);
+    }
+    let open = false;
+    const upstream = track(netConnect({ host, port, ...(allowed ? {} : { lookup: checked as never }) }));
+    upstream.once("connect", () => {
+      open = true;
+      client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+      if (head.length) upstream.write(head);
+      upstream.pipe(client);
+      client.pipe(upstream);
+    });
+    upstream.on("error", (error) => {
+      if (open) return client.destroy();
+      if (isRefused(error)) {
+        refused.push(authority);
+        return answer(`403 Forbidden\r\n${REFUSED}: non-public address`);
+      }
+      answer("502 Bad Gateway");
+    });
+    client.on("error", () => upstream.destroy());
+    client.on("close", () => upstream.destroy());
+  });
+  // WebSockets are refused in the browser (`routeWebSocket`); one that reached the proxy is refused here too.
+  server.on("upgrade", (_req, socket: Socket) => socket.destroy());
+
+  return {
+    refused,
+    listen: () =>
+      new Promise<string>((done, fail) => {
+        server.once("error", fail);
+        server.listen(0, "127.0.0.1", () => done(`http://127.0.0.1:${(server.address() as AddressInfo).port}`));
+      }),
+    close: () => {
+      for (const socket of sockets) socket.destroy();
+      server.close();
+    },
+  };
 }
+
+// The browser's start has its own bound: one cold start on a loaded machine is not a page's render time.
+export const BROWSER_START_MS = 60_000;
 
 export async function openRenderer(options: { allowOrigins?: string[]; limitMs?: number; resolve?: Resolve } = {}) {
   const found = chromiumPath();
@@ -381,63 +435,31 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
   let launched = 0;
   const contexts = new Set<BrowserContext>();
   const current = () => {
-    session ??= chromium.launch({ executablePath, chromiumSandbox: true, args: ["--no-first-run"] }).then((browser) => {
-      launched++;
-      browser.on("disconnected", () => {
-        session = null;
+    if (!session) {
+      const starting = chromium
+        .launch({ executablePath, chromiumSandbox: true, args: ["--no-first-run"], timeout: BROWSER_START_MS })
+        .then((browser) => {
+          launched++;
+          browser.on("disconnected", () => {
+            if (session === starting) session = null;
+          });
+          return browser;
+        });
+      // A start that failed is forgotten, so the next page starts the browser again.
+      starting.catch(() => {
+        if (session === starting) session = null;
       });
-      return browser;
-    });
+      session = starting;
+    }
     return session;
   };
 
-  // A request may leave only for http or https (data and blob carry the page's own bytes); an address in the URL itself
-  // must be public. A name is checked where it is connected to (`publicLookup`).
-  function allowedUrl(url: string): boolean {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return false;
-    }
-    if (parsed.protocol === "data:" || parsed.protocol === "blob:") return true;
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
-    if (allowOrigins.has(parsed.origin)) return true;
-    const host = parsed.hostname.replace(/^\[|\]$/g, "");
-    return isIP(host) ? isPublicAddress(host) : true;
-  }
-
-  // Every request is fetched here, one hop at a time, over a connection whose address was checked as it connected; a
-  // redirect is passed to the browser, which follows it as a new request through this same route (Playwright calls a
-  // route only for a redirect chain's first URL, so the route never follows one itself).
-  const mainStatus = new WeakMap<Page, number>();
-  async function guard(route: Route, deadline: number) {
-    const request = route.request();
-    if (!allowedUrl(request.url())) return route.abort("blockedbyclient");
-    const url = new URL(request.url());
-    if (url.protocol === "data:" || url.protocol === "blob:") return route.continue();
-    try {
-      const hop = await fetchHop(
-        url,
-        request.method(),
-        await request.allHeaders(),
-        request.postDataBuffer(),
-        allowOrigins.has(url.origin) ? undefined : checkedLookup,
-        Math.max(1, deadline - Date.now()),
-      );
-      const location = hop.headers.location;
-      if (hop.status >= 300 && hop.status < 400 && location && !allowedUrl(new URL(location, url).href))
-        return route.abort("blockedbyclient");
-      const frame = request.frame();
-      if (request.isNavigationRequest() && !frame.parentFrame()) mainStatus.set(frame.page(), hop.status);
-      return await route.fulfill({ status: hop.status, headers: hop.headers, body: hop.body });
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      return route.abort(code === "EPRIVATE" ? "blockedbyclient" : "failed").catch(() => undefined);
-    }
-  }
-
-  async function capture(context: BrowserContext, url: string, deadline: number): Promise<Capture> {
+  async function capture(
+    context: BrowserContext,
+    url: string,
+    deadline: number,
+    egress: ReturnType<typeof openEgress>,
+  ): Promise<Capture> {
     const page = await context.newPage();
     let popupsClosed = 0;
     context.on("page", (other) => {
@@ -450,41 +472,64 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
         );
       }
     });
+    // The last main-frame document's own answer: a page that navigates on while it settles is judged by the document
+    // captured, not by the first one.
+    let status: number | undefined;
+    let refusedMain = false;
+    page.on("response", (answer) => {
+      if (answer.request().isNavigationRequest() && answer.frame() === page.mainFrame()) {
+        status = answer.status();
+        refusedMain = answer.headers()[REFUSED] !== undefined;
+      }
+    });
     const downloads: Promise<string | null>[] = [];
     page.on("download", (download) => downloads.push(download.path().catch(() => null)));
     const left = () => Math.max(1, deadline - Date.now());
-    const response = await page.goto(url, { waitUntil: "load", timeout: left() }).catch((error: Error) => {
-      const status = mainStatus.get(page);
+    await page.goto(url, { waitUntil: "load", timeout: left() }).catch((error: Error) => {
+      if (refusedMain || (egress.refused.length && /TUNNEL_CONNECTION_FAILED/.test(error.message)))
+        throw new RefusedAddress(`refused a non-public address: ${egress.refused.join(", ")}`);
       if (status !== undefined && status >= 400) throw new HttpStatus(status);
       throw error;
     });
     await page.waitForLoadState("networkidle", { timeout: Math.min(SETTLE_MS, left()) }).catch(
       () => undefined, // a page that keeps polling has still settled enough after 3 seconds
     );
-    // The page and every frame in it, cross-origin and nested ones included: a sign-in form inside an identity
-    // provider's frame is still the page's sign-in form, and its text is still what the viewer reads.
-    const frames = page.frames();
-    const readFrame = async <T>(frame: (typeof frames)[number], fn: () => T, fallback: T): Promise<T> => {
+    if (refusedMain) throw new RefusedAddress(`refused a non-public address: ${egress.refused.join(", ")}`);
+    // The page and every frame in it the viewer can see, cross-origin and nested ones included: a sign-in form inside
+    // an identity provider's frame is still the page's sign-in form. A frame counts only when every frame element
+    // above it is shown (display, visibility, opacity 0 and a zero size all hide it).
+    const readFrame = async <T>(frame: Frame, fn: () => T, fallback: T): Promise<T> => {
       try {
         return await frame.evaluate(fn);
       } catch {
         return fallback; // a frame that went away or never loaded reads as empty
       }
     };
+    const frameShown = async (frame: Frame): Promise<boolean> => {
+      for (let at: Frame | null = frame; at && at !== page.mainFrame(); at = at.parentFrame()) {
+        const element = await at.frameElement().catch(() => null);
+        const shown = await element
+          ?.evaluate((node) => {
+            const el = node as Element;
+            const box = el.getBoundingClientRect();
+            return (
+              box.width > 0 && box.height > 0 && el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+            );
+          })
+          .catch(() => false);
+        if (!shown) return false;
+      }
+      return true;
+    };
     let text = await page.evaluate(shownText);
     let has_login_form = false;
     let has_payment_form = false;
-    for (const frame of frames) {
+    for (const frame of page.frames()) {
+      if (frame !== page.mainFrame() && !(await frameShown(frame))) continue;
       const flags = await readFrame(frame, readFormFlags, { has_login_form: false, has_payment_form: false });
       has_login_form ||= flags.has_login_form;
       has_payment_form ||= flags.has_payment_form;
-      if (frame !== page.mainFrame()) {
-        const shown = await frame.frameElement().then(
-          (el) => el.isVisible(),
-          () => false,
-        );
-        if (shown) text += `\n${await readFrame(frame, shownText, "")}`;
-      }
+      if (frame !== page.mainFrame()) text += `\n${await readFrame(frame, shownText, "")}`;
     }
     const title = await page.title();
     const walls = await page.evaluate(readWalls);
@@ -500,7 +545,7 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     return {
       listed: url,
       finalUrl: page.url(),
-      status: response?.status() ?? 0,
+      status: status ?? 0,
       title,
       text: text
         .replace(/[ \t\f\v\r]+/g, " ")
@@ -516,23 +561,27 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     };
   }
 
-  // The whole render, the browser's start and the context's setup included, runs under one deadline; the context's
-  // close gets 5 seconds more, and a browser that does not close it is dropped, so no worker waits on it again.
+  // The browser starts (or is reused) under its own bound; then the whole render, the context's setup included, runs
+  // under one deadline. The context's close gets 5 seconds more, and a browser that does not close it is dropped, so
+  // no worker waits on it again. The render's egress proxy closes with it, ending every outbound connection.
   async function render(url: string): Promise<Capture> {
+    const mine = current();
+    const browser = await mine;
+    const egress = openEgress(allowOrigins, checkedLookup);
+    const proxy = await egress.listen();
     const deadline = Date.now() + limitMs;
     let timer: NodeJS.Timeout | undefined;
     let context: BrowserContext | undefined;
-    let browser: Browser | undefined;
     let abandoned = false;
-    const mine = current();
     const work = (async () => {
-      browser = await mine;
       const made = await browser.newContext({
         viewport: { width: MAX_WIDTH, height: 800 },
         acceptDownloads: false,
         serviceWorkers: "block",
         permissions: [],
         ignoreHTTPSErrors: false,
+        // `<-loopback>` sends loopback addresses through the proxy too, where they are refused.
+        proxy: { server: proxy, bypass: "<-loopback>" },
       });
       // Made after the deadline gave up on this render: closed here, since nothing else will.
       if (abandoned) {
@@ -542,8 +591,7 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       context = made;
       contexts.add(context);
       await context.routeWebSocket(/.*/, (socket) => socket.close());
-      await context.route("**/*", (route) => guard(route, deadline));
-      return capture(context, url, deadline);
+      return capture(context, url, deadline, egress);
     })();
     const limit = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new RenderTimeout(`the render passed ${limitMs / 1000} seconds`)), limitMs);
@@ -558,12 +606,13 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       abandoned = true;
       clearTimeout(timer);
       work.catch(() => undefined); // a render abandoned at its deadline still settles somewhere: nothing waits on it
+      egress.close();
       if (context) {
         contexts.delete(context);
         if (!(await bounded(context.close()))) {
           // The browser did not close the context: it is dropped, and the next render starts a new one.
           if (session === mine) session = null;
-          if (browser) void bounded(browser.close());
+          void bounded(browser.close());
         }
       }
     }
@@ -632,7 +681,7 @@ export function appendJournal(path: string, event: Omit<JournalEvent, "at">): vo
 
 // Network failures that pass: tried again on a rerun, like a timeout or a 5xx, three times in all.
 const TRANSIENT =
-  /net::ERR_(CONNECTION_(RESET|CLOSED|REFUSED|TIMED_OUT|ABORTED)|TIMED_OUT|NETWORK_CHANGED|EMPTY_RESPONSE|SOCKET_NOT_CONNECTED|NAME_RESOLUTION_FAILED|ADDRESS_UNREACHABLE)/;
+  /net::ERR_(CONNECTION_(RESET|CLOSED|REFUSED|TIMED_OUT|ABORTED)|TIMED_OUT|NETWORK_CHANGED|EMPTY_RESPONSE|SOCKET_NOT_CONNECTED|NAME_RESOLUTION_FAILED|ADDRESS_UNREACHABLE|TUNNEL_CONNECTION_FAILED|PROXY_CONNECTION_FAILED)/;
 
 export type BatchResult = { stored: number; excluded: number; retry: number; skipped: number; recovered: number };
 

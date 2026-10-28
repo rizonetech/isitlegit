@@ -107,7 +107,8 @@ export function readFormFlags(): FormFlags {
   const docs: Document[] = [document];
   for (const frame of document.querySelectorAll("iframe")) {
     try {
-      if (frame.contentDocument) docs.push(frame.contentDocument);
+      // A field's own visibility stops at its frame: a frame no one can see shows none of its fields.
+      if (visible(frame) && frame.contentDocument) docs.push(frame.contentDocument);
     } catch {
       // a cross-origin frame cannot be read; a payment provider's is still counted by its host above
     }

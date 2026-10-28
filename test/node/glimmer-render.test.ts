@@ -18,6 +18,7 @@ import {
   majesticList,
   openRenderer,
   publicLookup,
+  RefusedAddress,
   RenderTimeout,
   readJournal,
   runBatch,
@@ -59,6 +60,29 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
     res.writeHead(302, { location: `${secretOrigin}/secret` });
     res.end();
   },
+  "/hop-chain": (res) => {
+    res.writeHead(302, { location: "/to-loopback" });
+    res.end();
+  },
+  // A response that keeps sending a byte a second and never ends: its connection must not outlive the render.
+  "/drip": (res) => {
+    res.writeHead(200, { "content-type": "text/html" });
+    res.write(`<p>${words}</p>`);
+    dripOpen++;
+    const timer = setInterval(() => res.write(" "), 1000);
+    res.on("close", () => {
+      clearInterval(timer);
+      dripOpen--;
+    });
+  },
+  // A blank page whose only text and sign-in form sit in a frame no one can see.
+  "/hidden-frame": (res) => html(res, `<iframe src="/frame-login" style="opacity:0" width=400 height=300></iframe>`),
+  "/frame-login": (res) => html(res, `<p>${words}</p><input type=password>`),
+  // A server that drops the connection before it answers.
+  "/reset": (res) => res.socket?.destroy(),
+  // A page that, while it settles, moves on to a same-site page that does not exist.
+  "/moves-on": (res) =>
+    html(res, `<p>${words}</p><script>setTimeout(() => { location.href = '/missing' }, 100)</script>`),
   "/hop": (res) => {
     res.writeHead(302, { location: "/page" });
     res.end();
@@ -159,6 +183,7 @@ let secretOrigin: string;
 let secretHits = 0;
 let failing503 = 0;
 let upgrades = 0;
+let dripOpen = 0;
 let frameServer: Server;
 let frameOrigin: string;
 beforeAll(async () => {
@@ -236,7 +261,7 @@ describe("addresses", () => {
     });
     serverHits = [];
     const port = new URL(origin).port;
-    await expect(rebinding.render(`http://rebind.example:${port}/page`)).rejects.toThrow(/BLOCKED_BY_CLIENT/);
+    await expect(rebinding.render(`http://rebind.example:${port}/page`)).rejects.toBeInstanceOf(RefusedAddress);
     expect(serverHits).toEqual([]);
     await rebinding.close();
   }, 30_000);
@@ -300,7 +325,10 @@ describe("renderPage", () => {
     serverHits = [];
     await expect(renderer.render(`${origin}/to-loopback`)).rejects.toThrow();
     expect(secretHits).toBe(0);
-    await expect(renderer.render(`${origin}/to-private`)).rejects.toThrow(/BLOCKED_BY_CLIENT/);
+    await expect(renderer.render(`${origin}/to-private`)).rejects.toBeInstanceOf(RefusedAddress);
+    // The second hop of a chain is checked as the first is.
+    await expect(renderer.render(`${origin}/hop-chain`)).rejects.toThrow();
+    expect(secretHits).toBe(0);
     expect(renderer.openContexts()).toBe(0);
     // An allowed redirect is still followed, and its target comes back through the guard.
     const followed = await renderer.render(`${origin}/hop`);
@@ -341,6 +369,26 @@ describe("renderPage", () => {
     expect(quick.openContexts()).toBe(0);
     await quick.close();
   }, 20_000);
+
+  it("ends a render's outbound connections with the render", async () => {
+    const quick = await openRenderer({ allowOrigins: [origin], limitMs: 2_500 });
+    await quick.render(`${origin}/page`);
+    await expect(quick.render(`${origin}/drip`)).rejects.toBeInstanceOf(RenderTimeout);
+    await new Promise((done) => setTimeout(done, 300));
+    expect(dripOpen).toBe(0);
+    await quick.close();
+  }, 30_000);
+
+  it("reads nothing from a frame no one can see", async () => {
+    const shot = await renderer.render(`${origin}/hidden-frame`);
+    expect(shot.has_login_form).toBe(false);
+    expect(shot.text).not.toContain("Welcome");
+  });
+
+  it("judges a page that moves on by the document captured", async () => {
+    const shot = await renderer.render(`${origin}/moves-on`);
+    expect([shot.status, new URL(shot.finalUrl).pathname]).toEqual([404, "/missing"]);
+  });
 
   it("gives up on a page that stops answering and goes on with the next", async () => {
     const quick = await openRenderer({ allowOrigins: [origin], limitMs: 3_000 });
@@ -401,6 +449,12 @@ describe("usable", () => {
     expect(unusable(await live("/opacity-body"), local)).toMatch(/under 50 characters/);
   });
 
+  it("excludes a site's not-found page answered with 200", () => {
+    const cart = { url: "https://www.checkers.co.za/cart", kind: "checkout" as const, brand: "Checkers", also: [] };
+    const fallback = capture({ finalUrl: cart.url, title: "Checkers | Page not found", text: `Sorry. ${words}` });
+    expect(unusable(fallback, cart)).toBe("an error page answered with 200");
+  });
+
   it("excludes a listed page that lands on a sign-in page or does not show its brand", () => {
     const profile = { url: "https://www.facebook.com/FNBSA", kind: "social" as const, brand: "FNB", also: [] };
     const generic = capture({ finalUrl: "https://www.facebook.com/login/?next=x", title: "Log in to Facebook" });
@@ -415,14 +469,22 @@ describe("usable", () => {
   });
 
   it("keeps a listed kind only when the page shows it", () => {
+    const said = (text: string) => ({ text });
     const at = (path: string, over: Partial<Capture> = {}) =>
       capture({ finalUrl: `https://www.example.co.za${path}`, ...over });
     expect(capturedKind({ kind: "login" }, at("/login", { has_login_form: true }))).toBe("login");
     expect(capturedKind({ kind: "login" }, at("/"))).toBe("home");
-    expect(capturedKind({ kind: "checkout" }, at("/cart"))).toBe("checkout");
-    expect(capturedKind({ kind: "shop" }, at("/products/kettle-2l"))).toBe("shop");
-    expect(capturedKind({ kind: "shop" }, at("/en-za/"))).toBe("home");
-    expect(capturedKind({ kind: "company" }, at("/about-us/"))).toBe("company");
+    expect(capturedKind({ kind: "checkout" }, at("/cart", said("Your cart is empty. Subtotal R 0.00")))).toBe(
+      "checkout",
+    );
+    // A path is not enough: the page must say what it is.
+    expect(capturedKind({ kind: "checkout" }, at("/cart"))).toBe("home");
+    expect(capturedKind({ kind: "shop" }, at("/products/kettle-2l", said("Kettle 2 l. R 499.00. Add to cart")))).toBe(
+      "shop",
+    );
+    expect(capturedKind({ kind: "shop" }, at("/products/kettle-2l"))).toBe("home");
+    expect(capturedKind({ kind: "shop" }, at("/en-za/", said("Add to cart")))).toBe("home");
+    expect(capturedKind({ kind: "company" }, at("/about-us/", said("About us: our story since 1910")))).toBe("company");
     expect(capturedKind({ kind: "company" }, at("/"))).toBe("home");
     expect(capturedKind({ kind: "social" }, at("/FNBSA"))).toBe("social");
   });
@@ -505,6 +567,14 @@ describe("the batch run", () => {
     expect(await runBatch({ list: list(["/a"]), store, journal, render: failing(503) })).toMatchObject({ retry: 1 });
     expect(await runBatch({ list: list(["/b"]), store, journal, render: failing(404) })).toMatchObject({ excluded: 1 });
     expect(readJournal(journal).at(-1)?.reason).toBe("HTTP 404");
+  });
+
+  it("retries a connection the server dropped, through the real renderer", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    expect(await runBatch({ list: list(["/reset"]), store, journal, render: renderer.render })).toMatchObject({
+      retry: 1,
+    });
   });
 
   it("retries a passing network failure and a 429, and excludes a page after its third try", async () => {
