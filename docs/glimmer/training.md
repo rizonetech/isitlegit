@@ -44,6 +44,8 @@ training mode: image
 
 ## Decisions
 
+- 2026-10-28 21:36 SAST, operator: quality matters as much as quantity, low false positives and high detection alike. Each Loupe version aims at more training lines, better labels, fewer false alarms and more detections than the one before; a version is promoted only when, on the same held-out set, it trained on more lines, its lure recall is at least the previous version's and its false-alarm rate no higher, overall and on the South African slice (D03 T04 §13). Rule labels (§9) add lines; the held-out set, which holds trusted labels only, is what shows whether they cost quality.
+
 - 2026-10-28 21:32 SAST, operator: the human checks are dropped to save time (D03 T04 §9, §18): no Astra or Claude judging of queued pages, no 200-page check by eye, no spot check of the second sweep's sources. A page whose `lure` the teacher disputes is left out of training and evaluation; an `unverified` page trains at confidence 0.7 and never enters evaluation; the §5 spot checks (ScamFerret 4 percent, PhreshPhish 6 percent) stand as the recorded label error rates. Reversing it means running both judges over the queue and checking a sample before the next build.
 
 - 2026-10-28 20:50 SAST, operator: the US$60 a-run training cap is lifted until 2026-11-30 23:59 SAST, while Glimmer's supervised fine-tuning is free, and applies again from 2026-12-01 by the date in `scripts/glimmer/train_serverless.py` (D03 T04 §11). The lift holds only once the probe's 24-hour bill reconciliation reads US$0 rated for training; until then, or if it reads more, US$60 stands. Reversing it costs nothing: the cap returns by date. With the cap lifted, the time left before 2026-11-01 12:00 SAST bounds the training set instead.
