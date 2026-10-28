@@ -188,17 +188,19 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 
 ## 7. Partner credits for Glimmer
 
+> **Started:** 2026-10-28T20:27:46Z
+
 The event offered partner credits for hosting Muse Glimmer. **Corrected 2026-10-27 (operator decision, 10:47 SAST):** the outside providers are removed from the plan, and Standard Muse Spark on the Meta Model API screens the monitor's pages (D03 T04; the operator first chose Muse Spark 1.3 Contributor and withdrew it at 11:05 SAST, as lure pages carry personal data), so no partner credit is used. This section now only records what each offer came to. Its earlier items (apply for the Fireworks, Baseten and Modal credits; store the provider key; lift `third-party` from D03 T04's Needs) are superseded: D03 T04 no longer names a provider or that Need.
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
-**Corrected 2026-10-28** (operator, 20:22 SAST): the product calls Meta's Model API and Fireworks AI only; Baseten and Modal are closed. Fireworks is used (Loupe, D03 T04), so its line reads `used`; Modal was offered and never applied for, so the record takes `not applied` beside `applied`, `granted` and `not offered`.
+**Corrected 2026-10-28** (operator, 20:22 SAST): the product calls Meta's Model API and Fireworks AI only; Baseten and Modal are closed. Fireworks is used (Loupe, D03 T04), so its line reads `used`; Modal was offered and never applied for, so the record takes `not applied` beside `applied`, `granted` and `not offered`. With Modal's outcome given, the operator has answered all three, so `operator` leaves Needs.
 
 **Build order:**
 
-1. Record each partner credit and that it is not used. Done when: one line per provider below.
+1. Record each partner credit and whether it is used. Done when: one line per provider below.
 
 - [x] Record each partner offer as a line `Partner credit <name>: <applied|granted|not applied|not offered>, YYYY-MM-DD (<what it covered>; <used|not used>: <the operator decision>)`, for Fireworks, Baseten and Modal. Done when: the three lines exist.
 - [ ] Commit: `todo: record partner credits`

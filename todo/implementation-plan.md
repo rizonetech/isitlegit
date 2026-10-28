@@ -292,7 +292,7 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T01 §3 | Workers Paid plan                             | operator | 3     |
 | [ ]    | D99 T01 §4 | SMTP2GO sender domain                         | operator | 5     |
 | [ ]    | D99 T01 §6 | Google Web Risk API key                       | operator | 6     |
-| [ ]    | D99 T01 §7 | Partner credits for Glimmer                   | operator | 2     |
+| [ ]    | D99 T01 §7 | Partner credits for Glimmer                   | none     | 2     |
 | [ ]    | D99 T02 §1 | Rizonetech dogfooding from day 2              | operator | 3     |
 | [ ]    | D99 T02 §2 | Pilot client written consent                  | operator | 2     |
 | [ ]    | D99 T02 §3 | Record the demo footage                       | operator | 2     |
@@ -300,6 +300,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 45/231 verified sections, 26 ready to run now.
+Progress: 45/231 verified sections, 27 ready to run now.
 
 Checklist: 520/1361 items completed (includes Commit items).
