@@ -78,7 +78,11 @@ Evidence after the completion review, 2026-10-27 20:56 SAST. Its three in-scope 
 
 ## 2. Recipient allowlist enforced in code
 
+> **Started:** 2026-10-28T03:19Z
+
 The operator decided that during the event the system mails only registered members and Rizonetech-controlled test mailboxes (design spec section 11). Recipients come from code and stored records, never from a model (spec 4.6a). This guard sits inside `sendMail`, so no caller can skip it.
+
+**Corrected 2026-10-28:** checked against the code D07 T02 §1 to §3 shipped. `SendOutcome` has no `refused` case although `mail_sends.status` allows it and §1's magic-link sender already treats an allowlist refusal as undelivered, so the outcome type gains it and its callers are checked. Members and invitees are Better Auth's tables (`user`, `member`, `invitation`, migrations 0007 and 0010). Invite-code signup (D07 T02 §4) mails a link to an address that is not yet a member, so §4 must make it one before the link goes (written into §4). The auth and mail tests mail `example.com` addresses, which this refuses; their fixtures move to `@demo.isitlegit.co.za`, and refusal gets its own tests. A refused sign-in answers as §1 decided (not delivered, an error), which tells the asker the address is not registered; that is accepted for the closed event, with §6's rate limits bounding how fast anyone can ask.
 
 **Phase:** 1
 **Needs:** none
@@ -89,12 +93,13 @@ The operator decided that during the event the system mails only registered memb
 1. Write `src/mail/allowlist.ts` with `isAllowedRecipient`. Done when: members, member invitees, and `*@demo.isitlegit.co.za` aliases pass; everything else is refused.
 2. Call it from `sendMail`. Done when: a refused address never reaches `fetch`.
 
-- [ ] Write `isAllowedRecipient(address, kind, env)` allowing: verified members of any organisation (D07 T02), pending invitees for `signin` mail, addresses under `@demo.isitlegit.co.za` and `@isitlegit.co.za`, and the operator address in var `OPERATOR_EMAIL`. Done when: `test/mail/allowlist.test.ts` covers each allowed class and three refused ones.
-- [ ] Call the allowlist first inside `sendMail` and record refused sends as `mail_sends.status = refused`. Done when: a test with `someone@example.com` shows no `fetch` call and a `refused` row. Cheaper substitute: checking at each call site, which one caller will forget.
+- [ ] Write `isAllowedRecipient(db, address, kind, operatorEmail)` in `src/mail/allowlist.ts`, comparing addresses in lower case, allowing: a verified member of any organisation (a `user` with `emailVerified` and a `member` row), for `signin` mail also an address with a pending, unexpired `invitation`, addresses under `@demo.isitlegit.co.za` and `@isitlegit.co.za` (exactly those domains, not look-alikes such as `isitlegit.co.za.evil.example`), and the operator address in var `OPERATOR_EMAIL`. Done when: `test/mail/allowlist.test.ts` covers each allowed class and refuses an unregistered address, a registered user with no organisation, an expired or cancelled invitee, an invitee for a non-`signin` kind, and a look-alike domain.
+- [ ] Call the allowlist first inside `sendMail` (`src/mail/smtp2go.ts`) and record a refused send as `mail_sends.status = refused` under its send key, returning a new `{ status: "refused" }` outcome; check every caller of `sendMail` handles it (§1's magic link and §3's invitation after hook count it as not delivered; the reconcile and reply paths treat it as final, never retried). Done when: a test with `someone@example.com` shows no `fetch` call and a `refused` row, the magic-link request to it answers its error, and `pnpm typecheck` passes with the new case. Cheaper substitute: checking at each call site, which one caller will forget.
+- [ ] Move the auth and mail test fixtures that send mail from `example.com` to `@demo.isitlegit.co.za` addresses (`test/auth`, `test/mail`). Done when: `pnpm exec vitest run` passes with the allowlist on and no test mails an address it refuses except the refusal tests.
 - [ ] Set `OPERATOR_EMAIL` as a Worker var from the operator's Rizonetech address (design spec section 11, Mailbox). Done when: `wrangler.jsonc` has the var and `pnpm typecheck` sees it.
 - [ ] Commit: `mail: recipient allowlist enforced inside the sender`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/allowlist.test.ts` passes and fails if the allowlist call is moved out of `sendMail`.
+**Test checkpoint:** `pnpm exec vitest run test/mail test/auth` passes and fails if the allowlist call is moved out of `sendMail`, a look-alike domain or an unregistered address is allowed, or a refused send reaches `fetch`.
 
 ## 3. Threaded reply with a signed report link
 

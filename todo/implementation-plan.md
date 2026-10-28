@@ -26,7 +26,7 @@ Sections: 11 | Checklist items: 138
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 38 | Checklist items: 274
+Sections: 38 | Checklist items: 276
 
 | Status | Reference  | Deliverable                                | Needs                 | Items |
 | ------ | ---------- | ------------------------------------------ | --------------------- | ----- |
@@ -49,9 +49,9 @@ Sections: 38 | Checklist items: 274
 | [x]    | D07 T02 §1 | Better Auth on D1 with email magic link    | none                  | 9     |
 | [x]    | D07 T02 §2 | Passkey sign-in                            | none                  | 9     |
 | [x]    | D07 T02 §3 | Organisations, roles, invites and removal  | none                  | 9     |
-| [ ]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 4     |
+| [ ]    | D01 T02 §2 | Recipient allowlist enforced in code       | none                  | 5     |
 | [ ]    | D01 T02 §3 | Threaded reply with a signed report link   | none                  | 7     |
-| [ ]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 6     |
+| [ ]    | D07 T02 §4 | Invite-code signup and daily case caps     | none                  | 7     |
 | [ ]    | D07 T02 §5 | Domain verification and sender lookup      | none                  | 7     |
 | [ ]    | D01 T01 §3 | Email handler for verified members         | none                  | 7     |
 | [ ]    | D01 T01 §4 | Forward-as-attachment detection            | none                  | 5     |
@@ -280,4 +280,4 @@ Sections: 12 | Checklist items: 51
 
 Progress: 31/209 verified sections, 15 ready to run now.
 
-Checklist: 365/1124 items completed (includes Commit items).
+Checklist: 365/1126 items completed (includes Commit items).
