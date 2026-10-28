@@ -70,29 +70,35 @@ function randomNonce(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-const DELIMITERS = ["<<UNTRUSTED", "<<END"];
-const LONGEST_DELIMITER = Math.max(...DELIMITERS.map((d) => d.length));
+const DELIMITERS = ["<<UNTRUSTED", "<<END"].map((d) => Array.from(d, (c) => c.charCodeAt(0)));
 
-// No delimiter may survive in the content, including one that removing another would form ("<<<<ENDEND"). One pass:
-// each character goes onto the output, and a delimiter completed at its end is taken off again, so hostile text costs
-// time in proportion to its length. With a `limit`, reading stops once the output holds `limit` characters plus the
-// longest delimiter (a later removal only ever takes characters off the end, at most one delimiter's worth beyond what
-// is kept), and the output is cut to `limit`: memory stays bounded whatever the input's length.
+// No delimiter may survive in the content, including one that removing another would form ("<<<<ENDEND"), and the
+// whole text is stripped before anything is cut, because nested delimiters can collapse any length of it. One pass
+// over UTF-16 code units (both delimiters are ASCII, so a surrogate pair is never split): each unit goes onto a
+// two-byte-per-unit stack, and a delimiter completed at its top is taken off again. Time and memory grow in proportion
+// to the text, two bytes a character, with no array of strings. `limit` then keeps the first `limit` characters.
 export function stripDelimiters(text: string, limit = Number.POSITIVE_INFINITY): string {
-  const out: string[] = [];
-  const enough = limit + LONGEST_DELIMITER;
-  for (const character of text) {
-    if (out.length >= enough) break;
-    out.push(character);
+  const stack = new Uint16Array(text.length);
+  let top = 0;
+  for (let i = 0; i < text.length; i++) {
+    const unit = text.charCodeAt(i);
+    stack[top++] = unit;
     for (const delimiter of DELIMITERS) {
-      if (out.length < delimiter.length || character !== delimiter.at(-1)) continue;
-      if (out.slice(out.length - delimiter.length).join("") === delimiter) {
-        out.length -= delimiter.length;
+      const size = delimiter.length;
+      if (top < size || unit !== delimiter[size - 1]) continue;
+      let match = true;
+      for (let k = 0; k < size && match; k++) match = stack[top - size + k] === delimiter[k];
+      if (match) {
+        top -= size;
         break;
       }
     }
   }
-  return (out.length > limit ? out.slice(0, limit) : out).join("");
+  // Decode only what is kept: at most two code units a character.
+  const kept = Number.isFinite(limit) ? Math.min(top, limit * 2) : top;
+  let out = "";
+  for (let i = 0; i < kept; i += 0x8000) out += String.fromCharCode(...stack.subarray(i, Math.min(kept, i + 0x8000)));
+  return Number.isFinite(limit) ? Array.from(out).slice(0, limit).join("") : out;
 }
 
 // A page's host as the request states it outside the untrusted block: a lowercase DNS name (punycode for IDNs), so

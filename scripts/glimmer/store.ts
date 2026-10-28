@@ -11,7 +11,9 @@
 // into place, then the parent flushed, so a page is either whole or absent after a crash. Opening the store removes
 // temporary folders a dead writer left; `verify()` names any page whose files no longer match their hashes, and a
 // repeated `putPage` replaces such a page instead of reporting it stored. `removeSource()` takes a source's pages out
-// whole (D03 T04 §5 removes a source whose licence or files fail Claude's check). The store is `GLIMMER_DATA_DIR`,
+// whole (D03 T04 §5 removes a source whose licence or files fail Claude's check). Every screenshot is decoded with
+// sharp (libvips) at its strictest before it is stored: `jpegSize` is the fast early check, the decoder is the proof
+// that Fireworks gets a whole image. The store is `GLIMMER_DATA_DIR`,
 // default `~/isitlegit-data/glimmer`, as scripts/astra-collect.py resolves it.
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -30,6 +32,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import sharp from "sharp";
 import { z } from "zod";
 import { HOST, jpegSize, LURE_TYPES } from "../../src/vision/page-screen.ts";
 
@@ -165,9 +168,16 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     }
   }
 
-  function putPage(source: string, page: PageInput): string {
-    const size = jpegSize(page.screenshot);
-    if (!size) throw new TypeError("the screenshot is not a JPEG");
+  async function putPage(source: string, page: PageInput): Promise<string> {
+    if (!jpegSize(page.screenshot)) throw new TypeError("the screenshot is not a JPEG");
+    let size: { width: number; height: number };
+    try {
+      const decoded = await sharp(page.screenshot, { failOn: "warning" }).raw().toBuffer({ resolveWithObject: true });
+      size = { width: decoded.info.width, height: decoded.info.height };
+    } catch (error) {
+      const reason = (error as Error).message.split("\n")[0];
+      throw new TypeError(`the screenshot is not a JPEG that decodes whole (${reason})`);
+    }
     if (size.width > MAX_WIDTH || size.height > MAX_HEIGHT)
       throw new RangeError(`the screenshot is ${size.width} by ${size.height}; at most ${MAX_WIDTH} by ${MAX_HEIGHT}`);
     const { screenshot, text, ...rest } = page;
@@ -180,7 +190,12 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     const id = `${source}-${digest.slice(0, 16)}`;
     const final = join(pages, id);
     if (existsSync(final)) {
-      if (intact(id)) return id;
+      if (intact(id)) {
+        // A retry after a failed flush finds the page published but maybe not on disk: flush it again before saying so.
+        sync(final);
+        sync(pages);
+        return id;
+      }
       // A damaged copy is not this page: it is set aside and the page written again.
       renameSync(final, join(pages, `.damaged-${id}-${Date.now()}`));
     }

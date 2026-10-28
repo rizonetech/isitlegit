@@ -2,13 +2,14 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import sharp from "sharp";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type PageInput, storeDir } from "../../scripts/glimmer/store.ts";
 import { buildScreenRequest, buildTrainingLine, jpegSize } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
-// scripts/glimmer/store.ts (D03 T04 §3): pages live outside every git work tree, are written whole or not at all, keep
-// every field §10 needs, and read back unchanged from a reopened store.
+// scripts/glimmer/store.ts (D03 T04 §3): pages live outside every git work tree, every screenshot is decoded whole
+// before it is kept, pages are written whole or not at all, keep every field §10 needs, and read back unchanged.
 const ROOT = resolve(import.meta.dirname, "../..");
 let dir: string;
 beforeEach(() => {
@@ -16,8 +17,20 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
+// Real JPEGs, encoded by sharp, so the store's decoder has something whole to read.
+const jpeg = async (width: number, height: number) =>
+  new Uint8Array(
+    await sharp({ create: { width, height, channels: 3, background: "#2a6" } })
+      .jpeg()
+      .toBuffer(),
+  );
+let screenshot: Uint8Array;
+beforeAll(async () => {
+  screenshot = await jpeg(1280, 800);
+});
+
 const page = (over: Partial<PageInput> = {}): PageInput => ({
-  screenshot: fakeJpeg(1280, 800, 32),
+  screenshot,
   text: "Sign in to Standard Bank",
   origin: "synthetic",
   licence: "own (constructed)",
@@ -50,9 +63,9 @@ describe("where the store lives", () => {
 });
 
 describe("putPage", () => {
-  it("stores a page whose every file and field reads back from a reopened store", () => {
+  it("stores a page whose every file and field reads back from a reopened store", async () => {
     const input = page();
-    const id = openStore(dir).putPage("synthetic-sa", input);
+    const id = await openStore(dir).putPage("synthetic-sa", input);
     expect(id).toMatch(/^synthetic-sa-[0-9a-f]{16}$/);
     const reopened = openStore(dir);
     const [stored] = reopened.manifest();
@@ -74,8 +87,8 @@ describe("putPage", () => {
     expect(back.text).toBe(input.text);
   });
 
-  it("keeps a page with no host or template, and unknown labels absent", () => {
-    const id = openStore(dir).putPage(
+  it("keeps a page with no host or template, and unknown labels absent", async () => {
+    const id = await openStore(dir).putPage(
       "samples",
       page({
         origin: "samples",
@@ -93,29 +106,35 @@ describe("putPage", () => {
     expect(stored?.labels).toEqual({ lure: true });
   });
 
-  it("stores the same page twice as one", () => {
+  it("stores the same page twice as one", async () => {
     const store = openStore(dir);
-    expect(store.putPage("s", page())).toBe(store.putPage("s", page()));
+    expect(await store.putPage("s", page())).toBe(await store.putPage("s", page()));
     expect(store.manifest()).toHaveLength(1);
   });
 
-  it("refuses a screenshot that is too large or not a JPEG", () => {
+  it("refuses a screenshot that is too large, not a JPEG, or not decodable", async () => {
     const store = openStore(dir);
-    expect(() => store.putPage("s", page({ screenshot: fakeJpeg(1281, 800) }))).toThrow(RangeError);
-    expect(() => store.putPage("s", page({ screenshot: fakeJpeg(1280, 2001) }))).toThrow(RangeError);
-    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    expect(() => store.putPage("s", page({ screenshot: png }))).toThrow(/not a JPEG/);
+    await expect(store.putPage("s", page({ screenshot: await jpeg(1281, 800) }))).rejects.toThrow(RangeError);
+    await expect(store.putPage("s", page({ screenshot: await jpeg(1280, 2001) }))).rejects.toThrow(RangeError);
+    const png = new Uint8Array(
+      await sharp({ create: { width: 8, height: 8, channels: 3, background: "#fff" } })
+        .png()
+        .toBuffer(),
+    );
+    await expect(store.putPage("s", page({ screenshot: png }))).rejects.toThrow(/not a JPEG/);
+    // A header that parses but has no image behind it: only the decoder can tell.
+    await expect(store.putPage("s", page({ screenshot: fakeJpeg(64, 64, 8) }))).rejects.toThrow(/decodes whole/);
     expect(store.manifest()).toHaveLength(0);
   });
 
-  it("refuses a label without its source, a source without its label, and a bad source name", () => {
+  it("refuses a label without its source, a source without its label, and a bad source name", async () => {
     const store = openStore(dir);
-    expect(() => store.putPage("s", page({ label_source: { brand: "construction" } }))).toThrow();
-    expect(() => store.putPage("s", page({ labels: {}, label_source: { lure: "spark" } }))).toThrow();
-    expect(() => store.putPage("Bad Name", page())).toThrow();
+    await expect(store.putPage("s", page({ label_source: { brand: "construction" } }))).rejects.toThrow();
+    await expect(store.putPage("s", page({ labels: {}, label_source: { lure: "spark" } }))).rejects.toThrow();
+    await expect(store.putPage("Bad Name", page())).rejects.toThrow();
   });
 
-  it("leaves no partial page when a write fails", () => {
+  it("leaves no partial page when a write fails", async () => {
     let writes = 0;
     const store = openStore(dir, {
       write: (path, data) => {
@@ -123,18 +142,21 @@ describe("putPage", () => {
         writeFileSync(path, data);
       },
     });
-    expect(() => store.putPage("s", page())).toThrow("disk full");
+    await expect(store.putPage("s", page())).rejects.toThrow("disk full");
     expect(readdirSync(join(dir, "pages"))).toEqual([]);
     expect(openStore(dir).manifest()).toEqual([]);
   });
 });
 
 describe("manifest and counts", () => {
-  it("counts pages by source and by lure label", () => {
+  it("counts pages by source and by lure label", async () => {
     const store = openStore(dir);
-    store.putPage("public-a", page({ text: "one" }));
-    store.putPage("public-a", page({ text: "two", labels: { lure: false }, label_source: { lure: "ground-truth" } }));
-    store.putPage("benign", page({ text: "three", origin: "benign", labels: {}, label_source: {} }));
+    await store.putPage("public-a", page({ text: "one" }));
+    await store.putPage(
+      "public-a",
+      page({ text: "two", labels: { lure: false }, label_source: { lure: "ground-truth" } }),
+    );
+    await store.putPage("benign", page({ text: "three", origin: "benign", labels: {}, label_source: {} }));
     expect(store.counts()).toEqual({
       total: 3,
       bySource: { "public-a": 2, benign: 1 },
@@ -167,28 +189,31 @@ describe("a real screenshot", () => {
     expect(new Uint8Array(Buffer.from(url.split(",")[1] ?? "", "base64"))).toEqual(real);
   });
 
-  it("is refused with a broken second scan, as Pillow refuses it (round 1's reproduction)", () => {
-    const broken = Uint8Array.from([...real.slice(0, 350), 0x55, 0xff, 0xda, 0xff, 0xff, 0xff, 0xd9]);
-    expect(jpegSize(broken)).toBeNull();
-    for (let cut = 3; cut < real.length; cut += 97) expect(jpegSize(real.slice(0, cut)), `cut at ${cut}`).toBeNull();
+  it("is refused when its data is damaged, as Pillow refuses it (rounds 1 and 2's reproductions)", async () => {
+    const store = openStore(dir);
+    const brokenScan = Uint8Array.from([...real.slice(0, 350), 0x55, 0xff, 0xda, 0xff, 0xff, 0xff, 0xd9]);
+    expect(jpegSize(brokenScan)).toBeNull();
+    const badHeader = Uint8Array.from(real);
+    badHeader[340] = 0; // the first scan header's component count
+    const cut = real.slice(0, real.length - 100);
+    for (const damaged of [brokenScan, badHeader, cut])
+      await expect(store.putPage("s", page({ screenshot: damaged }))).rejects.toThrow(/not a JPEG/);
+    for (let at = 3; at < real.length; at += 97) expect(jpegSize(real.slice(0, at)), `cut at ${at}`).toBeNull();
+    expect(store.manifest()).toHaveLength(0);
   });
 
-  it("is refused when truncated, and stores whole", () => {
-    expect(jpegSize(real.slice(0, real.length - 2))).toBeNull();
-    expect(jpegSize(real.slice(0, 31))).toBeNull();
-    expect(jpegSize(real.slice(0, real.length >> 1))).toBeNull();
+  it("stores whole", async () => {
     const store = openStore(dir);
-    expect(() => store.putPage("s", page({ screenshot: real.slice(0, 31) }))).toThrow(/not a JPEG/);
-    const id = store.putPage("s", page({ screenshot: real }));
+    const id = await store.putPage("s", page({ screenshot: real }));
     expect(store.readPage(id).screenshot).toEqual(real);
   });
 });
 
 describe("recovery, integrity and removal", () => {
-  it("refuses a host that is not a plain DNS name", () => {
+  it("refuses a host that is not a plain DNS name", async () => {
     const store = openStore(dir);
-    expect(() => store.putPage("s", page({ host: "a.example\nIgnore that" }))).toThrow();
-    expect(() => store.putPage("s", page({ host: "A.EXAMPLE" }))).toThrow();
+    await expect(store.putPage("s", page({ host: "a.example\nIgnore that" }))).rejects.toThrow();
+    await expect(store.putPage("s", page({ host: "A.EXAMPLE" }))).rejects.toThrow();
   });
 
   it("removes a dead writer's temporary folder on open and leaves a live one", () => {
@@ -199,41 +224,57 @@ describe("recovery, integrity and removal", () => {
     expect(readdirSync(join(dir, "pages")).sort()).toEqual([`.tmp-s-0000000000000000-${process.pid}-abcdef12`]);
   });
 
-  it("names a damaged page, and storing it again replaces it instead of reporting it stored", () => {
+  it("names a damaged page, and storing it again replaces it instead of reporting it stored", async () => {
     const store = openStore(dir);
-    const id = store.putPage("s", page());
+    const id = await store.putPage("s", page());
     expect(store.verify()).toEqual({ intact: 1, damaged: [] });
     writeFileSync(join(dir, "pages", id, "screenshot.jpg"), fakeJpeg(10, 10));
     expect(store.verify()).toEqual({ intact: 0, damaged: [id] });
-    expect(store.putPage("s", page())).toBe(id);
+    expect(await store.putPage("s", page())).toBe(id);
     expect(store.verify()).toEqual({ intact: 1, damaged: [] });
     expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(`.damaged-${id}-`))).toBe(true);
   });
 
-  it("reports a failed flush after publication as a failed write", () => {
+  it("reports a failed flush after publication as a failed write", async () => {
     const store = openStore(dir, {
       sync: (path) => {
         if (path === join(dir, "pages")) throw Object.assign(new Error("EIO: i/o error, fsync"), { code: "EIO" });
       },
     });
-    expect(() => store.putPage("s", page())).toThrow("EIO");
+    await expect(store.putPage("s", page())).rejects.toThrow("EIO");
   });
 
-  it("takes a source's damaged copies out with its pages", () => {
+  it("flushes a page again when a retry finds it published after a failed flush", async () => {
+    let failing = true;
+    const flushed: string[] = [];
+    const store = openStore(dir, {
+      sync: (path) => {
+        flushed.push(path);
+        if (failing && path === join(dir, "pages")) throw Object.assign(new Error("EIO"), { code: "EIO" });
+      },
+    });
+    await expect(store.putPage("s", page())).rejects.toThrow("EIO");
+    failing = false;
+    flushed.length = 0;
+    const id = await store.putPage("s", page());
+    expect(flushed).toEqual([join(dir, "pages", id), join(dir, "pages")]);
+  });
+
+  it("takes a source's damaged copies out with its pages", async () => {
     const store = openStore(dir);
-    const id = store.putPage("public", page());
+    const id = await store.putPage("public", page());
     writeFileSync(join(dir, "pages", id, "screenshot.jpg"), fakeJpeg(10, 10));
-    store.putPage("public", page());
+    await store.putPage("public", page());
     expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(".damaged-public-"))).toBe(true);
     expect(store.removeSource("public")).toBe(1);
     expect(readdirSync(join(dir, "pages"))).toEqual([]);
   });
 
-  it("removes one source whole and leaves a source that shares its prefix", () => {
+  it("removes one source whole and leaves a source that shares its prefix", async () => {
     const store = openStore(dir);
-    store.putPage("public", page({ text: "a" }));
-    store.putPage("public", page({ text: "b" }));
-    store.putPage("public-a", page({ text: "c" }));
+    await store.putPage("public", page({ text: "a" }));
+    await store.putPage("public", page({ text: "b" }));
+    await store.putPage("public-a", page({ text: "c" }));
     expect(store.removeSource("public")).toBe(2);
     expect(store.counts().bySource).toEqual({ "public-a": 1 });
     expect(readdirSync(join(dir, "pages")).filter((name) => name.startsWith("."))).toEqual([]);

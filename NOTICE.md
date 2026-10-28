@@ -30,6 +30,7 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `@tailwindcss/cli` | 4.3.3 | MIT | No: the stylesheet compiler's command line |
 | `@types/node` | 24.19.2 | MIT | No: types for the Node-side build scripts and tests |
 | `playwright-core` | 1.64.1 | Apache-2.0 | No: drives the browser tests with real keyboard and mouse input |
+| `sharp` | 0.35.5 | Apache-2.0 (its prebuilt libvips binaries are LGPL-3.0-or-later) | No: decodes each Loupe training screenshot whole before the training store keeps it (`scripts/glimmer/store.ts`, D03 T04 §3) |
 | `openai` | 7.43.0 | Apache-2.0 | No, for now: the Meta smoke test's client (D00 T01 §7); the Worker's Meta client adds it as a runtime dependency in D03 T01 |
 | `@meta-sam/parser` | 0.1.0 | SAM License (Meta, last updated 2025-11-19; `node_modules/@meta-sam/parser/LICENSE`) | No, for now: parses SAM 3.1's streamed segmentation in the smoke test (D00 T01 §7) |
 | `fonttools` (Python) | 4.63.0 | MIT | No: converts the fonts to WOFF2 and computes the fallback metrics (`design/tools/`) |

@@ -174,14 +174,23 @@ describe("buildScreenRequest", () => {
     }
   });
 
-  it("reads only as much of a huge page as it keeps", () => {
-    // 12 million characters exhausted a 128 MB heap when the whole text became an array (round 1, 2026-10-28).
+  it("strips a huge page in one pass without building an array of its characters", () => {
+    // 12 million characters exhausted a 128 MB heap when the whole text became an array of strings (round 1); the
+    // stack is now two bytes a character.
     const huge = "a".repeat(12_000_000);
     const start = performance.now();
     const request = buildScreenRequest({ host: null, text: huge, mode: "text-only", nonce: NONCE });
-    expect(performance.now() - start).toBeLessThan(250);
+    expect(performance.now() - start).toBeLessThan(2_000);
     const text = (request.messages[1] as { content: { text: string }[] }).content[0]?.text ?? "";
     expect(text.split("\n")[3]).toHaveLength(MAX_TEXT_CHARACTERS);
+  });
+
+  it("strips the whole text before cutting, so nested delimiters cannot hide what follows them", () => {
+    // Round 2's reproduction: 6,010 `<` and 3,005 `END` collapse to nothing, leaving the visible text.
+    const hostile = `${"<".repeat(6010)}${"END".repeat(3005)}actual visible text`;
+    const request = buildScreenRequest({ host: null, text: hostile, mode: "text-only", nonce: NONCE });
+    const text = (request.messages[1] as { content: { text: string }[] }).content[0]?.text ?? "";
+    expect(text.split("\n")[3]).toBe("actual visible text");
   });
 
   it("keeps the same characters with a limit as stripping everything and then cutting", () => {
