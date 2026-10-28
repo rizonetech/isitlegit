@@ -164,43 +164,38 @@ async function proveByCode(
   code: string,
 ): Promise<"locked" | "expired" | "none" | "wrong" | Verified> {
   const now = new Date().toISOString();
-  // A guess is weighed only after it takes one of the three attempts, in one statement: however many arrive together,
-  // at most three are compared (a lock that has run out gives a fresh three).
-  const reserved = await db
-    .prepare(
-      "UPDATE verification_codes SET attempts = CASE WHEN locked_until IS NOT NULL THEN 1 ELSE attempts + 1 END, locked_until = NULL WHERE claim_id = ? AND org_id = ? AND expires_at > ? AND ((locked_until IS NULL AND attempts < ?) OR locked_until <= ?) RETURNING attempts, code_id, code_hash",
-    )
-    .bind(claimId, orgId, now, MAX_ATTEMPTS, now)
-    .first<{ attempts: number; code_id: string; code_hash: string }>();
-  if (!reserved) {
+  // One transaction: the guess takes one of the three attempts (the third setting the lock as it is taken), then a right
+  // code is consumed and the claim verified. However guesses and resends interleave, at most three are weighed and the
+  // lock is never left unset; a failure rolls the whole guess back, its attempt included.
+  let reserved: D1Result<{ attempts: number }> | undefined;
+  let consumed: D1Result | undefined;
+  let verified: D1Result | undefined;
+  try {
+    [reserved, consumed, verified] = (await db.batch([
+      db
+        .prepare(
+          "UPDATE verification_codes SET attempts = CASE WHEN locked_until IS NOT NULL THEN 1 ELSE attempts + 1 END, locked_until = CASE WHEN (CASE WHEN locked_until IS NOT NULL THEN 1 ELSE attempts + 1 END) >= ? THEN ? ELSE NULL END WHERE claim_id = ? AND org_id = ? AND expires_at > ? AND ((locked_until IS NULL AND attempts < ?) OR locked_until <= ?) RETURNING attempts",
+        )
+        .bind(MAX_ATTEMPTS, new Date(Date.now() + LOCK_MS).toISOString(), claimId, orgId, now, MAX_ATTEMPTS, now),
+      db
+        .prepare("DELETE FROM verification_codes WHERE claim_id = ? AND org_id = ? AND code_hash = ? AND changes() = 1")
+        .bind(claimId, orgId, await sha256Hex(`${claimId}:${code.trim()}`)),
+      db.prepare(`${verifySql(table)} AND changes() = 1`).bind(now, "email", claimId),
+    ])) as [D1Result<{ attempts: number }>, D1Result, D1Result];
+  } catch (error) {
+    return isUnique(error) ? "taken" : "unavailable";
+  }
+  const taken = reserved?.results[0];
+  if (!taken) {
     const row = await db
-      .prepare("SELECT expires_at, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?")
+      .prepare("SELECT expires_at FROM verification_codes WHERE claim_id = ? AND org_id = ?")
       .bind(claimId, orgId)
-      .first<{ expires_at: string; locked_until: string | null }>();
+      .first<{ expires_at: string }>();
     if (!row) return "none";
-    if (row.expires_at <= now) return "expired";
-    return "locked";
+    return row.expires_at <= now ? "expired" : "locked";
   }
-  if (reserved.code_hash === (await sha256Hex(`${claimId}:${code.trim()}`))) {
-    // Right: the code is consumed and the claim verified together, so a failure loses neither.
-    try {
-      const [consumed, verified] = await db.batch([
-        db.prepare("DELETE FROM verification_codes WHERE claim_id = ? AND code_id = ?").bind(claimId, reserved.code_id),
-        db.prepare(`${verifySql(table)} AND changes() = 1`).bind(now, "email", claimId),
-      ]);
-      if (consumed?.meta.changes !== 1) return "none";
-      return verified?.meta.changes === 1 ? "verified" : "gone";
-    } catch (error) {
-      return isUnique(error) ? "taken" : "unavailable";
-    }
-  }
-  // Wrong: the third wrong guess locks the code for an hour.
-  if (reserved.attempts < MAX_ATTEMPTS) return "wrong";
-  await db
-    .prepare("UPDATE verification_codes SET locked_until = ? WHERE claim_id = ? AND code_id = ?")
-    .bind(new Date(Date.now() + LOCK_MS).toISOString(), claimId, reserved.code_id)
-    .run();
-  return "locked";
+  if (consumed?.meta.changes === 1) return verified?.meta.changes === 1 ? "verified" : "gone";
+  return taken.attempts >= MAX_ATTEMPTS ? "locked" : "wrong";
 }
 
 const verifiedAnswer = (result: Verified, body: Record<string, unknown>, what: "domain" | "address") =>

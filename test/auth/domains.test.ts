@@ -104,6 +104,67 @@ const stateOf = async (orgId: string, domain: string) =>
       .first<{ state: string }>()
   )?.state ?? null;
 
+// A pause on a request's own statements on a code: `pausing(pause)` is the database with each guess statement
+// (`first` or `run`, not a batch) held after it ran until `release`; `reached` resolves once `count` are held.
+function held(count: number) {
+  let holding = 0;
+  let reach: () => void = () => {};
+  let release: () => void = () => {};
+  const reached = new Promise<void>((resolve) => {
+    reach = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const hold = async () => {
+    holding += 1;
+    if (holding === count) reach();
+    await released;
+  };
+  return { reached, release, hold };
+}
+const GUESS_STATEMENT =
+  /^(SELECT expires_at, locked_until FROM verification_codes|UPDATE verification_codes SET attempts)/;
+function pausing(pause: { hold: () => Promise<void> }): D1Database {
+  return new Proxy(db, {
+    get(target, key) {
+      if (key === "prepare")
+        return (sql: string) => {
+          const statement = target.prepare(sql);
+          if (!GUESS_STATEMENT.test(sql)) return statement;
+          const bind = statement.bind.bind(statement);
+          statement.bind = (...values: unknown[]) => {
+            const bound = bind(...values);
+            const first = bound.first.bind(bound) as () => Promise<unknown>;
+            const run = bound.run.bind(bound);
+            Object.assign(bound, {
+              first: async () => {
+                const result = await first();
+                await pause.hold();
+                return result;
+              },
+              run: async () => {
+                const result = await run();
+                await pause.hold();
+                return result;
+              },
+            });
+            return bound;
+          };
+          return statement;
+        };
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+const near = (code: string, n: number) => String((Number(code) + n) % 1_000_000).padStart(6, "0");
+const guess = (domain: string, cookie: string, code: string, DB: D1Database) =>
+  call(
+    `/api/org/domains/${domain}/verify`,
+    { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ code }) },
+    { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}`, DB },
+  );
 describe("claiming and verifying a domain", () => {
   it("lets an owner claim, verify by DNS, read back and remove a domain", async () => {
     const { cookie, orgId } = await owner("dnsowner@example.org");
@@ -334,59 +395,33 @@ describe("codes by email", () => {
     await json("/domains", cookie, "POST", { domain: "barrier.co.za" });
     await json("/domains/barrier.co.za/code", cookie, "POST", { local: "admin" });
     const right = lastCode();
-    // Three wrong guesses each pause just after their first statement on the code (the point a check-then-count
-    // would leave them uncounted) until the right guess has been answered.
-    let paused = 0;
-    let allPaused: () => void = () => {};
-    const threePaused = new Promise<void>((resolve) => {
-      allPaused = resolve;
-    });
-    let resume: () => void = () => {};
-    const rightAnswered = new Promise<void>((resolve) => {
-      resume = resolve;
-    });
-    const first = /^(SELECT expires_at, locked_until FROM verification_codes|UPDATE verification_codes SET attempts)/;
-    const pausing = new Proxy(db, {
-      get(target, key) {
-        if (key === "prepare")
-          return (sql: string) => {
-            const statement = target.prepare(sql);
-            if (!first.test(sql)) return statement;
-            return {
-              bind: (...values: unknown[]) => {
-                const bound = statement.bind(...values);
-                const pauseAfter = async <T>(result: T) => {
-                  paused += 1;
-                  if (paused === 3) allPaused();
-                  await rightAnswered;
-                  return result;
-                };
-                return {
-                  first: async <T>() => pauseAfter(await bound.first<T>()),
-                  run: async () => pauseAfter(await bound.run()),
-                };
-              },
-            };
-          };
-        const value = Reflect.get(target, key);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
-    });
-    const withDb = (DB: D1Database) => ({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}`, DB });
-    const guess = (code: string, DB: D1Database) =>
-      call(
-        "/api/org/domains/barrier.co.za/verify",
-        { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ code }) },
-        withDb(DB),
-      );
-    const wrong = (n: number) => String((Number(right) + n) % 1_000_000).padStart(6, "0");
-    const wrongs = [1, 2, 3].map((n) => guess(wrong(n), pausing));
-    await threePaused;
-    const late = await guess(right, db);
-    resume();
+    // Three wrong guesses each pause after any statement of their own on the code (the point a check-then-count would
+    // leave them uncounted) until the right guess has been answered; a guess taken in one transaction never pauses.
+    const pause = held(3);
+    const wrongs = [1, 2, 3].map((n) => guess("barrier.co.za", cookie, near(right, n), pausing(pause)));
+    await Promise.race([pause.reached, Promise.all(wrongs)]);
+    const late = await guess("barrier.co.za", cookie, right, db);
+    pause.release();
     await Promise.all(wrongs);
     expect(late.status).toBe(429);
     expect(await stateOf(orgId, "barrier.co.za")).toBe("pending");
+  });
+
+  it("keeps the lock a third wrong guess sets, even with a resend under way beside it", async () => {
+    const { cookie, orgId } = await owner("relockrace@example.org");
+    await json("/domains", cookie, "POST", { domain: "relockrace.co.za" });
+    await json("/domains/relockrace.co.za/code", cookie, "POST", { local: "admin" });
+    const first = lastCode();
+    for (const n of [1, 2]) await guess("relockrace.co.za", cookie, near(first, n), db);
+    // The third wrong guess pauses after its first statement on the code while a new code is sent.
+    const pause = held(1);
+    const third = guess("relockrace.co.za", cookie, near(first, 3), pausing(pause));
+    await Promise.race([pause.reached, third]);
+    expect((await json("/domains/relockrace.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+    pause.release();
+    expect((await third).status).toBe(429);
+    expect((await guess("relockrace.co.za", cookie, lastCode(), db)).status).toBe(429);
+    expect(await stateOf(orgId, "relockrace.co.za")).toBe("pending");
   });
 
   it("does not let a resend under way bring back a claim removed meanwhile", async () => {
@@ -621,6 +656,9 @@ describe("completion review cases", () => {
     const { cookie, orgId } = await owner("dbfail@example.org");
     await json("/addresses", cookie, "POST", { address: "dbfail@gmail.com" });
     const code = lastCode();
+    // Two wrong guesses first, so the failed right one would have been the last attempt.
+    for (const n of [1, 2])
+      await json("/addresses/verify", cookie, "POST", { address: "dbfail@gmail.com", code: near(code, n) });
     const failingBatch = new Proxy(db, {
       get(target, key) {
         if (key === "batch") return async () => Promise.reject(new Error("D1_ERROR: Network connection lost."));
