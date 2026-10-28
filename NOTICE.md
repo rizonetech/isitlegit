@@ -38,6 +38,11 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `pillow` (Python) | 13.0.0 | MIT-CMU | No: renders the brand PNGs in `design/tools/build-brand.py` |
 | `opus-decoder` | 0.7.12 | MIT (its WebAssembly is libopus, BSD-3-Clause; above) | Yes: decodes Ogg Opus voice notes (D01 T03 §2) |
 | `@wasm-audio-decoders/common` | 9.0.7 | MIT | Yes: `opus-decoder`'s WebAssembly loader |
+| `better-auth` | 1.7.13 | MIT | Yes: sign-in, sessions, organisations and invitations (D07 T02 §1 to §3) |
+| `@better-auth/passkey` | 1.7.13 | MIT | Yes: passkey sign-in (D07 T02 §2) |
+| `@simplewebauthn/server` | 13.3.3 | MIT | Yes: verifies passkey ceremonies for `@better-auth/passkey` (D07 T02 §2) |
+| `tldts` | 7.4.19 | MIT | Yes: a domain's registrable form for claims and the sender lookup (D07 T02 §5) |
+| `postal-mime` | 4.1.4 | MIT-0 | Yes: reads the forward's header fields and From address (D01 T01 §3); MIME parsing follows in D01 T01 §5 |
 | `simple-yenc` | 1.0.4 | MIT | Yes: imported by `@wasm-audio-decoders/common`; unused once the WebAssembly is precompiled |
 | `@eshaz/web-worker` | 1.2.2 | Apache-2.0 | No: aliased to `src/voice/no-web-worker.ts`, so the Worker bundles the stub instead |
 | `opusscript` | 0.1.1 | MIT (libopus inside, BSD-3-Clause) | No: encodes the synthetic Opus test fixtures (`scripts/fixtures/make-audio.ts`) |
