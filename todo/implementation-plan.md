@@ -274,7 +274,7 @@ Sections: 61 | Checklist items: 257
 
 ### Phase 7: After the event
 
-Sections: 24 | Checklist items: 141
+Sections: 24 | Checklist items: 144
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -285,7 +285,7 @@ Sections: 24 | Checklist items: 141
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator | 7     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
-| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 4     |
+| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 7     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
 | [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 9     |
 | [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none     | 7     |
@@ -327,4 +327,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 77/256 verified sections, 37 ready to run now.
 
-Checklist: 824/1626 items completed (includes Commit items).
+Checklist: 824/1629 items completed (includes Commit items).
