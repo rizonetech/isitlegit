@@ -94,7 +94,7 @@ Sections: 35 | Checklist items: 191
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
-| [ ]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
+| [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
 | [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
 | [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
@@ -313,6 +313,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 65/244 verified sections, 26 ready to run now.
+Progress: 66/244 verified sections, 35 ready to run now.
 
 Checklist: 653/1479 items completed (includes Commit items).

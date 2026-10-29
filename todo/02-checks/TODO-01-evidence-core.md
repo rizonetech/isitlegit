@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: active
+status: done
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -35,7 +35,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
-| 2 | §2 | Check runner step with failure isolation | §1 | [ ] |
+| 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -93,6 +93,9 @@ The Workflow `checks` step runs every registered check whose inputs are present,
 - [x] Commit: `checks: check runner step with failure isolation` Done 2026-10-29: 25e0458, then the review fixes to 9b6dfc9.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/runner.test.ts` passes and fails if a failing check stops the others.
+
+> **Verified:** 2026-10-29 | §2 | d8f5abfaf04f5fa22457ae82a64e72a62d620cd7
+> **Review:** `docs/reviews/d02-t01-s2.json`
 
 ## Verification
 
