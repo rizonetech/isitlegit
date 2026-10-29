@@ -5,18 +5,27 @@
 // structured-output.md: its strict subset and limits) is refused before any call, so nothing is reserved or sent for it.
 // A paid answer that fails is marked on its call's record (D03 T01 §3), its usage and cost kept.
 import { z } from "zod";
-import { type MetaContext, metaResponses, type ResponsesParams } from "./client.ts";
+import { DEFAULT_DEADLINE_MS, type MetaContext, metaResponses, type ResponsesParams } from "./client.ts";
 
 export type ModelOutputErrorKind = "schema" | "invalid" | "incomplete" | "refused" | "failed";
+
+// Each paid attempt's call and gateway ids, so a failure is found in the ledger and the gateway's log directly
+// (completion review): ids only, never the answer's content.
+export type OutputCall = { callId: string; logId: string | null };
 
 export class ModelOutputError extends Error {
   override name = "ModelOutputError";
   readonly kind: ModelOutputErrorKind;
-  constructor(kind: ModelOutputErrorKind, message: string) {
+  readonly calls: OutputCall[];
+  constructor(kind: ModelOutputErrorKind, message: string, calls: OutputCall[] = []) {
     super(message);
     this.kind = kind;
+    this.calls = calls;
   }
 }
+
+// How long recording a paid failure may hold the caller; a write past it goes on under `waitUntil` and is logged.
+const RECORD_GRACE_MS = 1_000;
 
 const NAME = /^[A-Za-z0-9_-]{1,64}$/;
 // Meta's nesting limit for a structured-output schema.
@@ -41,6 +50,7 @@ export function formatSchema(schema: z.ZodType): Node {
   return json;
 }
 
+// `depth` counts every container, an object or an array alike (completion review): the root is level 1.
 function check(node: unknown, depth: number): void {
   if (Array.isArray(node)) {
     for (const item of node) check(item, depth);
@@ -50,8 +60,16 @@ function check(node: unknown, depth: number): void {
   const n = node as Node;
   if ("$ref" in n) throw new ModelOutputError("schema", "a recursive schema (a $ref) is not supported");
   if ("allOf" in n || "oneOf" in n) throw new ModelOutputError("schema", "allOf and oneOf are not supported");
+  const container =
+    n.type === "object" || n.type === "array" || "properties" in n || "items" in n || "prefixItems" in n;
+  if (container && depth > MAX_NESTING)
+    throw new ModelOutputError("schema", `the schema nests past ${MAX_NESTING} levels`);
+  if (n.type === "array" || "items" in n || "prefixItems" in n) {
+    for (const [key, value] of Object.entries(n))
+      check(value, key === "items" || key === "prefixItems" ? depth + 1 : depth);
+    return;
+  }
   if (n.type === "object" || "properties" in n) {
-    if (depth > MAX_NESTING) throw new ModelOutputError("schema", `the schema nests past ${MAX_NESTING} levels`);
     if (n.additionalProperties !== false)
       throw new ModelOutputError("schema", "every object must set additionalProperties: false");
     const keys = Object.keys((n.properties as Node | undefined) ?? {});
@@ -77,16 +95,38 @@ function names(node: unknown, into = new Set<string>()): Set<string> {
   return into;
 }
 
+// The JSON type of a parsed value, as a schema names it.
+const jsonType = (value: unknown) =>
+  value === null ? "null" : Array.isArray(value) ? "array" : typeof value === "object" ? "object" : typeof value;
+
+// Whether a schema node can describe a value of this JSON type (a node with no type, such as a union, can).
+function admits(node: Node, type: string): boolean {
+  if (node.type === undefined) return true;
+  const types = Array.isArray(node.type) ? (node.type as string[]) : [node.type as string];
+  return types.includes(type) || (type === "number" && types.includes("integer"));
+}
+
 // A property the schema does not name, at any depth: refused whatever the zod object's mode (a plain `z.object` would
-// strip it silently). Follows `properties`, `items` and `anyOf` (a nullable field).
+// strip it silently). Follows `properties` (own names only, so an inherited `toString` is no property), `items` and
+// `prefixItems` (a tuple), and `anyOf` (a nullable field or a union): there, only the branches of the value's own type
+// count, and the value is clean if one of them takes it whole (completion review).
 function unknownProperty(value: unknown, node: Node): boolean {
-  if (Array.isArray(value)) return node.items ? value.some((v) => unknownProperty(v, node.items as Node)) : false;
+  if (Array.isArray(node.anyOf)) {
+    const branches = (node.anyOf as Node[]).filter((branch) => admits(branch, jsonType(value)));
+    return branches.length > 0 && branches.every((branch) => unknownProperty(value, branch));
+  }
+  if (Array.isArray(value)) {
+    const prefix = Array.isArray(node.prefixItems) ? (node.prefixItems as Node[]) : [];
+    const rest = node.items && typeof node.items === "object" ? (node.items as Node) : undefined;
+    return value.some((v, i) => {
+      const child = prefix[i] ?? rest;
+      return child ? unknownProperty(v, child) : false;
+    });
+  }
   if (value && typeof value === "object") {
-    if (Array.isArray(node.anyOf)) return (node.anyOf as Node[]).every((branch) => unknownProperty(value, branch));
-    const properties = node.properties as Record<string, Node> | undefined;
-    if (!properties) return false;
+    const properties = (node.properties as Record<string, Node> | undefined) ?? {};
     return Object.entries(value).some(([k, v]) => {
-      const child = properties[k];
+      const child = Object.hasOwn(properties, k) ? properties[k] : undefined;
       return !child || unknownProperty(v, child);
     });
   }
@@ -130,16 +170,41 @@ export async function structured<S extends z.ZodType>(
   const json = formatSchema(schema);
   const known = names(json);
   const format = { type: "json_schema" as const, name, schema: json, strict: true };
+  // One deadline over the first answer and its repair (completion review): the repair gets what is left, and none
+  // starts once it is spent.
+  const deadline = Date.now() + (ctx.deadlineMs ?? DEFAULT_DEADLINE_MS);
+  const calls: OutputCall[] = [];
+  // A paid failure marked on its call's record, its wait bounded: a stalled write never holds the repair or the error.
+  const mark = async (callId: string, kind: ModelOutputErrorKind) => {
+    const written = ctx.budget.outputFailed(callId, `output-${kind}`).then(
+      () => true,
+      () => {
+        console.error(JSON.stringify({ event: "meta", outcome: "output-failure-unrecorded", kind }));
+        return true;
+      },
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<false>((resolve) => {
+      timer = setTimeout(() => resolve(false), RECORD_GRACE_MS);
+    });
+    if (!(await Promise.race([written, late]).finally(() => clearTimeout(timer)))) {
+      ctx.waitUntil?.(written);
+      console.error(JSON.stringify({ event: "meta", outcome: "output-failure-record-late", kind }));
+    }
+  };
   let input = params.input;
   let problems = "";
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const answer = await metaResponses({ ...params, input, text: { format } } as ResponsesParams, ctx);
-    // A paid answer that fails is marked on its call's record; a record that cannot be marked is logged.
+    const left = deadline - Date.now();
+    if (left <= 0) throw new ModelOutputError("invalid", `no time was left to repair the answer: ${problems}`, calls);
+    const answer = await metaResponses({ ...params, input, text: { format } } as ResponsesParams, {
+      ...ctx,
+      deadlineMs: left,
+    });
+    calls.push({ callId: answer.callId, logId: answer.logId });
     const fail = async (kind: ModelOutputErrorKind, message: string): Promise<never> => {
-      await ctx.budget
-        .outputFailed(answer.callId, `output-${kind}`)
-        .catch(() => console.error(JSON.stringify({ event: "meta", outcome: "output-failure-unrecorded", kind })));
-      throw new ModelOutputError(kind, message);
+      await mark(answer.callId, kind);
+      throw new ModelOutputError(kind, message, calls);
     };
     const data = answer.data as unknown as {
       status?: string;
@@ -170,11 +235,7 @@ export async function structured<S extends z.ZodType>(
       problems = said(parsed.error.issues, known);
     }
     if (attempt === 2) return fail("invalid", `Meta's answer did not match the schema after one retry: ${problems}`);
-    await ctx.budget
-      .outputFailed(answer.callId, "output-invalid")
-      .catch(() =>
-        console.error(JSON.stringify({ event: "meta", outcome: "output-failure-unrecorded", kind: "invalid" })),
-      );
+    await mark(answer.callId, "invalid");
     input = [
       ...(typeof input === "string" ? [{ role: "user" as const, content: input }] : (input ?? [])),
       {
@@ -183,5 +244,5 @@ export async function structured<S extends z.ZodType>(
       },
     ] as ResponsesParams["input"];
   }
-  throw new ModelOutputError("invalid", `Meta's answer did not match the schema: ${problems}`);
+  throw new ModelOutputError("invalid", `Meta's answer did not match the schema: ${problems}`, calls);
 }

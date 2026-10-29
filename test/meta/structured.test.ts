@@ -212,3 +212,105 @@ describe("the strict-object contract and the trusted words", () => {
     );
   });
 });
+
+describe("completion review (2026-10-29)", () => {
+  // A schema `levels` containers deep, objects and arrays alternating, the root an object (level 1).
+  const nested = (levels: number): z.ZodType => {
+    let inner: z.ZodType = z.string();
+    for (let level = levels; level >= 2; level--)
+      inner = level % 2 === 0 ? z.array(inner) : z.strictObject({ v: inner });
+    return z.strictObject({ v: inner });
+  };
+
+  it("counts arrays toward the nesting limit: ten levels go, eleven are refused before any request", async () => {
+    const ok = model(() => text(JSON.stringify({ v: "x" })));
+    await failure(ask(ok.ctx, nested(10)));
+    expect(ok.bodies).toHaveLength(2);
+    const deep = model(() => text(GOOD));
+    expect((await failure(ask(deep.ctx, nested(11))))?.kind).toBe("schema");
+    expect(deep.bodies).toEqual([]);
+  });
+
+  it("refuses allOf and oneOf before any request, with no record", async () => {
+    await db.prepare("DELETE FROM model_spend").run();
+    const withAllOf = z.strictObject({ x: z.string().meta({ allOf: [{ type: "string" }] }) });
+    const withOneOf = z.strictObject({
+      x: z.discriminatedUnion("k", [z.strictObject({ k: z.literal("a") }), z.strictObject({ k: z.literal("b") })]),
+    });
+    for (const schema of [withAllOf, withOneOf]) {
+      const m = model(() => text(GOOD));
+      expect((await failure(ask(m.ctx, schema)))?.kind).toBe("schema");
+      expect(m.bodies).toEqual([]);
+    }
+    expect(await rows()).toEqual([]);
+  });
+
+  it("finds an unknown property in a nullable object, a nullable array, a tuple, and an inherited name", async () => {
+    const Shape = z.strictObject({
+      who: z.strictObject({ name: z.string() }).nullable(),
+      list: z.array(z.strictObject({ n: z.number() })).nullable(),
+      pair: z.tuple([z.string(), z.strictObject({ ok: z.boolean() })]),
+    });
+    const clean = { who: { name: "a" }, list: [{ n: 1 }], pair: ["x", { ok: true }] };
+    for (const dirty of [
+      { ...clean, who: { name: "a", extra: 1 } },
+      { ...clean, list: [{ n: 1, extra: 1 }] },
+      { ...clean, pair: ["x", { ok: true, extra: 1 }] },
+      { ...clean, toString: "x" },
+    ]) {
+      const m = model(
+        () => text(JSON.stringify(dirty)),
+        () => text(JSON.stringify(clean)),
+      );
+      expect((await ask(m.ctx, Shape)).value).toEqual(clean);
+      expect(m.bodies).toHaveLength(2);
+    }
+  });
+
+  it("never waits past its grace on a failure record that stalls, and keeps it alive", async () => {
+    const never = new Promise<never>(() => {});
+    const kept: Promise<unknown>[] = [];
+    for (const answer of [() => text("{bad"), () => text('{"verdict":"le', "incomplete")]) {
+      const m = model(answer);
+      const ctx = {
+        ...m.ctx,
+        budget: { ...m.ctx.budget, outputFailed: () => never },
+        waitUntil: (p: Promise<unknown>) => void kept.push(p),
+      };
+      const started = Date.now();
+      const error = await failure(ask(ctx));
+      expect(error).toBeInstanceOf(ModelOutputError);
+      expect(Date.now() - started).toBeLessThan(3_500);
+    }
+    expect(kept.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("bounds the answer and its repair by one deadline", async () => {
+    const slow = (body: string) => async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return text(body);
+    };
+    let i = 0;
+    const answers = [slow("{bad"), slow(GOOD)];
+    const m = model(() => text(GOOD));
+    const ctx = {
+      ...m.ctx,
+      deadlineMs: 400,
+      fetch: (async () => (answers[Math.min(i++, 1)] as () => Promise<Response>)()) as typeof fetch,
+    };
+    const started = Date.now();
+    const error = await ask(ctx).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect(Date.now() - started).toBeLessThan(400 + 1_500);
+  });
+
+  it("carries each paid attempt's call and gateway ids on the error", async () => {
+    const m = model(() => text(JSON.stringify({ verdict: "maybe", reasons: [], sender: null })));
+    const error = await failure(ask(m.ctx));
+    expect(error?.calls).toEqual([
+      { callId: expect.any(String), logId: "log-1" },
+      { callId: expect.any(String), logId: "log-1" },
+    ]);
+    expect(error?.calls[0]?.callId).not.toBe(error?.calls[1]?.callId);
+  });
+});

@@ -28,7 +28,7 @@ import { estimateUsd } from "./pricing.ts";
 
 export // How long a timed-out call waits for its aborted attempt's record to be written before it throws.
 const RECORD_GRACE_MS = 2_000;
-const DEFAULT_DEADLINE_MS = 60_000;
+export const DEFAULT_DEADLINE_MS = 60_000;
 export const MAX_ATTEMPTS = 3;
 // A Retry-After longer than this is not waited for: the call ends, carrying it, and the caller's step decides.
 export const MAX_RETRY_AFTER_MS = 20_000;
