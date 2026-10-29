@@ -22,6 +22,7 @@ import {
   RefusedAddress,
   RenderTimeout,
   readJournal,
+  reopenExcluded,
   runBatch,
   saList,
   type UrlList,
@@ -92,6 +93,15 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       `<p>${words}</p><div id=host></div><script>host.attachShadow({ mode: 'open' }).innerHTML = '<div style="position:fixed;inset:0;background:#fff">We use cookies. Accept all cookies to continue.</div>'</script>`,
     ),
   "/frame-login": (res) => html(res, `<p>${words}</p><input type=password>`),
+  // A bot-detection script's trick (Game, Makro, Nexstar, 2026-10-29): a hidden frame, and a hidden element, whose own
+  // DOM methods and inline style return nothing.
+  "/masked": (res) =>
+    html(
+      res,
+      `<p>${words}</p><form><input type=password></form><iframe id=f style="display:none"></iframe><div id=d style="opacity:0">unseen</div><script>for (const el of [f, d]) { for (const name of ['getBoundingClientRect', 'checkVisibility', 'contains']) Object.defineProperty(el, name, { value: () => undefined }); for (const name of ['style', 'tagName', 'src']) Object.defineProperty(el, name, { get: () => undefined }) }</script>`,
+    ),
+  // A page that removes its own root element.
+  "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
   "/reset": (res) => res.socket?.destroy(),
   // A page that, while it settles, moves on to a same-site page that does not exist.
@@ -349,6 +359,18 @@ describe("renderPage", () => {
     expect(jpegSize(shot.screenshot)?.width).toBe(1280);
     expect(shot.has_login_form).toBe(true);
     expect(shot.has_payment_form).toBe(false);
+  });
+
+  it("reads a page whose elements carry DOM methods of their own that return nothing", async () => {
+    const shot = await renderer.render(`${origin}/masked`);
+    expect(shot.text).toContain("Welcome to the example service");
+    expect(shot.text).not.toContain("unseen");
+    expect([shot.has_login_form, shot.consentWall, shot.captcha]).toEqual([true, false, false]);
+  });
+
+  it("reads a page with no root element left as a short page, not a failed capture", async () => {
+    const empty = await renderer.render(`${origin}/no-root`);
+    expect(empty.text.trim()).toBe("");
   });
 
   it("sets the form flags from visible fields only", async () => {
@@ -635,6 +657,35 @@ describe("the batch run", () => {
     expect(await runBatch({ list: list(["/a"]), store, journal, render: failing(503) })).toMatchObject({ retry: 1 });
     expect(await runBatch({ list: list(["/b"]), store, journal, render: failing(404) })).toMatchObject({ excluded: 1 });
     expect(readJournal(journal).at(-1)?.reason).toBe("HTTP 404");
+  });
+
+  it("renders an exclusion a renderer fault made again once it is reopened, and nothing else", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const fault = async () => {
+      throw new Error("page.evaluate: TypeError: Cannot read properties of undefined (reading 'width')");
+    };
+    await runBatch({ list: list(["/page"]), store, journal, render: fault });
+    await runBatch({
+      list: list(["/b"]),
+      store,
+      journal,
+      render: async () => {
+        throw new HttpStatus(404);
+      },
+    });
+    // Skipped while excluded; the fault's exclusion alone is reopened, its record kept.
+    expect(await runBatch({ list: list(["/page"]), store, journal, render: renderer.render })).toMatchObject({
+      skipped: 1,
+    });
+    expect(reopenExcluded(journal, /page\.evaluate: TypeError/)).toEqual([`${origin}/page`]);
+    expect(readJournal(journal).filter((e) => e.event === "excluded")).toHaveLength(2);
+    expect(await runBatch({ list: list(["/page", "/b"]), store, journal, render: renderer.render })).toMatchObject({
+      stored: 1,
+      skipped: 1,
+    });
+    // A stored page is never reopened.
+    expect(reopenExcluded(journal, /./)).toEqual([`${origin}/b`]);
   });
 
   it("records a second URL that renders the same page as excluded, not stored twice", async () => {

@@ -130,14 +130,16 @@ export class HttpStatus extends Error {
 export function readWalls(): { captcha: boolean; consentWall: boolean } {
   const width = innerWidth;
   const height = innerHeight;
+  // The browser's own methods, never ones the page left on an element (see `readFormFlags`).
   const area = (el: Element) => {
-    const box = el.getBoundingClientRect();
+    const box = Element.prototype.getBoundingClientRect.call(el);
     return (
       Math.max(0, Math.min(box.right, width) - Math.max(box.left, 0)) *
       Math.max(0, Math.min(box.bottom, height) - Math.max(box.top, 0))
     );
   };
-  const shown = (el: Element) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+  const shown = (el: Element) =>
+    Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true });
   // Every element, those inside open shadow roots included: a consent manager often draws its banner in one.
   const all: Element[] = [];
   const walk = (root: Document | ShadowRoot) => {
@@ -154,7 +156,7 @@ export function readWalls(): { captcha: boolean; consentWall: boolean } {
       !/recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha/i.test(frame.src || "")
     )
       return false;
-    const box = frame.getBoundingClientRect();
+    const box = Element.prototype.getBoundingClientRect.call(frame);
     return shown(frame) && box.width >= 150 && box.height >= 100 && area(frame) > 0;
   });
   const consentWords =
@@ -559,7 +561,8 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
         const shown = await element
           ?.evaluate((node, height) => {
             const el = node as Element;
-            const box = el.getBoundingClientRect();
+            // The browser's own methods, never ones the page left on the frame element (see `readFormFlags`).
+            const box = Element.prototype.getBoundingClientRect.call(el);
             // On the captured page, too: a frame moved off it (a negative offset, or past the 1280 by 2000 pixels the
             // screenshot keeps) is not seen.
             const onPage = box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < height;
@@ -567,7 +570,7 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
               box.width > 0 &&
               box.height > 0 &&
               onPage &&
-              el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+              Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true })
             );
           }, MAX_HEIGHT)
           .catch(() => false);
@@ -587,11 +590,13 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     }
     const title = await page.title();
     const walls = await page.evaluate(readWalls);
-    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    // A page may remove its own root element; then nothing is drawn below the top.
+    const height = await page.evaluate(() => document.documentElement?.scrollHeight ?? 0);
     // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
     const shot = await page.screenshot({
       type: "png",
-      fullPage: true,
+      // A full-page capture measures the page by its root, and waits forever on a page with none.
+      fullPage: height > 0,
       clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, height)) },
       timeout: left(),
     });
@@ -685,10 +690,11 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
   };
 }
 
-// The journal: one JSON line per event, `started` before a render and `stored`, `excluded` or `retry` after it.
+// The journal: one JSON line per event, `started` before a render and `stored`, `excluded` or `retry` after it, and
+// `reopened` when an exclusion a fault of the renderer made is cleared, so the next run renders the page again.
 export type JournalEvent = {
   url: string;
-  event: "started" | "stored" | "excluded" | "retry";
+  event: "started" | "stored" | "excluded" | "retry" | "reopened";
   id?: string;
   reason?: string;
   at: string;
@@ -740,6 +746,21 @@ const TRANSIENT =
 
 export type BatchResult = { stored: number; excluded: number; retry: number; skipped: number; recovered: number };
 
+// Reopens every page whose last outcome is an exclusion whose reason matches: the record stays, and a `reopened` line
+// after it names the reason, so the next run renders the page again from its first try. A stored page is never
+// reopened. Returns the URLs reopened.
+export function reopenExcluded(journal: string, matching: RegExp): string[] {
+  const last = new Map<string, JournalEvent>();
+  for (const event of readJournal(journal)) if (event.event !== "started") last.set(event.url, event);
+  const reopened: string[] = [];
+  for (const [url, event] of last) {
+    if (event.event !== "excluded" || !matching.test(event.reason ?? "")) continue;
+    appendJournal(journal, { url, event: "reopened", reason: event.reason ?? "" });
+    reopened.push(url);
+  }
+  return reopened;
+}
+
 export async function runBatch(options: {
   list: UrlList;
   store: ReturnType<typeof openStore>;
@@ -760,7 +781,10 @@ export async function runBatch(options: {
     else {
       entry.open = false;
       if (event.event === "retry") entry.retries++;
-      else entry.outcome = event.event;
+      else if (event.event === "reopened") {
+        delete entry.outcome;
+        entry.retries = 0;
+      } else entry.outcome = event.event;
     }
     state.set(event.url, entry);
   }
@@ -930,7 +954,9 @@ function pageFault(store: Pick<ReturnType<typeof openStore>, "readPage">, page: 
 
 // The command line: `run [majestic|benign-sa] [--concurrency N]` (N pages rendered at once, 1 to 16, 4 by default),
 // `coverage` or `--coverage`. A string is the usage error.
-export function parseCommand(args: string[]): { command: string; only?: string; concurrency: number } | string {
+export function parseCommand(
+  args: string[],
+): { command: string; only?: string; concurrency: number; matching?: RegExp } | string {
   const rest = [...args];
   let concurrency = 4;
   const at = rest.indexOf("--concurrency");
@@ -940,12 +966,22 @@ export function parseCommand(args: string[]): { command: string; only?: string; 
     if (!(concurrency >= 1 && concurrency <= 16)) return "--concurrency takes a whole number from 1 to 16";
     rest.splice(at, 2);
   }
+  // `reopen --matching <pattern>`: the exclusions a renderer fault made, by their recorded reason.
+  if (rest[0] === "reopen") {
+    if (rest.length !== 3 || rest[1] !== "--matching" || !rest[2])
+      return "usage: render.ts reopen --matching <pattern>";
+    try {
+      return { command: "reopen", concurrency, matching: new RegExp(rest[2]) };
+    } catch (error) {
+      return `--matching is not a pattern: ${(error as Error).message}`;
+    }
+  }
   const [given, only] = rest;
   // `--coverage` is the spelling §6's checkpoint names; `coverage` the subcommand's.
   const command = given === "--coverage" ? "coverage" : (given ?? "");
   if (command === "coverage" && rest.length === 1) return { command, concurrency };
   if (command !== "run" || rest.length > 2 || (only && only !== "majestic" && only !== "benign-sa"))
-    return "usage: node scripts/glimmer/render.ts run [majestic|benign-sa] [--concurrency N] | coverage | --coverage";
+    return "usage: node scripts/glimmer/render.ts run [majestic|benign-sa] [--concurrency N] | coverage | --coverage | reopen --matching <pattern>";
   return only ? { command, only, concurrency } : { command, concurrency };
 }
 
@@ -955,13 +991,18 @@ if (import.meta.filename === process.argv[1]) {
     console.error(parsed);
     process.exit(2);
   }
-  const { command, only, concurrency } = parsed;
+  const { command, only, concurrency, matching } = parsed;
   const dir = storeDir();
   const store = openStore(dir);
   if (command === "coverage") {
     const coverage = benignCoverage(store);
     console.log(JSON.stringify({ ...coverage, problems: coverage.problems.slice(0, 20) }, null, 2));
     process.exit(coverage.met ? 0 : 1);
+  }
+  if (command === "reopen" && matching) {
+    const reopened = reopenExcluded(join(dir, "raw/benign/progress.jsonl"), matching);
+    console.log(`reopened ${reopened.length} excluded pages`);
+    process.exit(0);
   }
   const lists: UrlList[] = [];
   if (!only || only === "benign-sa")

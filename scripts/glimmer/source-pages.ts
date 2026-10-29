@@ -91,12 +91,15 @@ export type FormFlags = { has_login_form: boolean; has_payment_form: boolean };
 // in any frame the page can read; a payment provider's frame counts by its host. Run inside the page.
 export function readFormFlags(): FormFlags {
   const providers = /(stripe|braintree|adyen|checkout\.com|paypal|payfast|peach|paygate|yoco|ozow|square|klarna)/i;
+  // The browser's own reading of an element, not a method the page left on it: a bot-detection script gives a hidden
+  // frame its own `getBoundingClientRect` and `checkVisibility` that return nothing (Game, Makro, Nexstar, 2026-10-29).
+  const rect = (el: Element) => Element.prototype.getBoundingClientRect.call(el);
   // Seen by a viewer: a box, on the page, and not hidden by itself or an ancestor (display, visibility or opacity 0).
   const visible = (el: Element) => {
-    const box = (el as HTMLElement).getBoundingClientRect();
+    const box = rect(el);
     // Off the page to the left, above it, or to the right of the 1280-pixel viewport no viewer scrolls across.
     if (box.width <= 0 || box.height <= 0 || box.right <= 0 || box.bottom <= 0 || box.left >= innerWidth) return false;
-    return el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    return Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true });
   };
   const login = (doc: Document) =>
     [...doc.querySelectorAll("input")].some((input) => {
@@ -127,8 +130,7 @@ export function readFormFlags(): FormFlags {
       // A field's own visibility stops at its frame: a frame no one can see shows none of its fields.
       // Nor does one below the 2000 pixels the screenshot keeps (`MAX_HEIGHT`; this runs in the page, so the number is
       // written here).
-      if (visible(frame) && frame.getBoundingClientRect().top < 2000 && frame.contentDocument)
-        docs.push(frame.contentDocument);
+      if (visible(frame) && rect(frame).top < 2000 && frame.contentDocument) docs.push(frame.contentDocument);
     } catch {
       // a cross-origin frame cannot be read; a payment provider's is still counted by its host above
     }
@@ -141,30 +143,41 @@ export function readFormFlags(): FormFlags {
 export function shownText(): string {
   const body = document.body;
   if (!body) return "";
+  // The browser's own methods and inline style, never ones the page left on an element (see `readFormFlags`).
+  const seen = (el: Element) =>
+    Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true });
+  const inline = (el: Element): CSSStyleDeclaration | undefined => {
+    for (let proto = Object.getPrototypeOf(el); proto; proto = Object.getPrototypeOf(proto)) {
+      const getter = Object.getOwnPropertyDescriptor(proto, "style")?.get;
+      if (getter) return getter.call(el);
+    }
+    return undefined; // an element of no styled namespace cannot be hidden by its own style
+  };
   // A body that display, visibility or opacity 0 hides (on itself or the root) shows nothing: `checkVisibility` reads
   // the element and its ancestors.
-  if (!body.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return "";
+  if (!seen(body)) return "";
   // `innerText` leaves out what display and visibility hide, but not what opacity 0 or a position off the page hides.
   // Those elements (the outermost of each) leave the layout while the text is read, and are put back after, so the
   // screenshot that follows sees the page as it was.
-  const hidden: HTMLElement[] = [];
-  for (const el of body.querySelectorAll<HTMLElement>("*")) {
-    if (hidden.some((outer) => outer.contains(el))) continue;
-    const box = el.getBoundingClientRect();
+  const hidden: Element[] = [];
+  for (const el of body.querySelectorAll("*")) {
+    if (hidden.some((outer) => Node.prototype.contains.call(outer, el))) continue;
+    const box = Element.prototype.getBoundingClientRect.call(el);
     const offPage = box.width > 0 && box.height > 0 && (box.right <= 0 || box.bottom <= 0 || box.left >= innerWidth);
-    if (offPage || !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) hidden.push(el);
+    if (offPage || !seen(el)) hidden.push(el);
   }
-  const saved = hidden.map(
-    (el) => [el, el.style.getPropertyValue("display"), el.style.getPropertyPriority("display")] as const,
-  );
-  for (const el of hidden) el.style.setProperty("display", "none", "important");
+  const saved = hidden.flatMap((el) => {
+    const style = inline(el);
+    return style ? [[style, style.getPropertyValue("display"), style.getPropertyPriority("display")] as const] : [];
+  });
+  for (const [style] of saved) style.setProperty("display", "none", "important");
   try {
     // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
     return body.innerText;
   } finally {
-    for (const [el, value, priority] of saved) {
-      if (value) el.style.setProperty("display", value, priority);
-      else el.style.removeProperty("display");
+    for (const [style, value, priority] of saved) {
+      if (value) style.setProperty("display", value, priority);
+      else style.removeProperty("display");
     }
   }
 }

@@ -58,6 +58,11 @@ describe("the render command line", () => {
     });
     expect(parseCommand(["--concurrency", "2", "run"])).toEqual({ command: "run", concurrency: 2 });
     expect(parseCommand(["--coverage"])).toEqual({ command: "coverage", concurrency: 4 });
+    expect(parseCommand(["reopen", "--matching", "TypeError"])).toEqual({
+      command: "reopen",
+      concurrency: 4,
+      matching: /TypeError/,
+    });
     for (const bad of [
       ["run", "--concurrency", "0"],
       ["run", "--concurrency", "17"],
@@ -66,6 +71,10 @@ describe("the render command line", () => {
       ["run", "elsewhere"],
       ["run", "majestic", "extra"],
       ["nothing"],
+      ["reopen"],
+      ["reopen", "--matching"],
+      ["reopen", "--matching", "("],
+      ["reopen", "TypeError"],
     ])
       expect(typeof parseCommand(bad)).toBe("string");
   });
