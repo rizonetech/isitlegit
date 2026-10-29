@@ -162,7 +162,7 @@ Adding a domain today means copying a TXT record into the registrar by hand and 
 
 ## 6. MSP console and own branding
 
-Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console, own branding"), and D07 T02 §8 names both as features (`msp-console`, `msp-branding`, on the trial and MSP), but no section built either (D07 T02 §8 completion review). An MSP manages its client organisations from one console and shows its own name and logo to them; the spec places MSP after the event.
+Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console, own branding"), and D07 T02 §8 names both as features (`msp-console`, `msp-branding`, on the trial and MSP), but no section built either (D07 T02 §8 completion review). An MSP manages its client organisations from one console and shows its own name and logo to them. Phase 7 is this run's scope decision (2026-10-29, D07 T02 §8), not the spec's: the spec prices MSP without deferring it, but the console has no design and no board yet, and during the event every organisation's trial already unlocks both features; the operator can bring it forward (recorded in `docs/phase-runs/2026-10-28-phase-1.md`).
 
 **Phase:** 7
 **Needs:** none
