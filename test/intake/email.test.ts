@@ -5,10 +5,10 @@ import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
 import {
   CLAIM_LEASE_MS,
-  FAILED_REJECT,
   handleEmail,
   isAutomatic,
   MAX_MESSAGE_BYTES,
+  RetryDelivery,
   sweepIntake,
 } from "../../src/intake/email";
 import { EMAIL_ROUTING_AUTHSERV_ID } from "../../src/intake/sender";
@@ -348,15 +348,16 @@ describe("handleEmail", () => {
     expect((await handleEmail(m.forwardable, mailEnv)).kind).toBe("admitted");
     expect(await handleEmail(again(m), mailEnv)).toEqual({ kind: "duplicate" });
     expect(await casesOf(orgId)).toHaveLength(1);
-    // At once: one is processed; the other finds it held and ends quietly (busy), the first carrying on.
+    // At once: one is processed, the other thrown so it is retried rather than dropped while the first may still fail.
     const both = message(from);
     const answers = await Promise.all([
       outcome(handleEmail(both.forwardable, mailEnv)),
       outcome(handleEmail(again(both), mailEnv)),
     ]);
-    expect(answers.map((a) => (a as { kind: string }).kind).sort()).toEqual(["admitted", "busy"]);
-    // The quiet one sent no bounce: its sender's message was taken by the other.
-    expect([both.rejected, both.rejected.length]).toEqual([[], 0]);
+    expect(answers.map((a) => ("thrown" in (a as object) ? "thrown" : (a as { kind: string }).kind)).sort()).toEqual([
+      "admitted",
+      "thrown",
+    ]);
     expect(await casesOf(orgId)).toHaveLength(2);
     // A day and a minute later, the first message is a new delivery.
     const later = new Date(Date.now() + 24 * HOUR + 60_000);
@@ -520,9 +521,9 @@ describe("a delivery whose later step fails", () => {
   it("releases its claim when the case cannot be admitted, so the retry is processed", async () => {
     const { orgId, from } = await member();
     const m = message(from);
-    expect((await handleEmail(m.forwardable, failing({ db: (sql) => sql.startsWith("INSERT INTO cases") }))).kind).toBe(
-      "rejected",
-    );
+    await expect(
+      handleEmail(m.forwardable, failing({ db: (sql) => sql.startsWith("INSERT INTO cases") })),
+    ).rejects.toBeInstanceOf(RetryDelivery);
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
   });
@@ -530,7 +531,7 @@ describe("a delivery whose later step fails", () => {
   it("undoes the case when the raw message cannot be stored", async () => {
     const { orgId, from } = await member();
     const m = message(from);
-    expect((await handleEmail(m.forwardable, failing({ put: true }))).kind).toBe("rejected");
+    await expect(handleEmail(m.forwardable, failing({ put: true }))).rejects.toBeInstanceOf(RetryDelivery);
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
@@ -548,7 +549,7 @@ describe("a delivery whose later step fails", () => {
       get: async () => Promise.reject(new Error("instance.not_found")),
     } as unknown as Env["ANALYSIS"];
     const m = message(from);
-    expect((await handleEmail(m.forwardable, failing({ analysis }))).kind).toBe("rejected");
+    await expect(handleEmail(m.forwardable, failing({ analysis }))).rejects.toBeInstanceOf(RetryDelivery);
     expect(attempted).not.toBe("");
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);
@@ -583,7 +584,7 @@ describe("a delivery whose later step fails", () => {
       get: async () => Promise.reject(new Error("internal error")),
     } as unknown as Env["ANALYSIS"];
     const m = message(from);
-    expect((await handleEmail(m.forwardable, failing({ analysis }))).kind).toBe("rejected");
+    await expect(handleEmail(m.forwardable, failing({ analysis }))).rejects.toBeInstanceOf(RetryDelivery);
     const [made] = await casesOf(orgId);
     expect(await claimsOf(orgId)).toEqual([
       { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
@@ -604,12 +605,13 @@ describe("a delivery whose later step fails", () => {
       get: async () => Promise.reject(new Error("instance.not_found")),
     } as unknown as Env["ANALYSIS"];
     const m = message(from);
-    expect((await handleEmail(m.forwardable, failing({ analysis, deleteRaw: true }))).kind).toBe("rejected");
+    await expect(handleEmail(m.forwardable, failing({ analysis, deleteRaw: true }))).rejects.toBeInstanceOf(
+      RetryDelivery,
+    );
     const [stuck] = await casesOf(orgId);
     expect((await claimsOf(orgId))[0]).toMatchObject({ state: "pending", case_id: stuck?.id });
-    // A retry within the lease finds the first still holding it, and ends quietly; after it, the old case goes and one
-    // new case is made.
-    expect((await handleEmail(again(m), mailEnv)).kind).toBe("busy");
+    // A retry within the lease is told to come back later; after it, the old case goes and one new case is made.
+    await expect(handleEmail(again(m), mailEnv)).rejects.toBeInstanceOf(RetryDelivery);
     const result = await handleEmail(again(m), mailEnv, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
     expect(result.kind).toBe("admitted");
     expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(result as { caseId: string }).caseId]);
@@ -644,7 +646,7 @@ describe("a delivery interrupted around admission (completion review)", () => {
       },
     });
     const m = message(from);
-    expect((await handleEmail(m.forwardable, { ...mailEnv, DB: lost })).kind).toBe("rejected");
+    await expect(handleEmail(m.forwardable, { ...mailEnv, DB: lost })).rejects.toBeInstanceOf(RetryDelivery);
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
@@ -683,7 +685,7 @@ describe("a delivery interrupted around admission (completion review)", () => {
       },
     });
     const m = message(from);
-    expect((await handleEmail(m.forwardable, { ...mailEnv, DB: dropping })).kind).toBe("rejected");
+    await expect(handleEmail(m.forwardable, { ...mailEnv, DB: dropping })).rejects.toBeInstanceOf(RetryDelivery);
     const [made] = await casesOf(orgId);
     expect(await claimsOf(orgId)).toEqual([
       { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
@@ -769,7 +771,7 @@ describe("final review cases", () => {
     const retried = await handleEmail(again(m), mailEnv, later);
     expect(retried.kind).toBe("admitted");
     pause.release();
-    expect(await stalled).toEqual({ kind: "busy" });
+    expect(await stalled).toEqual({ thrown: "RetryDelivery" });
     expect(await workflowExists(firstCase?.id as string)).toBe(false);
     expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(retried as { caseId: string }).caseId]);
   });
@@ -853,18 +855,17 @@ describe("the Worker's email handler", () => {
 });
 
 describe("the live raw-store fault (D01 T01 §9)", () => {
-  it("fails the store for the one named sender only, undoes the admission and refuses the delivery so the sender is told", async () => {
+  it("fails the store for the one named sender only, undoes the admission and asks Email Routing to retry", async () => {
     const named = await member();
     const other = await member();
     const lines: string[] = [];
     const faulty = { ...mailEnv, INTAKE_FAULT_SENDER: named.from.toUpperCase() };
-    const faulted = message(named.from);
-    const answer = await handleEmail(faulted.forwardable, faulty, new Date(), (l) => lines.push(l));
-    // Refused, so the sender's mail system bounces it with what to do (Email Routing neither retries nor tells them).
-    expect(answer).toEqual({ kind: "rejected" });
-    expect(faulted.rejected).toEqual([FAILED_REJECT]);
+    const thrown = await handleEmail(message(named.from).forwardable, faulty, new Date(), (l) => lines.push(l)).catch(
+      (e: unknown) => e,
+    );
+    expect((thrown as Error).name).toBe("RetryDelivery");
     expect(await casesOf(named.orgId)).toEqual([]);
-    expect(JSON.parse(lines.at(-1) ?? "{}")).toEqual({ event: "intake", outcome: "rejected", error: "RetryDelivery" });
+    expect(JSON.parse(lines.at(-1) ?? "{}")).toEqual({ event: "intake", outcome: "retry", error: "RetryDelivery" });
     expect((await handleEmail(message(other.from).forwardable, faulty)).kind).toBe("admitted");
     // Unset, the named sender's forward is admitted as any other.
     expect((await handleEmail(message(named.from).forwardable, mailEnv)).kind).toBe("admitted");
