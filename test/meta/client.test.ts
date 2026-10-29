@@ -628,3 +628,22 @@ describe("round 3 (2026-10-29)", () => {
     expect(charges[0]?.actual).toBeCloseTo((600 * 0.18) / 3600);
   });
 });
+
+describe("the gateway's metadata (D03 T01 §3)", () => {
+  it("tags each request with its owner's opaque ids and step, the host hashed, and no personal data", async () => {
+    const ok = () => json(200, answer);
+    const a = transport(ok);
+    await metaResponses({ model: "muse-spark-1.3", input: "boss@member.co.za", max_output_tokens: 16 }, a.ctx);
+    expect(JSON.parse(a.sent[0]?.headers.get("cf-aig-metadata") ?? "{}")).toEqual({
+      case: "01HZTESTCASE0000000000000A",
+      step: "checks",
+    });
+    const b = transport(() => json(200, { data: [{ b64_json: "AA" }] }));
+    const monitor = { kind: "monitor" as const, run: "run-7", host: "pay-portal.example", step: "screen" };
+    await metaRaw("/images/edits", { model: "muse-image-1.0", prompt: "x" }, { ...b.ctx, owner: monitor });
+    const meta = b.sent[0]?.headers.get("cf-aig-metadata") ?? "";
+    expect(JSON.parse(meta)).toMatchObject({ run: "run-7", step: "screen" });
+    expect(meta).not.toContain("pay-portal");
+    expect(a.sent[0]?.headers.get("cf-aig-metadata")).not.toContain("boss@");
+  });
+});
