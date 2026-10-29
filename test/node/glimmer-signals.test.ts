@@ -7,29 +7,41 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "../..");
 
+type Source = { title: string; publisher: string; url: string; date: string; decision: string; reason: string };
 type Rubric = {
-  sources: Map<string, { decision: string; date: string; reason: string }>;
-  cues: { id: string; fields: Map<string, string> }[];
+  sources: Map<string, Source>;
+  cues: { id: string; fields: Map<string, string>; duplicates: string[] }[];
 };
 
 function parseRubric(text: string): Rubric {
-  const sources = new Map<string, { decision: string; date: string; reason: string }>();
+  const sources = new Map<string, Source>();
   const table = text.split("## Sources")[1]?.split("## Cues")[0] ?? "";
   for (const line of table.split("\n")) {
     const cells = line.split("|").map((c) => c.trim());
     if (!/^S\d+$/.test(cells[1] ?? "")) continue;
-    sources.set(cells[1] as string, { date: cells[5] ?? "", decision: cells[6] ?? "", reason: cells[7] ?? "" });
+    sources.set(cells[1] as string, {
+      title: cells[2] ?? "",
+      publisher: cells[3] ?? "",
+      url: cells[4] ?? "",
+      date: cells[5] ?? "",
+      decision: cells[6] ?? "",
+      reason: cells[7] ?? "",
+    });
   }
   const cues: Rubric["cues"] = [];
   const body = text.split("## Cues")[1]?.split("## Out of reach")[0] ?? "";
   for (const block of body.split(/\n### /).slice(1)) {
     const id = /^(C\d+)\./.exec(block)?.[1] ?? "";
     const fields = new Map<string, string>();
+    const duplicates: string[] = [];
     for (const line of block.split("\n")) {
       const field = /^- ([A-Za-z ()-]+): (.+)$/.exec(line);
-      if (field) fields.set(field[1] as string, field[2] as string);
+      if (!field) continue;
+      // A second line of one field would hide the first from the check while a prompt built from the file keeps both.
+      if (fields.has(field[1] as string)) duplicates.push(field[1] as string);
+      fields.set(field[1] as string, field[2] as string);
     }
-    cues.push({ id, fields });
+    cues.push({ id, fields, duplicates });
   }
   return { sources, cues };
 }
@@ -43,6 +55,13 @@ const OUT_OF_REACH = [
   /\bsender\b/i,
   /certificate/i,
   /padlock/i,
+];
+
+// What a case may not rest on either: how the visitor arrived, or how old a domain is (cases become fixtures in §25).
+const CASE_OUT_OF_REACH = [
+  ...OUT_OF_REACH,
+  /came from|arrived (by|from|via)|SMS link|link leads/i,
+  /(registered|made|created|opened) (yesterday|today|last (week|month))/i,
 ];
 
 // Each cue's problems; none for a cue the rubric may keep.
@@ -69,6 +88,12 @@ function cueProblems(rubric: Rubric): string[] {
     // Nor anything else the request never carries, even beside an input it does.
     const unseen = OUT_OF_REACH.find((pattern) => pattern.test(evidence));
     if (unseen) problems.push(`${cue.id}: its evidence needs ${unseen.source}, which the screener never receives`);
+    for (const dup of cue.duplicates) problems.push(`${cue.id}: ${dup} is given twice`);
+    for (const [name, value] of cue.fields) {
+      if (!/case/.test(name)) continue;
+      const hidden = CASE_OUT_OF_REACH.find((pattern) => pattern.test(value));
+      if (hidden) problems.push(`${cue.id}: its ${name} rests on ${hidden.source}, which the screener never receives`);
+    }
   }
   return problems;
 }
@@ -82,6 +107,11 @@ describe("the signals rubric", () => {
     for (const [id, source] of rubric.sources) {
       expect(["accepted", "rejected"], id).toContain(source.decision);
       expect(source.date, id).not.toBe("");
+      expect(source.title, id).not.toBe("");
+      expect(source.publisher, id).not.toBe("");
+      expect(source.url, id).toMatch(/^https:\/\/[^ ]+$/);
+      // An accepted source's currency is judged from a date that carries a year.
+      if (source.decision === "accepted") expect(source.date, id).toMatch(/\b20\d\d\b/);
       expect(source.reason.length, id).toBeGreaterThan(20);
     }
     expect([...rubric.sources.values()].some((s) => s.decision === "accepted")).toBe(true);
@@ -98,10 +128,13 @@ describe("the signals rubric", () => {
   });
 
   it("pairs the shortcuts a screener could take with genuine pages that share them", () => {
-    const fields = rubric.cues.flatMap((cue) => [...cue.fields.keys()]);
-    for (const pair of ["new business", "plain form"]) {
-      expect(fields).toContain(`Genuine case (${pair})`);
-      expect(fields).toContain(`Lure case (${pair})`);
+    for (const pair of ["new business", "plain form", "builder site"]) {
+      // Both halves of a pair under one cue, both South African.
+      const cue = rubric.cues.find((c) => c.fields.has(`Genuine case (${pair})`));
+      expect(cue, pair).toBeDefined();
+      expect(cue?.fields.get(`Lure case (${pair})`), pair).toBeDefined();
+      for (const half of ["Genuine", "Lure"])
+        expect(cue?.fields.get(`${half} case (${pair})`), pair).toContain("South African");
     }
   });
 
@@ -126,12 +159,25 @@ describe("the signals rubric", () => {
     expect(problems).toContain("C1: no Genuine case");
     expect(problems).toContain("C2: its evidence names none of the screener's inputs");
     expect(problems).toContain("C5: its evidence needs an IP-address host the request never carries");
+    // A second Evidence line, and a case resting on how the visitor arrived, are refused too.
+    const doubled = cueProblems(
+      parseRubric(
+        text
+          .replace("- Evidence: the host alone,", "- Evidence: WHOIS says so\n- Evidence: the host alone,")
+          .replace(
+            "- Lure case: a page on a free site-builder",
+            "- Lure case: came from an SMS link, a page on a free site-builder",
+          ),
+      ),
+    );
+    expect(doubled).toContain("C2: Evidence is given twice");
+    expect(doubled.some((p) => p.startsWith("C1: its Lure case rests on"))).toBe(true);
     // Unavailable evidence beside an allowed input is still out of reach.
     const whois = cueProblems(
       parseRubric(
         text.replace(
-          "- Evidence: the host alone:",
-          "- Evidence: the host registration date from WHOIS and the host alone:",
+          "- Evidence: the host alone,",
+          "- Evidence: the host registration date from WHOIS and the host alone,",
         ),
       ),
     );

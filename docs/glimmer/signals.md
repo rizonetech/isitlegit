@@ -11,7 +11,7 @@ A source is accepted only when it is current (published or reviewed within five 
 | Id | Title | Publisher | URL | Date | Decision | Reason |
 | -- | ----- | --------- | --- | ---- | -------- | ------ |
 | S1 | Shopping and paying safely online | UK National Cyber Security Centre | https://www.ncsc.gov.uk/guidance/shopping-online-securely | 2019-01-17, reviewed 2024-07-15 | accepted | Current; its signs are about scam shops and payment pages; Crown copyright under the Open Government Licence v3.0, which allows reuse with acknowledgement (https://www.ncsc.gov.uk/section/about-this-website/terms-and-conditions). |
-| S2 | How to spot a scam email, text message or call | UK National Cyber Security Centre | https://www.ncsc.gov.uk/collection/phishing-scams/spot-scams | 2021-11-26, reviewed 2022-09-05 | accepted | Current; its five persuasion signs (authority, urgency, emotion, scarcity, current events) apply to a page's wording as to a message's; Open Government Licence v3.0. |
+| S2 | How to spot a scam email, text message or call | UK National Cyber Security Centre | https://www.ncsc.gov.uk/collection/phishing-scams/spot-scams | 2021-11-26, reviewed 2022-09-05 | accepted | Current; its five persuasion signs (authority, urgency, emotion, scarcity, current events) apply to a page's wording as to a message's, and it notes that poor spelling, grammar and 'off' design are less reliable clues than they were; Open Government Licence v3.0. |
 | S3 | How To Recognize and Avoid Phishing Scams | US Federal Trade Commission | https://consumer.ftc.gov/articles/how-recognize-and-avoid-phishing-scams | 2022-09 | accepted | Current; its signs about requests to confirm or update personal or payment details ("legitimate companies won't email or text with a link to update your payment information"), refund bait and logos that prove nothing apply to the pages such messages lead to; a work of the US federal government, not subject to copyright (17 U.S.C. 105). |
 | S4 | Scams and Phishing | South African Revenue Service | https://www.sars.gov.za/targeting-tax-crime/scams-and-phishing/ | updated 2026-08-04 | rejected | Current and applicable, but SARS's terms (https://www.sars.gov.za/terms-and-conditions/) grant only viewing, downloading and printing, not reuse in a commercial product. |
 | S5 | How to Stay Safe | South African Banking Risk Information Centre (SABRIC) | https://www.sabric.co.za/how-to-stay-safe/ | 2024-10-05, modified 2026-08-24 | rejected | SABRIC's terms (https://www.sabric.co.za/terms-and-conditions/) forbid copying, reproducing or making commercial use of the site's material without prior written permission. |
@@ -19,8 +19,8 @@ A source is accepted only when it is current (published or reviewed within five 
 | S7 | How to Avoid Phishing Scams | Anti-Phishing Working Group | https://education.apwg.org/resources/overview/avoid-phishing-scams | not verified | rejected | The page itself could not be read and verified on 2026-10-29; its advice as reported is covered by S1 to S3. |
 | S8 | SARS warns public against new scam | South African Government News Agency (SAnews) | https://www.sanews.gov.za/south-africa/sars-warns-public-against-new-scam | 2026-07-30 | rejected | Current and applicable, but SAnews's user policy (https://www.sanews.gov.za/content/user-policy) grants attributed reuse to media; use in a commercial product is not shown to be covered. |
 | S9 | Digital fraud | First National Bank (FNB) | https://www.fnb.co.za/security-centre/digital-fraud.html | none shown | rejected | No date is shown, and no reuse terms permitting use in a commercial product were found; what it says FNB never asks for (login details, one-time PINs) is covered by S3. |
-| S10 | Security guidance | Standard Bank | https://www.standardbank.co.za/southafrica/personal/about-us/legal/conditions-of-access | not read | rejected | Standard Bank's conditions of access keep all copyright in its website content and require its consent to reproduce it. |
-| S11 | Security guidance | Absa | https://www.absa.co.za/ | not read | rejected | Absa's guidance and its website terms could not be read and verified on 2026-10-29. |
+| S10 | Surge in AI-driven spoofing scams | Standard Bank | https://www.standardbank.co.za/southafrica/news-and-media/newsroom/surge-in-ai-driven-spoofing-scams | 2026-03 | rejected | Current, but Standard Bank's conditions of access (https://www.standardbank.co.za/southafrica/personal/about-us/legal/conditions-of-access) keep all copyright in its website content and require its consent to reproduce it. |
+| S11 | What is phishing? | Absa | https://www.absa.co.za/self-service/safety-security/phishing-scams | none shown | rejected | No date is shown, so its currency cannot be judged, and no website terms permitting use in a commercial product were found. |
 
 ## Missing inputs
 
@@ -35,19 +35,21 @@ The screener receives a host (or none), a screenshot (or none, in a text-only re
 ### C1. A brand shown on a host that is not the brand's
 
 - Sources: S1, S3
-- Evidence: the host, and the brand the screenshot or text shows (its name or logo); the cue holds only when the host plainly cannot be the brand's: the brand's name inside an unrelated domain, or a free hosting or site-builder subdomain.
+- Evidence: the host, and the brand the screenshot or text shows (its name or logo); the cue holds only when the host plainly cannot be the brand's: the brand's name inside an unrelated domain, or a free hosting or site-builder subdomain showing an established organisation's sign-in or payment page (a bank, a revenue service, a courier). A business's own name on its own site-builder subdomain is not this cue.
 - Unavailable: whether an unfamiliar host belongs to the brand, and the whole cue when the request has no host. A host the screener cannot place is not evidence either way; it must not be read as fraud.
-- False-positive risk: genuine third-party hosts that show a brand: a payment gateway's own domain naming the shop as the merchant, an identity provider's sign-in page for an employer, a bank's sign-in hosted on its group's domain, a booking engine for a hotel.
+- False-positive risk: genuine third-party hosts that show a brand: a payment gateway's own domain naming the shop as the merchant, an identity provider's sign-in page for an employer, a bank's sign-in hosted on its group's domain, a booking engine for a hotel; and small businesses trading from their own site-builder subdomain.
 - Genuine case: a South African retailer's checkout continues on a payment gateway's domain, which shows the retailer's name as the merchant and the order total.
 - Lure case: a page on a free site-builder subdomain shows a South African bank's logo and asks for its online banking username and password.
-- Genuine case (new business): a South African catering business opened last month shows its own name and logo on its own new domain, with a contact form for quotes.
-- Lure case (new business): a domain made last week shows a South African courier's name and logo and asks for a "redelivery fee" by card.
+- Genuine case (new business): a new South African catering business shows its own name, logo and a "now open" banner on its own domain, with a contact form for quotes.
+- Lure case (new business): a site-builder subdomain shows a South African courier's name and logo and asks for a "redelivery fee" by card.
+- Genuine case (builder site): a South African bakery trades under its own name on its own site-builder subdomain, with its logo, its menu and a quote form.
+- Lure case (builder site): a site-builder subdomain shows a South African bank's logo and asks for the online banking password.
 
 ### C2. A host that imitates a known brand's address
 
 - Sources: S1
-- Evidence: the host alone: a known brand's name with letters swapped, doubled or replaced by look-alike characters, or with an added word ("secure", "verify", "update", a country) around it.
-- Unavailable: the brand's full list of real domains, and the whole cue when the request has no host. Only an imitation the screener can see in the host counts; a host that is merely unfamiliar does not.
+- Evidence: the host alone, as the request gives it (a lowercase name in ASCII): a known brand's name with letters swapped, doubled or replaced by look-alike ASCII characters (a digit for a letter, `rn` for `m`), or with an added word ("secure", "verify", "update", a country) around it.
+- Unavailable: the brand's full list of real domains; the whole cue when the request has no host; and look-alike non-Latin characters, since an internationalised host arrives encoded (`xn--...`) and shows none of them: an encoded host is not evidence on its own. Only an imitation the screener can see in the host counts; a host that is merely unfamiliar does not.
 - False-positive risk: genuine variants: a brand's country domains (`.co.za`, `.com`), its campaign domains, abbreviations and group names.
 - Genuine case: a South African insurer's sign-in page on its own `.co.za` domain whose name is an abbreviation of the insurer's full name.
 - Lure case: a sign-in page whose host spells a South African bank's name with a digit in place of a letter and adds "secure" in front.
@@ -60,15 +62,15 @@ The screener receives a host (or none), a screenshot (or none, in a text-only re
 - False-positive risk: the brand's own sign-in and payment pages, including a genuine one-time PIN step during a real payment.
 - Genuine case: a South African bank's online banking sign-in on its own domain asks for a username and password, then a one-time PIN sent to the registered number.
 - Lure case: a page with a bank's branding on an unrelated host asks for the card number, CVV, the card PIN and the one-time PIN together "to keep your account active".
-- Genuine case (plain form): an unbranded form on an unfamiliar host collects a name and email address for a school's newsletter, and nothing more.
-- Lure case (plain form): an unbranded page on an unfamiliar host asks for an email address and that address's password "to view a shared document".
+- Genuine case (plain form): an unbranded form on an unfamiliar host collects a name and email address for a South African school's newsletter, and nothing more.
+- Lure case (plain form): an unbranded page on an unfamiliar host, naming a South African law firm, asks for an email address and that address's password "to view a shared document".
 
 ### C4. Account or payment details to "confirm" or "update" off the organisation's own site
 
 - Sources: S3
 - Evidence: the host and the text and form fields: a page that is not the organisation's own (C1 or C2) asking the visitor to confirm, update or verify account, card or payment details, or one-time PINs, for an organisation it names (S3: legitimate companies do not send a link to update payment information).
-- Unavailable: whether the page is the organisation's own when the host cannot be placed, and how the visitor reached it. On the organisation's own site, these requests are its normal sign-in, registration and payment steps, not this cue.
-- False-positive risk: the organisation's own pages where it does ask: a revenue service's own eFiling registration (which sends a one-time PIN to the registered phone and asks for it), a bank's own sign-in, a payment step at a genuine checkout, an account settings page.
+- Unavailable: whether the page is the organisation's own when the host cannot be placed, whether a third-party host is one the organisation has authorised, and how the visitor reached it. On the organisation's own site, or on a host it has authorised (a payment gateway, a card scheme's 3-D Secure page, a hosted card-update page), these requests are its normal steps, not this cue.
+- False-positive risk: the organisation's own pages where it does ask: a revenue service's own eFiling registration (which sends a one-time PIN to the registered phone and asks for it), a bank's own sign-in, a payment step at a genuine checkout, an account settings page; and authorised third-party hosts: a payment gateway's hosted checkout, a 3-D Secure one-time PIN page, a subscription's hosted card-update page.
 - Genuine case: a national revenue service's own eFiling registration page sends a one-time PIN to the taxpayer's registered phone and asks for it to finish registering.
 - Lure case: a page with a national revenue service's branding on an unrelated host says a refund is waiting and asks for the taxpayer's bank card number, banking PIN and one-time PIN to "release" it.
 
