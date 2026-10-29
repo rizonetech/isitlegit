@@ -43,13 +43,28 @@ describe("redact", () => {
     expect(out).not.toMatch(/thandi|merwe|th&#97;ndi/i);
   });
 
+  it("redacts a phone written with dots", () => {
+    expect(redact("<p>Call 082.555.1234 or (011).555.1234</p>", [])).toBe("<p>Call [phone] or [phone]</p>");
+  });
+
   it("redacts numbers grouped with non-breaking spaces, written or as references", () => {
     const out = redact("<p>card 4111\u00A01111\u00A01111\u00A01111, ID 800101&nbsp;5009&nbsp;087</p>", []);
     expect(out).toBe("<p>card [number], ID [number]</p>");
   });
 
   it("takes a hyphenated name whole and by its parts, and no common word", () => {
-    expect(namePieces("Anne-Marie Dlamini", "billing@x.co.za")).toEqual(["Anne-Marie", "Anne", "Marie", "Dlamini"]);
+    expect(namePieces("Anne-Marie Dlamini", "billing@x.co.za")).toEqual([
+      "Anne-Marie Dlamini",
+      "Anne-Marie",
+      "Anne",
+      "Marie",
+      "Dlamini",
+    ]);
+    // A name made of common words is still a name, as a phrase.
+    expect(namePieces("May Long", "ml@x.co.za")).toEqual(["May Long"]);
+    expect(redact("<p>Dear May Long, your invoice</p>", namePieces("May Long", "ml@x.co.za"))).toBe(
+      "<p>Dear [name], your invoice</p>",
+    );
     expect(namePieces("The New Team", "info@x.co.za")).toEqual([]);
     // A display name written as an address or a domain gives no web words for names.
     expect(namePieces("accounts@acme.com", "accounts@acme.com")).toEqual([]);
@@ -102,6 +117,13 @@ describe("stripImages", () => {
     expect(drawn).not.toMatch(/path|Thandi|082/);
     expect(hasImages(drawn)).toBe(false);
     expect(hasImages('<style>.a::after{content:"x"}</style>')).toBe(true);
+    // A quoted data URL in image-set(), an unquoted background attribute and a frame's own document go too.
+    const more = stripImages(
+      `<div style='background-image:image-set("data:image/png;base64,DDDD" 1x)'>x</div><table background=data:image/png;base64,EEEE><tr><td>y</td></tr></table><iframe srcdoc="&lt;img src=x&gt;"></iframe>`,
+    );
+    expect(more).not.toMatch(/DDDD|EEEE|iframe|data:image/);
+    expect(hasImages(more)).toBe(false);
+    expect(hasImages(`<p style='background:image-set("a.png" 1x)'>`)).toBe(true);
   });
 });
 

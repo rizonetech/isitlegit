@@ -184,11 +184,17 @@ export async function runBenchmark(options: {
   };
   const accepted: { shot: Uint8Array; text: string; seeded: Seeded[] }[] = [];
   let refusedPages = 0;
+  let failedPages = 0;
   for (const page of pages) {
     try {
       const shot = await renderRedacted(options.render, page.html, names, terms, domains);
       accepted.push({ shot: shot.screenshot, text: shot.text, seeded: page.seeded });
-    } catch {
+    } catch (error) {
+      // Only the privacy check's own refusals count as refused; a render that failed measured nothing.
+      if (!/^refused: /.test((error as Error).message)) {
+        failedPages++;
+        continue;
+      }
       refusedPages++;
       for (const d of page.seeded) {
         tally(`${d.kind} / ${d.way}`).seeded++;
@@ -197,6 +203,7 @@ export async function runBenchmark(options: {
     }
   }
   const read = options.ocr ? await options.ocr(accepted.map((a) => a.shot)) : accepted.map(() => "");
+  if (read.length !== accepted.length) throw new Error("the OCR engine did not read every screenshot");
   accepted.forEach((page, index) => {
     for (const d of page.seeded) {
       const t = tally(`${d.kind} / ${d.way}`);
@@ -217,6 +224,7 @@ export async function runBenchmark(options: {
   return {
     pages: pages.length,
     refusedPages,
+    failedPages,
     screenshotsRead: Boolean(options.ocr),
     total,
     byKindAndWay: Object.fromEntries([...by].sort()),
@@ -247,7 +255,8 @@ if (import.meta.filename === process.argv[1]) {
     console.log(
       `redaction benchmark: ${JSON.stringify({ pages: result.pages, refusedPages: result.refusedPages, ...result.total })}`,
     );
-    process.exitCode = result.total.survived === 0 ? 0 : 1;
+    // The bar: nothing survived, every page was measured, and some were accepted (an all-refused run proves nothing).
+    process.exitCode = result.total.survived === 0 && result.failedPages === 0 && result.total.removed > 0 ? 0 : 1;
   } finally {
     await reader.close();
     rmSync(scratch, { recursive: true, force: true });

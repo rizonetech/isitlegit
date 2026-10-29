@@ -44,19 +44,23 @@ export function namePieces(display: string | undefined, address: string | undefi
     .flatMap((word) => (word.includes("-") ? [word, ...word.split("-")] : [word]));
   const shown = words.filter((piece) => /^(\p{L}{3,}(-\p{L}+)*|\p{Lu}\p{Ll})$/u.test(piece));
   const parts = local.split(/[._\-+0-9]+/).filter((piece) => /^\p{L}{3,}$/u.test(piece));
-  return [...shown, ...parts].filter(
+  // The whole display name too, as a phrase: a name made of common words (`May Long`) is still the reader's name.
+  const whole = named.trim().replace(/\s+/g, " ");
+  const role = whole.split(" ").some((word) => ROLE_WORDS.has(word.toLowerCase()));
+  const phrase = !role && /^\p{L}[\p{L}'-]*( \p{L}[\p{L}'-]*)+$/u.test(whole) ? [whole] : [];
+  return [...phrase, ...shown, ...parts].filter(
     (piece) => !ROLE_WORDS.has(piece.toLowerCase()) && !NOT_NAMES.has(piece.toLowerCase()),
   );
 }
 
 export const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-// South African numbers (+27 or 0, then nine digits in any grouping, the area code in brackets too) and other
-// international numbers.
+// South African numbers (+27 or 0, then nine digits grouped by spaces, dashes or dots, the area code in brackets
+// too) and other international numbers.
 export const PHONE =
-  /\(0\d{2}\)[\s-]?\d{3}[\s-]?\d{4}\b|(?:\+27|\b0)[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{4}\b|\+\d{1,3}[\s-]?\(?\d{1,4}\)?(?:[\s-]?\d{2,4}){2,4}\b/g;
-// Nine or more digits in a run (single spaces, non-breaking spaces or dashes allowed between): South African account numbers (9 to 11
+  /\(0\d{2}\)[\s.-]?\d{3}[\s.-]?\d{4}\b|(?:\+27|\b0)[\s.-]?\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b|\+\d{1,3}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,4}){2,4}\b/g;
+// Nine or more digits in a run (single spaces, non-breaking spaces, dots or dashes allowed between): South African account numbers (9 to 11
 // digits), ID numbers (13) and card numbers (13 to 19). Eight stops short, so a date like 2026-10-31 stays.
-export const LONG_NUMBER = /\b\d(?:[ \u00A0\u202F-]?\d){8,}\b/g;
+export const LONG_NUMBER = /\b\d(?:[ \u00A0\u202F.-]?\d){8,}\b/g;
 const DATA_URI = /data:[^"')\s>]+/g;
 const URL = /\b(?:https?:\/\/|www\.)[^\s"'<>()]+/gi;
 // Characters that hide inside a word without showing: a soft hyphen or a zero-width space splits `Tha­ndi` for a
@@ -127,15 +131,20 @@ export function stripImages(html: string): string {
         };
         return `<span style="display:inline-block;width:${size("width", 120, 1280)}px;height:${size("height", 40, 600)}px;background:#d0d0d0;vertical-align:middle"></span>`;
       })
+      .replace(/(?:-webkit-)?image-set\((?:[^()]|\([^()]*\))*\)/gi, "none")
       .replace(/url\(\s*(["']?)[^)]*\1\s*\)/gi, "none")
-      .replace(/\s(?:background|poster|srcset)\s*=\s*(["'])[^"']*\1/gi, "")
+      .replace(/\s(?:background|poster|srcset)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      // A frame's own document (`srcdoc`) and a linked stylesheet can carry pictures of their own.
+      .replace(/<(iframe|frame|frameset)\b[\s\S]*?<\/\1\s*>|<(?:iframe|frame|link)\b[^>]*>/gi, "")
+      // Any embedded picture left anywhere (a quoted data URL in a style or an attribute).
+      .replace(/data:image\/[^"')\s>]*/gi, "")
   );
 }
 
 // Whether any picture is left for a render to draw: checked before every render, so a rule `stripImages` missed is a
 // refusal, never a stored screenshot.
 export function hasImages(html: string): boolean {
-  return /<(?:img|image|svg|object|embed|picture|source|video|audio)\b|url\(\s*["']?\s*(?:data:|cid:|https?:)|content\s*:\s*["']/i.test(
+  return /<(?:img|image|svg|object|embed|picture|source|video|audio|iframe|frame|link)\b|url\(\s*["']?\s*(?:data:|cid:|https?:)|image-set\(|data:image\/|content\s*:\s*["']/i.test(
     html,
   );
 }

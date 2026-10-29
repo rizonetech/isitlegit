@@ -12,6 +12,7 @@ import {
   type Ocr,
   opaqueId,
   parseCsv,
+  partNames,
   personalDetail,
   readClientNames,
   readManifest,
@@ -137,8 +138,8 @@ function samplesDir(): string {
   ]);
   const russianPart = [
     "--b1",
-    "Content-Type: text/html; charset=windows-1251; name=ru.html",
-    "Content-Disposition: attachment; filename=ru.html",
+    "Content-Type: text/html; charset=windows-1251; name*=utf-8''ru%20one.html",
+    "Content-Disposition: attachment; filename*=utf-8''ru%20one.html",
     "Content-Transfer-Encoding: base64",
     "",
     russian.toString("base64"),
@@ -201,6 +202,8 @@ describe("the sample importer's inputs", () => {
     expect(() => readManifest(dir, ["client/a.eml"])).toThrow(/already labelled attack/);
     writeFileSync(join(dir, "manifest.csv"), 'file,label\n"client/a, b.eml",attack\n');
     expect(readManifest(dir, ["client/a, b.eml"]).get("client/a, b.eml")).toBe("attack");
+    expect(partNames("Content-Type: text/html; charset=x; name*0*=utf-8''a%20; name*1*=b.html")).toContain("a b.html");
+    expect(partNames('Content-Type: text/html; name="=?utf-8?B?0J/RgNC40LLQtdGC?=.html"')).toContain("Привет.html");
     expect(parseCsv('a,"b ""c"", d"\r\n\r\n1,2\n')).toEqual([
       ["a", 'b "c", d'],
       ["1", "2"],
@@ -337,6 +340,24 @@ describe("the sample import, end to end", () => {
     expect(before).toBeGreaterThan(0);
   }, 240_000);
 
+  it("stops the old pages counting before it removes any", async () => {
+    const samples = samplesDir();
+    for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
+      rmSync(join(samples, "client", name), { recursive: true });
+    const store = openStore(join(dir, "store"));
+    expect((await runImport({ samples, store, render })).code).toBe(0);
+    writeFileSync(join(samples, "client-names.txt"), "Acme Holdings\nFNB Online\n");
+    const dying = {
+      ...store,
+      removeSource: () => {
+        throw new Error("killed during the removal");
+      },
+    } as typeof store;
+    await expect(runImport({ samples, store: dying, render })).rejects.toThrow(/killed/);
+    for (const source of Object.values(SOURCES)) expect(sourceStatus(store, source)).toBe("running");
+    expect(redactionState(store).key).toBeNull();
+  }, 240_000);
+
   it("publishes nothing as complete when a step after the import fails", async () => {
     const samples = samplesDir();
     rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true });
@@ -416,7 +437,14 @@ describe("the redaction benchmark", () => {
     expect(Object.keys(result.byKindAndWay)).toHaveLength(KINDS.length * WAYS.length);
     expect(result.total.survived).toBe(0);
     expect(result.total.removed).toBeGreaterThan(0);
+    expect(result.failedPages).toBe(0);
   }, 120_000);
+
+  it("counts a render that failed as a failure, never as a refusal", async () => {
+    const result = await runBenchmark({ pages: 7, render: async () => Promise.reject(new Error("browser closed")) });
+    expect(result).toMatchObject({ failedPages: 7, refusedPages: 0 });
+    expect(result.total.seeded).toBe(0);
+  });
 });
 
 describe("the pilot-client rule", () => {

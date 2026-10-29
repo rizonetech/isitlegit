@@ -164,11 +164,71 @@ export function partCharsets(raw: string): Map<string, string> {
   for (const block of raw.split(/\r?\n\r?\n/)) {
     const headers = block.replace(/\r?\n[ \t]+/g, " ");
     if (!/^content-type:/im.test(headers)) continue;
-    const charset = /charset\s*=\s*"?([\w.:-]+)/i.exec(headers)?.[1];
-    const name = /(?:file)?name\*?\s*=\s*"?([^";\r\n]+)/i.exec(headers)?.[1]?.trim();
-    if (charset && name) out.set(name, charset);
+    const charset = /[;\s]charset\s*=\s*"?([\w.:-]+)/i.exec(headers)?.[1];
+    if (!charset) continue;
+    for (const name of partNames(headers)) out.set(name, charset);
   }
   return out;
+}
+
+// A part's file names as the parser decodes them: plain (`filename="a.html"`), RFC 2231 extended and continued
+// (`filename*=utf-8''a%20b.html`, `filename*0*=`, `filename*1*=`) and RFC 2047 encoded words (`=?utf-8?B?...?=`).
+export function partNames(headers: string): string[] {
+  const names: string[] = [];
+  for (const key of ["filename", "name"]) {
+    const plain = new RegExp(`[;\\s]${key}\\s*=\\s*("([^"]*)"|[^;\\s]+)`, "i").exec(headers);
+    if (plain) names.push(encodedWords((plain[2] ?? plain[1] ?? "").replace(/^"|"$/g, "").trim()));
+    const pieces = [...headers.matchAll(new RegExp(`[;\\s]${key}\\*(\\d+)?(\\*)?\\s*=\\s*("([^"]*)"|[^;\\s]+)`, "gi"))]
+      .map((m) => ({
+        index: Number(m[1] ?? 0),
+        encoded: Boolean(m[2]) || !m[1],
+        value: (m[4] ?? m[3] ?? "").replace(/^"|"$/g, ""),
+      }))
+      .sort((a, b) => a.index - b.index);
+    if (pieces.length) {
+      const first = pieces[0]?.value ?? "";
+      const declared = /^([^']*)'[^']*'(.*)$/.exec(first);
+      const charset = declared?.[1] || "utf-8";
+      const values = pieces.map((p, i) => (i === 0 && declared ? (declared[2] ?? "") : p.value));
+      const bytes: number[] = [];
+      values.forEach((value, i) => {
+        const encoded = pieces[i]?.encoded;
+        for (let at = 0; at < value.length; at++) {
+          if (encoded && value[at] === "%" && /^[0-9a-f]{2}$/i.test(value.slice(at + 1, at + 3))) {
+            bytes.push(Number.parseInt(value.slice(at + 1, at + 3), 16));
+            at += 2;
+          } else bytes.push(...new TextEncoder().encode(value[at] as string));
+        }
+      });
+      try {
+        names.push(new TextDecoder(charset).decode(new Uint8Array(bytes)));
+      } catch {
+        names.push(new TextDecoder("utf-8").decode(new Uint8Array(bytes)));
+      }
+    }
+  }
+  return [...new Set(names.filter(Boolean))];
+}
+
+function encodedWords(value: string): string {
+  return value.replace(/=\?([^?]+)\?([bBqQ])\?([^?]*)\?=/g, (whole, charset: string, kind: string, text: string) => {
+    try {
+      const bytes =
+        kind.toUpperCase() === "B"
+          ? Uint8Array.from(Buffer.from(text, "base64"))
+          : Uint8Array.from(
+              Buffer.from(
+                text
+                  .replace(/_/g, " ")
+                  .replace(/=([0-9a-f]{2})/gi, (_m, h: string) => String.fromCharCode(Number.parseInt(h, 16))),
+                "latin1",
+              ),
+            );
+      return new TextDecoder(charset).decode(bytes);
+    } catch {
+      return whole;
+    }
+  });
 }
 
 // A message's parts: each HTML attachment (decoded by its own charset), its body (the HTML one, else the plain text
@@ -420,8 +480,19 @@ export async function runImport(options: {
   const keyFile = join(store.dir, "raw", "samples", "REDACTION.json");
   const state = redactionState(store);
   if (state.key !== key && state.building !== key) {
-    const removed = Object.values(SOURCES).reduce((sum, source) => sum + store.removeSource(source), 0);
+    // The old pages stop counting before any is touched: both import records and the key say so first, so a run that
+    // dies part-way through the removal leaves nothing the dataset builder accepts.
+    for (const source of Object.values(SOURCES)) {
+      const record = join(store.dir, "raw", source, "IMPORT.json");
+      if (existsSync(record))
+        writeImport(record, {
+          ...(JSON.parse(readFileSync(record, "utf-8")) as ImportResult),
+          status: "running",
+          reason: "rebuilding under a changed redaction",
+        });
+    }
     writeJson(keyFile, { key: null, building: key, at: new Date().toISOString() });
+    const removed = Object.values(SOURCES).reduce((sum, source) => sum + store.removeSource(source), 0);
     if (removed) log(`samples: the redaction changed; ${removed} earlier pages removed before the import`);
   } else if (state.key !== key) log("samples: resuming the rebuild under the current redaction");
 
