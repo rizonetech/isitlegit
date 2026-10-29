@@ -89,6 +89,8 @@ One module, `src/meta/client.ts`, is the only place that talks to `api.meta.ai` 
 
 ## 2. Budget guard with daily and total caps
 
+> **Started:** 2026-10-29T01:11Z
+
 The operator's caps are enforced in code (design spec section 11): Meta Model API US$120 total and US$15 a day, with US$30 held back for demo and judging days (3 and 4 Nov may use the reserve); the monitor's page screening counts inside these caps (corrected 2026-10-27: the Glimmer provider's US$10 cap left with Glimmer). Spend is estimated before a call from the request size and settled after from the usage the response reports. A refused call ends the step as partial; it never silently degrades a verdict.
 
 **Phase:** 1
@@ -97,6 +99,8 @@ The operator's caps are enforced in code (design spec section 11): Meta Model AP
 **Freeze check:** `pnpm exec vitest run test/meta/budget.test.ts` passes unchanged.
 
 **Added 2026-10-27** (D00 T01 §7's plan review): the Meta smoke test spends before this guard exists; its runs are recorded in `docs/meta-smoke-test.md` (and locally in `build/meta-smoke-spend.json`), and the guard's starting totals include that spend, so spec 11's US$120 total counts it. **Corrected 2026-10-28** (parallel lanes, `AGENTS.md`): that ledger is now `~/isitlegit-data/ledgers/meta-spend.json` (`metaLedger()` in `scripts/meta-smoke.ts`), shared by every worktree and lane, and the guard keeps its spend there too, so a lane's Meta calls (D03 T04's teacher labels) count against the same caps.
+
+**Corrected 2026-10-29** (at start, checked against the repository): migration `0007` is taken (`0007_auth.sql`); the next number is `0020`. The Worker cannot read `~/isitlegit-data/ledgers/meta-spend.json`, a file on the operator's machine, so the caps cannot be one store as written: the Worker's own spend is `model_spend` in D1, the local callers' (the smoke test, the lane's teacher labels) is the ledger, and each guard must count both against the same caps. The plan review decides how (an import of the ledger into D1, or the local callers reserving in D1 too).
 
 **Build order:**
 
