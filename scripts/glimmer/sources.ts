@@ -227,9 +227,12 @@ export function syntheticLeftovers(root: string, store: string): string[] {
 
 // Every problem the store and its record hold, for `check` and for `freeze` alike: the record reconciled with the
 // imports, bindings and pages, damaged pages, and §8's leftovers on the disk.
+// `hashRows` (the freeze) hashes each converted source's rows in full against its receipt; without it (the check) the
+// rows only must be no newer than their receipt, since a converter writes its rows first and its receipt last.
 export function storeProblems(
   dir: string,
   root = ROOT,
+  options: { hashRows?: boolean } = {},
 ): { problems: string[]; imports: Record<string, ImportRecord>; pages: StoredPage[]; sourcesMd: string } {
   const problems: string[] = [];
   // A record that does not read (a disk fault, a torn write) is a named problem, never a thrown stack trace.
@@ -276,6 +279,18 @@ export function storeProblems(
       bindings,
     }),
   );
+  // The rows beside each receipt are the ones it names (completion review G12): a converter stopped between its rows
+  // and its receipt leaves new rows beside the old receipt.
+  for (const source of RECEIPTED) {
+    const rows = join(dir, "raw", source, "rows.jsonl");
+    const receipt = bindings[source]?.export;
+    if (!receipt || !existsSync(rows)) continue;
+    const written = statSync(join(dir, "raw", source, "EXPORT.json")).mtimeMs;
+    if (statSync(rows).mtimeMs > written + 1000)
+      problems.push(`${source}: rows.jsonl was written after its EXPORT.json, which does not name it`);
+    else if (options.hashRows && fileSha256(rows) !== receipt.rows_sha256)
+      problems.push(`${source}: rows.jsonl is not the rows its EXPORT.json names`);
+  }
   for (const path of syntheticLeftovers(root, dir)) problems.push(`${path} exists, yet §8 was removed`);
   // A damaged copy a repair set aside still holds its page: one from the generator is a leftover too.
   for (const name of setAside) {
@@ -375,7 +390,37 @@ if (import.meta.filename === process.argv[1]) {
     // The collection as it stands (§18): every source's binding and every page in the store, written whole. The
     // builder reads only pages it names, so nothing stored later can enter this version. Refused unless the sources
     // reconcile, so a freeze never holds an unbound or incomplete import.
-    const { problems, imports, pages, sourcesMd } = storeProblems(dir);
+    // Once only (completion review G13): a freeze is the version's input, never replaced by a later run.
+    const file = join(dir, "raw", "FROZEN.json");
+    if (existsSync(file)) {
+      console.error(
+        "sources: raw/FROZEN.json already exists: a freeze is never replaced (move it aside by hand to redo)",
+      );
+      process.exit(1);
+    }
+    const { problems, imports, pages, sourcesMd } = storeProblems(dir, ROOT, { hashRows: true });
+    // The benign lists' renders finished whole: every URL with its outcome, every stored page verified.
+    const renders: Record<string, { list_sha256: string; receipt_sha256: string }> = {};
+    for (const [list, folder] of [
+      ["majestic", "majestic"],
+      ["benign-sa", "benign"],
+    ] as const) {
+      const receiptFile = join(dir, "raw", folder, "RENDER.json");
+      if (!existsSync(receiptFile)) {
+        problems.push(`${list}: no RENDER.json: run node scripts/glimmer/render.ts receipt ${list}`);
+        continue;
+      }
+      const text = readFileSync(receiptFile, "utf-8");
+      const receipt = JSON.parse(text) as { list_sha256: string; unfinished: string[]; missing_pages: string[] };
+      if (receipt.unfinished.length || receipt.missing_pages.length)
+        problems.push(
+          `${list}: its render is not finished (${receipt.unfinished.length} unfinished, ${receipt.missing_pages.length} missing)`,
+        );
+      renders[list] = {
+        list_sha256: receipt.list_sha256,
+        receipt_sha256: createHash("sha256").update(text).digest("hex"),
+      };
+    }
     if (problems.length) {
       for (const problem of problems) console.log(`sources: ${problem}`);
       console.error(`sources: not frozen: ${problems.length} problems`);
@@ -390,12 +435,20 @@ if (import.meta.filename === process.argv[1]) {
           )
           .map(([source, record]) => [
             source,
-            { inputs: record.inputs ?? null, rows: record.rows ?? null, stored: record.stored ?? 0 },
+            {
+              inputs: record.inputs ?? null,
+              rows: record.rows ?? null,
+              stored: record.stored ?? 0,
+              // The import record as it stood, which the build checks is still the one there.
+              import_sha256: createHash("sha256")
+                .update(readFileSync(join(dir, "raw", source, "IMPORT.json")))
+                .digest("hex"),
+            },
           ]),
       ),
+      renders,
       pages: pages.map((page) => page.id).sort(),
     };
-    const file = join(dir, "raw", "FROZEN.json");
     const temporary = `${file}.${process.pid}.tmp`;
     writeFileSync(temporary, `${JSON.stringify(frozen)}\n`);
     renameSync(temporary, file);

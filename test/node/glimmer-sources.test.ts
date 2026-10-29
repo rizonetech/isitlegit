@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -164,6 +164,65 @@ describe("reconcile", () => {
       );
     } finally {
       rmSync(root, { recursive: true, force: true });
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("names rows written after their receipt, and on freeze rows that are not the ones it names", () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-g12-"));
+    try {
+      const repo = join(import.meta.dirname, "../..");
+      const folder = join(store, "raw", "phreshphish");
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(join(folder, "rows.jsonl"), "{}\n");
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 1,
+          exported: 1,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: "0".repeat(64),
+          converter_sha256: "",
+          inputs: "",
+        }),
+      );
+      const old = new Date("2026-10-29T10:00:00Z");
+      utimesSync(join(folder, "EXPORT.json"), old, old);
+      expect(storeProblems(store, repo).problems).toContain(
+        "phreshphish: rows.jsonl was written after its EXPORT.json, which does not name it",
+      );
+      utimesSync(join(folder, "rows.jsonl"), old, old);
+      expect(storeProblems(store, repo).problems.join()).not.toContain("phreshphish: rows.jsonl");
+      expect(storeProblems(store, repo, { hashRows: true }).problems).toContain(
+        "phreshphish: rows.jsonl is not the rows its EXPORT.json names",
+      );
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to freeze twice or before the benign renders finish, and the build refuses a changed import", () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-g13-"));
+    const env = { ...process.env, GLIMMER_DATA_DIR: store };
+    const script = (name: string) => join(import.meta.dirname, "../../scripts/glimmer", name);
+    try {
+      const fresh = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(fresh.status).toBe(1);
+      expect(fresh.stdout).toContain("majestic: no RENDER.json");
+      mkdirSync(join(store, "raw", "set"), { recursive: true });
+      writeFileSync(join(store, "raw", "set", "IMPORT.json"), "{}");
+      writeFileSync(
+        join(store, "raw", "FROZEN.json"),
+        JSON.stringify({ pages: [], sources: { set: { import_sha256: "0".repeat(64) } } }),
+      );
+      const again = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(again.status).toBe(1);
+      expect(again.stderr).toContain("a freeze is never replaced");
+      const build = spawnSync(process.execPath, [script("build-dataset.ts"), "1.0"], { env, encoding: "utf-8" });
+      expect(build.status).toBe(2);
+      expect(build.stderr).toContain("imported again since the freeze: set");
+    } finally {
       rmSync(store, { recursive: true, force: true });
     }
   });

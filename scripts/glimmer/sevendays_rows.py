@@ -151,7 +151,7 @@ def main(argv=None):
             receipt.sample_out()
         else:
             receipt.reject("no capture answered 200 with a screenshot and HTML")
-    receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest)
+    receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest, {"max": args.max, "seed": args.seed})
     print(f"sevendays-rows: {len(written)} rows from {len(earliest)} URLs with a live capture into {folder / 'rows.jsonl'}")
     return 0
 

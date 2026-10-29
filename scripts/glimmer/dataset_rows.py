@@ -177,7 +177,7 @@ def main(argv=None):
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    receipt.write(folder, out, Path(__file__), inputs_digest)
+    receipt.write(folder, out, Path(__file__), inputs_digest, {"source": args.source, "max": args.max, "seed": args.seed})
     rejected = sum(receipt.rejected.values())
     print(f"dataset-rows: {args.source}: {receipt.exported} rows ({rejected} rejected, {receipt.sampled_out} sampled out) into {out}")
     return 0

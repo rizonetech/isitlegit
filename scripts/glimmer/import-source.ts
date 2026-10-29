@@ -113,8 +113,11 @@ export function concurrencyArg(argv: string[] = process.argv): number {
 export function writeImport(path: string, result: ImportResult): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify(result, null, 2)}\n`);
+  const written = `${JSON.stringify(result, null, 2)}\n`;
+  writeFileSync(temporary, written);
   renameSync(temporary, path);
+  // Read back whole (completion review G11): the record the sources check and the freeze trust is what is on the disk.
+  if (readFileSync(path, "utf-8") !== written) throw new Error(`${path} did not read back as written`);
 }
 
 export async function importSource(options: {

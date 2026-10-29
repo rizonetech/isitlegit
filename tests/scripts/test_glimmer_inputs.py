@@ -82,6 +82,24 @@ class ReceiptAndLimits(unittest.TestCase):
         self.assertEqual(written["rejected"], {"no capture answered 200": 1})
         self.assertEqual(json.loads((self.dir / inputs.EXPORT).read_text())["inputs"], "d" * 64)
 
+    def test_records_the_recipe_that_made_the_rows(self):
+        receipt = inputs.Receipt()
+        receipt.export()
+        written = receipt.write(self.dir, self.dir / "rows.jsonl", self.dir / "conv.py", "d" * 64, {"seed": 7, "max": 10})
+        recipe = json.loads((self.dir / inputs.EXPORT).read_text())["recipe"]
+        self.assertEqual(recipe["parameters"], {"max": 10, "seed": 7})
+        self.assertEqual(recipe["helper_sha256"], hashlib.sha256(SCRIPT.read_bytes()).hexdigest())
+        self.assertEqual(written["recipe"], recipe)
+
+    def test_refuses_a_record_that_does_not_read_back_as_written(self):
+        original = inputs.json.load
+        inputs.json.load = lambda source: {"changed": True}
+        try:
+            with self.assertRaisesRegex(inputs.Refused, "did not read back"):
+                inputs.write_json(self.dir / "INPUTS.json", {"files": []})
+        finally:
+            inputs.json.load = original
+
     def test_refuses_an_export_that_does_not_reconcile(self):
         receipt = inputs.Receipt()
         receipt.export()

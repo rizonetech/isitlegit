@@ -877,8 +877,21 @@ describe("the batch run", () => {
     // A URL at retry, and one no run reached, are unfinished; the other list's URL is not counted.
     expect(receipt.unfinished).toEqual([`${origin}/flaky`, `${origin}/never`]);
     expect(receipt.missing_pages).toEqual([]);
+    // Each URL's outcome, the retries it took, and one entry per run of this list (the other list's run between them
+    // is no part of either).
+    const id = store.manifest()[0]?.id as string;
+    expect(receipt.outcomes).toEqual({
+      [`${origin}/page`]: { stored: id },
+      [`${origin}/missing`]: { excluded: "HTTP 404" },
+    });
+    expect(receipt.retries).toEqual({ page: 1, browser: 0 });
+    expect(receipt.runs.map((run) => run.concurrency)).toEqual([2, 3]);
+    expect(receipt.active_seconds).toBe(receipt.runs.reduce((sum, run) => sum + run.seconds, 0));
+    // A stored page whose text no longer matches its hash is not whole: missing, not stored.
+    writeFileSync(join(dir, "store", "pages", id, "text.txt"), "altered");
+    expect(renderReceipt(list(["/page"]), journal, store).missing_pages).toEqual([`${origin}/page`]);
+    rmSync(join(dir, "store", "pages", id), { recursive: true });
     // A stored page that has gone from the store is reported.
-    store.removePage(store.manifest()[0]?.id as string);
     expect(renderReceipt(list(["/page"]), journal, store).missing_pages).toEqual([`${origin}/page`]);
   });
 

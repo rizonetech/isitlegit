@@ -16,6 +16,7 @@ converter stopped by one raises before its rows file is replaced, so the earlier
 import hashlib
 import json
 import os
+import platform
 import time
 from pathlib import Path
 
@@ -54,6 +55,10 @@ def write_json(path, value):
         os.fsync(folder)
     finally:
         os.close(folder)
+    # Read back whole (completion review G11): what the next step trusts is what is on the disk.
+    with path.open(encoding="utf-8") as source:
+        if json.load(source) != json.loads(json.dumps(value)):
+            raise Refused(f"{path.name} did not read back as written")
 
 
 def digest_of(value):
@@ -160,8 +165,10 @@ class Receipt:
         self.met += 1
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
 
-    def write(self, folder, rows, converter, inputs_digest):
-        """Writes EXPORT.json beside the rows, once its totals reconcile; returns it."""
+    def write(self, folder, rows, converter, inputs_digest, parameters=None):
+        """Writes EXPORT.json beside the rows, once its totals reconcile; returns it. `parameters` are the run's own
+        (the sample cap and seed), recorded with this module's digest and the interpreter, so the receipt names the whole
+        recipe that made the rows (completion review E1)."""
         rejected = sum(self.rejected.values())
         if self.exported + self.sampled_out + rejected != self.met:
             raise Refused(f"the export accounts for {self.exported + self.sampled_out + rejected} of {self.met} items")
@@ -173,6 +180,11 @@ class Receipt:
             "rows_sha256": file_digest(rows),
             "converter_sha256": file_digest(converter),
             "inputs": inputs_digest,
+            "recipe": {
+                "parameters": dict(sorted((parameters or {}).items())),
+                "helper_sha256": file_digest(__file__),
+                "python": platform.python_version(),
+            },
         }
         write_json(Path(folder) / EXPORT, receipt)
         return receipt

@@ -1357,30 +1357,65 @@ export type RenderReceipt = {
   excluded: Record<string, number>;
   unfinished: string[];
   missing_pages: string[];
+  // Every listed URL's latest terminal outcome: its page id when stored (verified against its hashes), its reason when
+  // excluded; an unfinished URL has none.
+  outcomes: Record<string, { stored: string } | { excluded: string }>;
+  retries: { page: number; browser: number };
   concurrency: number[];
+  // Each run of this list, from its `run` event to the last of this list's events before the next run began; runs
+  // journalled before runs were recorded are measured by their events' gaps (each up to five minutes).
+  runs: { started: string; ended: string; seconds: number; concurrency: number }[];
+  earlier_seconds: number;
   active_seconds: number;
 };
 
 // The widened render's receipt (§18): the list it rendered (its URLs' SHA-256), each listed URL's latest terminal
-// outcome (stored, with its page still in the store, or excluded with its reason; a URL at `retry`, `started` or never
-// met is unfinished), the concurrency its runs held, and its active time: from each event of this list's URLs to the
-// next, with gaps over five minutes (pauses, other lists' runs) left out. Written temp-then-replace and read back.
+// outcome (stored, with its page whole in the store, or excluded with its reason; a URL at `retry`, `started` or never
+// met is unfinished), the retries it took, and the time and concurrency of each run. Written temp-then-replace and read
+// back whole.
 export function renderReceipt(list: UrlList, journal: string, store: ReturnType<typeof openStore>): RenderReceipt {
   const urls = new Set(list.entries.map((entry) => entry.url));
   const last = new Map<string, JournalEvent>();
-  const times: number[] = [];
+  const retries = { page: 0, browser: 0 };
   const concurrency = new Set<number>();
+  const runs: RenderReceipt["runs"] = [];
+  const earlier: number[] = [];
+  let open: { started: number; last: number; concurrency: number } | null = null;
+  let anyRun = false;
+  const close = () => {
+    if (open)
+      runs.push({
+        started: new Date(open.started).toISOString(),
+        ended: new Date(open.last).toISOString(),
+        seconds: Math.round((open.last - open.started) / 1000),
+        concurrency: open.concurrency,
+      });
+    open = null;
+  };
   for (const event of readJournal(journal)) {
+    const at = Date.parse(event.at);
     if (event.event === "run") {
-      if (event.list === list.name && event.concurrency) concurrency.add(event.concurrency);
+      anyRun = true;
+      close();
+      if (event.list === list.name) {
+        open = { started: at, last: at, concurrency: event.concurrency ?? 0 };
+        if (event.concurrency) concurrency.add(event.concurrency);
+      }
       continue;
     }
     if (!urls.has(event.url)) continue;
-    times.push(Date.parse(event.at));
+    if (open) open.last = at;
+    else if (!anyRun) earlier.push(at);
+    if (event.event === "retry") retries[event.fault === "browser" ? "browser" : "page"]++;
     // A reopened page goes back to unfinished until its next outcome.
     last.set(event.url, event);
   }
-  const present = new Set(store.manifest({ tolerant: true }).map((page) => page.id));
+  close();
+  let earlierSeconds = 0;
+  for (let i = 1; i < earlier.length; i++) {
+    const gap = ((earlier[i] as number) - (earlier[i - 1] as number)) / 1000;
+    if (gap <= 300) earlierSeconds += gap;
+  }
   const receipt: RenderReceipt = {
     list: list.name,
     list_sha256: createHash("sha256")
@@ -1391,25 +1426,27 @@ export function renderReceipt(list: UrlList, journal: string, store: ReturnType<
     excluded: {},
     unfinished: [],
     missing_pages: [],
+    outcomes: {},
+    retries,
     concurrency: [...concurrency].sort((a, b) => a - b),
-    active_seconds: 0,
+    runs,
+    earlier_seconds: Math.round(earlierSeconds),
+    active_seconds: Math.round(earlierSeconds + runs.reduce((sum, run) => sum + run.seconds, 0)),
   };
   for (const url of [...urls].sort()) {
     const event = last.get(url);
     if (event?.event === "stored") {
-      if (event.id && present.has(event.id)) receipt.stored++;
-      else receipt.missing_pages.push(url);
+      // Whole, not merely listed: a page whose screenshot or text no longer matches its hashes is missing.
+      if (event.id && store.readVerifiedPage(event.id)) {
+        receipt.stored++;
+        receipt.outcomes[url] = { stored: event.id };
+      } else receipt.missing_pages.push(url);
     } else if (event?.event === "excluded") {
       const reason = (event.reason ?? "").replace(/ \(.*$/, "");
       receipt.excluded[reason] = (receipt.excluded[reason] ?? 0) + 1;
+      receipt.outcomes[url] = { excluded: event.reason ?? "" };
     } else receipt.unfinished.push(url);
   }
-  times.sort((a, b) => a - b);
-  for (let i = 1; i < times.length; i++) {
-    const gap = ((times[i] as number) - (times[i - 1] as number)) / 1000;
-    if (gap <= 300) receipt.active_seconds += gap;
-  }
-  receipt.active_seconds = Math.round(receipt.active_seconds);
   return receipt;
 }
 
@@ -1706,14 +1743,19 @@ if (import.meta.filename === process.argv[1]) {
     const file = join(dir, "raw", only === "majestic" ? "majestic" : "benign", "RENDER.json");
     mkdirSync(dirname(file), { recursive: true });
     const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(
-      temporary,
-      `${JSON.stringify({ ...receipt, unfinished: receipt.unfinished.slice(0, 50) }, null, 1)}\n`,
-    );
+    const written = `${JSON.stringify(receipt)}\n`;
+    writeFileSync(temporary, written);
     renameSync(temporary, file);
-    const back = JSON.parse(readFileSync(file, "utf-8")) as RenderReceipt;
-    if (back.list_sha256 !== receipt.list_sha256) throw new Error("the render receipt did not read back as written");
-    const short = { ...receipt, unfinished: receipt.unfinished.length, missing_pages: receipt.missing_pages.length };
+    if (readFileSync(file, "utf-8") !== written) {
+      console.error("render: the render receipt did not read back as written");
+      process.exit(1);
+    }
+    const short = {
+      ...receipt,
+      outcomes: Object.keys(receipt.outcomes).length,
+      unfinished: receipt.unfinished.length,
+      missing_pages: receipt.missing_pages.length,
+    };
     console.log(JSON.stringify(short));
     // Complete only when every listed URL has its terminal outcome and every stored one its page.
     process.exit(receipt.unfinished.length || receipt.missing_pages.length ? 1 : 0);

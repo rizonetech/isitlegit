@@ -481,7 +481,23 @@ if (import.meta.filename === process.argv[1]) {
     );
     process.exit(2);
   }
-  const frozen = new Set((JSON.parse(readFileSync(frozenFile, "utf-8")) as { pages: string[] }).pages);
+  const record = JSON.parse(readFileSync(frozenFile, "utf-8")) as {
+    pages: string[];
+    sources: Record<string, { import_sha256?: string }>;
+  };
+  // Each frozen source's import still the one the freeze recorded (completion review G13): an import run since would
+  // put other pages, or other labels, behind the same ids.
+  const drifted = Object.entries(record.sources).filter(([source, frozenSource]) => {
+    const file = join(store.dir, "raw", source, "IMPORT.json");
+    return (
+      !existsSync(file) || createHash("sha256").update(readFileSync(file)).digest("hex") !== frozenSource.import_sha256
+    );
+  });
+  if (drifted.length) {
+    console.error(`build-dataset: imported again since the freeze: ${drifted.map(([source]) => source).join(", ")}`);
+    process.exit(2);
+  }
+  const frozen = new Set(record.pages);
   const built = await buildDataset({
     store,
     version,
