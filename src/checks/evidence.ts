@@ -10,6 +10,12 @@ import { CHECK_NAME, type CheckRegistry, SYSTEM_CHECKS } from "./registry";
 export { CHECK_NAME, SYSTEM_CHECKS };
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
 export const MAX_SUMMARY_CHARACTERS = 200;
+// An item's detail as stored, at most 64 KiB of JSON: far under D1's 2,000,000-byte row and statement limits
+// (https://developers.cloudflare.com/d1/platform/limits/), so a check's oversized item is refused inside its own failure
+// boundary and never makes the whole list unstorable (D02 T01 §2 round 1).
+export const MAX_DETAIL_BYTES = 64 * 1024;
+export const MAX_ARTEFACTS = 100;
+const utf8Bytes = (text: string) => new TextEncoder().encode(text).byteLength;
 
 // An item as stored: its `check` was a registered producer's when it was written, so a read checks the name's form only
 // (a check renamed later still reads back).
@@ -23,9 +29,11 @@ export const StoredEvidence = z.strictObject({
     .min(1)
     .refine((text) => Array.from(text).length <= MAX_SUMMARY_CHARACTERS, "at most 200 characters")
     .refine((text) => !Array.from(text).some(unplain), "plain words on one line"),
-  detail: z.record(z.string(), z.json()),
+  detail: z
+    .record(z.string(), z.json())
+    .refine((detail) => utf8Bytes(JSON.stringify(detail)) <= MAX_DETAIL_BYTES, "a detail of at most 64 KiB"),
   // R2 keys of the artefacts the item rests on.
-  artefacts: z.array(z.string().min(1)),
+  artefacts: z.array(z.string().min(1).max(1024)).max(MAX_ARTEFACTS),
 });
 export type Evidence = z.infer<typeof StoredEvidence>;
 

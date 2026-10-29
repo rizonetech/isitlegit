@@ -82,14 +82,18 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
 
 // The charset to read a part's bytes with: its Content-Type parameter, else for HTML a `<meta charset>` or
 // `<meta http-equiv="Content-Type" content="...charset=...">` in its first kilobyte (as postal-mime reads the kept
-// part), else null.
+// part), else null. Only a name a charset can have is kept: IANA's are at most 40 characters of a small set (RFC 2978
+// 2.3), so a hostile parameter of megabytes is not carried into the summary and every record made from it (D02 T01 §2
+// round 1).
+const CHARSET = /^[a-z0-9!#$%&'+^_`{}~.:-]{1,40}$/;
 function charsetOf(parameter: string | undefined, mediaType: string, content: ArrayBuffer): string | null {
   const declared = parameter?.trim().toLowerCase();
-  if (declared) return declared;
+  if (declared) return CHARSET.test(declared) ? declared : null;
   if (mediaType !== "text/html") return null;
   const head = new TextDecoder().decode(new Uint8Array(content, 0, Math.min(content.byteLength, 1024)));
   const meta = /<meta\b[^>]*?charset\s*=\s*["']?\s*([a-z0-9_.:-]+)/i.exec(head);
-  return meta?.[1]?.toLowerCase() ?? null;
+  const found = meta?.[1]?.toLowerCase();
+  return found && CHARSET.test(found) ? found : null;
 }
 
 export type ParsedSummary = {

@@ -315,6 +315,19 @@ describe("completion review cases", () => {
     expect(summary.text ?? "").not.toContain("fictional-lure.example");
   });
 
+  it("keeps only a charset a name can be, so a hostile parameter is not carried (D02 T01 §2 round 1)", async () => {
+    const cutWith = async (contentType: string, body = "x".repeat(BODY_PART_LIMIT + 1)) =>
+      (await parseMessage(multipart([`Content-Type: ${contentType}\r\n\r\n${body}`]))).truncated[0]?.charset;
+    expect(await cutWith("text/plain; charset=ISO-8859-1")).toBe("iso-8859-1");
+    expect(await cutWith(`text/plain; charset=${"a".repeat(40)}`)).toBe("a".repeat(40));
+    expect(await cutWith(`text/plain; charset=${"a".repeat(41)}`)).toBeNull();
+    expect(await cutWith('text/plain; charset="utf 8"')).toBeNull();
+    expect(await cutWith("text/html", `<meta charset="${"b".repeat(41)}">${"y".repeat(BODY_PART_LIMIT)}`)).toBeNull();
+    expect(await cutWith("text/html", `<meta charset="windows-1252">${"y".repeat(BODY_PART_LIMIT)}`)).toBe(
+      "windows-1252",
+    );
+  });
+
   it("stores a summary whose contents match the message, read back through the store and its row", async () => {
     const caseId = await newCase();
     const forward = await extractOriginal(forwards["attached-rfc822"]);

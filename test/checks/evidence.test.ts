@@ -111,6 +111,12 @@ describe("Evidence", () => {
     for (const id of ["E0", "e1", "E", "1", "E01"]) expect(Evidence.safeParse({ ...good, id }).success, id).toBe(false);
     for (const detail of [[1], "x", null]) expect(Evidence.safeParse({ ...good, detail }).success).toBe(false);
     expect(Evidence.safeParse({ ...good, extra: 1 }).success).toBe(false);
+    // A detail of at most 64 KiB of JSON, and at most 100 artefact keys (round 1 of D02 T01 §2).
+    expect(Evidence.safeParse({ ...good, detail: { blob: "a".repeat(65_000) } }).success).toBe(true);
+    expect(Evidence.safeParse({ ...good, detail: { blob: "a".repeat(66_000) } }).success).toBe(false);
+    expect(Evidence.safeParse({ ...good, artefacts: Array.from({ length: 101 }, (_, i) => `k${i}`) }).success).toBe(
+      false,
+    );
   });
 });
 

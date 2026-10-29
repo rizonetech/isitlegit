@@ -152,6 +152,51 @@ describe("runChecks", () => {
   });
 });
 
+describe("round 1 (2026-10-29): evidence too large to store", () => {
+  it("refuses an oversized item inside its check's boundary, so the rest still store", async () => {
+    const { attached } = await views();
+    const caseId = await newCase();
+    const r = registryOf(
+      check("test.fine", () => [said("test.fine")]),
+      check("test.huge", () => [{ ...said("test.huge"), detail: { blob: "a".repeat(2_030_000) } }]),
+      check("test.keys", () => [
+        { ...said("test.keys"), artefacts: Array.from({ length: 101 }, (_, i) => `raw/k/${i}`) },
+      ]),
+    );
+    const items = await runChecks(attached, r);
+    expect(items.map((e) => [e.check, e.detail])).toEqual([
+      ["test.fine", { n: 1 }],
+      ["not_checked", { check: "test.huge", errorClass: "EvidenceRefused" }],
+      ["not_checked", { check: "test.keys", errorClass: "EvidenceRefused" }],
+    ]);
+    await saveEvidence(db, caseId, items, r);
+    expect((await readEvidence(db, caseId)).map((e) => e.check)).toEqual(["test.fine", "not_checked", "not_checked"]);
+  });
+
+  it("stores a case whose cut part declares a charset of megabytes, keeping no such charset", async () => {
+    const message = new TextEncoder().encode(
+      [
+        "From: billing@fictional-supplier.example",
+        "Date: Thu, 29 Oct 2026 10:00:00 +0000",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        "--b",
+        `Content-Type: text/plain; charset="${"a".repeat(2_030_000)}"`,
+        "",
+        "x".repeat(1_048_577),
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+    const view = await viewOf(message);
+    expect(view.truncated).toHaveLength(1);
+    expect(view.truncated[0]?.charset).toBeNull();
+    const caseId = await newCase();
+    const saved = await saveEvidence(db, caseId, await runChecks(view));
+    expect(saved.map((e) => e.check)).toEqual(["intake.forward", "intake.truncated"]);
+  });
+});
+
 describe("available", () => {
   const base = async () => (await views()).attached;
 
