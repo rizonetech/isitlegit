@@ -29,7 +29,7 @@ place or the run failed). The exit is 0 only for a file in place.
 A file of at least `--segment-threshold` bytes (64 MiB) whose `HEAD` gives its length, `Accept-Ranges: bytes`, no
 content coding and a strong validator comes in up to four ranges at once (`--segments`: 0 automatic, 1 one stream;
 D03 T04 §20, where four connections took 74 percent less time than one against a host that caps each connection).
-Each range is written at its offset, its progress saved every 4 MiB after a flush, and checked as a resume is; all of
+Each range is written at its offset, its progress saved every MiB after a flush, and checked as a resume is; all of
 them share the attempt budget, the limits and the lock. An answer that does not fit starts the file again on one
 stream, and the file is published only whole and verified, as above; its digest is read back in file order as the
 leading ranges fill, so no whole-file pass follows the transfer.
@@ -67,7 +67,7 @@ MAX_RANGES = 64
 IDLE_WAIT = 0.25  # the longest an idle connection waits before looking for work again, when nothing rings it
 HASH_WAIT = 0.05  # the longest the hasher waits before reading on, when nothing rings it
 SPLIT_AFTER = 1.0  # a range is split only when its own pace says at least this many seconds of it are left
-STATE_EVERY = 4 * 1024 * 1024
+STATE_EVERY = 1024 * 1024  # progress saved after each MiB, by the hasher's thread: a killed run loses about that
 MAX_REDIRECTS = 5
 RATE_WINDOW = 60.0
 
@@ -649,16 +649,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                         counted["since"] += len(block)
                                         counted["run"] += len(block)
                                     due = counted["since"] >= STATE_EVERY
-                                    if due:
-                                        counted["since"] = 0
                                 if block:
                                     progressed = True
                                     watch.bytes += len(block)
                                 if due:
-                                    try:
-                                        save()
-                                    except OSError as error:
-                                        raise Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept") from error
+                                    wake()  # the hasher's thread saves it, so this connection never waits on a flush
                             with guard:
                                 end = min(span[1], item[1])
                             if at <= end:
@@ -775,16 +770,33 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     hasher.update(block)
                     hashed["at"] += len(block)
 
+            def save_or_stop():
+                # A state that cannot be written ends the run as such: the partial is kept for a rerun.
+                try:
+                    save()
+                except OSError as error:
+                    errors.append(Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept"))
+                    stop.set()
+                    wake()
+
             def hash_along():
                 # The digest is computed in file order as the leading ranges fill, read back from the file, so only
                 # the last stretch is left to hash when the transfer ends (aria2c hashes the whole file after it).
                 try:
                     while not stop.is_set():
                         hash_up_to(frontier())
+                        with guard:
+                            due = counted["since"] >= STATE_EVERY
+                            if due:
+                                counted["since"] = 0
+                        if due:
+                            save_or_stop()
                         with changed:
                             with guard:
                                 if live["workers"] == 0:
                                     break
+                                if counted["since"] >= STATE_EVERY:
+                                    continue  # more came while saving: save again before waiting
                             changed.wait(HASH_WAIT)
                 except OSError:
                     hashed["failed"] = True  # the whole-file pass after the transfer judges it instead

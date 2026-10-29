@@ -1035,6 +1035,25 @@ class Fetch(unittest.TestCase):
         self.assert_whole()
         self.assertGreaterEqual(self.server.segment_requests, 4)
 
+    def test_no_connection_waits_on_a_state_write(self):
+        # Saves are made on the hasher's thread: slowed to 0.2 seconds each, with a save due every 256 KiB, the
+        # transfer does not slow with them (forty saves inline would cost eight seconds).
+        real = fetch._write_json
+        saves = []
+
+        def slow(path, value):
+            saves.append(path)
+            time.sleep(0.2)
+            return real(path, value)
+
+        with mock.patch.object(fetch, "_write_json", slow), mock.patch.object(fetch, "STATE_EVERY", 256 * 1024):
+            started = time.monotonic()
+            result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertLess(time.monotonic() - started, 4.0)
+        self.assertGreaterEqual(len(saves), 2)  # the creating save and at least one of progress
+
     def test_a_finished_run_returns_at_once_not_after_an_idle_poll(self):
         # One slow range keeps the other connections idle; when it ends, they and the hasher are rung, not left to
         # wake on their poll (the poll held each run back about 0.2 seconds in the bench; here it is made 5 seconds).
