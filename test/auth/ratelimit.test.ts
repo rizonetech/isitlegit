@@ -192,6 +192,8 @@ describe("completion review (2026-10-29)", () => {
     const ip = freshIp();
     const raced = await Promise.all(Array.from({ length: 25 }, (_, i) => confirm(ip, `racing-${i}`)));
     expect(raced.filter((r) => r.status === 429)).toHaveLength(5);
+    // The twenty admitted are each a real verification of a token that is not one (round 5).
+    expect(raced.filter((r) => r.status === 400)).toHaveLength(20);
   });
 
   it("tells a throttled member how to get a new link if theirs runs out while they wait", async () => {
