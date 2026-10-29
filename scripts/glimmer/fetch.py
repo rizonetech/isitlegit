@@ -39,6 +39,7 @@ import shutil
 import socket
 import ssl
 import sys
+import threading
 import time
 import urllib.parse
 from pathlib import Path
@@ -98,7 +99,43 @@ def _connect(url: str, timeout: float, allow_loopback: bool):
     return PinnedPlain(parts.hostname, port, timeout=timeout)
 
 
-def _request(url: str, headers: dict, timeout: float, allow_loopback: bool):
+class _Watchdog:
+    """The rate floor, held from outside the read: every window, if fewer bytes arrived than the floor asks (headers
+    count as none, so a response must at least begin within one window), the connection's socket is shut, which ends
+    whatever read is blocked, however the server trickles its framing or its headers."""
+
+    def __init__(self, min_rate: float, window: float):
+        self.min_rate, self.window = min_rate, window
+        self.connection = None
+        self.bytes = 0
+        self.tripped = False
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._watch, daemon=True)
+
+    def __enter__(self):
+        if self.min_rate > 0:
+            self._thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+
+    def _watch(self):
+        seen = 0
+        while not self._stop.wait(self.window):
+            if self.bytes - seen < self.min_rate * self.window:
+                self.tripped = True
+                sock = getattr(self.connection, "sock", None)
+                if sock is not None:
+                    try:
+                        sock.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass  # already closed: the read has ended either way
+                return
+            seen = self.bytes
+
+
+def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None):
     """The final response after at most 5 redirects, each hop checked, with the URL it came from."""
     previous = None
     for _ in range(MAX_REDIRECTS + 1):
@@ -108,6 +145,8 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool):
         if parts.scheme == "http" and previous is not None and urllib.parse.urlsplit(previous).hostname != parts.hostname:
             raise Refused("refused: a redirect to plain http on another host")
         connection = _connect(url, timeout, allow_loopback)
+        if watch is not None:
+            watch.connection = connection
         path = parts.path or "/"
         if parts.query:
             path += f"?{parts.query}"
@@ -164,10 +203,14 @@ _STRONG_ETAG = re.compile(r'^"[\x21\x23-\x7e\x80-\xff]*"$')
 
 
 def _when(value: str | None):
+    """An HTTP date, aware: the obsolete asctime form carries no zone and is GMT by definition (RFC 9110 5.6.7)."""
+    from datetime import timezone
+
     try:
-        return email.utils.parsedate_to_datetime(value) if value else None
+        when = email.utils.parsedate_to_datetime(value) if value else None
     except (TypeError, ValueError):
         return None
+    return when.replace(tzinfo=timezone.utc) if when is not None and when.tzinfo is None else when
 
 
 def _validator(headers) -> str | None:
@@ -308,10 +351,12 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         elif have:
             restart("no validator to resume against")
             continue
+        watch = _Watchdog(min_rate, rate_window).__enter__()
         try:
-            connection, response, final_url = _request(url, headers, timeout, allow_loopback)
+            connection, response, final_url = _request(url, headers, timeout, allow_loopback, watch)
         except _Retry as error:
-            spend(str(error))
+            watch.__exit__()
+            spend("slower than the rate floor" if watch.tripped else str(error))
             continue
         try:
             code = response.status
@@ -374,16 +419,16 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         got += len(block)
                         fetched += len(block)
                         window_bytes += len(block)
+                        watch.bytes += len(block)
                         if body is not None and got > body:
                             raise Refused("refused: the server sent more than it said")
                         if have + got > (state.get("total") or source_limit) or base + got > source_limit:
                             raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
-                        write(handle, block)
-                        # The free-space floor, checked again each MiB: a file of no stated length, or another
+                        # The free-space floor, checked before every write: a file of no stated length, or another
                         # writer on the disk, can cross it after the first check.
-                        if got // (1 << 20) != (got - len(block)) // (1 << 20) and \
-                                shutil.disk_usage(partial_dir).free < min_free:
+                        if shutil.disk_usage(partial_dir).free - len(block) < min_free:
                             raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
+                        write(handle, block)
                         now = time.monotonic()
                         if now - window_start >= rate_window:
                             if window_bytes / (now - window_start) < min_rate:
@@ -397,10 +442,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             except (OSError, http.client.HTTPException) as error:
                 if getattr(error, "errno", None) == errno.ENOSPC:
                     raise Refused("incomplete: the disk is full; the partial file is kept") from error
-                spend(f"the transfer broke off ({error.__class__.__name__})")
+                spend("slower than the rate floor" if watch.tripped else f"the transfer broke off ({error.__class__.__name__})")
                 continue
             except _Retry as error:
                 spend(str(error))
+                continue
+            if watch.tripped:
+                # The watchdog shut the socket: an end it caused is not the end of the file.
+                spend("slower than the rate floor")
                 continue
             if body is not None and got < body:
                 spend(f"the body ended at {got} of {body} bytes")
@@ -410,6 +459,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 _write_json(state_file, state)
             # A valid shorter range is progress, not a failure: the loop asks for the next one.
         finally:
+            watch.__exit__()
             connection.close()
 
     try:

@@ -55,6 +55,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.redirect(target)
         if self.path == "/loop":
             return self.redirect("/loop")
+        if self.path == "/slow-framing":
+            # A chunked body whose first chunk-size line is a long extension sent a byte at a time.
+            self.send_response(200)
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            try:
+                self.wfile.write(b"10;")
+                for _ in range(200):
+                    self.wfile.write(b"x")
+                    self.wfile.flush()
+                    time.sleep(0.05)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass  # the watchdog shut the connection, as it must
+            return
+        if self.path == "/asctime":
+            self.send_response(200)
+            self.send_header("Last-Modified", "Sun Nov  6 08:49:37 1994")
+            self.send_header("Content-Length", str(len(server.body)))
+            self.end_headers()
+            self.wfile.write(server.body)
+            return
         if self.path == "/endless-redirect":
             self.send_response(302)
             self.send_header("Location", "/file")
@@ -69,12 +90,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with server.lock:
             server.requests += 1
             n = server.requests
-        if "fail" in modes or ({"429-once", "429-date"} & modes and n == 1):
+        if "fail" in modes or ({"429-once", "429-date", "429-asctime"} & modes and n == 1):
             self.send_response(503 if "fail" in modes else 429)
             if "429-once" in modes:
                 self.send_header("Retry-After", "1")
             if "429-date" in modes:
                 self.send_header("Retry-After", self.date_time_string(time.time() + 20))
+            if "429-asctime" in modes:
+                self.send_header("Retry-After", time.strftime("%a %b %d %H:%M:%S %Y", time.gmtime(time.time() + 20)))
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -322,6 +345,18 @@ class Fetch(unittest.TestCase):
         self.assertEqual(len(self.server.served), 2)
         self.assertEqual(self.server.served[1], SIZE)
 
+    def test_slow_chunk_framing_is_cut_by_the_watchdog(self):
+        with self.assertRaisesRegex(fetch.Refused, "slower than the rate floor"):
+            self.run_fetch(path="/slow-framing", min_rate=1024 * 1024, rate_window=0.5, attempts=1, timeout=5)
+
+    def test_obsolete_asctime_dates_are_read_as_gmt(self):
+        self.assertEqual(self.run_fetch(path="/asctime")["status"], "fetched")
+        self.server.modes = {"429-asctime"}
+        waits = []
+        shutil.rmtree("src")
+        self.assertEqual(self.run_fetch(sleep=waits.append)["status"], "fetched")
+        self.assertGreater(waits[0], 10)
+
     def test_a_retry_after_date_is_waited_for(self):
         self.server.modes = {"429-date"}
         waits = []
@@ -409,13 +444,12 @@ class Fetch(unittest.TestCase):
         self.assertTrue(Path("src/.partial/data.bin").exists())
         with self.assertRaisesRegex(fetch.Refused, "free-space floor"):
             self.run_fetch(min_free=10**18)
-        # A floor crossed while streaming a file of no stated length stops it too.
+        # A floor crossed while streaming a file of no stated length stops it, before its first write past the floor.
         shutil.rmtree("src", ignore_errors=True)
         self.server.modes = {"no-length"}
-        free = shutil.disk_usage(".").free
-        with mock.patch.object(fetch.shutil, "disk_usage", side_effect=[mock.Mock(free=free)] * 3 + [mock.Mock(free=0)] * 99):
-            with self.assertRaisesRegex(fetch.Refused, "fell under"):
-                self.run_fetch(min_free=1)
+        with self.assertRaisesRegex(fetch.Refused, "fell under"):
+            self.run_fetch(min_free=shutil.disk_usage(".").free - 128 * 1024)
+        self.assertFalse(Path("src/data.bin").exists())
 
     def test_a_429_waits_as_long_as_the_server_asks(self):
         self.server.modes = {"429-once"}
