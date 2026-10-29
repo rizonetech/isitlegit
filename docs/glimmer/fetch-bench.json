@@ -1,0 +1,102 @@
+{
+ "payload_bytes": 100663296,
+ "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+ "cap_bytes_per_connection": 8388608,
+ "drop_at_bytes": 50331648,
+ "aria2c": "aria2 version 1.37.0",
+ "commands": {
+  "fetch.py (one stream)": [
+   "/usr/bin/python3",
+   "-I",
+   "<repo>/scripts/glimmer/fetch.py",
+   "--url",
+   "<url>",
+   "--dest",
+   "src/data.bin",
+   "--sha256",
+   "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+   "--allow-loopback",
+   "--min-free",
+   "0",
+   "--source-limit",
+   "1000000000000",
+   "--attempts",
+   "3",
+   "--timeout",
+   "30",
+   "--min-rate",
+   "16384"
+  ],
+  "aria2c (one connection)": [
+   "env",
+   "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+   "~/.local/aria2/root/usr/bin/aria2c",
+   "-x1",
+   "-s1",
+   "--checksum=sha-256=246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+   "--max-tries=3",
+   "--retry-wait=1",
+   "--lowest-speed-limit=16K",
+   "--connect-timeout=30",
+   "--timeout=30",
+   "--allow-overwrite=true",
+   "--auto-file-renaming=false",
+   "--file-allocation=none",
+   "--console-log-level=error",
+   "--summary-interval=0",
+   "-d",
+   "<dir>/src",
+   "-o",
+   "data.bin",
+   "<url>"
+  ],
+  "aria2c (four connections)": [
+   "env",
+   "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+   "~/.local/aria2/root/usr/bin/aria2c",
+   "-x4",
+   "-s4",
+   "-k1M",
+   "--checksum=sha-256=246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+   "--max-tries=3",
+   "--retry-wait=1",
+   "--lowest-speed-limit=16K",
+   "--connect-timeout=30",
+   "--timeout=30",
+   "--allow-overwrite=true",
+   "--auto-file-renaming=false",
+   "--file-allocation=none",
+   "--console-log-level=error",
+   "--summary-interval=0",
+   "-d",
+   "<dir>/src",
+   "-o",
+   "data.bin",
+   "<url>"
+  ]
+ },
+ "results": {
+  "fetch.py (one stream)": {
+   "median_seconds": 12.5,
+   "median_refetched_bytes": 50331648,
+   "recovered": 5,
+   "intact": 5,
+   "runs": 5
+  },
+  "aria2c (one connection)": {
+   "median_seconds": 12.24,
+   "median_refetched_bytes": 50331648,
+   "recovered": 5,
+   "intact": 5,
+   "runs": 5
+  },
+  "aria2c (four connections)": {
+   "median_seconds": 3.31,
+   "median_refetched_bytes": 50397184,
+   "recovered": 5,
+   "intact": 5,
+   "runs": 5
+  }
+ },
+ "measured": "2026-10-29T03:10:45Z"
+}

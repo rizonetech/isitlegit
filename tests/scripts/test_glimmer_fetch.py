@@ -2,6 +2,7 @@
 against a local server that can drop, lie about ranges, change the file, redirect, stall, throttle or fail."""
 import errno
 import hashlib
+import re
 import http.server
 import importlib.util
 import json
@@ -38,6 +39,9 @@ class Server(http.server.ThreadingHTTPServer):
         self.served = []  # bytes sent per request for /file
         self.requests = 0
         self.lock = threading.Lock()
+        self.segment_requests = 0  # ranges asked with an end: what only the segmented path sends
+        self.active = 0
+        self.peak = 0  # the most segment requests open at once
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -46,8 +50,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    # `do_HEAD` is the name BaseHTTPRequestHandler dispatches a HEAD to.
+    def do_HEAD(self):  # noqa: N802
+        server, modes = self.server, self.server.modes
+        if "fail" in modes or "no-head" in modes:
+            self.send_response(503 if "fail" in modes else 405)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(200)
+        if "no-length" not in modes:
+            self.send_header("Content-Length", str(len(server.body)))
+        if "no-accept-ranges" not in modes:
+            self.send_header("Accept-Ranges", "bytes")
+        self.send_header("ETag", 'W/"v1"' if "weak-etag" in modes else server.etag)
+        if "encoding" in modes:
+            self.send_header("Content-Encoding", "gzip")
+        self.end_headers()
+
     # `do_GET` is the name BaseHTTPRequestHandler dispatches a GET to.
     def do_GET(self):  # noqa: N802
+        ranged = self.headers.get("Range") or ""
+        if re.fullmatch(r"bytes=\d+-\d+", ranged) and self.path == "/file":
+            with self.server.lock:
+                self.server.segment_requests += 1
+                self.server.active += 1
+                self.server.peak = max(self.server.peak, self.server.active)
+            try:
+                return self.answer()
+            finally:
+                with self.server.lock:
+                    self.server.active -= 1
+        return self.answer()
+
+    def answer(self):
         server = self.server
         modes = server.modes
         if self.path == "/hop":
@@ -116,14 +152,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
-            end = len(body) - 1
+            asked = ranged.split("=")[1].split("-")[1]
+            end = min(int(asked), len(body) - 1) if asked else len(body) - 1
+            segment = bool(asked)
+            if "segment-short" in modes and segment:
+                end = start + (end - start) // 2
             if "short-ranges" in modes:
                 end = min(end, start + SIZE // 4 - 1)
-            first = start + 1000 if "wrong-offset" in modes else start
+            first = start + 1000 if "wrong-offset" in modes or ("segment-wrong-offset" in modes and segment) else start
             last = end + 5 if "bad-bounds" in modes else end
             self.send_response(206)
             self.send_header("Content-Range", f"bytes {first}-{last}/{len(body)}")
             chunk = body[start:end + 1]
+            if "segment-corrupt" in modes and segment and start > 0:
+                chunk = bytes(b ^ 0xFF for b in chunk[:16]) + chunk[16:]
             length = len(chunk) + (7 if "bad-length" in modes else 0)
             if "encoding" in modes:
                 self.send_header("Content-Encoding", "gzip")
@@ -152,6 +194,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         cut = len(chunk)
         if "drop-once" in modes and n == 1:
             cut = int(len(chunk) * 0.9)
+        segment = honour and bool(ranged.split("=")[1].split("-")[1])
+        if "segment-drop-once" in modes and segment and start > 0:
+            with server.lock:
+                drop = not getattr(server, "dropped_segment", False)
+                server.dropped_segment = True
+            if drop:
+                cut = len(chunk) // 2
+        if "segment-slow" in modes and segment:
+            try:
+                for at in range(0, cut, 1 << 16):
+                    self.wfile.write(chunk[at:min(cut, at + (1 << 16))])
+                    with server.lock:
+                        server.served.append(min(cut, at + (1 << 16)) - at)
+                    time.sleep(0.05)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the fetcher was killed mid-download, as the test means it to be
+            return
         if "stall" in modes:
             time.sleep(3)
         if "trickle" in modes:
@@ -458,19 +517,196 @@ class Fetch(unittest.TestCase):
             self.run_fetch(path="/hop")
 
     def test_the_connection_uses_the_address_that_was_checked(self):
-        # A name that resolves publicly for one lookup and privately for the next never gets a second lookup.
-        calls = []
-        real = fetch.socket.getaddrinfo
+        # A name that resolves publicly for one lookup and privately for the next never gets a second lookup for the
+        # same connection: one stream, and segments (a HEAD and four ranges), each look the name up once per connection.
+        for options in ({"segments": 1}, {"segment_threshold": 1 << 20}):
+            shutil.rmtree("src", ignore_errors=True)
+            calls, connections = [], []
+            real_lookup, real_connect = fetch.socket.getaddrinfo, fetch.socket.create_connection
 
-        def rebinding(host, port, *args, **kwargs):
-            calls.append(host)
-            return real("127.0.0.1", port, *args, **kwargs)
+            def rebinding(host, port, *args, **kwargs):
+                calls.append(host)
+                return real_lookup("127.0.0.1", port, *args, **kwargs)
 
-        with mock.patch.object(fetch.socket, "getaddrinfo", rebinding):
-            fetch.fetch(f"http://rebind.example:{self.server.server_address[1]}/file", "src/data.bin", ("sha256", SHA),
-                        allow_loopback=True, timeout=2, sleep=lambda s: None, log=lambda line: None, **ROOMY)
-        # Only the name is looked up; the connection then goes to the address that lookup gave and was checked.
-        self.assertEqual([host for host in calls if not host.replace(".", "").isdigit()], ["rebind.example"])
+            def connecting(address, *args, **kwargs):
+                connections.append(address[0])
+                return real_connect(address, *args, **kwargs)
+
+            with mock.patch.object(fetch.socket, "getaddrinfo", rebinding), \
+                    mock.patch.object(fetch.socket, "create_connection", connecting):
+                fetch.fetch(f"http://rebind.example:{self.server.server_address[1]}/file", "src/data.bin", ("sha256", SHA),
+                            allow_loopback=True, timeout=2, sleep=lambda s: None, log=lambda line: None, **ROOMY, **options)
+            # Only the name is looked up, once a connection; each connection goes to the address its lookup checked.
+            names = [host for host in calls if not host.replace(".", "").isdigit()]
+            self.assertEqual(names, ["rebind.example"] * len(connections), options)
+            self.assertEqual(set(connections), {"127.0.0.1"}, options)
+            self.assertEqual(len(connections), 1 if options.get("segments") == 1 else 5, options)
+
+    # Segmented downloads (D03 T04 §20): the test file is 10 MiB, so a 1 MiB threshold makes it qualify.
+    SEGMENTED = {"segment_threshold": 1 << 20}
+
+    def assert_whole(self):
+        self.assertEqual(Path("src/data.bin").read_bytes(), BODY)
+        self.assertFalse(Path("src/.partial/data.bin").exists())
+        self.assertFalse(Path("src/.partial/data.bin.state.json").exists())
+
+    def test_a_large_file_comes_in_four_ranges_at_once(self):
+        # Paced answers, so the ranges are seen to overlap (a loopback answer otherwise ends before the next starts).
+        self.server.modes = {"segment-slow"}
+        result = self.run_fetch(min_rate=0, **self.SEGMENTED)
+        self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+        self.assert_whole()
+        self.assertEqual(self.server.segment_requests, 4)
+        self.assertGreaterEqual(self.server.peak, 2)
+        self.assertLessEqual(self.server.peak, 4)
+
+    def test_a_server_that_does_not_qualify_gets_one_stream(self):
+        for modes in ({"no-accept-ranges"}, {"weak-etag"}, {"no-length"}, {"no-head"}, set()):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.modes, self.server.segment_requests = set(modes), 0
+                # An empty mode set with segments=1 is the operator forcing one stream on a server that qualifies.
+                options = {"segment_threshold": 1 << 20} if modes else {"segments": 1, "segment_threshold": 1 << 20}
+                self.run_fetch(**options)
+                self.assertEqual(Path("src/data.bin").read_bytes(), BODY)
+                self.assertEqual(self.server.segment_requests, 0)
+        shutil.rmtree("src", ignore_errors=True)
+        self.server.modes, self.server.segment_requests = set(), 0
+        self.run_fetch(segment_threshold=SIZE + 1)  # under the threshold
+        self.assertEqual(self.server.segment_requests, 0)
+
+    def test_a_segment_answer_that_does_not_fit_starts_again_on_one_stream(self):
+        self.server.modes = {"segment-wrong-offset"}
+        result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+
+    def test_a_shorter_segment_answer_is_continued(self):
+        self.server.modes = {"segment-short"}
+        result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertGreater(self.server.segment_requests, 4)
+
+    def test_a_dropped_segment_is_resumed_by_a_fresh_process_refetching_only_what_is_missing(self):
+        self.server.modes = {"segment-drop-once"}
+        with self.assertRaisesRegex(fetch.Refused, "1 attempts failed"):
+            self.run_fetch(attempts=1, **self.SEGMENTED)
+        saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+        self.assertEqual(len(saved["segments"]), 4)
+        missing = sum(last - first + 1 - done for first, last, done in saved["segments"])
+        self.assertGreater(missing, 0)
+        self.server.served.clear()
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin",
+                               "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE),
+                               "--segment-threshold", str(1 << 20)], capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr[-400:])
+        self.assertTrue(json.loads(done.stdout)["resumed"])
+        self.assert_whole()
+        self.assertEqual(sum(self.server.served), missing)
+
+    def test_a_killed_download_resumes_from_its_saved_ranges(self):
+        # Four slow segments; the process is killed once the state has saved some progress, then a new one finishes.
+        self.server.modes = {"segment-slow"}
+        command = [sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin", "--sha256", SHA,
+                   "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE), "--segment-threshold", str(1 << 20),
+                   "--min-rate", "0"]
+        first = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        state_path = Path("src/.partial/data.bin.state.json")
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            try:
+                if any(item[2] for item in json.loads(state_path.read_text())["segments"]):
+                    break
+            except (OSError, ValueError, KeyError):
+                pass  # not written yet
+            time.sleep(0.05)
+        first.kill()
+        first.wait()
+        saved = json.loads(state_path.read_text())
+        kept = sum(item[2] for item in saved["segments"])
+        self.assertGreater(kept, 0)
+        # The killed process's slow answers end when their next write meets the closed socket; only then is the
+        # count cleared, so it holds the new process's bytes alone.
+        deadline = time.monotonic() + 10
+        while self.server.active and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.server.modes = set()
+        self.server.served.clear()
+        done = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr[-400:])
+        self.assert_whole()
+        self.assertEqual(sum(self.server.served), SIZE - kept)
+
+    def test_segment_limits_hold(self):
+        with self.assertRaisesRegex(fetch.Refused, "limit"):
+            self.run_fetch(source_limit=SIZE // 2, **self.SEGMENTED)
+        self.assertEqual(self.server.segment_requests, 0)
+        with self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+            self.run_fetch(min_free=10**18, **self.SEGMENTED)
+        # The floor crossed mid-download (another writer on the disk) ends every segment with the partial kept.
+        real = fetch.shutil.disk_usage
+        calls = {"n": 0}
+
+        def filling(path):
+            calls["n"] += 1
+            usage = real(path)
+            return usage._replace(free=0) if calls["n"] > 20 else usage
+
+        shutil.rmtree("src", ignore_errors=True)
+        with mock.patch.object(fetch.shutil, "disk_usage", filling), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+            self.run_fetch(min_free=1, **self.SEGMENTED)
+        self.assertTrue(Path("src/.partial/data.bin").exists())
+        self.assertFalse(Path("src/data.bin").exists())
+
+    def test_a_segmented_file_is_published_only_whole_and_verified(self):
+        self.server.modes = {"segment-corrupt"}
+        with self.assertRaisesRegex(fetch.Refused, "does not match"):
+            self.run_fetch(**self.SEGMENTED)
+        self.assertFalse(Path("src/data.bin").exists())
+        self.assertFalse(Path("src/.partial/data.bin").exists())
+        self.server.modes = set()
+        # The last state write fails: nothing is published, the partial is kept, and a rerun publishes it.
+        real = fetch._write_json
+        calls = {"n": 0}
+
+        def failing_last(path, value):
+            calls["n"] += 1
+            if all(item[0] + item[2] > item[1] for item in value.get("segments", [[0, 0, 0]])):
+                raise OSError(errno.EIO, "I/O error")
+            return real(path, value)
+
+        with mock.patch.object(fetch, "_write_json", failing_last), \
+                self.assertRaisesRegex(fetch.Refused, "state could not be written"):
+            self.run_fetch(**self.SEGMENTED)
+        self.assertFalse(Path("src/data.bin").exists())
+        # The move into place fails once: still nothing published; the rerun moves it without fetching again.
+        real_replace = fetch.os.replace
+
+        def failing_publish(source, destination):
+            if Path(destination) == Path("src/data.bin"):
+                raise OSError(errno.EIO, "I/O error")
+            return real_replace(source, destination)
+
+        with mock.patch.object(fetch.os, "replace", failing_publish), \
+                self.assertRaisesRegex(fetch.Refused, "moved into place"):
+            self.run_fetch(**self.SEGMENTED)
+        self.assertFalse(Path("src/data.bin").exists())
+        self.server.served.clear()
+        result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assertEqual(sum(self.server.served), 0)
+        self.assert_whole()
+
+    def test_an_inconsistent_segment_state_starts_again(self):
+        Path("src/.partial").mkdir(parents=True)
+        Path("src/.partial/data.bin").write_bytes(b"x" * 100)
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps(
+            {"url": self.base + "/file", "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity",
+             "total": SIZE, "segments": [[0, 99, 100], [200, SIZE - 1, 0]]}))
+        result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
 
     def test_limits_and_failures_end_bounded_with_the_partial_kept(self):
         with self.assertRaisesRegex(fetch.Refused, "limit"):

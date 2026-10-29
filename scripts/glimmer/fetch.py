@@ -2,6 +2,7 @@
 
     python3 <repo>/scripts/glimmer/fetch.py --url URL --dest SOURCE/NAME (--sha256 HEX | --md5 HEX)
         [--source-limit BYTES] [--min-free BYTES] [--timeout 30] [--attempts 3] [--min-rate BYTES_PER_SECOND]
+        [--segments 0..4] [--segment-threshold BYTES]
 
 Run from the store's `raw/` folder, as the collection brief's collector runs. The bytes go to
 `SOURCE/.partial/NAME`, with `NAME.state.json` beside them (the URL, the published digest and the first answer's
@@ -23,6 +24,13 @@ is cut to 60, so a run stays bounded, and the log says so) and other waits doubl
 during a transfer the source folder (every file in it, partials included) stays under `--source-limit` and the disk
 keeps `--min-free` free. Progress goes to standard error; one JSON line goes to standard output (`status`, `bytes`,
 `fetched`, `sha256`, `resumed`, `reason`). The exit is 0 only for a file in place.
+
+A file of at least `--segment-threshold` bytes (64 MiB) whose `HEAD` gives its length, `Accept-Ranges: bytes`, no
+content coding and a strong validator comes in up to four ranges at once (`--segments`: 0 automatic, 1 one stream;
+D03 T04 §20, where four connections took 74 percent less time than one against a host that caps each connection).
+Each range is written at its offset, its progress saved every 4 MiB after a flush, and checked as a resume is; all of
+them share the attempt budget, the limits and the lock. An answer that does not fit starts the file again on one
+stream, and the file is published only whole and verified, as above.
 """
 
 import argparse
@@ -46,12 +54,18 @@ import urllib.parse
 from pathlib import Path
 
 CHUNK = 64 * 1024
+SEGMENT_THRESHOLD = 64 * 1024 * 1024
+STATE_EVERY = 4 * 1024 * 1024
 MAX_REDIRECTS = 5
 RATE_WINDOW = 60.0
 
 
 class Refused(Exception):
     """The fetch stops: `refused: ...` (it must not go on) or `incomplete: ...` (a rerun may finish it)."""
+
+
+class _Misfit(Exception):
+    """A segment's answer that does not fit the file (its range, length, coding or validator)."""
 
 
 class _Retry(Exception):
@@ -142,7 +156,8 @@ class _Watchdog:
             seen = self.bytes
 
 
-def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None):
+def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None,
+             method: str = "GET"):
     """The final response after at most 5 redirects, each hop checked, with the URL it came from."""
     previous = None
     for _ in range(MAX_REDIRECTS + 1):
@@ -160,7 +175,7 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
         if parts.query:
             path += f"?{parts.query}"
         try:
-            connection.request("GET", path, headers={"User-Agent": "isitlegit-fetch/2", "Accept-Encoding": "identity", **headers})
+            connection.request(method, path, headers={"User-Agent": "isitlegit-fetch/2", "Accept-Encoding": "identity", **headers})
             response = connection.getresponse()
         except http.client.InvalidURL as error:
             connection.close()
@@ -279,6 +294,7 @@ def _folder_bytes(folder: Path) -> int:
 
 def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int = 5 * 10**9, min_free: int = 10 * 10**9,
           timeout: float = 30.0, attempts: int = 3, min_rate: float = 16 * 1024, rate_window: float = RATE_WINDOW,
+          segments: int = 0, segment_threshold: int = SEGMENT_THRESHOLD,
           allow_loopback: bool = False,
           writer=None, sleep=time.sleep, log=lambda line: print(line, file=sys.stderr)) -> dict:
     """The file at `dest`, fetched or found in place. `expected` is (`sha256` or `md5`, its published hex). Raises
@@ -286,7 +302,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     kind, want = expected
     if kind not in ("sha256", "md5") or not re.fullmatch(r"[0-9a-f]{64}" if kind == "sha256" else r"[0-9a-f]{32}", want or ""):
         raise Refused("refused: a published SHA-256 or MD5 is required")
-    if attempts < 1 or not math.isfinite(timeout) or timeout <= 0 or source_limit <= 0 or min_free < 0 or min_rate < 0:
+    if (attempts < 1 or not math.isfinite(timeout) or timeout <= 0 or source_limit <= 0 or min_free < 0 or min_rate < 0
+            or not 0 <= segments <= 4 or segment_threshold < 1):
         raise Refused("refused: --attempts, --timeout, --source-limit, --min-free and --min-rate must be positive")
     target = Path(dest)
     root = Path.cwd().resolve()
@@ -338,7 +355,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         wait = 1.0
         resumed = False
 
-        def spend(reason: str, retry_after: float | None = None):
+        def charge(reason: str, retry_after: float | None = None) -> float:
+            """One failure counted against the one budget every stream and segment shares; the wait it earns."""
             nonlocal failures, wait
             failures += 1
             if failures >= attempts:
@@ -346,8 +364,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             pause = min(retry_after, 60.0) if retry_after is not None else wait
             cut = f" (the server asked for {retry_after:.0f}; waits stop at 60)" if retry_after and retry_after > 60 else ""
             log(f"fetch: {reason}; trying again in {pause:.0f} seconds{cut} ({failures} of {attempts} attempts spent)")
-            sleep(pause)
             wait = min(wait * 2, 30.0)
+            return pause
+
+        def spend(reason: str, retry_after: float | None = None):
+            sleep(charge(reason, retry_after))
 
         def restart(reason: str):
             nonlocal state
@@ -362,7 +383,183 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if shutil.disk_usage(partial_dir).free - more < min_free:
                 raise Refused("incomplete: the disk would fall under its free-space floor; the partial file is kept")
 
+        one_stream = segments == 1
+
+        def consistent(saved: dict) -> bool:
+            """A segmented state whose ranges tile the file in order, with progress inside each, over a partial file
+            of the full length: anything else starts the file again."""
+            total, ranges = saved.get("total"), saved.get("segments")
+            if not (isinstance(total, int) and total > 0 and isinstance(ranges, list) and 1 <= len(ranges) <= 4):
+                return False
+            at = 0
+            for item in ranges:
+                if not (isinstance(item, list) and len(item) == 3 and all(isinstance(n, int) for n in item)):
+                    return False
+                first, last, done = item
+                if first != at or last < first or not 0 <= done <= last - first + 1:
+                    return False
+                at = last + 1
+            return at == total and partial.exists() and partial.stat().st_size == total and bool(saved.get("validator"))
+
+        def segmented() -> bool:
+            """The file in up to four ranges at once (`segments`: 0 automatic, 1 one stream), when a HEAD gives a
+            length of at least `segment_threshold`, `Accept-Ranges: bytes`, no content coding and a strong validator.
+            Each range is written at its offset and its progress kept in the state, so a fresh process resumes each
+            where it stopped. False hands the file to the one stream: a server that does not qualify, a one-stream
+            partial from an earlier run, or a segment answer that did not fit (the rest of this run goes one stream)."""
+            nonlocal state, fetched, resumed, one_stream
+            if one_stream or (state and "segments" not in state):
+                return False
+            if state.get("segments") and not consistent(state):
+                partial.unlink(missing_ok=True)
+                state_file.unlink(missing_ok=True)
+                state = {}
+            if not state.get("segments"):
+                # Any failure of the HEAD, or an answer that does not qualify, leaves the file to the one stream,
+                # which has its own budget and checks.
+                try:
+                    connection, response, _ = _request(url, {}, timeout, allow_loopback, method="HEAD")
+                    try:
+                        length = response.getheader("Content-Length") or ""
+                        ranges = (response.getheader("Accept-Ranges") or "").strip().lower()
+                        validator = _validator(response.headers)
+                        encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
+                        ok = response.status == 200
+                    finally:
+                        connection.close()
+                except (_Retry, OSError, http.client.HTTPException):
+                    one_stream = True
+                    return False
+                if not (ok and length.isdigit() and ranges == "bytes" and validator and encoding == "identity"
+                        and int(length) >= segment_threshold):
+                    one_stream = True
+                    return False
+                total = int(length)
+                count = segments if segments > 0 else 4
+                size = -(-total // count)
+                room(total)
+                with partial.open("wb") as handle:
+                    handle.truncate(total)
+                    os.fsync(handle.fileno())
+                state = {"url": url, "expected": [kind, want], "validator": validator, "encoding": "identity",
+                         "total": total, "segments": [[a, min(a + size, total) - 1, 0] for a in range(0, total, size)]}
+                _write_json(state_file, state)
+            elif any(item[2] for item in state["segments"]):
+                resumed = True
+            guard = threading.Lock()
+            stop = threading.Event()
+            errors: list[BaseException] = []
+            counted = {"since": 0, "run": 0}
+            fd = os.open(partial, os.O_RDWR)
+
+            def save():
+                # The progress is read before the flush, so the state never claims a byte the flush did not cover.
+                with guard:
+                    claimed = {**state, "segments": [list(item) for item in state["segments"]]}
+                os.fsync(fd)
+                _write_json(state_file, claimed)
+
+            def failed(reason: str, retry_after: float | None = None):
+                with guard:
+                    pause = charge(reason, retry_after)
+                if stop.wait(pause):
+                    raise Refused("incomplete: another segment failed; the partial file is kept")
+
+            def run(item: list):
+                while not stop.is_set():
+                    first, last, done = item
+                    if first + done > last:
+                        return
+                    watch = _Watchdog(min_rate, rate_window).__enter__()
+                    try:
+                        try:
+                            connection, response, _ = _request(
+                                url, {"Range": f"bytes={first + done}-{last}", "If-Range": state["validator"]}, timeout,
+                                allow_loopback, watch)
+                        except _Retry as error:
+                            failed(str(error))
+                            continue
+                        try:
+                            if response.status == 429 or response.status >= 500:
+                                failed(f"HTTP {response.status}", _retry_after(response.getheader("Retry-After")))
+                                continue
+                            span = _content_range(response.getheader("Content-Range"))
+                            encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
+                            if (response.status != 206 or span is None or span[0] != first + done or span[1] > last
+                                    or span[2] != state["total"] or encoding != "identity"
+                                    or not _same_representation(response.headers, state["validator"])):
+                                raise _Misfit("a segment's answer does not fit the file")
+                            at = first + done
+                            while at <= span[1]:
+                                if stop.is_set():
+                                    return  # another segment ended the run: this one stops where it is
+                                block = response.read1(min(CHUNK, span[1] - at + 1))
+                                if not block:
+                                    break
+                                if shutil.disk_usage(partial_dir).free < min_free:
+                                    raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
+                                os.pwrite(fd, block, at)
+                                at += len(block)
+                                watch.bytes += len(block)
+                                with guard:
+                                    item[2] = at - first
+                                    counted["since"] += len(block)
+                                    counted["run"] += len(block)
+                                    due = counted["since"] >= STATE_EVERY
+                                    if due:
+                                        counted["since"] = 0
+                                if due:
+                                    save()
+                            if at <= span[1]:
+                                # A valid shorter answer is progress; one that stopped early is a failure.
+                                failed("slower than the rate floor" if watch.tripped else "a segment ended early")
+                        finally:
+                            connection.close()
+                    except (Refused, _Misfit) as error:
+                        errors.append(error)
+                        stop.set()
+                        return
+                    except (OSError, http.client.HTTPException) as error:
+                        if getattr(error, "errno", None) == errno.ENOSPC:
+                            errors.append(Refused("incomplete: the disk is full; the partial file is kept"))
+                            stop.set()
+                            return
+                        try:
+                            failed("slower than the rate floor" if watch.tripped
+                                   else f"a segment broke off ({error.__class__.__name__})")
+                        except Refused as spent:
+                            errors.append(spent)
+                            stop.set()
+                            return
+                    finally:
+                        watch.__exit__()
+
+            try:
+                threads = [threading.Thread(target=run, args=(item,), daemon=True) for item in state["segments"]]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join()
+                try:
+                    save()
+                except OSError as error:
+                    raise Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept") from error
+            finally:
+                os.close(fd)
+                fetched += counted["run"]
+            misfit = next((error for error in errors if isinstance(error, _Misfit)), None)
+            if misfit is not None:
+                # The server's ranges cannot be trusted for this file: it starts again on the one stream.
+                one_stream = True
+                restart(str(misfit))
+                return False
+            if errors:
+                raise next((error for error in errors if "attempts failed" in str(error) or "disk" in str(error)), errors[0])
+            return all(item[0] + item[2] > item[1] for item in state["segments"])
+
         while True:
+            if segmented():
+                break
             have = partial.stat().st_size if partial.exists() else 0
             total = state.get("total")
             if total is not None and have == total:
@@ -522,12 +719,15 @@ def main(argv=None) -> int:
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--attempts", type=int, default=3)
     parser.add_argument("--min-rate", type=float, default=16 * 1024)
+    parser.add_argument("--segments", type=int, default=0, help="0: automatic (up to 4 over 64 MiB); 1: one stream")
+    parser.add_argument("--segment-threshold", type=int, default=SEGMENT_THRESHOLD, help="the smallest file segmented")
     parser.add_argument("--allow-loopback", action="store_true", help="for the tests' local server only")
     args = parser.parse_args(argv)
     expected = ("sha256", (args.sha256 or "").lower()) if args.sha256 is not None else ("md5", (args.md5 or "").lower())
     try:
         line = fetch(args.url, args.dest, expected, source_limit=args.source_limit, min_free=args.min_free,
-                     timeout=args.timeout, attempts=args.attempts, min_rate=args.min_rate,
+                     timeout=args.timeout, attempts=args.attempts, min_rate=args.min_rate, segments=args.segments,
+                     segment_threshold=args.segment_threshold,
                      allow_loopback=args.allow_loopback)
     except Refused as error:
         reason = str(error)

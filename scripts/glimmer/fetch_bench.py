@@ -132,6 +132,13 @@ def tools(url: str, sha: str, dest: Path) -> dict[str, list[str]]:
     return out
 
 
+def portable(part: str, url: str, work: Path) -> str:
+    """A command word as the figures file records it: the run's URL and folder, the repository and the home folder
+    written as placeholders, so the file names no one's machine."""
+    part = part.replace(url, "<url>").replace(str(work), "<dir>").replace(str(ROOT), "<repo>")
+    return part.replace(str(Path.home()), "~")
+
+
 def measure(size: int, cap: int, runs: int) -> dict:
     body = payload(size)
     sha = hashlib.sha256(body).hexdigest()
@@ -146,7 +153,7 @@ def measure(size: int, cap: int, runs: int) -> dict:
             work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
             (work / "src").mkdir()
             command = tools(url, sha, work)[name]
-            commands[name] = [part.replace(url, "<url>").replace(str(work), "<dir>") for part in command]
+            commands[name] = [portable(part, url, work) for part in command]
             began = time.monotonic()
             done = subprocess.run(command, cwd=work, capture_output=True, text=True, check=False)
             seconds = time.monotonic() - began

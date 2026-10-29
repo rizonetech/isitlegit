@@ -29,6 +29,9 @@ class Harness(unittest.TestCase):
         self.assertEqual(row["median_refetched_bytes"], 1024 * 1024)
         self.assertIn("not installed", figures["aria2c"])
         self.assertIn("<url>", figures["commands"]["fetch.py (one stream)"])
+        recorded = json.dumps(figures["commands"])
+        self.assertNotIn(str(Path.home()), recorded)
+        self.assertIn("<repo>/scripts/glimmer/fetch.py", recorded)
 
     def test_refuses_nonsense_settings(self):
         with mock.patch("sys.stderr"):
