@@ -631,3 +631,17 @@ company	https://www.oldmutual.co.za/about/	Old Mutual
 company	https://group.telkom.co.za/about_us/	Telkom
 company	https://www.hollard.co.za/our-world	Hollard
 company	https://www.kingprice.co.za/about-us	King Price
+login	https://www.toysrus.co.za/customer/account/login	Toys R Us
+login	https://eservices.joburg.org.za/	City of Johannesburg
+login	https://student.sun.ac.za/	Stellenbosch University
+login	https://www.sygnia.co.za/login	Sygnia
+login	https://www.careers24.com/login	Careers24
+login	https://www.webuycars.co.za/login	WeBuyCars
+login	https://www.avbob.co.za/login	AVBOB
+login	https://www.netcare.co.za/login	Netcare
+login	https://www.suninternational.com/login	Sun International
+login	https://www.bluucarrental.com/login	Bluu Car Rental
+login	https://www.frogfoot.com/login/	Frogfoot
+login	https://www.pricecheck.co.za/login	PriceCheck
+login	https://www.mrphome.com/en_za/login	Mr Price Home
+login	https://www.sheetstreet.com/customer/account/login	Sheet Street
