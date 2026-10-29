@@ -59,6 +59,11 @@ describe("the render command line", () => {
     expect(parseCommand(["--concurrency", "2", "run"])).toEqual({ command: "run", concurrency: 2 });
     expect(parseCommand(["--coverage"])).toEqual({ command: "coverage", concurrency: 4 });
     expect(parseCommand(["recheck"])).toEqual({ command: "recheck", concurrency: 4 });
+    expect(parseCommand(["recheck", "--rerender-legacy"])).toEqual({
+      command: "recheck",
+      concurrency: 4,
+      rerenderLegacy: true,
+    });
     expect(parseCommand(["reopen", "--matching", "TypeError"])).toEqual({
       command: "reopen",
       concurrency: 4,

@@ -89,7 +89,14 @@ export type FormFlags = { has_login_form: boolean; has_payment_form: boolean };
 // The page's form flags from its DOM, as the screener's prompt defines them (`src/vision/page-screen.ts`): a login form
 // asks for a username, email or password; a payment form for card details. Only visible fields count, in the page or
 // in any frame the page can read; a payment provider's frame counts by its host. Run inside the page.
-export function readFormFlags(): FormFlags {
+// `region`: the part of this document the screenshot shows, in its own coordinates (a frame's visible area, clipped by
+// every frame around it); a field outside it is not seen. Without one, the document's width bounds it. `descend`: read
+// the fields of same-origin frames inside too (the dataset reader, which reads one document); the render reads every
+// frame on its own, each with its own region, so it does not.
+export function readFormFlags(
+  options: { region?: { left: number; top: number; right: number; bottom: number }; descend?: boolean } = {},
+): FormFlags {
+  const { region, descend = true } = options;
   const providers = /(stripe|braintree|adyen|checkout\.com|paypal|payfast|peach|paygate|yoco|ozow|square|klarna)/i;
   // The browser's own reading of an element, not a method the page left on it: a bot-detection script gives a hidden
   // frame its own `getBoundingClientRect` and `checkVisibility` that return nothing (Game, Makro, Nexstar, 2026-10-29).
@@ -99,10 +106,21 @@ export function readFormFlags(): FormFlags {
     const box = rect(el);
     // Off the page to the left, above it, or to the right of the 1280-pixel viewport no viewer scrolls across.
     if (box.width <= 0 || box.height <= 0 || box.right <= 0 || box.bottom <= 0 || box.left >= innerWidth) return false;
+    if (
+      region &&
+      (box.right <= region.left || box.left >= region.right || box.bottom <= region.top || box.top >= region.bottom)
+    )
+      return false;
     return Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true });
   };
+  // A document's inputs, those inside open shadow roots included (a sign-in widget often draws its fields in one).
+  const inputsOf = (root: Document | ShadowRoot): HTMLInputElement[] => {
+    const found = [...root.querySelectorAll("input")];
+    for (const el of root.querySelectorAll("*")) if (el.shadowRoot) found.push(...inputsOf(el.shadowRoot));
+    return found;
+  };
   const login = (doc: Document) =>
-    [...doc.querySelectorAll("input")].some((input) => {
+    inputsOf(doc).some((input) => {
       if (input.type === "hidden" || !visible(input)) return false;
       if (input.type === "password" || input.type === "email") return true;
       const hint = [input.autocomplete, input.name, input.id, input.placeholder, input.getAttribute("aria-label")]
@@ -115,7 +133,7 @@ export function readFormFlags(): FormFlags {
   const card =
     /\b(card ?(number|no\.?|num)|cardnumber|ccnum|cc-?number|credit ?card|debit ?card|cvv2?|cvc2?|csc|security code|expiry|expiration|exp(iry)? ?date|mm ?\/ ?yy)\b/i;
   const payment = (doc: Document) =>
-    [...doc.querySelectorAll("input")].some((input) => {
+    inputsOf(doc).some((input) => {
       if (input.type === "hidden" || !visible(input)) return false;
       if (/^cc-(number|exp|csc)/.test(input.autocomplete)) return true;
       const hint = [input.name, input.id, input.placeholder, input.getAttribute("aria-label")]
@@ -125,7 +143,7 @@ export function readFormFlags(): FormFlags {
       return card.test(hint);
     }) || [...doc.querySelectorAll("iframe")].some((frame) => visible(frame) && providers.test(frame.src || ""));
   const docs: Document[] = [document];
-  for (const frame of document.querySelectorAll("iframe")) {
+  for (const frame of descend ? document.querySelectorAll("iframe") : []) {
     try {
       // A field's own visibility stops at its frame: a frame no one can see shows none of its fields.
       // Nor does one below the 2000 pixels the screenshot keeps (`MAX_HEIGHT`; this runs in the page, so the number is
@@ -173,7 +191,19 @@ export function shownText(): string {
   for (const [style] of saved) style.setProperty("display", "none", "important");
   try {
     // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
-    return body.innerText;
+    const parts = [body.innerText];
+    // `innerText` leaves out what open shadow roots draw: each shown host's root adds its own rendered text.
+    const shadows = (root: ParentNode) => {
+      for (const el of root.querySelectorAll("*")) {
+        if (!el.shadowRoot || !seen(el)) continue;
+        // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
+        for (const child of el.shadowRoot.children)
+          if (child instanceof HTMLElement && seen(child) && child.innerText.trim()) parts.push(child.innerText);
+        shadows(el.shadowRoot);
+      }
+    };
+    shadows(body);
+    return parts.join("\n");
   } finally {
     for (const [style, value, priority] of saved) {
       if (value) style.setProperty("display", value, priority);
@@ -385,7 +415,7 @@ export async function openTextReader(
       }
       // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
       const text = tidy(await page.evaluate(shownText));
-      const flags = await page.evaluate(readFormFlags);
+      const flags = await page.evaluate(readFormFlags as () => FormFlags);
       // Only the top 1280 by 2000 pixels are kept, so only they are captured: a full page tens of thousands of pixels
       // tall would outgrow the decoder's pixel limit and the browser's memory.
       const shot = await page.screenshot({

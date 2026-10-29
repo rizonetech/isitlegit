@@ -94,7 +94,18 @@ export const PageMeta = z
     item: z.string().min(1).max(500).optional(),
     // What a benign render saw beside the text (its title and what was drawn over the page), so a later wall check can
     // judge a stored page as it judged the capture (§26).
-    evidence: z.strictObject({ title: z.string().max(2000), overlays: z.string().max(8000) }).optional(),
+    // The structural readings are kept too, so the same refusals apply to a stored page (a record from before they were
+    // kept lacks them).
+    evidence: z
+      .strictObject({
+        title: z.string().max(2000),
+        overlays: z.string().max(8000),
+        captcha: z.boolean().optional(),
+        consentWall: z.boolean().optional(),
+        challengeCover: z.boolean().optional(),
+        wall: z.boolean().optional(),
+      })
+      .optional(),
   })
   .refine((meta) => Object.keys(meta.label_source).every((k) => k in meta.labels), {
     message: "every label_source names a label the page has",
@@ -175,7 +186,11 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     for (const name of readdirSync(pages)) {
       const writer = /^\.(?:tmp-.+-(\d+)-[0-9a-f]{8}|removing-.+-(\d+))$/.exec(name);
       const pid = writer ? Number(writer[1] ?? writer[2]) : 0;
-      if (writer && !processAlive(pid)) rmSync(join(pages, name), { recursive: true, force: true });
+      if (!writer || processAlive(pid)) continue;
+      // A removal a stop left: its rename is made durable before anything is deleted (a temporary folder was never
+      // published, so it has no rename to keep).
+      if (name.startsWith(".removing-")) sync(pages);
+      rmSync(join(pages, name), { recursive: true, force: true });
     }
 
   // Folders whose entry in their parent is not yet known to be on disk: the parents still to flush. A folder's entry

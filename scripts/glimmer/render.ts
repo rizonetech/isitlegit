@@ -26,13 +26,13 @@ import {
 } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { type AddressInfo, isIP, connect as netConnect, type Socket } from "node:net";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { type Browser, type BrowserContext, chromium } from "playwright-core";
 import { getDomain } from "tldts";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { chromiumPath } from "../lib/chromium.ts";
 import { bounded, type FormFlags, normaliseScreenshot, readFormFlags, shownText } from "./source-pages.ts";
-import { MAX_HEIGHT, MAX_WIDTH, openStore, PAGE_KINDS, type StoredPage, storeDir } from "./store.ts";
+import { MAX_HEIGHT, MAX_WIDTH, openStore, PAGE_KINDS, type PageInput, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const RENDER_LIMIT_MS = 20_000;
@@ -208,10 +208,18 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     // A full-screen backdrop with almost nothing written on it, and a consent dialog of any size above the page.
     if (big && text.trim().length < 40) backdrop = true;
     if (text.length < 3000 && consentWords.test(text)) dialog = true;
-    // What sits over the page, wherever it is: a fixed element of any size, an absolute one covering half the view.
-    if ((style.position === "fixed" || big) && text.trim()) overlays.push(text.trim().slice(0, 2000));
-    // A cover with no words of its own but a picture or a canvas: a wall drawn as an image.
-    if (big && text.trim().length < 40 && el.querySelector("img, canvas, svg, iframe")) cover = true;
+    // What sits over the page, wherever it is and however small: every shown positioned element's text, kept whole.
+    if (text.trim()) overlays.push(text.trim());
+    // A cover with no words of its own but a picture: an image, a canvas or a frame itself, one inside it, or a CSS
+    // background image. A wall drawn as an image.
+    if (
+      big &&
+      text.trim().length < 40 &&
+      (el.matches("img, canvas, svg, iframe, video, object, embed") ||
+        style.backgroundImage !== "none" ||
+        el.querySelector("img, canvas, svg, iframe, video, object, embed"))
+    )
+      cover = true;
   }
   // A bot-wall vendor's script on the page: HUMAN (PerimeterX), DataDome, Imperva (Incapsula), Akamai, hCaptcha.
   const vendor = [...document.scripts].some((script) =>
@@ -222,19 +230,36 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
   return {
     captcha,
     consentWall: covering || providerFrame || (backdrop && dialog),
-    overlays: overlays.join("\n").slice(0, 8000),
+    // Bounded only against a hostile page's size; the evidence kept with a stored page is cut later, after checking.
+    overlays: overlays.join("\n").slice(0, 200_000),
     challengeCover: cover && vendor,
   };
 }
 
-// Whether a frame's owner element is seen, run on that element (`this`) in its document's isolated world: a box with
-// a size, on the captured page (not moved off it, nor past the 1280 by 2000 pixels the screenshot keeps), and not
-// hidden by itself or an ancestor.
-const OWNER_SHOWN = `function (height) {
+// A frame's owner element as its document lays it out, run on that element (`this`) in the document's isolated world:
+// whether it is shown (a size, and not hidden by itself or an ancestor), and where its content box sits.
+const OWNER_BOX = `function () {
   const box = this.getBoundingClientRect();
-  const onPage = box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < height;
-  return box.width > 0 && box.height > 0 && onPage && this.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+  return {
+    shown: box.width > 0 && box.height > 0 && this.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+    left: box.left + this.clientLeft,
+    top: box.top + this.clientTop,
+    width: this.clientWidth,
+    height: this.clientHeight,
+  };
 }`;
+
+// The readings a stored benign page keeps beside its text, so `recheckStored` applies the refusals admission applied.
+export function evidenceOf(capture: Capture): NonNullable<PageInput["evidence"]> {
+  return {
+    title: capture.title.slice(0, 2000),
+    overlays: capture.overlays.slice(0, 8000),
+    captcha: capture.captcha,
+    consentWall: capture.consentWall,
+    challengeCover: capture.challengeCover,
+    wall: wallShown(capture),
+  };
+}
 
 // Why a capture cannot be stored as a benign page of the listed site, or null when it can.
 export function unusable(capture: Capture, entry: ListEntry): string | null {
@@ -525,6 +550,10 @@ export async function openRenderer(
         // WebRTC sends UDP of its own, outside any proxy: only proxied traffic may leave, so it has none.
         args: [
           "--no-first-run",
+          // Every frame in the page's own renderer, so the readers' CDP session reaches each one (Playwright's default,
+          // kept explicit: a frame left in another process would be counted unread).
+          "--disable-site-isolation-trials",
+          "--disable-features=IsolateOrigins,site-per-process",
           "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
           "--webrtc-ip-handling-policy=disable_non_proxied_udp",
         ],
@@ -652,9 +681,12 @@ export async function openRenderer(
           return out;
         };
         const nodes = await frames();
-        const byId = new Map(nodes.map((node) => [node.id, node]));
-        // Whether a frame whose reading failed is still on the page: a frame that went away is gone, not unread.
-        const stillThere = async (id: string) => (await frames().catch(() => [])).some((node) => node.id === id);
+        // Whether a frame whose reading failed is still on the page: a frame that went away is gone, not unread. When
+        // the frame tree itself cannot be read, that is not known, so the frame counts as unread.
+        const stillThere = async (id: string) => {
+          const now = await frames().catch(() => null);
+          return now === null || now.some((node) => node.id === id);
+        };
         const worlds = new Map<string, number>();
         const world = async (id: string) => {
           let made = worlds.get(id);
@@ -667,49 +699,73 @@ export async function openRenderer(
           }
           return made;
         };
-        const evaluate = async <T>(node: FrameNode, fn: () => T): Promise<T> => {
+        const evaluate = async <T>(node: FrameNode, fn: (arg?: never) => T, arg?: unknown): Promise<T> => {
           const fault = options.readFault?.({ url: node.url, main: node.parent === null });
           if (fault) throw fault;
           const { result, exceptionDetails } = await cdp.send("Runtime.evaluate", {
-            expression: `(${fn.toString()})()`,
+            expression: `(${fn.toString()})(${arg === undefined ? "" : JSON.stringify(arg)})`,
             contextId: await world(node.id),
             returnByValue: true,
           });
           if (exceptionDetails) throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text);
           return result.value as T;
         };
-        const readFrame = async <T>(node: FrameNode, fn: () => T, fallback: T): Promise<T> => {
+        const readFrame = async <T>(
+          node: FrameNode,
+          fn: (arg?: never) => T,
+          fallback: T,
+          arg?: unknown,
+        ): Promise<T> => {
           try {
-            return await evaluate(node, fn);
+            return await evaluate(node, fn, arg);
           } catch {
             if (await stillThere(node.id)) unreadable++;
             return fallback;
           }
         };
-        // Whether every frame element above this frame is shown, read on each owner element in its parent's isolated
-        // world; null when one could not be read.
-        const frameShown = async (node: FrameNode): Promise<boolean | null> => {
-          for (let at: FrameNode | undefined = node; at?.parent; at = byId.get(at.parent)) {
-            try {
-              const { backendNodeId } = await cdp.send("DOM.getFrameOwner", { frameId: at.id });
-              const { object } = await cdp.send("DOM.resolveNode", {
-                backendNodeId,
-                executionContextId: await world(at.parent),
-              });
-              const { result, exceptionDetails } = await cdp.send("Runtime.callFunctionOn", {
-                objectId: object.objectId as string,
-                functionDeclaration: OWNER_SHOWN,
-                arguments: [{ value: MAX_HEIGHT }],
-                returnByValue: true,
-              });
-              if (exceptionDetails) throw new Error(exceptionDetails.text);
-              if (!result.value) return false;
-            } catch {
-              return (await stillThere(at.id)) ? null : false;
-            }
+        // Where each frame shows in the screenshot: its owner element's content box, placed through every frame around
+        // it and clipped by each one's own visible area, down to the 1280 by 2000 pixels kept. A frame with no area left
+        // is not seen; null when an owner could not be read. Parents come before their children in `nodes`.
+        type Region = { left: number; top: number; right: number; bottom: number };
+        type Placed = { offsetX: number; offsetY: number; region: Region };
+        const placed = new Map<string, Placed | false | null>();
+        const place = async (node: FrameNode): Promise<Placed | false | null> => {
+          if (!node.parent)
+            return { offsetX: 0, offsetY: 0, region: { left: 0, top: 0, right: MAX_WIDTH, bottom: MAX_HEIGHT } };
+          const parent = placed.get(node.parent);
+          if (!parent) return parent ?? null;
+          try {
+            const { backendNodeId } = await cdp.send("DOM.getFrameOwner", { frameId: node.id });
+            const { object } = await cdp.send("DOM.resolveNode", {
+              backendNodeId,
+              executionContextId: await world(node.parent),
+            });
+            const { result, exceptionDetails } = await cdp.send("Runtime.callFunctionOn", {
+              objectId: object.objectId as string,
+              functionDeclaration: OWNER_BOX,
+              returnByValue: true,
+            });
+            if (exceptionDetails) throw new Error(exceptionDetails.text);
+            const box = result.value as { shown: boolean; left: number; top: number; width: number; height: number };
+            if (!box.shown) return false;
+            const offsetX = parent.offsetX + box.left;
+            const offsetY = parent.offsetY + box.top;
+            const region = {
+              left: Math.max(parent.region.left, offsetX),
+              top: Math.max(parent.region.top, offsetY),
+              right: Math.min(parent.region.right, offsetX + box.width),
+              bottom: Math.min(parent.region.bottom, offsetY + box.height),
+            };
+            if (region.right <= region.left || region.bottom <= region.top) return false;
+            return { offsetX, offsetY, region };
+          } catch {
+            return (await stillThere(node.id)) ? null : false;
           }
-          return true;
         };
+        for (const node of nodes) placed.set(node.id, await place(node));
+        // A frame Playwright sees that the page's frame tree leaves out (one in another renderer process) is not read
+        // here: it counts as unread, never as no frame (§26, completion review).
+        unreadable += Math.max(0, page.frames().length - nodes.length);
         const main = nodes[0] as FrameNode;
         // The main frame's own reading failing is the render's failure, as it always was.
         let text = await evaluate(main, shownText);
@@ -717,12 +773,25 @@ export async function openRenderer(
         let has_payment_form = false;
         const walls = await evaluate(main, readWalls);
         for (const node of nodes) {
-          if (node !== main) {
-            const shown = await frameShown(node);
-            if (shown === null) unreadable++;
-            if (!shown) continue;
-          }
-          const flags = await readFrame(node, readFormFlags, { has_login_form: false, has_payment_form: false });
+          const where = placed.get(node.id);
+          if (where === null) unreadable++;
+          if (!where) continue;
+          // Only the fields the screenshot shows: a frame's area in its own coordinates.
+          const region =
+            node === main
+              ? undefined
+              : {
+                  left: where.region.left - where.offsetX,
+                  top: where.region.top - where.offsetY,
+                  right: where.region.right - where.offsetX,
+                  bottom: where.region.bottom - where.offsetY,
+                };
+          const flags = await readFrame(
+            node,
+            readFormFlags,
+            { has_login_form: false, has_payment_form: false },
+            { region, descend: false },
+          );
           has_login_form ||= flags.has_login_form;
           has_payment_form ||= flags.has_payment_form;
           if (node === main) continue;
@@ -735,8 +804,9 @@ export async function openRenderer(
             challengeCover: false,
           });
           walls.captcha ||= inner.captcha;
+          walls.consentWall ||= inner.consentWall;
           walls.challengeCover ||= inner.challengeCover;
-          if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 8000);
+          if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 200_000);
         }
         // A page may remove its own root element; then nothing is drawn below the top.
         const height = await evaluate(main, () => document.documentElement?.scrollHeight ?? 0);
@@ -754,8 +824,9 @@ export async function openRenderer(
         await cdp.detach().catch(() => undefined);
       }
     };
+    const steady = (text: string) => text.replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
     // Two readings agree when nothing a label rests on moved between them: the address, the title, the form flags, the
-    // walls and whether the text shows one. Ordinary moving content (a ticker, a carousel) is not compared.
+    // walls, whether the text shows one, and the text and overlays themselves with digits set aside.
     const settled = (a: Reading, b: Reading) =>
       a.url === b.url &&
       a.title === b.title &&
@@ -764,7 +835,11 @@ export async function openRenderer(
       a.walls.captcha === b.walls.captcha &&
       a.walls.consentWall === b.walls.consentWall &&
       a.walls.challengeCover === b.walls.challengeCover &&
-      wallShown({ ...a, overlays: a.walls.overlays }) === wallShown({ ...b, overlays: b.walls.overlays });
+      wallShown({ ...a, overlays: a.walls.overlays }) === wallShown({ ...b, overlays: b.walls.overlays }) &&
+      // The text and what is drawn over it, the words alike: a clock or a counter (digits) may move, but text that
+      // changed between the readings (an account page falling back to other content) cannot be paired with the picture.
+      steady(a.text) === steady(b.text) &&
+      steady(a.walls.overlays) === steady(b.walls.overlays);
     const screenshot = async (height: number) => {
       // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
       return page.screenshot({
@@ -885,6 +960,8 @@ export type JournalEvent = {
   event: "started" | "stored" | "excluded" | "retry" | "reopened";
   id?: string;
   reason?: string;
+  // A retry the browser's own failure caused: it never counts toward the page's tries (§26).
+  fault?: "browser";
   at: string;
 };
 
@@ -934,11 +1011,19 @@ const TRANSIENT =
 
 export type BatchResult = { stored: number; excluded: number; retry: number; skipped: number; recovered: number };
 
-export type Recheck = { checked: number; removed: string[]; damaged: string[]; unassessed: string[] };
+export type Recheck = {
+  checked: number;
+  removed: string[];
+  damaged: string[];
+  unassessed: string[];
+  rerendered: string[];
+};
 
 // A removal in progress: written before the page is removed and cleared once its exclusion is in the journal, so a stop
 // between the two leaves the intent for the next recheck to finish (plan review gap 8).
-type Removal = { id: string; url: string; reason: string };
+// `reopen`: the page is rendered again by the next run (a capture stored before its evidence was kept), so its
+// exclusion is followed by a `reopened` line.
+type Removal = { id: string; url: string; reason: string; reopen?: boolean };
 const intentFile = (journal: string) => `${journal}.removing.json`;
 
 function removeAndRecord(store: ReturnType<typeof openStore>, journal: string, removal: Removal): void {
@@ -952,6 +1037,13 @@ function removeAndRecord(store: ReturnType<typeof openStore>, journal: string, r
     closeSync(fd);
   }
   renameSync(temporary, file);
+  // The intent's name is made durable before the page goes, so a crash never keeps the removal and loses its record.
+  const folder = openSync(dirname(file), "r");
+  try {
+    fsyncSync(folder);
+  } finally {
+    closeSync(folder);
+  }
   finishRemoval(store, journal, removal);
 }
 
@@ -960,8 +1052,14 @@ function finishRemoval(store: ReturnType<typeof openStore>, journal: string, rem
   const last = readJournal(journal)
     .filter((event) => event.url === removal.url)
     .at(-1);
-  if (!(last?.event === "excluded" && last.reason === removal.reason))
-    appendJournal(journal, { url: removal.url, event: "excluded", reason: removal.reason });
+  const done = removal.reopen
+    ? last?.event === "reopened" && last.reason === removal.reason
+    : last?.event === "excluded" && last.reason === removal.reason;
+  if (!done) {
+    if (!(last?.event === "excluded" && last.reason === removal.reason))
+      appendJournal(journal, { url: removal.url, event: "excluded", reason: removal.reason });
+    if (removal.reopen) appendJournal(journal, { url: removal.url, event: "reopened", reason: removal.reason });
+  }
   unlinkSync(intentFile(journal));
 }
 
@@ -973,10 +1071,11 @@ export function recheckStored(
   store: ReturnType<typeof openStore>,
   journal: string,
   ocrText: Map<string, string> = new Map(),
+  options: { rerenderLegacy?: boolean } = {},
 ): Recheck {
   if (existsSync(intentFile(journal)))
     finishRemoval(store, journal, JSON.parse(readFileSync(intentFile(journal), "utf-8")) as Removal);
-  const result: Recheck = { checked: 0, removed: [], damaged: [], unassessed: [] };
+  const result: Recheck = { checked: 0, removed: [], damaged: [], unassessed: [], rerendered: [] };
   const benign = (id: string) => /^benign-/.test(id);
   result.damaged.push(...store.verify().damaged.filter(benign));
   for (const page of store.manifest({ tolerant: true })) {
@@ -990,10 +1089,26 @@ export function recheckStored(
     // The evidence kept with the page; a page stored before it was kept is judged on its text and what the screenshot
     // shows (`ocr`, when given), and is unassessed when neither can decide.
     const evidence = read.page.evidence;
-    let wall = wallShown({ title: evidence?.title ?? "", text: read.text, overlays: evidence?.overlays ?? "" });
+    // A capture stored before its evidence was kept is rendered again under the current rules, when asked: the page
+    // goes, and the next run renders its URL afresh.
+    if (!evidence && options.rerenderLegacy && read.page.url) {
+      removeAndRecord(store, journal, {
+        id: page.id,
+        url: read.page.url,
+        reason: "stored before its evidence was kept; rendered again under the current rules",
+        reopen: true,
+      });
+      result.rerendered.push(page.id);
+      continue;
+    }
+    // The refusals admission applies, from the readings kept with the page.
+    let wall =
+      Boolean(evidence?.captcha || evidence?.consentWall || evidence?.challengeCover || evidence?.wall) ||
+      wallShown({ title: evidence?.title ?? "", text: read.text, overlays: evidence?.overlays ?? "" });
     if (!wall && !evidence) {
+      // Nothing OCR could read (no result, or an empty one) cannot clear a page.
       const seen = ocrText.get(page.id);
-      if (seen === undefined) {
+      if (!seen?.trim()) {
         result.unassessed.push(page.id);
         continue;
       }
@@ -1044,8 +1159,9 @@ export async function runBatch(options: {
     if (event.event === "started") entry.open = true;
     else {
       entry.open = false;
-      if (event.event === "retry") entry.retries++;
-      else if (event.event === "reopened") {
+      if (event.event === "retry") {
+        if (event.fault !== "browser") entry.retries++;
+      } else if (event.event === "reopened") {
         delete entry.outcome;
         entry.retries = 0;
       } else entry.outcome = event.event;
@@ -1081,9 +1197,14 @@ export async function runBatch(options: {
       capture = await options.render(entry.url);
     } catch (error) {
       const reason = (error as Error).message.split("\n")[0] ?? "render failed";
+      // The browser's failure is not the page's: it is tried again, and never counts toward the page's three tries.
+      if (error instanceof BrowserFault) {
+        appendJournal(journal, { url: entry.url, event: "retry", reason, fault: "browser" });
+        result.retry++;
+        return;
+      }
       if (
         error instanceof RenderTimeout ||
-        error instanceof BrowserFault ||
         (error instanceof HttpStatus && (error.status >= 500 || error.status === 429)) ||
         TRANSIENT.test(reason)
       )
@@ -1126,7 +1247,7 @@ export async function runBatch(options: {
       redacted: false,
       url: entry.url,
       kind: capturedKind(entry, capture),
-      evidence: { title: capture.title.slice(0, 2000), overlays: capture.overlays },
+      evidence: evidenceOf(capture),
     });
     const first = urlById.get(id);
     if (first && first !== entry.url) {
@@ -1222,7 +1343,7 @@ function pageFault(store: Pick<ReturnType<typeof openStore>, "readPage">, page: 
 // `coverage` or `--coverage`. A string is the usage error.
 export function parseCommand(
   args: string[],
-): { command: string; only?: string; concurrency: number; matching?: RegExp } | string {
+): { command: string; only?: string; concurrency: number; matching?: RegExp; rerenderLegacy?: boolean } | string {
   const rest = [...args];
   let concurrency = 4;
   const at = rest.indexOf("--concurrency");
@@ -1246,6 +1367,9 @@ export function parseCommand(
   // `--coverage` is the spelling §6's checkpoint names; `coverage` the subcommand's.
   const command = given === "--coverage" ? "coverage" : (given ?? "");
   if ((command === "coverage" || command === "recheck") && rest.length === 1) return { command, concurrency };
+  // `recheck --rerender-legacy`: every page stored before its evidence was kept is rendered again by the next run.
+  if (command === "recheck" && rest.length === 2 && rest[1] === "--rerender-legacy")
+    return { command, concurrency, rerenderLegacy: true };
   if (command !== "run" || rest.length > 2 || (only && only !== "majestic" && only !== "benign-sa"))
     return "usage: node scripts/glimmer/render.ts run [majestic|benign-sa] [--concurrency N] | coverage | --coverage | recheck | reopen --matching <pattern>";
   return only ? { command, only, concurrency } : { command, concurrency };
@@ -1257,7 +1381,7 @@ if (import.meta.filename === process.argv[1]) {
     console.error(parsed);
     process.exit(2);
   }
-  const { command, only, concurrency, matching } = parsed;
+  const { command, only, concurrency, matching, rerenderLegacy } = parsed;
   const dir = storeDir();
   const store = openStore(dir);
   if (command === "coverage") {
@@ -1268,24 +1392,34 @@ if (import.meta.filename === process.argv[1]) {
   if (command === "recheck") {
     // A page stored before its evidence was kept is judged on its text and on what its screenshot shows, read by OCR
     // (§7's engine) in batches; one OCR cannot read is left unassessed.
-    const legacy = store
-      .manifest({ tolerant: true })
-      .filter((page) => page.source.startsWith("benign-") && !page.evidence);
+    const legacy = rerenderLegacy
+      ? []
+      : store.manifest({ tolerant: true }).filter((page) => page.source.startsWith("benign-") && !page.evidence);
     const ocrText = new Map<string, string>();
     const { systemOcr } = await import("./import-samples.ts");
     for (let at = 0; at < legacy.length; at += 25) {
       const batch = legacy.slice(at, at + 25);
       try {
         const texts = await systemOcr(batch.map((page) => join(dir, "pages", page.id, "screenshot.jpg")));
-        for (const [i, page] of batch.entries()) ocrText.set(page.id, texts[i] ?? "");
+        for (const [i, page] of batch.entries()) {
+          const seen = texts[i];
+          if (typeof seen === "string") ocrText.set(page.id, seen);
+        }
       } catch (error) {
         console.error(`recheck: OCR failed for ${batch.length} pages (${(error as Error).message})`);
       }
       if (at % 500 === 0) console.error(`recheck: OCR ${Math.min(at + 25, legacy.length)} of ${legacy.length}`);
     }
-    const result = recheckStored(store, join(dir, "raw/benign/progress.jsonl"), ocrText);
+    const result = recheckStored(store, join(dir, "raw/benign/progress.jsonl"), ocrText, {
+      rerenderLegacy: rerenderLegacy === true,
+    });
     console.log(
-      JSON.stringify({ ...result, damaged: result.damaged.slice(0, 20), unassessed: result.unassessed.slice(0, 20) }),
+      JSON.stringify({
+        ...result,
+        damaged: result.damaged.slice(0, 20),
+        unassessed: result.unassessed.slice(0, 20),
+        rerendered: result.rerendered.length,
+      }),
     );
     // Clean only when every page was verified and judged: zero removals alone is not clean.
     process.exit(result.damaged.length || result.unassessed.length ? 1 : 0);

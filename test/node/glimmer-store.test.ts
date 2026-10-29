@@ -392,6 +392,20 @@ describe("recovery, integrity and removal", () => {
     expect(reopened.verify().damaged).toEqual([]);
   });
 
+  it("makes a stopped removal's rename durable before an open deletes it", async () => {
+    const id = await openStore(dir).putPage("public", page({ text: "going" }));
+    renameSync(join(dir, "pages", id), join(dir, "pages", `.removing-${id}-999999999`));
+    const order: string[] = [];
+    openStore(dir, {
+      sync: (path) => {
+        order.push(`sync ${path}`);
+        order.push(`present ${readdirSync(join(dir, "pages")).some((name) => name.startsWith(".removing-"))}`);
+      },
+    });
+    expect(order.slice(0, 2)).toEqual([`sync ${join(dir, "pages")}`, "present true"]);
+    expect(readdirSync(join(dir, "pages"))).toEqual([]);
+  });
+
   it("removes one source whole and leaves a source that shares its prefix", async () => {
     const store = openStore(dir);
     await store.putPage("public", page({ text: "a" }));

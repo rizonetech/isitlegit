@@ -14,6 +14,7 @@ import {
   brandShown,
   type Capture,
   capturedKind,
+  evidenceOf,
   HttpStatus,
   isPublicAddress,
   type ListEntry,
@@ -30,7 +31,7 @@ import {
   type UrlList,
   unusable,
 } from "../../scripts/glimmer/render.ts";
-import { openStore } from "../../scripts/glimmer/store.ts";
+import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/render.ts (D03 T04 §6): benign pages rendered by our own browser, isolated per page, kept only when
@@ -139,6 +140,43 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
         Array.prototype.some = () => false;
         window.getComputedStyle = () => undefined;
       </script>`,
+    ),
+  // §26's completion review: text that changes during capture, a form below its frame's visible area, a shadow
+  // root's form and text, a small wall panel, a consent wall inside a frame, and covers drawn as one image.
+  "/text-swap": (res) =>
+    html(
+      res,
+      `<p id=t>My account</p><p>${words}</p><script>let n = 0; setInterval(() => { t.textContent = 'Account ' + (n++).toString(26).replace(/[0-9]/g, (d) => 'klmnopqrst'[d]) }, 10)</script>`,
+    ),
+  "/frame-clipped": (res) =>
+    html(
+      res,
+      `<p>${words}</p><iframe width=400 height=300 srcdoc="<p>inside</p><div style='height:1000px'></div><input type=password>"></iframe>`,
+    ),
+  "/shadow-form": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div id=h></div><script>h.attachShadow({ mode: 'open' }).innerHTML = '<p>Shadow sign-in words</p><input type=password>'</script>`,
+    ),
+  "/wall-panel": (res) =>
+    html(
+      res,
+      `<p>${words.repeat(30)}</p><div style="position:absolute;top:10px;right:10px;width:200px;height:40px;background:#fff">Access denied</div>`,
+    ),
+  "/consent-frame": (res) =>
+    html(
+      res,
+      `<p>${words}</p><iframe width=1200 height=700 srcdoc="<p>framed</p><div style='position:fixed;inset:0;background:#fff'>We use cookies. Accept all cookies to continue.</div>"></iframe>`,
+    ),
+  "/wall-img": (res) =>
+    html(
+      res,
+      `<p>${words}</p><img style="position:fixed;inset:0;width:100%;height:100%" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><script src="https://client.px-cdn.net/main.min.js"></script>`,
+    ),
+  "/wall-css": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div style="position:fixed;inset:0;background-image:url(data:image/gif;base64,R0lGODlhAQABAAAAACw=)"></div><script src="https://client.px-cdn.net/main.min.js"></script>`,
     ),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
@@ -670,6 +708,27 @@ describe("the batch run", () => {
     entries: paths.map((path) => ({ url: `${origin}${path}`, kind: "login", brand: "Example Bank", also: [] })),
   });
 
+  it("never excludes a page for three failed starts in a row, and stores it once the browser starts", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    for (let i = 0; i < 3; i++) {
+      const broken = await openRenderer({
+        launch: async () => {
+          throw new Error("no browser");
+        },
+      });
+      expect(await runBatch({ list: list(["/page"]), store, journal, render: broken.render })).toMatchObject({
+        retry: 1,
+        excluded: 0,
+      });
+      await broken.close();
+    }
+    expect(await runBatch({ list: list(["/page"]), store, journal, render: renderer.render })).toMatchObject({
+      stored: 1,
+    });
+    expect(readJournal(journal).some((e) => e.event === "excluded")).toBe(false);
+  });
+
   it("retries a page whose browser could not start, never excluding it for the browser's fault", async () => {
     const broken = await openRenderer({
       launch: async () =>
@@ -842,16 +901,109 @@ describe("the batch run", () => {
   it("stores no bot wall, however it is drawn", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "progress.jsonl");
-    const walls = ["/wall-split", "/wall-late", "/wall-frame", "/wall-shadow", "/wall-cover"];
+    const walls = [
+      "/wall-split",
+      "/wall-late",
+      "/wall-frame",
+      "/wall-shadow",
+      "/wall-cover",
+      "/wall-panel",
+      "/consent-frame",
+      "/wall-img",
+      "/wall-css",
+    ];
     const result = await runBatch({ list: list(walls), store, journal, render: renderer.render, concurrency: 1 });
     expect(result).toMatchObject({ stored: 0, excluded: walls.length });
     const reasons = readJournal(journal)
       .filter((e) => e.event === "excluded")
       .map((e) => e.reason);
     expect(
-      reasons.every((r) => /challenge|CAPTCHA/.test(r ?? "")),
+      reasons.every((r) => /challenge|CAPTCHA|cookie wall/.test(r ?? "")),
       reasons.join("; "),
     ).toBe(true);
+    // The same walls, stored directly with the evidence admission read, are each taken out by the audit.
+    const audited = openStore(join(dir, "audited"));
+    for (const wall of walls) {
+      const capture = await renderer.render(`${origin}${wall}`);
+      await audited.putPage("benign-test", {
+        screenshot: capture.screenshot,
+        text: `${capture.text} ${wall}`,
+        origin: "benign",
+        licence: "test",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+        label_source: {
+          lure: "ground-truth",
+          lure_type: "ground-truth",
+          has_login_form: "dom",
+          has_payment_form: "dom",
+        },
+        redacted: false,
+        url: `${origin}${wall}`,
+        evidence: evidenceOf(capture),
+      });
+    }
+    const audit = recheckStored(audited, join(dir, "audited.jsonl"));
+    expect(audit.removed).toHaveLength(walls.length);
+  }, 60_000);
+
+  it("refuses a capture whose text changed between its readings though its title held", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const result = await runBatch({ list: list(["/text-swap"]), store, journal, render: renderer.render });
+    expect(result).toMatchObject({ stored: 0, excluded: 1 });
+    expect(readJournal(journal).at(-1)?.reason).toBe("the page kept changing while it was captured");
+  });
+
+  it("counts a frame's fields only where the screenshot shows them, and reads shadow roots", async () => {
+    const clipped = await renderer.render(`${origin}/frame-clipped`);
+    expect(clipped.has_login_form).toBe(false);
+    const shadow = await renderer.render(`${origin}/shadow-form`);
+    expect(shadow.has_login_form).toBe(true);
+    expect(shadow.text).toContain("Shadow sign-in words");
+  });
+
+  it("finishes a removal whose intent was written before the page went", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    await runBatch({ list: list(["/page"]), store, journal, render: renderer.render });
+    const page = store.manifest()[0] as StoredPage;
+    writeFileSync(
+      `${journal}.removing.json`,
+      JSON.stringify({ id: page.id, url: page.url, reason: "a challenge page (found on a recheck)" }),
+    );
+    recheckStored(store, journal);
+    expect(store.manifest()).toHaveLength(0);
+    expect(readJournal(journal).filter((e) => e.event === "excluded")).toHaveLength(1);
+  });
+
+  it("leaves a legacy page unassessed when OCR read nothing, and renders a legacy page again when asked", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const shot = await renderer.render(`${origin}/page`);
+    const legacy = await store.putPage("benign-test", {
+      screenshot: shot.screenshot,
+      text: shot.text,
+      origin: "benign",
+      licence: "test",
+      host: null,
+      template: null,
+      south_africa: false,
+      labels: { lure: false, lure_type: "none", has_login_form: true, has_payment_form: false },
+      label_source: { lure: "ground-truth", lure_type: "ground-truth", has_login_form: "dom", has_payment_form: "dom" },
+      redacted: false,
+      url: `${origin}/page`,
+    });
+    expect(recheckStored(store, journal, new Map([[legacy, "  "]])).unassessed).toEqual([legacy]);
+    const again = recheckStored(store, journal, new Map(), { rerenderLegacy: true });
+    expect(again.rerendered).toEqual([legacy]);
+    expect(readJournal(journal).map((e) => e.event)).toEqual(["excluded", "reopened"]);
+    // The next run renders it again, now with its evidence.
+    const result = await runBatch({ list: list(["/page"]), store, journal, render: renderer.render });
+    expect(result.stored).toBe(1);
+    expect(store.manifest()[0]?.evidence).toBeDefined();
   });
 
   it("audits a stored page by its kept evidence, and a legacy page by OCR, unassessed when OCR cannot read it", async () => {
