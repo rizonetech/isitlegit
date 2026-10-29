@@ -26,6 +26,7 @@ keeps `--min-free` free. Progress goes to standard error; one JSON line goes to 
 """
 
 import argparse
+import email.utils
 import errno
 import hashlib
 import http.client
@@ -117,8 +118,8 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool):
             connection.close()
             raise _Retry(f"the request failed ({error.__class__.__name__})") from error
         if response.status in (301, 302, 303, 307, 308) and response.getheader("Location"):
+            # A redirect's body is never read: it could be endless, and only its Location matters.
             previous, url = url, urllib.parse.urljoin(url, response.getheader("Location"))
-            response.read()
             connection.close()
             continue
         return connection, response, url
@@ -162,12 +163,49 @@ def _write_json_now(path: Path, value: dict) -> None:
 _STRONG_ETAG = re.compile(r'^"[\x21\x23-\x7e\x80-\xff]*"$')
 
 
+def _when(value: str | None):
+    try:
+        return email.utils.parsedate_to_datetime(value) if value else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _validator(headers) -> str | None:
-    """What `If-Range` may carry: a strong ETag; a Last-Modified date only when the server sent no ETag at all."""
+    """What `If-Range` may carry: a strong ETag; with no ETag at all, a Last-Modified date only when it is strong, at
+    least 60 seconds before the response's own Date (RFC 9110 sections 8.8.2.2 and 13.1.5)."""
     etag = headers.get("ETag")
     if etag is not None:
         return etag if _STRONG_ETAG.match(etag) else None
+    modified, sent = _when(headers.get("Last-Modified")), _when(headers.get("Date"))
+    if modified is None or sent is None or (sent - modified).total_seconds() < 60:
+        return None
     return headers.get("Last-Modified")
+
+
+def _same_representation(headers, stored: str | None) -> bool:
+    """A resumed answer is the same file as the stored one: its ETag, when it sends one, is the stored ETag exactly
+    (a weak or a changed one is not); for a stored date, it sends no ETag and the same Last-Modified, if any."""
+    etag = headers.get("ETag")
+    if stored is None:
+        return False
+    if stored.startswith('"'):
+        return etag is None or etag == stored
+    modified = headers.get("Last-Modified")
+    return etag is None and (modified is None or modified == stored)
+
+
+def _retry_after(value: str | None) -> float | None:
+    """A Retry-After in seconds or as an HTTP date, as seconds from now (RFC 9110 section 10.2.3)."""
+    if not value:
+        return None
+    if value.strip().isdigit():
+        return float(value.strip())
+    when = _when(value)
+    if when is None:
+        return None
+    from datetime import datetime, timezone
+
+    return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
 def _content_range(value: str | None):
@@ -286,8 +324,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 restart("the server's range does not fit the partial file")
                 continue
             if code == 429 or code >= 500:
-                after = response.getheader("Retry-After")
-                spend(f"HTTP {code}", float(after) if after and after.isdigit() else None)
+                spend(f"HTTP {code}", _retry_after(response.getheader("Retry-After")))
                 continue
             if code not in (200, 206):
                 raise Refused(f"refused: HTTP {code}")
@@ -295,7 +332,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             length = response.getheader("Content-Length")
             if code == 206:
                 span = _content_range(response.getheader("Content-Range"))
-                same = _validator(response.headers) in (None, state.get("validator")) and encoding == state.get("encoding")
+                same = _same_representation(response.headers, state.get("validator")) and encoding == state.get("encoding")
                 fits = (
                     span is not None
                     and span[0] == have
@@ -311,7 +348,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 resumed = True
             else:
                 body = int(length) if length and length.isdigit() else None
-                room(body or 0)
+                # The partial this answer replaces is counted once: it is truncated before the body arrives.
+                room(max((body or 0) - have, 0))
                 # Truncate first, then record the new answer: old bytes never sit under the new validator.
                 with partial.open("wb") as handle:
                     os.fsync(handle.fileno())
@@ -329,7 +367,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             try:
                 with partial.open(mode) as handle:
                     while True:
-                        block = response.read(CHUNK)
+                        # read1 returns what has arrived, so a trickle reaches the rate check below byte by byte.
+                        block = response.read1(CHUNK)
                         if not block:
                             break
                         got += len(block)
@@ -340,6 +379,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         if have + got > (state.get("total") or source_limit) or base + got > source_limit:
                             raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
                         write(handle, block)
+                        # The free-space floor, checked again each MiB: a file of no stated length, or another
+                        # writer on the disk, can cross it after the first check.
+                        if got // (1 << 20) != (got - len(block)) // (1 << 20) and \
+                                shutil.disk_usage(partial_dir).free < min_free:
+                            raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
                         now = time.monotonic()
                         if now - window_start >= rate_window:
                             if window_bytes / (now - window_start) < min_rate:

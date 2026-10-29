@@ -55,13 +55,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.redirect(target)
         if self.path == "/loop":
             return self.redirect("/loop")
+        if self.path == "/endless-redirect":
+            self.send_response(302)
+            self.send_header("Location", "/file")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            try:
+                for _ in range(10_000):
+                    self.wfile.write(b"10000\r\n" + b"x" * 0x10000 + b"\r\n")
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the fetcher left the redirect's body unread, as it must
+            return
         with server.lock:
             server.requests += 1
             n = server.requests
-        if "fail" in modes or ("429-once" in modes and n == 1):
-            self.send_response(429 if "429-once" in modes else 503)
+        if "fail" in modes or ({"429-once", "429-date"} & modes and n == 1):
+            self.send_response(503 if "fail" in modes else 429)
             if "429-once" in modes:
                 self.send_header("Retry-After", "1")
+            if "429-date" in modes:
+                self.send_header("Retry-After", self.date_time_string(time.time() + 20))
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -92,8 +105,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             chunk = body
             length = len(chunk)
-        if "weak-etag" in modes:
-            self.send_header("ETag", 'W/"v1"')
+        if "weak-etag" in modes or ("weak-etag-on-range" in modes and honour):
+            self.send_header("ETag", 'W/"v2"' if "weak-etag-on-range" in modes else 'W/"v1"')
+        elif "date-now" in modes:
+            self.send_header("Last-Modified", self.date_time_string())
         elif "date-only" in modes:
             self.send_header("Last-Modified", "Wed, 01 Jan 2025 00:00:00 GMT")
         else:
@@ -282,6 +297,58 @@ class Fetch(unittest.TestCase):
         self.assertFalse(Path("src/.partial/data.bin").exists())
         self.assertEqual(self.run_fetch()["status"], "fetched")
 
+    def test_a_redirect_body_is_never_read(self):
+        self.assertEqual(self.run_fetch(path="/endless-redirect")["status"], "fetched")
+        self.assertEqual(Path("src/data.bin").read_bytes(), BODY)
+
+    def test_a_changed_weak_etag_on_a_range_restarts(self):
+        self.half_partial()
+        self.server.modes = {"weak-etag-on-range"}
+        original = Handler.do_GET
+
+        def once(handler):
+            original(handler)
+            handler.server.modes = set()
+
+        with mock.patch.object(Handler, "do_GET", once):
+            line = self.run_fetch()
+        self.assertEqual((line["status"], line["resumed"]), ("fetched", False))
+
+    def test_a_date_validator_is_used_only_when_strong(self):
+        # Last-Modified equal to the response's Date is weak: a drop then means starting again, not resuming.
+        self.server.modes = {"date-now", "drop-once"}
+        line = self.run_fetch()
+        self.assertEqual((line["status"], line["resumed"]), ("fetched", False))
+        self.assertEqual(len(self.server.served), 2)
+        self.assertEqual(self.server.served[1], SIZE)
+
+    def test_a_retry_after_date_is_waited_for(self):
+        self.server.modes = {"429-date"}
+        waits = []
+        self.assertEqual(self.run_fetch(sleep=waits.append)["status"], "fetched")
+        self.assertGreater(waits[0], 15)
+
+    def test_a_restart_after_an_ignored_range_counts_the_partial_once(self):
+        self.half_partial()
+        self.server.modes = {"ignore-range"}
+        # Room for the whole file and a little, not for the half partial and the whole file together.
+        self.assertEqual(self.run_fetch(source_limit=SIZE + 1024)["status"], "fetched")
+
+    def test_an_equal_length_partial_answered_416_is_verified_or_refused(self):
+        for sha, outcome in ((SHA, "fetched"), ("0" * 64, None)):
+            with self.subTest(sha=sha[:4]):
+                shutil.rmtree("src", ignore_errors=True)
+                Path("src/.partial").mkdir(parents=True)
+                Path("src/.partial/data.bin").write_bytes(BODY)
+                Path("src/.partial/data.bin.state.json").write_text(state(self.base, total=None).replace(SHA, sha))
+                requests = self.server.requests
+                if outcome:
+                    self.assertEqual(self.run_fetch(sha=sha)["status"], outcome)
+                else:
+                    with self.assertRaisesRegex(fetch.Refused, "does not match"):
+                        self.run_fetch(sha=sha)
+                self.assertEqual(self.server.requests, requests + 1)
+
     def test_a_whole_partial_is_verified_and_an_oversized_one_restarted(self):
         Path("src/.partial").mkdir(parents=True)
         Path("src/.partial/data.bin").write_bytes(BODY)
@@ -342,6 +409,13 @@ class Fetch(unittest.TestCase):
         self.assertTrue(Path("src/.partial/data.bin").exists())
         with self.assertRaisesRegex(fetch.Refused, "free-space floor"):
             self.run_fetch(min_free=10**18)
+        # A floor crossed while streaming a file of no stated length stops it too.
+        shutil.rmtree("src", ignore_errors=True)
+        self.server.modes = {"no-length"}
+        free = shutil.disk_usage(".").free
+        with mock.patch.object(fetch.shutil, "disk_usage", side_effect=[mock.Mock(free=free)] * 3 + [mock.Mock(free=0)] * 99):
+            with self.assertRaisesRegex(fetch.Refused, "fell under"):
+                self.run_fetch(min_free=1)
 
     def test_a_429_waits_as_long_as_the_server_asks(self):
         self.server.modes = {"429-once"}
@@ -355,6 +429,7 @@ class Fetch(unittest.TestCase):
             self.run_fetch(timeout=1, attempts=2)
 
     def test_a_trickle_slower_than_the_floor_is_cut(self):
+        # One small write at a time: the rate check runs as bytes arrive, not once per 64 KiB.
         self.server.modes = {"trickle"}
         with self.assertRaisesRegex(fetch.Refused, "slower than"):
             self.run_fetch(min_rate=1024 * 1024, rate_window=0.5, attempts=1)

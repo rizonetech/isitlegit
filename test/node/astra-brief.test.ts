@@ -111,13 +111,15 @@ describe("the downloads both briefs make", () => {
     expect(BRIEF_2).toContain("This sweep resumes only the folders it made itself, those holding `.sweep-2`");
     expect(BRIEF_2).toContain("put an empty `<source>/.sweep-2` in it before its first download");
     expect(BRIEF_2).toContain("except a folder this sweep made itself, which holds `.sweep-2`");
+    // A recollection after an invalid manifest keeps the mark, so an interrupted one can still be resumed.
+    expect(BRIEF_2).toContain("deletes that source's other files except `.sweep-2`");
     // No file is accepted unverified: a dataset with no published digest is recorded, never fetched.
-    for (const [brief, floor] of [
-      [BRIEF, "10000000000"],
-      [BRIEF_2, "20000000000"],
+    for (const [brief, floor, rejected] of [
+      [BRIEF, "10000000000", "`REJECTED.md`"],
+      [BRIEF_2, "20000000000", "`REJECTED-2.md`"],
     ] as const) {
       expect(brief).not.toContain("--unpublished");
-      expect(brief).toContain("`no published digest`");
+      expect(brief).toContain(`record it in ${rejected} with the reason \`no published digest\``);
       expect(brief).toContain(`\`--min-free ${floor}\``);
     }
   });
