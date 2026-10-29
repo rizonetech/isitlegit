@@ -186,7 +186,10 @@ describe("rows with the dataset's own screenshot", () => {
     });
     expect(result).toMatchObject({ status: "complete", imported: 1 });
     const [page] = store.manifest();
-    expect(page?.labels).toMatchObject({ lure: true, has_login_form: true });
+    expect(page?.labels).toMatchObject({ lure: true, has_login_form: true, has_payment_form: false });
+    // The inert copy found the sign-in form, so that flag stands; it found no card form, which a script could build in
+    // the live page the screenshot shows, so that flag is untrusted (§18).
+    expect(page?.label_source).toMatchObject({ has_login_form: "dom", has_payment_form: "unverified" });
     const stored = store.readPage(page?.id ?? "");
     // The capture, scaled to 1280 wide and cut to 2000 tall: not the inert render's 1280 by 2000 white page.
     expect(jpegSize(stored.screenshot)).toEqual({ width: 1280, height: 2000 });

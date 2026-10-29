@@ -601,3 +601,64 @@ describe("every page's terminal outcome (D03 T04 §9)", () => {
     }
   });
 });
+
+describe("a publisher's label on its capture (D03 T04 §18)", () => {
+  it("excludes a capture of something else, a text two sources label oppositely, and distrusts an inert copy's false flags", async () => {
+    const { applyRules, readExcluded } = await import("../../scripts/glimmer/label-rules.ts");
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-capture-"));
+    try {
+      const store = openStore(dir);
+      let n = 0;
+      const put = async (source: string, text: string, labels: Record<string, unknown>) =>
+        store.putPage(source, {
+          origin: "public",
+          licence: "CC0",
+          host: null,
+          template: null,
+          south_africa: false,
+          redacted: false,
+          screenshot: new Uint8Array(
+            await sharp({ create: { width: 16 + n++, height: 16, channels: 3, background: "#fff" } })
+              .jpeg()
+              .toBuffer(),
+          ),
+          text,
+          labels,
+          label_source: Object.fromEntries(
+            Object.keys(labels).map((k) => [k, k.startsWith("has_") ? "dom" : "ground-truth"]),
+          ),
+        } as Parameters<typeof store.putPage>[1]);
+      const lure = { lure: true, has_login_form: true, has_payment_form: false };
+      const parked = await put("set", "This domain is for sale. Buy this domain today.", lure);
+      const takedown = await put("set", "This phishing site has been taken down by the host.", lure);
+      const missing = await put("set", "404 Not Found: the page you were looking for", lure);
+      const wall = await put("set", "Are you a human? Press & Hold", lure);
+      const fine = await put("set", "Sign in to your bank", lure);
+      // One text, two sources, opposite labels.
+      const a = await put("set-a", "Welcome back to Example", lure);
+      const b = await put("set-b", "Welcome back to Example", {
+        lure: false,
+        has_login_form: true,
+        has_payment_form: false,
+      });
+      // An inert copy beside a live screenshot: a false flag is untrusted, a true one stands.
+      const live = await put("7-days-later", "Verify your account", {
+        lure: true,
+        has_login_form: false,
+        has_payment_form: true,
+      });
+      applyRules(store);
+      const excluded = readExcluded(dir);
+      expect(excluded.get(parked)).toMatch(/parked, suspended or taken-down/);
+      expect(excluded.get(takedown)).toMatch(/parked, suspended or taken-down/);
+      expect(excluded.get(missing)).toMatch(/an error page/);
+      expect(excluded.get(wall)).toMatch(/a bot challenge/);
+      expect(excluded.has(fine)).toBe(false);
+      for (const id of [a, b]) expect(excluded.get(id)).toMatch(/labelled a lure by one source and not by another/);
+      const sources = openStore(dir).readVerifiedPage(live)?.page.label_source;
+      expect(sources).toMatchObject({ has_login_form: "unverified", has_payment_form: "dom" });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

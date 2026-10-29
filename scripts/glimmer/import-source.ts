@@ -29,6 +29,9 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 export type SourceItem = {
   id: string; // the item's name inside the dataset, for exclusions
   load: () => Promise<{ screenshot: Uint8Array; text: string; has_login_form?: boolean; has_payment_form?: boolean }>;
+  // The screenshot is the dataset's live capture while the text and form flags come from an inert copy of its HTML
+  // (7 Days Later, §18): a form a script builds shows in the picture and not in the copy, so a false flag is untrusted.
+  inertFlags?: boolean;
   url: string | null;
   labels: Labels;
   label_source: PageInput["label_source"];
@@ -204,13 +207,15 @@ export async function importSource(options: {
       }
       const labels: Labels = { ...item.labels };
       const label_source = { ...item.label_source };
+      // A flag read off an inert copy beside a live screenshot is trusted only when it found the form.
+      const flagSource = (found: boolean) => (item.inertFlags && !found ? "unverified" : "dom");
       if (page.has_login_form !== undefined) {
         labels.has_login_form = page.has_login_form;
-        label_source.has_login_form = "dom";
+        label_source.has_login_form = flagSource(page.has_login_form);
       }
       if (page.has_payment_form !== undefined) {
         labels.has_payment_form = page.has_payment_form;
-        label_source.has_payment_form = "dom";
+        label_source.has_payment_form = flagSource(page.has_payment_form);
       }
       const host = hostOf(item.url);
       try {

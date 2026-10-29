@@ -15,6 +15,7 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { dirname, join, resolve } from "node:path";
 import { getDomain } from "tldts";
 import { type LURE_TYPES, PageAnswer } from "../../src/vision/page-screen.ts";
+import { NOT_FOUND, wallShown } from "./render.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -280,6 +281,20 @@ export function derivedBrand(page: StoredPage, text: string): string | null | un
   return page.labels.brand === brand ? undefined : brand;
 }
 
+// What a page shows once its site is gone: a parked or for-sale domain, a suspended account, a takedown notice.
+const PARKED =
+  /this domain (is|may be) for sale|buy this domain|domain (is )?parked|parked (free|domain)|(account|website|site) (has been )?suspended|has been (taken down|disabled|blocked|removed) (for|due to|because)|(phishing|deceptive) (site|page)s? (has been |was )?(taken down|removed|blocked)|deceptive site ahead|reported (as )?(a )?phishing/i;
+
+// Why a page's capture cannot carry its publisher's label (§18, plan review gap 5): the capture shows something other
+// than the page the label was given for. Null when it can.
+// Little text alone is no sign: a lure can be a logo and two fields, its screenshot carrying it.
+export function captureProblem(text: string): string | null {
+  if (PARKED.test(text.slice(0, 3000))) return "a parked, suspended or taken-down page";
+  if (NOT_FOUND.test(text.slice(0, 3000))) return "an error page";
+  if (wallShown({ title: "", text, overlays: "" })) return "a bot challenge";
+  return null;
+}
+
 // A label complete as the screener answers (every field of `PageAnswer` but its confidence).
 export function completeLabel(labels: StoredPage["labels"]): boolean {
   return PageAnswer.safeParse({ ...labels, confidence: 1 }).success;
@@ -345,7 +360,16 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
   const excluded = new Map<string, string>();
   for (const id of store.verify().damaged)
     excluded.set(id, "its files no longer match their hashes, or its record does not read");
-  for (const listed of store.manifest({ tolerant: true })) {
+  const listedPages = store.manifest({ tolerant: true });
+  // One page text two sources label oppositely (one a lure, one not): neither label can be trusted for it (§18).
+  const lureByText = new Map<string, Set<boolean>>();
+  for (const page of listedPages) {
+    if (page.origin !== "public" || page.labels.lure === undefined) continue;
+    const seen = lureByText.get(page.sha256.text) ?? new Set<boolean>();
+    seen.add(page.labels.lure);
+    lureByText.set(page.sha256.text, seen);
+  }
+  for (const listed of listedPages) {
     if (excluded.has(listed.id)) continue;
     const read = store.readVerifiedPage(listed.id);
     if (!read) {
@@ -353,6 +377,18 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
       continue;
     }
     const { page, text } = read;
+    // A publisher's label holds only for a capture that shows the page it was given for (§18, plan review gap 5).
+    if (page.origin === "public") {
+      const shown = captureProblem(text);
+      if (shown) {
+        excluded.set(page.id, `the capture is ${shown}, not the page its label was given for`);
+        continue;
+      }
+      if ((lureByText.get(page.sha256.text)?.size ?? 0) > 1) {
+        excluded.set(page.id, "the same page text is labelled a lure by one source and not by another");
+        continue;
+      }
+    }
     let current = page;
     if (!labelProblem(page)?.startsWith("the source labels contradict")) {
       const labels = { ...page.labels };
@@ -369,7 +405,17 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
         sources.brand = "rule";
         count(brand === null ? (page.labels.lure ? "brand unresolved" : "brand none") : "brand named");
       }
-      if (type || brand !== undefined) current = store.setLabels(page.id, labels, sources);
+      // A live screenshot beside text and form flags read from an inert copy of its HTML (7 Days Later, §18 gap 7):
+      // a form a script builds shows in the picture but not in the inert copy, so a false flag there is untrusted.
+      let flags = false;
+      if (page.source === "7-days-later")
+        for (const field of ["has_login_form", "has_payment_form"] as const)
+          if (labels[field] === false && sources[field] !== "unverified") {
+            sources[field] = "unverified";
+            flags = true;
+          }
+      if (flags) count("form flag untrusted");
+      if (type || brand !== undefined || flags) current = store.setLabels(page.id, labels, sources);
     }
     const problem = labelProblem(current);
     if (problem) excluded.set(page.id, problem);

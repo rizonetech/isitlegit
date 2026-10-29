@@ -76,6 +76,7 @@ export function phreshItem(
     label_source: lure
       ? { lure: "ground-truth", ...(brand ? { brand: "ground-truth" } : {}) }
       : { lure: "ground-truth", lure_type: "ground-truth" },
+    ...(shot ? { inertFlags: true } : {}),
     load: async () => {
       const page = await reader.renderHtml(html());
       return shot ? { ...page, screenshot: await normaliseScreenshot(shot()) } : page;

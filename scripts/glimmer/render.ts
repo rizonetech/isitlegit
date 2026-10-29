@@ -448,7 +448,7 @@ export function wallShown(seen: { title: string; text: string; overlays: string;
   return WALL_ONLY.test(anywhere) || CHALLENGE.test(opening);
 }
 
-const NOT_FOUND =
+export const NOT_FOUND =
   /page not found|404 not found|error 404|\b404\b.{0,20}(page|error)|(page|file) (you|you're) (were )?looking for|(doesn't|does not|could not|can't|cannot) be found|no longer (exists|available)/i;
 
 const SIGN_IN_PATH =
