@@ -604,6 +604,8 @@ Each Loupe version gets a model card the judges and the operator can read, gener
 
 ## 18. Many more public sources for Loupe 1.0
 
+> **Started:** 2026-10-29T13:09Z
+
 Loupe 1.0 trains on as much good data as the time allows (operator, 2026-10-28 20:50 SAST: "lift the cap until 30 November ... Then add many more sources"; §11 lifts the cap while training is free). Lures are the scarce side: benign pages already outnumber them and §10 holds lures to 40 to 60 percent of each split, so every new source is chosen first for its lures. **Corrected 2026-10-28:** was "Loupe 1.1 on a larger set, if time allows", after 1.0; the operator moved the larger set into 1.0.
 
 **Phase:** 0
