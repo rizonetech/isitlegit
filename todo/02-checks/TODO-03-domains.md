@@ -42,6 +42,10 @@ track: day-2
 
 UTS #39 defines a "skeleton" that maps visually confusable characters to one prototype; two domains with equal skeletons look alike. Combined with Damerau-Levenshtein distance and an added-word list, this catches the common lookalikes (spec 4.3). The Unicode table is vendored with its licence recorded in `NOTICE.md`.
 
+> **Started:** 2026-10-29T14:57Z
+
+**Corrected 2026-10-29** (at start, checked against the sources): (1) the current table is Unicode 18.0.0 (`# Version: 18.0.0`, dated 2026-08-06), served only at `latest`: `https://www.unicode.org/Public/security/` has numbered directories up to 16.0.0, so the vendored file is pinned by its own version line, which `scripts/build-confusables.ts` checks, refusing any other; (2) UTS #39 revision 34 defines `skeleton(X)` as `bidiSkeleton(LTR, X)`, and its `internalSkeleton` has four steps, not three: NFD, remove every Default_Ignorable_Code_Point (a zero-width joiner hides in a label otherwise), map each character to its prototype, NFD again; for a label with no right-to-left character the bidi reordering changes nothing, so `skeleton` is `internalSkeleton` there, and a label holding a right-to-left character (Hebrew, Arabic) gets no skeleton (`null`), which §2 reports as not compared rather than guessing; (3) `distance` is the optimal string alignment distance (Damerau-Levenshtein restricted to adjacent transpositions), counted in code points, which catches the swapped-letter lookalike the full form also does; (4) the map ships in the Worker as `src/checks/confusables-map.json`, generated, with the build script's check that it matches the vendored file in CI.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -51,10 +55,10 @@ UTS #39 defines a "skeleton" that maps visually confusable characters to one pro
 1. Vendor `confusables.txt` and generate a compact map. Done when: `src/checks/confusables-map.json` exists with its source version and licence noted.
 2. Write `skeleton`, `distance` and `addedWords`. Done when: tests pass the UTS #39 examples and the synthetic lookalikes.
 
-- [ ] Download `confusables.txt` from `https://www.unicode.org/Public/security/latest/confusables.txt`, store it in `vendor/unicode/` with its version header, and add a `NOTICE.md` row (Unicode License v3). Done when: the file and row exist.
-- [ ] Write `scripts/build-confusables.ts` generating `src/checks/confusables-map.json`. Done when: the generated map has the expected entry for Cyrillic `а` mapping to Latin `a`.
-- [ ] Write `skeleton(label)` (NFD, map, NFD again, per UTS #39 section 4) in `src/checks/lookalike.ts`. Done when: `test/checks/lookalike.test.ts` gives equal skeletons for `paypal` and `pаypal` (Cyrillic а).
-- [ ] Write `distance(a, b)` (Damerau-Levenshtein) and `addedWords(candidate, base)` for prefixes and suffixes such as `-payments`, `-invoice`, `-secure`, `-za`, `online`. Done when: the tests cover each.
+- [ ] Download `confusables.txt` from `https://www.unicode.org/Public/security/latest/confusables.txt` (version 18.0.0 on 2026-10-29), store it unchanged in `vendor/unicode/confusables.txt` with its SHA-256 recorded beside it, and add a `NOTICE.md` row (Unicode License v3, its version and URL). Done when: the file, its digest and the row exist. (**Corrected 2026-10-29**, at start.)
+- [ ] Write `scripts/build-confusables.ts` generating `src/checks/confusables-map.json` (its version and the source's digest inside), refusing a source whose version line is not 18.0.0 or whose digest differs, with `--check` for CI that fails when the committed map differs from a fresh build. Done when: the generated map has the expected entry for Cyrillic `а` mapping to Latin `a`, and `test/node/confusables-map.test.ts` runs `--check`. (**Corrected 2026-10-29**, at start.)
+- [ ] Write `skeleton(label)` (NFD, Default_Ignorable_Code_Point removed, map, NFD again, per UTS #39 section 4, revision 34; `null` for a label with a right-to-left character) in `src/checks/lookalike.ts`. Done when: `test/checks/lookalike.test.ts` gives equal skeletons for `paypal` and `pаypal` (Cyrillic а), for a label and the same label with a zero-width joiner in it, and for UTS #39's own examples; a Hebrew label gets `null`. (**Corrected 2026-10-29**, at start.)
+- [ ] Write `distance(a, b)` (optimal string alignment, in code points: **corrected 2026-10-29**) and `addedWords(candidate, base)` for prefixes and suffixes such as `-payments`, `-invoice`, `-secure`, `-za`, `online`. Done when: the tests cover each.
 - [ ] Commit: `checks: confusables skeleton and edit distance`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts` passes and fails if NFD normalisation is removed.
