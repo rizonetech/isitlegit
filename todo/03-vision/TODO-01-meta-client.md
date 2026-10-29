@@ -129,12 +129,16 @@ Handed to the Glimmer lane (2026-10-29): its teacher-label caller (D03 T04 §9, 
 
 ## 3. Cost and latency events per model call
 
+> **Started:** 2026-10-29T03:31Z
+
 The model trace on the report (D07 T03 §5), the cost-per-case dashboard and the eval's cost target (spec 4.9) all read one source: a `case_events` row per model call.
 
 **Phase:** 1
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/meta/events.test.ts` passes unchanged.
+
+**Corrected 2026-10-29** (at start, checked against the repository): `case_events` (`0001_core.sql`) has no `detail_json` column and its `case_id` is required, so the token counts and the request id need a column (a migration, `0022`), and a monitor call made before any case exists cannot be a `case_events` row as written; the client's context already carries a `budget` (D03 T01 §2), whose `model_spend` rows hold each attempt's estimate and settled cost, so an event's cost should be the same settled figure, not a second calculation.
 
 **Build order:**
 
