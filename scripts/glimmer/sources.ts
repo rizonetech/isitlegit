@@ -22,6 +22,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
+import { majesticList, renderReceipt, saList } from "./render.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -399,26 +400,31 @@ if (import.meta.filename === process.argv[1]) {
       process.exit(1);
     }
     const { problems, imports, pages, sourcesMd } = storeProblems(dir, ROOT, { hashRows: true });
-    // The benign lists' renders finished whole: every URL with its outcome, every stored page verified.
-    const renders: Record<string, { list_sha256: string; receipt_sha256: string }> = {};
-    for (const [list, folder] of [
-      ["majestic", "majestic"],
-      ["benign-sa", "benign"],
+    // The benign lists' renders finished whole, as they stand now (§18 round 1): each receipt computed afresh from the
+    // current list, the journal and the store, never trusted from a file an earlier run wrote. Every URL has its
+    // outcome and every stored page verifies.
+    const renders: Record<string, { list_sha256: string; urls: number; stored: number; excluded: number }> = {};
+    const journal = join(dir, "raw", "benign", "progress.jsonl");
+    const store = openStore(dir);
+    for (const [name, file] of [
+      ["majestic", join(dir, "raw", "majestic", "top.csv")],
+      ["benign-sa", join(ROOT, "eval", "glimmer", "benign-sa-urls.txt")],
     ] as const) {
-      const receiptFile = join(dir, "raw", folder, "RENDER.json");
-      if (!existsSync(receiptFile)) {
-        problems.push(`${list}: no RENDER.json: run node scripts/glimmer/render.ts receipt ${list}`);
+      if (!existsSync(file) || !existsSync(journal)) {
+        problems.push(`${name}: no list or no render journal to freeze its render from`);
         continue;
       }
-      const text = readFileSync(receiptFile, "utf-8");
-      const receipt = JSON.parse(text) as { list_sha256: string; unfinished: string[]; missing_pages: string[] };
+      const text = readFileSync(file, "utf-8");
+      const receipt = renderReceipt(name === "majestic" ? majesticList(text) : saList(text), journal, store);
       if (receipt.unfinished.length || receipt.missing_pages.length)
         problems.push(
-          `${list}: its render is not finished (${receipt.unfinished.length} unfinished, ${receipt.missing_pages.length} missing)`,
+          `${name}: its render is not finished (${receipt.unfinished.length} unfinished, ${receipt.missing_pages.length} missing)`,
         );
-      renders[list] = {
+      renders[name] = {
         list_sha256: receipt.list_sha256,
-        receipt_sha256: createHash("sha256").update(text).digest("hex"),
+        urls: receipt.urls,
+        stored: receipt.stored,
+        excluded: Object.values(receipt.excluded).reduce((sum, n) => sum + n, 0),
       };
     }
     if (problems.length) {

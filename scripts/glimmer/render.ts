@@ -1293,6 +1293,8 @@ export function recheckStored(
   if (existsSync(intentFile(journal)))
     finishRemoval(store, journal, JSON.parse(readFileSync(intentFile(journal), "utf-8")) as Removal);
   const result: Recheck = { checked: 0, removed: [], damaged: [], unassessed: [], rerendered: [] };
+  // Its own run in the journal, so what it records never extends a render run's time (§18 round 1).
+  appendJournal(journal, { url: "", event: "run", list: "recheck" });
   const benign = (id: string) => /^benign-/.test(id);
   result.damaged.push(...store.verify().damaged.filter(benign));
   for (const page of store.manifest({ tolerant: true })) {
@@ -1459,6 +1461,8 @@ export function reopenExcluded(journal: string, matching: RegExp): string[] {
   const reopened: string[] = [];
   for (const [url, event] of last) {
     if (event.event !== "excluded" || !matching.test(event.reason ?? "")) continue;
+    // Its own run in the journal, as a recheck's is.
+    if (!reopened.length) appendJournal(journal, { url: "", event: "run", list: "reopen" });
     appendJournal(journal, { url, event: "reopened", reason: event.reason ?? "" });
     reopened.push(url);
   }

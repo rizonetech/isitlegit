@@ -656,6 +656,18 @@ describe("a publisher's label on its capture (D03 T04 §18)", () => {
       // A wall named only in the render's title is a wall too, as the renderer reads it.
       const { captureProblem } = await import("../../scripts/glimmer/label-rules.ts");
       expect(captureProblem("Welcome", { title: "Just a moment...", overlays: "" })).toBe("a bot challenge");
+      // A lure tells the visitor their account is suspended or disabled: that is the lure, not a host's takedown.
+      for (const lure of [
+        "Your account has been suspended. Sign in with your email and password to restore access.",
+        "Your mailbox has been disabled due to suspicious activity. Verify now.",
+      ])
+        expect(captureProblem(lure)).toBeNull();
+      for (const gone of [
+        "This Account has been suspended. Contact your hosting provider for more information.",
+        "This website has been disabled by the host.",
+        "This site has been reported as phishing.",
+      ])
+        expect(captureProblem(gone)).toBe("a parked, suspended or taken-down page");
       expect(excluded.has(fine)).toBe(false);
       for (const id of [a, b]) expect(excluded.get(id)).toMatch(/labelled a lure by one source and not by another/);
       const sources = openStore(dir).readVerifiedPage(live)?.page.label_source;

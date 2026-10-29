@@ -895,6 +895,27 @@ describe("the batch run", () => {
     expect(renderReceipt(list(["/page"]), journal, store).missing_pages).toEqual([`${origin}/page`]);
   });
 
+  it("ends a run's time at the next run's start, a recheck's included, not at a later event", () => {
+    const journal = join(dir, "progress.jsonl");
+    const line = (event: Record<string, unknown>) => `${JSON.stringify(event)}\n`;
+    writeFileSync(
+      journal,
+      [
+        line({ url: "", event: "run", list: "benign-sa", concurrency: 2, at: "2026-10-29T08:00:00.000Z" }),
+        line({ url: `${origin}/page`, event: "started", at: "2026-10-29T08:00:01.000Z" }),
+        line({ url: `${origin}/page`, event: "excluded", reason: "HTTP 404", at: "2026-10-29T08:00:10.000Z" }),
+        // Two hours idle, then a recheck that records an outcome for the same URL.
+        line({ url: "", event: "run", list: "recheck", at: "2026-10-29T10:00:00.000Z" }),
+        line({ url: `${origin}/page`, event: "excluded", reason: "HTTP 404", at: "2026-10-29T10:00:01.000Z" }),
+      ].join(""),
+    );
+    const receipt = renderReceipt(list(["/page"]), journal, openStore(join(dir, "store")));
+    expect(receipt.runs).toEqual([
+      { started: "2026-10-29T08:00:00.000Z", ended: "2026-10-29T08:00:10.000Z", seconds: 10, concurrency: 2 },
+    ]);
+    expect(receipt.active_seconds).toBe(10);
+  });
+
   it("stores the usable pages, excludes the rest, and a rerun stores nothing twice", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "store/raw/benign/progress.jsonl");
@@ -1213,7 +1234,8 @@ describe("the batch run", () => {
     expect(recheckStored(store, journal).unassessed).toEqual([legacy]);
     const again = recheckStored(store, journal, { rerenderLegacy: true });
     expect(again.rerendered).toEqual([legacy]);
-    expect(readJournal(journal).map((e) => e.event)).toEqual(["excluded", "reopened"]);
+    // Each recheck is a run of its own in the journal, so its events never extend a render run's time.
+    expect(readJournal(journal).map((e) => e.event)).toEqual(["run", "run", "excluded", "reopened"]);
     // The next run renders it again, now with its evidence.
     const result = await runBatch({ list: list(["/page"]), store, journal, render: renderer.render });
     expect(result.stored).toBe(1);

@@ -296,8 +296,11 @@ export function derivedBrand(page: StoredPage, text: string): string | null | un
 }
 
 // What a page shows once its site is gone: a parked or for-sale domain, a suspended account, a takedown notice.
+// Each phrase names the site itself (this domain, this account as a host's notice says it, the website): a lure says
+// "your account has been suspended" or "disabled due to suspicious activity" to the visitor, and is no takedown (§18
+// round 1).
 const PARKED =
-  /this domain (is|may be) for sale|buy this domain|domain (is )?parked|parked (free|domain)|(account|website|site) (has been )?suspended|has been (taken down|disabled|blocked|removed) (for|due to|because)|(phishing|deceptive) (site|page)s? (has been |was )?(taken down|removed|blocked)|deceptive site ahead|reported (as )?(a )?phishing/i;
+  /this domain (is|may be) for sale|buy this domain|domain (is )?parked|parked (free|domain)|this (account|website|site) (has been |is )?suspended|(this|the) (website|site|page) (has been |was |is )?(taken down|disabled|blocked|removed|suspended)|(phishing|deceptive) (site|page)s? (has been |was )?(taken down|removed|blocked)|deceptive site ahead|(site|page|website) (has been |was )?reported (as )?(a )?phishing/i;
 
 // Why a page's capture cannot carry its publisher's label (§18, plan review gap 5): the capture shows something other
 // than the page the label was given for. Null when it can.

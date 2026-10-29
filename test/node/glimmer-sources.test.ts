@@ -209,7 +209,22 @@ describe("reconcile", () => {
     try {
       const fresh = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
       expect(fresh.status).toBe(1);
-      expect(fresh.stdout).toContain("majestic: no RENDER.json");
+      expect(fresh.stdout).toContain("majestic: no list or no render journal");
+      // A list rendered in part, as it stands now: an old receipt file claiming it finished is not read at all.
+      mkdirSync(join(store, "raw", "majestic"), { recursive: true });
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,example.com\n2,example.org\n");
+      writeFileSync(
+        join(store, "raw", "majestic", "RENDER.json"),
+        JSON.stringify({ unfinished: [], missing_pages: [] }),
+      );
+      mkdirSync(join(store, "raw", "benign"), { recursive: true });
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        `${JSON.stringify({ url: "https://example.com/", event: "excluded", reason: "HTTP 404", at: "2026-10-29T08:00:00.000Z" })}\n`,
+      );
+      const partial = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(partial.status).toBe(1);
+      expect(partial.stdout).toContain("majestic: its render is not finished (1 unfinished, 0 missing)");
       mkdirSync(join(store, "raw", "set"), { recursive: true });
       writeFileSync(join(store, "raw", "set", "IMPORT.json"), "{}");
       writeFileSync(
