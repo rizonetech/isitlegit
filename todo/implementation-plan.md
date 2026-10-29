@@ -282,7 +282,7 @@ Sections: 16 | Checklist items: 89
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 4     |
-| [ ]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
+| [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
 | [ ]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 6     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
@@ -314,6 +314,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 57/245 verified sections, 28 ready to run now.
+Progress: 58/245 verified sections, 28 ready to run now.
 
-Checklist: 683/1476 items completed (includes Commit items).
+Checklist: 684/1476 items completed (includes Commit items).
