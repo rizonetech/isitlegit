@@ -657,3 +657,10 @@ login	https://dashboard.peachpayments.com/	Peach Payments
 login	https://www.luno.com/login	Luno
 login	https://www.valr.com/signin	VALR
 account	https://www.flysafair.co.za/manage-booking	FlySafair
+login	https://learn.sun.ac.za/	Stellenbosch University
+login	https://elearning.dut.ac.za/	DUT
+login	https://www.unisa.ac.za/sites/myunisa/default	Unisa
+login	https://app.stitch.money/	Stitch
+login	https://merchant.payflex.co.za/	Payflex
+login	https://portal.payjustnow.com/	PayJustNow
+login	https://app.easyequities.co.za/	EasyEquities	openeasy.io
