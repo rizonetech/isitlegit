@@ -54,6 +54,7 @@ class Bench(http.server.ThreadingHTTPServer):
         self.cap = cap
         self.failing = failing
         self.dropped = False
+        self.drops = 0  # cuts actually made: a run that was never cut measured no recovery
         self.sent = 0
         self.lock = threading.Lock()
 
@@ -113,11 +114,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             while at <= end:
                 piece = body[at:min(end + 1, at + 65536)]
-                if drop_at is not None and at - start + len(piece) > drop_at - start and at < drop_at:
+                if drop_at is not None and at + len(piece) >= drop_at:
+                    # The piece that reaches the cut point, even exactly on a piece boundary, is the last one sent.
                     piece = body[at:drop_at]
                     self.wfile.write(piece)
+                    self.wfile.flush()
                     with server.lock:
                         server.sent += len(piece)
+                        server.drops += 1
                     self.connection.shutdown(2)
                     return
                 self.wfile.write(piece)
@@ -198,7 +202,7 @@ def measure(size: int, cap: int, runs: int) -> dict:
                 intact = got.exists() and hashlib.sha256(got.read_bytes()).hexdigest() == sha
                 sent = sum(server.sent for server in servers)
                 rows.append({"seconds": seconds, "refetched": max(0, sent - size), "recovered": done.returncode == 0,
-                             "intact": intact})
+                             "intact": intact, "cut": sum(server.drops for server in servers) > 0})
                 for server in servers:
                     server.shutdown()
                     server.server_close()
@@ -208,6 +212,7 @@ def measure(size: int, cap: int, runs: int) -> dict:
                 "median_refetched_bytes": int(statistics.median(r["refetched"] for r in rows)),
                 "recovered": sum(r["recovered"] for r in rows),
                 "intact": sum(r["intact"] for r in rows),
+                "cut": sum(r["cut"] for r in rows),
                 "runs": runs,
             }
         scenarios[scenario] = results
@@ -227,11 +232,12 @@ def acceptance(scenarios: dict) -> dict:
             verdicts[scenario] = {"met": None, "reason": "aria2c was not measured"}
             continue
         ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
+        # Every run of both tools must have been cut: a run the server never interrupted proves no recovery.
         met = (ratio <= 1.10 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"]
-               and ours["intact"] == ours["runs"])
+               and ours["intact"] == ours["runs"] and ours.get("cut") == ours["runs"] and theirs.get("cut") == theirs["runs"])
         verdicts[scenario] = {"met": met, "time_ratio": round(ratio, 3),
                               "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
-                              "intact": [ours["intact"], ours["runs"]]}
+                              "intact": [ours["intact"], ours["runs"]], "cut": [ours.get("cut"), theirs.get("cut")]}
     return verdicts
 
 

@@ -281,7 +281,7 @@ def _retry_after(value: str | None) -> float | None:
     """A Retry-After in seconds or as an HTTP date, as seconds from now (RFC 9110 section 10.2.3)."""
     if not value:
         return None
-    if value.strip().isdigit():
+    if re.fullmatch(r"\d{1,19}", value.strip()):
         return float(value.strip())
     when = _when(value)
     if when is None:
@@ -291,9 +291,14 @@ def _retry_after(value: str | None) -> float | None:
     return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
 
 
+def _count(value: str | None) -> int | None:
+    """A byte count a header gives: at most 19 digits (any real file fits), so a hostile one cannot cost a huge parse."""
+    return int(value) if value is not None and re.fullmatch(r"\d{1,19}", value) else None
+
+
 def _content_range(value: str | None):
     """`bytes a-b/total` as (a, b, total), with 0 <= a <= b < total; None for anything else."""
-    match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", value or "")
+    match = re.fullmatch(r"bytes (\d{1,19})-(\d{1,19})/(\d{1,19})", value or "")
     if not match:
         return None
     first, last, total = (int(g) for g in match.groups())
@@ -375,40 +380,55 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         def here() -> str:
             return live[where["at"] % len(live)]
 
-        def rotate():
-            if len(live) > 1:
+        def rotate(source: str | None = None):
+            # Only a failure of the URL in use moves on: one from a URL already left behind (a range's request still
+            # out when another range moved on) must not move past the URL that is working.
+            if len(live) > 1 and (source is None or source == here()):
                 where["at"] = (where["at"] + 1) % len(live)
                 log(f"fetch: trying the next URL ({where['at'] + 1} of {len(live)})")
 
-        def drop(error: Refused) -> None:
-            """The URL in use is ruled out for this run; the error itself when it was the last one."""
+        def drop(error: Refused, source: str | None = None) -> None:
+            """The URL that failed (`source`, or the one in use) is ruled out for this run; the error itself when it
+            was the last one. The URL in use stays in use when another one is ruled out."""
+            gone = here() if source is None else source
+            if gone not in live:
+                return  # already ruled out by another range's answer
             if len(live) == 1:
                 raise error
-            live.remove(here())
-            where["at"] %= len(live)
+            current, index = here(), live.index(gone)
+            live.remove(gone)
+            where["at"] = live.index(current) if current != gone else index % len(live)
             log(f"fetch: {error}; trying the next URL ({len(live)} left)")
 
-        def charge(reason: str, retry_after: float | None = None, progressed: bool = False) -> float:
+        def charge(reason: str, retry_after: float | None = None, progressed: bool = False, source: str | None = None,
+                   stay: bool = False) -> float:
             """One failure counted against the one budget every stream and segment shares; the wait it earns. A
             connection cut after it delivered bytes is tried again at once: the host is answering, so waiting buys
             nothing (aria2c does the same); its wait does not grow."""
             nonlocal failures, wait
+            if source is not None and source not in (here(),):
+                # A failure of a URL the run has already left (another range's request to it, still out when the
+                # run moved on): that URL was already counted and left, so the range simply goes on the current one.
+                log(f"fetch: {reason} from a URL already left; that range goes on the current one")
+                return 0.0
             failures += 1
             if failures >= attempts:
                 raise Refused(f"incomplete: {attempts} attempts failed ({reason}); the partial file is kept")
             if progressed and retry_after is None:
                 log(f"fetch: {reason} after bytes arrived; trying again now ({failures} of {attempts} attempts spent)")
-                rotate()
+                if not stay:
+                    rotate(source)
                 return 0.0
             pause = min(retry_after, 60.0) if retry_after is not None else wait
             cut = f" (the server asked for {retry_after:.0f}; waits stop at 60)" if retry_after and retry_after > 60 else ""
             log(f"fetch: {reason}; trying again in {pause:.0f} seconds{cut} ({failures} of {attempts} attempts spent)")
             wait = min(wait * 2, 30.0)
-            rotate()
+            if not stay:
+                rotate(source)
             return pause
 
-        def spend(reason: str, retry_after: float | None = None, progressed: bool = False):
-            pause = charge(reason, retry_after, progressed)
+        def spend(reason: str, retry_after: float | None = None, progressed: bool = False, stay: bool = False):
+            pause = charge(reason, retry_after, progressed, stay=stay)
             if pause:
                 sleep(pause)
 
@@ -417,7 +437,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             partial.unlink(missing_ok=True)
             state_file.unlink(missing_ok=True)
             state = {}
-            spend(reason)
+            spend(reason, stay=True)  # the URL answered, with another file: start it again there, not elsewhere
 
         def room(more: int):
             if _folder_bytes(source) + more > source_limit:
@@ -460,8 +480,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if not state.get("segments"):
                 # Any failure of the HEAD, or an answer that does not qualify, leaves the file to the one stream,
                 # which has its own budget and checks.
+                head_watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
-                    connection, response, _ = _request(here(), {}, timeout, allow_loopback, method="HEAD")
+                    connection, response, _ = _request(here(), {}, timeout, allow_loopback, head_watch, method="HEAD")
                     try:
                         status = response.status
                         length = response.getheader("Content-Length") or ""
@@ -476,28 +497,34 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     return "again"
                 except (_Retry, OSError, http.client.HTTPException) as error:
                     # A host that is down is a counted failure, and the next URL is asked: a mirror may qualify.
-                    spend(f"the HEAD failed ({error})")
+                    spend("the HEAD was slower than the rate floor" if head_watch.tripped else f"the HEAD failed ({error})")
                     return "again"
+                finally:
+                    head_watch.__exit__()
                 if status == 429 or status >= 500:
                     spend(f"HTTP {status} to the HEAD", wait_asked)
                     return "again"
                 ok = status == 200
-                if not (ok and length.isdigit() and ranges == "bytes" and validator and encoding == "identity"
-                        and int(length) >= segment_threshold):
+                if not (ok and _count(length) is not None and ranges == "bytes" and validator and encoding == "identity"
+                        and _count(length) >= segment_threshold):
                     one_stream = True
                     return "one-stream"
-                total = int(length)
+                total = _count(length)
                 count = segments if segments > 0 else 4
                 size = -(-total // count)
                 room(total)
-                with partial.open("wb") as handle:
-                    handle.truncate(total)
-                    os.fsync(handle.fileno())
+                try:
+                    with partial.open("wb") as handle:
+                        handle.truncate(total)
+                        os.fsync(handle.fileno())
+                except OSError as error:
+                    raise Refused(f"incomplete: the partial file could not be made ({error.strerror})") from error
                 state = {"url": url, "expected": [kind, want], "validator": validator, "encoding": "identity",
                          "total": total, "segments": [[a, min(a + size, total) - 1, 0] for a in range(0, total, size)]}
                 _write_json(state_file, state)
-            elif any(item[2] for item in state["segments"]):
-                resumed = True
+            else:
+                room(0)  # the partial already holds its full length: the source and disk must still allow it now
+                resumed = resumed or any(item[2] for item in state["segments"])
             guard = threading.Lock()
             stop = threading.Event()
             errors: list[BaseException] = []
@@ -516,9 +543,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     os.fsync(fd)
                     _write_json(state_file, claimed)
 
-            def failed(reason: str, retry_after: float | None = None, progressed: bool = False):
+            def failed(reason: str, retry_after: float | None = None, progressed: bool = False, source: str | None = None):
                 with guard:
-                    pause = charge(reason, retry_after, progressed)
+                    pause = charge(reason, retry_after, progressed, source)
                 if stop.wait(pause):
                     raise Refused("incomplete: another segment failed; the partial file is kept")
 
@@ -535,23 +562,27 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     with guard:
                         pace[id(item)] = (time.monotonic(), done)
                     watch = _Watchdog(min_rate, rate_window).__enter__()
+                    source = here()
                     try:
                         try:
                             connection, response, _ = _request(
-                                here(), {"Range": f"bytes={first + done}-{last}", "If-Range": state["validator"]}, timeout,
+                                source, {"Range": f"bytes={first + done}-{last}", "If-Range": state["validator"]}, timeout,
                                 allow_loopback, watch)
                         except _Retry as error:
-                            failed(str(error))
+                            failed(str(error), source=source)
                             continue
                         try:
                             if response.status == 429 or response.status >= 500:
-                                failed(f"HTTP {response.status}", _retry_after(response.getheader("Retry-After")))
+                                failed(f"HTTP {response.status}", _retry_after(response.getheader("Retry-After")),
+                                       source=source)
                                 continue
                             span = _content_range(response.getheader("Content-Range"))
                             encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
                             if (response.status != 206 or span is None or span[0] != first + done or span[1] > last
                                     or span[2] != state["total"] or encoding != "identity"
-                                    or not _same_representation(response.headers, state["validator"])):
+                                    or not _same_representation(response.headers, state["validator"])
+                                    or (response.getheader("Content-Length") is not None
+                                        and _count(response.getheader("Content-Length")) != span[1] - span[0] + 1)):
                                 raise _Misfit("a segment's answer does not fit the file")
                             at = first + done
                             while True:
@@ -564,11 +595,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 block = response.read1(min(CHUNK, end - at + 1))
                                 if not block:
                                     break
-                                if shutil.disk_usage(partial_dir).free < min_free:
-                                    raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
                                 with guard:
                                     block = block[:max(0, item[1] - at + 1)]  # never past this range's current end
                                     if block:
+                                        # The floor with this write counted, one writer at a time: the partial is
+                                        # sparse, so each write takes space, and no two ranges can pass one check.
+                                        if shutil.disk_usage(partial_dir).free - len(block) < min_free:
+                                            raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
                                         os.pwrite(fd, block, at)
                                         at += len(block)
                                         item[2] = at - first
@@ -581,16 +614,20 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                     progressed = True
                                     watch.bytes += len(block)
                                 if due:
-                                    save()
+                                    try:
+                                        save()
+                                    except OSError as error:
+                                        raise Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept") from error
                             with guard:
                                 end = min(span[1], item[1])
                             if at <= end:
                                 # A valid shorter answer is progress; one that stopped early is a failure.
                                 failed("slower than the rate floor" if watch.tripped else "a segment ended early",
-                                       progressed=progressed and not watch.tripped)
+                                       progressed=progressed and not watch.tripped, source=source)
                         finally:
                             connection.close()
                     except (Refused, _Misfit) as error:
+                        error.source = source  # which URL gave it, so only that one is ruled out
                         errors.append(error)
                         stop.set()
                         return
@@ -602,7 +639,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         try:
                             failed("slower than the rate floor" if watch.tripped
                                    else f"a segment broke off ({error.__class__.__name__})",
-                                   progressed=progressed and not watch.tripped)
+                                   progressed=progressed and not watch.tripped, source=source)
                         except Refused as spent:
                             errors.append(spent)
                             stop.set()
@@ -644,6 +681,17 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     return tail
 
             def worker():
+                # Any failure ends the run with a reason, never a range left claimed while the others wait on it.
+                try:
+                    work()
+                except (Refused, _Misfit) as error:
+                    errors.append(error)
+                    stop.set()
+                except Exception as error:
+                    errors.append(Refused(f"incomplete: a range failed unexpectedly ({error.__class__.__name__}); the partial file is kept"))
+                    stop.set()
+
+            def work():
                 while not stop.is_set():
                     item = claim()
                     if item is None:
@@ -680,7 +728,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 raise final
             route = next((error for error in errors if isinstance(error, _Route)), None)
             if route is not None:
-                drop(route)  # the ranges done so far stay: the next URL resumes them if its validator matches
+                drop(route, getattr(route, "source", None))  # the ranges done stay: the next URL resumes them
                 return "again"
             if errors:
                 raise errors[0]
@@ -740,7 +788,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             span is not None
                             and span[0] == have
                             and state.get("total") in (None, span[2])
-                            and (length is None or (length.isdigit() and int(length) == span[1] - span[0] + 1))
+                            and (length is None or _count(length) == span[1] - span[0] + 1)
                         )
                         if not (same and fits):
                             restart("the server's range or validator does not match the partial file")
@@ -750,7 +798,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         mode = "ab"
                         resumed = True
                     else:
-                        body = int(length) if length and length.isdigit() else None
+                        body = _count(length)
                         # The partial this answer replaces is counted once: it is truncated before the body arrives.
                         room(max((body or 0) - have, 0))
                         # Truncate first, then record the new answer: old bytes never sit under the new validator.

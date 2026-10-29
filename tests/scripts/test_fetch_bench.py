@@ -3,7 +3,9 @@ half its length on its first transfer, and records medians, recovery and integri
 import importlib.util
 import json
 import tempfile
+import threading
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest import mock
 
@@ -27,7 +29,7 @@ class Harness(unittest.TestCase):
         for scenario in ("drop", "mirror"):
             for tool in ("fetch.py (one stream)", "fetch.py (four segments)"):
                 row = figures["scenarios"][scenario][tool]
-                self.assertEqual((row["recovered"], row["intact"], row["runs"]), (1, 1, 1), (scenario, tool))
+                self.assertEqual((row["recovered"], row["intact"], row["cut"], row["runs"]), (1, 1, 1, 1), (scenario, tool))
             # A resume refetches nothing: the server sent one copy of the file in all.
             self.assertEqual(figures["scenarios"][scenario]["fetch.py (one stream)"]["median_refetched_bytes"], 0)
             self.assertIsNone(figures["acceptance"][scenario]["met"])
@@ -39,13 +41,27 @@ class Harness(unittest.TestCase):
         self.assertIn("<repo>/scripts/glimmer/fetch.py", recorded)
 
     def test_the_acceptance_line_judges_time_refetch_and_integrity(self):
-        def row(seconds, refetched, intact):
-            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "intact": intact, "runs": 5}
+        def row(seconds, refetched, intact, cut=5):
+            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "intact": intact, "cut": cut, "runs": 5}
 
         judged = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.5, 0, 5), "aria2c (four connections)": row(3.31, 65536, 5)},
                                    "mirror": {"fetch.py (four segments)": row(4.0, 0, 5), "aria2c (four connections)": row(3.31, 0, 5)}})
         self.assertTrue(judged["drop"]["met"])
         self.assertFalse(judged["mirror"]["met"])  # 21 percent slower
+        uncut = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.0, 0, 5, cut=0),
+                                           "aria2c (four connections)": row(3.31, 0, 5)}})
+        self.assertFalse(uncut["drop"]["met"])  # never interrupted: no recovery was measured
+
+    def test_the_cut_happens_on_a_piece_boundary(self):
+        # A transfer whose half falls exactly where a 64 KiB piece ends was never cut before (completion review G9).
+        body = bench.payload(4 * 65536)
+        server = bench.Bench(body, 10**9)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close()))
+        with self.assertRaises(Exception):
+            urllib.request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/x", timeout=5).read()
+        self.assertEqual(server.drops, 1)
+        self.assertEqual(server.sent, 2 * 65536)
 
     def test_refuses_nonsense_settings(self):
         with mock.patch("sys.stderr"):

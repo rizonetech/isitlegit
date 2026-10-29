@@ -1,6 +1,7 @@
 """scripts/glimmer/fetch.py (D03 T04 §16): a download that resumes where it stopped and accepts nothing unverified,
 against a local server that can drop, lie about ranges, change the file, redirect, stall, throttle or fail."""
 import errno
+import fcntl
 import hashlib
 import re
 import http.server
@@ -54,6 +55,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # `do_HEAD` is the name BaseHTTPRequestHandler dispatches a HEAD to.
     def do_HEAD(self):  # noqa: N802
         server, modes = self.server, self.server.modes
+        if "head-trickle" in modes:
+            # Headers a byte at a time, each well inside the socket timeout: only a rate check ends it.
+            try:
+                for byte in b"HTTP/1.1 200 OK\r\nX-Slow: " + b"x" * 200:
+                    self.wfile.write(bytes([byte]))
+                    self.wfile.flush()
+                    time.sleep(0.05)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass  # the rate check cut it, as it must
+            self.close_connection = True
+            return
         if "fail" in modes or "no-head" in modes:
             self.send_response(503 if "fail" in modes else 405)
             self.send_header("Content-Length", "0")
@@ -165,6 +177,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 end = start + (end - start) // 2
             if "short-ranges" in modes:
                 end = min(end, start + SIZE // 4 - 1)
+            if "segment-503-then-private" in modes and segment:
+                with server.lock:
+                    server.routed = getattr(server, "routed", 0) + 1
+                    k = server.routed
+                if k == 1:
+                    self.send_response(503)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                time.sleep(0.3)  # after the 503 has moved the run on to the mirror
+                return self.redirect("https://10.0.0.1/x")
             first = start + 1000 if "wrong-offset" in modes or ("segment-wrong-offset" in modes and segment) else start
             last = end + 5 if "bad-bounds" in modes else end
             self.send_response(206)
@@ -172,7 +195,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             chunk = body[start:end + 1]
             if "segment-corrupt" in modes and segment and start > 0:
                 chunk = bytes(b ^ 0xFF for b in chunk[:16]) + chunk[16:]
-            length = len(chunk) + (7 if "bad-length" in modes else 0)
+            length = len(chunk) + (7 if "bad-length" in modes or ("segment-bad-length" in modes and segment) else 0)
+            if "segment-huge" in modes and segment:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{'9' * 5000}")
             if "encoding" in modes:
                 self.send_header("Content-Encoding", "gzip")
         else:
@@ -765,6 +790,138 @@ class Fetch(unittest.TestCase):
         self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
         self.assert_whole()
         self.assertGreaterEqual(other.segment_requests, 4)
+
+    # Completion review gaps (D03 T04 §20, G1 to G8).
+    def test_a_segment_whose_length_disagrees_with_its_range_does_not_fit(self):
+        logged = []
+        self.server.modes = {"segment-bad-length"}
+        result = self.run_fetch(log=logged.append, **self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertTrue(any("does not fit" in line for line in logged), logged)
+
+    def test_hostile_numbers_are_bounded_and_a_failing_range_ends_the_run(self):
+        self.assertIsNone(fetch._content_range("bytes 0-1/" + "9" * 5000))
+        self.assertIsNone(fetch._count("9" * 5000))
+        self.assertIsNone(fetch._retry_after("9" * 5000))
+        self.server.modes = {"segment-huge"}
+        self.assertEqual(self.run_fetch(**self.SEGMENTED)["status"], "fetched")  # a misfit: one stream instead
+        self.assert_whole()
+        shutil.rmtree("src", ignore_errors=True)
+        self.server.modes = set()
+        real = fetch._content_range
+        calls = {"n": 0}
+
+        def breaking(value):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise ValueError("unexpected")
+            return real(value)
+
+        started = time.monotonic()
+        with mock.patch.object(fetch, "_content_range", breaking), \
+                self.assertRaisesRegex(fetch.Refused, "failed unexpectedly"):
+            self.run_fetch(**self.SEGMENTED)
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertTrue(Path("src/.partial/data.bin").exists())
+
+    def test_a_trickling_head_is_cut_by_the_rate_check_and_the_mirror_used(self):
+        other, base = self.mirror()
+        self.server.modes = {"head-trickle"}
+        started = time.monotonic()
+        result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[base + "/file"], timeout=30, sleep=lambda s: None, log=lambda line: None,
+                             segment_threshold=1 << 20, rate_window=0.5, min_rate=1000, **ROOMY)
+        self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
+        self.assertLess(time.monotonic() - started, 8)
+        self.assert_whole()
+
+    def test_a_resumed_segment_state_is_held_to_the_source_limit(self):
+        self.server.modes = {"segment-drop-once"}
+        with self.assertRaises(fetch.Refused):
+            self.run_fetch(attempts=1, **self.SEGMENTED)
+        self.server.modes = set()
+        with self.assertRaisesRegex(fetch.Refused, "limit"):
+            self.run_fetch(source_limit=SIZE // 2, **self.SEGMENTED)
+        self.assertFalse(Path("src/data.bin").exists())
+
+    def test_the_floor_counts_the_write_about_to_be_made(self):
+        real = fetch.shutil.disk_usage
+        calls = {"n": 0}
+
+        def tight(path):
+            calls["n"] += 1
+            usage = real(path)
+            # Room for the start's checks, then only a little over the floor: the next 64 KiB write would cross it.
+            return usage if calls["n"] <= 3 else usage._replace(free=10**6 + 1000)
+
+        with mock.patch.object(fetch.shutil, "disk_usage", tight), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+            self.run_fetch(min_free=10**6, **self.SEGMENTED)
+        self.assertFalse(Path("src/data.bin").exists())
+
+    def test_a_mirror_with_another_file_version_is_started_again_there(self):
+        # Ranges saved under "v1" from the first URL; that URL now fails, and the mirror holds "v2": the file starts
+        # again on the mirror, instead of the restart sending the run back to the failing URL until its tries run out.
+        self.server.modes = {"segment-drop-once"}
+        with self.assertRaises(fetch.Refused):
+            self.run_fetch(attempts=1, **self.SEGMENTED)
+        other, base = self.mirror()
+        other.etag = '"v2"'
+        self.server.modes = {"fail"}
+        result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[base + "/file"], timeout=2, sleep=lambda s: None, log=lambda line: None,
+                             segment_threshold=1 << 20, **ROOMY)
+        self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
+        self.assert_whole()
+
+    def test_a_late_refusal_from_a_url_already_left_rules_out_that_url_only(self):
+        # A range's 503 moves the run to the mirror; another range's request to the first URL then comes back as a
+        # redirect to a private address. Only the first URL is ruled out: the mirror the run moved to stays.
+        other, base = self.mirror()
+        self.server.modes = {"segment-503-then-private"}
+        result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[base + "/file"], timeout=2, sleep=lambda s: None, log=lambda line: None,
+                             segment_threshold=1 << 20, attempts=5, **ROOMY)
+        self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
+        self.assert_whole()
+
+    def test_eligibility_and_range_checks_hold_through_the_cli(self):
+        def cli():
+            return subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin",
+                                   "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE),
+                                   "--segment-threshold", str(1 << 20)], capture_output=True, text=True, check=False)
+
+        for modes, segmented in (({"segment-slow"}, True), ({"no-accept-ranges"}, False), ({"segment-wrong-offset"}, True)):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.modes, self.server.segment_requests = set(modes), 0
+                done = cli()
+                self.assertEqual(done.returncode, 0, done.stderr[-300:])
+                self.assert_whole()
+                self.assertEqual(self.server.segment_requests > 0, segmented)
+
+    def test_a_failed_flush_never_publishes(self):
+        real = fetch.os.fsync
+
+        def failing(kind):
+            def fsync(fd):
+                path = os.readlink(f"/proc/self/fd/{fd}")
+                mode = fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE
+                if path.endswith(".partial/data.bin") and mode == kind:
+                    raise OSError(errno.EIO, "I/O error")
+                return real(fd)
+            return fsync
+
+        # The range writer's flush (read-write descriptor) and the flush before the move (read-only) each fail.
+        for kind, reason in ((os.O_RDWR, "state could not be written"), (os.O_RDONLY, "moved into place")):
+            with self.subTest(reason=reason):
+                shutil.rmtree("src", ignore_errors=True)
+                with mock.patch.object(fetch.os, "fsync", failing(kind)), self.assertRaisesRegex(fetch.Refused, reason):
+                    self.run_fetch(**self.SEGMENTED)
+                self.assertFalse(Path("src/data.bin").exists())
+        result = self.run_fetch(**self.SEGMENTED)  # the rerun publishes what the last one verified
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
 
     def test_an_inconsistent_segment_state_starts_again(self):
         Path("src/.partial").mkdir(parents=True)
