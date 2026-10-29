@@ -123,6 +123,14 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<p>${words}</p><div style="position:fixed;inset:0;background:#fff"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width=200 height=200></div><script src="https://client.px-cdn.net/main.min.js"></script>`,
     ),
+  // A page that never holds still (§26, plan review gap 5), and one whose frame keeps navigating (gap 2).
+  "/title-ticker": (res) =>
+    html(res, `<p>${words}</p><script>let n = 0; setInterval(() => { document.title = 'Shop ' + n++ }, 20)</script>`),
+  "/frame-churn": (res) =>
+    html(
+      res,
+      `<p>${words}</p><iframe id=f width=400 height=300></iframe><script>let n = 0; setInterval(() => { f.src = '/frame-login?' + n++ }, 5)</script>`,
+    ),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
@@ -717,6 +725,22 @@ describe("the batch run", () => {
     expect(store.manifest().map((p) => p.url)).toEqual([`${origin}/page`]);
     expect(readJournal(journal).at(-1)).toMatchObject({ url: `${origin}/old-wall`, event: "excluded" });
     expect(recheckStored(store, journal).removed).toEqual([]);
+  });
+
+  it("refuses a capture that moved between its readings, never pairing earlier labels with a later picture", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const result = await runBatch({ list: list(["/title-ticker"]), store, journal, render: renderer.render });
+    expect(result).toMatchObject({ stored: 0, excluded: 1 });
+    expect(readJournal(journal).at(-1)?.reason).toBe("the page kept changing while it was captured");
+  });
+
+  it("refuses a capture whose shown frame could not be read, never reading it as an empty frame", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const result = await runBatch({ list: list(["/frame-churn"]), store, journal, render: renderer.render });
+    expect(result.stored).toBe(0);
+    expect(readJournal(journal).at(-1)?.reason).toMatch(/could not be read|kept changing/);
   });
 
   it("stores no bot wall, however it is drawn", async () => {

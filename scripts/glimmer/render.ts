@@ -130,6 +130,8 @@ export type Capture = {
 } & FormFlags;
 
 export class RenderTimeout extends Error {}
+// A capture that did not hold still, or kept a frame unread, through two tries: excluded with its reason.
+export class Unsettled extends Error {}
 // The page's own server answered with an error status that Chromium turned into a failed navigation (an empty 4xx or
 // 5xx body is `net::ERR_HTTP_RESPONSE_CODE_FAILURE` in some Chromium builds): the status, not the browser's error.
 export class HttpStatus extends Error {
@@ -592,75 +594,121 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     // The page and every frame in it the viewer can see, cross-origin and nested ones included: a sign-in form inside
     // an identity provider's frame is still the page's sign-in form. A frame counts only when every frame element
     // above it is shown (display, visibility, opacity 0 and a zero size all hide it).
-    const readFrame = async <T>(frame: Frame, fn: () => T, fallback: T): Promise<T> => {
-      try {
-        return await frame.evaluate(fn);
-      } catch {
-        return fallback; // a frame that went away or never loaded reads as empty
-      }
+    // A frame whose reading failed while it is still attached could not be read: it is counted, never taken for an
+    // empty or hidden frame (a sign-in form in it would otherwise read as none). A frame that went away is gone.
+    type Reading = {
+      url: string;
+      title: string;
+      text: string;
+      has_login_form: boolean;
+      has_payment_form: boolean;
+      walls: ReturnType<typeof readWalls>;
+      unreadable: number;
     };
-    const frameShown = async (frame: Frame): Promise<boolean> => {
-      for (let at: Frame | null = frame; at && at !== page.mainFrame(); at = at.parentFrame()) {
-        const element = await at.frameElement().catch(() => null);
-        const shown = await element
-          ?.evaluate((node, height) => {
-            const el = node as Element;
-            // The browser's own methods, never ones the page left on the frame element (see `readFormFlags`).
-            const box = Element.prototype.getBoundingClientRect.call(el);
-            // On the captured page, too: a frame moved off it (a negative offset, or past the 1280 by 2000 pixels the
-            // screenshot keeps) is not seen.
-            const onPage = box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < height;
-            return (
-              box.width > 0 &&
-              box.height > 0 &&
-              onPage &&
-              Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true })
-            );
-          }, MAX_HEIGHT)
-          .catch(() => false);
-        if (!shown) return false;
+    const readAll = async (): Promise<Reading> => {
+      let unreadable = 0;
+      const readFrame = async <T>(frame: Frame, fn: () => T, fallback: T): Promise<T> => {
+        try {
+          return await frame.evaluate(fn);
+        } catch {
+          if (!frame.isDetached()) unreadable++;
+          return fallback;
+        }
+      };
+      // Whether every frame element above this frame is shown; null when one could not be read.
+      const frameShown = async (frame: Frame): Promise<boolean | null> => {
+        for (let at: Frame | null = frame; at && at !== page.mainFrame(); at = at.parentFrame()) {
+          const element = await at.frameElement().catch(() => null);
+          if (!element) return at.isDetached() ? false : null;
+          const shown = await element
+            .evaluate((node, height) => {
+              const el = node as Element;
+              // The browser's own methods, never ones the page left on the frame element (see `readFormFlags`).
+              const box = Element.prototype.getBoundingClientRect.call(el);
+              // On the captured page, too: a frame moved off it (a negative offset, or past the 1280 by 2000 pixels
+              // the screenshot keeps) is not seen.
+              const onPage = box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < height;
+              return (
+                box.width > 0 &&
+                box.height > 0 &&
+                onPage &&
+                Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true })
+              );
+            }, MAX_HEIGHT)
+            .catch(() => (at?.isDetached() ? false : null));
+          if (shown === null) return null;
+          if (!shown) return false;
+        }
+        return true;
+      };
+      let text = await page.evaluate(shownText);
+      let has_login_form = false;
+      let has_payment_form = false;
+      const walls = await page.evaluate(readWalls);
+      for (const frame of page.frames()) {
+        if (frame !== page.mainFrame()) {
+          const shown = await frameShown(frame);
+          if (shown === null) unreadable++;
+          if (!shown) continue;
+        }
+        const flags = await readFrame(frame, readFormFlags, { has_login_form: false, has_payment_form: false });
+        has_login_form ||= flags.has_login_form;
+        has_payment_form ||= flags.has_payment_form;
+        if (frame === page.mainFrame()) continue;
+        text += `\n${await readFrame(frame, shownText, "")}`;
+        // The walls of every frame a viewer sees: a CAPTCHA or a wall can sit in a nested frame.
+        const inner = await readFrame(frame, readWalls, {
+          captcha: false,
+          consentWall: false,
+          overlays: "",
+          challengeCover: false,
+        });
+        walls.captcha ||= inner.captcha;
+        walls.challengeCover ||= inner.challengeCover;
+        if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 8000);
       }
-      return true;
+      return { url: page.url(), title: await page.title(), text, has_login_form, has_payment_form, walls, unreadable };
     };
-    let text = await page.evaluate(shownText);
-    let has_login_form = false;
-    let has_payment_form = false;
-    for (const frame of page.frames()) {
-      if (frame !== page.mainFrame() && !(await frameShown(frame))) continue;
-      const flags = await readFrame(frame, readFormFlags, { has_login_form: false, has_payment_form: false });
-      has_login_form ||= flags.has_login_form;
-      has_payment_form ||= flags.has_payment_form;
-      if (frame !== page.mainFrame()) text += `\n${await readFrame(frame, shownText, "")}`;
-    }
-    const title = await page.title();
-    // The walls of the page and of every frame on it a viewer sees: a CAPTCHA or a wall can sit in a nested frame.
-    const walls = await page.evaluate(readWalls);
-    for (const frame of page.frames()) {
-      if (frame === page.mainFrame() || !(await frameShown(frame))) continue;
-      const inner = await readFrame(frame, readWalls, {
-        captcha: false,
-        consentWall: false,
-        overlays: "",
-        challengeCover: false,
+    // Two readings agree when nothing a label rests on moved between them: the address, the title, the form flags, the
+    // walls and whether the text shows one. Ordinary moving content (a ticker, a carousel) is not compared.
+    const settled = (a: Reading, b: Reading) =>
+      a.url === b.url &&
+      a.title === b.title &&
+      a.has_login_form === b.has_login_form &&
+      a.has_payment_form === b.has_payment_form &&
+      a.walls.captcha === b.walls.captcha &&
+      a.walls.consentWall === b.walls.consentWall &&
+      a.walls.challengeCover === b.walls.challengeCover &&
+      wallShown({ ...a, overlays: a.walls.overlays }) === wallShown({ ...b, overlays: b.walls.overlays });
+    const screenshot = async () => {
+      // A page may remove its own root element; then nothing is drawn below the top.
+      const height = await page.evaluate(() => document.documentElement?.scrollHeight ?? 0);
+      // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
+      return page.screenshot({
+        type: "png",
+        // A full-page capture measures the page by its root, and waits forever on a page with none.
+        fullPage: height > 0,
+        clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, height)) },
+        timeout: left(),
       });
-      walls.captcha ||= inner.captcha;
-      walls.challengeCover ||= inner.challengeCover;
-      if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 8000);
+    };
+    // The capture as one moment: read, take the picture, read again. A page that moved between the readings (a
+    // navigation, a wall appearing) or left a frame unread is tried once more, then refused as such.
+    let reading = await readAll();
+    let shot = await screenshot();
+    let check = await readAll();
+    if (!settled(reading, check) || reading.unreadable || check.unreadable) {
+      reading = check;
+      shot = await screenshot();
+      check = await readAll();
+      if (reading.unreadable || check.unreadable) throw new Unsettled("a frame on the page could not be read");
+      if (!settled(reading, check)) throw new Unsettled("the page kept changing while it was captured");
     }
-    // A page may remove its own root element; then nothing is drawn below the top.
-    const height = await page.evaluate(() => document.documentElement?.scrollHeight ?? 0);
-    // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
-    const shot = await page.screenshot({
-      type: "png",
-      // A full-page capture measures the page by its root, and waits forever on a page with none.
-      fullPage: height > 0,
-      clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, height)) },
-      timeout: left(),
-    });
+    const { title, text, has_login_form, has_payment_form, walls } = reading;
     const written = (await Promise.all(downloads)).filter((path) => path !== null).length;
     return {
       listed: url,
-      finalUrl: page.url(),
+      finalUrl: reading.url,
       status: status ?? 0,
       title,
       text: text
