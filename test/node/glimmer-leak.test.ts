@@ -25,7 +25,16 @@ import {
   SOURCES,
 } from "../../scripts/glimmer/import-samples.ts";
 import { hasImages } from "../../scripts/glimmer/redact.ts";
-import { KINDS, runBenchmark, survives, WAYS } from "../../scripts/glimmer/redaction-benchmark.ts";
+import {
+  CONTROLS,
+  DISCOVERY,
+  KINDS,
+  runBenchmark,
+  seedPages,
+  survives,
+  unlistedSurvives,
+  WAYS,
+} from "../../scripts/glimmer/redaction-benchmark.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 
@@ -587,6 +596,32 @@ describe("the redaction benchmark", () => {
     expect(result.total.survived).toBe(0);
     expect(result.total.removed).toBeGreaterThan(0);
     expect(result.failedPages).toBe(0);
+  }, 120_000);
+
+  it("seeds details no detector is given, scores them apart, and keeps the lure's brand (§19)", async () => {
+    const { pages, names, terms, domains } = seedPages(4);
+    const unlisted = pages.flatMap((page) => page.unlisted);
+    expect(new Set(unlisted.map((u) => u.kind))).toEqual(new Set(DISCOVERY));
+    // The truth stays in its own record: no detector input names an unlisted person or address.
+    const inputs = [...names, ...terms, ...domains].join("\n").toLowerCase();
+    for (const u of unlisted)
+      for (const word of u.value
+        .toLowerCase()
+        .split(/[\s,]+/)
+        .filter((w) => [...w].length >= 4))
+        expect(inputs).not.toContain(word);
+    const result = await runBenchmark({ pages: 4, render });
+    expect(Object.keys(result.discovery).sort()).toEqual([...DISCOVERY].sort());
+    // The dictionary cannot remove what it was never given; that is measured, and the known kinds' bar still holds.
+    expect(Object.values(result.discovery).reduce((n, t) => n + t.survived, 0)).toBeGreaterThan(0);
+    expect(result.total.survived).toBe(0);
+    // Every page the check accepts keeps the brand it impersonates.
+    const accepted = result.pages - result.refusedPages - result.failedPages;
+    expect(accepted).toBeGreaterThan(0);
+    expect(result.controls).toEqual({ kept: accepted * CONTROLS.length, lost: 0 });
+    expect(
+      unlistedSurvives({ kind: "postal address", value: "14 Jacaranda Street, Parkhurst" }, "Deliver to [address]"),
+    ).toBe(false);
   }, 120_000);
 
   it("counts a render that failed as a failure, never as a refusal", async () => {

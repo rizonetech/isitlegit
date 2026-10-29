@@ -74,6 +74,31 @@ const FILLER = "Your account is on hold. Verify your details with FNB online ban
 
 export type Seeded = { kind: Kind; way: Way; value: string };
 
+// Details no detector is given (D03 T04 §19, plan review finding 5): people the run's client list and recipient headers
+// never name, in Afrikaans, isiZulu, Cyrillic and Arabic script, and postal addresses. They measure discovery, so
+// they are scored apart from the known kinds, whose bar (nothing survives) the dictionary must meet; their truth stays
+// in this record and never reaches `names`, `terms` or `domains`.
+export const DISCOVERY = [
+  "unlisted name",
+  "unlisted name, Cyrillic",
+  "unlisted name, Arabic",
+  "postal address",
+] as const;
+type Discovery = (typeof DISCOVERY)[number];
+export type Unlisted = { kind: Discovery; value: string };
+const UNLISTED: Record<Discovery, readonly string[]> = {
+  "unlisted name": ["Hendrik Grobbelaar", "Marlize Swanepoel", "Nomvula Zungu", "Sibusiso Mthembu"],
+  "unlisted name, Cyrillic": ["Олена Коваленко", "Дмитрий Соколов"],
+  "unlisted name, Arabic": ["فاطمة الزهراء", "يوسف المنصوري"],
+  "postal address": [
+    "14 Jacaranda Street, Parkhurst, Johannesburg, 2193",
+    "7 Kloof Nek Road, Tamboerskloof, Cape Town, 8001",
+    "221 Florida Road, Morningside, Durban, 4001",
+  ],
+};
+// What a lure page must keep: the brand it impersonates. A redaction that removes it destroys the lure's cue.
+export const CONTROLS = ["FNB", "Standard Bank"] as const;
+
 // One seeded detail's value and the HTML that writes it the given way.
 function written(value: string, way: Way): string {
   const mid = Math.max(1, Math.floor(value.length / 2));
@@ -138,7 +163,7 @@ export function seedPages(pages: number, seed = 20261029) {
         return CLIENT_DOMAIN;
     }
   };
-  const out: { html: string; seeded: Seeded[] }[] = [];
+  const out: { html: string; seeded: Seeded[]; unlisted: Unlisted[] }[] = [];
   let n = 0;
   for (let p = 0; p < pages; p++) {
     const seeded: Seeded[] = [];
@@ -151,7 +176,13 @@ export function seedPages(pages: number, seed = 20261029) {
       seeded.push({ kind, way, value: v });
       html += `<p>Reference: ${written(v, way)}</p>`;
     }
-    out.push({ html: `${html}<p>${FILLER}</p>`, seeded });
+    // Two details no detector is given, written plainly where a signature or a delivery note would put them.
+    const unlisted: Unlisted[] = [0, 1].map((k) => {
+      const kind = DISCOVERY[(2 * p + k) % DISCOVERY.length] as Discovery;
+      return { kind, value: g.pick(UNLISTED[kind]) };
+    });
+    for (const u of unlisted) html += `<p>${u.kind === "postal address" ? "Deliver to" : "Regards,"} ${u.value}</p>`;
+    out.push({ html: `${html}<p>${FILLER} Standard Bank customers are not affected.</p>`, seeded, unlisted });
   }
   return {
     pages: out,
@@ -182,6 +213,23 @@ export function survives(detail: Seeded, text: string): boolean {
   return seen.replace(/\D/g, "").includes(value.replace(/\D/g, ""));
 }
 
+// Whether a detail no detector was given is still there: a name by any of its words of three letters or more, an
+// address by its street line (number and street).
+export function unlistedSurvives(detail: Unlisted, text: string): boolean {
+  const seen = skeleton(text).toLowerCase().replace(/\s+/g, " ");
+  if (detail.kind === "postal address")
+    return seen.includes(
+      skeleton(detail.value.split(",")[0] as string)
+        .toLowerCase()
+        .replace(/\s+/g, " "),
+    );
+  return skeleton(detail.value)
+    .toLowerCase()
+    .split(" ")
+    .filter((word) => [...word].length >= 3)
+    .some((word) => seen.includes(word));
+}
+
 export type Tally = { seeded: number; refused: number; survived: number; removed: number };
 
 export async function runBenchmark(options: {
@@ -196,13 +244,20 @@ export async function runBenchmark(options: {
     by.set(key, t);
     return t;
   };
-  const accepted: { shot: Uint8Array; text: string; seeded: Seeded[] }[] = [];
+  const accepted: { shot: Uint8Array; text: string; seeded: Seeded[]; unlisted: Unlisted[] }[] = [];
+  const discovery = new Map<string, Tally>();
+  const found = (key: string) => {
+    const t = discovery.get(key) ?? { seeded: 0, refused: 0, survived: 0, removed: 0 };
+    discovery.set(key, t);
+    return t;
+  };
+  const controls = { kept: 0, lost: 0 };
   let refusedPages = 0;
   let failedPages = 0;
   for (const page of pages) {
     try {
       const shot = await renderRedacted(options.render, page.html, names, terms, domains);
-      accepted.push({ shot: shot.screenshot, text: shot.text, seeded: page.seeded });
+      accepted.push({ shot: shot.screenshot, text: shot.text, seeded: page.seeded, unlisted: page.unlisted });
     } catch (error) {
       // Only the privacy check's own refusals count as refused; a render that failed measured nothing.
       if (!/^refused: /.test((error as Error).message)) {
@@ -213,6 +268,10 @@ export async function runBenchmark(options: {
       for (const d of page.seeded) {
         tally(`${d.kind} / ${d.way}`).seeded++;
         tally(`${d.kind} / ${d.way}`).refused++;
+      }
+      for (const u of page.unlisted) {
+        found(u.kind).seeded++;
+        found(u.kind).refused++;
       }
     }
   }
@@ -225,6 +284,13 @@ export async function runBenchmark(options: {
       if (survives(d, page.text) || survives(d, read[index] ?? "")) t.survived++;
       else t.removed++;
     }
+    for (const u of page.unlisted) {
+      const t = found(u.kind);
+      t.seeded++;
+      if (unlistedSurvives(u, page.text) || unlistedSurvives(u, read[index] ?? "")) t.survived++;
+      else t.removed++;
+    }
+    for (const control of CONTROLS) controls[page.text.includes(control) ? "kept" : "lost"]++;
   });
   const total = [...by.values()].reduce(
     (sum, t) => ({
@@ -242,6 +308,9 @@ export async function runBenchmark(options: {
     screenshotsRead: Boolean(options.ocr),
     total,
     byKindAndWay: Object.fromEntries([...by].sort()),
+    // Measured, not barred: what the dictionary was never given (§19). Recall is removed over seeded, per kind.
+    discovery: Object.fromEntries([...discovery].sort()),
+    controls,
   };
 }
 
