@@ -292,7 +292,7 @@ Sections: 14 | Checklist items: 63
 
 ### Phase 99: Manual, operator only
 
-Sections: 15 | Checklist items: 60
+Sections: 15 | Checklist items: 61
 
 | Status | Reference   | Deliverable                                   | Needs    | Items |
 | ------ | ----------- | --------------------------------------------- | -------- | ----- |
@@ -302,7 +302,7 @@ Sections: 15 | Checklist items: 60
 | [x]    | D99 T01 §4  | SMTP2GO sender domain                         | none     | 5     |
 | [x]    | D99 T01 §6  | Google Web Risk API key                       | none     | 6     |
 | [x]    | D99 T01 §7  | Partner credits for Glimmer                   | none     | 2     |
-| [ ]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 5     |
+| [ ]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 6     |
 | [ ]    | D99 T01 §10 | Web Risk key restriction read from Google     | operator | 2     |
 | [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back | operator | 2     |
 | [ ]    | D99 T02 §1  | Rizonetech dogfooding from day 2              | operator | 3     |
@@ -314,4 +314,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 63/243 verified sections, 25 ready to run now.
 
-Checklist: 635/1471 items completed (includes Commit items).
+Checklist: 640/1472 items completed (includes Commit items).

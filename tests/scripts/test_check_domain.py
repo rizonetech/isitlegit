@@ -19,6 +19,7 @@ GOOD = {
             '0 issue "comodoca.com"', '0 issue "digicert.com; cansignhttpexchanges=yes"', '0 issuewild "letsencrypt.org"'],
     "DS": ["2371 13 2 360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B7239 28504665"],
     "flags": ";; flags: qr rd ra ad; QUERY: 1, ANSWER: 0, AUTHORITY: 4, ADDITIONAL: 1",
+    "DKIM": ['"v=DKIM1; h=sha256; k=rsa; p=' + "M" * 120 + '"'],
 }
 
 
@@ -29,7 +30,7 @@ class Domain(unittest.TestCase):
         self.assertLess(passed, cd.CHECKS)
 
     def test_the_recorded_setup_passes(self):
-        self.assertEqual(cd.check(GOOD), (7, []))
+        self.assertEqual(cd.check(GOOD), (8, []))
 
     def test_wrong_nameservers_or_mx_are_refused(self):
         self.refused("nameservers", NS=["ns1.example.net."])
@@ -91,6 +92,55 @@ class Domain(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertEqual(len(lines), 1)
                 self.assertIn("a lookup failed, so nothing was judged", lines[0])
+
+
+class Recovery(unittest.TestCase):
+    """D99 T01 §9: the runbook's states as check-domain reads them."""
+
+    def test_email_routing_dkim_must_be_one_published_key(self):
+        for dkim in ([], ['"v=DKIM1; p="'], GOOD["DKIM"] * 2, ['"not a key"']):
+            with self.subTest(dkim):
+                passed, refusals = cd.check({**GOOD, "DKIM": dkim})
+                self.assertTrue(any("DKIM key" in r for r in refusals), refusals)
+
+    def test_a_move_in_progress_is_named_not_passed(self):
+        # The DS pulled at the registry, the zone unsigned: two named refusals, never a pass.
+        passed, refusals = cd.check({**GOOD, "DS": [], "flags": ";; flags: qr rd ra; QUERY: 1"})
+        self.assertEqual(passed, cd.CHECKS - 2)
+        self.assertTrue(any("unsigned at the registry" in r for r in refusals), refusals)
+        self.assertTrue(any("ad flag" in r for r in refusals), refusals)
+
+    def test_a_planned_move_is_checked_against_its_reviewed_values_and_stale_ones_refused(self):
+        new = {**GOOD, "NS": ["ns1.newdns.example.", "ns2.newdns.example."], "DS": ["4242 13 2 " + "AB" * 32]}
+        nameservers, ds_record = cd.expected("ns1.newdns.example,ns2.newdns.example", "4242 13 2 " + "ab" * 32)
+        self.assertEqual(cd.check(new, nameservers, ds_record), (8, []))
+        passed, refusals = cd.check(new)
+        self.assertEqual(passed, 6)
+        passed, refusals = cd.check(GOOD, nameservers, ds_record)
+        self.assertEqual(passed, 6)
+        for ns, ds in (("ns1.only.example", None), ("not a name,x", None), (None, "2371 13 2"), (None, "x y z w")):
+            with self.subTest((ns, ds)):
+                with self.assertRaises(ValueError):
+                    cd.expected(ns, ds)
+
+    def test_diagnose_tells_a_dnssec_failure_from_an_outage(self):
+        def answering(plain, unchecked):
+            def run_dig(args, **kwargs):
+                status = unchecked if "+cd" in args else plain
+                if status is None:
+                    raise subprocess.TimeoutExpired("dig", 30)
+                return subprocess.CompletedProcess(args, 0, f";; ->>HEADER<<- opcode: QUERY, status: {status}, id: 1\n", "")
+            return run_dig
+
+        self.assertEqual(cd.diagnose(answering("NOERROR", "NOERROR"))[0], 0)
+        code, line = cd.diagnose(answering("SERVFAIL", "NOERROR"))
+        self.assertEqual(code, 1)
+        self.assertIn("DNSSEC failure", line)
+        for plain, unchecked in (("SERVFAIL", "SERVFAIL"), (None, None), ("SERVFAIL", None)):
+            with self.subTest((plain, unchecked)):
+                code, line = cd.diagnose(answering(plain, unchecked))
+                self.assertEqual(code, 2)
+                self.assertIn("do not touch the DS", line)
 
 
 class Dig(unittest.TestCase):

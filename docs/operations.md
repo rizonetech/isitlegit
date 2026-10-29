@@ -181,3 +181,63 @@ node scripts/mail-settle.ts reply:<case id> resend                              
 A resend that fails three cron runs is `exhausted` and comes to the operator as one alert; once SMTP2GO sends again (`python3 scripts/check-smtp2go.py`), `requeue` asks for it once more. A resend that SMTP2GO accepted but whose outcome could not be written is left to the reconciler above, never sent again.
 
 Each cron run logs one line, `{"event":"mail-reconcile","state":...}`, in Workers Logs: `disabled` when the SMTP2GO key is not set, `degraded` when a search failed (such as SMTP2GO refusing the activity search, HTTP 401 or 403) or a send could not be handed over, `ok` otherwise, with how many sends were settled, left unresolved and handed over. An alert that itself could not be confirmed sent is reconciled like any send, and its send counts as unresolved until it is.
+
+## Domain recovery
+
+`isitlegit.co.za` is signed with DNSSEC: Cloudflare signs the zone and the registry (ZADNA, through Domains.co.za) holds its DS record (D99 T01 §2). A nameserver or signing change made while that DS is still published makes every validating resolver refuse the domain (SERVFAIL), and with it the site, mail intake at `check@` and every report link (https://developers.cloudflare.com/dns/dnssec/). Each procedure below is ordered, each step names its command or dashboard action and the read-back that shows it worked, and each ends with `python3 scripts/check-domain.py`, which compares the live records with what §2 published: `check-domain: 8 of 8 checks passed` and exit 0 when all hold, exit 1 naming each wrong record (a move in progress is named as one, never passed), and exit 2 when a lookup could not be made at all. During an incident an exit 2 means "could not look", not "the records are fine" or "the records are wrong": check the network and try again before acting on it.
+
+The records as published, for comparing by eye: nameservers `carmelo.ns.cloudflare.com` and `paris.ns.cloudflare.com`; DS `2371 13 2 360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B723928504665`; MX `route1`, `route2`, `route3.mx.cloudflare.net`; SPF `v=spf1 include:_spf.mx.cloudflare.net ~all`; Email Routing's DKIM key at `cf2024-1._domainkey`; DMARC `v=DMARC1; p=reject; sp=reject; adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za`; CAA rows only for Universal SSL's authorities (`CLOUDFLARE_CAS` in `scripts/check-domain.py`; read back on 2026-10-29: `letsencrypt.org`, `pki.goog`, `ssl.com`, `comodoca.com` and `digicert.com`, each as `issue` and `issuewild`); SMTP2GO's `em1027207` (to `return.smtp2go.net`) and `s1027207._domainkey` (to `dkim.smtp2go.net`).
+
+### (a) A planned nameserver move
+
+Prepare before anything changes; abort at any step before 5 by leaving the delegation where it is.
+
+1. Prepare the destination: a provider that supports DNSSEC and the records above. Export the zone (Cloudflare: DNS, Records, Export) and keep the file. Create the zone at the new provider from it, and read every record back from the new provider's own nameservers before delegating: `dig @<new ns> <name> <type>` for each record in the list above gives the same answer as `@1.1.1.1`. Email Routing is Cloudflare's: a move off Cloudflare needs another inbound route to the Worker first (none is built; that is its own section), so a move off Cloudflare stops at this step.
+2. Measure the DS TTL at the parent: `dig +noall +answer DS isitlegit.co.za @ns.coza.net.za` (the TTL is the second field).
+3. Remove the DS at the registry: Domains.co.za, the domain, DNSSEC, delete the DS record. Read-back: `dig +short DS isitlegit.co.za @ns.coza.net.za` prints nothing. Start the wait only once that is observed.
+4. Wait twice the TTL from step 2 (48 hours when unsure). Read-back: `dig +short DS isitlegit.co.za @1.1.1.1` prints nothing, and `python3 scripts/check-domain.py` names the DS ("the zone is unsigned at the registry") and the `ad` flag, as expected mid-move.
+5. Move the nameservers at the registry. Keep the old provider's zone serving until every resolver has the new delegation (the NS TTL at the parent, twice). Read-back: `dig +noall +authority NS isitlegit.co.za @ns.coza.net.za` names the new nameservers (the registry answers a delegation in its authority section, so `+short` prints nothing there). Roll back by setting the old nameservers again: the old zone is still there.
+6. Sign the zone at the new provider and publish its DS at the registry. Read-back: `dig +dnssec +noall +comments isitlegit.co.za A @1.1.1.1` shows the `ad` flag in `flags:`.
+7. Check the new values before committing them: `python3 scripts/check-domain.py --expect-ns <ns1>,<ns2> --expect-ds "<tag> <alg> <type> <digest>"`, the values read from the registry. Read-back: 8 of 8. Then update `NAMESERVERS` and `DS` in `scripts/check-domain.py` (a commit, reviewed), and `python3 scripts/check-domain.py`. Read-back: 8 of 8.
+
+### (b) An emergency: the domain stops resolving
+
+1. Diagnose first: `python3 scripts/check-domain.py --diagnose`. Exit 0: it resolves; nothing to do here. Exit 2, "an outage, not DNSSEC": do not touch the DS; wait for Cloudflare's status page (https://www.cloudflarestatus.com) and escalate there. Exit 1, "a DNSSEC failure": the ordinary query fails while one with checking disabled answers, so the signatures, not the service, are at fault (https://developers.cloudflare.com/dns/dnssec/troubleshooting/); go on.
+2. Pull the DS at the registry, as (a) step 3, so resolvers stop validating: the domain resolves again, unsigned, as caches expire. Read-back: `python3 scripts/check-domain.py --diagnose` exits 0, and the full check names the DS and `ad` (unsigned, as expected now).
+3. Repair signing in Cloudflare (DNS, Settings, DNSSEC: its status; disable and re-enable if it reports an error), and read the DS it shows to publish.
+4. Publish that DS at the registry. Read-back: `dig +short DS isitlegit.co.za @ns.coza.net.za` shows it, and after the TTL `dig +dnssec +noall +comments isitlegit.co.za A @1.1.1.1` shows `ad`.
+5. If the DS differs from the recorded one: `python3 scripts/check-domain.py --expect-ds "<the new DS>"`, read-back 8 of 8, then commit it as `DS` in `scripts/check-domain.py`. Then `python3 scripts/check-domain.py`. Read-back: 8 of 8, the domain authenticated again.
+
+### (c) Restoring Email Routing
+
+1. In Cloudflare, Email, Email Routing: Routing status "Enabled", and its records added from that page (Cloudflare writes the three MX hosts, the SPF record and its DKIM key). Read-back: `dig +short MX isitlegit.co.za @1.1.1.1` lists the three `routeN.mx.cloudflare.net` hosts, `dig +short TXT isitlegit.co.za @1.1.1.1` exactly the SPF record above, and `dig +short TXT cf2024-1._domainkey.isitlegit.co.za @1.1.1.1` a `v=DKIM1` key.
+2. Destination addresses: the operator's mailbox verified (Cloudflare mails a link to click). Read-back: the address shows "Verified" on the Destination addresses tab.
+3. Routing rules, as D99 T01 §2 and D01 T01 §9 set them up: `check@` with the action "Send to a Worker", the Worker `isitlegit` (not a forward to a mailbox); `hello@`, `dmarc@` and `conduct@` (and the test-mailbox and demo-alert aliases §2 lists) with "Send to an email", the operator's mailbox; the catch-all as it stood (read it on the Routing rules tab during the walkthrough below, and restore that). Read-back: each rule shows "Active" with that action, and a forward to `check@` from the operator's mailbox gets its reply (`node scripts/live-intake.ts --message-id <the forward's Message-ID>`, D01 T01 §9).
+4. `python3 scripts/check-domain.py`. Read-back: 8 of 8.
+
+### (d) Restoring DMARC and CAA
+
+1. DNS, Records: one TXT record at `_dmarc` with exactly the DMARC value above. Read-back: `dig +short TXT _dmarc.isitlegit.co.za @1.1.1.1` prints exactly it, once.
+2. CAA: Cloudflare adds its own CAA rows for Universal SSL's authorities; keep only rows for those and remove any other. Read-back: `dig +short CAA isitlegit.co.za @1.1.1.1` lists only those authorities.
+3. `python3 scripts/check-domain.py`. Read-back: 8 of 8.
+
+### (e) Recovering SMTP2GO sending
+
+A revoked or leaked API key, or the sender-domain records removed, stop every reply, sign-in link and alert; the reconciler then reports `degraded` and sends wait (D01 T02 §5). The order is the vault first, then the Worker, then the check through the serving Worker; never a compromised key restored.
+
+1. Which case: the key leaked or may have (compromised, still live), or SMTP2GO revoked it (already dead). For a compromised key, revoke it first, before anything else: SMTP2GO, Sending, API Keys, delete the old key. Read-back: it is gone from the list. A revoked key needs no revoking; go to step 2.
+2. Create a new key with the sending and activity-search permissions only (what `scripts/check-smtp2go.py` probes).
+3. Store it in the vault, the item "IsItLegit SMTP2GO" (Conclave), replacing the old value. Read-back: `python3 scripts/check-smtp2go.py` (it reads the vault) says "the key is live, may send and search activity". A vault read that fails stops here: fix the vault before touching the Worker.
+4. Set it on the Worker from the vault, the value never printed or passed as an argument, refused if the read fails. `wrangler secret put` publishes a new version at once (https://developers.cloudflare.com/workers/configuration/secrets/), so do this only while no rollback is in effect (see "Roll back a broken deploy"):
+
+```bash
+key=$(conclave-op read "op://Conclave/IsItLegit SMTP2GO/credential") && [ -n "$key" ] \
+  && printf %s "$key" | pnpm exec wrangler secret put SMTP2GO_API_KEY \
+  || echo "not set: the vault read failed"
+unset key
+```
+
+   Read-back: `pnpm exec wrangler secret list` names `SMTP2GO_API_KEY`. If the command failed or its outcome is unclear, run it again: setting the same value twice is harmless.
+5. Verify through the serving Worker, not the vault: ask for a sign-in link to the operator's mailbox at `https://app.isitlegit.co.za/signin/link`, and it arrives. Read-back: the mail in the operator's inbox, and the next cron's `{"event":"mail-reconcile","state":"ok"}` line in Workers Logs.
+6. Sender-domain records removed: in SMTP2GO, Sending, Sender Domains, `isitlegit.co.za` shows the two records to add; add them in Cloudflare DNS as CNAMEs, `em1027207` to `return.smtp2go.net` and `s1027207._domainkey` to `dkim.smtp2go.net`, DNS only (not proxied), then Verify on SMTP2GO's page. Read-back: `python3 scripts/check-smtp2go.py` prints both records resolving, and SMTP2GO shows the domain verified.
+7. `python3 scripts/check-domain.py`. Read-back: 8 of 8.
