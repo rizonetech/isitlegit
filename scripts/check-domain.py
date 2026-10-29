@@ -155,11 +155,12 @@ def check(a, nameservers=None, ds_record=None):
     found = re.search(r"flags:([^;]*);", a["flags"])
     flag_words = found[1].split() if found else []
     need("ad" in flag_words, "the resolver did not validate the zone (no ad flag)")
-    # Any record that begins like a DKIM record counts, so a mistyped version is refused rather than skipped.
-    dkim = [txt(r) for r in a["DKIM"] if txt(r).strip().lower().startswith("v=dkim")]
+    # Every TXT record at the selector counts (round 4): DKIM's `v=` is optional, and more than one record there leaves
+    # verification undefined (RFC 6376 3.6.2.2), so the selector must hold exactly the one record.
+    dkim = [txt(r) for r in a["DKIM"]]
     need(len(dkim) == 1 and hashlib.sha256(dkim[0].strip().encode()).hexdigest() == ROUTING_DKIM_SHA256,
-         f"Email Routing's DKIM key ({ROUTING_DKIM}) is not the record Cloudflare published ({len(dkim)} DKIM "
-         "record(s); its text must match the recorded digest byte for byte)")
+         f"Email Routing's DKIM key ({ROUTING_DKIM}) is not the record Cloudflare published ({len(dkim)} TXT "
+         "record(s) at the selector; its text must match the recorded digest byte for byte)")
     demo_spf = [txt(r) for r in a["DEMO_TXT"] if txt(r).lower().startswith("v=spf1")]
     need({line.split()[-1] for line in a["DEMO_MX"] if line.split()} == MX_HOSTS
          and len(a["DEMO_MX"]) == len(MX_HOSTS) and demo_spf == [SPF_RECORD],

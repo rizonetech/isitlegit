@@ -175,6 +175,13 @@ class Recovery(unittest.TestCase):
                 passed, refusals = cd.check({**GOOD, "DKIM": [bad]})
                 self.assertTrue(any("DKIM key" in r for r in refusals), refusals)
 
+    def test_the_selector_must_hold_only_the_pinned_record(self):
+        # A record without `v=` is still a DKIM record (round 4), and so is any other TXT left at the selector.
+        for extra in ('"k=rsa; p="', '"some leftover text"', GOOD["DKIM"][0]):
+            with self.subTest(extra):
+                passed, refusals = cd.check({**GOOD, "DKIM": GOOD["DKIM"] + [extra]})
+                self.assertTrue(any("DKIM key" in r for r in refusals), refusals)
+
     def test_the_demo_subdomain_must_route_through_email_routing(self):
         for change in ({"DEMO_MX": []}, {"DEMO_MX": GOOD["DEMO_MX"][:2]}, {"DEMO_TXT": []},
                        {"DEMO_TXT": ['"v=spf1 -all"']}):
