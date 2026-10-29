@@ -44,10 +44,87 @@ export function formatSchema(schema: z.ZodType): Node {
     throw new ModelOutputError("schema", "the schema cannot be converted to JSON Schema");
   }
   const { $schema: _, ...json } = converted;
-  if (json.type !== "object" || "anyOf" in json || "enum" in json || "not" in json)
+  // Meta's limits, measured as it measures them (final review): across the whole schema, its definitions included.
+  limits(json);
+  // A named sub-schema (a zod `id`) is a `$defs` reference: inlined here, so only a reference cycle is refused.
+  const defs = { ...((json.$defs as Node | undefined) ?? {}), ...((json.definitions as Node | undefined) ?? {}) };
+  const nodes = { n: 0 };
+  const inlined = expand(json, defs, [], nodes) as Node;
+  if (inlined.type !== "object" || "anyOf" in inlined || "enum" in inlined || "not" in inlined)
     throw new ModelOutputError("schema", "the schema's root must be a plain object");
-  check(json, 1);
-  return json;
+  check(inlined, 1);
+  return inlined;
+}
+
+// Meta's documented limits for a structured-output schema (sources/meta-api/docs/docs/structured-output.md, "Stay within
+// schema constraints"): beyond any, it answers HTTP 400 before decoding.
+export const SCHEMA_LIMITS = {
+  properties: 5_000,
+  stringLength: 120_000,
+  enumValues: 1_000,
+  largeEnumValues: 250,
+  largeEnumLength: 15_000,
+  expandedNodes: 200_000,
+} as const;
+
+function limits(json: Node): void {
+  let properties = 0;
+  let length = 0;
+  let enumValues = 0;
+  const walk = (node: unknown) => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (!node || typeof node !== "object") return;
+    const n = node as Node;
+    for (const key of ["properties", "$defs", "definitions"] as const) {
+      const named = n[key] as Node | undefined;
+      if (named && typeof named === "object") {
+        if (key === "properties") properties += Object.keys(named).length;
+        for (const name of Object.keys(named)) length += name.length;
+      }
+    }
+    if (Array.isArray(n.enum)) {
+      enumValues += n.enum.length;
+      const strings = n.enum.filter((v): v is string => typeof v === "string");
+      const chars = strings.reduce((sum, v) => sum + v.length, 0);
+      length += chars;
+      if (strings.length > SCHEMA_LIMITS.largeEnumValues && chars > SCHEMA_LIMITS.largeEnumLength)
+        throw new ModelOutputError(
+          "schema",
+          `a string enum of over ${SCHEMA_LIMITS.largeEnumValues} values is too long`,
+        );
+    }
+    if (typeof n.const === "string") length += n.const.length;
+    for (const value of Object.values(n)) walk(value);
+  };
+  walk(json);
+  if (properties > SCHEMA_LIMITS.properties)
+    throw new ModelOutputError("schema", `the schema has more than ${SCHEMA_LIMITS.properties} properties`);
+  if (length > SCHEMA_LIMITS.stringLength)
+    throw new ModelOutputError(
+      "schema",
+      `the schema's names and values exceed ${SCHEMA_LIMITS.stringLength} characters`,
+    );
+  if (enumValues > SCHEMA_LIMITS.enumValues)
+    throw new ModelOutputError("schema", `the schema has more than ${SCHEMA_LIMITS.enumValues} enum values`);
+}
+
+// The schema with every `$ref` replaced by its definition, counting nodes as Meta does once references are inlined; a
+// reference to the root (`#`) or to a definition already being expanded is a cycle, which Meta refuses.
+function expand(node: unknown, defs: Node, stack: string[], nodes: { n: number }): unknown {
+  if (Array.isArray(node)) return node.map((item) => expand(item, defs, stack, nodes));
+  if (!node || typeof node !== "object") return node;
+  if (++nodes.n > SCHEMA_LIMITS.expandedNodes)
+    throw new ModelOutputError("schema", `the schema expands past ${SCHEMA_LIMITS.expandedNodes} nodes`);
+  const { $ref, $defs: _defs, definitions: _definitions, ...rest } = node as Node;
+  const out: Node = {};
+  if ($ref !== undefined) {
+    const name = typeof $ref === "string" ? /^#\/(?:\$defs|definitions)\/(.+)$/.exec($ref)?.[1] : undefined;
+    if (!name || stack.includes(name) || !Object.hasOwn(defs, name))
+      throw new ModelOutputError("schema", "a recursive schema (a $ref cycle) is not supported");
+    Object.assign(out, expand(defs[name], defs, [...stack, name], nodes));
+  }
+  for (const [key, value] of Object.entries(rest)) out[key] = expand(value, defs, stack, nodes);
+  return out;
 }
 
 // `depth` counts every container, an object or an array alike (completion review): the root is level 1.
@@ -58,7 +135,6 @@ function check(node: unknown, depth: number): void {
   }
   if (!node || typeof node !== "object") return;
   const n = node as Node;
-  if ("$ref" in n) throw new ModelOutputError("schema", "a recursive schema (a $ref) is not supported");
   if ("allOf" in n || "oneOf" in n) throw new ModelOutputError("schema", "allOf and oneOf are not supported");
   const container =
     n.type === "object" || n.type === "array" || "properties" in n || "items" in n || "prefixItems" in n;

@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 346
+Sections: 42 | Checklist items: 347
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -78,7 +78,7 @@ Sections: 42 | Checklist items: 346
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
 | [x]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 8     |
 | [x]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
-| [ ]    | D03 T01 §5  | Structured output helper with zod         | none                  | 9     |
+| [ ]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
 | [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 5     |
 | [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
@@ -313,4 +313,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 58/242 verified sections, 26 ready to run now.
 
-Checklist: 596/1427 items completed (includes Commit items).
+Checklist: 597/1428 items completed (includes Commit items).

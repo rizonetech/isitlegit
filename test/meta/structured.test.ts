@@ -331,3 +331,53 @@ describe("round 1 (2026-10-29)", () => {
     expect((await rows()).map((r) => r.error_class)).toEqual(["output-invalid", "output-invalid"]);
   });
 });
+
+describe("final review (2026-10-29)", () => {
+  it("inlines a shared named sub-schema and sends it, refusing only a reference cycle", async () => {
+    const Evidence = z.strictObject({ id: z.string() }).meta({ id: "Evidence" });
+    const Shared = z.strictObject({ a: Evidence, b: Evidence });
+    const m = model(() => text(JSON.stringify({ a: { id: "1" }, b: { id: "2" } })));
+    expect((await ask(m.ctx, Shared)).value).toEqual({ a: { id: "1" }, b: { id: "2" } });
+    const sent = (m.bodies[0] as { text: { format: { schema: Record<string, unknown> } } }).text.format.schema;
+    expect(JSON.stringify(sent)).not.toContain("$ref");
+    expect(sent).not.toHaveProperty("$defs");
+    const Node: z.ZodType = z
+      .strictObject({
+        id: z.string(),
+        get next() {
+          return z.array(Node);
+        },
+      })
+      .meta({ id: "Node" });
+    const cyclic = model(() => text(GOOD));
+    expect((await failure(ask(cyclic.ctx, z.strictObject({ root: Node }))))?.kind).toBe("schema");
+    expect(cyclic.bodies).toEqual([]);
+  });
+
+  it("refuses a schema past each of Meta's limits before any request, and accepts one at them", async () => {
+    const values = (n: number, width = 1) => Array.from({ length: n }, (_, i) => `v${i}`.padEnd(width, "x"));
+    const props = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`p${i}`, z.string()]));
+    const Leaf = z.strictObject(props(40)).meta({ id: "Leaf" });
+    const Mid = z
+      .strictObject(Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`m${i}`, Leaf])))
+      .meta({ id: "Mid" });
+    const over: z.ZodType[] = [
+      z.strictObject({ code: z.enum(values(1_001) as [string, ...string[]]) }),
+      z.strictObject(props(5_001)),
+      z.strictObject({ code: z.enum(values(251, 70) as [string, ...string[]]) }),
+      z.strictObject({
+        a: z.enum(values(500, 130) as [string, ...string[]]),
+        b: z.enum(values(500, 130).map((v) => `b${v}`) as [string, ...string[]]),
+      }),
+      z.strictObject(Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`r${i}`, z.array(Mid)]))),
+    ];
+    for (const schema of over) {
+      const m = model(() => text(GOOD));
+      expect((await failure(ask(m.ctx, schema)))?.kind).toBe("schema");
+      expect(m.bodies).toEqual([]);
+    }
+    const atLimit = model(() => text("{}"));
+    await failure(ask(atLimit.ctx, z.strictObject({ code: z.enum(values(1_000) as [string, ...string[]]) })));
+    expect(atLimit.bodies).toHaveLength(2);
+  });
+});
