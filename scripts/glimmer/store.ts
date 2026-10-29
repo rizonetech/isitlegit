@@ -348,16 +348,17 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return removed;
   }
 
-  // Takes one page out, renamed out of view before it is deleted like `removeSource`'s: a page a later check refuses
-  // (a challenge `render.ts recheck` finds). Returns whether it was there.
+  // Takes one page out (a page a later check refuses, `render.ts recheck`): renamed out of view, the rename made durable,
+  // then deleted. A stop or a failed flush after the rename leaves the `.removing-` folder, out of the manifest, for the
+  // next open to finish; the page is never half deleted while it still shows. Returns whether it was there.
   function removePage(id: string): boolean {
     if (!/^[a-z0-9][a-z0-9-]{0,40}-[0-9a-f]{16}$/.test(id)) throw new TypeError("not a page id");
     const folder = join(pages, id);
     if (!existsSync(folder)) return false;
     const gone = join(pages, `.removing-${id}-${process.pid}`);
     renameSync(folder, gone);
-    rmSync(gone, { recursive: true, force: true });
     sync(pages);
+    rmSync(gone, { recursive: true, force: true });
     return true;
   }
 

@@ -1,5 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
@@ -335,6 +344,37 @@ describe("recovery, integrity and removal", () => {
     expect(readdirSync(join(dir, "pages")).filter((name) => name.startsWith("."))).toEqual([]);
     for (const bad of ["../x", "public", ".removing-public-0123456789abcdef"])
       expect(() => store.removePage(bad)).toThrow();
+  });
+
+  it("makes a page's removal durable before deleting it, and finishes a stopped removal on the next open", async () => {
+    let failing = false;
+    const seen: boolean[] = [];
+    const store = openStore(dir, {
+      sync: (path) => {
+        if (path !== join(dir, "pages")) return;
+        // At the parent's flush the renamed folder is still there: the delete comes after it.
+        seen.push(readdirSync(path).some((name) => name.startsWith(".removing-")));
+        if (failing) throw Object.assign(new Error("EIO"), { code: "EIO" });
+      },
+    });
+    const kept = await store.putPage("public", page({ text: "kept" }));
+    const first = await store.putPage("public", page({ text: "first" }));
+    seen.length = 0;
+    expect(store.removePage(first)).toBe(true);
+    expect(seen).toEqual([true]);
+    // A failed flush: the page is out of view, renamed, never half deleted; the other page is whole.
+    const second = await store.putPage("public", page({ text: "second" }));
+    failing = true;
+    expect(() => store.removePage(second)).toThrow("EIO");
+    failing = false;
+    expect(store.manifest().map((p) => p.id)).toEqual([kept]);
+    const left = readdirSync(join(dir, "pages")).filter((name) => name.startsWith(".removing-"));
+    expect(left).toEqual([`.removing-${second}-${process.pid}`]);
+    // Its process gone (a stop), the next open finishes the removal.
+    renameSync(join(dir, "pages", left[0] as string), join(dir, "pages", `.removing-${second}-999999999`));
+    const reopened = openStore(dir);
+    expect(readdirSync(join(dir, "pages"))).toEqual([kept]);
+    expect(reopened.verify().damaged).toEqual([]);
   });
 
   it("removes one source whole and leaves a source that shares its prefix", async () => {
