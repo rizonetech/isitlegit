@@ -46,7 +46,7 @@ track: day-0
 | 6 | §6 | Google Web Risk API key | -- | [x] |
 | 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
-| 9 | §9 | Domain and mail recovery runbook | §2, §4 | [ ] |
+| 9 | §9 | Domain and mail recovery runbook | §2, §4 | [x] |
 | 10 | §10 | Web Risk key restriction read from Google | §6 | [ ] |
 | 11 | §11 | SMTP2GO key permissions and senders read back | §4 | [ ] |
 
@@ -344,6 +344,9 @@ Walkthrough 2026-10-29, against the live domain, nothing changed, every step lis
 (e) Finding the fault: `check-smtp2go.py` exit 0, and both CNAMEs resolve (`return.smtp2go.net.`, `dkim.smtp2go.net.`): no fault today. 1, revoke: not run (it deletes the live key). 2, records: intact, nothing to do. 3, create a key: not run (it creates a credential). 4: `check-smtp2go.py`: "the key is live, may send and search activity", exit 0. 5, put the secret: not run (it publishes a Worker version); its read-back, `wrangler secret list`, names `SMTP2GO_API_KEY`. 6, a sign-in link: not run (it sends mail); `check-smtp2go.py` exit 0. 7: 9 of 9.
 
 **Test checkpoint:** `python3 -m pytest tests/scripts/test_check_domain.py` passes (the runbook's states on synthetic answers), and `python3 scripts/check-domain.py` exits 0 with 9 of 9.
+
+> **Verified:** 2026-10-29 | §9 | f7ecf02c969a3eec14e8bbffffb822e25a2d49cc
+> **Review:** `docs/reviews/d99-t01-s9.json`
 
 
 ## 10. Web Risk key restriction read from Google
