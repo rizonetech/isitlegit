@@ -11,7 +11,7 @@ import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { clientDomains, leaks, protectedTerms, renderRedacted } from "./import-samples.ts";
-import { namePieces } from "./redact.ts";
+import { namePieces, skeleton } from "./redact.ts";
 import { openTextReader } from "./source-pages.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -168,12 +168,18 @@ export function seedPages(pages: number, seed = 20261029) {
 // Whether a seeded detail is still there: a name or address by the protected-term rule, a number by its digits with
 // every separator gone.
 export function survives(detail: Seeded, text: string): boolean {
+  // Both sides read as the screen shows them: look-alike letters and full-width forms folded first, so a detail the
+  // benchmark wrote that way is still found if it is still there.
+  const seen = skeleton(text);
+  const value = skeleton(detail.value);
   if (detail.kind === "name")
-    return namePieces(detail.value, undefined).some((piece) => leaks([{ id: "t", text }], [piece]).length > 0);
+    return namePieces(value, undefined).some((piece) => leaks([{ id: "t", text: seen }], [piece]).length > 0);
   if (detail.kind === "email" || detail.kind === "domain")
-    return text.toLowerCase().replace(/[\s­​]/g, "").includes(detail.value.toLowerCase());
-  const digits = detail.value.replace(/\D/g, "");
-  return text.replace(/\D/g, "").includes(digits);
+    return seen
+      .toLowerCase()
+      .replace(/[\s\u00AD\u200B]/g, "")
+      .includes(value.toLowerCase());
+  return seen.replace(/\D/g, "").includes(value.replace(/\D/g, ""));
 }
 
 export type Tally = { seeded: number; refused: number; survived: number; removed: number };

@@ -22,7 +22,7 @@ import {
   SOURCES,
 } from "../../scripts/glimmer/import-samples.ts";
 import { hasImages } from "../../scripts/glimmer/redact.ts";
-import { KINDS, runBenchmark, WAYS } from "../../scripts/glimmer/redaction-benchmark.ts";
+import { KINDS, runBenchmark, survives, WAYS } from "../../scripts/glimmer/redaction-benchmark.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 
@@ -336,11 +336,17 @@ describe("the sample import, end to end", () => {
     expect(building.building).not.toBe(key);
     // The next run resumes it: only what is not yet stored is rendered again, and the key is recorded.
     const before = calls;
-    calls = 0;
-    expect((await runImport({ samples, store, render, log: (l) => lines.push(l) })).code).toBe(0);
+    const again: string[] = [];
+    const counted = async (html: string) => {
+      again.push(html);
+      return render(html);
+    };
+    expect((await runImport({ samples, store, render: counted, log: (l) => lines.push(l) })).code).toBe(0);
     expect(lines.some((l) => /resuming the rebuild/.test(l))).toBe(true);
     expect(redactionState(store)).toMatchObject({ key: building.building, building: null });
-    expect(before).toBeGreaterThan(0);
+    // The pages stored before the failure are skipped: fewer renders than the first attempt, the failed one among them.
+    expect(again.length).toBeLessThan(before);
+    expect(again.some((html) => html.includes("SARS refund"))).toBe(true);
   }, 240_000);
 
   it("stops the old pages counting before it removes any", async () => {
@@ -485,6 +491,23 @@ describe("a sample render", () => {
 });
 
 describe("the redaction benchmark", () => {
+  it("finds a detail still there however the benchmark wrote it", () => {
+    // Its own look-alike way: full-width digits and a Cyrillic letter in the client's domain.
+    expect(
+      survives(
+        { kind: "phone", way: "look-alike letters", value: "082 555 1234" },
+        "call \uff10\uff18\uff12 \uff15\uff15\uff15 \uff11\uff12\uff13\uff14",
+      ),
+    ).toBe(true);
+    expect(
+      survives(
+        { kind: "domain", way: "look-alike letters", value: "kestrel-holdings.co.za" },
+        "see k\u0435strel-holdings.co.za",
+      ),
+    ).toBe(true);
+    expect(survives({ kind: "name", way: "plain", value: "Sipho Naidoo" }, "Dear [name]")).toBe(false);
+  });
+
   it("leaves no seeded detail of any kind, written any way, on a page it accepts", async () => {
     // Eight pages of ten: every one of the seven kinds meets each of the eleven ways at least once.
     const result = await runBenchmark({ pages: 8, render });
