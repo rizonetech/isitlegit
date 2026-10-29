@@ -506,6 +506,8 @@ A scaled-to-zero deployment answers the first request with an immediate `503 DEP
 
 ## 16. Resumable verified dataset downloads
 
+> **Started:** 2026-10-29T01:07Z
+
 Filed 2026-10-28 from D03 T04 §4's completion review (E2): a collection interrupted at 90 percent of a large download starts that file again, because the brief deletes `.partial/` on a rerun; a downloader such as aria2 resumes it. Resuming must keep the rule that no file is accepted until its full SHA-256 is checked.
 
 **Phase:** 7
