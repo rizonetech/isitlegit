@@ -64,6 +64,8 @@ CHUNK = 64 * 1024
 SEGMENT_THRESHOLD = 64 * 1024 * 1024
 MIN_SPLIT = 2 * 1024 * 1024  # the least a range's rest must hold for a free connection to take half of it
 MAX_RANGES = 64
+IDLE_WAIT = 0.25  # the longest an idle connection waits before looking for work again, when nothing rings it
+HASH_WAIT = 0.05  # the longest the hasher waits before reading on, when nothing rings it
 SPLIT_AFTER = 1.0  # a range is split only when its own pace says at least this many seconds of it are left
 STATE_EVERY = 4 * 1024 * 1024
 MAX_REDIRECTS = 5
@@ -550,6 +552,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 resumed = resumed or any(item[2] for item in state["segments"])
             guard = threading.Lock()
             stop = threading.Event()
+            # Rung when a range ends, a connection finishes or the run stops: an idle connection or the hasher waits on
+            # it instead of sleeping, so a finished run returns at once (a 0.25-second poll held each run back).
+            changed = threading.Condition()
+            live = {"workers": 0}
+
+            def wake():
+                with changed:
+                    changed.notify_all()
             errors: list[BaseException] = []
             counted = {"since": 0, "run": 0}
             fd = os.open(partial, os.O_RDWR)
@@ -712,6 +722,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     return tail
 
             def worker():
+                try:
+                    attempt_work()
+                finally:
+                    with guard:
+                        live["workers"] -= 1
+                    wake()
+
+            def attempt_work():
                 # Any failure ends the run with a reason, never a range left claimed while the others wait on it.
                 try:
                     work()
@@ -726,13 +744,17 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 while not stop.is_set():
                     item = claim()
                     if item is None:
-                        # Nothing to take now; a range still being read may become worth splitting in a moment.
-                        with guard:
-                            reading = any(rest(item) > 0 for item in state["segments"])
-                        if not reading or stop.wait(0.25):
-                            return
+                        # Nothing to take now; a range still being read may become worth splitting in a moment, or
+                        # end: either rings `changed` (checked under it, so no ring is missed).
+                        with changed:
+                            with guard:
+                                reading = any(rest(item) > 0 for item in state["segments"])
+                            if not reading or stop.is_set():
+                                return
+                            changed.wait(IDLE_WAIT)
                         continue
                     run(item)
+                    wake()
 
             hasher = hashlib.new(kind)
             hashed = {"at": 0, "failed": False}
@@ -757,15 +779,20 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 # The digest is computed in file order as the leading ranges fill, read back from the file, so only
                 # the last stretch is left to hash when the transfer ends (aria2c hashes the whole file after it).
                 try:
-                    while not stop.is_set() and any(thread.is_alive() for thread in threads):
+                    while not stop.is_set():
                         hash_up_to(frontier())
-                        stop.wait(0.05)
+                        with changed:
+                            with guard:
+                                if live["workers"] == 0:
+                                    break
+                            changed.wait(HASH_WAIT)
                 except OSError:
                     hashed["failed"] = True  # the whole-file pass after the transfer judges it instead
 
             try:
                 count = segments if segments > 0 else 4
                 threads = [threading.Thread(target=worker, daemon=True) for _ in range(count)]
+                live["workers"] = len(threads)
                 for thread in threads:
                     thread.start()
                 along = threading.Thread(target=hash_along, daemon=True)
@@ -778,6 +805,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     # Interrupted (Ctrl-C in a caller that goes on): every range stops and is waited for before the
                     # shared descriptor closes, so none writes or saves after this call returns.
                     stop.set()
+                    wake()
                     for thread in (*threads, along):
                         thread.join()
                     raise

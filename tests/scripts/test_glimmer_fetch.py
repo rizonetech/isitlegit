@@ -1035,6 +1035,20 @@ class Fetch(unittest.TestCase):
         self.assert_whole()
         self.assertGreaterEqual(self.server.segment_requests, 4)
 
+    def test_a_finished_run_returns_at_once_not_after_an_idle_poll(self):
+        # One slow range keeps the other connections idle; when it ends, they and the hasher are rung, not left to
+        # wake on their poll (the poll held each run back about 0.2 seconds in the bench; here it is made 5 seconds).
+        self.server.modes = {"slow-first-range"}
+        with mock.patch.object(fetch, "IDLE_WAIT", 5.0), mock.patch.object(fetch, "HASH_WAIT", 5.0), \
+                mock.patch.object(fetch, "MIN_SPLIT", 64 * 1024 * 1024):  # no splitting: the slow range ends alone
+            started = time.monotonic()
+            result = self.run_fetch(min_rate=0, **self.SEGMENTED)
+        elapsed = time.monotonic() - started
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        # The slow range is 2.5 MiB at 64 KiB a 0.05 seconds: about 2 seconds. A poll would add up to 5 more.
+        self.assertLess(elapsed, 4.0)
+
     def test_an_interrupted_segmented_fetch_leaves_no_range_writing(self):
         # A caller that catches Ctrl-C and goes on: once fetch() has returned, no range writes or saves.
         self.server.modes = {"segment-slow"}
