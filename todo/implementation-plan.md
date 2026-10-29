@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 349
+Sections: 42 | Checklist items: 351
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -80,7 +80,7 @@ Sections: 42 | Checklist items: 349
 | [x]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
 | [x]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
-| [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 7     |
+| [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 9     |
 | [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
@@ -205,7 +205,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 239
+Sections: 59 | Checklist items: 241
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -231,10 +231,10 @@ Sections: 59 | Checklist items: 239
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
-| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 5     |
+| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 6     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
-| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 5     |
+| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [ ]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 5     |
 | [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
@@ -271,7 +271,7 @@ Sections: 59 | Checklist items: 239
 
 ### Phase 7: After the event
 
-Sections: 13 | Checklist items: 58
+Sections: 13 | Checklist items: 59
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -285,7 +285,7 @@ Sections: 13 | Checklist items: 58
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
-| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 7     |
+| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 8     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
 
@@ -313,4 +313,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 59/242 verified sections, 28 ready to run now.
 
-Checklist: 598/1430 items completed (includes Commit items).
+Checklist: 598/1435 items completed (includes Commit items).
