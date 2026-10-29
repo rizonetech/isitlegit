@@ -35,7 +35,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Confusables skeleton and edit distance module | D02 T01 §1 | [x] |
 | 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [ ] |
-| 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [ ] |
+| 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [x] |
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
@@ -117,6 +117,9 @@ The brands most impersonated in South African small-business mail (banks, Micros
 - [x] Commit: `checks: curated brand domain table` Done 2026-10-29: 6066091, then the review fixes to eef55c5. Test checkpoint 2026-10-29: `pnpm exec vitest run test/checks/brands.test.ts test/node/load-brands.test.ts` 32 passed.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/brands.test.ts test/node/load-brands.test.ts` passes and fails if an entry lacks a dated source for any of its domains.
+
+> **Verified:** 2026-10-29 | §3 | c36b2300b0e8447b1761a8100a9b791384085618
+> **Review:** `docs/reviews/d02-t03-s3.json`
 
 ## 4. Domain age from RDAP with caching
 
