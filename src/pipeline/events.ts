@@ -34,7 +34,7 @@ export async function recordEvent(
     // kept whole, so a reply rebuilt from the event gives the same advice as the first (D01 T02 §8).
     error: extra.errorClass
       ? /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(extra.errorClass) ||
-        /^budget:(day|reserve|total):[a-z0-9][a-z0-9.-]{0,40}$/.test(extra.errorClass)
+        /^budget:(day|reserve|total):[a-z0-9.-]{1,64}$/.test(extra.errorClass)
         ? extra.errorClass
         : "Error"
       : null,

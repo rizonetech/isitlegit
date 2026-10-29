@@ -41,7 +41,7 @@ Sections: 26 | Checklist items: 340
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 365
+Sections: 42 | Checklist items: 368
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -73,14 +73,14 @@ Sections: 42 | Checklist items: 365
 | [x]    | D01 T01 §6  | Outlook .msg parsing                      | none                  | 6     |
 | [x]    | D01 T01 §7  | AnalysisWorkflow skeleton, partials       | none                  | 12    |
 | [x]    | D01 T02 §3  | Threaded reply with a signed report link  | none                  | 12    |
-| [ ]    | D01 T02 §8  | Re-deliver a reply settled failed         | none                  | 10    |
+| [x]    | D01 T02 §8  | Re-deliver a reply settled failed         | none                  | 11    |
 | [x]    | D01 T03 §1  | Upload API for mail, documents and audio  | none                  | 9     |
 | [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
 | [x]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 8     |
 | [x]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
 | [x]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
-| [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
+| [x]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 6     |
 | [x]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 12    |
 | [x]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 8     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
@@ -206,7 +206,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 247
+Sections: 59 | Checklist items: 248
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -217,7 +217,7 @@ Sections: 59 | Checklist items: 247
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
 | [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 9     |
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 3     |
-| [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 4     |
+| [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 3     |
 | [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
@@ -320,6 +320,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 68/251 verified sections, 31 ready to run now.
+Progress: 70/251 verified sections, 29 ready to run now.
 
-Checklist: 755/1579 items completed (includes Commit items).
+Checklist: 763/1583 items completed (includes Commit items).

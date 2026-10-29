@@ -176,7 +176,7 @@ node scripts/mail-settle.ts reply:<case id> requeue                             
 node scripts/mail-settle.ts reply:<case id> resend                                     # a reply already settled failed without --resend
 ```
 
-`status` says what the resend ended in (sent, refused with the allowlist's reason, left to the reconciler, no one to reply to, or the reason it could not be rebuilt) and the next step. A run that stopped mid-send is picked up by the next: asked for again if the reply never left, left to the reconciler if it may have. Every requested reply goes in the next run, however many are waiting.
+`status` says what the resend ended in (sent, refused with the allowlist's reason, left to the reconciler, no one to reply to, or the reason it could not be rebuilt) and the next step. A run that stopped mid-send is picked up by the next: asked for again if the reply never left, left to the reconciler if it may have. Each run sends every requested reply it can within its five-minute budget, so a normal backlog goes in the next run; a long backlog against a slow or silent SMTP2GO spills to the runs after it.
 
 A resend that fails three cron runs is `exhausted` and comes to the operator as one alert; once SMTP2GO sends again (`python3 scripts/check-smtp2go.py`), `requeue` asks for it once more. A resend that SMTP2GO accepted but whose outcome could not be written is left to the reconciler above, never sent again.
 

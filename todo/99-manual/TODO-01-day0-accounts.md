@@ -310,6 +310,8 @@ Evidence 2026-10-27 16:35 SAST, after the final review: `node scripts/check-gate
 
 ## 9. Domain and mail recovery runbook
 
+> **Started:** 2026-10-29T12:50Z
+
 D99 T01 §2 set up isitlegit.co.za with DNSSEC (the DS at the registry), Cloudflare's nameservers, Email Routing and DMARC `p=reject`. A nameserver or signing change made with the DS still in place stops the domain resolving, and with it the site, mail intake and every report link (Cloudflare's DNSSEC documentation, https://developers.cloudflare.com/dns/dnssec/). The operator needs one ordered procedure for the changes that can break it, each step with its read-back, rather than researching during an incident. Filed from §2's completion review (out-of-scope gap C5 and E2, 2026-10-28).
 
 **Phase:** 99

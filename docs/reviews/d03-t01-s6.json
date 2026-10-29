@@ -1,0 +1,119 @@
+{
+  "ref": "D03 T01 \u00a76",
+  "title": "Untrusted content blocks",
+  "implementation_sha": "f09c088de3101d52e91ad8d25e3a7b788c529dfe",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T01-s6.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T01-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/meta/untrusted.test.ts -> 10 passed (format, nonce, refusals, hostile fixtures, whole-character cap, byte-identity with the screener, the developer message through a real request, the drift test, bounded work, case-blind stripping)",
+    "mutation: a fixed nonce fails the test",
+    "pnpm exec vitest run --maxWorkers=2 -> 1237 passed, 2 skipped (before the final-review fix; its tests pass)"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T01-s6.md",
+    "verdict": "filed",
+    "candidate": "84f7d83fe26e57df7b9e0d5efa80933182c5b2d3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T02 \u00a73",
+      "D01 T03 \u00a74",
+      "D03 T04 \u00a71",
+      "D04 T02 \u00a74",
+      "D02 T05 \u00a71",
+      "D04 T01 \u00a76"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T01-s6.md",
+    "candidate": "f81eb129edde6940f6e2a7e47b6b50e503ab3176",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T01-s6.md",
+    "verdict": "fixed",
+    "candidate": "2ac6c69305035ec22ca0c9d700aa8f03c6ad197c",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

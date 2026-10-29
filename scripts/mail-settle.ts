@@ -46,13 +46,15 @@ export async function settle(
 
 // What the operator may do next, from the send's status and its resend's state (completion review, G6).
 function nextStep(status: string, state: string | null, reply: boolean): string {
+  // A resend in flight settles itself: nothing is settled under it (final review).
+  if (state === "sending") return "wait; the cron is sending it";
   if (status === "uncertain" || status === "pending")
     return "settle it from SMTP2GO's activity (sent, or failed with --resend for a reply)";
   if (status === "sent" || status === "refused") return "nothing; the mail is final";
   if (!reply) return "nothing; only a reply can be sent again";
-  if (state === null) return "resend, if SMTP2GO has no record of it";
+  // No resend yet, or one that ended (uncertain, then settled failed): the same check, then resend (round 4).
+  if (state === null || state === "done") return "resend, if SMTP2GO has no record of it";
   if (state === "requested") return "wait for the cron (15 minutes), or cancel";
-  if (state === "sending") return "wait; the cron is sending it";
   if (state === "exhausted" || state === "cancelled") return "requeue once SMTP2GO sends again";
   return "nothing";
 }

@@ -1,0 +1,129 @@
+{
+  "ref": "D01 T02 \u00a78",
+  "title": "Re-deliver a reply settled failed",
+  "implementation_sha": "04ef8f271bd5d91b741dfbd587ee0f06c6cd89b2",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T02-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T02-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/01-intake/D01-T02-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/01-intake/D01-T02-s8.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/mail -> 90 passed (resend, reconcile, the scheduled entrypoint, cancel, recovery, alerts, backlog, isolation, completeStored)",
+    "pnpm exec vitest run --project node test/node/mail-settle.test.ts -> 8 passed (--resend, status, cancel, requeue, resend on real migrations)",
+    "pnpm exec vitest run --maxWorkers=2 -> 1229 passed, 2 skipped (on e9d9e12; 04ef8f2 removes one unreachable line)",
+    "live: migrations 0031 to 0033 applied and read back; e9d9e12 deployed, /health ok"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s8.md",
+    "verdict": "completed",
+    "candidate": "800b474b1c5661132c375cd418f3d1b768d95d8e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "cap_outcome": "round 5's one P3 (an unreachable duplicate sending branch in status's next step) was removed in 04ef8f2, the commit this stamp names; no P1 or P2 remained",
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s8.md",
+    "candidate": "8c49897be7f1947ef90735a46d5764332d8b22d2",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T02-s8.md",
+    "verdict": "fixed",
+    "candidate": "e7fa1e9f9de76192d5b1ef2dace60c68f7954a97",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
