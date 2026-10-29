@@ -166,7 +166,8 @@ export function unescapeCss(html: string): string {
     )
     .replace(/(\sstyle\s*=\s*)("([^"]*)"|'([^']*)')/gi, (_m, name: string, _q: string, dq?: string, sq?: string) =>
       dq !== undefined ? `${name}"${decode(dq)}"` : `${name}'${decode(sq ?? "")}'`,
-    );
+    )
+    .replace(/(\sstyle\s*=\s*)([^\s"'>][^\s>]*)/gi, (_m, name: string, bare: string) => `${name}${decode(bare)}`);
 }
 
 // Every picture out of the HTML before it is rendered: an `<img>` becomes a grey box of its size (so the layout a lure

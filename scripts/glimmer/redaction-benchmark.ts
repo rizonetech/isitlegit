@@ -247,7 +247,7 @@ if (import.meta.filename === process.argv[1]) {
   try {
     const result = await runBenchmark({
       pages,
-      render: reader.renderHtml,
+      render: (html) => reader.renderHtml(html, { pictures: false }),
       ocr: async (shots) => {
         const files = shots.map((shot, i) => {
           const file = join(scratch, `${i}.jpg`);

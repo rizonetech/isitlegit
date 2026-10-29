@@ -797,7 +797,12 @@ async function main(command: string | undefined): Promise<number> {
   }
   const reader = await openTextReader();
   try {
-    const { code, inventory } = await runImport({ samples, store, render: reader.renderHtml, log: console.log });
+    const { code, inventory } = await runImport({
+      samples,
+      store,
+      render: (html) => reader.renderHtml(html, { pictures: false }),
+      log: console.log,
+    });
     console.log(
       `samples: ${JSON.stringify({ messages: inventory.messages, failed: inventory.failed.length, excluded: inventory.excluded.length, items: inventory.items, unsupported: inventory.unsupported })}`,
     );

@@ -169,6 +169,45 @@ export function shownText(): string {
 
 export type RenderedHtml = { screenshot: Uint8Array; text: string } & FormFlags;
 
+// The CSS properties that draw a picture, as the browser computes them.
+const PICTURE_PROPERTIES = [
+  "background-image",
+  "border-image-source",
+  "list-style-image",
+  "mask-image",
+  "-webkit-mask-image",
+  "content",
+];
+
+// Every picture out of a page, by the browser's own reading of it (D03 T04 §7): picture elements removed, and every
+// picture property of every element set to `none` with an inline `!important`, which outranks any stylesheet rule
+// however it is written, escaped or not. Run inside the page.
+export function removePictures(properties: string[]): void {
+  for (const el of document.querySelectorAll(
+    "img, picture, source, video, audio, svg, canvas, object, embed, iframe, frame, input[type=image]",
+  ))
+    el.remove();
+  for (const el of document.querySelectorAll<HTMLElement | SVGElement>("*"))
+    for (const property of properties) el.style.setProperty(property, "none", "important");
+  // Pseudo-elements take no inline style: a last stylesheet covers them, and `picturesLeft` refuses any it misses.
+  const sheet = document.createElement("style");
+  sheet.textContent = `*::before, *::after, *::marker { ${properties.map((p) => `${p}: none !important;`).join(" ")} }`;
+  document.head?.append(sheet) ?? document.documentElement.append(sheet);
+}
+
+// How many elements or pseudo-elements still draw a picture, as the browser computes them. Run inside the page.
+export function picturesLeft(properties: string[]): number {
+  let left = document.querySelectorAll(
+    "img, picture, video, svg, canvas, object, embed, iframe, frame, input[type=image]",
+  ).length;
+  for (const el of document.querySelectorAll("*"))
+    for (const pseudo of [null, "::before", "::after", "::marker"]) {
+      const style = getComputedStyle(el, pseudo);
+      if (properties.some((property) => /url\(|image-set\(|image\(/i.test(style.getPropertyValue(property)))) left++;
+    }
+  return left;
+}
+
 // One inert browser for many pages: open it once, read every page through it, close it. Nothing runs and nothing is
 // fetched (no JavaScript; every request refused), so a dataset's phishing HTML is laid out as a picture, never live.
 // A page gets 30 seconds in all. Playwright's `evaluate` has no time limit of its own, and one page that never answers
@@ -178,7 +217,7 @@ export const PAGE_DEADLINE_MS = 30_000;
 
 export async function openTextReader(options: { pageMs?: number } = {}): Promise<{
   visibleText: (html: string) => Promise<string>;
-  renderHtml: (html: string) => Promise<RenderedHtml>;
+  renderHtml: (html: string, options?: { pictures?: boolean }) => Promise<RenderedHtml>;
   launches: () => number;
   dropBrowser: () => Promise<void>;
   close: () => Promise<void>;
@@ -278,8 +317,15 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
     // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
     return withPage(html, async (page) => tidy(await page.evaluate(shownText)));
   }
-  async function renderHtml(html: string): Promise<RenderedHtml> {
+  // `pictures: false` (the pilot client's samples): the browser removes every picture before anything is read or
+  // captured, and a page it still finds one on is refused.
+  async function renderHtml(html: string, options: { pictures?: boolean } = {}): Promise<RenderedHtml> {
     return withPage(html, async (page) => {
+      if (options.pictures === false) {
+        await page.evaluate(removePictures, PICTURE_PROPERTIES);
+        if ((await page.evaluate(picturesLeft, PICTURE_PROPERTIES)) > 0)
+          throw new Error("refused: a picture survived the browser's own reading of the page");
+      }
       // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
       const text = tidy(await page.evaluate(shownText));
       const flags = await page.evaluate(readFormFlags);

@@ -174,7 +174,7 @@ let reader: Awaited<ReturnType<typeof openTextReader>>;
 const rendered: string[] = [];
 const render = async (html: string) => {
   rendered.push(html);
-  return reader.renderHtml(html);
+  return reader.renderHtml(html, { pictures: false });
 };
 beforeAll(async () => {
   reader = await openTextReader();
@@ -436,6 +436,42 @@ describe("the sample import, end to end", () => {
     rmSync(join(samples, "pilot-consent.md"));
     await expect(leakCheck({ samples, store, ocr: noText })).rejects.toThrow(/refused/);
   }, 240_000);
+});
+
+describe("a sample render", () => {
+  it("draws no picture however the page writes it, by the browser's own reading", async () => {
+    const red = (
+      await sharp({ create: { width: 8, height: 8, channels: 3, background: "#ff0000" } })
+        .png()
+        .toBuffer()
+    ).toString("base64");
+    // An unquoted style hiding url( and data: in escapes, a pseudo-element's picture marked !important by an id rule,
+    // and a plain image: each a solid red block where the screenshot would show it.
+    const escaped = `\\000075rl(data\\00003aimage/png;base64,${red})`;
+    const html = `<style>#p::before{content:"";display:block;width:300px;height:100px;background-image:url(data:image/png;base64,${red})!important;background-size:cover}</style>
+<div style=width:300px;height:100px;background-size:cover;background-image:${escaped}></div><div id=p></div><img src="data:image/png;base64,${red}" width=300 height=100>
+<p>${words}</p>`;
+    let shot: Uint8Array | undefined;
+    try {
+      shot = (await reader.renderHtml(html, { pictures: false })).screenshot;
+    } catch (error) {
+      expect(String(error)).toMatch(/refused: a picture survived/);
+      return;
+    }
+    const { data, info } = await sharp(shot).raw().toBuffer({ resolveWithObject: true });
+    let reds = 0;
+    for (let i = 0; i < data.length; i += info.channels)
+      if ((data[i] as number) > 200 && (data[i + 1] as number) < 60 && (data[i + 2] as number) < 60) reds++;
+    expect(reds).toBe(0);
+    // Without the rule the same page shows its pictures: the test can see red when red is drawn.
+    const plain = (await reader.renderHtml(html)).screenshot;
+    const raw = await sharp(plain).raw().toBuffer({ resolveWithObject: true });
+    let shown = 0;
+    for (let i = 0; i < raw.data.length; i += raw.info.channels)
+      if ((raw.data[i] as number) > 200 && (raw.data[i + 1] as number) < 60 && (raw.data[i + 2] as number) < 60)
+        shown++;
+    expect(shown).toBeGreaterThan(1000);
+  });
 });
 
 describe("the redaction benchmark", () => {
