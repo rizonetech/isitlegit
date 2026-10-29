@@ -9,6 +9,7 @@ import {
   normaliseScreenshot,
   openTextReader,
   PageTimeout,
+  passingRenderFault,
 } from "../../scripts/glimmer/source-pages.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
 
@@ -232,6 +233,16 @@ describe("visibleText", () => {
     const out = await reader.renderHtml('<body><h1>Top</h1><div style="height:60000px"></div><p>Bottom</p></body>');
     expect(jpegSize(out.screenshot)).toEqual({ width: 1280, height: 2000 });
     expect(out.text).toContain("Top");
+  });
+
+  it("tries a page once more when the capture failed, and only that fault", () => {
+    expect(
+      passingRenderFault(
+        new Error("page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot"),
+      ),
+    ).toBe(true);
+    expect(passingRenderFault(new Error("page.setContent: Timeout 10000ms exceeded"))).toBe(false);
+    expect(passingRenderFault(undefined)).toBe(false);
   });
 
   it("opens a new browser when the one it had is gone", async () => {

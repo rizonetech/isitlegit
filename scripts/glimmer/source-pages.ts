@@ -233,6 +233,11 @@ export function picturesLeft(properties: string[]): number {
 // closed and replaced, since a renderer that stopped answering may not close a page either.
 export const PAGE_DEADLINE_MS = 30_000;
 
+// A render fault that belongs to the attempt, not the page: Chromium's "Unable to capture screenshot".
+export function passingRenderFault(error: unknown): boolean {
+  return /Unable to capture screenshot/i.test(String((error as Error)?.message));
+}
+
 export async function openTextReader(
   options: { pageMs?: number; closeBrowser?: (browser: Browser) => Promise<void> } = {},
 ): Promise<{
@@ -337,6 +342,9 @@ export async function openTextReader(
         forget();
         return withPage(html, read, true);
       }
+      // A capture the compositor failed to take (a loaded host, 2026-10-29) is a passing fault of that one page: it is
+      // tried once more in a fresh page of the same browser.
+      if (passingRenderFault(error) && !retried) return withPage(html, read, true);
       throw error;
     } finally {
       clearTimeout(timer);
