@@ -677,13 +677,19 @@ describe("the teacher's command line, candidates and receipt spend (§9 final re
 
 describe("the teacher's accounting and coverage", () => {
   it("gives both records of an attempt one instant, so one SAST day, across midnight", () => {
-    const times = [new Date("2026-10-29T21:59:59.999Z"), new Date("2026-10-29T22:00:00.001Z")];
-    let i = 0;
-    const clock = sharedClock(() => times[Math.min(i++, 1)] as Date);
+    // A clock the test moves by hand: the teacher reserves before SAST midnight, then the clock passes it.
+    let now = new Date("2026-10-29T21:59:59.999Z");
+    const clock = sharedClock(() => now);
     const reserved = clock.teacher();
-    // The guard reads after the clock has moved past midnight, and still gets the teacher's instant.
+    now = new Date("2026-10-29T22:00:00.001Z");
+    expect(sastDay(now)).not.toBe(sastDay(reserved));
+    // The guard reads after midnight and still gets the teacher's instant, so one SAST day for both records.
     expect(clock.guard()).toBe(reserved);
     expect(sastDay(clock.guard())).toBe(sastDay(reserved));
+    // The next attempt takes the clock's new instant for both.
+    const next = clock.teacher();
+    expect(next).toBe(now);
+    expect(clock.guard()).toBe(next);
   });
 
   it("orders candidates South African first, then by a seeded shuffle rather than by id", () => {
