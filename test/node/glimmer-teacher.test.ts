@@ -7,6 +7,7 @@ import { openStore, type PageInput, type StoredPage } from "../../scripts/glimme
 import {
   type Ask,
   candidates,
+  checkLabels,
   ESTIMATE_USD,
   glimmerSpend,
   ledgerLock,
@@ -17,6 +18,7 @@ import {
   TEACHER_MAX_OUTPUT_TOKENS,
   teach,
   teacherState,
+  writeReceipt,
 } from "../../scripts/glimmer/teacher-label.ts";
 import { ledgerId } from "../../scripts/lib/meta-budget.ts";
 import { readLedger, tokenCost } from "../../scripts/meta-smoke.ts";
@@ -511,5 +513,28 @@ describe("a teacher run that stops", () => {
     });
     expect(calls).toBe(0);
     expect(teacherState(readTeacherState(join(dir, "store")), id)).toBe("agreed");
+  });
+});
+
+describe("the run's receipt and the completion check", () => {
+  it("fails on an unexplained page, a missing receipt and a stale one, and passes once each is settled", async () => {
+    const { applyRules } = await import("../../scripts/glimmer/label-rules.ts");
+    await stored(1, true);
+    const loose = await stored(2, true, {
+      labels: { has_login_form: false, has_payment_form: false },
+      label_source: { has_login_form: "dom", has_payment_form: "dom" },
+    });
+    const store = openStore(join(dir, "store"));
+    expect(checkLabels(store).join("; ")).toMatch(/neither a complete label nor an exclusion.*no receipt/);
+    applyRules(store);
+    expect(checkLabels(store)).toEqual(["no receipt: run the teacher"]);
+    const receipt = writeReceipt(store, [], new Date("2026-10-29T10:00:00Z"));
+    expect(receipt).toMatchObject({ snapshot: { pages: 2 }, complete: 1, excluded: { "no lure label": 1 } });
+    expect(checkLabels(store)).toEqual([]);
+    expect(loose).toBeTruthy();
+    // A page stored after the receipt makes it stale.
+    await stored(3, false);
+    applyRules(store);
+    expect(checkLabels(openStore(join(dir, "store"))).join()).toMatch(/covers 2 pages, not the 3/);
   });
 });

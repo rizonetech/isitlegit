@@ -1,6 +1,7 @@
 // Muse Spark as a second opinion on Loupe's evaluation pages (D03 T04 §9).
 //
-//   node scripts/glimmer/teacher-label.ts [--max <pages>]
+//   node scripts/glimmer/teacher-label.ts [--max <pages>]   # after label-rules.ts; writes raw/teacher/receipt.json
+//   node scripts/glimmer/teacher-label.ts check             # every page complete or excluded, the receipt current
 //
 // The free rules (`label-rules.ts`) fill every brand and lure type, so Spark's job is a check, not a fill: it answers
 // the screener's own request (`buildScreenRequest`, `SCREENER_SYSTEM_PROMPT`) for the pages that can enter evaluation (a
@@ -15,6 +16,8 @@
 // attempt's cost, or left at its estimate when its answer is lost. No attempt is sent that would take the ledger's
 // `glimmer-` entries past US$20. Each attempt's guard row (main's budget guard) carries its entry's ledger id, so an
 // import of the local ledger never counts an attempt twice (scripts/meta-spend-import.ts).
+
+import { createHash } from "node:crypto";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type MetaContext, metaResponses } from "../../src/meta/client.ts";
@@ -33,6 +36,7 @@ import {
   takeLock,
   tokenCost,
 } from "../meta-smoke.ts";
+import { completeLabel, readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
@@ -412,7 +416,103 @@ export async function teach(options: {
   return result;
 }
 
-if (import.meta.filename === process.argv[1]) {
+// The store a receipt was written for: its page count and a digest of every page's id and file hashes.
+export function snapshotOf(pages: StoredPage[]): { pages: number; digest: string } {
+  const lines = pages.map((p) => `${p.id} ${p.sha256.screenshot} ${p.sha256.text}`).sort();
+  return { pages: pages.length, digest: createHash("sha256").update(lines.join("\n")).digest("hex") };
+}
+
+export type Receipt = {
+  at: string;
+  snapshot: { pages: number; digest: string };
+  complete: number;
+  bySource: Record<string, Record<string, number>>; // label field -> label source -> pages
+  excluded: Record<string, number>; // reason -> pages
+  teacher: Record<string, number>; // state -> pages
+  unchecked: number; // evaluation candidates the teacher has not checked
+  unresolvedBrands: number; // lures whose text named no brand the rules know
+  spend: { measuredUsd: number; uncertainUsd: number }; // the teacher's runs, over every attempt in the ledger
+};
+
+const receiptFile = (dir: string) => join(dir, "raw", "teacher", "receipt.json");
+
+// The run's receipt, written temp-then-replace and read back: the store it covers and how every page ended.
+export function writeReceipt(store: ReturnType<typeof openStore>, ledger: Spend[], at: Date = new Date()): Receipt {
+  const pages = store.manifest({ tolerant: true });
+  const state = readTeacherState(store.dir);
+  const excluded = readExcluded(store.dir);
+  const bySource: Receipt["bySource"] = {};
+  const excludedBy: Record<string, number> = {};
+  const teacher: Record<string, number> = {};
+  for (const reason of excluded.values()) {
+    const key = reason.replace(/ \(.*$/, "");
+    excludedBy[key] = (excludedBy[key] ?? 0) + 1;
+  }
+  for (const outcome of state.values()) teacher[outcome.status] = (teacher[outcome.status] ?? 0) + 1;
+  let complete = 0;
+  let unresolvedBrands = 0;
+  for (const page of pages) {
+    if (completeLabel(page.labels) && !excluded.has(page.id)) complete++;
+    for (const [field, source] of Object.entries(page.label_source)) {
+      bySource[field] ??= {};
+      (bySource[field] as Record<string, number>)[source as string] =
+        ((bySource[field] as Record<string, number>)[source as string] ?? 0) + 1;
+    }
+    if (page.labels.lure === true && page.labels.brand === null && page.label_source.brand === "rule")
+      unresolvedBrands++;
+  }
+  const done = new Set([...state].filter(([, o]) => o.status !== "refused").map(([id]) => id));
+  const teacherRuns = ledger.filter((e) => e.run.startsWith("glimmer-teacher-"));
+  const receipt: Receipt = {
+    at: at.toISOString(),
+    snapshot: snapshotOf(pages),
+    complete,
+    bySource,
+    excluded: excludedBy,
+    teacher,
+    unchecked: candidates(pages, done).length,
+    unresolvedBrands,
+    spend: {
+      measuredUsd: teacherRuns.filter((e) => e.state === "settled").reduce((s, e) => s + (e.cost ?? 0), 0),
+      uncertainUsd: teacherRuns.filter((e) => e.state !== "settled").reduce((s, e) => s + e.estimate, 0),
+    },
+  };
+  writeDurably(receiptFile(store.dir), `${JSON.stringify(receipt, null, 2)}\n`);
+  const back = JSON.parse(readFileSync(receiptFile(store.dir), "utf-8")) as Receipt;
+  if (back.snapshot.digest !== receipt.snapshot.digest) throw new Error("the receipt did not read back as written");
+  return receipt;
+}
+
+// Why the labels are not ready for §10: a page with neither a complete label nor an exclusion, a missing receipt, or a
+// receipt for another store than the one there now. Empty when they are.
+export function checkLabels(store: ReturnType<typeof openStore>): string[] {
+  const problems: string[] = [];
+  const pages = store.manifest({ tolerant: true });
+  const excluded = readExcluded(store.dir);
+  const loose = pages.filter((p) => !excluded.has(p.id) && !completeLabel(p.labels));
+  if (loose.length)
+    problems.push(`${loose.length} pages have neither a complete label nor an exclusion (first: ${loose[0]?.id})`);
+  const listed = new Set(pages.map((p) => p.id));
+  const unread = store.verify().damaged.filter((id) => !excluded.has(id) && !listed.has(id));
+  if (unread.length) problems.push(`${unread.length} damaged records are not excluded (first: ${unread[0]})`);
+  const file = receiptFile(store.dir);
+  if (!existsSync(file)) problems.push("no receipt: run the teacher");
+  else {
+    const receipt = JSON.parse(readFileSync(file, "utf-8")) as Receipt;
+    const now = snapshotOf(pages);
+    if (receipt.snapshot.digest !== now.digest)
+      problems.push(`the receipt covers ${receipt.snapshot.pages} pages, not the ${now.pages} stored now: run again`);
+  }
+  return problems;
+}
+
+if (import.meta.filename === process.argv[1] && process.argv[2] === "check") {
+  const problems = checkLabels(openStore(storeDir()));
+  console.log(problems.length ? `teacher-label check: failed (${problems.join("; ")})` : "teacher-label check: clean");
+  process.exit(problems.length ? 1 : 0);
+}
+
+if (import.meta.filename === process.argv[1] && process.argv[2] !== "check") {
   const at = process.argv.indexOf("--max");
   const max = at >= 0 ? Number(process.argv[at + 1]) : 500;
   const ledgerFile = metaLedger();
@@ -425,14 +525,10 @@ if (import.meta.filename === process.argv[1]) {
     const secrets = await readSecretsFromVault();
     const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
     const ask = sparkAsk({ env, budget: localBudget("glimmer-teacher-label") });
-    const result = await teach({
-      store: openStore(storeDir()),
-      ask,
-      ledgerFile,
-      run: `glimmer-teacher-${Date.now()}`,
-      max,
-    });
+    const store = openStore(storeDir());
+    const result = await teach({ store, ask, ledgerFile, run: `glimmer-teacher-${Date.now()}`, max });
     console.log(JSON.stringify(result));
+    console.log(JSON.stringify(writeReceipt(store, readLedger(ledgerFile))));
   } finally {
     release();
   }
