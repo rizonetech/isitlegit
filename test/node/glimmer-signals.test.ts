@@ -26,7 +26,7 @@ function parseRubric(text: string): Rubric {
     const id = /^(C\d+)\./.exec(block)?.[1] ?? "";
     const fields = new Map<string, string>();
     for (const line of block.split("\n")) {
-      const field = /^- ([A-Za-z -]+): (.+)$/.exec(line);
+      const field = /^- ([A-Za-z ()-]+): (.+)$/.exec(line);
       if (field) fields.set(field[1] as string, field[2] as string);
     }
     cues.push({ id, fields });
@@ -49,9 +49,12 @@ function cueProblems(rubric: Rubric): string[] {
       if (!source) problems.push(`${cue.id}: cites ${id}, which is not listed`);
       else if (source.decision !== "accepted") problems.push(`${cue.id}: rests on ${id}, which was ${source.decision}`);
     }
-    // Within what the screener receives: the host, the screenshot and the visible text.
-    if (!/\b(host|screenshot|text|form fields?)\b/.test(cue.fields.get("Evidence") ?? ""))
+    // Within what the screener receives: the host (a name, never an IP address), the screenshot and the visible text.
+    const evidence = cue.fields.get("Evidence") ?? "";
+    if (!/\b(host|screenshot|text|form fields?)\b/.test(evidence))
       problems.push(`${cue.id}: its evidence names none of the screener's inputs`);
+    if (/\bIP address/i.test(evidence))
+      problems.push(`${cue.id}: its evidence needs an IP-address host the request never carries`);
   }
   return problems;
 }
@@ -75,6 +78,19 @@ describe("the signals rubric", () => {
     expect(cueProblems(rubric)).toEqual([]);
   });
 
+  it("says what each missing input makes unavailable", () => {
+    const missing = text.split("## Missing inputs")[1]?.split("## Cues")[0] ?? "";
+    for (const input of ["No host", "No screenshot", "Empty or cut-off text"]) expect(missing).toContain(input);
+  });
+
+  it("pairs the shortcuts a screener could take with genuine pages that share them", () => {
+    const fields = rubric.cues.flatMap((cue) => [...cue.fields.keys()]);
+    for (const pair of ["new business", "plain form"]) {
+      expect(fields).toContain(`Genuine case (${pair})`);
+      expect(fields).toContain(`Lure case (${pair})`);
+    }
+  });
+
   it("lists the cues out of the screener's reach apart, so their absence is never read as evidence", () => {
     const outOfReach = text.split("## Out of reach")[1] ?? "";
     for (const unseen of ["sender", "domain's age", "padlock"]) expect(outOfReach).toContain(unseen);
@@ -85,11 +101,16 @@ describe("the signals rubric", () => {
       .replace("- Sources: S1, S3\n", "- Sources: S6\n")
       .replace(/- Unavailable: whether an unfamiliar host[^\n]*\n/, "")
       .replace(/- Genuine case: a South African retailer's checkout[^\n]*\n/, "")
-      .replace(/- Evidence: the host alone[^\n]*\n/, "- Evidence: the visitor's feeling\n");
+      .replace(/- Evidence: the host alone[^\n]*\n/, "- Evidence: the visitor's feeling\n")
+      .replace(
+        /- Evidence: the text: a short deadline/,
+        "- Evidence: the host given as an IP address and the text: a short deadline",
+      );
     const problems = cueProblems(parseRubric(broken));
     expect(problems).toContain("C1: rests on S6, which was rejected");
     expect(problems).toContain("C1: no Unavailable");
     expect(problems).toContain("C1: no Genuine case");
     expect(problems).toContain("C2: its evidence names none of the screener's inputs");
+    expect(problems).toContain("C5: its evidence needs an IP-address host the request never carries");
   });
 });
