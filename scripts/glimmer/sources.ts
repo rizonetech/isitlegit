@@ -203,12 +203,40 @@ export function reconcile(input: {
   }
   for (const source of bySource.keys())
     if (!named.has(source)) problems.push(`${source}: in the store with no row in docs/glimmer/sources.md`);
+  // §8 removed (operator, 2026-10-28): no page may come from the generator, whatever its source is called.
+  const removed = /\*\*Removed \d{4}-\d{2}-\d{2}/.test(input.synthetic);
+  if (removed) {
+    const synthetic = input.pages.filter((page) => page.origin === "synthetic").length;
+    if (synthetic) problems.push(`${synthetic} stored pages have origin synthetic, yet §8 was removed`);
+  }
   if (rows.length && !rows.some((row) => row.decision === "accepted")) {
-    // No public source: §8's synthetic target and its acceptance count both rise to 3,000.
-    if (/\b1,500 lures\b/.test(input.synthetic) || !/\b3,000 lures\b/.test(input.synthetic))
+    // No public source: §8's synthetic target and its acceptance count both rise to 3,000; with §8 removed, Loupe would
+    // have no lures but the samples'.
+    if (removed) problems.push("no source was accepted, and §8's synthetic lures were removed");
+    else if (/\b1,500 lures\b/.test(input.synthetic) || !/\b3,000 lures\b/.test(input.synthetic))
       problems.push("no source was accepted, yet §8 still asks for 1,500 synthetic lures");
   }
   return problems;
+}
+
+// What §8's generator would have left, tracked or not: its script, templates and test in the repository, and its raw
+// folder in the store. Empty while the removal holds (§8's checkpoint).
+export const SYNTHETIC_PATHS = [
+  "scripts/glimmer/synth.ts",
+  "scripts/glimmer/templates",
+  "test/node/glimmer-synth.test.ts",
+];
+export function syntheticLeftovers(root: string, store: string): string[] {
+  return [
+    ...SYNTHETIC_PATHS.filter((path) => existsSync(join(root, path))),
+    ...(existsSync(join(store, "raw", "synthetic")) ? ["raw/synthetic"] : []),
+  ];
+}
+
+// §8's leftovers as check problems, while its text says it was removed.
+function removalProblems(store: string): string[] {
+  if (!/\*\*Removed \d{4}-\d{2}-\d{2}/.test(section8())) return [];
+  return syntheticLeftovers(ROOT, store).map((path) => `${path} exists, yet §8 was removed`);
 }
 
 function section8(): string {
@@ -323,6 +351,7 @@ if (import.meta.filename === process.argv[1]) {
       synthetic: section8(),
       bindings,
     });
+    problems.push(...removalProblems(dir));
     if (problems.length) {
       for (const problem of problems) console.log(`sources: ${problem}`);
       console.error(`sources: not frozen: ${problems.length} problems`);
@@ -393,6 +422,7 @@ if (import.meta.filename === process.argv[1]) {
     synthetic: section8(),
     bindings,
   });
+  problems.push(...removalProblems(dir));
   for (const [source, count] of Object.entries(damagedBy))
     problems.push(`${source}: ${count} damaged pages in the store`);
   for (const problem of problems) console.log(`sources: ${problem}`);

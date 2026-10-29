@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { manifestDigest, parseSources, reconcile } from "../../scripts/glimmer/sources.ts";
+import { manifestDigest, parseSources, reconcile, syntheticLeftovers } from "../../scripts/glimmer/sources.ts";
 import type { StoredPage } from "../../scripts/glimmer/store.ts";
 
 // scripts/glimmer/sources.ts (D03 T04 §5): the record of public page datasets is reconciled both ways with what was
@@ -87,6 +88,32 @@ describe("reconcile", () => {
     expect(reconcile({ ...base, notice: "We thank set-a.\n| `set-ab`: Other | CC0 | x |" })).toContain(
       "set-a: accepted, but missing from NOTICE.md",
     );
+  });
+
+  it("fails any synthetic page, and any generator file or raw folder, once §8 is removed", () => {
+    const removed = "## 8. Synthetic\n\n**Removed 2026-10-28 (operator):** no synthetic lure is made.";
+    const page = { ...base.pages[0], origin: "synthetic" } as (typeof base.pages)[number];
+    expect(reconcile({ ...base, synthetic: removed })).toEqual([]);
+    expect(reconcile({ ...base, pages: [...base.pages, page], synthetic: removed })).toContain(
+      "1 stored pages have origin synthetic, yet §8 was removed",
+    );
+    const root = mkdtempSync(join(tmpdir(), "glimmer-s8-"));
+    try {
+      const store = join(root, "store");
+      expect(syntheticLeftovers(root, store)).toEqual([]);
+      // Untracked as much as tracked: the check reads the disk, not git.
+      mkdirSync(join(root, "scripts/glimmer/templates"), { recursive: true });
+      mkdirSync(join(store, "raw", "synthetic"), { recursive: true });
+      mkdirSync(join(root, "test/node"), { recursive: true });
+      writeFileSync(join(root, "test/node/glimmer-synth.test.ts"), "");
+      expect(syntheticLeftovers(root, store)).toEqual([
+        "scripts/glimmer/templates",
+        "test/node/glimmer-synth.test.ts",
+        "raw/synthetic",
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("fails the no-source fallback until §8 asks for 3,000 lures", () => {
