@@ -276,7 +276,11 @@ Recovery design: keep SMTP2GO and §5's delayed recovery (2026-10-28). **Operato
 
 ## 8. Re-deliver a reply settled failed
 
+> **Started:** 2026-10-29T10:00Z
+
 When the operator settles an uncertain send `failed` (§5, `scripts/mail-settle.ts`), only the row changes: nothing sends the message again, so a member whose verdict reply was lost never receives it (D01 T02 §7 final review, 2026-10-29). The send log stores no address or body by design (`0003_mail.sql`), but a reply (`reply:<caseId>`) can be rebuilt from its case. Filed from D01 T02 §7's final review.
+
+**Corrected 2026-10-29** (plan fact-check against the code): `reply()` (`src/pipeline/analysis-workflow.ts`) needs the Worker's own bindings (D1, the R2 artefacts, the report-link secret, the SMTP2GO key), and `scripts/mail-settle.ts` reaches D1 only through `wrangler d1 execute`, so the script cannot send. It records the request instead (`resend_requested_at` on the row, migration `0031`), and the Worker's cron, every 15 minutes, rebuilds each requested reply from its case (the stored verdict, or for a partial case the step and error class of its `failed` event) and sends it through `reply()` under the same send key.
 
 **Phase:** 1
 **Needs:** none
@@ -284,13 +288,14 @@ When the operator settles an uncertain send `failed` (§5, `scripts/mail-settle.
 
 **Build order:**
 
-1. Re-send a settled-failed reply from its case. Done when: one command rebuilds the reply from the case record and sends it once under the same send key.
+1. Re-send a settled-failed reply from its case. Done when: one command asks for it, and the next cron run rebuilds the reply from the case record and sends it once under the same send key.
 
-- [ ] Add `--resend` to `scripts/mail-settle.ts ... failed` for a `reply:<caseId>` key: after the row is settled `failed`, re-run the case's reply (`reply()` in `src/pipeline/analysis-workflow.ts`) through `sendMail` with the same send key, so the allowlist, threading and the send log apply as for the first send; any other kind is refused with the reason (its content is not kept). Done when: `test/node/mail-settle.test.ts` settles a reply `failed` with `--resend` and finds one SMTP2GO send and a `sent` row, refuses `--resend` for an `alert` key, and sends nothing when the row was not settled.
-- [ ] State in `docs/operations.md` "Settle an uncertain mail send" when to resend: only after SMTP2GO shows no record, accepting that a late original would make the member receive it twice. Done when: the page holds the command and the risk.
+- [ ] Add `--resend` to `scripts/mail-settle.ts ... failed`, for a `reply:<caseId>` key only: the same statement that settles the row `failed` sets `resend_requested_at`, so a resend is never asked for a row that was not settled; any other kind is refused before anything changes, with the reason (its content is not kept). Done when: `test/node/mail-settle.test.ts` finds the request set with the settlement, refuses `--resend` for an `alert` key with no write, refuses it with `sent`, and sets nothing when the row was not settled.
+- [ ] Re-send each requested reply from the Worker's cron: rebuild the case's `ReportState` (its verdict, or its `failed` event's step and error class), call `reply()` under the same send key, and clear the request once the send is final (sent, refused, or a duplicate of a sent one); a failed or uncertain send keeps it for the next run, at most three runs, then logs and drops it. Done when: a Worker test settles a reply `failed` with a request, runs the cron, and finds one SMTP2GO send, the row `sent` and the request cleared, a second run sending nothing; a partial case's reply is rebuilt with its failed step; a reply to a case with no forwarder clears the request with nothing sent.
+- [ ] State in `docs/operations.md` "Settle an uncertain mail send" when to resend: only after SMTP2GO shows no record, accepting that a late original would make the member receive it twice; the resend goes within 15 minutes. Done when: the page holds the command, the timing and the risk.
 - [ ] Commit: `mail: re-deliver a reply the operator settled failed`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/mail-settle.test.ts` passes, and fails if `--resend` sends a non-reply kind, sends twice, or sends without settling.
+**Test checkpoint:** `pnpm exec vitest run test/node/mail-settle.test.ts test/mail/resend.test.ts` passes, and fails if `--resend` sends a non-reply kind, sends twice, or sends without settling.
 
 ## Verification
 
