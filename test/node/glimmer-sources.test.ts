@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseSources, reconcile } from "../../scripts/glimmer/sources.ts";
+import { manifestDigest, parseSources, reconcile } from "../../scripts/glimmer/sources.ts";
 import type { StoredPage } from "../../scripts/glimmer/store.ts";
 
 // scripts/glimmer/sources.ts (D03 T04 §5): the record of public page datasets is reconciled both ways with what was
@@ -135,5 +135,68 @@ describe("the benign render lists (D03 T04 §6)", () => {
       expect(text, file).toMatch(/Majestic Million/);
       expect(text, file).toMatch(/CC BY 3\.0/);
     }
+  });
+});
+
+describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
+  it("digests a manifest exactly as scripts/glimmer/inputs.py does, past ASCII too", () => {
+    const manifest = {
+      files: [
+        { name: "a.zip", sha256: "ab", bytes: 5, published: null, pinned: "kaggle: owner/set, version 2" },
+        { name: "b.tar.gz", sha256: "cd", bytes: 5, published: { kind: "md5", value: "ef" }, pinned: null },
+      ],
+      licence: "CC BY 4.0 \u2014 Z\u00fcrich",
+    };
+    // inputs.digest_of on the same value, in Python.
+    expect(manifestDigest(manifest)).toBe("12e9362bc402fec37e7749613d6bf4a42d0a8998e6a82a183a6588d573ae1fce");
+  });
+
+  it("refuses an import not bound to its manifest, or made from other rows than the export wrote", () => {
+    const receipt = {
+      met: 3,
+      exported: 2,
+      sampled_out: 0,
+      rejected: { "not a page": 1 },
+      rows_sha256: "r1",
+      converter_sha256: "c1",
+      inputs: "m1",
+    };
+    const bound = {
+      ...base,
+      sources: [header, row("phreshphish", "accepted")].join("\n"),
+      pages: [page("phreshphish"), page("phreshphish")],
+    };
+    const record = { status: "complete" as const, expected: 2, imported: 2, duplicates: 0, excluded: [], stored: 2 };
+    const notice = "| `phreshphish`: PhreshPhish | CC BY 4.0 | credit |";
+    const check = (imports: Record<string, unknown>, bindings: Record<string, unknown>) =>
+      reconcile({ ...bound, notice, imports: imports as never, bindings: bindings as never });
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m1", rows: "r1" } },
+        { phreshphish: { manifest: "m1", export: receipt } },
+      ),
+    ).toEqual([]);
+    expect(check({ phreshphish: record }, { phreshphish: {} }).join()).toMatch(/no INPUTS.json/);
+    expect(
+      check({ phreshphish: { ...record, inputs: "m1", rows: "r1" } }, { phreshphish: { manifest: "m1" } }).join(),
+    ).toMatch(/no EXPORT.json/);
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m1", rows: "r2" } },
+        { phreshphish: { manifest: "m1", export: receipt } },
+      ).join(),
+    ).toMatch(/other rows/);
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m0", rows: "r1" } },
+        { phreshphish: { manifest: "m1", export: receipt } },
+      ).join(),
+    ).toMatch(/not bound to its INPUTS/);
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m1", rows: "r1" } },
+        { phreshphish: { manifest: "m1", export: { ...receipt, met: 4 } } },
+      ).join(),
+    ).toMatch(/accounts for 3 of 4/);
   });
 });

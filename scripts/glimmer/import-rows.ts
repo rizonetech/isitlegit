@@ -6,7 +6,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { indexRows, phreshItem, readHtml, readShot } from "./import-phreshphish.ts";
-import { concurrencyArg, importSource } from "./import-source.ts";
+import { concurrencyArg, exportBinding, importSource } from "./import-source.ts";
 import { openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
 
@@ -46,6 +46,8 @@ if (import.meta.filename === process.argv[1]) {
         ),
       ),
       store: openStore(dir),
+      // Bound to the converter's receipt: rows without one, or changed since, are not imported (§18).
+      binding: exportBinding(rowsFile),
       log: (line) => console.log(line),
       concurrency: concurrencyArg(),
     });

@@ -6,7 +6,8 @@
 // text, which no rerun changes) and stored (the source's pages in the store afterwards). More than 5 percent excluded,
 // or a stop on a write failure,
 // reads `incomplete`; the source is not used until a rerun completes it.
-import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { HOST } from "../../src/vision/page-screen.ts";
 import type { Labels, openStore, PageInput } from "./store.ts";
@@ -55,7 +56,23 @@ export type ImportResult = {
   seconds?: number;
   pages_per_minute?: number;
   concurrency: number;
+  // The inputs and rows the import was made from (§18): the manifest's digest and the rows file's SHA-256, as the
+  // converter's export receipt names them, so `sources.ts check` refuses an import made from anything else.
+  inputs?: string;
+  rows?: string;
 };
+
+// A converter's export receipt beside its rows: the binding an import records, once the rows file is the one it names.
+// Refuses rows without a receipt, or rows that changed since it was written.
+export function exportBinding(rowsFile: string): { inputs: string; rows: string } {
+  const receiptFile = join(dirname(rowsFile), "EXPORT.json");
+  if (!existsSync(receiptFile)) throw new Error(`${receiptFile} is missing: run the converter, which writes it`);
+  const receipt = JSON.parse(readFileSync(receiptFile, "utf-8")) as { inputs?: string; rows_sha256?: string };
+  if (!receipt.inputs || !receipt.rows_sha256) throw new Error(`${receiptFile} does not name its inputs and rows`);
+  const rows = createHash("sha256").update(readFileSync(rowsFile)).digest("hex");
+  if (rows !== receipt.rows_sha256) throw new Error(`${rowsFile} changed since its export receipt was written`);
+  return { inputs: receipt.inputs, rows };
+}
 
 // The host the request states, or null when the URL has none a DNS name can express (an IP, a malformed URL).
 export function hostOf(url: string | null): string | null {
@@ -101,6 +118,8 @@ export async function importSource(options: {
   publish?: boolean;
   redacted?: boolean;
   southAfrica?: boolean;
+  // The converter's binding for the rows imported (`exportBinding`), recorded in IMPORT.json.
+  binding?: { inputs: string; rows: string };
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
@@ -223,6 +242,7 @@ export async function importSource(options: {
   const stale = stopped ? 0 : sourcePages.filter((page) => page.item && !listed.has(page.item)).length;
   const legacy = sourcePages.filter((page) => !page.item).length;
   const result: ImportResult = {
+    ...(options.binding ?? {}),
     status: stopped || tooMany || stillDamaged || stale ? "incomplete" : "complete",
     expected: items.length,
     imported,

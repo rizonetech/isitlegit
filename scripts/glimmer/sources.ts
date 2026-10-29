@@ -11,14 +11,54 @@
 // accepted source has no complete import or a store count that differs from it, a rejected source has pages in the
 // store, the store holds a source with no row, a source above 10 percent label errors still has a `lure` read as
 // ground truth, an accepted source is missing from NOTICE.md, or no source is accepted while §8 still asks for 1,500
-// synthetic lures.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+// synthetic lures. Each accepted source is bound too (§18): its inputs manifest (`INPUTS.json`), its converter's export
+// receipt (`EXPORT.json`, for the sources converted to rows) reconciled and naming that manifest, and an import that
+// names both; an import made from other inputs or other rows is refused.
+//
+//   node scripts/glimmer/sources.ts bind <source>   # record, in IMPORT.json, the rows and inputs an import came from
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type ImportResult, writeImport } from "./import-source.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const MAX_LABEL_ERRORS = 10;
+// The sources a converter turns into rows (`rows.jsonl` beside an `EXPORT.json`); ScamFerret's importer reads its archive
+// itself, and its IMPORT.json accounts for every item.
+export const RECEIPTED = [
+  "phreshphish",
+  "7-days-later",
+  "compphish",
+  "ariyadasa-2021",
+  "kempf-html",
+  "look-for-mallory",
+];
+
+export type ExportReceipt = {
+  met: number;
+  exported: number;
+  sampled_out: number;
+  rejected: Record<string, number>;
+  rows_sha256: string;
+  converter_sha256: string;
+  inputs: string;
+};
+
+// A manifest's identity as scripts/glimmer/inputs.py computes it: the SHA-256 of its JSON with keys sorted, no spaces
+// and every character past ASCII escaped, as Python's json.dumps writes it.
+export function manifestDigest(value: unknown): string {
+  const canonical = (v: unknown): string => {
+    if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+    if (v && typeof v === "object")
+      return `{${Object.keys(v)
+        .sort()
+        .map((k) => `${canonical(k)}:${canonical((v as Record<string, unknown>)[k])}`)
+        .join(",")}}`;
+    return JSON.stringify(v).replace(/[\u007f-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  };
+  return createHash("sha256").update(canonical(value)).digest("hex");
+}
 
 export type SourceRow = {
   source: string;
@@ -40,6 +80,8 @@ export type ImportRecord = {
   excluded?: { item: string; reason: string }[];
   stored?: number;
   reason?: string;
+  inputs?: string;
+  rows?: string;
 };
 
 // The table's rows; a row that does not parse is itself a problem, never skipped.
@@ -85,6 +127,9 @@ export function reconcile(input: {
   pages: StoredPage[];
   notice: string;
   synthetic: string;
+  // Each source's manifest digest and export receipt, as read beside its import (§18); left out, the binding is not
+  // checked (a caller with no store).
+  bindings?: Record<string, { manifest?: string; export?: ExportReceipt }>;
 }): string[] {
   const { rows, problems } = parseSources(input.sources);
   const bySource = new Map<string, StoredPage[]>();
@@ -119,6 +164,31 @@ export function reconcile(input: {
         (record.excluded?.length ?? 0);
       if (counted !== record.expected)
         problems.push(`${row.source}: IMPORT.json accounts for ${counted} of ${record.expected} items`);
+    }
+    if (input.bindings && record?.status === "complete") {
+      const bound = input.bindings[row.source] ?? {};
+      if (!bound.manifest) problems.push(`${row.source}: no INPUTS.json binding its input files`);
+      else if (RECEIPTED.includes(row.source)) {
+        const receipt = bound.export;
+        if (!receipt) problems.push(`${row.source}: no EXPORT.json from its converter`);
+        else {
+          const rejected = Object.values(receipt.rejected).reduce((sum, n) => sum + n, 0);
+          if (receipt.exported + receipt.sampled_out + rejected !== receipt.met)
+            problems.push(
+              `${row.source}: EXPORT.json accounts for ${receipt.exported + receipt.sampled_out + rejected} of ${receipt.met} items`,
+            );
+          if (receipt.inputs !== bound.manifest)
+            problems.push(`${row.source}: EXPORT.json was made from other inputs than INPUTS.json names`);
+          if (record.rows !== receipt.rows_sha256)
+            problems.push(`${row.source}: the import was made from other rows than EXPORT.json names`);
+          if (record.expected !== receipt.exported)
+            problems.push(
+              `${row.source}: the import expected ${record.expected} rows, the export wrote ${receipt.exported}`,
+            );
+        }
+      }
+      if (bound.manifest && record.inputs !== bound.manifest)
+        problems.push(`${row.source}: the import is not bound to its INPUTS.json`);
     }
     if (row.labelErrors !== null && row.labelErrors > MAX_LABEL_ERRORS) {
       const trusted = stored.filter((page) => page.label_source.lure === "ground-truth").length;
@@ -182,8 +252,51 @@ if (import.meta.filename === process.argv[1]) {
     console.log(`sources: removed ${removed} pages of ${name}`);
     process.exit(0);
   }
+  if (command === "bind" && name) {
+    // An existing import's binding (§18). First the rows it read: the rows file, when it is older than the import's
+    // start, is the one it read. Then, once the converter has written its receipt for byte-identical rows, the inputs.
+    const folder = join(dir, "raw", name);
+    const importFile = join(folder, "IMPORT.json");
+    if (!existsSync(importFile)) {
+      console.error(`sources: ${name} has no IMPORT.json`);
+      process.exit(1);
+    }
+    const record = JSON.parse(readFileSync(importFile, "utf-8")) as ImportResult & { inputs?: string; rows?: string };
+    const rowsFile = join(folder, "rows.jsonl");
+    const sha = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+    if (RECEIPTED.includes(name) && !record.rows) {
+      if (!existsSync(rowsFile) || statSync(rowsFile).mtimeMs > Date.parse(record.started)) {
+        console.error(`sources: ${name}'s rows file is not the one its import read (it is newer than the import)`);
+        process.exit(1);
+      }
+      record.rows = sha(rowsFile);
+      writeImport(importFile, record);
+      console.log(`sources: ${name}: the rows its import read are recorded`);
+    }
+    const inputsFile = join(folder, "INPUTS.json");
+    const exportFile = join(folder, "EXPORT.json");
+    if (!existsSync(inputsFile)) {
+      console.log(`sources: ${name}: no INPUTS.json yet`);
+      process.exit(0);
+    }
+    const manifest = manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8")));
+    if (RECEIPTED.includes(name)) {
+      if (!existsSync(exportFile)) {
+        console.log(`sources: ${name}: no EXPORT.json yet; run its converter`);
+        process.exit(0);
+      }
+      const receipt = JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt;
+      if (receipt.rows_sha256 !== record.rows || receipt.inputs !== manifest) {
+        console.error(`sources: ${name}: the converter wrote other rows than the import read; import again`);
+        process.exit(1);
+      }
+    }
+    writeImport(importFile, { ...record, inputs: manifest });
+    console.log(`sources: ${name}: the import is bound to its inputs`);
+    process.exit(0);
+  }
   if (command !== "check") {
-    console.error("usage: node scripts/glimmer/sources.ts check | status | remove <source>");
+    console.error("usage: node scripts/glimmer/sources.ts check | status | remove <source> | bind <source>");
     process.exit(2);
   }
   const store = openStore(dir);
@@ -204,12 +317,23 @@ if (import.meta.filename === process.argv[1]) {
     const source = /^(.+)-[0-9a-f]{16}$/.exec(id)?.[1] ?? id;
     damagedBy[source] = (damagedBy[source] ?? 0) + 1;
   }
+  const bindings: Record<string, { manifest?: string; export?: ExportReceipt }> = {};
+  for (const row of parseSources(sourcesMd).rows) {
+    const folder = join(dir, "raw", row.source);
+    const inputsFile = join(folder, "INPUTS.json");
+    const exportFile = join(folder, "EXPORT.json");
+    bindings[row.source] = {
+      ...(existsSync(inputsFile) ? { manifest: manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8"))) } : {}),
+      ...(existsSync(exportFile) ? { export: JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt } : {}),
+    };
+  }
   const problems = reconcile({
     sources: sourcesMd,
     imports,
     pages,
     notice: readFileSync(join(ROOT, "NOTICE.md"), "utf-8"),
     synthetic: section8(),
+    bindings,
   });
   for (const [source, count] of Object.entries(damagedBy))
     problems.push(`${source}: ${count} damaged pages in the store`);

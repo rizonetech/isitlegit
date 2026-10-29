@@ -9,7 +9,7 @@
 // §9's adjudication, since the set does not say which kind of lure a page is.
 import { closeSync, existsSync, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
-import { concurrencyArg, importSource, type SourceItem } from "./import-source.ts";
+import { concurrencyArg, exportBinding, importSource, type SourceItem } from "./import-source.ts";
 import { normaliseScreenshot, openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
 
@@ -194,6 +194,8 @@ if (import.meta.filename === process.argv[1]) {
       licence: LICENCE,
       items: (await indexRows(rowsFile)).map((entry) => phreshItem(entry, () => readHtml(rowsFile, entry), reader)),
       store: openStore(dir),
+      // Bound to the converter's receipt: rows without one, or changed since, are not imported (§18).
+      binding: exportBinding(rowsFile),
       log: (line) => console.log(line),
       concurrency: concurrencyArg(),
     });
