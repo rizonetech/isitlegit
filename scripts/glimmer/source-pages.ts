@@ -106,7 +106,10 @@ export function readFormFlags(
   const clipped = (el: Element) => {
     const box = rect(el);
     let { left, top, right, bottom } = box;
-    for (let at = el.parentElement; at && left < right && top < bottom; at = at.parentElement) {
+    // Up through every ancestor, across a shadow root to its host: a clipping host hides the fields drawn inside it.
+    const up = (node: Element) =>
+      node.parentElement ?? (node.parentNode instanceof ShadowRoot ? node.parentNode.host : null);
+    for (let at = up(el); at && left < right && top < bottom; at = up(at)) {
       const style = getComputedStyle(at);
       if (style.overflowX === "visible" && style.overflowY === "visible") continue;
       const outer = rect(at);

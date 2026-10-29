@@ -197,6 +197,22 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       `<p>${words}</p><div style="height:0;overflow:hidden"><iframe src="/frame-login" width=400 height=300></iframe><input type=password></div>`,
     ),
   "/form-below": (res) => html(res, `<p>${words}</p><div style="height:2500px"></div><input type=password>`),
+  // §26 round 2: a closed shadow root, a clipping shadow host, and a scaled frame.
+  "/wall-closed": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div id=h style="position:fixed;top:0;left:0;width:400px;height:100px;background:#fff"></div><script>h.attachShadow({ mode: 'closed' }).textContent = 'Press & Hold'</script>`,
+    ),
+  "/shadow-clipped": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div id=h style="display:block;height:0;overflow:hidden"></div><script>h.attachShadow({ mode: 'open' }).innerHTML = '<input type=password>'</script>`,
+    ),
+  "/frame-scaled": (res) =>
+    html(
+      res,
+      `<p>${words}</p><iframe style="position:absolute;top:1800px;left:0;border:0;transform:scale(.5);transform-origin:top left" width=400 height=400 srcdoc="<div style='height:300px'></div><input type=password>"></iframe>`,
+    ),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
@@ -911,7 +927,9 @@ describe("the batch run", () => {
       const journal = join(dir, "progress.jsonl");
       const result = await runBatch({ list: list(["/xframe-login"]), store, journal, render: faulty.render });
       expect(result).toMatchObject({ stored: 0, excluded: 1 });
-      expect(readJournal(journal).at(-1)?.reason).toBe("a frame on the page could not be read");
+      expect(readJournal(journal).at(-1)?.reason).toBe(
+        "part of the page (a frame or a closed shadow root) could not be read",
+      );
     } finally {
       await faulty.close();
     }
@@ -987,6 +1005,14 @@ describe("the batch run", () => {
     expect(readingsAgree(reading(words), reading("short"))).toBe(false);
   });
 
+  it("refuses a page with a closed shadow root, whose contents no reader can see", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const result = await runBatch({ list: list(["/wall-closed"]), store, journal, render: renderer.render });
+    expect(result).toMatchObject({ stored: 0, excluded: 1 });
+    expect(readJournal(journal).at(-1)?.reason).toMatch(/closed shadow root/);
+  });
+
   it("refuses a capture whose text changed between its readings though its title held", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "progress.jsonl");
@@ -996,8 +1022,10 @@ describe("the batch run", () => {
   });
 
   it("counts a frame's fields only where the screenshot shows them, and reads shadow roots", async () => {
-    for (const path of ["/frame-clipped", "/frame-overflow", "/form-below"])
+    for (const path of ["/frame-clipped", "/frame-overflow", "/form-below", "/shadow-clipped"])
       expect((await renderer.render(`${origin}${path}`)).has_login_form, path).toBe(false);
+    // A frame drawn at half size still shows the field its own coordinates place below the scaled-down box's end.
+    expect((await renderer.render(`${origin}/frame-scaled`)).has_login_form).toBe(true);
     const shadow = await renderer.render(`${origin}/shadow-form`);
     expect(shadow.has_login_form).toBe(true);
     expect(shadow.text).toContain("Shadow sign-in words");

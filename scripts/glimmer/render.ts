@@ -264,11 +264,16 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
 // whether it is shown (a size, and not hidden by itself or an ancestor), and where its content box sits.
 const OWNER_BOX = `function () {
   const box = this.getBoundingClientRect();
-  const left = box.left + this.clientLeft;
-  const top = box.top + this.clientTop;
-  // The ancestors that clip their overflow cut what of the frame can show (checkVisibility does not see clipping).
-  let clip = { left, top, right: left + this.clientWidth, bottom: top + this.clientHeight };
-  for (let at = this.parentElement; at; at = at.parentElement) {
+  // A transform scales the frame: its drawn box against its layout size gives the scale its content is drawn at.
+  const scaleX = this.offsetWidth > 0 ? box.width / this.offsetWidth : 1;
+  const scaleY = this.offsetHeight > 0 ? box.height / this.offsetHeight : 1;
+  const left = box.left + this.clientLeft * scaleX;
+  const top = box.top + this.clientTop * scaleY;
+  // The ancestors that clip their overflow cut what of the frame can show (checkVisibility does not see clipping),
+  // across a shadow root to its host too.
+  let clip = { left, top, right: left + this.clientWidth * scaleX, bottom: top + this.clientHeight * scaleY };
+  const up = (el) => el.parentElement ?? (el.parentNode instanceof ShadowRoot ? el.parentNode.host : null);
+  for (let at = up(this); at; at = up(at)) {
     const style = getComputedStyle(at);
     if (style.overflowX === "visible" && style.overflowY === "visible") continue;
     const outer = at.getBoundingClientRect();
@@ -279,8 +284,8 @@ const OWNER_BOX = `function () {
     shown: box.width > 0 && box.height > 0 && this.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
     left,
     top,
-    width: this.clientWidth,
-    height: this.clientHeight,
+    scaleX,
+    scaleY,
     clip,
   };
 }`;
@@ -788,11 +793,18 @@ export async function openRenderer(
         // it and clipped by each one's own visible area, down to the 1280 by 2000 pixels kept. A frame with no area left
         // is not seen; null when an owner could not be read. Parents come before their children in `nodes`.
         type Region = { left: number; top: number; right: number; bottom: number };
-        type Placed = { offsetX: number; offsetY: number; region: Region };
+        // Where a frame's content starts in the screenshot, the scale it is drawn at there, and the area of it that shows.
+        type Placed = { offsetX: number; offsetY: number; scaleX: number; scaleY: number; region: Region };
         const placed = new Map<string, Placed | false | null>();
         const place = async (node: FrameNode): Promise<Placed | false | null> => {
           if (!node.parent)
-            return { offsetX: 0, offsetY: 0, region: { left: 0, top: 0, right: MAX_WIDTH, bottom: MAX_HEIGHT } };
+            return {
+              offsetX: 0,
+              offsetY: 0,
+              scaleX: 1,
+              scaleY: 1,
+              region: { left: 0, top: 0, right: MAX_WIDTH, bottom: MAX_HEIGHT },
+            };
           const parent = placed.get(node.parent);
           if (!parent) return parent ?? null;
           try {
@@ -811,25 +823,58 @@ export async function openRenderer(
               shown: boolean;
               left: number;
               top: number;
+              scaleX: number;
+              scaleY: number;
               clip: { left: number; top: number; right: number; bottom: number };
             };
             if (!box.shown) return false;
-            const offsetX = parent.offsetX + box.left;
-            const offsetY = parent.offsetY + box.top;
+            // The parent's coordinates, placed in the screenshot by the parent's own offset and scale.
+            const x = (value: number) => parent.offsetX + value * parent.scaleX;
+            const y = (value: number) => parent.offsetY + value * parent.scaleY;
             // The frame's clipped box, in the screenshot's coordinates, within its parent's visible area.
             const region = {
-              left: Math.max(parent.region.left, parent.offsetX + box.clip.left),
-              top: Math.max(parent.region.top, parent.offsetY + box.clip.top),
-              right: Math.min(parent.region.right, parent.offsetX + box.clip.right),
-              bottom: Math.min(parent.region.bottom, parent.offsetY + box.clip.bottom),
+              left: Math.max(parent.region.left, x(box.clip.left)),
+              top: Math.max(parent.region.top, y(box.clip.top)),
+              right: Math.min(parent.region.right, x(box.clip.right)),
+              bottom: Math.min(parent.region.bottom, y(box.clip.bottom)),
             };
             if (region.right <= region.left || region.bottom <= region.top) return false;
-            return { offsetX, offsetY, region };
+            return {
+              offsetX: x(box.left),
+              offsetY: y(box.top),
+              scaleX: parent.scaleX * box.scaleX,
+              scaleY: parent.scaleY * box.scaleY,
+              region,
+            };
           } catch {
             return (await stillThere(node.id)) ? null : false;
           }
         };
         for (const node of nodes) placed.set(node.id, await place(node));
+        // A closed shadow root hides its contents from every reader (a wall or a form drawn in one cannot be read):
+        // the DOM tree, which sees through it, counts each one in a shown frame as part of the page left unread.
+        try {
+          const { root } = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as {
+            root: { shadowRootType?: string; children?: unknown[]; shadowRoots?: unknown[]; contentDocument?: unknown };
+          };
+          const closed = (node: {
+            shadowRootType?: string;
+            children?: unknown[];
+            shadowRoots?: unknown[];
+            contentDocument?: unknown;
+          }): number =>
+            (node.shadowRootType === "closed" ? 1 : 0) +
+            [
+              ...(node.children ?? []),
+              ...(node.shadowRoots ?? []),
+              ...(node.contentDocument ? [node.contentDocument] : []),
+            ]
+              .map((child) => closed(child as typeof node))
+              .reduce((sum, n) => sum + n, 0);
+          unreadable += closed(root);
+        } catch {
+          unreadable++; // the tree that would show a closed root could not be read
+        }
         // A frame Playwright sees that the page's frame tree leaves out (one in another renderer process) is not read
         // here: it counts as unread, never as no frame (§26, completion review).
         unreadable += Math.max(0, page.frames().length - nodes.length);
@@ -844,11 +889,12 @@ export async function openRenderer(
           if (where === null) unreadable++;
           if (!where) continue;
           // Only the fields the screenshot shows: a frame's area in its own coordinates.
+          // The visible area in the frame's own coordinates: back through its offset and its scale.
           const region = {
-            left: where.region.left - where.offsetX,
-            top: where.region.top - where.offsetY,
-            right: where.region.right - where.offsetX,
-            bottom: where.region.bottom - where.offsetY,
+            left: (where.region.left - where.offsetX) / where.scaleX,
+            top: (where.region.top - where.offsetY) / where.scaleY,
+            right: (where.region.right - where.offsetX) / where.scaleX,
+            bottom: (where.region.bottom - where.offsetY) / where.scaleY,
           };
           const flags = await readFrame(
             node,
@@ -907,7 +953,8 @@ export async function openRenderer(
       reading = check;
       shot = await screenshot(reading.height);
       check = await readAll();
-      if (reading.unreadable || check.unreadable) throw new Unsettled("a frame on the page could not be read");
+      if (reading.unreadable || check.unreadable)
+        throw new Unsettled("part of the page (a frame or a closed shadow root) could not be read");
       if (!readingsAgree(reading, check)) throw new Unsettled("the page kept changing while it was captured");
     }
     const { title, text, has_login_form, has_payment_form, walls } = reading;
