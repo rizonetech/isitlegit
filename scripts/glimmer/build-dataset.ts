@@ -86,7 +86,8 @@ export function answerOf(page: StoredPage): PageAnswer | null {
     has_payment_form: labels.has_payment_form,
     lure: labels.lure,
     lure_type: labels.lure_type,
-    confidence: page.label_source.lure === "unverified" ? 0.7 : 0.95,
+    // A lure type resting on an untrusted form flag (§18) teaches as little as an unverified lure.
+    confidence: page.label_source.lure === "unverified" || page.label_source.lure_type === "unverified" ? 0.7 : 0.95,
   };
 }
 

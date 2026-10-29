@@ -18,6 +18,7 @@ import {
   sparkAsk,
   TEACHER_MAX_OUTPUT_TOKENS,
   teach,
+  teacherArgs,
   teacherState,
   writeAll,
   writeReceipt,
@@ -272,6 +273,48 @@ describe("the teacher's calls through main's budget guard", () => {
     const entry = readLedger(ledgerFile)[0];
     return { result, sent, entry, id: entry ? ledgerId(entry.date, entry.run, entry.call) : "" };
   }
+
+  it("closes the local entry even when the guard's settlement throws after the answer", async () => {
+    const { guard } = budget();
+    const settle = guard.settle;
+    guard.settle = async (id, actual, record) => {
+      await settle(id, actual, record);
+      throw new Error("the guard's ledger could not be written");
+    };
+    const { result, entry } = await run(guard, async () => reply());
+    expect(result.checked).toBe(1);
+    expect(entry).toMatchObject({ state: "settled" });
+  });
+
+  it("stops the run, quarantining nothing, when Spark cannot be asked at all", async () => {
+    const { guard } = budget();
+    await stored(1, true);
+    await stored(2, true);
+    let sent = 0;
+    const ask = sparkAsk({
+      env: {}, // no key: the client refuses before any attempt is reserved
+      budget: guard,
+      fetch: (async () => {
+        sent++;
+        return reply();
+      }) as typeof globalThis.fetch,
+      sleep: async () => {},
+      random: () => 0.5,
+    });
+    const result = await teach({
+      store: openStore(join(dir, "store")),
+      ask,
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "teacher-config",
+      max: 5,
+      now: NOW,
+    });
+    expect(sent).toBe(0);
+    expect(result.stopped).toMatch(/could not be asked/);
+    // One page tried, refused and asked again next time; the other never tried; none quarantined.
+    const states = [...readTeacherState(join(dir, "store")).values()].map((o) => o.status);
+    expect(states).toEqual(["refused"]);
+  });
 
   it("settles an answered call, its reservation and its ledger entry sharing one id", async () => {
     const { guard, rows } = budget();
@@ -563,6 +606,72 @@ describe("the run's receipt and the completion check", () => {
     expect(checkLabels(openStore(join(dir, "store"))).join()).toMatch(
       /covers 2 pages and other labels or outcomes than the 3/,
     );
+  });
+});
+
+describe("the teacher's command line, candidates and receipt spend (§9 final review)", () => {
+  it("refuses a misspelt command, an unknown flag and a malformed --max before anything runs", () => {
+    expect(teacherArgs(["check"])).toEqual({ command: "check" });
+    expect(teacherArgs([])).toEqual({ command: "run", max: 500, retryFailed: false });
+    expect(teacherArgs(["--max", "10", "--retry-failed"])).toEqual({ command: "run", max: 10, retryFailed: true });
+    for (const argv of [
+      ["chek"],
+      ["--help"],
+      ["--max", "abc"],
+      ["--max"],
+      ["--max", "0"],
+      ["--max", "-5"],
+      ["check", "x"],
+    ])
+      expect(teacherArgs(argv)).toHaveProperty("error");
+  });
+
+  it("leaves out a page the rules excluded for good, but not one excluded only as incomplete", async () => {
+    const walled = await stored(1, true);
+    const incomplete = await stored(3, true);
+    const fine = await stored(5, true);
+    const pages = openStore(join(dir, "store")).manifest();
+    const excluded = new Map([
+      [walled, "the capture is a bot challenge, not the page its label was given for"],
+      [incomplete, "incomplete after the rules (missing brand)"],
+    ]);
+    const ids = candidates(pages, new Set(), undefined, excluded).map((p) => p.id);
+    expect(ids).not.toContain(walled);
+    expect(ids).toContain(fine);
+    // The teacher passes only the lasting exclusions: an incomplete page is one it may fill.
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      [...excluded].map(([id, reason]) => `${JSON.stringify({ id, reason })}\n`).join(""),
+    );
+    let asked = 0;
+    await teach({
+      store: openStore(join(dir, "store")),
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => asked++,
+      ),
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "teacher-barred",
+      max: 5,
+      now: NOW,
+    });
+    expect(asked).toBe(2);
+    expect(statusOf(walled)).toBe("unchecked");
+  });
+
+  it("refuses a receipt whose spend is no longer the ledger's", async () => {
+    const { applyRules } = await import("../../scripts/glimmer/label-rules.ts");
+    await stored(1, true);
+    const store = openStore(join(dir, "store"));
+    applyRules(store);
+    writeReceipt(store, [], NOW());
+    expect(checkLabels(store, [])).toEqual([]);
+    const later = [
+      { date: "2026-10-29", run: "glimmer-teacher-2", call: "x", estimate: 0.01, state: "settled", cost: 0.008 },
+    ] as never;
+    expect(checkLabels(store, later)).toContain("the receipt's spend is not the ledger's now: run again");
   });
 });
 

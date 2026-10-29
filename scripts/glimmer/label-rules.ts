@@ -20,6 +20,20 @@ import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 
+// Whether a lure type the rules derive rests on a false form flag that is untrusted (read off an inert copy, §18): a
+// form that copy could not show may be there, so the type is no better than unverified (§9 final review).
+export function restsOnUnverified(
+  type: StoredPage["labels"]["lure_type"],
+  labels: StoredPage["labels"],
+  sources: StoredPage["label_source"],
+): boolean {
+  const unsure = (field: "has_login_form" | "has_payment_form") =>
+    labels[field] === false && sources[field] === "unverified";
+  if (type === "impersonation") return unsure("has_login_form") || unsure("has_payment_form");
+  if (type === "credential") return unsure("has_payment_form");
+  return false;
+}
+
 export function derivedLureType(page: StoredPage): (typeof LURE_TYPES)[number] | null {
   const { labels } = page;
   if (labels.lure === false && labels.lure_type === undefined) return "none";
@@ -288,10 +302,11 @@ const PARKED =
 // Why a page's capture cannot carry its publisher's label (§18, plan review gap 5): the capture shows something other
 // than the page the label was given for. Null when it can.
 // Little text alone is no sign: a lure can be a logo and two fields, its screenshot carrying it.
-export function captureProblem(text: string): string | null {
+// The render's title and overlays, when it kept them, go to the wall rule with the text, as the renderer reads them.
+export function captureProblem(text: string, evidence?: { title: string; overlays: string }): string | null {
   if (PARKED.test(text.slice(0, 3000))) return "a parked, suspended or taken-down page";
   if (NOT_FOUND.test(text.slice(0, 3000))) return "an error page";
-  if (wallShown({ title: "", text, overlays: "" })) return "a bot challenge";
+  if (wallShown({ title: evidence?.title ?? "", text, overlays: evidence?.overlays ?? "" })) return "a bot challenge";
   return null;
 }
 
@@ -348,6 +363,13 @@ function writeExcluded(dir: string, excluded: Map<string, string>): void {
     closeSync(fd);
   }
   renameSync(temporary, file);
+  // The rename reaches the disk too, as durably as the labels and receipt that rest on it (§9 final review).
+  const folder = openSync(dirname(file), "r");
+  try {
+    fsyncSync(folder);
+  } finally {
+    closeSync(folder);
+  }
 }
 
 // Applies the rules to every whole page and writes the exclusions file afresh: every page then has a complete label or
@@ -379,7 +401,7 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
     const { page, text } = read;
     // A publisher's label holds only for a capture that shows the page it was given for (§18, plan review gap 5).
     if (page.origin === "public") {
-      const shown = captureProblem(text);
+      const shown = captureProblem(text, page.evidence);
       if (shown) {
         excluded.set(page.id, `the capture is ${shown}, not the page its label was given for`);
         continue;
@@ -393,20 +415,9 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
     if (!labelProblem(page)?.startsWith("the source labels contradict")) {
       const labels = { ...page.labels };
       const sources = { ...page.label_source };
-      const type = derivedLureType(page);
-      if (type) {
-        labels.lure_type = type;
-        sources.lure_type = "rule";
-        count(type);
-      }
-      const brand = derivedBrand(page, text);
-      if (brand !== undefined) {
-        labels.brand = brand;
-        sources.brand = "rule";
-        count(brand === null ? (page.labels.lure ? "brand unresolved" : "brand none") : "brand named");
-      }
       // A live screenshot beside text and form flags read from an inert copy of its HTML (7 Days Later, §18 gap 7):
       // a form a script builds shows in the picture but not in the inert copy, so a false flag there is untrusted.
+      // Marked before the lure type is derived, so the type knows what it rests on.
       let flags = false;
       if (page.source === "7-days-later")
         for (const field of ["has_login_form", "has_payment_form"] as const)
@@ -415,6 +426,22 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
             flags = true;
           }
       if (flags) count("form flag untrusted");
+      const type = derivedLureType(page);
+      if (type) {
+        labels.lure_type = type;
+        sources.lure_type = restsOnUnverified(type, labels, sources) ? "unverified" : "rule";
+        count(type);
+      } else if (sources.lure_type === "rule" && restsOnUnverified(labels.lure_type, labels, sources)) {
+        // A type an earlier run derived before its flags were found untrusted.
+        sources.lure_type = "unverified";
+        flags = true;
+      }
+      const brand = derivedBrand(page, text);
+      if (brand !== undefined) {
+        labels.brand = brand;
+        sources.brand = "rule";
+        count(brand === null ? (page.labels.lure ? "brand unresolved" : "brand none") : "brand named");
+      }
       if (type || brand !== undefined || flags) current = store.setLabels(page.id, labels, sources);
     }
     const problem = labelProblem(current);

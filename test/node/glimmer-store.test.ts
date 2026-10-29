@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { openStore, type PageInput, storeDir } from "../../scripts/glimmer/store.ts";
+import { openStore, type PageInput, type StoredPage, storeDir } from "../../scripts/glimmer/store.ts";
 import { buildScreenRequest, buildTrainingLine, jpegSize } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
@@ -653,10 +653,45 @@ describe("a publisher's label on its capture (D03 T04 §18)", () => {
       expect(excluded.get(takedown)).toMatch(/parked, suspended or taken-down/);
       expect(excluded.get(missing)).toMatch(/an error page/);
       expect(excluded.get(wall)).toMatch(/a bot challenge/);
+      // A wall named only in the render's title is a wall too, as the renderer reads it.
+      const { captureProblem } = await import("../../scripts/glimmer/label-rules.ts");
+      expect(captureProblem("Welcome", { title: "Just a moment...", overlays: "" })).toBe("a bot challenge");
       expect(excluded.has(fine)).toBe(false);
       for (const id of [a, b]) expect(excluded.get(id)).toMatch(/labelled a lure by one source and not by another/);
       const sources = openStore(dir).readVerifiedPage(live)?.page.label_source;
       expect(sources).toMatchObject({ has_login_form: "unverified", has_payment_form: "dom" });
+      // Both flags false off the inert copy: the derived type rests on them, so it is no better than unverified, and
+      // a type an earlier run derived as `rule` is marked so too (§9 final review).
+      const bare = await put("7-days-later", "Account notice", {
+        lure: true,
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      const earlier = await put("7-days-later", "Older notice", {
+        lure: true,
+        lure_type: "impersonation",
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      store.setLabels(
+        earlier,
+        { lure: true, lure_type: "impersonation", has_login_form: false, has_payment_form: false },
+        {
+          lure: "ground-truth",
+          lure_type: "rule",
+          has_login_form: "dom",
+          has_payment_form: "dom",
+        },
+      );
+      applyRules(store);
+      for (const id of [bare, earlier])
+        expect(openStore(dir).readVerifiedPage(id)?.page).toMatchObject({
+          labels: { lure_type: "impersonation" },
+          label_source: { lure_type: "unverified" },
+        });
+      const { answerOf } = await import("../../scripts/glimmer/build-dataset.ts");
+      const page = openStore(dir).readVerifiedPage(bare)?.page as StoredPage;
+      expect(answerOf({ ...page, labels: { ...page.labels, brand: null } })?.confidence).toBe(0.7);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

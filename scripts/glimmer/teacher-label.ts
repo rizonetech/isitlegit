@@ -99,19 +99,22 @@ export function sparkAsk(context: Omit<MetaContext, "owner">): Ask {
         ids.set(guarded, local);
         return guarded;
       },
+      // The local entry closes first: the guard's settlement can throw after the answer arrived, and the client still
+      // returns that answer, so a local entry settled second would stay reserved for good (§9 final review).
       settle: async (id, actualUsd, record) => {
-        await context.budget.settle(id, actualUsd, record);
         const local = ids.get(id);
-        if (!local) return;
         // Measured from Meta's usage, or nothing because the request never ran: settled at that. Settled at the
         // estimate (an answer without usage): left at its estimate locally too, so the receipt never calls it measured.
-        if (record?.certainty === "measured" || record?.certainty === "none") attempts.settle(local, actualUsd);
-        else attempts.uncertain(local);
+        if (local) {
+          if (record?.certainty === "measured" || record?.certainty === "none") attempts.settle(local, actualUsd);
+          else attempts.uncertain(local);
+        }
+        await context.budget.settle(id, actualUsd, record);
       },
       uncertain: async (id, record) => {
-        await context.budget.uncertain(id, record);
         const local = ids.get(id);
         if (local) attempts.uncertain(local);
+        await context.budget.uncertain(id, record);
       },
     };
     const { data } = await metaResponses(
@@ -313,9 +316,21 @@ function seededOrder(id: string, seed: string): string {
 
 // The pages worth a second opinion: those that can enter evaluation, South African first, not checked before, in a
 // seeded order within each region.
-export function candidates(pages: StoredPage[], checked: Set<string>, seed = "glimmer-teacher"): StoredPage[] {
+// A page the rules excluded (a parked or walled capture, contradictory labels) cannot enter evaluation, so it is not one.
+export function candidates(
+  pages: StoredPage[],
+  checked: Set<string>,
+  seed = "glimmer-teacher",
+  excluded: Map<string, string> = new Map(),
+): StoredPage[] {
   return pages
-    .filter((p) => TRUSTED.has(p.label_source.lure ?? "") && p.labels.lure !== undefined && !checked.has(p.id))
+    .filter(
+      (p) =>
+        TRUSTED.has(p.label_source.lure ?? "") &&
+        p.labels.lure !== undefined &&
+        !checked.has(p.id) &&
+        !excluded.has(p.id),
+    )
     .map((page) => ({ page, order: seededOrder(page.id, seed) }))
     .sort((a, b) => Number(b.page.south_africa) - Number(a.page.south_africa) || a.order.localeCompare(b.order))
     .map(({ page }) => page);
@@ -421,7 +436,7 @@ export async function teach(options: {
       .filter(([, outcome]) => outcome.status !== "refused" && !(options.retryFailed && outcome.status === "failed"))
       .map(([id]) => id),
   );
-  for (const page of candidates(pages, done).slice(0, options.max)) {
+  for (const page of candidates(pages, done, undefined, barred(store.dir)).slice(0, options.max)) {
     const read = store.readVerifiedPage(page.id);
     if (!read) {
       // A damaged page is never sent: it is listed, and the inventory excludes it (label-rules.ts).
@@ -510,6 +525,13 @@ export async function teach(options: {
         outcome = sent
           ? { status: "quarantined", reason: `a retry was refused after an attempt was sent: ${stop}` }
           : { status: "refused", reason: stop };
+      }
+      // Nothing reserved, so nothing sent (missing settings, an input the client refused before any attempt): the
+      // run cannot ask at all. The page is left to be asked again and the run stops, instead of quarantining every
+      // candidate up to --max for a fault no page has (§9 final review).
+      else if (![...entries.keys()].some((id) => !released.has(id))) {
+        stop = `Spark could not be asked: ${(error as Error).message}`;
+        outcome = { status: "refused", reason: stop };
       }
       // The request may have reached Meta and its answer been lost on the way back (a cut connection, a settlement
       // that timed out after the answer arrived): what Spark said cannot be known, so the page is quarantined.
@@ -637,7 +659,6 @@ export function writeReceipt(store: ReturnType<typeof openStore>, ledger: Spend[
   }
   delete teacher.unchecked;
   const done = new Set([...state].filter(([, o]) => o.status !== "refused").map(([id]) => id));
-  const teacherRuns = ledger.filter((e) => e.run.startsWith("glimmer-teacher-"));
   const receipt: Receipt = {
     at: at.toISOString(),
     snapshot: snapshotOf(store.dir, pages),
@@ -645,14 +666,11 @@ export function writeReceipt(store: ReturnType<typeof openStore>, ledger: Spend[
     bySource,
     excluded: excludedBy,
     teacher,
-    unchecked: candidates(pages, done).length,
+    unchecked: candidates(pages, done, undefined, barred(store.dir)).length,
     unresolvedBrands: { pages: unresolved, ofLures: lures },
     fields,
     agreed,
-    spend: {
-      measuredUsd: teacherRuns.filter((e) => e.state === "settled").reduce((s, e) => s + (e.cost ?? 0), 0),
-      uncertainUsd: teacherRuns.filter((e) => e.state !== "settled").reduce((s, e) => s + e.estimate, 0),
-    },
+    spend: teacherSpend(ledger),
   };
   writeDurably(receiptFile(store.dir), `${JSON.stringify(receipt, null, 2)}\n`);
   const back = JSON.parse(readFileSync(receiptFile(store.dir), "utf-8")) as Receipt;
@@ -660,10 +678,24 @@ export function writeReceipt(store: ReturnType<typeof openStore>, ledger: Spend[
   return receipt;
 }
 
+// The pages the rules excluded for good: everything but an incomplete label, which is what the teacher may fill.
+function barred(dir: string): Map<string, string> {
+  return new Map([...readExcluded(dir)].filter(([, reason]) => !reason.startsWith("incomplete after the rules")));
+}
+
+// The teacher's spend as the ledger holds it: settled attempts at their measured cost, the rest at their estimate.
+export function teacherSpend(ledger: Spend[]): { measuredUsd: number; uncertainUsd: number } {
+  const runs = ledger.filter((e) => e.run.startsWith("glimmer-teacher-"));
+  return {
+    measuredUsd: runs.filter((e) => e.state === "settled").reduce((s, e) => s + (e.cost ?? 0), 0),
+    uncertainUsd: runs.filter((e) => e.state !== "settled").reduce((s, e) => s + e.estimate, 0),
+  };
+}
+
 // Why the labels are not ready for §10: a page with neither a complete label nor an exclusion, a damaged page not
 // excluded (its record readable or not), a missing receipt, or a receipt for another store, labels, exclusions or
 // teacher outcomes than those there now. Empty when they are.
-export function checkLabels(store: ReturnType<typeof openStore>): string[] {
+export function checkLabels(store: ReturnType<typeof openStore>, ledger?: Spend[]): string[] {
   const problems: string[] = [];
   const pages = store.manifest({ tolerant: true });
   const excluded = readExcluded(store.dir);
@@ -693,19 +725,51 @@ export function checkLabels(store: ReturnType<typeof openStore>): string[] {
       problems.push(
         `the receipt covers ${receipt.snapshot.pages} pages and other labels or outcomes than the ${now.pages} stored now: run again`,
       );
+    // Its spend as the ledger holds it now: a later settlement or another teacher run makes it stale.
+    if (ledger) {
+      const spend = teacherSpend(ledger);
+      const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+      if (!near(spend.measuredUsd, receipt.spend.measuredUsd) || !near(spend.uncertainUsd, receipt.spend.uncertainUsd))
+        problems.push("the receipt's spend is not the ledger's now: run again");
+    }
   }
   return problems;
 }
 
-if (import.meta.filename === process.argv[1] && process.argv[2] === "check") {
-  const problems = checkLabels(openStore(storeDir()));
+// The command line: `check`, or a paid run with `--max <1 to 100000>` and `--retry-failed`. Anything else is refused
+// before the ledger is locked or a secret read, so a typo never starts spending (§9 final review).
+export function teacherArgs(
+  argv: string[],
+): { command: "check" } | { command: "run"; max: number; retryFailed: boolean } | { error: string } {
+  if (argv.length === 1 && argv[0] === "check") return { command: "check" };
+  let max = 500;
+  let retryFailed = false;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--retry-failed") retryFailed = true;
+    else if (arg === "--max" && /^[1-9]\d{0,5}$/.test(argv[i + 1] ?? "") && Number(argv[i + 1]) <= 100_000) {
+      max = Number(argv[i + 1]);
+      i++;
+    } else return { error: `unknown or malformed argument: ${String(arg).slice(0, 40)}` };
+  }
+  return { command: "run", max, retryFailed };
+}
+
+const cli = import.meta.filename === process.argv[1] ? teacherArgs(process.argv.slice(2)) : null;
+if (cli && "error" in cli) {
+  console.error(`teacher-label: ${cli.error}`);
+  console.error("usage: node scripts/glimmer/teacher-label.ts check | [--max <n>] [--retry-failed]");
+  process.exit(2);
+}
+
+if (cli?.command === "check") {
+  const problems = checkLabels(openStore(storeDir()), readLedger(metaLedger()));
   console.log(problems.length ? `teacher-label check: failed (${problems.join("; ")})` : "teacher-label check: clean");
   process.exit(problems.length ? 1 : 0);
 }
 
-if (import.meta.filename === process.argv[1] && process.argv[2] !== "check") {
-  const at = process.argv.indexOf("--max");
-  const max = at >= 0 ? Number(process.argv[at + 1]) : 500;
+if (cli?.command === "run") {
+  const { max } = cli;
   const ledgerFile = metaLedger();
   const release = takeLock(ledgerLock(ledgerFile));
   if (typeof release === "string") {
@@ -725,7 +789,7 @@ if (import.meta.filename === process.argv[1] && process.argv[2] !== "check") {
       run: `glimmer-teacher-${Date.now()}`,
       max,
       now: clock.teacher,
-      retryFailed: process.argv.includes("--retry-failed"),
+      retryFailed: cli.retryFailed,
     });
     console.log(JSON.stringify(result));
     // The rules again, so every page this run quarantined is excluded before the receipt is written.
