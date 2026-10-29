@@ -55,7 +55,6 @@ function nextStep(status: string, state: string | null, reply: boolean): string 
   // No resend yet, or one that ended (uncertain, then settled failed): the same check, then resend (round 4).
   if (state === null || state === "done") return "resend, if SMTP2GO has no record of it";
   if (state === "requested") return "wait for the cron (15 minutes), or cancel";
-  if (state === "sending") return "wait; the cron is sending it";
   if (state === "exhausted" || state === "cancelled") return "requeue once SMTP2GO sends again";
   return "nothing";
 }
