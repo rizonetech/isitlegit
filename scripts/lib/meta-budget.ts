@@ -8,6 +8,7 @@ import {
   cachedStatement,
   capEventStatement,
   inline,
+  outputFailedStatement,
   ownerColumns,
   refusedStatement,
   reserveStatement,
@@ -103,6 +104,9 @@ export function localBudget(caller: string, run: Runner = runCommand, now: () =>
         estimateUsd: 0,
       };
       await execute(refusedStatement(row, errorClass), run);
+    },
+    async outputFailed(callId, errorClass) {
+      await execute(outputFailedStatement(callId, errorClass), run);
     },
     async cached(model, call, ms) {
       const at = now();

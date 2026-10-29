@@ -39,6 +39,7 @@ function ledger(refuse?: () => Error) {
     },
     async refused() {},
     async cached() {},
+    async outputFailed() {},
   };
   return { budget, charges };
 }
@@ -152,7 +153,7 @@ describe("metaRaw", () => {
       },
       ctx,
     );
-    expect(result).toEqual({ data: { transcript: "hello" }, logId: "log-1" });
+    expect(result).toEqual({ data: { transcript: "hello" }, logId: "log-1", callId: expect.any(String) });
     const request = sent[0] as Request;
     expect(request.url).toBe("https://gateway.test/v1/acct/isitlegit/custom-meta/v1/asr/transcribe");
     expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);

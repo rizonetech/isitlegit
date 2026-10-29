@@ -73,6 +73,7 @@ Every organisation (name, created, domains verified, members, cases this week, t
 - [ ] Show spend today and in total per provider against the caps and the reserve. Done when: a seeded spend renders the right percentages.
 - [ ] Add invite-code management (create with label and uses, list with uses and expiry, revoke by setting its expiry to now in `invite_codes`, migration 0013, D07 T02 §4). Done when: a revoked code is refused at signup and accounts made with it are unaffected.
 - [ ] Set an organisation's daily case cap (`org_limits.daily_cases`, D07 T02 §4) from the organisation table, 0 to 50 (the event maximum), read back after saving. Done when: `test/web/admin-page.test.ts` lowers a cap, reads it back, and the next `admitCase` for that organisation is refused at the new limit. Source: D07 T02 §4 completion review (Part 1 item 11).
+- [ ] Give the operator incident review of the auth trail (D07 T02 §6's `auth_events`), including rows with no organisation (refused sign-ins, rate limits), behind the operator's own gate and never through any organisation's owner read. Done when: the operator reads a refused sign-in and a rate-limit row, and an organisation owner's read never returns a row without its organisation. Source: D07 T02 §6 plan review.
 - [ ] Commit: `admin: cross-organisation overview, spend and invite codes`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes.

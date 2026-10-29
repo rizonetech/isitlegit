@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 316
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 341
+Sections: 42 | Checklist items: 353
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -77,10 +77,10 @@ Sections: 42 | Checklist items: 341
 | [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
 | [x]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 8     |
-| [ ]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 7     |
-| [ ]    | D03 T01 §5  | Structured output helper with zod         | none                  | 5     |
+| [x]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
+| [x]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
-| [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 5     |
+| [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 11    |
 | [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
@@ -205,7 +205,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 238
+Sections: 59 | Checklist items: 242
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -231,10 +231,10 @@ Sections: 59 | Checklist items: 238
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
-| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 5     |
+| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
-| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 5     |
+| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [ ]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 5     |
 | [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
@@ -253,7 +253,7 @@ Sections: 59 | Checklist items: 238
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 5     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -271,7 +271,7 @@ Sections: 59 | Checklist items: 238
 
 ### Phase 7: After the event
 
-Sections: 19 | Checklist items: 112
+Sections: 19 | Checklist items: 113
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -291,7 +291,7 @@ Sections: 19 | Checklist items: 112
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
-| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 7     |
+| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 8     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
 
@@ -317,6 +317,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 60/248 verified sections, 27 ready to run now.
+Progress: 62/248 verified sections, 28 ready to run now.
 
-Checklist: 703/1503 items completed (includes Commit items).
+Checklist: 725/1520 items completed (includes Commit items).

@@ -46,14 +46,21 @@ function Frame(props: { title: string; children: unknown }) {
   );
 }
 
-// The confirm step; `limited` is its rate-limited state (A1's): too many tries from here, the same link still good.
-export function ConfirmPage(props: { token: string; callbackURL: string; limited?: boolean }) {
+// How long until a limit lets the next try through, as a person reads it: whole minutes, a minute at least.
+export const resumesIn = (seconds: number) => {
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  return minutes === 1 ? "a minute" : `${minutes} minutes`;
+};
+
+// The confirm step; `retryAfter` is its rate-limited state (A1's): too many tries from here, the same link still good,
+// with the time it works again (D07 T02 §6: the limiter's own retry time).
+export function ConfirmPage(props: { token: string; callbackURL: string; retryAfter?: number }) {
   return (
     <Frame title="Sign in">
       <h1 class="font-display text-28 weight-display">Sign in to IsItLegit</h1>
       <p class="text-16 text-muted">
-        {props.limited
-          ? "Too many sign-in tries from here. Wait a minute, then press the button again; your link still works."
+        {props.retryAfter !== undefined
+          ? `Too many sign-in tries from here. Wait ${resumesIn(props.retryAfter)}, then press the button again. A link works for 15 minutes from when it was sent; if yours has run out by then, ask for a new one below.`
           : "Press the button to finish signing in. The link works once."}
       </p>
       <form method="post" action={CONFIRM_PATH} class="flex flex-col gap-16">
@@ -63,6 +70,11 @@ export function ConfirmPage(props: { token: string; callbackURL: string; limited
           Sign in to IsItLegit
         </Button>
       </form>
+      {props.retryAfter !== undefined ? (
+        <a class="text-16" href={`${LINK_PATH}?${new URLSearchParams({ callbackURL: props.callbackURL })}`}>
+          Get a new sign-in link
+        </a>
+      ) : null}
     </Frame>
   );
 }

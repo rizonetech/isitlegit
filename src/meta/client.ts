@@ -28,7 +28,7 @@ import { estimateUsd } from "./pricing.ts";
 
 export // How long a timed-out call waits for its aborted attempt's record to be written before it throws.
 const RECORD_GRACE_MS = 2_000;
-const DEFAULT_DEADLINE_MS = 60_000;
+export const DEFAULT_DEADLINE_MS = 60_000;
 export const MAX_ATTEMPTS = 3;
 // A Retry-After longer than this is not waited for: the call ends, carrying it, and the caller's step decides.
 export const MAX_RETRY_AFTER_MS = 20_000;
@@ -62,7 +62,10 @@ export type MetaContext = {
   random?: () => number;
 };
 // What came back, with the gateway's id for the call's log (D03 T01 §3 reads it).
-export type MetaAnswer<T> = { data: T; logId: string | null };
+// An answer, with the call it belongs to (D03 T01 §5: the structured-output helper marks a paid answer that failed its
+// schema on that call's record).
+export type MetaAnswer<T> = { data: T; logId: string | null; callId: string };
+type Sent<T> = { data: T; logId: string | null };
 
 export type ModelErrorKind =
   | "refused-model"
@@ -153,7 +156,7 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
     maxOutputTokens: params.max_output_tokens as number,
     images,
   });
-  return withRetries(ctx, seen, (signal, n) => {
+  const answer = await withRetries(ctx, seen, (signal, n) => {
     let requestId: string | null = null;
     return charged(
       ctx.budget,
@@ -188,6 +191,7 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       (error) => describeFailure(error, seen.last),
     );
   });
+  return { ...answer, callId: call.callId };
 }
 
 // The endpoints the SDK route does not cover, each with its own wire contract: transcription is multipart, a `request`
@@ -267,7 +271,7 @@ export async function metaRaw(
   );
   const seen = observe(ctx.fetch ?? fetch);
   const headers = { ...gatewayHeaders(token), ...(await metadataHeader(ctx.owner)) };
-  return withRetries(ctx, seen, (signal, n) => {
+  const answer = await withRetries(ctx, seen, (signal, n) => {
     let requestId: string | null = null;
     return charged(
       ctx.budget,
@@ -297,6 +301,7 @@ export async function metaRaw(
       (error) => describeFailure(error, seen.last),
     );
   });
+  return { ...answer, callId: call.callId };
 }
 
 async function rawAttempt(
@@ -308,7 +313,7 @@ async function rawAttempt(
   contentType: Record<string, string>,
   payload: BodyInit,
   signal: AbortSignal,
-): Promise<MetaAnswer<unknown> & { requestId: string | null }> {
+): Promise<Sent<unknown> & { requestId: string | null }> {
   const response = await seen.fetch(`${base}${path}`, {
     method: "POST",
     headers: {

@@ -1,0 +1,118 @@
+{
+  "ref": "D03 T01 \u00a75",
+  "title": "Structured output helper with zod",
+  "implementation_sha": "b2205a8e0040971c295a075fd0c52814b42db444",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T01-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T01-s5.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T01-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/meta/structured.test.ts -> 18 passed (the request body, every schema Meta refuses and each limit, the completed-answer gate, each invalid kind retried once, trusted-words feedback, stripped parses refused, records and ids, one deadline, bounded records)",
+    "pnpm exec vitest run --project node test/node/no-coerce.test.ts -> 1 passed",
+    "pnpm exec vitest run --maxWorkers=2 -> 1153 passed, 2 skipped",
+    "mutations: disabling the unknown-property check, the trusted wording or the incomplete gate each fail a test"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T01-s5.md",
+    "verdict": "completed",
+    "candidate": "4cb12479d7ae9f0ea96898a8b38a0bded3b4a4d8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T01-s5.md",
+    "candidate": "73234f16d901a67dba95b5f7e52f084353cb31f9",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T01-s5.md",
+    "verdict": "fixed",
+    "candidate": "8b6a5ee13d0f6469c9594262cc53857c33b50a82",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

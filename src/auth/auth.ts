@@ -20,9 +20,11 @@ import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "b
 import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
+import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink } from "./confirm-page";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
+import { d1RateLimit, RATE_RULES } from "./ratelimit";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { inviteSignup, type SendFirstLink } from "./signup";
 
@@ -57,9 +59,22 @@ export function authOptions(
   // Told the outcome of each magic-link send, so the signup knows whether its own first link went (createAuth).
   onMagicLinkOutcome: (email: string, outcome: SendOutcome) => void = () => {},
 ) {
+  // The audit trail (D07 T02 §6, ./audit): a row that cannot be written is logged, never a failed sign-in.
+  const audit = (event: AuthEvent) => recordAuthEvent(mail().db, env.BETTER_AUTH_SECRET ?? "", event);
+  // A role change's hold on its member, released once it has run, whatever its answer.
+  const releaseMember = async (request: Request | undefined) => {
+    const memberId = request ? lockedMembers.get(request) : undefined;
+    if (!request || !memberId) return;
+    lockedMembers.delete(request);
+    await mail()
+      .db.prepare("DELETE FROM member_locks WHERE member_id = ?")
+      .bind(memberId)
+      .run()
+      .catch(() => console.error(JSON.stringify({ event: "auth-audit", outcome: "member-lock-unreleased" })));
+  };
   const schema = schemaOptions(
     {
-      sendMagicLink: async ({ email, url, token }) => {
+      sendMagicLink: async ({ email, url, token }, ctx) => {
         const outcome = await sendMail(mail(), {
           sendKey: `signin:${await sha256Hex(token)}`,
           kind: "signin",
@@ -70,6 +85,9 @@ export function authOptions(
           text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${mailedLink(env.APP_URL, url, token)}\n\nIf you did not ask for it, ignore this mail.`,
         });
         onMagicLinkOutcome(email, outcome);
+        // The per-address limit held the link back (sendMail's, D01 T02 §2): answered as sent, recorded here.
+        if (outcome.status === "refused" && /too many sign-in links/.test(outcome.reason))
+          await audit({ kind: "rate-limited", outcome: "per-address", ip: clientIp(ctx?.request?.headers) });
         // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
         // never tells a stranger who is registered; a failed or unknown send is still an error.
         if (outcome.status === "refused") return;
@@ -120,6 +138,12 @@ export function authOptions(
     },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.APP_URL,
+    // Better Auth's per-IP limiter, counted in D1 so every Worker instance shares the count (D07 T02 §6, ./ratelimit).
+    rateLimit: {
+      enabled: true,
+      customRules: RATE_RULES,
+      customStorage: d1RateLimit(() => mail().db, env.BETTER_AUTH_SECRET ?? "", audit),
+    },
     basePath: "/api/auth",
     trustedOrigins: [new URL(env.APP_URL).origin],
     advanced: {
@@ -145,6 +169,54 @@ export function authOptions(
         // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
         if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
+        if (ctx.path === "/organization/update-member-role" && ctx.request) {
+          // The role being replaced, read before the change, for its audit row (completion review, E1). The member is
+          // held while the change runs (migration 0028), so a second change at once is refused, not recorded against a
+          // role it did not replace (round 1).
+          const memberId = (ctx.body as { memberId?: unknown } | undefined)?.memberId;
+          // Only an owner or admin of the member's own organisation takes the hold (round 2): anyone else is refused by
+          // Better Auth after this, and must not hold a member an owner is changing.
+          const caller = await getSessionFromCtx(ctx);
+          const target =
+            typeof memberId === "string"
+              ? await ctx.context.adapter.findOne<{ organizationId: string }>({
+                  model: "member",
+                  where: [{ field: "id", value: memberId }],
+                })
+              : null;
+          const callerMember =
+            caller && target
+              ? await ctx.context.adapter.findOne<{ role: string }>({
+                  model: "member",
+                  where: [
+                    { field: "userId", value: caller.user.id },
+                    { field: "organizationId", value: target.organizationId },
+                  ],
+                })
+              : null;
+          const mayChange = callerMember
+            ? callerMember.role.split(",").some((r) => r === "owner" || r === "admin")
+            : false;
+          if (typeof memberId === "string" && mayChange) {
+            const now = Math.floor(Date.now() / 1000);
+            const held = await mail()
+              .db.prepare(
+                "INSERT INTO member_locks (member_id, until) VALUES (?1, ?2) ON CONFLICT (member_id) DO UPDATE SET until = excluded.until WHERE member_locks.until < ?3 RETURNING member_id",
+              )
+              .bind(memberId, now + MEMBER_LOCK_SECONDS, now)
+              .first();
+            // Taken when the row came back: a held member returns none.
+            if (!held)
+              throw new APIError("CONFLICT", { message: "another change to this member is in progress; try again" });
+            lockedMembers.set(ctx.request, memberId);
+            const member = await ctx.context.adapter.findOne<{ role: string }>({
+              model: "member",
+              where: [{ field: "id", value: memberId }],
+            });
+            if (member) previousRoles.set(ctx.request, member.role);
+          }
+          return;
+        }
         if (ctx.path === "/organization/set-active") {
           // Better Auth clears the active organisation before refusing a switch to one the user does not belong to,
           // leaving them in none; the switch is refused here first, the session as it was.
@@ -277,8 +349,25 @@ export function authOptions(
           return;
         }
         if (ctx.path === "/organization/invite-member") {
-          const invitation = ctx.context.returned as { id?: unknown; expiresAt?: unknown } | null;
+          const invitation = ctx.context.returned as {
+            id?: unknown;
+            expiresAt?: unknown;
+            organizationId?: string;
+            inviterId?: string;
+            role?: string;
+          } | null;
           if (!invitation || typeof invitation.id !== "string" || isAPIError(invitation)) return;
+          // The caller is the actor, not the invitation's first inviter: a resend by another admin is theirs (G3).
+          const resent = (ctx.body as { resend?: unknown } | undefined)?.resend === true;
+          await audit({
+            kind: "invite",
+            outcome: resent ? "resent" : "made",
+            orgId: invitation.organizationId ?? null,
+            actorId: (await getSessionFromCtx(ctx))?.user.id ?? invitation.inviterId ?? null,
+            targetId: invitation.id,
+            ip: clientIp(ctx.request?.headers),
+            detail: { role: invitation.role ?? null },
+          });
           const sent = await mail()
             .db.prepare("SELECT status FROM mail_sends WHERE send_key = ?")
             .bind(inviteSendKey(invitation as Invitation))
@@ -292,12 +381,61 @@ export function authOptions(
                 : "the invitation is saved but its email could not be sent; send it again",
           });
         }
+        if (ctx.path === "/organization/update-member-role" || ctx.path === "/organization/cancel-invitation") {
+          const returned = ctx.context.returned as {
+            id?: string;
+            userId?: string;
+            organizationId?: string;
+            role?: string;
+            status?: string;
+          } | null;
+          if (!returned || isAPIError(returned) || !returned.organizationId) {
+            await releaseMember(ctx.request);
+            return;
+          }
+          const role = ctx.path === "/organization/update-member-role";
+          const before = ctx.request ? previousRoles.get(ctx.request) : undefined;
+          await releaseMember(ctx.request);
+          await audit({
+            kind: role ? "update-member-role" : "cancel-invitation",
+            outcome: role ? "changed" : "revoked",
+            orgId: returned.organizationId,
+            actorId: (await getSessionFromCtx(ctx))?.user.id ?? null,
+            targetId: (role ? returned.userId : returned.id) ?? null,
+            ip: clientIp(ctx.request?.headers),
+            // A role change says what it replaced (E1), read before the change was made.
+            ...(role ? { detail: { from: before ?? null, to: returned.role ?? null } } : {}),
+          });
+          return;
+        }
+        if (ctx.path === "/organization/leave") {
+          // A member who leaves is a departure in the team history, by themselves (round 1).
+          const left = ctx.context.returned as { userId?: string; organizationId?: string } | null;
+          if (!left?.userId || !left.organizationId || isAPIError(left)) return;
+          await audit({
+            kind: "leave-organization",
+            outcome: "left",
+            orgId: left.organizationId,
+            actorId: left.userId,
+            targetId: left.userId,
+            ip: clientIp(ctx.request?.headers),
+          });
+          return;
+        }
         if (ctx.path === "/organization/remove-member") {
           // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest, and
           // their old invitation is spent (invitation_uses), so it cannot bring them back.
           const removed = ctx.context.returned as { member?: { userId?: string; organizationId?: string } } | null;
           const member = removed?.member;
           if (!member?.userId || !member.organizationId || isAPIError(removed)) return;
+          await audit({
+            kind: "remove-member",
+            outcome: "removed",
+            orgId: member.organizationId,
+            actorId: (await getSessionFromCtx(ctx))?.user.id ?? null,
+            targetId: member.userId,
+            ip: clientIp(ctx.request?.headers),
+          });
           await ctx.context.adapter.deleteMany({
             model: "session",
             where: [
@@ -312,6 +450,17 @@ export function authOptions(
     databaseHooks: {
       session: {
         create: {
+          // Each session made is a sign-in in the audit trail, by the path that made it (a link, a passkey, a signup).
+          after: async (session, ctx) => {
+            await audit({
+              kind: "sign-in",
+              outcome: "signed-in",
+              orgId: (session as { activeOrganizationId?: string | null }).activeOrganizationId ?? null,
+              userId: session.userId,
+              ip: clientIp(ctx?.request?.headers) ?? session.ipAddress ?? null,
+              detail: { method: methodOf(ctx?.path) },
+            });
+          },
           before: async (session, ctx) => {
             const [first] = ctx
               ? await ctx.context.adapter.findMany<{ organizationId: string }>({
@@ -327,6 +476,20 @@ export function authOptions(
       },
     },
   } satisfies BetterAuthOptions;
+}
+
+// A role change's previous role and its held member, from its before hook to its after hook, by request.
+const previousRoles = new WeakMap<Request, string>();
+const lockedMembers = new WeakMap<Request, string>();
+const MEMBER_LOCK_SECONDS = 30;
+
+// The way a session was made, as the audit trail names it.
+function methodOf(path: string | undefined): string {
+  if (!path) return "other";
+  if (path.startsWith("/magic-link")) return "magic-link";
+  if (path.startsWith("/passkey")) return "passkey";
+  if (path.startsWith("/sign-up")) return "signup";
+  return "other";
 }
 
 // One send key per invitation email: a resend extends the invitation's expiry, so it is a new send, not a duplicate.

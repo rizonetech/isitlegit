@@ -1,0 +1,123 @@
+{
+  "ref": "D03 T01 \u00a74",
+  "title": "Result cache by artefact hash",
+  "implementation_sha": "d0b3ed6929fedfb6f7e47220b2fb8fd2d3178d18",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T01-s4.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T01-s4.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T01-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/meta/cache.test.ts -> 13 passed (key identity, TTL bounds and expiry, no errors or partials or invalid answers kept, repair read-back, hit record through D1 and the caps, stalled and throwing stores, plain-JSON params)",
+    "pnpm exec vitest run --maxWorkers=2 -> 1134 passed, 2 skipped",
+    "mutations: keeping a partial, serving a schema-invalid entry, and serving an expired entry each fail a test",
+    "live: migration 0026 applied and read back (No migrations to apply); d0b3ed6 deployed, /health ok"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T01-s4.md",
+    "verdict": "filed",
+    "candidate": "859dab02e30646b823f9cdd15311ab5c655c166a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T02 \u00a73",
+      "D04 T02 \u00a76",
+      "D07 T03 \u00a75",
+      "D08 T02 \u00a72"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T01-s4.md",
+    "candidate": "1101d60b66e86173822c7c0e46c79d1f0167807b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T01-s4.md",
+    "verdict": "fixed",
+    "candidate": "377eeeee77c71ca069c03454fba6b01ff94a68cd",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
