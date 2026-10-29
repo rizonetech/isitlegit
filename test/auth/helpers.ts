@@ -58,6 +58,22 @@ export const pathOf = (link: string) => {
   return `${url.pathname}${url.search}`;
 };
 
+// A mailed sign-in link redeemed as a member's browser does (D07 T02 §10): the GET shows the confirm page, whose form
+// the member submits. The fields are read from the page itself, so a page that lost them fails here.
+export async function redeem(link: string, workerEnv: Env = authEnv): Promise<Response> {
+  const shown = await call(pathOf(link), {}, workerEnv);
+  if (shown.status !== 200) return shown;
+  const html = await shown.text();
+  const field = (name: string) => new RegExp(`name="${name}" value="([^"]*)"`).exec(html)?.[1] ?? "";
+  const decode = (value: string) =>
+    value
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  const body = new URLSearchParams({ token: decode(field("token")), callbackURL: decode(field("callbackURL")) });
+  return call("/signin/confirm", { method: "POST", body }, workerEnv);
+}
+
 // Where a redirect goes, as a path on the app: Better Auth answers with the app's own absolute URL.
 export const target = (response: Response) => {
   const location = response.headers.get("location");
@@ -80,7 +96,7 @@ export async function signIn(email = "member@demo.isitlegit.co.za") {
   try {
     const asked = await requestLink(email);
     if (asked.status !== 200) throw new Error(`link request answered ${asked.status}`);
-    const redeemed = await call(pathOf(smtp.sends.at(-1)?.link ?? ""));
+    const redeemed = await redeem(smtp.sends.at(-1)?.link ?? "");
     return { cookie: sessionCookie(redeemed), redeemed };
   } finally {
     smtp.restore();

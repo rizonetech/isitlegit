@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createAuth } from "./auth/auth";
+import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
@@ -16,6 +17,9 @@ const app = new Hono<{ Bindings: Env }>();
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
 // Every binding exercised on the deployed Worker; 404 without the run's token (D00 T01 §5, scripts/smoke.ts).
 app.get("/internal/smoke", (c) => smoke(c.env, c.req.raw, c.executionCtx));
+// The sign-in link's confirm page, and the old verify URL sent to it (D07 T02 §10, src/auth/confirm.tsx): before
+// Better Auth's routes, so a GET of its verify URL never signs in.
+app.route("/", confirmRoutes);
 // Better Auth's endpoints: magic links, sessions, its health check (D07 T02 §1, src/auth/auth.ts).
 app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw));
 // The app shell's Sign out form (D07 T01 §3), src/auth/sign-out.ts.

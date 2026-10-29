@@ -472,6 +472,16 @@ States:
 - empty: No empty state. Not applicable: a form page; the empty form is the default state.
 - error: App error page (E5). (Error-500)
 
+Confirm step (D07 T02 §10, 2026-10-29; built from A1's controls, not drawn): the mailed link opens `/signin/confirm`, which only shows the heading "Sign in to IsItLegit", one line ("Press the button to finish signing in. The link works once.") and one primary "Sign in to IsItLegit" button; nothing happens until it is pressed, because mail systems open links before the member does. Its states:
+
+- signed in: The member lands on the page the link named.
+- link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
+- did not finish: Sign-in did not finish (the service's failure after the link was used); ask for a new link and try again.
+- link could not be sent: The recovery's send failed; try again in a moment.
+- loading: Deferred to D07 T02 §7, as A1's own: no script runs on this page yet (D07 T01 §9).
+
+Checked at 375 px with no sideways scroll, and by keyboard (the button and the Email field reachable and labelled). D07 T02 §7 draws these on A1's frame.
+
 ### A2 Sign up
 
 Boards: [PNG](mockups/png/Signup.png) · [source](mockups/source/Signup.dc.html)

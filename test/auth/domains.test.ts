@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DOH_URL, findMemberBySender } from "../../src/auth/domains";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
-import { call, pathOf, sessionCookie } from "./helpers";
+import { call, redeem, sessionCookie } from "./helpers";
 
 // D07 T02 §5: domain and sending-address claims through the Worker's fetch, with DNS-over-HTTPS and SMTP2GO stubbed
 // by one fetch stub (two spies on fetch would replace each other).
@@ -60,7 +60,7 @@ async function owner(email: string) {
     body: JSON.stringify({ email, code, organizationName: `Org of ${email}`, consent: true }),
   });
   if (signedUp.status !== 201) throw new Error(`signup ${signedUp.status}`);
-  const cookie = sessionCookie(await call(pathOf(/https?:\/\/\S+/.exec(world.sends.at(-1)?.text ?? "")?.[0] ?? "")));
+  const cookie = sessionCookie(await redeem(/https?:\/\/\S+/.exec(world.sends.at(-1)?.text ?? "")?.[0] ?? ""));
   const orgId = (
     await db.prepare("SELECT org_id FROM invite_redemptions WHERE email = ?").bind(email).first<{ org_id: string }>()
   )?.org_id as string;
@@ -82,7 +82,7 @@ async function joiner(ownerCookie: string, email: string, role: "member" | "admi
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email }),
   });
-  const cookie = sessionCookie(await call(pathOf(/https?:\/\/\S+/.exec(world.sends.at(-1)?.text ?? "")?.[0] ?? "")));
+  const cookie = sessionCookie(await redeem(/https?:\/\/\S+/.exec(world.sends.at(-1)?.text ?? "")?.[0] ?? ""));
   await call("/api/auth/organization/accept-invitation", {
     method: "POST",
     headers: { cookie, "content-type": "application/json" },
@@ -94,7 +94,7 @@ async function joiner(ownerCookie: string, email: string, role: "member" | "admi
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email }),
   });
-  return sessionCookie(await call(pathOf(/https?:\/\/\S+/.exec(world.sends.at(-1)?.text ?? "")?.[0] ?? "")));
+  return sessionCookie(await redeem(/https?:\/\/\S+/.exec(world.sends.at(-1)?.text ?? "")?.[0] ?? ""));
 }
 const stateOf = async (orgId: string, domain: string) =>
   (
