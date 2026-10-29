@@ -207,7 +207,7 @@ export function reconcile(input: {
   const synthetic = input.pages.filter((page) => page.origin === "synthetic").length;
   if (synthetic) problems.push(`${synthetic} stored pages have origin synthetic, yet §8 was removed`);
   // No public source leaves Loupe no lures but the samples'.
-  if (rows.length && !rows.some((row) => row.decision === "accepted")) problems.push("no source was accepted");
+  if (!rows.some((row) => row.decision === "accepted")) problems.push("no source was accepted");
   return problems;
 }
 

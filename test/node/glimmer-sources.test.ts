@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -140,9 +141,31 @@ describe("reconcile", () => {
     }
   });
 
-  it("fails when no source is accepted", () => {
+  it("fails when no source is accepted, an empty table included", () => {
     const none = { ...base, sources: [header, row("set-b", "rejected")].join("\n"), imports: {}, pages: [] };
     expect(reconcile(none)).toContain("no source was accepted");
+    expect(reconcile({ sources: "", imports: {}, pages: [], notice: "" })).toContain("no source was accepted");
+    expect(reconcile({ ...none, sources: header })).toContain("no source was accepted");
+  });
+
+  it("exits 1 from check and freeze on a leftover, and freeze writes nothing", () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-s8-cli-"));
+    try {
+      mkdirSync(join(store, "raw", "synthetic"), { recursive: true });
+      const run = (command: string) =>
+        spawnSync(process.execPath, [join(import.meta.dirname, "../../scripts/glimmer/sources.ts"), command], {
+          env: { ...process.env, GLIMMER_DATA_DIR: store },
+          encoding: "utf-8",
+        });
+      for (const command of ["check", "freeze"]) {
+        const result = run(command);
+        expect(result.status).toBe(1);
+        expect(result.stdout).toContain("raw/synthetic exists, yet §8 was removed");
+      }
+      expect(existsSync(join(store, "raw", "FROZEN.json"))).toBe(false);
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
   });
 });
 
