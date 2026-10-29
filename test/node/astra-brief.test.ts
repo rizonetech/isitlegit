@@ -33,10 +33,14 @@ const RULES: Record<string, string[]> = {
   "Recovery rules": [
     "`<source>/.partial/`",
     "only after its SHA-256 has been computed",
+    "`python3 .fetch.py --url <url> --dest <source>/<name> --sha256",
+    "its published digest matches",
+    "A rerun keeps `.partial/`",
+    "resumes an unfinished file",
+    "make no retries of your own",
     "`COLLECTED.md` is written last, through a temporary file and a rename",
     "only when every file it lists is in place",
     "skips a source whose `COLLECTED.md` hashes still match",
-    "deletes `.partial/` and redoes any source without a `COLLECTED.md`",
     "renames it to `COLLECTED.invalid-<UTC stamp>.md`",
     "other sources are left as they are",
   ],
@@ -91,5 +95,19 @@ describe("Astra's collection brief", () => {
         expect(missing(copy), `${heading}: ${phrase}`).toContain(`${heading}: ${phrase}`);
       }
     }
+  });
+});
+
+// docs/glimmer/astra-collection-brief-2.md (D03 T04 §18) downloads the same way (D03 T04 §16): its recovery rules are
+// the first brief's, and it resumes only its own sweep's folders.
+const BRIEF_2 = readFileSync(join(import.meta.dirname, "../../docs/glimmer/astra-collection-brief-2.md"), "utf-8");
+
+describe("the downloads both briefs make", () => {
+  it("resume through .fetch.py and never delete a partial download", () => {
+    for (const brief of [BRIEF, BRIEF_2]) {
+      expect(missing(brief).filter((gap) => gap.startsWith("Recovery rules"))).toEqual([]);
+      expect(brief).not.toContain("deletes `.partial/`");
+    }
+    expect(BRIEF_2).toContain("This sweep resumes only the folders it made itself");
   });
 });

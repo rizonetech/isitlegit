@@ -48,10 +48,10 @@ Each rejected source gets one line in `REJECTED.md`: its name, URL, the licence 
 
 ## Recovery rules
 
-- Each download goes first to `<source>/.partial/`, and moves into place only after its SHA-256 has been computed.
+- Every download is made with the downloader placed where you start: `python3 .fetch.py --url <url> --dest <source>/<name> --sha256 <the published SHA-256>` (`--md5 <hex>` where the dataset publishes only an MD5, `--unpublished` where it publishes no digest, which you then say in `COLLECTED.md`). It writes to `<source>/.partial/`, resumes an interrupted file from where it stopped, and moves a file into place only after its SHA-256 has been computed and its published digest matches; its last line is a JSON result, and only exit 0 means the file is in place.
 - `COLLECTED.md` is written last, through a temporary file and a rename, only when every file it lists is in place.
 - A rerun skips a source whose `COLLECTED.md` hashes still match its files.
-- A rerun deletes `.partial/` and redoes any source without a `COLLECTED.md`.
+- A rerun keeps `.partial/` and runs `.fetch.py` again for each file of a source without a `COLLECTED.md`: it resumes an unfinished file and reports a finished one `present` without fetching it again. `.fetch.py` tries each file 3 times; make no retries of your own.
 - A rerun that finds a `COLLECTED.md` whose listed file is missing or has a different SHA-256 renames it to `COLLECTED.invalid-<UTC stamp>.md`, deletes that source's other files, and collects the source again; other sources are left as they are.
 
 ## Stop conditions

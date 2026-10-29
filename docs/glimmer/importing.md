@@ -32,3 +32,8 @@ The import writes `<store>/raw/<source>/IMPORT.json` as `running` before it touc
 - `node scripts/glimmer/sources.ts check` reconciles `docs/glimmer/sources.md`, every accepted source's `IMPORT.json` (complete, accounting for every item, at least one page) and the store, and prints `sources: reconciled`.
 - `node scripts/glimmer/sources.ts status` lists each source's pages and its import's status, counts and rate.
 - `node scripts/glimmer/sources.ts remove <source>` takes a source's pages out of the store and marks its `IMPORT.json` as removed; a rejected source must have no page left.
+
+## Resumable downloads
+
+Every dataset file is downloaded with `scripts/glimmer/fetch.py` (D03 T04 §16), which `scripts/astra-collect.py` places as `.fetch.py` in the store's `raw/` before each collection, so both collection briefs call it by that name. It resumes an interrupted file with a validated range request, starts again when the server's file has changed or its ranges do not add up, and moves a file into place only when its published SHA-256 (or MD5) matches; a dataset that publishes no digest is fetched with `--unpublished` and marked unverified. Measured 2026-10-29 on a local 10 MB file whose first transfer dropped at 90 percent: `fetch.py` refetched 1,048,576 bytes (the last 10 percent) in the same run, 0.09 seconds, and verified the file against its published digest; `curl --continue-at -` refetched the same 1,048,576 bytes, but only on a second run, with no digest check, and it appends to a file the server has changed since, where `fetch.py` starts again.
+

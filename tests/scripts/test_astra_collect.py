@@ -102,6 +102,9 @@ class Launcher(unittest.TestCase):
             "--cd", str(raw), "-o", str(raw / "ASTRA-REPORT.md"), "-"])
         self.assertEqual(Path(call["cwd"]).resolve(), raw)
         self.assertEqual(call["stdin"], BRIEF.read_text(encoding="utf-8"))
+        # The brief's downloader is in place where Astra starts, byte for byte the repository's.
+        fetcher = Path(__file__).resolve().parents[2] / "scripts" / "glimmer" / "fetch.py"
+        self.assertEqual((raw / ".fetch.py").read_bytes(), fetcher.read_bytes())
 
     def test_a_later_brief_is_sent_instead_and_one_outside_docs_glimmer_is_refused(self):
         later = BRIEF.with_name("astra-collection-brief-2.md")
