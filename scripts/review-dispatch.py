@@ -799,6 +799,24 @@ def read_finals(text):
     return None if found is None else found["finals"]
 
 
+# Rounds recorded after a final review prove its fix; `stamp` accepts at most this many (scripts/lib/todo_graph.py holds
+# the same number), so a round past it is refused before it runs, never spent and then refused at the stamp.
+POST_FINAL_CAP = 3
+
+
+def rounds_after_final(text):
+    """How many returned reviews a findings file holds after its first final review (0 with none), counted as `stamp`
+    counts them; None when the file cannot be read back."""
+    rounds = read_rounds(text)
+    finals = read_finals(text)
+    if rounds is None or finals is None:
+        return None
+    finals = [f for f in finals if f.get("reviewer")]
+    if not finals:
+        return 0
+    return sum(1 for e in rounds if returned_review(e) and e["run"] > finals[0]["run"])
+
+
 class Unrecorded(Exception):
     """The findings file cannot be read back, so a round is not appended to it."""
 
@@ -983,6 +1001,11 @@ def main(argv=None):
                     raise Unrecorded(f"{args.record} cannot be read back (a round heading or line is not in the "
                                      f"format --record writes{unreadable_heading(existing)}; {RESERVED_NAMES}), so "
                                      f"no round was run")
+                after = rounds_after_final(existing)
+                if after is not None and after >= POST_FINAL_CAP:
+                    raise Refused(f"{args.record} already holds {after} rounds after its final review, the "
+                                  f"{POST_FINAL_CAP} that may prove its fix; the stamp would refuse another, so none "
+                                  f"was run. Work added after the final review is its own section")
             plan = scheduled(pin["schedule"], args.kind, rounds, args.surface) \
                 if args.kind != "final" or "final" in pin["schedule"] else None
         reviewer_name = None

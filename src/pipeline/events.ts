@@ -30,9 +30,11 @@ export async function recordEvent(
     startedAt: extra.startedAt ?? new Date().toISOString(),
     ms: extra.ms ?? null,
     // An error's class only (a name such as ParseError), never its message, which can quote the message analysed: a
-    // value that is not an identifier is recorded as "Error".
+    // value that is not an identifier is recorded as "Error". A Meta cap's class (`budget:<cap>:<model>`, D03 T01 §2) is
+    // kept whole, so a reply rebuilt from the event gives the same advice as the first (D01 T02 §8).
     error: extra.errorClass
-      ? /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(extra.errorClass)
+      ? /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(extra.errorClass) ||
+        /^budget:(day|reserve|total):[a-z0-9][a-z0-9.-]{0,40}$/.test(extra.errorClass)
         ? extra.errorClass
         : "Error"
       : null,

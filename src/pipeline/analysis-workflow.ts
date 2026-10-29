@@ -415,5 +415,6 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
     },
   );
   if (outcome.status === "failed") throw new Error("ReplyNotSent");
-  return { ...base, mail: outcome.status };
+  // The send's whole outcome, `previous` included, for a caller that must know a duplicate's own result (D01 T02 §8).
+  return { ...base, mail: outcome.status, outcome };
 }

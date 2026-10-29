@@ -1671,6 +1671,28 @@ class FinalStamp(Stamp):
         receipt = self.root / self.stamp_final({"report": self.ROUNDS, "verdict": "fixed"}, reviews)
         self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["rounds_spent"], tg.REVIEW_ROUND_CAP + 1)
 
+    def test_the_dispatcher_refuses_a_round_past_the_post_final_cap_before_running_it(self):
+        dispatch = tg.review_dispatch()
+        self.assertEqual(dispatch.POST_FINAL_CAP, tg.POST_FINAL_CAP)
+        path = self.root / self.ROUNDS
+        self.write_final("1. P2 calc.py:2.\n\nHIGHEST: P2\nOVERALL: needs-attention")
+        self.assertEqual(dispatch.rounds_after_final(path.read_bytes().decode("utf-8")), 0)
+        for n in range(2, tg.POST_FINAL_CAP + 2):
+            self.later_round(n)
+        self.assertEqual(dispatch.rounds_after_final(path.read_bytes().decode("utf-8")), tg.POST_FINAL_CAP)
+        prompt = self.root / "prompt.md"
+        prompt.write_text("review this", encoding="utf-8")
+        before = path.read_bytes()
+        import contextlib
+        import io
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = dispatch.main(["--writer", "claude", "--prompt", str(prompt), "--record", str(path),
+                                  "--pin", str(self.root / tg.PIN)])
+        self.assertNotEqual(code, 0)
+        self.assertIn(f"already holds {tg.POST_FINAL_CAP} rounds after its final review", err.getvalue())
+        self.assertEqual(path.read_bytes(), before)
+
     def test_the_final_review_runs_at_its_scheduled_step(self):
         self.write_final(effort="high")
         self.refused({"report": self.ROUNDS, "verdict": "clean"}, "the final review in")

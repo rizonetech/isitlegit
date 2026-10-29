@@ -173,6 +173,29 @@ describe("reconcileUncertain", () => {
     expect(await read(key)).toMatchObject({ status: "sent", provider_id: "alert-1" });
   });
 
+  it("offers a reply's alert the --resend command and its risk, and another kind's the plain one (D01 T02 §8)", async () => {
+    const stuck = await row("uncertain", 3 * 24 * 60 + 12);
+    const notice = `nk:${crypto.randomUUID()}`;
+    const at = minutesAgo(3 * 24 * 60 + 14);
+    await db
+      .prepare(
+        "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at, claimed_at) VALUES (?, ?, 'notice', ?, 'uncertain', 1, ?, ?, ?)",
+      )
+      .bind(`id-${notice}`, notice, "a".repeat(64), at, at, at)
+      .run();
+    const world = smtp2go({ events: [] });
+    await reconcileUncertain(deps(world.stub), band);
+    const alertFor = (key: string) =>
+      String(
+        (world.sends.find((m) => String((m as { subject?: unknown }).subject).includes(key)) as { text_body?: unknown })
+          ?.text_body,
+      );
+    expect(alertFor(stuck)).toMatch(new RegExp(`mail-settle.ts ${stuck} failed --claimed-at \\S+ --resend`));
+    expect(alertFor(stuck)).toContain("the member receives it twice");
+    expect(alertFor(notice)).not.toContain("--resend");
+    expect(alertFor(notice)).toContain(`mail-settle.ts ${notice} failed --claimed-at`);
+  });
+
   it("hands a send still unresolved past 3 days to the operator once, and never sends the message itself", async () => {
     const stuck = await row("uncertain", 3 * 24 * 60 + 10);
     const world = smtp2go({ events: [] });
