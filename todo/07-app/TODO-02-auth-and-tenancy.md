@@ -288,7 +288,11 @@ The pages members see before and around sign-in, built on the shell and componen
 
 ## 8. Plans, trial and feature flags
 
+> **Started:** 2026-10-29T08:57Z
+
 Features carry a plan flag checked in code (spec 2b): free check (counterparty verdicts), Protect (identity, alerts, invoice bank-change detection, closed-loop verification, impersonation monitor, payment document check) and MSP. During the event there is no billing and every new organisation gets a 14-day trial that unlocks everything, so the demo shows all of it.
+
+**Corrected 2026-10-29** (plan fact-check against the code): no `org_limits` row is written when an organisation is made (the table holds only `daily_cases`, migration `0013`, read with a default of 50 when absent), and organisations are made by the invite-code signup and by the operator's API, so a trial written "at signup" would miss the second. The trial is therefore counted from the organisation's own `createdAt`, the same for every way it was made; `org_limits` gains a `plan` only for an organisation moved off the trial (Protect, MSP, or free), set by the operator. Migrations through `0029` exist, so this is `0030_plans.sql`. None of the four consuming sections lists `requireFeature` in its checklist yet: each is given its item here, and its grep test is its own.
 
 **Phase:** 1
 **Needs:** none
@@ -298,9 +302,9 @@ Features carry a plan flag checked in code (spec 2b): free check (counterparty v
 
 1. Add the plan to organisations and a `requireFeature` check. Done when: a trial organisation passes every feature check and an expired free one fails the Protect checks.
 
-- [ ] Add migration `0017_plans.sql` adding `plan` (free, trial, protect, msp) and `trial_ends_at` to `org_limits`, set to `trial` and 14 days at signup. Done when: a new organisation reads back as trial with the right end date.
-- [ ] Write `FEATURES` (feature to plans map) and `requireFeature(orgId, feature)` in `src/auth/plans.ts`, treating an expired trial as free. Done when: `test/auth/plans.test.ts` covers trial, expired trial, protect and free.
-- [ ] Call `requireFeature` in the identity page (D05 T01 §3), the monitor (D05 T04 §2), the payment document path (D06 T02 §3) and closed-loop verification (D05 T03 §1), each of which lists it in its own checklist. Done when: a grep test finds a `requireFeature` call for each Protect feature.
+- [ ] Add migration `0030_plans.sql` adding `plan` (`free`, `protect`, `msp`, or empty for the trial) to `org_limits`. Done when: it applies locally, and an organisation with no row reads back as trial ending 14 days after its `createdAt`.
+- [ ] Write `planOf(db, orgId)` (the plan and, on the trial, its end), `FEATURES` (each feature of spec 2b to the plans that include it: counterparty verdicts on every plan; identity, impersonation alerts, staff inbox checks, bank-change detection, closed-loop verification, the impersonation monitor and the payment document check on trial, Protect and MSP; the MSP console on trial and MSP), `hasFeature(db, orgId, feature)` for a caller with no request (the monitor's cron), and `requireFeature(feature)`, a Hono middleware after `requireOrg` that refuses with 403 and says which plan includes it, in `src/auth/plans.ts`. An expired trial is free. Done when: `test/auth/plans.test.ts` covers trial, a trial ending this second, expired trial, Protect, MSP and free, every spec 2b feature named in `FEATURES`, and the middleware's refusal and pass through the Worker.
+- [ ] Give each consumer its call: an item in D05 T01 §3 (the identity page), D05 T04 §2 (the monitor, `hasFeature`), D06 T02 §3 (the payment document path) and D05 T03 §1 (closed-loop verification) to call `requireFeature` (or `hasFeature`) for its feature, each with a grep test in its own checklist. Done when: each of the four sections carries the item.
 - [ ] Commit: `auth: plans, trial and feature flags`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/plans.test.ts` passes and fails if an expired trial keeps Protect features.
