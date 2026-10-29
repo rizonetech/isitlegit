@@ -9,6 +9,7 @@
 //   POST /signin/link                          the "link expired or used" state's recovery: mail a new link
 //   GET  /api/auth/magic-link/verify           a link mailed before this change: 303 to the page, never redeemed
 import { Hono } from "hono";
+import * as z from "zod";
 import { createAuth } from "./auth";
 import {
   CONFIRM_PATH,
@@ -25,6 +26,45 @@ import {
 // unknown token, or an address that may not have an account, all of which need a new link (or none); and the two that
 // are the service's own failure after the token was taken, told apart as "did not finish".
 const SERVICE_ERRORS = new Set(["failed_to_create_session", "failed_to_create_user"]);
+
+// A form here is a token and a return path, or an address and a return path: a few hundred bytes. Anything larger is
+// refused before it is read, and each field is bounded before it is checked or drawn back into a page, so a large post
+// can neither fill the isolate's memory nor be echoed into a larger page (D07 T02 §10 round 1).
+const MAX_FORM_BYTES = 8 * 1024;
+const MAX_FIELD = { token: 512, callbackURL: 2048, email: 254 } as const;
+// Better Auth's own rule for the address (better-auth/dist/plugins/magic-link: `z.email()`), so an address it would
+// refuse is a field error here, not a send it then refuses.
+const EMAIL = z.email();
+
+type Fields = Partial<Record<keyof typeof MAX_FIELD, string>>;
+
+// The form's fields, or null when the body is over the limit or is not a form. Read as text with a running count, so
+// a body without a Content-Length is bounded too.
+async function readForm(request: Request): Promise<Fields | null> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (declared > MAX_FORM_BYTES || !request.body) return declared > MAX_FORM_BYTES ? null : {};
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_FORM_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const text = new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+  const fields: Fields = {};
+  for (const [name, value] of new URLSearchParams(text))
+    if (name in MAX_FIELD && value.length <= MAX_FIELD[name as keyof typeof MAX_FIELD])
+      fields[name as keyof typeof MAX_FIELD] = value;
+  return fields;
+}
+
+const tooLarge = () => new Response("Request too large", { status: 413 });
 
 const sameOrigin = (env: Env, request: Request) => request.headers.get("origin") === new URL(env.APP_URL).origin;
 
@@ -54,9 +94,10 @@ confirmRoutes.get(CONFIRM_PATH, (c) => {
 
 confirmRoutes.post(CONFIRM_PATH, async (c) => {
   if (!sameOrigin(c.env, c.req.raw)) return new Response("Forbidden", { status: 403 });
-  const form = await c.req.formData().catch(() => null);
-  const token = String(form?.get("token") ?? "");
-  const callbackURL = returnPath(form?.get("callbackURL"));
+  const form = await readForm(c.req.raw);
+  if (!form) return tooLarge();
+  const token = form.token ?? "";
+  const callbackURL = returnPath(form.callbackURL);
   if (!token) return pageResponse(<LinkRequestPage callbackURL={callbackURL} />, 400);
   const verify = new URL("/api/auth/magic-link/verify", new URL(c.env.APP_URL).origin);
   verify.searchParams.set("token", token);
@@ -67,15 +108,14 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   } catch {
     answer = new Response(null, { status: 500 });
   }
-  const location = answer.headers.get("location");
-  const error = location ? new URL(location, verify).searchParams.get("error") : null;
+  // Success is a session cookie; a failure is Better Auth's redirect to its failure path (`/signin?next=...&error=`),
+  // so an `error` parameter in the member's own destination is never taken for one (round 1).
   const cookies = answer.headers.getSetCookie();
-  if (
-    answer.status >= 300 &&
-    answer.status < 400 &&
-    !error &&
-    cookies.some((cookie) => cookie.includes("session_token"))
-  ) {
+  const signedIn = cookies.some((cookie) => /session_token=[^;]+/.test(cookie));
+  const location = answer.headers.get("location");
+  const failure = location ? new URL(location, verify) : null;
+  const error = failure?.pathname === "/signin" ? failure.searchParams.get("error") : null;
+  if (answer.status >= 300 && answer.status < 400 && signedIn) {
     log("signed-in");
     const out = new Response(null, { status: 303, headers: { location: callbackURL, "cache-control": "no-store" } });
     for (const cookie of cookies) out.headers.append("set-cookie", cookie);
@@ -104,7 +144,7 @@ confirmRoutes.get(LINK_PATH, (c) =>
   pageResponse(
     <LinkRequestPage
       callbackURL={returnPath(c.req.query("callbackURL"))}
-      email={(c.req.query("email") ?? "").slice(0, 254)}
+      email={(c.req.query("email") ?? "").slice(0, MAX_FIELD.email)}
       title="Get a sign-in link"
       heading="Get a sign-in link"
       text="Enter the email you sign in with. We will send a link that works once, for 15 minutes."
@@ -114,14 +154,16 @@ confirmRoutes.get(LINK_PATH, (c) =>
 
 confirmRoutes.post(LINK_PATH, async (c) => {
   if (!sameOrigin(c.env, c.req.raw)) return new Response("Forbidden", { status: 403 });
-  const form = await c.req.formData().catch(() => null);
-  const email = String(form?.get("email") ?? "").trim();
-  const callbackURL = returnPath(form?.get("callbackURL"));
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
-    return pageResponse(
+  const form = await readForm(c.req.raw);
+  if (!form) return tooLarge();
+  const email = (form.email ?? "").trim();
+  const callbackURL = returnPath(form.callbackURL);
+  const badAddress = () =>
+    pageResponse(
       <LinkRequestPage callbackURL={callbackURL} email={email} error="Enter the email you sign in with." />,
       400,
     );
+  if (!EMAIL.safeParse(email).success) return badAddress();
   let asked: Response;
   try {
     asked = await createAuth(c.env).handler(
@@ -137,6 +179,8 @@ confirmRoutes.post(LINK_PATH, async (c) => {
   // A sent, refused or rate-limited address answers alike, so the page never tells a stranger who can sign in; only a
   // failed send (the service's) says to try again, with the address and return path kept for the retry.
   if (asked.ok || asked.status === 429) return pageResponse(<InboxPage email={email} callbackURL={callbackURL} />);
+  // Better Auth refusing the request itself (its own validation) is the address, not an outage.
+  if (asked.status === 400) return badAddress();
   return pageResponse(
     <LinkRequestPage
       callbackURL={callbackURL}

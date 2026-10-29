@@ -272,3 +272,40 @@ describe("recovery and identity (completion review, 2026-10-29)", () => {
     expect(smtp.sends).toHaveLength(SIGNIN_PER_ADDRESS);
   });
 });
+
+describe("round 1 (2026-10-29)", () => {
+  it("refuses a form over its limit before reading it, and never draws an over-long field back into the page", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const huge = await post("/signin/link", { email: `${'"'.repeat(24 * 1024)}@x.org`, callbackURL: "/cases" });
+    expect(huge.status).toBe(413);
+    const long = `${"a".repeat(3000)}@example.org`;
+    const refused = await post("/signin/link", { email: long, callbackURL: "/cases" });
+    expect(refused.status).toBe(400);
+    const html = await refused.text();
+    expect(html).not.toContain("a".repeat(300));
+    expect(html.length).toBeLessThan(20_000);
+    expect((await post("/signin/confirm", { token: "t".repeat(9000), callbackURL: "/cases" })).status).toBe(413);
+    expect(smtp.sends).toEqual([]);
+  });
+
+  it("signs in at a destination whose own query names an error", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    await requestLink("errorpage@demo.isitlegit.co.za", "/cases/42?error=upload_failed");
+    const signedIn = await redeem(smtp.sends[0]?.link ?? "");
+    expect([signedIn.status, target(signedIn)]).toEqual([303, "/cases/42?error=upload_failed"]);
+    expect(sessionCookie(signedIn)).toMatch(/session_token=/);
+  });
+
+  it("answers an address Better Auth would refuse as a field error, never as an outage", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    for (const email of ["a..b@example.org", "no-at-sign", "x@"]) {
+      const answer = await post("/signin/link", { email, callbackURL: "/cases" });
+      expect(answer.status, email).toBe(400);
+      expect(await answer.text(), email).toContain("Enter the email you sign in with.");
+    }
+    expect(smtp.sends).toEqual([]);
+  });
+});
