@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -67,6 +68,7 @@ describe("the confusables map", () => {
     const missing = run("--check", "--vendor", vendor, "--out", out);
     expect(missing.status).not.toBe(0);
     expect(missing.stderr).toMatch(/missing/);
+    expect(existsSync(out)).toBe(false);
   });
 
   it("writes a map a later --check accepts, and on a failed write keeps the previous map for a retry", () => {
@@ -111,8 +113,10 @@ describe("the confusables map", () => {
     writeFileSync(join(vendor, "confusables.txt"), original.replace("# Version: 18.0.0", "# Version: 17.0.0"));
     resum(vendor);
     expect(() => buildMap(vendor)).toThrow(/not version 18\.0\.0/);
+    const before = readFileSync(out, "utf8");
     const versioned = run("--vendor", vendor, "--out", out);
     expect(versioned.status).not.toBe(0);
+    expect(readFileSync(out, "utf8")).toBe(before);
     // Same version line, one mapping changed, digests not updated.
     writeFileSync(join(vendor, "confusables.txt"), original.replace("0430 ;\t0061 ;", "0430 ;\t0062 ;"));
     copyFileSync(join(VENDOR, "SHA256SUMS"), join(vendor, "SHA256SUMS"));

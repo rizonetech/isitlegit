@@ -1,8 +1,10 @@
 // Lookalike primitives (D02 T03 §1; spec 4.3 Domains, 4.11 the monitor reuses them): a label's UTS #39 skeleton, which
 // two labels share when they look alike; the optimal string alignment distance between two labels; and the added-word
-// pattern (`fynbosfreight-payments`). Each takes one Unicode label, lowercased: `unicodeLabel` makes one from what a
-// header or a link gives (an A-label such as `xn--pypal-4ve`, or Unicode), and §2 passes every candidate and target
-// through it. The Unicode data is generated from the vendored tables by scripts/build-confusables.ts.
+// pattern (`fynbosfreight-payments`). A label is compared in its one normal form, `unicodeLabel`'s, whichever form it
+// arrives in (an A-label such as `xn--pypal-4ve`, Unicode, capitals): `labelSkeleton` and `addedWords` normalise what
+// they are given, `distance` is bounded to a label's length, and `skeleton` is UTS #39's own function on any text. The
+// Unicode data is generated from the vendored tables by scripts/build-confusables.ts; NFD and Default_Ignorable_Code_Point
+// are the runtime's own (the plan's correction 6).
 import MAP from "./confusables-map.json";
 
 const PROTOTYPES: Record<string, string> = MAP.prototypes;
@@ -90,6 +92,16 @@ function punycodeDecode(input: string): string | null {
 // that is not NFC, or to a label whose own encoding differs (RFC 5891 5.4, 5.5).
 export function unicodeLabel(label: string): string | null {
   if (label.length === 0 || label.length > 253 || /[./\\?#@:%\s]/.test(label)) return null;
+  const normal = labelOf(label);
+  // A registrable label (RFC 5891 4.2.3.1, 5.4): letters, marks, digits and hyphens, no hyphen first or last, and
+  // `--` in the third and fourth places only for an A-label (final review: `-fynbosfreight` and `pay_pal` cannot be
+  // registered, so they are not compared).
+  if (normal === null || !/^[\p{L}\p{M}\p{N}-]+$/u.test(normal) || normal.startsWith("-") || normal.endsWith("-"))
+    return null;
+  return normal;
+}
+
+function labelOf(label: string): string | null {
   let host: string;
   try {
     host = new URL(`http://${label}.invalid`).hostname;
@@ -99,7 +111,7 @@ export function unicodeLabel(label: string): string | null {
   const labels = host.split(".");
   const ace = labels[0] as string;
   if (labels.length !== 2 || labels[1] !== "invalid" || ace.length === 0 || ace.length > 63) return null;
-  if (!ace.startsWith("xn--")) return ace;
+  if (!ace.startsWith("xn--")) return ace.slice(2, 4) === "--" ? null : ace;
   const decoded = punycodeDecode(ace.slice(4));
   if (decoded === null || decoded.normalize("NFC") !== decoded) return null;
   if (Array.from(decoded).every((c) => (c.codePointAt(0) as number) < 0x80)) return null;
@@ -114,10 +126,22 @@ export function unicodeLabel(label: string): string | null {
   return again === host ? decoded : null;
 }
 
+// The skeleton of a label in its normal form; null when the label is refused or right-to-left.
+export function labelSkeleton(label: string): string | null {
+  const normal = unicodeLabel(label);
+  return normal === null ? null : skeleton(normal);
+}
+
+// The longest text `distance` compares: a DNS label is at most 63 octets, so 63 code points bound every label it is meant
+// for, and the quadratic table it builds stays small (final review).
+export const MAX_LABEL_CHARACTERS = 63;
+
 // The optimal string alignment distance (Damerau-Levenshtein restricted to adjacent transpositions), in code points.
 export function distance(a: string, b: string): number {
   const x = Array.from(a);
   const y = Array.from(b);
+  if (x.length > MAX_LABEL_CHARACTERS || y.length > MAX_LABEL_CHARACTERS)
+    throw new RangeError(`distance compares labels of at most ${MAX_LABEL_CHARACTERS} characters`);
   const rows = Array.from({ length: x.length + 1 }, (_, i) => {
     const row = new Array<number>(y.length + 1).fill(0);
     row[0] = i;
@@ -160,9 +184,12 @@ export const ADDED_WORDS = [
 
 export type AddedWord = { word: (typeof ADDED_WORDS)[number]; side: "before" | "after" };
 
-// The added word when the candidate is exactly the base with one word before or after it, joined by `-` or nothing.
-export function addedWords(candidate: string, base: string): AddedWord | null {
-  if (base.length === 0 || candidate === base) return null;
+// The added word when the candidate is exactly the base with one word before or after it, joined by `-` or nothing,
+// both compared in their normal form (`FynbosFreight-Payments` is `fynbosfreight-payments`).
+export function addedWords(given: string, givenBase: string): AddedWord | null {
+  const candidate = unicodeLabel(given);
+  const base = unicodeLabel(givenBase);
+  if (candidate === null || base === null || candidate === base) return null;
   for (const word of ADDED_WORDS)
     for (const join of ["-", ""]) {
       if (candidate === `${base}${join}${word}`) return { word, side: "after" };

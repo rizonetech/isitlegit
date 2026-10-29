@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import MAP from "../../src/checks/confusables-map.json";
-import { ADDED_WORDS, addedWords, distance, skeleton, unicodeLabel } from "../../src/checks/lookalike";
+import {
+  ADDED_WORDS,
+  addedWords,
+  distance,
+  labelSkeleton,
+  MAX_LABEL_CHARACTERS,
+  skeleton,
+  unicodeLabel,
+} from "../../src/checks/lookalike";
 
 // D02 T03 §1: the UTS #39 skeleton, the optimal string alignment distance and the added-word pattern.
 const PROTOTYPES: Record<string, string> = MAP.prototypes;
@@ -106,6 +114,30 @@ describe("unicodeLabel", () => {
       expect(unicodeLabel(label), label).toBeNull();
     // Punycode that decodes to plain ASCII is not a valid A-label.
     expect(unicodeLabel("xn--abc-")).toBeNull();
+  });
+});
+
+describe("the final review (2026-10-29)", () => {
+  it("bounds distance to a label's length", () => {
+    expect(distance("a".repeat(MAX_LABEL_CHARACTERS), "b".repeat(MAX_LABEL_CHARACTERS))).toBe(MAX_LABEL_CHARACTERS);
+    expect(() => distance("a".repeat(20_000), "b")).toThrow(RangeError);
+    expect(() => distance("a", "b".repeat(64))).toThrow(RangeError);
+  });
+
+  it("refuses a label no one can register", () => {
+    for (const label of ["-fynbosfreight", "fynbosfreight-", "pay_pal", "ab--cd", "pay!pal"])
+      expect(unicodeLabel(label), label).toBeNull();
+    expect(unicodeLabel("fynbos-freight")).toBe("fynbos-freight");
+    expect(unicodeLabel("xn--pypal-4ve")).toBe("p\u0430ypal");
+  });
+
+  it("compares labels in their normal form whatever form they are given in", () => {
+    expect(labelSkeleton("PAYPAL")).toBe("paypal");
+    expect(labelSkeleton("xn--pypal-4ve")).toBe("paypal");
+    expect(labelSkeleton("-paypal")).toBeNull();
+    expect(addedWords("FynbosFreight-Payments", "fynbosfreight")).toEqual({ word: "payments", side: "after" });
+    expect(addedWords("fynbosfreight-payments", "FYNBOSFREIGHT")).toEqual({ word: "payments", side: "after" });
+    expect(addedWords("-payments", "fynbosfreight")).toBeNull();
   });
 });
 
