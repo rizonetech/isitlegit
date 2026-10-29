@@ -19,7 +19,8 @@ GOOD = {
             '0 issue "comodoca.com"', '0 issue "digicert.com; cansignhttpexchanges=yes"', '0 issuewild "letsencrypt.org"'],
     "DS": ["2371 13 2 360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B7239 28504665"],
     "flags": ";; flags: qr rd ra ad; QUERY: 1, ANSWER: 0, AUTHORITY: 4, ADDITIONAL: 1",
-    "DKIM": ['"v=DKIM1; h=sha256; k=rsa; p=' + "M" * 120 + '"'],
+    # Email Routing's public DKIM key as published (a public key, read back from DNS on 2026-10-29).
+    "DKIM": ['"v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78k" "m4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r85U9dkNDVAS3gioCvELryh1TxKGiVTkg4wqHTyHfWsp7KD3WQHYJn0RyfJJu6YEmL77zonn7p2SRMvTMP3ZEXibnC9gz3nnhR6wcYL8Q7zXypKTMD58bTixDSJwIDAQAB"'],
 }
 
 
@@ -123,24 +124,98 @@ class Recovery(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     cd.expected(ns, ds)
 
-    def test_diagnose_tells_a_dnssec_failure_from_an_outage(self):
+    def test_diagnose_tells_five_states_apart(self):
         def answering(plain, unchecked):
             def run_dig(args, **kwargs):
-                status = unchecked if "+cd" in args else plain
-                if status is None:
+                reply = unchecked if "+cd" in args else plain
+                if reply == "timeout":
                     raise subprocess.TimeoutExpired("dig", 30)
-                return subprocess.CompletedProcess(args, 0, f";; ->>HEADER<<- opcode: QUERY, status: {status}, id: 1\n", "")
+                if reply == "no-dig":
+                    raise OSError(2, "No such file or directory")
+                status, ad, count = reply
+                out = (f";; ->>HEADER<<- opcode: QUERY, status: {status}, id: 1\n"
+                       f";; flags: qr rd ra{' ad' if ad else ''}; QUERY: 1, ANSWER: {count}, AUTHORITY: 0\n")
+                return subprocess.CompletedProcess(args, 0, out, "")
             return run_dig
 
-        self.assertEqual(cd.diagnose(answering("NOERROR", "NOERROR"))[0], 0)
-        code, line = cd.diagnose(answering("SERVFAIL", "NOERROR"))
-        self.assertEqual(code, 1)
-        self.assertIn("DNSSEC failure", line)
-        for plain, unchecked in (("SERVFAIL", "SERVFAIL"), (None, None), ("SERVFAIL", None)):
+        cases = [
+            (("NOERROR", True, 1), ("NOERROR", False, 1), 0, "an authenticated answer"),
+            (("NOERROR", False, 1), ("NOERROR", False, 1), 3, "not validated"),
+            (("NOERROR", True, 0), ("NOERROR", False, 0), 4, "no SOA"),
+            (("NXDOMAIN", False, 0), ("NXDOMAIN", False, 0), 4, "no SOA"),
+            (("SERVFAIL", False, 0), ("NOERROR", False, 1), 1, "DNSSEC failure"),
+            (("SERVFAIL", False, 0), ("SERVFAIL", False, 0), 2, "do not touch the DS"),
+            ("timeout", "timeout", 2, "do not touch the DS"),
+            ("no-dig", "no-dig", 2, "a local fault"),
+        ]
+        for plain, unchecked, code, words in cases:
             with self.subTest((plain, unchecked)):
-                code, line = cd.diagnose(answering(plain, unchecked))
-                self.assertEqual(code, 2)
-                self.assertIn("do not touch the DS", line)
+                got, line = cd.diagnose(answering(plain, unchecked))
+                self.assertEqual(got, code, line)
+                self.assertIn(words, line)
+
+    def test_a_truncated_or_altered_routing_key_is_refused(self):
+        record = GOOD["DKIM"][0]
+        key = record[record.index("p=") + 2:].rstrip('"')
+        for bad in (key[:-4], key[:-1] + ("A" if key[-1] != "A" else "B"), "M" * len(key), key[:101]):
+            with self.subTest(bad[-6:]):
+                passed, refusals = cd.check({**GOOD, "DKIM": [record.replace(key, bad)]})
+                self.assertTrue(any("DKIM key" in r for r in refusals), refusals)
+
+    def test_reviewed_values_are_validated_before_any_lookup(self):
+        for ns, ds in (
+            ("a.example,a.example", None),
+            (None, "99999 13 2 " + "AB" * 32),
+            (None, "2371 999 2 " + "AB" * 32),
+            (None, "2371 13 2 " + "AB" * 20),
+            (None, "2371 13 1 " + "AB" * 32),
+            (None, "2371 13 3 " + "AB" * 32),
+        ):
+            with self.subTest((ns, ds)):
+                with self.assertRaises(ValueError):
+                    cd.expected(ns, ds)
+        self.assertEqual(cd.expected(None, "2371 13 1 " + "AB" * 20)[1][2], "1")
+
+    def test_the_runbook_keeps_its_safety_order(self):
+        text = (REPO / "docs/operations.md").read_text(encoding="utf-8")
+        section = text[text.index("## Domain recovery"):]
+        b = section[section.index("### (b)"):section.index("### (c)")]
+        self.assertLess(b.index("--diagnose"), b.index("Pull the DS"))
+        a = section[section.index("### (a)"):section.index("### (b)")]
+        self.assertLess(a.index("Remove the DS"), a.index("Move the nameservers"))
+        self.assertLess(a.index("Move the nameservers"), a.index("Sign the zone"))
+        self.assertIn("Roll back", a)
+        e = section[section.index("### (e)"):]
+        self.assertLess(e.index("revoke it first"), e.index("Create a new key"))
+        self.assertLess(e.index("in the vault"), e.index("secret put"))
+        self.assertLess(e.index("secret put"), e.index("serving Worker"))
+        # Reversal by the step reached: the old DS restored, and a new provider's DS pulled before the old delegation.
+        self.assertIn("publish the old DS again", a)
+        self.assertLess(a.index("pull any DS step 6 published"), a.index("then publish the old DS again"))
+        # A records-only fault changes no credential.
+        self.assertIn("changes no credential", e)
+        d = section[section.index("### (d)"):section.index("### (e)")]
+        self.assertIn("add", d.lower())
+        for procedure in ("### (a)", "### (b)", "### (c)", "### (d)", "### (e)"):
+            part = section[section.index(procedure):]
+            nxt = part.find("### (", 5)
+            self.assertIn("check-domain.py", part[: nxt if nxt > 0 else len(part)], procedure)
+
+class Progress(unittest.TestCase):
+    def test_each_lookup_is_announced_before_it_starts(self):
+        said, asked = [], []
+
+        def lookup(kind, name=cd.DOMAIN, flags=False):
+            asked.append((len(said), kind, name))
+            return ({"NS": GOOD["NS"], "MX": GOOD["MX"], "CAA": GOOD["CAA"], "DS": GOOD["DS"]}.get(kind)
+                    or (GOOD["DMARC"] if name.startswith("_dmarc") else GOOD["DKIM"] if "domainkey" in name
+                        else GOOD["TXT"]), GOOD["flags"])
+
+        code, lines = cd.run(lookup, say=said.append)
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(len(said), cd.CHECKS)
+        # The n-th lookup starts after the n-th announcement.
+        self.assertEqual([n for n, *_ in asked], list(range(1, cd.CHECKS + 1)))
 
 
 class Dig(unittest.TestCase):

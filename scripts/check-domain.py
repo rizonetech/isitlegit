@@ -9,18 +9,22 @@ of: the two Cloudflare nameservers; Email Routing's three MX hosts; exactly one 
 `sp=reject`, relaxed alignment, `fo=1`, reports only to dmarc@isitlegit.co.za), a trailing semicolon allowed; CAA `issue` tags (not `issuewild`) naming only
 Universal SSL's authorities and including Let's Encrypt, Google Trust Services and SSL.com (RFC 8659 4.2, 4.3); the
 registry's DS (key tag 2371, algorithm 13, digest type 2, the recorded digest); the zone validated (`ad`); and
-Email Routing's own DKIM key published (`cf2024-1._domainkey`, a `v=DKIM1` record with a key: D99 T01 §9).
+Email Routing's own DKIM key published (`cf2024-1._domainkey`: one `v=DKIM1` record whose key is an RSA public key and
+the recorded one, by its digest: D99 T01 §9). Each lookup is announced on stderr before it starts.
     python3 scripts/check-domain.py --diagnose
-tells a DNSSEC failure from an outage (an ordinary query against one with checking disabled, `+cd`), for the runbook's
-emergency procedure (docs/operations.md "Domain recovery").
+tells five states apart from the zone's SOA, an ordinary query against one with checking disabled (`+cd`), for the
+runbook's emergency procedure (docs/operations.md "Domain recovery"): authenticated (exit 0), a confirmed DNSSEC
+failure (1), inconclusive, a local fault, a timeout or both failing (2), unsigned but resolving (3), and no SOA (4).
     python3 scripts/check-domain.py --expect-ns <ns1>,<ns2> --expect-ds "<tag> <alg> <type> <digest>"
 checks a planned nameserver move's new values, reviewed on the command line, before they are committed as the
 constants below.
 
 A lookup that could not be made (no network, a resolver error, a timeout) is reported as that, exit 2, never as a
-wrong record. Prints the number of checks passed and exits 0 only when all pass, 1 when a record is wrong. Stdlib
+wrong record; an interrupted run exits 130 and judges nothing. Prints the number of checks passed and exits 0 only when all pass, 1 when a record is wrong. Stdlib
 only; needs `dig`.
 """
+import base64
+import hashlib
 import re
 import subprocess
 import sys
@@ -42,8 +46,12 @@ CLOUDFLARE_CAS = {"letsencrypt.org", "pki.goog", "ssl.com", "comodoca.com", "dig
 REQUIRED_CAS = {"letsencrypt.org", "pki.goog", "ssl.com"}
 DS = ("2371", "13", "2", "360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B723928504665")
 CHECKS = 8
-# Email Routing's DKIM key (D99 T01 §2 enabled routing, which publishes it), so forwarded mail stays authenticated.
+# Email Routing's DKIM key (D99 T01 §2 enabled routing, which publishes it), so forwarded mail stays authenticated:
+# pinned, like the DS, by the SHA-256 of its `p=` value as read back on 2026-10-29, so a truncated or altered key fails.
 ROUTING_DKIM = f"cf2024-1._domainkey.{DOMAIN}"
+ROUTING_DKIM_KEY_SHA256 = "9ebebc917a1fb77c51113129f6426296930ab094fe85a2de095fb9182c794ceb"
+# The DER of an RSA public key carries this algorithm identifier (rsaEncryption, 1.2.840.113549.1.1.1).
+RSA_OID = bytes.fromhex("2a864886f70d010101")
 
 
 class LookupFailed(Exception):
@@ -79,11 +87,16 @@ def dig(kind, name=DOMAIN, dnssec=False):
     return rdata, flags
 
 
-def answers(lookup=dig):
-    """Each record set this checks, and the validation flags."""
-    return {"NS": lookup("NS")[0], "MX": lookup("MX")[0], "TXT": lookup("TXT")[0],
-            "DMARC": lookup("TXT", f"_dmarc.{DOMAIN}")[0], "CAA": lookup("CAA")[0], "DS": lookup("DS")[0],
-            "flags": lookup("A", DOMAIN, True)[1], "DKIM": lookup("TXT", ROUTING_DKIM)[0]}
+def answers(lookup=dig, say=lambda line: None):
+    """Each record set this checks, and the validation flags, each lookup announced before it starts."""
+    def ask(label, *args):
+        say(f"check-domain: looking up {label}")
+        return lookup(*args)
+
+    return {"NS": ask("NS", "NS")[0], "MX": ask("MX", "MX")[0], "TXT": ask("SPF", "TXT")[0],
+            "DMARC": ask("DMARC", "TXT", f"_dmarc.{DOMAIN}")[0], "CAA": ask("CAA", "CAA")[0],
+            "DS": ask("DS", "DS")[0], "flags": ask("validation", "A", DOMAIN, True)[1],
+            "DKIM": ask("routing DKIM", "TXT", ROUTING_DKIM)[0]}
 
 
 def txt(rdata):
@@ -141,12 +154,31 @@ def check(a, nameservers=None, ds_record=None):
     flag_words = found[1].split() if found else []
     need("ad" in flag_words, "the resolver did not validate the zone (no ad flag)")
     dkim = [txt(r) for r in a["DKIM"] if txt(r).lower().startswith("v=dkim1")]
-    need(len(dkim) == 1 and re.search(r"(?:^|;)\s*p=[A-Za-z0-9+/=]{100,}", dkim[0]) is not None,
-         f"Email Routing's DKIM key ({ROUTING_DKIM}) is not one published key ({len(dkim)} DKIM1 record(s))")
+    need(len(dkim) == 1 and dkim_key_ok(dkim[0]),
+         f"Email Routing's DKIM key ({ROUTING_DKIM}) is not the one recorded ({len(dkim)} DKIM1 record(s); a valid "
+         "RSA key whose p= value hashes to the recorded digest)")
     return passed, refusals
 
 
+def dkim_key_ok(record):
+    """A DKIM record's key is an RSA public key (RFC 6376 3.6.1: base64 of its DER) and the recorded one."""
+    found = re.search(r"(?:^|;)\s*p=([A-Za-z0-9+/=\s]+?)\s*(?:;|$)", record)
+    if not found:
+        return False
+    value = "".join(found[1].split())
+    try:
+        der = base64.b64decode(value, validate=True)
+    except ValueError:
+        return False
+    return (der[:1] == b"\x30" and RSA_OID in der
+            and hashlib.sha256(value.encode()).hexdigest() == ROUTING_DKIM_KEY_SHA256)
+
+
 DS_RECORD = re.compile(r"^(\d{1,5}) (\d{1,3}) (\d{1,3}) ([0-9A-Fa-f]{40,128})$")
+# A DS digest's length for its type (RFC 4509, RFC 6605, the IANA registry): SHA-1 40, SHA-256 64, SHA-384 96.
+DIGEST_LENGTHS = {"1": 40, "2": 64, "4": 96}
+# DNSSEC algorithms a DS may name today (RSA/SHA-1 through Ed448, IANA's registry).
+DS_ALGORITHMS = {"5", "7", "8", "10", "13", "14", "15", "16"}
 NS_NAME = re.compile(r"^(?=.{1,253}\.$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+$")
 
 
@@ -156,48 +188,71 @@ def expected(ns_text, ds_text):
     if ns_text is not None:
         names = [n.strip().lower() for n in ns_text.split(",") if n.strip()]
         names = [n if n.endswith(".") else n + "." for n in names]
-        if len(names) < 2 or not all(NS_NAME.match(n) for n in names):
-            raise ValueError("--expect-ns names at least two nameservers, comma-separated")
+        if len(set(names)) < 2 or len(set(names)) != len(names) or not all(NS_NAME.match(n) for n in names):
+            raise ValueError("--expect-ns names at least two different nameservers, comma-separated")
         nameservers = set(names)
     ds_record = None
     if ds_text is not None:
         found = DS_RECORD.match(" ".join(ds_text.split()[:3] + ["".join(ds_text.split()[3:])]))
-        if not found:
-            raise ValueError("--expect-ds is the DS as the registry shows it: key tag, algorithm, digest type, digest")
+        if (not found or not 0 <= int(found[1]) <= 65535 or found[2] not in DS_ALGORITHMS
+                or DIGEST_LENGTHS.get(found[3]) != len(found[4])):
+            raise ValueError("--expect-ds is the DS as the registry shows it: key tag (0 to 65535), a DNSSEC algorithm, "
+                             "digest type 1, 2 or 4, and a digest of that type's length")
         ds_record = (found[1], found[2], found[3], found[4].upper())
     return nameservers, ds_record
 
 
-def status_of(kind, name, checking_disabled, run_dig=subprocess.run):
-    """The DNS status a resolver answers (NOERROR, SERVFAIL, ...), or None when no answer came back at all."""
-    args = ["dig", f"@{RESOLVER}", "+time=5", "+tries=2", "+noall", "+comments",
+def probe(kind, name, checking_disabled, run_dig=subprocess.run):
+    """What one query showed: ("local", reason) when dig could not run or answer here; else (status, ad flag, answer
+    count) from the resolver's reply."""
+    args = ["dig", f"@{RESOLVER}", "+time=5", "+tries=2", "+dnssec", "+noall", "+comments",
             *(["+cd"] if checking_disabled else []), kind, name]
     try:
         done = run_dig(args, capture_output=True, text=True, timeout=30)
-    except (subprocess.TimeoutExpired, OSError):
-        return None
+    except subprocess.TimeoutExpired:
+        return ("timeout", None, 0)
+    except OSError as exc:
+        return ("local", f"dig could not run ({exc.strerror})", 0)
     found = re.search(r"status: ([A-Z]+)", done.stdout or "")
-    return found[1] if found else None
+    if not found:
+        return ("timeout" if "timed out" in (done.stdout or "") + (done.stderr or "") else "local",
+                "no DNS response header", 0)
+    flags = re.search(r";; flags:([^;]*);", done.stdout)
+    count = re.search(r"ANSWER: (\d+)", done.stdout)
+    return (found[1], "ad" in (flags[1].split() if flags else []), int(count[1]) if count else 0)
 
 
+# The five states the emergency procedure tells apart, and what to do in each (docs/operations.md "Domain recovery").
 def diagnose(run_dig=subprocess.run):
-    """(exit code, line): resolving (0); a DNSSEC failure, the ordinary query failing while one with checking
-    disabled answers (1); an outage, both failing (2). Only the second is a reason to pull the DS."""
-    plain = status_of("A", DOMAIN, False, run_dig)
-    unchecked = status_of("A", DOMAIN, True, run_dig)
-    if plain == "NOERROR":
-        return 0, "check-domain: the domain resolves and validates; no DNSSEC failure"
-    if plain == "SERVFAIL" and unchecked == "NOERROR":
+    """(exit code, line): authenticated (0); unsigned but resolving (3); resolving with no SOA (4); a confirmed
+    DNSSEC failure, the ordinary query failing while one with checking disabled answers (1); inconclusive, a local
+    fault, a timeout or both queries failing (2). Only a confirmed DNSSEC failure is a reason to pull the DS."""
+    # The zone's SOA, which every zone answers (the apex has no address of its own; the site is app.isitlegit.co.za).
+    plain = probe("SOA", DOMAIN, False, run_dig)
+    if plain[0] == "local":
+        return 2, (f"check-domain: inconclusive, a local fault ({plain[1]}): this machine could not ask; fix that "
+                   "before judging the domain")
+    unchecked = probe("SOA", DOMAIN, True, run_dig)
+    if plain[0] == "NOERROR" and plain[2] > 0 and plain[1]:
+        return 0, "check-domain: the domain resolves and validates (an authenticated answer); no DNSSEC failure"
+    if plain[0] == "NOERROR" and plain[2] > 0:
+        return 3, ("check-domain: the domain resolves but is not validated (no ad flag): unsigned, as after the DS is "
+                   "pulled or mid-move; publish the DS when signing is ready (Domain recovery (b) 3 to 5)")
+    if plain[0] in ("NOERROR", "NXDOMAIN"):
+        return 4, (f"check-domain: the resolver answered {plain[0]} with no SOA: the zone is missing, not a "
+                   "DNSSEC failure; restore the zone, do not touch the DS")
+    if plain[0] == "SERVFAIL" and unchecked[0] == "NOERROR":
         return 1, ("check-domain: a DNSSEC failure (SERVFAIL, but NOERROR with checking disabled): follow the "
                    "emergency procedure, docs/operations.md \"Domain recovery\" (b)")
-    return 2, (f"check-domain: an outage, not DNSSEC (status {plain or 'no answer'}, {unchecked or 'no answer'} with "
-               "checking disabled): do not touch the DS; wait for Cloudflare (https://www.cloudflarestatus.com)")
+    return 2, (f"check-domain: inconclusive (status {plain[0]}, {unchecked[0]} with checking disabled): an outage or "
+               "the network, not shown to be DNSSEC; do not touch the DS; check https://www.cloudflarestatus.com and "
+               "the network, then try again")
 
 
-def run(lookup=dig, nameservers=None, ds_record=None):
+def run(lookup=dig, nameservers=None, ds_record=None, say=lambda line: None):
     """(exit code, lines to print)."""
     try:
-        passed, refusals = check(answers(lookup), nameservers, ds_record)
+        passed, refusals = check(answers(lookup, say), nameservers, ds_record)
     except LookupFailed as exc:
         return 2, [f"check-domain: a lookup failed, so nothing was judged: {exc}"]
     return (0 if not refusals else 1), [*(f"check-domain: {r}" for r in refusals),
@@ -220,7 +275,11 @@ if __name__ == "__main__":
         nameservers, ds_record = expected(options.expect_ns, options.expect_ds)
     except ValueError as exc:
         parser.error(str(exc))
-    code, lines = run(dig, nameservers, ds_record)
+    try:
+        code, lines = run(dig, nameservers, ds_record, say=lambda line: print(line, file=sys.stderr, flush=True))
+    except KeyboardInterrupt:
+        print("check-domain: interrupted, so nothing was judged", file=sys.stderr)
+        sys.exit(130)
     for line in lines:
         print(line, file=sys.stderr if code and "checks passed" not in line else sys.stdout)
     sys.exit(code)

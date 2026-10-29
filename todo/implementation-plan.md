@@ -271,7 +271,7 @@ Sections: 59 | Checklist items: 248
 
 ### Phase 7: After the event
 
-Sections: 14 | Checklist items: 63
+Sections: 15 | Checklist items: 70
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -279,6 +279,7 @@ Sections: 14 | Checklist items: 63
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
+| [ ]    | D01 T01 §15 | Second inbound mail route                        | operator | 7     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
 | [ ]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
@@ -312,6 +313,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 63/243 verified sections, 25 ready to run now.
+Progress: 63/244 verified sections, 25 ready to run now.
 
-Checklist: 640/1472 items completed (includes Commit items).
+Checklist: 640/1479 items completed (includes Commit items).
