@@ -240,6 +240,17 @@ describe("buildDataset", () => {
     );
     const unset = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
     expect([unset.dropped.unredacted, unset.dropped.incomplete]).toEqual([0, 2]);
+    // Built from a freeze (§18): a page the freeze does not name (stored after it) is left out, and counted.
+    const named = store.manifest().map((p) => p.id);
+    const frozen = await buildDataset({
+      store,
+      version: "1.0",
+      mode: "image",
+      seed: 3,
+      frozen: new Set(named.slice(1)),
+    });
+    expect(frozen.dropped.afterFreeze).toBe(1);
+    expect(unset.dropped.afterFreeze).toBe(0);
   });
 });
 

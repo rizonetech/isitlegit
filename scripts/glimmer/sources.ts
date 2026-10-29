@@ -16,8 +16,9 @@
 // names both; an import made from other inputs or other rows is refused.
 //
 //   node scripts/glimmer/sources.ts bind <source>   # record, in IMPORT.json, the rows and inputs an import came from
+//   node scripts/glimmer/sources.ts freeze          # Loupe 1.0's collection freeze: raw/FROZEN.json, once reconciled
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
@@ -294,8 +295,66 @@ if (import.meta.filename === process.argv[1]) {
     console.log(`sources: ${name}: the import is bound to its inputs`);
     process.exit(0);
   }
+  if (command === "freeze") {
+    // The collection as it stands (§18): every source's binding and every page in the store, written whole. The
+    // builder reads only pages it names, so nothing stored later can enter this version. Refused unless the sources
+    // reconcile, so a freeze never holds an unbound or incomplete import.
+    const store = openStore(dir);
+    const pages = store.manifest({ tolerant: true });
+    const sourcesMd = readFileSync(join(ROOT, "docs/glimmer/sources.md"), "utf-8");
+    const imports: Record<string, ImportRecord> = {};
+    const bindings: Record<string, { manifest?: string; export?: ExportReceipt }> = {};
+    for (const row of parseSources(sourcesMd).rows) {
+      const folder = join(dir, "raw", row.source);
+      const file = join(folder, "IMPORT.json");
+      if (existsSync(file)) imports[row.source] = JSON.parse(readFileSync(file, "utf-8"));
+      const inputsFile = join(folder, "INPUTS.json");
+      const exportFile = join(folder, "EXPORT.json");
+      bindings[row.source] = {
+        ...(existsSync(inputsFile) ? { manifest: manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8"))) } : {}),
+        ...(existsSync(exportFile) ? { export: JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt } : {}),
+      };
+    }
+    const problems = reconcile({
+      sources: sourcesMd,
+      imports,
+      pages,
+      notice: readFileSync(join(ROOT, "NOTICE.md"), "utf-8"),
+      synthetic: section8(),
+      bindings,
+    });
+    if (problems.length) {
+      for (const problem of problems) console.log(`sources: ${problem}`);
+      console.error(`sources: not frozen: ${problems.length} problems`);
+      process.exit(1);
+    }
+    const frozen = {
+      at: new Date().toISOString(),
+      sources: Object.fromEntries(
+        Object.entries(imports)
+          .filter(([source]) =>
+            parseSources(sourcesMd).rows.some((r) => r.source === source && r.decision === "accepted"),
+          )
+          .map(([source, record]) => [
+            source,
+            { inputs: record.inputs ?? null, rows: record.rows ?? null, stored: record.stored ?? 0 },
+          ]),
+      ),
+      pages: pages.map((page) => page.id).sort(),
+    };
+    const file = join(dir, "raw", "FROZEN.json");
+    const temporary = `${file}.${process.pid}.tmp`;
+    writeFileSync(temporary, `${JSON.stringify(frozen)}\n`);
+    renameSync(temporary, file);
+    const back = JSON.parse(readFileSync(file, "utf-8")) as typeof frozen;
+    if (back.pages.length !== frozen.pages.length) throw new Error("the freeze did not read back as written");
+    console.log(
+      `sources: frozen at ${frozen.at}: ${frozen.pages.length} pages, ${Object.keys(frozen.sources).length} sources`,
+    );
+    process.exit(0);
+  }
   if (command !== "check") {
-    console.error("usage: node scripts/glimmer/sources.ts check | status | remove <source> | bind <source>");
+    console.error("usage: node scripts/glimmer/sources.ts check | status | remove <source> | bind <source> | freeze");
     process.exit(2);
   }
   const store = openStore(dir);

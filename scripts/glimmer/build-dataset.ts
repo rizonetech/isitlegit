@@ -286,6 +286,9 @@ export async function buildDataset(options: {
   version: string;
   mode: ScreenMode;
   seed?: number;
+  // Loupe's collection freeze (§18, `sources.ts freeze`): only pages it names are built from. Left out (a test with no
+  // freeze), every stored page is a candidate; the command refuses to build without one.
+  frozen?: Set<string>;
 }): Promise<Built> {
   const { store, version, mode } = options;
   const random = seeded(options.seed ?? 20261101);
@@ -298,6 +301,7 @@ export async function buildDataset(options: {
     unredacted: 0,
     capped: 0,
     balanced: 0,
+    afterFreeze: 0,
   };
   // A page whose `lure` the teacher disputed waits in the review queue and is left out of both files (§9).
   const queue = join(store.dir, "review-queue.jsonl");
@@ -335,6 +339,11 @@ export async function buildDataset(options: {
     return true;
   };
   for (const page of store.manifest()) {
+    // A page stored after the collection froze, or an input never frozen, cannot enter this version.
+    if (options.frozen && !options.frozen.has(page.id)) {
+      dropped.afterFreeze++;
+      continue;
+    }
     if (!usable(page)) {
       dropped.incomplete++;
       continue;
@@ -451,10 +460,20 @@ if (import.meta.filename === process.argv[1]) {
     console.error("build-dataset: docs/glimmer/training.md records no `training mode:`");
     process.exit(2);
   }
+  const store = openStore(storeDir());
+  const frozenFile = join(store.dir, "raw", "FROZEN.json");
+  if (!existsSync(frozenFile)) {
+    console.error(
+      "build-dataset: no raw/FROZEN.json: freeze the collection first (node scripts/glimmer/sources.ts freeze)",
+    );
+    process.exit(2);
+  }
+  const frozen = new Set((JSON.parse(readFileSync(frozenFile, "utf-8")) as { pages: string[] }).pages);
   const built = await buildDataset({
-    store: openStore(storeDir()),
+    store,
     version,
     mode: recorded,
+    frozen,
     ...(seed ? { seed: Number(seed) } : {}),
   });
   console.log(JSON.stringify(built, null, 2));
