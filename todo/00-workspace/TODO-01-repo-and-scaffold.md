@@ -53,7 +53,7 @@ track: day-0
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
 | 13 | §13 | Type check before every push | §4 | [ ] |
 | 14 | §14 | Timing-free render, import and fetch tests | §4 | [ ] |
-| 15 | §15 | Review schedule by section risk | §4 | [ ] |
+| 15 | §15 | Review schedule by section risk | §4 | [x] |
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
 
@@ -593,6 +593,9 @@ Filed 2026-10-30 at the operator's request, to go quicker without lowering the b
 - [x] Commit: `tools: a lighter review schedule for low-risk sections` Done 2026-10-30: bd4d682, then the review fixes to c8bc0c8. Test checkpoint 2026-10-30: `python3 -m pytest scripts/tests/test_review_dispatch.py tests/scripts/test_todo_graph.py` 241 passed.
 
 **Test checkpoint:** `python3 -m pytest scripts/tests/test_review_dispatch.py tests/scripts/test_todo_graph.py` passes, including a light section stamped after one round and a full one refused.
+
+> **Verified:** 2026-10-30 | §15 | b27d2322641e1797262052665ca9ea68effb32a0
+> **Review:** `docs/reviews/d00-t01-s15.json`
 
 ## 16. A returned review kept when its record fails
 
