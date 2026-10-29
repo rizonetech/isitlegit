@@ -1,7 +1,9 @@
 {
- "payload_bytes": 100663296,
- "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
  "cap_bytes_per_connection": 8388608,
+ "transport": "HTTPS, a certificate for 127.0.0.1 made per run by OpenSSL 3.5.5 27 Jan 2026 (Library: OpenSSL 3.5.5 27 Jan 2026), trusted through each tool's own option",
+ "latency_ms": 20,
+ "estimate_seconds": 512,
+ "wall_seconds": 764,
  "aria2c": "aria2 version 1.37.0",
  "commands": {
   "drop": {
@@ -26,6 +28,8 @@
     "30",
     "--min-rate",
     "16384",
+    "--ca-file",
+    "<certificate>",
     "--segments",
     "1"
    ],
@@ -50,6 +54,8 @@
     "30",
     "--min-rate",
     "16384",
+    "--ca-file",
+    "<certificate>",
     "--segments",
     "4",
     "--segment-threshold",
@@ -76,6 +82,10 @@
     "<dir>/src",
     "-o",
     "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
     "<url>"
    ],
    "aria2c (four connections)": [
@@ -100,6 +110,10 @@
     "<dir>/src",
     "-o",
     "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
     "<url>"
    ]
   },
@@ -125,6 +139,8 @@
     "30",
     "--min-rate",
     "16384",
+    "--ca-file",
+    "<certificate>",
     "--mirror",
     "<mirror 1>",
     "--segments",
@@ -151,6 +167,8 @@
     "30",
     "--min-rate",
     "16384",
+    "--ca-file",
+    "<certificate>",
     "--mirror",
     "<mirror 1>",
     "--segments",
@@ -179,6 +197,10 @@
     "<dir>/src",
     "-o",
     "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
     "<url>",
     "<mirror 1>"
    ],
@@ -204,90 +226,273 @@
     "<dir>/src",
     "-o",
     "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
     "<url>",
     "<mirror 1>"
+   ]
+  },
+  "gigabyte": {
+   "fetch.py (four segments)": [
+    "/usr/bin/python3",
+    "-I",
+    "<repo>/scripts/glimmer/fetch.py",
+    "--url",
+    "<url>",
+    "--dest",
+    "src/data.bin",
+    "--sha256",
+    "4560776f760919c25401d12dfbb022a0117ef5a91a01d2c9f0736c3b83d67904",
+    "--allow-loopback",
+    "--min-free",
+    "0",
+    "--source-limit",
+    "1000000000000",
+    "--attempts",
+    "3",
+    "--timeout",
+    "30",
+    "--min-rate",
+    "16384",
+    "--ca-file",
+    "<certificate>",
+    "--segments",
+    "4",
+    "--segment-threshold",
+    "1048576"
+   ],
+   "aria2c (four connections)": [
+    "env",
+    "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+    "~/.local/aria2/root/usr/bin/aria2c",
+    "-x4",
+    "-s4",
+    "-k1M",
+    "--checksum=sha-256=4560776f760919c25401d12dfbb022a0117ef5a91a01d2c9f0736c3b83d67904",
+    "--max-tries=3",
+    "--retry-wait=1",
+    "--lowest-speed-limit=16K",
+    "--connect-timeout=30",
+    "--timeout=30",
+    "--allow-overwrite=true",
+    "--auto-file-renaming=false",
+    "--file-allocation=none",
+    "--console-log-level=error",
+    "--summary-interval=0",
+    "-d",
+    "<dir>/src",
+    "-o",
+    "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
+    "<url>"
    ]
   }
  },
  "scenarios": {
   "drop": {
+   "payload_bytes": 100663296,
+   "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
    "fetch.py (one stream)": {
     "median_seconds": 12.28,
+    "startup_seconds": 0.123,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     12.24,
+     12.28,
+     12.28,
+     12.3,
+     12.3
+    ]
    },
    "fetch.py (four segments)": {
-    "median_seconds": 3.41,
+    "median_seconds": 3.33,
+    "startup_seconds": 0.117,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     3.29,
+     3.33,
+     3.28,
+     3.33,
+     3.34
+    ]
    },
    "aria2c (one connection)": {
-    "median_seconds": 12.13,
+    "median_seconds": 12.19,
+    "startup_seconds": 0.005,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     12.22,
+     12.23,
+     12.19,
+     12.17,
+     12.17
+    ]
    },
    "aria2c (four connections)": {
-    "median_seconds": 3.15,
+    "median_seconds": 3.23,
+    "startup_seconds": 0.009,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     3.23,
+     3.23,
+     3.23,
+     3.18,
+     3.23
+    ]
    }
   },
   "mirror": {
+   "payload_bytes": 100663296,
+   "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
    "fetch.py (one stream)": {
-    "median_seconds": 15.32,
+    "median_seconds": 15.38,
+    "startup_seconds": 0.098,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     15.37,
+     15.38,
+     15.38,
+     15.41,
+     15.49
+    ]
    },
    "fetch.py (four segments)": {
-    "median_seconds": 5.24,
+    "median_seconds": 5.35,
+    "startup_seconds": 0.117,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     5.35,
+     5.24,
+     5.35,
+     5.36,
+     5.36
+    ]
    },
    "aria2c (one connection)": {
-    "median_seconds": 17.16,
+    "median_seconds": 17.35,
+    "startup_seconds": 0.008,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     17.36,
+     17.4,
+     17.34,
+     17.35,
+     17.31
+    ]
    },
    "aria2c (four connections)": {
-    "median_seconds": 6.22,
+    "median_seconds": 7.45,
+    "startup_seconds": 0.006,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
-    "runs": 5
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     7.47,
+     7.45,
+     7.45,
+     7.45,
+     7.43
+    ]
+   }
+  },
+  "gigabyte": {
+   "payload_bytes": 1073741824,
+   "payload_sha256": "4560776f760919c25401d12dfbb022a0117ef5a91a01d2c9f0736c3b83d67904",
+   "fetch.py (four segments)": {
+    "median_seconds": 33.87,
+    "startup_seconds": 0.131,
+    "median_refetched_bytes": 786432,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "resumed": 5,
+    "runs": 5,
+    "seconds": [
+     33.77,
+     33.87,
+     34.18,
+     34.3,
+     33.8
+    ]
+   },
+   "aria2c (four connections)": {
+    "median_seconds": 34.01,
+    "startup_seconds": 0.007,
+    "median_refetched_bytes": 1556480,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "resumed": 5,
+    "runs": 5,
+    "seconds": [
+     34.01,
+     34.17,
+     34.39,
+     33.76,
+     33.99
+    ]
    }
   }
  },
  "acceptance": {
   "drop": {
    "met": true,
-   "time_ratio": 1.083,
+   "net_ratio": 0.997516299285936,
+   "time_ratio": 1.0309597523219816,
+   "startup": [
+    0.117,
+    0.009
+   ],
    "refetched": [
     0,
     0
    ],
-   "intact": [
+   "recovered": [
     5,
     5
    ],
@@ -295,19 +500,61 @@
     5,
     5
    ],
+   "intact": [
+    5,
+    5
+   ],
+   "latency": [
+    5,
+    5
+   ]
+  },
+  "gigabyte": {
+   "met": true,
+   "net_ratio": 0.9922359791783077,
+   "time_ratio": 0.9958835636577477,
+   "startup": [
+    0.131,
+    0.007
+   ],
+   "refetched": [
+    786432,
+    1556480
+   ],
    "recovered": [
+    5,
+    5
+   ],
+   "cut": [
+    5,
+    5
+   ],
+   "intact": [
+    5,
+    5
+   ],
+   "resumed": [
+    5,
+    5
+   ],
+   "latency": [
     5,
     5
    ]
   },
   "mirror": {
    "met": true,
-   "time_ratio": 0.842,
+   "net_ratio": 0.7029822675980655,
+   "time_ratio": 0.7181208053691275,
+   "startup": [
+    0.117,
+    0.006
+   ],
    "refetched": [
     0,
     0
    ],
-   "intact": [
+   "recovered": [
     5,
     5
    ],
@@ -315,11 +562,23 @@
     5,
     5
    ],
-   "recovered": [
+   "intact": [
+    5,
+    5
+   ],
+   "latency": [
     5,
     5
    ]
+  },
+  "all": {
+   "met": true,
+   "required": [
+    "drop",
+    "mirror",
+    "gigabyte"
+   ]
   }
  },
- "measured": "2026-10-29T05:40:57Z"
+ "measured": "2026-10-29T06:55:44Z"
 }
