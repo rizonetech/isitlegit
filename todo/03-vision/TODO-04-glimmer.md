@@ -63,6 +63,7 @@ track: day-6
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [ ] |
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [ ] |
+| 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -913,6 +914,28 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 - [ ] Commit: `glimmer: a second source sweep for Loupe 1.1`
 
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, and each new converter's test passes.
+
+## 28. Converter limits and item lineage for Loupe 1.1
+
+Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and G6, `docs/reviews/03-vision/D03-T04-s18.md`). §18 bound every source to its inputs and receipts and fixed what changes Loupe 1.0's training set; these five need deeper converter and importer work than fits before 1.0's collection freeze (2026-10-31 00:00 SAST), and none changes a page 1.0 trains on: each converter already ran under §18's limits on its published, digest-checked inputs, ScamFerret's import is bound to its manifest after its clean re-import, and the import records count every item. Decision (unattended): file for 1.1; reversing it means doing this section before the freeze and re-running every conversion.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Bound and account. Done when: every conversion path stops at its limits throughout, and ScamFerret has an export receipt like the others.
+2. Trace each item. Done when: every source item has one recorded outcome and a stored page names every item it stands for.
+
+- [ ] Charge every read against `inputs.Limits` in `scripts/glimmer/dataset_rows.py`, `scripts/glimmer/sevendays_rows.py` and `scripts/glimmer/phreshphish_rows.py`: workbook and SQL index loading, nested XLSX expansion, Parquet row groups and each decompression, with the deadline checked inside every loop (G1). Done when: `tests/scripts/test_dataset_rows.py`, `test_sevendays_rows.py` and `test_phreshphish_rows.py` stop a large index, a nested-sheet bomb and a slow loop at their limits, keeping earlier rows whole.
+- [ ] Give ScamFerret a converter step like the others (`scripts/glimmer/scamferret_rows.py`): verify `INPUTS.json`, write rows and `EXPORT.json`, and have `scripts/glimmer/import-scamferret.ts` import only rows bound by `exportBinding()`; add `scamferret` to `RECEIPTED` in `scripts/glimmer/sources.ts` (G2). Done when: a test refuses an import from unverified files and `sources.ts check` reconciles ScamFerret's receipt.
+- [ ] Record each item's outcome in an item ledger beside each receipt (`raw/<source>/ITEMS.jsonl`: item id, outcome, reason, page id) and keep every item a stored page stands for (`items` on a page in `scripts/glimmer/store.ts`, a duplicate's item added rather than dropped, a contradictory duplicate excluded) (G3). Done when: `sources.ts check` refuses a store whose pages and item ledgers disagree, and a test stores two items with one content and finds both named.
+- [ ] Re-render a stored item whose input changed (G4): an import keeps each item's input digest on its page and renders it again when the bound export gives that item other content. Done when: `test/node/glimmer-import.test.ts` re-renders a changed item and leaves an unchanged one alone.
+- [ ] Keep each imported capture's render evidence (title, overlays) for `captureProblem()` in `scripts/glimmer/label-rules.ts`, and replace the importer's 20-character floor with the capture rules, so a sparse but usable lure is admitted and an empty or walled one excluded with its reason (G6). Done when: tests admit a logo-and-two-fields lure and exclude a blank page and a title-only wall.
+- [ ] Commit: `glimmer: converter limits and item lineage for Loupe 1.1`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_dataset_rows tests.scripts.test_sevendays_rows tests.scripts.test_phreshphish_rows` and `pnpm exec vitest run test/node/glimmer-import.test.ts test/node/glimmer-sources.test.ts` pass, and `node scripts/glimmer/sources.ts check` prints `sources: reconciled`.
 
 ## Verification
 
