@@ -21,6 +21,8 @@ GOOD = {
     "flags": ";; flags: qr rd ra ad; QUERY: 1, ANSWER: 0, AUTHORITY: 4, ADDITIONAL: 1",
     # Email Routing's public DKIM key as published (a public key, read back from DNS on 2026-10-29).
     "DKIM": ['"v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78k" "m4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r85U9dkNDVAS3gioCvELryh1TxKGiVTkg4wqHTyHfWsp7KD3WQHYJn0RyfJJu6YEmL77zonn7p2SRMvTMP3ZEXibnC9gz3nnhR6wcYL8Q7zXypKTMD58bTixDSJwIDAQAB"'],
+    "DEMO_MX": ["9 route2.mx.cloudflare.net.", "32 route3.mx.cloudflare.net.", "56 route1.mx.cloudflare.net."],
+    "DEMO_TXT": ['"v=spf1 include:_spf.mx.cloudflare.net ~all"'],
 }
 
 
@@ -31,7 +33,7 @@ class Domain(unittest.TestCase):
         self.assertLess(passed, cd.CHECKS)
 
     def test_the_recorded_setup_passes(self):
-        self.assertEqual(cd.check(GOOD), (8, []))
+        self.assertEqual(cd.check(GOOD), (cd.CHECKS, []))
 
     def test_wrong_nameservers_or_mx_are_refused(self):
         self.refused("nameservers", NS=["ns1.example.net."])
@@ -114,11 +116,11 @@ class Recovery(unittest.TestCase):
     def test_a_planned_move_is_checked_against_its_reviewed_values_and_stale_ones_refused(self):
         new = {**GOOD, "NS": ["ns1.newdns.example.", "ns2.newdns.example."], "DS": ["4242 13 2 " + "AB" * 32]}
         nameservers, ds_record = cd.expected("ns1.newdns.example,ns2.newdns.example", "4242 13 2 " + "ab" * 32)
-        self.assertEqual(cd.check(new, nameservers, ds_record), (8, []))
+        self.assertEqual(cd.check(new, nameservers, ds_record), (cd.CHECKS, []))
         passed, refusals = cd.check(new)
-        self.assertEqual(passed, 6)
+        self.assertEqual(passed, cd.CHECKS - 2)
         passed, refusals = cd.check(GOOD, nameservers, ds_record)
-        self.assertEqual(passed, 6)
+        self.assertEqual(passed, cd.CHECKS - 2)
         for ns, ds in (("ns1.only.example", None), ("not a name,x", None), (None, "2371 13 2"), (None, "x y z w")):
             with self.subTest((ns, ds)):
                 with self.assertRaises(ValueError):
@@ -162,6 +164,22 @@ class Recovery(unittest.TestCase):
                 passed, refusals = cd.check({**GOOD, "DKIM": [record.replace(key, bad)]})
                 self.assertTrue(any("DKIM key" in r for r in refusals), refusals)
 
+    def test_an_invalid_routing_dkim_record_is_refused_though_its_key_matches(self):
+        record = GOOD["DKIM"][0]
+        for bad in (record.replace("v=DKIM1", "v=DKIM11"), record.replace("k=rsa", "k=ed25519"),
+                    record.replace("h=sha256;", "h=sha256; h=sha1;"), record.rstrip('"') + '; p=AAAA"',
+                    record.replace("v=DKIM1; ", "") .replace("h=sha256;", "h=sha256; v=DKIM1;")):
+            with self.subTest(bad[:40]):
+                passed, refusals = cd.check({**GOOD, "DKIM": [bad]})
+                self.assertTrue(any("DKIM key" in r for r in refusals), refusals)
+
+    def test_the_demo_subdomain_must_route_through_email_routing(self):
+        for change in ({"DEMO_MX": []}, {"DEMO_MX": GOOD["DEMO_MX"][:2]}, {"DEMO_TXT": []},
+                       {"DEMO_TXT": ['"v=spf1 -all"']}):
+            with self.subTest(change):
+                passed, refusals = cd.check({**GOOD, **change})
+                self.assertTrue(any("demo.isitlegit.co.za" in r for r in refusals), refusals)
+
     def test_reviewed_values_are_validated_before_any_lookup(self):
         for ns, ds in (
             ("a.example,a.example", None),
@@ -192,6 +210,13 @@ class Recovery(unittest.TestCase):
         # Reversal by the step reached: the old DS restored, and a new provider's DS pulled before the old delegation.
         self.assertIn("publish the old DS again", a)
         self.assertLess(a.index("pull any DS step 6 published"), a.index("then publish the old DS again"))
+        # Each cache waited out before the next change: the new DS gone before the old delegation, which comes back
+        # before the old DS.
+        self.assertLess(a.index("wait twice the DS TTL"), a.index("set the old nameservers back"))
+        self.assertLess(a.index("wait twice the NS TTL"), a.index("only then publish the old DS again"))
+        # Records first, needing no key; the key's permissions include what the checker reads first.
+        self.assertLess(e.index("Sender-domain records removed"), e.index("revoke it first"))
+        self.assertIn("/stats/email_summary", e)
         # A records-only fault changes no credential.
         self.assertIn("changes no credential", e)
         d = section[section.index("### (d)"):section.index("### (e)")]
@@ -213,9 +238,9 @@ class Progress(unittest.TestCase):
 
         code, lines = cd.run(lookup, say=said.append)
         self.assertEqual(code, 0, lines)
-        self.assertEqual(len(said), cd.CHECKS)
-        # The n-th lookup starts after the n-th announcement.
-        self.assertEqual([n for n, *_ in asked], list(range(1, cd.CHECKS + 1)))
+        # One announcement for each lookup, and the n-th lookup starts after the n-th announcement.
+        self.assertEqual(len(said), len(asked))
+        self.assertEqual([n for n, *_ in asked], list(range(1, len(asked) + 1)))
 
 
 class Dig(unittest.TestCase):

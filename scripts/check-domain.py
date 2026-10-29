@@ -45,7 +45,9 @@ DMARC_RECORD = "v=DMARC1; p=reject; sp=reject; adkim=r; aspf=r; fo=1; rua=mailto
 CLOUDFLARE_CAS = {"letsencrypt.org", "pki.goog", "ssl.com", "comodoca.com", "digicert.com"}
 REQUIRED_CAS = {"letsencrypt.org", "pki.goog", "ssl.com"}
 DS = ("2371", "13", "2", "360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B723928504665")
-CHECKS = 8
+CHECKS = 9
+# The demo subdomain routes its own mail (D01 T02 §4): its own three MX hosts and SPF record.
+DEMO = f"demo.{DOMAIN}"
 # Email Routing's DKIM key (D99 T01 §2 enabled routing, which publishes it), so forwarded mail stays authenticated:
 # pinned, like the DS, by the SHA-256 of its `p=` value as read back on 2026-10-29, so a truncated or altered key fails.
 ROUTING_DKIM = f"cf2024-1._domainkey.{DOMAIN}"
@@ -96,7 +98,8 @@ def answers(lookup=dig, say=lambda line: None):
     return {"NS": ask("NS", "NS")[0], "MX": ask("MX", "MX")[0], "TXT": ask("SPF", "TXT")[0],
             "DMARC": ask("DMARC", "TXT", f"_dmarc.{DOMAIN}")[0], "CAA": ask("CAA", "CAA")[0],
             "DS": ask("DS", "DS")[0], "flags": ask("validation", "A", DOMAIN, True)[1],
-            "DKIM": ask("routing DKIM", "TXT", ROUTING_DKIM)[0]}
+            "DKIM": ask("routing DKIM", "TXT", ROUTING_DKIM)[0], "DEMO_MX": ask("demo MX", "MX", DEMO)[0],
+            "DEMO_TXT": ask("demo SPF", "TXT", DEMO)[0]}
 
 
 def txt(rdata):
@@ -153,19 +156,30 @@ def check(a, nameservers=None, ds_record=None):
     found = re.search(r"flags:([^;]*);", a["flags"])
     flag_words = found[1].split() if found else []
     need("ad" in flag_words, "the resolver did not validate the zone (no ad flag)")
-    dkim = [txt(r) for r in a["DKIM"] if txt(r).lower().startswith("v=dkim1")]
+    # Any record that begins like a DKIM record counts, so a mistyped version is refused rather than skipped.
+    dkim = [txt(r) for r in a["DKIM"] if txt(r).strip().lower().startswith("v=dkim")]
     need(len(dkim) == 1 and dkim_key_ok(dkim[0]),
          f"Email Routing's DKIM key ({ROUTING_DKIM}) is not the one recorded ({len(dkim)} DKIM1 record(s); a valid "
          "RSA key whose p= value hashes to the recorded digest)")
+    demo_spf = [txt(r) for r in a["DEMO_TXT"] if txt(r).lower().startswith("v=spf1")]
+    need({line.split()[-1] for line in a["DEMO_MX"] if line.split()} == MX_HOSTS
+         and len(a["DEMO_MX"]) == len(MX_HOSTS) and demo_spf == [SPF_RECORD],
+         f"{DEMO} does not route through Email Routing (MX {sorted(a['DEMO_MX'])}, {len(demo_spf)} SPF record(s))")
     return passed, refusals
 
 
 def dkim_key_ok(record):
-    """A DKIM record's key is an RSA public key (RFC 6376 3.6.1: base64 of its DER) and the recorded one."""
-    found = re.search(r"(?:^|;)\s*p=([A-Za-z0-9+/=\s]+?)\s*(?:;|$)", record)
-    if not found:
+    """A DKIM record is valid (RFC 6376 3.6.1: `v=DKIM1` first, each tag once, `k` absent or `rsa`) and its key is an RSA
+    public key (base64 of its DER) and the recorded one."""
+    tags = [part.split("=", 1) for part in record.split(";") if part.strip()]
+    if any(len(tag) != 2 for tag in tags):
         return False
-    value = "".join(found[1].split())
+    names = [name.strip() for name, _ in tags]
+    values = dict((name.strip(), value.strip()) for name, value in tags)
+    if (len(set(names)) != len(names) or names[0] != "v" or values["v"] != "DKIM1"
+            or values.get("k", "rsa") != "rsa" or "p" not in values):
+        return False
+    value = "".join(values["p"].split())
     try:
         der = base64.b64decode(value, validate=True)
     except ValueError:
