@@ -1,6 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -58,6 +67,42 @@ describe("the confusables map", () => {
     const missing = run("--check", "--vendor", vendor, "--out", out);
     expect(missing.status).not.toBe(0);
     expect(missing.stderr).toMatch(/missing/);
+  });
+
+  it("writes a map a later --check accepts, and on a failed write keeps the previous map for a retry", () => {
+    const { vendor } = copied();
+    const dir = join(vendor, "out");
+    mkdirSync(dir);
+    const out = join(dir, "map.json");
+    const wrote = run("--vendor", vendor, "--out", out);
+    expect(wrote.status, wrote.stderr).toBe(0);
+    expect(run("--check", "--vendor", vendor, "--out", out).status).toBe(0);
+    expect(readFileSync(out, "utf8")).toBe(readFileSync(join(ROOT, "src/checks/confusables-map.json"), "utf8"));
+    // A directory it cannot write to: the write fails, the previous map stays whole, and nothing half-written is left.
+    writeFileSync(out, '{"previous":true}\n');
+    chmodSync(dir, 0o500);
+    try {
+      const failed = run("--vendor", vendor, "--out", out);
+      expect(failed.status).not.toBe(0);
+      expect(readFileSync(out, "utf8")).toBe('{"previous":true}\n');
+    } finally {
+      chmodSync(dir, 0o700);
+    }
+    const retried = run("--vendor", vendor, "--out", out);
+    expect(retried.status, retried.stderr).toBe(0);
+    expect(run("--check", "--vendor", vendor, "--out", out).status).toBe(0);
+  });
+
+  it("counts a right-to-left block's unassigned code points as right-to-left, explicit rows overriding", () => {
+    const { rtl } = JSON.parse(readFileSync(join(ROOT, "src/checks/confusables-map.json"), "utf8")) as {
+      rtl: [number, number][];
+    };
+    const inRtl = (c: number) => rtl.some(([a, b]) => a <= c && c <= b);
+    expect(inRtl(0x0590)).toBe(true); // unassigned, Hebrew block default
+    expect(inRtl(0x05d0)).toBe(true); // explicit R
+    expect(inRtl(0x0627)).toBe(true); // explicit AL
+    expect(inRtl(0x0591)).toBe(false); // explicit NSM inside the Hebrew default
+    expect(inRtl(0x0041)).toBe(false);
   });
 
   it("refuses a source of another version, and one whose digest is not the recorded one", () => {

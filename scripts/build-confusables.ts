@@ -55,20 +55,33 @@ export function buildMap(vendor: string): string {
     const found = /^([0-9A-F]{4,6})\s*;\s*([0-9A-F]{4,6}(?: [0-9A-F]{4,6})*)\s*;\s*MA\b/.exec(line);
     if (found) prototypes[char(found[1] as string)] = (found[2] as string).split(" ").map(char).join("");
   }
-  // `<first>[..<last>] ; <class> # ...`: the R and AL lines, merged where they touch.
-  const ranges: [number, number][] = [];
+  // Each code point's class: first the file's `@missing` defaults, in order (a later, narrower range overrides the
+  // whole-range Left_To_Right), then every explicit row, which overrides the defaults; R and AL are then the
+  // right-to-left classes, as ranges. An unassigned code point in a right-to-left block is right-to-left by default.
+  const RIGHT_TO_LEFT = 1;
+  const OTHER = 2;
+  const classes = new Uint8Array(0x110000);
+  const assign = (first: number, last: number, kind: number) => classes.fill(kind, first, last + 1);
   for (const line of bidi.text.split("\n")) {
-    const found = /^([0-9A-F]{4,6})(?:\.\.([0-9A-F]{4,6}))?\s*;\s*(R|AL)\b/.exec(line);
+    const missing = /^# @missing: ([0-9A-F]{4,6})\.\.([0-9A-F]{4,6}); (\w+)/.exec(line);
+    if (missing) {
+      const kind = missing[3] === "Right_To_Left" || missing[3] === "Arabic_Letter" ? RIGHT_TO_LEFT : OTHER;
+      assign(Number.parseInt(missing[1] as string, 16), Number.parseInt(missing[2] as string, 16), kind);
+    }
+  }
+  for (const line of bidi.text.split("\n")) {
+    const found = /^([0-9A-F]{4,6})(?:\.\.([0-9A-F]{4,6}))?\s*;\s*(\w+)/.exec(line);
     if (!found) continue;
     const first = Number.parseInt(found[1] as string, 16);
-    ranges.push([first, found[2] ? Number.parseInt(found[2], 16) : first]);
+    const last = found[2] ? Number.parseInt(found[2], 16) : first;
+    assign(first, last, found[3] === "R" || found[3] === "AL" ? RIGHT_TO_LEFT : OTHER);
   }
-  ranges.sort((x, y) => x[0] - y[0]);
   const rtl: [number, number][] = [];
-  for (const range of ranges) {
+  for (let codePoint = 0; codePoint < classes.length; codePoint++) {
+    if (classes[codePoint] !== RIGHT_TO_LEFT) continue;
     const last = rtl[rtl.length - 1];
-    if (last && range[0] <= last[1] + 1) last[1] = Math.max(last[1], range[1]);
-    else rtl.push([...range]);
+    if (last && last[1] === codePoint - 1) last[1] = codePoint;
+    else rtl.push([codePoint, codePoint]);
   }
   if (Object.keys(prototypes).length < 1000 || rtl.length === 0)
     throw new SourceRefused("the sources yielded too little data to be the Unicode tables");

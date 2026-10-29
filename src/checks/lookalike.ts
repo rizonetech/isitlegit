@@ -82,16 +82,36 @@ function punycodeDecode(input: string): string | null {
   return String.fromCodePoint(...output);
 }
 
-// One label, lowercased and in Unicode: an A-label decoded (and refused when invalid, or when it decodes to plain ASCII,
-// which IDNA forbids), anything else as given. Null for an empty label, one holding a dot, or one longer than DNS allows.
+// One label in its one Unicode form, whichever form it arrives in. The runtime's WHATWG URL host parser does what IDNA
+// asks of a label (UTS #46 mapping: case folding, width and compatibility forms, NFC; and validity: a bad A-label, a
+// forbidden or control character, an empty label are refused), giving its A-label; that is then decoded, so a Unicode
+// label and its A-label give the same text (D02 T03 §1 completion review). Null when the label is refused, holds or maps
+// to a dot, or is longer than DNS allows (63 octets as an A-label), or when an A-label decodes to plain ASCII, to text
+// that is not NFC, or to a label whose own encoding differs (RFC 5891 5.4, 5.5).
 export function unicodeLabel(label: string): string | null {
-  const lower = label.toLowerCase();
-  if (lower.length === 0 || lower.includes(".")) return null;
-  if (!lower.startsWith("xn--")) return lower;
-  if (lower.length > 63 || !/^[a-z0-9-]+$/.test(lower)) return null;
-  const decoded = punycodeDecode(lower.slice(4));
-  if (decoded === null || Array.from(decoded).every((c) => (c.codePointAt(0) as number) < 0x80)) return null;
-  return decoded.normalize("NFC").toLowerCase();
+  if (label.length === 0 || label.length > 253 || /[./\\?#@:%\s]/.test(label)) return null;
+  let host: string;
+  try {
+    host = new URL(`http://${label}.invalid`).hostname;
+  } catch {
+    return null;
+  }
+  const labels = host.split(".");
+  const ace = labels[0] as string;
+  if (labels.length !== 2 || labels[1] !== "invalid" || ace.length === 0 || ace.length > 63) return null;
+  if (!ace.startsWith("xn--")) return ace;
+  const decoded = punycodeDecode(ace.slice(4));
+  if (decoded === null || decoded.normalize("NFC") !== decoded) return null;
+  if (Array.from(decoded).every((c) => (c.codePointAt(0) as number) < 0x80)) return null;
+  // The A-label must be its U-label's own encoding (RFC 5891 5.4): decoded text that encodes back to another A-label,
+  // or not at all, was never a valid one. The runtime's parser alone accepts some, such as `xn--a`.
+  let again: string;
+  try {
+    again = new URL(`http://${decoded}.invalid`).hostname;
+  } catch {
+    return null;
+  }
+  return again === host ? decoded : null;
 }
 
 // The optimal string alignment distance (Damerau-Levenshtein restricted to adjacent transpositions), in code points.

@@ -37,6 +37,8 @@ track: day-2
 | 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [ ] |
 | 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [ ] |
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
+| 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
+| 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -58,8 +60,8 @@ UTS #39 defines a "skeleton" that maps visually confusable characters to one pro
 2. Write `skeleton`, `distance` and `addedWords`. Done when: tests pass the UTS #39 examples and the synthetic lookalikes.
 
 - [x] Download `confusables.txt` from `https://www.unicode.org/Public/security/latest/confusables.txt` and `DerivedBidiClass.txt` from `https://www.unicode.org/Public/UCD/latest/ucd/extracted/DerivedBidiClass.txt` (both 18.0.0 on 2026-10-29), store them unchanged in `vendor/unicode/` with their SHA-256 digests recorded beside them, and add a `NOTICE.md` row (Unicode License v3, the version and URLs). Done when: the files, their digests and the row exist. (**Corrected 2026-10-29**, at start and plan review.) Done 2026-10-29: `vendor/unicode/` (both files, `SHA256SUMS`), the `NOTICE.md` row.
-- [x] Write `scripts/build-confusables.ts` generating `src/checks/confusables-map.json` (the prototypes, the R and AL ranges, the version and both sources' digests), refusing a source whose version is not 18.0.0 or whose digest differs, with `--check` that exits non-zero when the committed map is missing or differs from a fresh build and never writes. Done when: the generated map has the expected entry for Cyrillic `а` mapping to Latin `a`, and `test/node/confusables-map.test.ts` proves, on fixtures in a temporary directory, the committed map current, and a non-zero exit with no file changed for a stale map, a missing map, a wrong version and a digest mismatch. (**Corrected 2026-10-29**, at start and plan review.) Done 2026-10-29: 6,712 prototypes, 138 R and AL ranges; `test/node/confusables-map.test.ts` (3 tests); the map is excluded from Biome as generated.
-- [x] Write `unicodeLabel(label)` and `skeleton(label)` (NFD, Default_Ignorable_Code_Point removed, map, NFD again, per UTS #39 section 4, revision 34; `null` for a label with an R or AL character) in `src/checks/lookalike.ts`. Done when: `test/checks/lookalike.test.ts` gives exact skeletons (`pаypal` with a Cyrillic а is `paypal`; `modern` is `rnodern`, a one-to-many mapping), unequal skeletons for unrelated labels, equal ones for a label and the same label with a zero-width joiner, for precomposed and decomposed forms (each normalisation stage tested on its own), and for `xn--pypal-4ve` and `pаypal` through `unicodeLabel`; an invalid A-label gives `null`; a Hebrew, an Arabic and a Thaana label each give `null`. (**Corrected 2026-10-29**, at start and plan review.) Done 2026-10-29: `src/checks/lookalike.ts`; `test/checks/lookalike.test.ts` "skeleton" and "unicodeLabel" (cross-checked against the runtime's IDNA encoder), each NFD stage proven by removing it.
+- [x] Write `scripts/build-confusables.ts` generating `src/checks/confusables-map.json` (the prototypes, the R and AL ranges, the version and both sources' digests), refusing a source whose version is not 18.0.0 or whose digest differs, with `--check` that exits non-zero when the committed map is missing or differs from a fresh build and never writes. Done when: the generated map has the expected entry for Cyrillic `а` mapping to Latin `a`, and `test/node/confusables-map.test.ts` proves, on fixtures in a temporary directory, the committed map current, and a non-zero exit with no file changed for a stale map, a missing map, a wrong version and a digest mismatch. (**Corrected 2026-10-29**, at start and plan review.) Done 2026-10-29: 6,712 prototypes, 60 R and AL ranges with the `@missing` defaults (completion review); `test/node/confusables-map.test.ts` (5 tests); the map is excluded from Biome as generated.
+- [x] Write `unicodeLabel(label)` and `skeleton(label)` (NFD, Default_Ignorable_Code_Point removed, map, NFD again, per UTS #39 section 4, revision 34; `null` for a label with an R or AL character) in `src/checks/lookalike.ts`. Done when: `test/checks/lookalike.test.ts` gives exact skeletons (`pаypal` with a Cyrillic а is `paypal`; `modern` is `rnodern`, a one-to-many mapping), unequal skeletons for unrelated labels, equal ones for a label and the same label with a zero-width joiner, for precomposed and decomposed forms (each normalisation stage tested on its own), and for `xn--pypal-4ve` and `pаypal` through `unicodeLabel`; an invalid A-label gives `null`; a Hebrew, an Arabic and a Thaana label each give `null`. (**Corrected 2026-10-29**, at start and plan review.) Done 2026-10-29: `src/checks/lookalike.ts`; `test/checks/lookalike.test.ts` "skeleton" and "unicodeLabel" (cross-checked against the runtime's IDNA encoder; every form normalised by the URL host parser and a round trip, completion review), each NFD stage proven by removing it.
 - [x] Write `distance(a, b)` (optimal string alignment, in code points) and `addedWords(candidate, base)`: a fixed vocabulary (`ADDED_WORDS`: `pay`, `payment`, `payments`, `invoice`, `invoices`, `billing`, `account`, `accounts`, `secure`, `security`, `verify`, `login`, `online`, `portal`, `support`, `za`), each as a whole word before or after the whole base, joined by `-` or nothing, matching only when the rest of the label is exactly that word, answering the word and its side or `null`. Done when: the tests give exact distances for an insertion, a deletion, a substitution, an adjacent transposition, a supplementary character, and `ca` to `abc` (3, where unrestricted Damerau-Levenshtein gives 2); `fynbosfreight-payments`, `fynbosfreightpayments` and `secure-fynbosfreight` match with their word and side, while `fynbosfreight`, `otherfreight-payments` and `fynbosfreightpayable` do not. (**Corrected 2026-10-29**, at start and plan review.) Done 2026-10-29: `distance`, `ADDED_WORDS`, `addedWords`; tests "distance" and "addedWords".
 - [ ] Commit: `checks: confusables skeleton and edit distance`
 
@@ -125,6 +127,47 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 - [ ] Commit: `checks: domain age from RDAP with caching`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes and fails if an outage is reported as a new domain.
+
+## 5. Accent-insensitive lookalikes, measured
+
+The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have different skeletons, distance 3, no added word), as it should, so a name with several accented letters escapes §1's primitives. Browsers compare protected names with the accents set aside; this adds that as a separate technique beside the skeleton, never a change to it, and measures what it catches against what it wrongly flags. Filed 2026-10-29 from D02 T03 §1's completion review (Part 2, items 3 and 4): no measured comparison of detection, false positives or timing exists for the lookalike primitives yet, and this section makes one.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Build a synthetic lookalike corpus and a benign one. Done when: both are committed with their generation script.
+2. Add the accent-insensitive comparison and measure it with §1's primitives. Done when: the record names detections, false positives and timings for each technique and the chosen thresholds.
+
+- [ ] Write `scripts/fixtures/make-lookalikes.ts` generating `test/fixtures/lookalikes/` (each brand and organisation name in the fixtures with one, two and three accented letters, swapped, doubled and confusable letters, and added words) and a benign set of real accented business names that are not lookalikes of any fixture name. Done when: both files are committed, deterministic from a seed, and the script's `--check` passes.
+- [ ] Write `foldAccents(label)` in `src/checks/lookalike.ts`: NFD, every combining mark (`\p{M}`) removed, NFC, kept apart from `skeleton`. Done when: `test/checks/lookalike.test.ts` gives `fynbosfreight` for `fýnbósfreíght` and `skeleton` still gives three differences.
+- [ ] Measure each technique (skeleton equality, distance at most 1 and 2, added words, accent folding, and folding then skeleton) on both sets, with timings, in `scripts/measure-lookalikes.ts`, against a pinned alternative implementation of UTS #39 run on the same inputs. Done when: `docs/evals/lookalikes.md` records detections, false positives and microseconds a label for each, and names at least one measured advantage, or none if there is none.
+- [ ] Add accent folding to §2's comparison only at the threshold the measurement chose, citing it. Done when: §2's check flags `fýnbósfreíght` against `fynbosfreight` and none of the benign set.
+- [ ] Commit: `checks: accent-insensitive lookalikes, measured`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts` passes and `docs/evals/lookalikes.md` holds the measured table.
+
+## 6. Right-to-left lookalike labels
+
+§1 gives no skeleton for a label with a right-to-left character (Bidi_Class R or AL), so §2 reports such a label as not compared rather than comparing it wrongly. UTS #39's `bidiSkeleton` compares labels as they are displayed, after the Unicode Bidirectional Algorithm reorders them; this builds that, so Hebrew and Arabic labels can be compared with each other and with mixed-direction lookalikes. Filed 2026-10-29 from D02 T03 §1's completion review (Part 2, item 2).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Implement the reordering UTS #39 names for a single label. Done when: the reordered output matches the Unicode BidiCharacterTest.txt cases for single-paragraph, isolated input.
+2. Compare right-to-left labels by their display-order skeleton. Done when: confusable and unrelated Hebrew and Arabic pairs give the expected results.
+
+- [ ] Vendor `BidiCharacterTest.txt` and `BidiBrackets.txt`/`BidiMirroring.txt` (18.0.0) beside §1's tables with their digests, and extend `scripts/build-confusables.ts` with the mirroring data. Done when: `test/node/confusables-map.test.ts` passes with the new sources.
+- [ ] Write `bidiSkeleton(direction, label)` in `src/checks/lookalike.ts` (UAX #9 up to L2 for an isolated label, L3, L4 mirroring, then `internalSkeleton`), with `skeleton` returning it for a right-to-left label instead of `null`. Done when: `test/checks/lookalike.test.ts` matches BidiCharacterTest.txt's single-label cases and gives equal skeletons for a confusable Hebrew pair and an Arabic pair, unequal for unrelated pairs.
+- [ ] Have §2's check compare right-to-left labels and drop its "not compared" item for them. Done when: §2's tests flag a right-to-left lookalike of a right-to-left fixture name.
+- [ ] Commit: `checks: right-to-left labels compared by display order`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts` passes, including the BidiCharacterTest.txt cases.
 
 ## Verification
 

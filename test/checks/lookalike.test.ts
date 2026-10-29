@@ -46,6 +46,12 @@ describe("skeleton", () => {
     expect(skeleton(character)).toBe(prototype.normalize("NFD"));
   });
 
+  it("counts an unassigned code point in a right-to-left block as right-to-left (the @missing defaults)", () => {
+    // U+0590 is unassigned, in the Hebrew block: Right_To_Left by default.
+    expect(skeleton("pay\u0590pal")).toBeNull();
+    expect(skeleton("pay\u07c0pal")).toBeNull();
+  });
+
   it("gives no skeleton for a label with a right-to-left character", () => {
     for (const label of ["שלום", "مرحبا", "ދި", "payאpal"]) expect(skeleton(label), label).toBeNull();
     expect(skeleton("paypal")).not.toBeNull();
@@ -72,6 +78,26 @@ describe("unicodeLabel", () => {
       expect(encoded.startsWith("xn--"), label).toBe(true);
       expect(unicodeLabel(encoded), label).toBe(label);
     }
+  });
+
+  it("gives one form for a decomposed label, its precomposed form and its A-label, so every primitive agrees", () => {
+    const forms = ["cafe\u0301-payments", "caf\u00e9-payments", "xn--caf-payments-deb", "CAF\u00c9-PAYMENTS"].map(
+      unicodeLabel,
+    );
+    expect(new Set(forms)).toEqual(new Set(["caf\u00e9-payments"]));
+    const base = unicodeLabel("cafe\u0301") as string;
+    for (const form of forms) {
+      expect(addedWords(form as string, base)).toEqual({ word: "payments", side: "after" });
+      expect(distance(form as string, "caf\u00e9-payments")).toBe(0);
+    }
+    // Full-width letters are the same host to every browser (UTS #46 maps them), so the same label.
+    expect(unicodeLabel("\uff50aypal")).toBe("paypal");
+  });
+
+  it("refuses an A-label the runtime's IDNA rejects, and any label over 63 octets", () => {
+    for (const label of ["xn--a", "xn--e-xbb", "a".repeat(64), "pay%2epal", "pay pal", `xn--${"a".repeat(58)}-9ba`])
+      expect(unicodeLabel(label), label).toBeNull();
+    expect(unicodeLabel("a".repeat(63))).toBe("a".repeat(63));
   });
 
   it("lowercases a plain label and refuses an invalid one", () => {
