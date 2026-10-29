@@ -57,6 +57,27 @@ export async function senderAuthenticated(
   });
 }
 
+// What the topmost Authentication-Results header says, for the intake's log when a delivery is not admitted (D01 T01
+// §9): its authserv-id and each method's result with the domain it names (`header.d`, the `smtp.mailfrom` domain,
+// `header.from`), never an address or a local part. Null fields when the header block or the header is unreadable.
+export type AuthSummary = {
+  authservId: string | null;
+  results: { method: string; result: string; domain: string | null }[];
+};
+
+export async function authenticationSummary(raw: Uint8Array): Promise<AuthSummary> {
+  const header = (await headersOf(raw))?.find((h) => h.name === "authentication-results")?.value;
+  const parsed = header ? parseAuthenticationResults(header) : null;
+  if (!parsed) return { authservId: null, results: [] };
+  return {
+    authservId: parsed.authservId,
+    results: parsed.results.map((r) => {
+      const named = r.props.get("header.d") ?? r.props.get("smtp.mailfrom") ?? r.props.get("header.from");
+      return { method: r.method, result: r.result, domain: named ? domainOf(named) : null };
+    }),
+  };
+}
+
 // An address's domain, or the value itself when it names only a domain (`smtp.mailfrom` may be either).
 const domainOf = (value: string) => {
   const v = value.trim().toLowerCase();
