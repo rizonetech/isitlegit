@@ -84,8 +84,9 @@ class Bench(http.server.ThreadingHTTPServer):
         self.waits: list[tuple[str, float]] = []  # each request's kind and the delay it actually paid
         self.kill_at: int | None = None  # bytes after which `reached` is set, so a run can be killed at that byte
         self.reached = threading.Event()
+        self.release = threading.Event()  # set once the run being killed is dead: held connections may then end
         self.phase = 1
-        self.starts: list[tuple[int, int]] = []  # (phase, the first byte each GET asked for)
+        self.log: list[tuple[int, int, int]] = []  # (phase, the first byte a GET asked for, the bytes it was sent)
         self.body = body
         self.cap = cap
         self.failing = failing
@@ -140,8 +141,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         server, body = self.server, self.server.body
         start, end = 0, len(body) - 1
         ranged = self.headers.get("Range")
-        with server.lock:
-            server.starts.append((server.phase, int(ranged.split("=")[1].split("-")[0]) if ranged else 0))
+        asked = int(ranged.split("=")[1].split("-")[0]) if ranged else 0
+        phase = server.phase
         if ranged:
             first, _, last = ranged.split("=")[1].partition("-")
             start, end = int(first), int(last) if last else len(body) - 1
@@ -165,6 +166,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             server.dropped = True
         at, began = start, time.monotonic()
         try:
+            self.serve_body(server, body, start, end, at, began, drop_at)
+        finally:
+            with server.lock:
+                server.log.append((phase, asked, self.body_sent))
+
+    def serve_body(self, server, body, start, end, at, began, drop_at):
+        self.body_sent = 0
+        try:
             while at <= end:
                 piece = body[at:min(end + 1, at + 65536)]
                 if drop_at is not None and at + len(piece) >= drop_at:
@@ -172,16 +181,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     piece = body[at:drop_at]
                     self.wfile.write(piece)
                     self.wfile.flush()
+                    self.body_sent += len(piece)
                     with server.lock:
                         server.sent += len(piece)
                         server.drops += 1
                     self.connection.shutdown(2)
                     return
-                self.wfile.write(piece)
                 with server.lock:
+                    if server.kill_at is not None:
+                        # Bytes are reserved under the lock: every connection together stops exactly at the kill byte.
+                        piece = piece[:max(0, server.kill_at - server.sent)]
                     server.sent += len(piece)
-                    if server.kill_at is not None and server.sent >= server.kill_at:
+                    held = server.kill_at is not None and server.sent >= server.kill_at
+                    if held:
                         server.reached.set()
+                if piece:
+                    self.wfile.write(piece)
+                    self.wfile.flush()
+                    self.body_sent += len(piece)
+                if held:
+                    server.release.wait(60)  # nothing more is sent until the process is dead
+                    return
                 at += len(piece)
                 # The per-connection cap: this connection never runs ahead of cap bytes a second.
                 ahead = (at - start) / server.cap - (time.monotonic() - began)
@@ -261,9 +281,10 @@ def run_bounded(command: list[str], cwd: Path, deadline: float = RUN_DEADLINE) -
     try:
         return process.wait(timeout=deadline)
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
         return None
+    finally:
+        if process.poll() is None:
+            end_group(process)  # past the deadline, or the harness interrupted: no tool outlives its run
 
 
 def file_sha256(path: Path) -> str | None:
@@ -277,34 +298,43 @@ def file_sha256(path: Path) -> str | None:
 
 
 def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: int, deadline: float) -> dict:
-    """The first process killed (SIGKILL, its whole group) the moment the server has sent `kill_at` bytes (the server
-    rings an event, so both tools die at the same byte, give or take one 64 KiB piece), then a second process started on
-    the same folder; time and bytes count across both. Recorded: the bytes sent at the kill, the second process's bytes
-    and the first byte each of its requests asked for. `resumed`: the second process fetched again less than half of
-    what the first had been sent (what it saved, kept)."""
+    """The first process killed (SIGKILL, its whole group) with the server holding every connection at exactly
+    `kill_at` bytes sent, so both tools die at the same byte; then a second process started on the same folder. Time and
+    bytes count across both. Recorded: the bytes at the kill (which must equal `kill_at`, or the run does not count as
+    cut), the second process's bytes, and each of its requests' first byte and bytes. `resumed`: the second process
+    fetched again less than half of what the first had been sent (what it saved, kept)."""
     server.kill_at = kill_at
     began = time.monotonic()
     first = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
-    killed = server.reached.wait(deadline) and first.poll() is None
-    at_signal = server.sent  # the bytes when the server rang: the same point for both tools
     try:
-        os.killpg(first.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass  # it had ended by itself
-    first.wait()
-    at_kill = server.sent
+        signalled = server.reached.wait(deadline) and first.poll() is None
+        at_kill = server.sent
+    finally:
+        end_group(first)  # whatever ended the wait (the signal, the deadline, Ctrl-C), the first process is gone
+        server.release.set()
+    killed = signalled and at_kill == kill_at
     time.sleep(0.5)  # the dead process's connections end on the server side
     before = server.sent
     with server.lock:
+        server.kill_at = None
         server.phase = 2
     code = run_bounded(command, cwd, max(1.0, deadline - (time.monotonic() - began)))
     after = server.sent - before
     again = max(0, before + after - len(server.body))
-    starts = sorted(start for phase, start in server.starts if phase == 2)
-    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "at_signal": at_signal, "at_kill": at_kill,
-            "second_bytes": after, "second_starts": starts[:16],
+    requests = [(start, sent) for phase, start, sent in server.log if phase == 2]
+    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "at_signal": at_kill, "at_kill": at_kill,
+            "second_bytes": after, "second_requests": sorted(requests)[:16],
             "resumed": killed and code == 0 and again < before / 2}
+
+
+def end_group(process: subprocess.Popen) -> None:
+    """The process and everything it started, killed and reaped."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass  # it had ended, its group with it
+    process.wait()
 
 
 def server_size(server: "Bench") -> int:
@@ -364,7 +394,7 @@ def _measure(scenarios_spec: dict, runs: int, cap: int, latency: float, deadline
                     if spec["interrupt"] == "kill":
                         run = killed_and_resumed(command, work, servers[-1], spec["size"] // 8, deadline)
                         seconds, code, cut, resumed = run["seconds"], run["code"], run["killed"], run["resumed"]
-                        kill = {key: run[key] for key in ("at_signal", "at_kill", "second_bytes", "second_starts")}
+                        kill = {key: run[key] for key in ("at_signal", "at_kill", "second_bytes", "second_requests")}
                     else:
                         began = time.monotonic()
                         code = run_bounded(command, work, deadline)
@@ -470,7 +500,8 @@ def main(argv=None) -> int:
     temporary.write_text(json.dumps(figures, indent=1) + "\n", encoding="utf-8")
     os.replace(temporary, out)
     print(json.dumps({"scenarios": figures["scenarios"], "acceptance": figures["acceptance"]}))
-    return 0
+    # The figures are kept either way; the exit says whether the bar was met, so automation cannot take a miss as a pass.
+    return 0 if figures["acceptance"]["all"]["met"] else 1
 
 
 if __name__ == "__main__":

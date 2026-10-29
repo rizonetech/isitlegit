@@ -2,6 +2,7 @@
 half its length on its first transfer, and records medians, recovery and integrity with each tool's exact command."""
 import hashlib
 import importlib.util
+import os
 import json
 import subprocess
 import tempfile
@@ -27,8 +28,9 @@ class Harness(unittest.TestCase):
         out = Path(tempfile.mkdtemp(prefix="bench-")) / "bench.json"
         # Without aria2c the harness measures fetch.py alone and says so; with it, every tool.
         with mock.patch.object(bench, "aria2c", return_value=None), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            # The figures are written, and the exit says the bar was not met (aria2c not measured, one run).
             self.assertEqual(bench.main(["--size-mib", "2", "--cap-mib", "8", "--runs", "1", "--gigabyte-mib", "40",
-                                         "--latency-ms", "5", "--out", str(out)]), 0)
+                                         "--latency-ms", "5", "--out", str(out)]), 1)
         figures = json.loads(out.read_text())
         for scenario, tools in (("drop", ("fetch.py (one stream)", "fetch.py (four segments)")),
                                 ("mirror", ("fetch.py (one stream)", "fetch.py (four segments)")),
@@ -44,12 +46,12 @@ class Harness(unittest.TestCase):
         self.assertEqual(giga["fetch.py (four segments)"]["resumed"], 1)
         kill = giga["fetch.py (four segments)"]["kills"][0]
         kill_at = giga["payload_bytes"] // 8
-        # The server rang at its kill byte, within one 64 KiB piece per connection; the kill itself followed it.
-        self.assertGreaterEqual(kill["at_signal"], kill_at)
-        self.assertLess(kill["at_signal"], kill_at + 4 * 65536)
-        self.assertGreaterEqual(kill["at_kill"], kill["at_signal"])
-        self.assertTrue(kill["second_starts"])
-        self.assertGreater(min(kill["second_starts"]), 0)
+        # The server held every connection at exactly the kill byte.
+        self.assertEqual(kill["at_kill"], kill_at)
+        # The second process's requests that carried data started past byte 0: it went on from saved ranges.
+        carried = [start for start, sent in kill["second_requests"] if sent >= 65536]
+        self.assertTrue(carried)
+        self.assertGreater(min(carried), 0)
         self.assertLess(kill["second_bytes"], giga["payload_bytes"])
         # Every kind of request paid the measured latency: the HEAD, the ranges, and the failing URL's refusals.
         self.assertIn("HEAD", figures["scenarios"]["drop"]["fetch.py (four segments)"]["waits"])
@@ -67,6 +69,53 @@ class Harness(unittest.TestCase):
         self.assertIn("<certificate>", recorded)
         self.assertNotIn(str(Path.home()), recorded)
         self.assertIn("<repo>/scripts/glimmer/fetch.py", recorded)
+
+    def test_an_interrupted_harness_leaves_no_tool_running(self):
+        real_wait = subprocess.Popen.wait
+        calls = {"n": 0}
+
+        def interrupted(process, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                calls["group"] = process.pid  # a session leader: its pid is its group's id
+                raise KeyboardInterrupt
+            return real_wait(process, *args, **kwargs)
+
+        folder = Path(tempfile.mkdtemp())
+        with mock.patch.object(subprocess.Popen, "wait", interrupted), self.assertRaises(KeyboardInterrupt):
+            bench.run_bounded(["sh", "-c", "sleep 30 & sleep 30"], folder, deadline=60)
+        # The tool's own process group is gone: nothing of it is left running.
+        group = calls["group"]
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(group, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.05)
+        with self.assertRaises(ProcessLookupError):
+            os.killpg(group, 0)
+
+    def test_aria2c_too_is_killed_at_the_byte_and_resumes(self):
+        if not bench.aria2c():
+            self.skipTest("aria2c is not installed here")
+        body = bench.payload(40 * 1024 * 1024)
+        sha = hashlib.sha256(body).hexdigest()
+        folder = Path(tempfile.mkdtemp(prefix="bench-tls-"))
+        tls = bench.make_certificate(folder)
+        # Slow enough that the kill (a quarter in, about 1.3 seconds) comes after aria2c's first save (each second).
+        server = bench.Bench(body, 2 * 1024 * 1024, tls=tls)
+        server.dropped = True
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close()))
+        work = Path(tempfile.mkdtemp(prefix="bench-work-"))
+        (work / "src").mkdir()
+        command = bench.tools([f"https://127.0.0.1:{server.server_address[1]}/x"], sha, work, ca=tls[0])["aria2c (four connections)"]
+        run = bench.killed_and_resumed(command, work, server, len(body) // 4, 120)
+        self.assertTrue(run["killed"])
+        self.assertEqual(run["at_kill"], len(body) // 4)
+        self.assertEqual(run["code"], 0)
+        self.assertTrue(run["resumed"])
 
     def test_a_tool_past_its_deadline_is_ended_with_its_process_group(self):
         started = time.monotonic()
