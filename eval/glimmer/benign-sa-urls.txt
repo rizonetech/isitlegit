@@ -591,3 +591,43 @@ shop	https://blacksoldierflyfarming.co.za/cart/	Black Soldier Fly Farming
 shop	https://hsrcpress.ac.za/product/the-sixth-south-african-national-hiv-behavioural-health-survey-sabssm-vi-20-years-of-strategic-hiv-and-public-health-data/	HSRC Press
 shop	https://www.moonstone.co.za/cart/	Moonstone
 shop	https://vergelegen.co.za/basket/	Vergelegen
+# Added 2026-10-29 (§6): sign-in, shop and company pages replacing those that rendered unusable, each checked to answer on its own site first.
+login	https://www.yuppiechef.com/login.htm	Yuppiechef
+login	https://www.netflorist.co.za/account/login	NetFlorist
+login	https://www.faithful-to-nature.co.za/customer/account/login/	Faithful to Nature
+login	https://ssp.kingprice.co.za/	King Price
+login	https://member.fedhealth.co.za/	Fedhealth
+login	https://www.mrd.com/profile	Mr D
+login	https://ulink.uj.ac.za/	University of Johannesburg
+login	https://www.uwc.ac.za/login	UWC
+login	https://www.salga.org.za/login	SALGA
+login	https://www.onedayonly.co.za/my-account	OneDayOnly
+login	https://www.hirschs.co.za/customer/account/login/	Hirsch's
+login	https://www.privateproperty.co.za/login	Private Property
+login	https://www.nationallottery.co.za/login	National Lottery
+login	https://www.hollywoodbets.net/login	Hollywoodbets
+login	https://upnet.up.ac.za/	University of Pretoria
+login	https://ruconnected.ru.ac.za/login/index2.php	Rhodes University
+login	https://eservices.durban.gov.za/v2/	eThekwini
+login	https://www.betway.co.za/login	Betway
+login	https://www.dut.ac.za/login/	DUT
+login	https://my.webafrica.co.za/	Webafrica
+login	https://supersport.com/login	SuperSport
+login	https://secure.momentum.co.za/	Momentum
+login	https://www.pps.co.za/login	PPS
+login	https://www.bayport.co.za/login-register/	Bayport
+login	https://www.wonga.co.za/login	Wonga
+login	https://www.keyhealthmedical.co.za/wp-login.php?redirect_to=https%3A%2F%2Fwww.keyhealthmedical.co.za%2Fdashboard%2F	KeyHealth
+checkout	https://www.woolworths.co.za/cart	Woolworths
+checkout	https://www.yuppiechef.com/cart.htm	Yuppiechef
+account	https://www.woolworths.co.za/account	Woolworths
+shop	https://www.woolworths.co.za/browse/food	Woolworths
+shop	https://www.yuppiechef.com/cookware.htm	Yuppiechef
+shop	https://www.faithful-to-nature.co.za/health	Faithful to Nature
+shop	https://www.netflorist.co.za/flowers	NetFlorist
+shop	https://www.ackermans.co.za/pages/kids	Ackermans
+company	https://gotyme.co.za/personal/about-us	TymeBank
+company	https://www.oldmutual.co.za/about/	Old Mutual
+company	https://group.telkom.co.za/about_us/	Telkom
+company	https://www.hollard.co.za/our-world	Hollard
+company	https://www.kingprice.co.za/about-us	King Price
