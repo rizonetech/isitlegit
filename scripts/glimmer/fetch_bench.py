@@ -92,7 +92,8 @@ class Bench(http.server.ThreadingHTTPServer):
         self.failing = failing
         self.dropped = False
         self.drops = 0  # cuts actually made: a run that was never cut measured no recovery
-        self.sent = 0
+        self.sent = 0  # bytes written to clients
+        self.reserved = 0  # bytes promised to a write under way, so all connections together stop at the kill byte
         self.lock = threading.Lock()
 
 
@@ -184,21 +185,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.body_sent += len(piece)
                     with server.lock:
                         server.sent += len(piece)
+                        server.reserved += len(piece)
                         server.drops += 1
                     self.connection.shutdown(2)
                     return
                 with server.lock:
                     if server.kill_at is not None:
                         # Bytes are reserved under the lock: every connection together stops exactly at the kill byte.
-                        piece = piece[:max(0, server.kill_at - server.sent)]
-                    server.sent += len(piece)
-                    held = server.kill_at is not None and server.sent >= server.kill_at
-                    if held:
-                        server.reached.set()
+                        piece = piece[:max(0, server.kill_at - server.reserved)]
+                    server.reserved += len(piece)
+                    held = server.kill_at is not None and server.reserved >= server.kill_at
                 if piece:
-                    self.wfile.write(piece)
-                    self.wfile.flush()
+                    try:
+                        self.wfile.write(piece)
+                        self.wfile.flush()
+                    except OSError:
+                        with server.lock:
+                            server.reserved -= len(piece)  # not sent after all: another connection may send it
+                        raise
                     self.body_sent += len(piece)
+                with server.lock:
+                    server.sent += len(piece)
+                    # Rung only once the bytes up to the kill byte have all been written, never on a promise.
+                    if server.kill_at is not None and server.sent >= server.kill_at:
+                        server.reached.set()
                 if held:
                     server.release.wait(60)  # nothing more is sent until the process is dead
                     return

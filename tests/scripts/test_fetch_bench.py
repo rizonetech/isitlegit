@@ -2,8 +2,9 @@
 half its length on its first transfer, and records medians, recovery and integrity with each tool's exact command."""
 import hashlib
 import importlib.util
-import os
 import json
+import os
+import socketserver
 import subprocess
 import tempfile
 import threading
@@ -211,6 +212,32 @@ class Harness(unittest.TestCase):
             (work / "src").mkdir()
             command = bench.tools([f"https://127.0.0.1:{server.server_address[1]}/x"], sha, work)["aria2c (four connections)"]
             self.assertNotEqual(subprocess.run(command, cwd=work, capture_output=True, check=False).returncode, 0)
+
+    def test_the_kill_signal_waits_for_the_bytes_to_be_written(self):
+        # A write that blocks at the kill byte: the signal must not ring until it has gone out (it rang on the promise).
+        body = bench.payload(8 * 65536)
+        server = bench.Bench(body, 10**9)
+        server.dropped = True
+        server.kill_at = 65536
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (server.release.set(), server.shutdown(), server.server_close()))
+        gate = threading.Event()
+        real_write = socketserver._SocketWriter.write
+
+        def blocked(writer, data):
+            if len(data) >= 4096:  # the body's piece, not the status line and headers
+                gate.wait(5)
+            return real_write(writer, data)
+
+        with mock.patch.object(socketserver._SocketWriter, "write", blocked):
+            reader = threading.Thread(target=lambda: urllib.request.urlopen(
+                f"http://127.0.0.1:{server.server_address[1]}/x", timeout=10).read(65536), daemon=True)
+            reader.start()
+            time.sleep(0.5)
+            self.assertFalse(server.reached.is_set())  # the boundary piece is promised, not written
+            gate.set()
+            self.assertTrue(server.reached.wait(5))
+        self.assertEqual(server.sent, 65536)
 
     def test_the_cut_happens_on_a_piece_boundary(self):
         # A cut point exactly where a 64 KiB piece ends was never cut before (completion review G9): an eighth of
