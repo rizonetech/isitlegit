@@ -8,6 +8,7 @@ import {
   capEventStatement,
   inline,
   ownerColumns,
+  refusedStatement,
   reserveStatement,
   type Statement,
   settleStatement,
@@ -75,6 +76,10 @@ export function localBudget(caller: string, run: Runner = runCommand, now: () =>
           () => false,
         );
       if (!recorded) console.error(`meta-budget: the ${refused} cap's event could not be recorded; tell the operator`);
+      // The refused attempt's own record, costing nothing (D03 T01 §3 final review).
+      await execute(refusedStatement(row, `budget:${refused}`), run).catch(() =>
+        console.error(`meta-budget: the refused ${model} attempt's record could not be written`),
+      );
       throw new BudgetExceeded(refused, model);
     },
     async settle(id, actualUsd, record) {
@@ -82,6 +87,21 @@ export function localBudget(caller: string, run: Runner = runCommand, now: () =>
     },
     async uncertain(id, record) {
       await execute(uncertainStatement(id, record), run);
+    },
+    async refused(model, call, errorClass) {
+      const at = now();
+      const row = {
+        ...ownerColumns(call),
+        id: crypto.randomUUID(),
+        at: at.toISOString(),
+        day: sastDay(at),
+        source: "local" as const,
+        caller,
+        model,
+        attempt: 1,
+        estimateUsd: 0,
+      };
+      await execute(refusedStatement(row, errorClass), run);
     },
   };
 }

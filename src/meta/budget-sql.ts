@@ -25,6 +25,7 @@ export type Reservation = {
   monitorRun?: string | null;
   host?: string | null;
   step?: string | null;
+  script?: string | null;
 };
 
 // An attempt's record at its end (D03 T01 §3): counts, ids, the outcome and the cost's certainty, never content.
@@ -73,6 +74,7 @@ export function ownerColumns(call: { callId: string; owner: OwnerLike } | undefi
     monitorRun: o?.kind === "monitor" ? o.run : null,
     host: o?.kind === "monitor" ? o.host : null,
     step: o && "step" in o ? o.step : null,
+    script: o?.kind === "script" ? o.name : null,
   };
 }
 type OwnerLike =
@@ -82,8 +84,8 @@ type OwnerLike =
 
 export function reserveStatement(r: Reservation, dayCap: number, totalLimit: number): Statement {
   return {
-    sql: `INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, state, call_id, owner, monitor_run, host, step, cost_certainty, cost_source)
-SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'reserved', ?12, ?13, ?14, ?15, ?16, 'estimated', 'estimate'
+    sql: `INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, state, call_id, owner, monitor_run, host, step, script, cost_certainty, cost_source)
+SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'reserved', ?12, ?13, ?14, ?15, ?16, ?17, 'estimated', 'estimate'
 WHERE (SELECT coalesce(sum(${COUNTED}), 0) FROM model_spend WHERE day = ?3) + ?9 <= ?10
   AND (SELECT coalesce(sum(${COUNTED}), 0) FROM model_spend) + ?9 <= ?11`,
     params: [
@@ -103,6 +105,34 @@ WHERE (SELECT coalesce(sum(${COUNTED}), 0) FROM model_spend WHERE day = ?3) + ?9
       r.monitorRun ?? null,
       r.host ?? null,
       r.step ?? null,
+      r.script ?? null,
+    ],
+  };
+}
+
+// A call refused before it reached the network (a cap, or a request the client will not send): its record, settled at
+// nothing so no cap counts it, so the trace and caseCost see the refusal (D03 T01 §3 final review).
+export function refusedStatement(r: Reservation, errorClass: string): Statement {
+  return {
+    sql: `INSERT OR IGNORE INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state, settled_at, call_id, owner, monitor_run, host, step, script, ms, outcome, error_class, cost_certainty, cost_source)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, 'settled', ?2, ?10, ?11, ?12, ?13, ?14, ?15, 0, 'refused', ?16, 'none', 'estimate')`,
+    params: [
+      r.id,
+      r.at,
+      r.day,
+      r.source,
+      r.caller,
+      r.model,
+      r.caseId,
+      r.attempt,
+      r.estimateUsd,
+      r.callId ?? null,
+      r.owner ?? null,
+      r.monitorRun ?? null,
+      r.host ?? null,
+      r.step ?? null,
+      r.script ?? null,
+      errorClass,
     ],
   };
 }

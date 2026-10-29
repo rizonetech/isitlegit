@@ -63,8 +63,14 @@ describe("reserve", () => {
     // Room for seven calls at US$2 under the US$15 day cap (US$14), no more.
     const outcomes = await Promise.all(Array.from({ length: 20 }, () => reserve(db, row("2026-10-31", 2))));
     expect(outcomes.filter((o) => o.ok)).toHaveLength(7);
-    const rows = await db.prepare("SELECT COUNT(*) AS n FROM model_spend").first<{ n: number }>();
-    expect(rows?.n).toBe(7);
+    // Seven admitted, each refused attempt kept as its own record costing nothing (D03 T01 §3), and the day's count
+    // still exactly the seven.
+    const rows = await db
+      .prepare(
+        "SELECT sum(state = 'reserved') AS admitted, sum(outcome = 'refused' AND actual_usd = 0) AS refused, sum(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END) AS counted FROM model_spend",
+      )
+      .first<{ admitted: number; refused: number; counted: number }>();
+    expect(rows).toEqual({ admitted: 7, refused: 13, counted: 14 });
   });
 
   it("counts a lost answer at its estimate, and a settled call at its cost, once", async () => {

@@ -16,6 +16,7 @@ const MIGRATION = [
   "0022_model_calls.sql",
   "0023_call_units.sql",
   "0024_request_priced_history.sql",
+  "0025_script_owner.sql",
 ]
   .map((name) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8"))
   .join("\n");
@@ -250,11 +251,49 @@ describe("round 1: history priced from the request is never measured", () => {
     db.exec(
       "INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state) VALUES ('ledger:x', '2026-10-27T12:00:00Z', '2026-10-27', 'local', 'meta-smoke', 'sam-3.1', NULL, 1, 0.0025, 0.0025, 'settled')",
     );
-    for (const name of ["0022_model_calls.sql", "0023_call_units.sql", "0024_request_priced_history.sql"])
+    for (const name of [
+      "0022_model_calls.sql",
+      "0023_call_units.sql",
+      "0024_request_priced_history.sql",
+      "0025_script_owner.sql",
+    ])
       db.exec(read(name));
     expect(db.prepare("SELECT cost_certainty, cost_source FROM model_spend").get()).toEqual({
       cost_certainty: "estimated",
       cost_source: "estimate",
     });
+  });
+});
+
+describe("final review: a local refusal leaves its record", () => {
+  it("writes the refused attempt costing nothing, with its owner's name", async () => {
+    const w = wrangler();
+    const budget = localBudget("glimmer-teacher-label", w.run, at);
+    await budget.reserve("muse-spark-1.3", 15, 1);
+    const call = { callId: "call-1", owner: { kind: "script" as const, name: "glimmer-teacher-label" } };
+    await budget.reserve("muse-spark-1.3", 1, 1, undefined, call).catch(() => null);
+    await budget.refused("gpt-9", call, "refused-model");
+    expect(
+      w.db
+        .prepare(
+          "SELECT model, error_class, actual_usd, cost_certainty, script FROM model_spend WHERE outcome = 'refused' ORDER BY model",
+        )
+        .all(),
+    ).toEqual([
+      {
+        model: "gpt-9",
+        error_class: "refused-model",
+        actual_usd: 0,
+        cost_certainty: "none",
+        script: "glimmer-teacher-label",
+      },
+      {
+        model: "muse-spark-1.3",
+        error_class: "budget:day",
+        actual_usd: 0,
+        cost_certainty: "none",
+        script: "glimmer-teacher-label",
+      },
+    ]);
   });
 });

@@ -52,6 +52,9 @@ export type AttemptRecord = {
 
 export type Budget = {
   reserve(model: ModelId, estimateUsd: number, attempt: number, id?: string, call?: Call): Promise<string>;
+  // A call the client refused before any reservation (a request it will not send): its record, costing nothing. A cap's
+  // refusal is recorded by `reserve` itself (D03 T01 §3 final review).
+  refused(model: string, call: Call, errorClass: string): Promise<void>;
   settle(id: string, actualUsd: number, record?: AttemptRecord): Promise<void>;
   uncertain(id: string, record?: AttemptRecord): Promise<void>;
 };
