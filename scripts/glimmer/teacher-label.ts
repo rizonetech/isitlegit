@@ -14,9 +14,10 @@
 // no call is sent that would take the ledger's `glimmer-` entries past US$20.
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { metaResponses } from "../../src/meta/client.ts";
+import { type MetaContext, metaResponses } from "../../src/meta/client.ts";
+import { type Budget, BudgetExceeded, BudgetUnavailable } from "../../src/meta/guard.ts";
 import { buildScreenRequest, PageAnswer, SCREENER_SYSTEM_PROMPT } from "../../src/vision/page-screen.ts";
-import { localBudget } from "../lib/meta-budget.ts";
+import { ledgerId, localBudget } from "../lib/meta-budget.ts";
 import {
   GATEWAY_URL,
   metaLedger,
@@ -40,7 +41,37 @@ const TRUSTED = new Set(["ground-truth", "construction", "dom", "claude", "astra
 // The ledger's run lock beside it, never the ledger itself: a lock written over the ledger's path leaves it unreadable.
 export const ledgerLock = (ledgerFile: string) => `${ledgerFile}.lock`;
 
-export type Ask = (input: unknown[], instructions: string) => Promise<{ text: string; usd: number | null }>;
+// `id` is the call's ledger id (`ledgerId(date, run, call)` of its local ledger entry): the budget row of its first
+// attempt takes it, so an import of the local ledger finds that call already counted (scripts/meta-spend-import.ts).
+export type Ask = (input: unknown[], instructions: string, id: string) => Promise<{ text: string; usd: number | null }>;
+
+// The teacher's Spark call, through main's client and budget guard (D03 T01 §2): the client reserves every attempt in
+// `budget` before it is sent and settles or marks it after; the first attempt's row is the call's ledger id, a retry's
+// that id and its attempt. A cap's refusal (`BudgetExceeded`) or a budget that cannot be reached (`BudgetUnavailable`)
+// sends nothing, and `teach()` stops on either.
+export function sparkAsk(context: Omit<MetaContext, "owner">): Ask {
+  return async (input, instructions, id) => {
+    const budget: Budget = {
+      ...context.budget,
+      reserve: (model, estimateUsd, attempt, _id, call) =>
+        context.budget.reserve(model, estimateUsd, attempt, attempt === 1 ? id : `${id}:${attempt}`, call),
+    };
+    const { data } = await metaResponses(
+      { model: SPARK, input: input as never, instructions, max_output_tokens: TEACHER_MAX_OUTPUT_TOKENS },
+      { ...context, budget, owner: { kind: "script", name: "glimmer-teacher-label" } },
+    );
+    const usage = (
+      data as {
+        usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
+      }
+    ).usage;
+    const usd =
+      typeof usage?.input_tokens === "number" && typeof usage?.output_tokens === "number"
+        ? tokenCost(SPARK, usage.input_tokens, usage.output_tokens, usage.input_tokens_details?.cached_tokens ?? 0)
+        : null;
+    return { text: (data as { output_text?: string }).output_text ?? "", usd };
+  };
+}
 
 // The pages worth a second opinion: those that can enter evaluation, South African first, not checked before.
 export function candidates(pages: StoredPage[], checked: Set<string>): StoredPage[] {
@@ -123,16 +154,33 @@ export async function teach(options: {
     const { screenshot, text } = store.readPage(page.id);
     let answer: PageAnswer | null = null;
     let usd: number | null = null;
+    let refused: string | null = null;
     try {
-      const reply = await ask(responsesInput(page, screenshot, text), SCREENER_SYSTEM_PROMPT);
+      const reply = await ask(
+        responsesInput(page, screenshot, text),
+        SCREENER_SYSTEM_PROMPT,
+        ledgerId(reserved.entry.date, reserved.entry.run, reserved.entry.call),
+      );
       usd = reply.usd;
       const parsed = PageAnswer.safeParse(JSON.parse(reply.text.replace(/^```(?:json)?\s*|\s*```$/g, "")));
       answer = parsed.success ? parsed.data : null;
-    } catch {
+    } catch (error) {
       answer = null; // no answer is no opinion: the page keeps its source label and is not queued
+      if (error instanceof BudgetExceeded || error instanceof BudgetUnavailable) {
+        // Nothing was sent: the local entry is settled at nothing, and the run stops (every next call would be refused).
+        usd = 0;
+        refused =
+          error instanceof BudgetExceeded
+            ? `the Meta budget refused: ${error.message}`
+            : "the Meta budget could not be reached";
+      }
     } finally {
       const unsaved = settleSpend(ledgerFile, ledger, reserved.entry, usd);
       if (unsaved) result.stopped = unsaved;
+    }
+    if (refused) {
+      result.stopped = refused;
+      break;
     }
     result.spentUsd += usd ?? ESTIMATE_USD;
     appendFileSync(checkedFile, `${JSON.stringify({ id: page.id, answered: answer !== null })}\n`);
@@ -177,26 +225,7 @@ if (import.meta.filename === process.argv[1]) {
   try {
     const secrets = await readSecretsFromVault();
     const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
-    // Every attempt is reserved in main's budget (D03 T01 §2) before it is sent and settled after, by the client;
-    // the answer is one short JSON object, so its output is bounded.
-    const budget = localBudget("glimmer-teacher-label");
-    const owner = { kind: "script", name: "glimmer-teacher-label" } as const;
-    const ask: Ask = async (input, instructions) => {
-      const { data } = await metaResponses(
-        { model: SPARK, input: input as never, instructions, max_output_tokens: TEACHER_MAX_OUTPUT_TOKENS },
-        { env, budget, owner },
-      );
-      const usage = (
-        data as {
-          usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
-        }
-      ).usage;
-      const usd =
-        typeof usage?.input_tokens === "number" && typeof usage?.output_tokens === "number"
-          ? tokenCost(SPARK, usage.input_tokens, usage.output_tokens, usage.input_tokens_details?.cached_tokens ?? 0)
-          : null;
-      return { text: (data as { output_text?: string }).output_text ?? "", usd };
-    };
+    const ask = sparkAsk({ env, budget: localBudget("glimmer-teacher-label") });
     const result = await teach({
       store: openStore(storeDir()),
       ask,

@@ -4,8 +4,18 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
-import { candidates, ESTIMATE_USD, glimmerSpend, ledgerLock, teach } from "../../scripts/glimmer/teacher-label.ts";
+import {
+  candidates,
+  ESTIMATE_USD,
+  glimmerSpend,
+  ledgerLock,
+  SPARK,
+  sparkAsk,
+  teach,
+} from "../../scripts/glimmer/teacher-label.ts";
+import { ledgerId } from "../../scripts/lib/meta-budget.ts";
 import { readLedger } from "../../scripts/meta-smoke.ts";
+import { type Budget, BudgetExceeded } from "../../src/meta/guard.ts";
 
 // scripts/glimmer/teacher-label.ts (D03 T04 §9): Spark's second opinion on evaluation pages, through the shared Meta
 // ledger, never overwriting a label and never passing US$20 of Glimmer's Spark spend.
@@ -164,5 +174,108 @@ describe("teach", () => {
     });
     expect(calls).toBe(0);
     expect(result.stopped).toMatch(/past US\$20/);
+  });
+});
+
+// Every Spark attempt reserved in main's budget guard (D03 T01 §2) through the client, its first attempt's row the
+// call's own ledger id, so an import of the local ledger never counts it twice.
+describe("the teacher's calls through main's budget guard", () => {
+  const env = {
+    META_API_KEY: "LLM_test_key_0123456789",
+    CF_AIG_TOKEN: "aig-token-0123456789",
+    META_GATEWAY_URL: "https://gateway.test/v1/",
+  };
+  type Row = { id: string; attempt: number; state: string; actual?: number };
+  function budget(refuse?: () => Error) {
+    const rows: Row[] = [];
+    const find = (id: string) => rows.find((r) => r.id === id) as Row;
+    const guard: Budget = {
+      async reserve(_model, _estimate, attempt, id) {
+        if (refuse) throw refuse();
+        rows.push({ id: id as string, attempt, state: "reserved" });
+        return id as string;
+      },
+      async settle(id, actual) {
+        Object.assign(find(id), { state: "settled", actual });
+      },
+      async uncertain(id) {
+        find(id).state = "uncertain";
+      },
+      async refused() {},
+      async cached() {},
+      async outputFailed() {},
+    };
+    return { guard, rows };
+  }
+  const reply = () =>
+    new Response(
+      JSON.stringify({
+        id: "resp_1",
+        object: "response",
+        output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: answer(true) }] }],
+        output_text: answer(true),
+        usage: { input_tokens: 1000, output_tokens: 100 },
+      }),
+      { status: 200, headers: { "content-type": "application/json", "cf-aig-log-id": "log-1" } },
+    );
+  async function run(guard: Budget, fetch: () => Promise<Response>) {
+    await stored(1, true);
+    const ledgerFile = join(dir, "ledger", "meta-spend.json");
+    let sent = 0;
+    const ask = sparkAsk({
+      env,
+      budget: guard,
+      fetch: (async () => {
+        sent++;
+        return fetch();
+      }) as typeof globalThis.fetch,
+      sleep: async () => {},
+      random: () => 0.5,
+    });
+    const result = await teach({
+      store: openStore(join(dir, "store")),
+      ask,
+      ledgerFile,
+      run: "teacher-guard",
+      max: 5,
+      date: "2026-10-29",
+    });
+    const entry = readLedger(ledgerFile)[0];
+    return { result, sent, entry, id: entry ? ledgerId(entry.date, entry.run, entry.call) : "" };
+  }
+
+  it("settles an answered call, its reservation and its ledger entry sharing one id", async () => {
+    const { guard, rows } = budget();
+    const { result, sent, entry, id } = await run(guard, async () => reply());
+    expect(sent).toBe(1);
+    expect(result.checked).toBe(1);
+    expect(rows).toEqual([{ id, attempt: 1, state: "settled", actual: expect.any(Number) }]);
+    expect(entry).toMatchObject({ call: expect.stringContaining(SPARK), state: "settled" });
+  });
+
+  it("refuses to send when a cap refuses, and stops the run", async () => {
+    const { guard } = budget(() => new BudgetExceeded("day", SPARK));
+    const { result, sent, entry } = await run(guard, async () => reply());
+    expect(sent).toBe(0);
+    expect(result.stopped).toMatch(/budget refused/);
+    expect(entry).toMatchObject({ state: "settled", cost: 0 });
+  });
+
+  it("refuses to send when the budget cannot be reached, and stops the run", async () => {
+    const { guard } = budget(() => new Error("D1 unreachable"));
+    const { result, sent } = await run(guard, async () => reply());
+    expect(sent).toBe(0);
+    expect(result.stopped).toMatch(/could not be reached/);
+  });
+
+  it("marks a lost answer uncertain, attempt by attempt, the first under the call's id", async () => {
+    const { guard, rows } = budget();
+    const { sent, entry, id } = await run(guard, async () => {
+      throw new TypeError("fetch failed");
+    });
+    expect(sent).toBeGreaterThan(0);
+    expect(rows[0]).toMatchObject({ id, attempt: 1, state: "uncertain" });
+    expect(rows.slice(1).every((r) => r.id === `${id}:${r.attempt}` && r.state === "uncertain")).toBe(true);
+    expect(entry).toMatchObject({ state: "uncertain", cost: null });
   });
 });
