@@ -645,3 +645,15 @@ login	https://www.frogfoot.com/login/	Frogfoot
 login	https://www.pricecheck.co.za/login	PriceCheck
 login	https://www.mrphome.com/en_za/login	Mr Price Home
 login	https://www.sheetstreet.com/customer/account/login	Sheet Street
+login	https://ulwazi.wits.ac.za/login/canvas	Wits
+login	https://clickup.up.ac.za/	University of Pretoria
+login	https://efundi.nwu.ac.za/portal	NWU
+login	https://ikamva.uwc.ac.za/	UWC
+login	https://myclassroom.cput.ac.za/	CPUT
+login	https://amathuba.uct.ac.za/d2l/login	University of Cape Town
+login	https://app.yoco.com/login	Yoco
+login	https://dash.ozow.com/login	Ozow
+login	https://dashboard.peachpayments.com/	Peach Payments
+login	https://www.luno.com/login	Luno
+login	https://www.valr.com/signin	VALR
+account	https://www.flysafair.co.za/manage-booking	FlySafair
