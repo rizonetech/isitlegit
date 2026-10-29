@@ -298,8 +298,8 @@
    "payload_bytes": 100663296,
    "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
    "fetch.py (one stream)": {
-    "median_seconds": 12.28,
-    "startup_seconds": 0.123,
+    "median_seconds": 12.361000976001378,
+    "startup_seconds": 0.15088024899887387,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -307,16 +307,20 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     12.24,
-     12.28,
-     12.28,
-     12.3,
-     12.3
+     12.361000976001378,
+     12.324318697996205,
+     12.3563494609989,
+     12.533408611001505,
+     12.369053266003903
+    ],
+    "waits": [
+     "GET",
+     "GET range"
     ]
    },
    "fetch.py (four segments)": {
-    "median_seconds": 3.33,
-    "startup_seconds": 0.117,
+    "median_seconds": 3.398946478999278,
+    "startup_seconds": 0.1977645449951524,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -324,16 +328,20 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     3.29,
-     3.33,
-     3.28,
-     3.33,
-     3.34
+     3.412872906003031,
+     3.3480768949957564,
+     3.39284451000276,
+     3.398946478999278,
+     3.4036020380008267
+    ],
+    "waits": [
+     "GET range",
+     "HEAD"
     ]
    },
    "aria2c (one connection)": {
-    "median_seconds": 12.19,
-    "startup_seconds": 0.005,
+    "median_seconds": 12.223255244003667,
+    "startup_seconds": 0.00700097899971297,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -341,16 +349,20 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     12.22,
-     12.23,
-     12.19,
-     12.17,
-     12.17
+     12.223255244003667,
+     12.225284068001201,
+     12.166922306998458,
+     12.17525233500055,
+     12.244161568996788
+    ],
+    "waits": [
+     "GET",
+     "GET range"
     ]
    },
    "aria2c (four connections)": {
-    "median_seconds": 3.23,
-    "startup_seconds": 0.009,
+    "median_seconds": 3.2372435859942925,
+    "startup_seconds": 0.008720840996829793,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -358,11 +370,15 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     3.23,
-     3.23,
-     3.23,
-     3.18,
-     3.23
+     3.218757276998076,
+     3.2183402629962075,
+     3.2372435859942925,
+     3.2425432129966794,
+     3.2410464250060613
+    ],
+    "waits": [
+     "GET",
+     "GET range"
     ]
    }
   },
@@ -370,8 +386,8 @@
    "payload_bytes": 100663296,
    "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
    "fetch.py (one stream)": {
-    "median_seconds": 15.38,
-    "startup_seconds": 0.098,
+    "median_seconds": 15.499591523002891,
+    "startup_seconds": 0.17194588699931046,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -379,16 +395,22 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     15.37,
-     15.38,
-     15.38,
-     15.41,
-     15.49
+     15.499591523002891,
+     15.488840685000469,
+     15.487253232000512,
+     15.547976118003135,
+     15.617464263996226
+    ],
+    "waits": [
+     "GET",
+     "GET range",
+     "GET range refused",
+     "GET refused"
     ]
    },
    "fetch.py (four segments)": {
-    "median_seconds": 5.35,
-    "startup_seconds": 0.117,
+    "median_seconds": 5.365223834000062,
+    "startup_seconds": 0.1036202309987857,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -396,16 +418,22 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     5.35,
-     5.24,
-     5.35,
-     5.36,
-     5.36
+     5.33494296400022,
+     5.4167784539968125,
+     5.365223834000062,
+     5.462154826003825,
+     5.351045233001059
+    ],
+    "waits": [
+     "GET range",
+     "GET range refused",
+     "HEAD",
+     "HEAD refused"
     ]
    },
    "aria2c (one connection)": {
-    "median_seconds": 17.35,
-    "startup_seconds": 0.008,
+    "median_seconds": 17.36021070300194,
+    "startup_seconds": 0.007841006998205557,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -413,16 +441,21 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     17.36,
-     17.4,
-     17.34,
-     17.35,
-     17.31
+     17.34507356499671,
+     17.373043227999005,
+     17.388922254001955,
+     17.351325285999337,
+     17.36021070300194
+    ],
+    "waits": [
+     "GET",
+     "GET range",
+     "GET refused"
     ]
    },
    "aria2c (four connections)": {
-    "median_seconds": 7.45,
-    "startup_seconds": 0.006,
+    "median_seconds": 7.417981348997273,
+    "startup_seconds": 0.007272946000739466,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
@@ -430,11 +463,17 @@
     "latency": 5,
     "runs": 5,
     "seconds": [
-     7.47,
-     7.45,
-     7.45,
-     7.45,
-     7.43
+     7.417981348997273,
+     7.455770497996127,
+     7.454849612993712,
+     7.4050228039996,
+     7.401242493004247
+    ],
+    "waits": [
+     "GET",
+     "GET range",
+     "GET range refused",
+     "GET refused"
     ]
    }
   },
@@ -442,9 +481,9 @@
    "payload_bytes": 1073741824,
    "payload_sha256": "4560776f760919c25401d12dfbb022a0117ef5a91a01d2c9f0736c3b83d67904",
    "fetch.py (four segments)": {
-    "median_seconds": 33.87,
-    "startup_seconds": 0.131,
-    "median_refetched_bytes": 786432,
+    "median_seconds": 33.90330070499476,
+    "startup_seconds": 0.1140511819976382,
+    "median_refetched_bytes": 819200,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
@@ -452,17 +491,78 @@
     "resumed": 5,
     "runs": 5,
     "seconds": [
-     33.77,
-     33.87,
-     34.18,
-     34.3,
-     33.8
+     34.0348989769991,
+     33.77606331899733,
+     33.90330070499476,
+     33.94458885899803,
+     33.726086536000366
+    ],
+    "waits": [
+     "GET range",
+     "HEAD"
+    ],
+    "kills": [
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940097536,
+      "second_starts": [
+       33423360,
+       301809664,
+       570294272,
+       838729728
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134414336,
+      "second_bytes": 940163072,
+      "second_starts": [
+       33374208,
+       301858816,
+       570294272,
+       838664192
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134283264,
+      "second_bytes": 940277760,
+      "second_starts": [
+       33357824,
+       301858816,
+       570195968,
+       838664192
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134414336,
+      "second_bytes": 939851776,
+      "second_starts": [
+       33488896,
+       301924352,
+       570294272,
+       838795264
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134479872,
+      "second_bytes": 940113920,
+      "second_starts": [
+       33423360,
+       301858816,
+       570228736,
+       838729728
+      ]
+     }
     ]
    },
    "aria2c (four connections)": {
-    "median_seconds": 34.01,
-    "startup_seconds": 0.007,
-    "median_refetched_bytes": 1556480,
+    "median_seconds": 33.929807100998005,
+    "startup_seconds": 0.0077868959997431375,
+    "median_refetched_bytes": 1425408,
     "recovered": 5,
     "intact": 5,
     "cut": 5,
@@ -470,11 +570,77 @@
     "resumed": 5,
     "runs": 5,
     "seconds": [
-     34.01,
-     34.17,
-     34.39,
-     33.76,
-     33.99
+     33.929807100998005,
+     34.15678516600019,
+     33.98402970299503,
+     33.927362631002325,
+     33.885803864999616
+    ],
+    "waits": [
+     "GET",
+     "GET range"
+    ],
+    "kills": [
+     {
+      "at_signal": 134348800,
+      "at_kill": 134414336,
+      "second_bytes": 940949504,
+      "second_starts": [
+       0,
+       33325056,
+       301613056,
+       570048512,
+       838483968
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134414336,
+      "second_bytes": 940572672,
+      "second_starts": [
+       0,
+       33423360,
+       301727744,
+       570097664,
+       838598656
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940867584,
+      "second_starts": [
+       0,
+       33423360,
+       301596672,
+       570048512,
+       838483968
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134348800,
+      "second_bytes": 940818432,
+      "second_starts": [
+       0,
+       33423360,
+       301613056,
+       570097664,
+       838467584
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134348800,
+      "second_bytes": 941080576,
+      "second_starts": [
+       0,
+       33308672,
+       301613056,
+       569999360,
+       838418432
+      ]
+     }
     ]
    }
   }
@@ -482,11 +648,12 @@
  "acceptance": {
   "drop": {
    "met": true,
-   "net_ratio": 0.997516299285936,
-   "time_ratio": 1.0309597523219816,
+   "bar": 1.1,
+   "net_ratio": 0.991531479517776,
+   "time_ratio": 1.0499507957030425,
    "startup": [
-    0.117,
-    0.009
+    0.1977645449951524,
+    0.008720840996829793
    ],
    "refetched": [
     0,
@@ -511,15 +678,16 @@
   },
   "gigabyte": {
    "met": true,
-   "net_ratio": 0.9922359791783077,
-   "time_ratio": 0.9958835636577477,
+   "bar": 1.0,
+   "net_ratio": 0.996086003097729,
+   "time_ratio": 0.9992187873062661,
    "startup": [
-    0.131,
-    0.007
+    0.1140511819976382,
+    0.0077868959997431375
    ],
    "refetched": [
-    786432,
-    1556480
+    819200,
+    1425408
    ],
    "recovered": [
     5,
@@ -533,22 +701,23 @@
     5,
     5
    ],
-   "resumed": [
+   "latency": [
     5,
     5
    ],
-   "latency": [
+   "resumed": [
     5,
     5
    ]
   },
   "mirror": {
    "met": true,
-   "net_ratio": 0.7029822675980655,
-   "time_ratio": 0.7181208053691275,
+   "bar": 1.0,
+   "net_ratio": 0.7100000859396569,
+   "time_ratio": 0.7232727586630165,
    "startup": [
-    0.117,
-    0.006
+    0.1036202309987857,
+    0.007272946000739466
    ],
    "refetched": [
     0,
@@ -580,5 +749,5 @@
    ]
   }
  },
- "measured": "2026-10-29T06:55:44Z"
+ "measured": "2026-10-29T07:42:43Z"
 }
