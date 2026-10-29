@@ -120,8 +120,8 @@ describe("the reply step", () => {
     await run(id, async (m) => {
       await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
       await m.mockStepResult({ name: "parse" }, `cases/${id}/parsed.json`);
-      await m.mockStepResult({ name: "checks" }, { evidence: [] });
-      await m.mockStepResult({ name: "verdict" }, stored);
+      await m.mockStepResult({ name: "checks" }, { evidence: 0 });
+      await m.mockStepResult({ name: "verdict" }, { view: stored, evidence: [] });
       await m.mockStepResult({ name: "store" }, "stored");
     });
     expect(requests[0]?.text_body).toContain("Zebra-7 headline");
@@ -253,8 +253,8 @@ describe("the reply step", () => {
     await run(id, async (m) => {
       await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
       await m.mockStepResult({ name: "parse" }, `cases/${id}/parsed.json`);
-      await m.mockStepResult({ name: "checks" }, { evidence: [] });
-      await m.mockStepResult({ name: "verdict" }, STUB_VERDICT);
+      await m.mockStepResult({ name: "checks" }, { evidence: 0 });
+      await m.mockStepResult({ name: "verdict" }, { view: STUB_VERDICT, evidence: [] });
       await m.mockStepResult({ name: "store" }, "stored");
     });
     expect(await caseStatus(id)).toBe("partial");

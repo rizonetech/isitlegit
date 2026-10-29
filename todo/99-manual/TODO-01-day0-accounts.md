@@ -46,7 +46,7 @@ track: day-0
 | 6 | §6 | Google Web Risk API key | -- | [x] |
 | 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
-| 9 | §9 | Domain and mail recovery runbook | §2, §4 | [ ] |
+| 9 | §9 | Domain and mail recovery runbook | §2, §4 | [x] |
 | 10 | §10 | Web Risk key restriction read from Google | §6 | [ ] |
 | 11 | §11 | SMTP2GO key permissions and senders read back | §4 | [ ] |
 
@@ -329,7 +329,7 @@ D99 T01 §2 set up isitlegit.co.za with DNSSEC (the DS at the registry), Cloudfl
 - [x] Give `scripts/check-domain.py` what the runbook leans on: Email Routing's DKIM key as an eighth check (a valid record, **Corrected 2026-10-29**, round 1) and the demo subdomain's own MX and SPF as a ninth; `--diagnose` (an ordinary query against one with checking disabled: authenticated, unsigned, no SOA, a confirmed DNSSEC failure, or inconclusive, a local fault or a timeout never read as an outage or as healthy; **Corrected 2026-10-29**, completion review); and `--expect-ns`/`--expect-ds`, a planned move's new values reviewed on the command line before they are committed as its constants. A move in progress is a named refusal ("unsigned at the registry"), never a pass. Done when: `tests/scripts/test_check_domain.py` covers the DKIM check, each mid-move state, the reviewed values passing and stale ones refused, malformed values refused, and each diagnosis, on synthetic answers; the live domain reads 9 of 9. Done 2026-10-29: `ROUTING_DKIM` (the whole record pinned byte for byte by `ROUTING_DKIM_SHA256`, round 2), `--diagnose` (`probe`, five states), `--expect-ns`/`--expect-ds` (duplicates, key tag, algorithm and digest length refused), each lookup announced; `tests/scripts/test_check_domain.py` 19 passed (classes `Recovery`, `Progress`); the live domain reads 9 of 9.
 - [x] End every domain procedure with `python3 scripts/check-domain.py` as the final read-back (9 of 9, or the named refusal of a state still in progress), and say what exit 2 (a lookup failed) means during an incident. Done when: each procedure's last step names it. Done 2026-10-29: each of (a) to (e) ends with it, and the opening paragraph says what exit 2 means during an incident.
 - [x] Walk the runbook against the live domain without changing it (each read-back command run and its current output recorded, kept apart from the synthetic-state evidence above), and record the walkthrough under the section with its date. Done when: the record lists every step with its observed read-back. Done 2026-10-29: recorded below.
-- [ ] Commit: `todo: domain recovery runbook`
+- [x] Commit: `todo: domain recovery runbook` Done 2026-10-29: f6f065e, then the review fixes to 08d5a27.
 
 Walkthrough 2026-10-29, against the live domain, nothing changed, every step listed (rewritten after the final review, which found steps missing). A step that changes production or sends mail was not run; for it, the read-back command it names was run against today's state, which shows what the step would start from. The changed-state evidence is the synthetic answers in `tests/scripts/test_check_domain.py`, kept apart from this.
 
@@ -344,6 +344,9 @@ Walkthrough 2026-10-29, against the live domain, nothing changed, every step lis
 (e) Finding the fault: `check-smtp2go.py` exit 0, and both CNAMEs resolve (`return.smtp2go.net.`, `dkim.smtp2go.net.`): no fault today. 1, revoke: not run (it deletes the live key). 2, records: intact, nothing to do. 3, create a key: not run (it creates a credential). 4: `check-smtp2go.py`: "the key is live, may send and search activity", exit 0. 5, put the secret: not run (it publishes a Worker version); its read-back, `wrangler secret list`, names `SMTP2GO_API_KEY`. 6, a sign-in link: not run (it sends mail); `check-smtp2go.py` exit 0. 7: 9 of 9.
 
 **Test checkpoint:** `python3 -m pytest tests/scripts/test_check_domain.py` passes (the runbook's states on synthetic answers), and `python3 scripts/check-domain.py` exits 0 with 9 of 9.
+
+> **Verified:** 2026-10-29 | §9 | f7ecf02c969a3eec14e8bbffffb822e25a2d49cc
+> **Review:** `docs/reviews/d99-t01-s9.json`
 
 
 ## 10. Web Risk key restriction read from Google

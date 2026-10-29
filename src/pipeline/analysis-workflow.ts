@@ -1,5 +1,8 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import { caseViewOf, type Tenant } from "../checks/case-view";
+import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
+import { runChecks } from "../checks/runner";
 import {
   type CaseResult,
   getCaseForPipeline,
@@ -183,9 +186,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     try {
       const key = await timed("parse", () => parse(store, caseId, { channel, sourceKind, headersAvailable }));
       current = "checks";
-      const evidence = await timed("checks", () => checks(store, caseId, key));
+      await timed("checks", () => checks(store, caseId, key, { orgId, channel }));
       current = "verdict";
-      const view = await timed("verdict", async () => verdictOf(evidence));
+      const { view } = await timed("verdict", () => verdict(db, caseId));
       current = "store";
       await timed("store", async () => {
         must(await storeVerdict(db, orgId, caseId, view), "storing the verdict");
@@ -324,18 +327,28 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
   }
 }
 
-// No checks are built yet (D02): the summary is read and must be one (a parsed message's, or an uploaded file's naming
-// it), so a missing or malformed one fails, and no evidence is returned.
-export async function checks(store: Store, caseId: string, key: string): Promise<{ evidence: never[] }> {
+// Every registered check run against the case view built from the summary (D02 T01 §2), the list stored in D1 in one
+// replacing batch, so a retried step leaves one list; the step passes on only the count (a step's output is at most
+// 1 MiB). A missing or malformed summary fails the step.
+export async function checks(store: Store, caseId: string, key: string, tenant: Tenant): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
-  const read = JSON.parse(new TextDecoder().decode(summary.body)) as { forward?: unknown; source?: { key?: unknown } };
-  if (typeof read.forward !== "object" || (read.source !== undefined && typeof read.source.key !== "string"))
-    throw new Error("the parsed summary is malformed");
-  return { evidence: [] };
+  const view = caseViewOf(JSON.parse(new TextDecoder().decode(summary.body)), tenant);
+  const saved = await saveEvidence(store.db, caseId, await runChecks(view));
+  return { evidence: saved.length };
 }
 
-const verdictOf = (_found: { evidence: never[] }): VerdictView => STUB_VERDICT;
+// The verdict from the case's stored evidence, in its order. The stub stands until the verdict agent exists (D04 T01);
+// the step's result names the evidence it read, beside the view.
+export async function verdict(
+  db: D1Database,
+  caseId: string,
+): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
+  const evidence = await readEvidence(db, caseId);
+  return { view: verdictOf(evidence), evidence: evidence.map(({ id, check }) => ({ id, check })) };
+}
+
+const verdictOf = (_evidence: Evidence[]): VerdictView => STUB_VERDICT;
 
 // An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
 // time for the send.

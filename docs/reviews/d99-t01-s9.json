@@ -1,0 +1,133 @@
+{
+  "ref": "D99 T01 \u00a79",
+  "title": "Domain and mail recovery runbook",
+  "implementation_sha": "f7ecf02c969a3eec14e8bbffffb822e25a2d49cc",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/99-manual/D99-T01-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/99-manual/D99-T01-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/99-manual/D99-T01-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/99-manual/D99-T01-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/99-manual/D99-T01-s9.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/99-manual/D99-T01-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m pytest tests/scripts/test_check_domain.py",
+    "python3 scripts/check-domain.py"
+  ],
+  "completion": {
+    "report": "docs/reviews/99-manual/D99-T01-s9.md",
+    "verdict": "filed",
+    "candidate": "f6f065e664933e5e1b341d405dbacb36b85c1458",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T01 \u00a715"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/99-manual/D99-T01-s9.md",
+    "candidate": "36d2a9e02c8074c3cae641951b247df6859015ad",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/99-manual/D99-T01-s9.md",
+    "verdict": "fixed",
+    "candidate": "b94f7b776e985bd9398746adc23d8199ae598c43",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

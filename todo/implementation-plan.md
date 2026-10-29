@@ -94,12 +94,12 @@ Sections: 35 | Checklist items: 191
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
-| [ ]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
-| [ ]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
+| [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
+| [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
 | [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
 | [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
-| [ ]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
+| [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
 | [ ]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
 | [ ]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 5     |
 | [ ]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
@@ -206,11 +206,13 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 248
+Sections: 61 | Checklist items: 257
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
 | [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
+| [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
+| [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
@@ -312,7 +314,7 @@ Sections: 15 | Checklist items: 61
 | [x]    | D99 T01 §4  | SMTP2GO sender domain                         | none     | 5     |
 | [x]    | D99 T01 §6  | Google Web Risk API key                       | none     | 6     |
 | [x]    | D99 T01 §7  | Partner credits for Glimmer                   | none     | 2     |
-| [ ]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 6     |
+| [x]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 6     |
 | [ ]    | D99 T01 §10 | Web Risk key restriction read from Google     | operator | 2     |
 | [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back | operator | 2     |
 | [ ]    | D99 T02 §1  | Rizonetech dogfooding from day 2              | operator | 3     |
@@ -322,6 +324,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 71/253 verified sections, 27 ready to run now.
+Progress: 75/255 verified sections, 36 ready to run now.
 
-Checklist: 801/1610 items completed (includes Commit items).
+Checklist: 819/1619 items completed (includes Commit items).

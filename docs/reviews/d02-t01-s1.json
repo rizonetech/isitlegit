@@ -1,0 +1,110 @@
+{
+  "ref": "D02 T01 \u00a71",
+  "title": "Evidence type, IDs and registry",
+  "implementation_sha": "5b97b90684ad0f337e93b8e357b035b5334eb892",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T01-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/checks/evidence.test.ts"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T01-s1.md",
+    "verdict": "filed",
+    "candidate": "f88f338bcbc3bcdd4fd2f32d3e12cd354c855b4d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D02 T01 \u00a72",
+      "D04 T01 \u00a75",
+      "D07 T03 \u00a73",
+      "D08 T02 \u00a71"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T01-s1.md",
+    "candidate": "5a28fb79e2c95e8f678d7228dc1fac263efa9b2c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/02-checks/D02-T01-s1.md",
+    "verdict": "clean",
+    "candidate": "6927ade27be1602ca1c38588757589052181b90c",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

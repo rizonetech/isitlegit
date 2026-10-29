@@ -1,0 +1,108 @@
+{
+  "ref": "D02 T03 \u00a71",
+  "title": "Confusables skeleton and edit distance module",
+  "implementation_sha": "e4db21e724318f7bd33fdf88c2792bafc2371df9",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T03-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/lookalike.test.ts test/node/confusables-map.test.ts"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T03-s1.md",
+    "verdict": "filed",
+    "candidate": "8ef36b7d7d69038c6a1307ca9082e0564012ccfa",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D02 T03 \u00a75",
+      "D02 T03 \u00a76"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T03-s1.md",
+    "candidate": "96d07c3fe4c8be6b242328d19ab67cc2c7dfd7bd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/02-checks/D02-T03-s1.md",
+    "verdict": "clean",
+    "candidate": "9a34be2a3c4f8c30c5665dbcb21ecd29f76b6dd3",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
