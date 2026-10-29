@@ -42,7 +42,7 @@ track: day-6
 | 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [x] |
 | 5 | §6 | Benign real pages rendered locally | §3 | [x] |
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [x] |
-| 7 | §8 | Synthetic South African lures | §6, §7 | [ ] |
+| 7 | §8 | Synthetic South African lures | §6, §7 | [x] |
 | 8 | §9 | Spark teacher labels and human check | §5, §6, §7 | [ ] |
 | 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [ ] |
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [ ] |
@@ -348,11 +348,14 @@ Public sets are mostly foreign brands. Synthetic pages fill the South African ga
 - [x] Refuse every trace of the removed generator in `reconcile()` and `syntheticLeftovers()` in `scripts/glimmer/sources.ts` (plan review findings 1 and 3): while this section reads **Removed**, a stored page with `origin: synthetic`, `scripts/glimmer/synth.ts`, `scripts/glimmer/templates/`, `test/node/glimmer-synth.test.ts` or the store's `raw/synthetic/` is a `sources.ts check` and `freeze` problem, read from the disk so an untracked file counts. Done when: `test/node/glimmer-sources.test.ts` fails on a synthetic page and on each leftover path, and `node scripts/glimmer/sources.ts check` prints `sources: reconciled` on the real store.
 - [x] Make the removal hold without its Markdown (§8's completion review, gaps 2 to 5): the synthetic-page and leftover refusals are unconditional rules in `reconcile()` and `storeProblems()` (`scripts/glimmer/sources.ts`), which `check` and `freeze` both call, so neither a reworded section nor a dropped call can switch them off; the stamped §5 fallback to 3,000 synthetic lures is superseded (the Goal's correction says so) and no accepted source now fails `check` outright. Done when: `test/node/glimmer-sources.test.ts` fails on each of the four leftover paths alone, on a leftover through `storeProblems()`, on any of the generator's files in this repository, and on no accepted source.
 - [x] Give the South African lure coverage this section was to provide an owner with a refusal (plan review finding 2): §10 keeps sample-derived lures in training and refuses a build whose evaluation holds too few trusted ones, and §13 reports each South African figure with its denominator and refuses an empty slice. Done when: §10 and §13 carry those items.
-- [ ] Commit: the removal check in `scripts/glimmer/sources.ts` and its test.
+- [x] Commit: the removal check in `scripts/glimmer/sources.ts` and its test.
 
 **Corrected 2026-10-29:** the checkpoint named `test/node/glimmer-synth.test.ts`, the test of the generator the operator removed with this section; nothing was built, so the checkpoint proves the removal instead.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes, and `node scripts/glimmer/sources.ts check` prints `sources: reconciled` (no synthetic page, generator file or raw folder).
+
+> **Verified:** 2026-10-29 | §8 | 5cbba253de00af29064242fdb9301753cafff132
+> **Review:** `docs/reviews/d03-t04-s8.json`
 
 ## 9. Spark teacher labels and human check
 
