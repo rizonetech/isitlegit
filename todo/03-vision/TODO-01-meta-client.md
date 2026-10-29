@@ -39,7 +39,7 @@ track: day-1
 | 1 | §1 | Model client: store false, Standard IDs | D00 T01 §6, D01 T01 §7 | [x] |
 | 2 | §2 | Budget guard with daily and total caps | §1 | [x] |
 | 3 | §3 | Cost and latency events per model call | §1 | [x] |
-| 4 | §4 | Result cache by artefact hash | §1 | [ ] |
+| 4 | §4 | Result cache by artefact hash | §1 | [x] |
 | 5 | §5 | Structured output helper with zod | §1 | [ ] |
 | 6 | §6 | Untrusted content blocks | §5 | [ ] |
 
@@ -191,9 +191,12 @@ The same screenshot, PDF or URL seen twice is not paid for twice once its answer
 - [x] Record a cache hit through `Budget.cached(model, call)`: a `model_spend` row with `cache = 'hit'`, outcome `ok`, actual US$0 and certainty `none`, carrying the call's owner, its own call id and its measured latency (`ms`: the cache read and the validation, timed) (migration `0026_cache_hits.sql`); never reserved, so a hit is served when a cap is exhausted. A hit whose record cannot be written is still served (it cost nothing) and the failure is logged; it never becomes a paid call. Done when: a test through the real client and the migrated D1 finds a paid miss then a hit as two calls, the hit costing nothing and the counted spend unchanged by it; the hit's `ms` at least a controlled read delay; a hit served with the day cap exhausted; two overlapping misses on an empty cache each paid and recorded; and a failed hit-record write that still returns the cached answer with one log line and no request. Done 2026-10-29: migration `0026_cache_hits.sql`, `cachedStatement`, `Budget.cached` in `d1Budget` and `localBudget`; the test finds the paid row and the hit row (own call id, US$0, `none`, `hit`), the counted spend unchanged, `caseCost` two attempts; the hit's `ms` at least 35 with a 40 ms read; a hit served with the day cap exhausted; two overlapping misses both paid and recorded; a failed hit record served with one `cache-hit-unrecorded` line and no request.
 - [x] A KV read or write that fails never fails the call: a failed read is a miss, a failed write is logged. Done when: a KV stand-in that throws still returns the model's answer. Done 2026-10-29: a KV that throws on both still returns the model's answer, logging `cache-read-failed` and `cache-write-failed`.
 - [x] Close the completion review's in-scope gap (2026-10-29): each storage wait (the KV read, the KV write, the hit's record) is bounded by `STORAGE_WAIT_MS` (1 s); a late read is a miss, a late write goes on under the caller's required `waitUntil` and is logged. Done when: `test/meta/cache.test.ts` "a stalled store never holds the call" returns the model's answer and a hit within the bound against stores that never answer.
-- [ ] Commit: `meta: result cache by artefact hash`
+- [x] Commit: `meta: result cache by artefact hash` (landed as `859dab0`, with the reviews' fixes in `6c45467` and `d0b3ed6`)
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/cache.test.ts` passes and fails if an error result is cached.
+
+> **Verified:** 2026-10-29 | §4 | d0b3ed6929fedfb6f7e47220b2fb8fd2d3178d18
+> **Review:** `docs/reviews/d03-t01-s4.json`
 
 ## 5. Structured output helper with zod
 

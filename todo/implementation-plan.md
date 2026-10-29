@@ -77,7 +77,7 @@ Sections: 42 | Checklist items: 342
 | [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
 | [x]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 8     |
-| [ ]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
+| [x]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
 | [ ]    | D03 T01 §5  | Structured output helper with zod         | none                  | 5     |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
 | [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 5     |
@@ -311,6 +311,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 57/242 verified sections, 27 ready to run now.
+Progress: 58/242 verified sections, 26 ready to run now.
 
-Checklist: 587/1423 items completed (includes Commit items).
+Checklist: 588/1423 items completed (includes Commit items).
