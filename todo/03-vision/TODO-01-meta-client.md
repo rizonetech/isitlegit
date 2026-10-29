@@ -40,7 +40,7 @@ track: day-1
 | 2 | §2 | Budget guard with daily and total caps | §1 | [x] |
 | 3 | §3 | Cost and latency events per model call | §1 | [x] |
 | 4 | §4 | Result cache by artefact hash | §1 | [x] |
-| 5 | §5 | Structured output helper with zod | §1 | [ ] |
+| 5 | §5 | Structured output helper with zod | §1 | [x] |
 | 6 | §6 | Untrusted content blocks | §5 | [ ] |
 
 ## 1. Model client: store false, Standard IDs
@@ -224,9 +224,12 @@ Every model output passes a zod schema before use (`AGENTS.md`). The helper conv
 - [x] Never coerce: the schemas use strict objects and no `z.coerce`. Done when: a grep test finds no `z.coerce` under `src/`. Done 2026-10-29: `test/node/no-coerce.test.ts` (the Node project: it reads `src/`).
 - [x] Close the completion review's gaps (2026-10-29): nesting counts arrays as well as objects (ten levels go, eleven are refused); an unknown property is found inside a nullable object, a nullable array, a tuple and under an inherited name; a stalled failure record never holds the repair or the error past `RECORD_GRACE_MS` and is kept alive by `waitUntil` (required: `structured` takes a `StructuredContext`, round 1); `allOf` and `oneOf` each refused with no request and no row; one deadline spans the answer and its repair; `ModelOutputError.calls` carries each paid attempt's call and gateway ids. Done when: `test/meta/structured.test.ts` "completion review" covers each.
 - [x] Close the final review's findings (2026-10-29): a non-cyclic `$defs` reference is inlined and sent, a cycle refused; every documented limit (`SCHEMA_LIMITS`) is refused before any request, and one at the enum limit goes. Done when: `test/meta/structured.test.ts` "final review" covers each limit and the shared and cyclic sub-schemas.
-- [ ] Commit: `meta: structured output helper with zod validation`
+- [x] Commit: `meta: structured output helper with zod validation` (landed as `4cb1247`, with the reviews' fixes in `5aa69d4`, `60fa7b7` and `b2205a8`)
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/structured.test.ts` passes and fails if an invalid reply is returned after one retry.
+
+> **Verified:** 2026-10-29 | §5 | b2205a8e0040971c295a075fd0c52814b42db444
+> **Review:** `docs/reviews/d03-t01-s5.json`
 
 ## 6. Untrusted content blocks
 
