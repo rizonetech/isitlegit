@@ -528,3 +528,21 @@ describe("completeStored", () => {
     expect((await completeStored(env.DB, ORG, other.value.id)).ok).toBe(false);
   });
 });
+
+describe("main red 2026-10-29: a request asked for in the instant its run begins", () => {
+  it("is taken by that run", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    await env.DB.prepare("UPDATE mail_sends SET resend_state = 'done' WHERE resend_state = 'requested'").run();
+    const id = await settledCase("done");
+    const stamp = (
+      await env.DB.prepare("SELECT resend_at FROM mail_sends WHERE send_key = ?")
+        .bind(`reply:${id}`)
+        .first<{ resend_at: string }>()
+    )?.resend_at as string;
+    // The run's clock reads exactly the request's own stamp.
+    await resendRequested(env, () => new Date(stamp));
+    expect((await rowOf(id))?.resend_state).toBe("done");
+    expect(requests.filter((r) => r.to[0] === FORWARDER && r.text_body.includes("Resent-9 headline"))).toHaveLength(1);
+  });
+});
