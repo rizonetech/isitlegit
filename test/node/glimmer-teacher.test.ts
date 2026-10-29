@@ -14,6 +14,7 @@ import {
   readQueue,
   readTeacherState,
   SPARK,
+  sharedClock,
   sparkAsk,
   TEACHER_MAX_OUTPUT_TOKENS,
   teach,
@@ -22,6 +23,7 @@ import {
 } from "../../scripts/glimmer/teacher-label.ts";
 import { ledgerId } from "../../scripts/lib/meta-budget.ts";
 import { readLedger, tokenCost } from "../../scripts/meta-smoke.ts";
+import { sastDay } from "../../src/meta/day.ts";
 import { type Budget, BudgetExceeded } from "../../src/meta/guard.ts";
 
 // scripts/glimmer/teacher-label.ts (D03 T04 §9): Spark's second opinion on evaluation pages, through the shared Meta
@@ -70,6 +72,12 @@ const answering =
     return { text: text(input), usd };
   };
 const NOW = () => new Date("2026-10-29T10:00:00Z");
+// A page's teacher state, read as §10 reads it: by the page as stored now.
+const statusOf = (id: string) => {
+  const store = openStore(join(dir, "store"));
+  const page = store.manifest().find((p) => p.id === id) ?? { id, labels: {}, sha256: { screenshot: "", text: "" } };
+  return teacherState(readTeacherState(join(dir, "store")), page as never);
+};
 
 const answer = (lure: boolean) =>
   JSON.stringify({
@@ -273,12 +281,32 @@ describe("the teacher's calls through main's budget guard", () => {
     expect(entry).toMatchObject({ call: expect.stringContaining(SPARK), state: "settled" });
   });
 
-  it("refuses to send when a cap refuses, and stops the run", async () => {
+  it("refuses to send when a cap refuses, stops the run, and asks the page again next time", async () => {
     const { guard } = budget(() => new BudgetExceeded("day", SPARK));
     const { result, sent, entry } = await run(guard, async () => reply());
     expect(sent).toBe(0);
     expect(result.stopped).toMatch(/budget refused/);
     expect(entry).toMatchObject({ state: "settled", cost: 0 });
+    // Nothing was sent: the page is refused, not failed, so a later run asks it again.
+    expect([...readTeacherState(join(dir, "store")).values()][0]).toMatchObject({ status: "refused" });
+  });
+
+  it("leaves an attempt settled at its estimate uncertain locally, never measured", async () => {
+    const { guard } = budget();
+    const { entry } = await run(
+      guard,
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "resp_1",
+            object: "response",
+            output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: answer(true) }] }],
+            output_text: answer(true),
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    expect(entry).toMatchObject({ state: "uncertain", cost: null });
   });
 
   it("refuses to send when the budget cannot be reached, and stops the run", async () => {
@@ -383,7 +411,11 @@ describe("a teacher run that stops", () => {
     });
     expect(calls).toBe(0);
     expect(result.recovered).toBe(1);
-    expect(teacherState(readTeacherState(join(dir, "store")), id)).toBe("failed");
+    // Its answer may have come back and been lost: kept out of training and evaluation by the rules.
+    expect(statusOf(id)).toBe("quarantined");
+    const { applyRules, readExcluded } = await import("../../scripts/glimmer/label-rules.ts");
+    applyRules(openStore(join(dir, "store")));
+    expect(readExcluded(join(dir, "store")).get(id)).toMatch(/teacher's answer was lost/);
   });
 
   it("applies an answer kept before the stop without calling again, queueing a disagreement once", async () => {
@@ -415,47 +447,38 @@ describe("a teacher run that stops", () => {
     const agreed = await stored(1, true);
     const disputed = await stored(2, false);
     const bad = await stored(3, true);
-    const left = await stored(4, true);
-    const store = openStore(join(dir, "store"));
-    const replies: Record<string, string> = { [agreed]: answer(true), [disputed]: answer(true), [bad]: "not json" };
     const byText = (input: unknown[]) => {
       const text = JSON.stringify(input);
-      const id = text.includes("page 1 ") ? agreed : text.includes("page 2 ") ? disputed : bad;
-      return replies[id] as string;
+      return text.includes("page 3 ") ? "not json" : answer(true);
     };
-    // South African pages first (2 and 4), then 1 and 3; the budget refuses the fourth page.
-    let n = 0;
-    const result = await teach({
-      store,
-      ledgerFile: ledgerFile(),
-      run: "glimmer-teacher-test",
-      max: 10,
-      now: NOW,
-      ask: async (input, instructions, attempts) => {
-        if (++n === 4) throw new BudgetExceeded("day", SPARK);
-        return answering(byText)(input, instructions, attempts);
-      },
+    const go = (ask: Ask) =>
+      teach({
+        store: openStore(join(dir, "store")),
+        ledgerFile: ledgerFile(),
+        run: "glimmer-teacher-test",
+        max: 10,
+        now: NOW,
+        ask,
+      });
+    await go(answering(byText));
+    // A page stored later meets a budget that refuses: nothing is sent, and it is asked again on the next run.
+    const left = await stored(4, true);
+    const refused = await go(async () => {
+      throw new BudgetExceeded("day", SPARK);
     });
-    expect(result.stopped).toMatch(/budget refused/);
-    const state = readTeacherState(join(dir, "store"));
-    const states = Object.fromEntries([agreed, disputed, bad, left].map((id) => [id, teacherState(state, id)]));
-    expect(Object.values(states).sort()).toEqual(["agreed", "disputed", "failed", "refused"]);
-    expect(teacherState(state, "set-0000000000000000")).toBe("unchecked");
-    // A refused page is asked again on the next run; the others are not.
+    expect(refused.stopped).toMatch(/budget refused/);
+    expect([agreed, disputed, bad, left].map(statusOf)).toEqual(["agreed", "disputed", "failed", "refused"]);
+    expect(statusOf("set-0000000000000000")).toBe("unchecked");
     let again = 0;
-    await teach({
-      store: openStore(join(dir, "store")),
-      ledgerFile: ledgerFile(),
-      run: "glimmer-teacher-test",
-      max: 10,
-      now: NOW,
-      ask: answering(
+    await go(
+      answering(
         () => answer(true),
         0.004,
         () => again++,
       ),
-    });
+    );
     expect(again).toBe(1);
+    expect(statusOf(left)).toBe("agreed");
   });
 
   it("never sends a page whose files no longer match their hashes, and lists it", async () => {
@@ -494,7 +517,7 @@ describe("a teacher run that stops", () => {
     expect(readLedger(ledgerFile()).map((e) => e.date)).toEqual(["2026-10-29", "2026-10-30"]);
   });
 
-  it("reads an earlier version's checked list as applied outcomes, sending none of them again", async () => {
+  it("reads an earlier version's checked list, sending none of it again and quarantining what it cannot show", async () => {
     const id = await stored(1, true);
     mkdirSync(join(dir, "store", "raw", "teacher"), { recursive: true });
     writeFileSync(join(dir, "store", "raw", "teacher", "checked.jsonl"), `${JSON.stringify({ id, answered: true })}\n`);
@@ -512,7 +535,8 @@ describe("a teacher run that stops", () => {
       ),
     });
     expect(calls).toBe(0);
-    expect(teacherState(readTeacherState(join(dir, "store")), id)).toBe("agreed");
+    // Answered with no queue entry: an agreement or a lost disagreement, not known, so quarantined.
+    expect(statusOf(id)).toBe("quarantined");
   });
 });
 
@@ -535,6 +559,91 @@ describe("the run's receipt and the completion check", () => {
     // A page stored after the receipt makes it stale.
     await stored(3, false);
     applyRules(store);
-    expect(checkLabels(openStore(join(dir, "store"))).join()).toMatch(/covers 2 pages, not the 3/);
+    expect(checkLabels(openStore(join(dir, "store"))).join()).toMatch(
+      /covers 2 pages and other labels or outcomes than the 3/,
+    );
+  });
+});
+
+describe("the teacher's accounting and coverage", () => {
+  it("gives both records of an attempt one instant, so one SAST day, across midnight", () => {
+    const times = [new Date("2026-10-29T21:59:59.999Z"), new Date("2026-10-29T22:00:00.001Z")];
+    let i = 0;
+    const clock = sharedClock(() => times[Math.min(i++, 1)] as Date);
+    const reserved = clock.teacher();
+    // The guard reads after the clock has moved past midnight, and still gets the teacher's instant.
+    expect(clock.guard()).toBe(reserved);
+    expect(sastDay(clock.guard())).toBe(sastDay(reserved));
+  });
+
+  it("orders candidates South African first, then by a seeded shuffle rather than by id", () => {
+    const page = (id: string, sa: boolean) =>
+      ({
+        id,
+        south_africa: sa,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+      }) as unknown as StoredPage;
+    const pages = Array.from({ length: 20 }, (_, n) => page(`src${String(n).padStart(2, "0")}`, n < 4));
+    const order = candidates(pages, new Set()).map((p) => p.id);
+    expect(order.slice(0, 4).every((id) => Number(id.slice(3)) < 4)).toBe(true);
+    expect(order).not.toEqual([...order].sort());
+    expect(candidates(pages, new Set(), "other").map((p) => p.id)).not.toEqual(order);
+    expect(candidates(pages, new Set()).map((p) => p.id)).toEqual(order);
+  });
+
+  it("marks an agreement stale once the page's lure label changes, and the receipt with it", async () => {
+    const { applyRules } = await import("../../scripts/glimmer/label-rules.ts");
+    const id = await stored(1, true);
+    const store = openStore(join(dir, "store"));
+    applyRules(store);
+    await teach({
+      store,
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "glimmer-teacher-t",
+      max: 5,
+      now: NOW,
+      ask: answering(() => answer(true)),
+    });
+    writeReceipt(store, []);
+    expect(checkLabels(store)).toEqual([]);
+    const page = store.manifest()[0] as StoredPage;
+    store.setLabels(id, { ...page.labels, lure: false, lure_type: "none" }, page.label_source);
+    expect(statusOf(id)).toBe("stale");
+    expect(checkLabels(openStore(join(dir, "store"))).join()).toMatch(/other labels or outcomes/);
+  });
+
+  it("refuses damaged content whose record still reads, unless it is excluded", async () => {
+    const { applyRules } = await import("../../scripts/glimmer/label-rules.ts");
+    const id = await stored(1, true);
+    const store = openStore(join(dir, "store"));
+    applyRules(store);
+    writeReceipt(store, []);
+    writeFileSync(join(dir, "store", "pages", id, "text.txt"), "altered");
+    expect(checkLabels(store).join()).toMatch(/1 damaged pages are not excluded/);
+    applyRules(store);
+    writeReceipt(store, []);
+    expect(checkLabels(store)).toEqual([]);
+  });
+
+  it("reports Spark's answers against every stored field by source, and what it agreed with", async () => {
+    const { applyRules } = await import("../../scripts/glimmer/label-rules.ts");
+    await stored(1, true);
+    await stored(2, false);
+    const store = openStore(join(dir, "store"));
+    applyRules(store);
+    await teach({
+      store,
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "glimmer-teacher-t",
+      max: 5,
+      now: NOW,
+      ask: answering(() => answer(true)),
+    });
+    const receipt = writeReceipt(store, []);
+    expect(receipt.fields.lure).toEqual({ "ground-truth": { agree: 1, disagree: 1 } });
+    expect(receipt.fields.has_login_form?.dom).toEqual({ agree: 1, disagree: 1 });
+    expect(receipt.agreed).toMatchObject({ lures: 1, benign: 0, byType: { credential: 1 }, bySource: { set: 1 } });
+    expect(receipt.teacher).toEqual({ agreed: 1, disputed: 1 });
   });
 });

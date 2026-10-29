@@ -36,7 +36,7 @@ import {
   takeLock,
   tokenCost,
 } from "../meta-smoke.ts";
-import { completeLabel, readExcluded } from "./label-rules.ts";
+import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
@@ -57,7 +57,16 @@ export type AttemptLedger = {
   reserve(attempt: number, estimateUsd: number): string;
   settle(id: string, usd: number): void;
   uncertain(id: string): void;
+  // The guard refused the attempt after the ledger recorded it: nothing was sent, and it costs nothing.
+  release(id: string): void;
 };
+
+// One clock for both records of an attempt: the teacher reads it as it reserves an attempt's ledger entry, and the
+// guard's budget reads that same instant, so an attempt near SAST midnight never counts on two days.
+export function sharedClock(now: () => Date = () => new Date()): { teacher: () => Date; guard: () => Date } {
+  let at = now();
+  return { teacher: () => (at = now()), guard: () => at };
+}
 
 export type Ask = (
   input: unknown[],
@@ -80,7 +89,7 @@ export function sparkAsk(context: Omit<MetaContext, "owner">): Ask {
         try {
           guarded = await context.budget.reserve(model, estimateUsd, attempt, local, call);
         } catch (error) {
-          attempts.settle(local, 0); // the guard refused it or could not record it: nothing was sent
+          attempts.release(local); // the guard refused it or could not record it: nothing was sent
           throw error;
         }
         ids.set(guarded, local);
@@ -89,7 +98,11 @@ export function sparkAsk(context: Omit<MetaContext, "owner">): Ask {
       settle: async (id, actualUsd, record) => {
         await context.budget.settle(id, actualUsd, record);
         const local = ids.get(id);
-        if (local) attempts.settle(local, actualUsd);
+        if (!local) return;
+        // Measured from Meta's usage, or nothing because the request never ran: settled at that. Settled at the
+        // estimate (an answer without usage): left at its estimate locally too, so the receipt never calls it measured.
+        if (record?.certainty === "measured" || record?.certainty === "none") attempts.settle(local, actualUsd);
+        else attempts.uncertain(local);
       },
       uncertain: async (id, record) => {
         await context.budget.uncertain(id, record);
@@ -141,11 +154,16 @@ export function responsesInput(page: StoredPage, screenshot: Uint8Array, text: s
 // A checked page's outcome. `pending` is written before its first attempt; `agreed` and `disputed` carry Spark's answer
 // and `applied` once its queue entry and filled fields are written; `failed` (no valid answer, or a run stopped while
 // it was out) and `refused` (the budget sent nothing) carry the reason. Only a refused page is ever sent again.
+// What the teacher checked: the page's lure label and its files' hashes then. A later change to either makes the check
+// `stale`, so an agreement never outlives the label it agreed with.
+export type Checked = { lure: boolean; screenshot: string; text: string };
 export type PageOutcome =
-  | { status: "pending" }
-  | { status: "agreed" | "disputed"; answer: PageAnswer | null; applied: boolean }
-  | { status: "failed" | "refused"; reason: string };
-export type TeacherStatus = PageOutcome["status"] | "unchecked";
+  | { status: "pending"; checked?: Checked }
+  | { status: "agreed" | "disputed"; answer: PageAnswer | null; applied: boolean; checked?: Checked }
+  | { status: "failed" | "refused" | "quarantined"; reason: string };
+// `quarantined`: an answer that may have been paid for was lost (a stop while it was out, or an earlier version's
+// record that cannot say whether it disagreed); the rules exclude the page from training and evaluation.
+export type TeacherStatus = PageOutcome["status"] | "unchecked" | "stale";
 
 const stateFile = (dir: string) => join(dir, "raw", "teacher", "state.json");
 const queueFile = (dir: string) => join(dir, "review-queue.jsonl");
@@ -190,7 +208,8 @@ export function readTeacherState(dir: string): Map<string, PageOutcome> {
       spark
         ? { status: "disputed", answer: spark, applied: true }
         : answered
-          ? { status: "agreed", answer: null, applied: true } // its answer was not kept then; it was applied
+          ? // Answered, with no queue entry: an agreement, or a disagreement whose queue line was lost; not known.
+            { status: "quarantined", reason: "an earlier version's check, whose agreement cannot be shown" }
           : { status: "failed", reason: "no valid answer (an earlier run)" },
     );
   }
@@ -233,16 +252,33 @@ function appendQueue(dir: string, entry: { id: string; source: { lure: boolean }
   }
 }
 
-// A page's teacher state for §10: only `agreed` lets a page into evaluation.
-export function teacherState(state: Map<string, PageOutcome>, id: string): TeacherStatus {
-  return state.get(id)?.status ?? "unchecked";
+// A page's teacher state for §10: only `agreed` lets a page into evaluation, and only while its lure label and files
+// are the ones Spark checked.
+export function teacherState(state: Map<string, PageOutcome>, page: Pick<StoredPage, "id" | "labels" | "sha256">) {
+  const outcome = state.get(page.id);
+  if (!outcome) return "unchecked" as TeacherStatus;
+  if ((outcome.status === "agreed" || outcome.status === "disputed") && outcome.checked) {
+    const { lure, screenshot, text } = outcome.checked;
+    if (lure !== page.labels.lure || screenshot !== page.sha256.screenshot || text !== page.sha256.text)
+      return "stale" as TeacherStatus;
+  }
+  return outcome.status as TeacherStatus;
 }
 
-// The pages worth a second opinion: those that can enter evaluation, South African first, not checked before.
-export function candidates(pages: StoredPage[], checked: Set<string>): StoredPage[] {
+// The order the teacher checks candidates in: South African pages first, then a seeded shuffle, so a run the cap ends
+// early still covers every source in proportion instead of the ones whose ids sort first.
+function seededOrder(id: string, seed: string): string {
+  return createHash("sha256").update(`${seed}\n${id}`).digest("hex");
+}
+
+// The pages worth a second opinion: those that can enter evaluation, South African first, not checked before, in a
+// seeded order within each region.
+export function candidates(pages: StoredPage[], checked: Set<string>, seed = "glimmer-teacher"): StoredPage[] {
   return pages
     .filter((p) => TRUSTED.has(p.label_source.lure ?? "") && p.labels.lure !== undefined && !checked.has(p.id))
-    .sort((a, b) => Number(b.south_africa) - Number(a.south_africa) || a.id.localeCompare(b.id));
+    .map((page) => ({ page, order: seededOrder(page.id, seed) }))
+    .sort((a, b) => Number(b.page.south_africa) - Number(a.page.south_africa) || a.order.localeCompare(b.order))
+    .map(({ page }) => page);
 }
 
 export type TeacherResult = {
@@ -315,7 +351,9 @@ export async function teach(options: {
   for (const [id, outcome] of [...state]) {
     const page = byId.get(id);
     if (outcome.status === "pending") {
-      state.set(id, { status: "failed", reason: "the run stopped while its call was out; its spend is uncertain" });
+      // Its answer may have come back and been lost before it was kept: what it said cannot be known, so the page is
+      // kept out of training and evaluation, never sent again (its spend stays uncertain in the ledger).
+      state.set(id, { status: "quarantined", reason: "the run stopped while its call was out; its answer was lost" });
       saveTeacherState(store.dir, state);
       result.recovered++;
     } else if (page && (outcome.status === "agreed" || outcome.status === "disputed") && !outcome.applied) {
@@ -332,9 +370,15 @@ export async function teach(options: {
       result.damaged.push(page.id);
       continue;
     }
-    state.set(page.id, { status: "pending" });
+    const checked: Checked = {
+      lure: page.labels.lure as boolean,
+      screenshot: read.page.sha256.screenshot,
+      text: read.page.sha256.text,
+    };
+    state.set(page.id, { status: "pending", checked });
     saveTeacherState(store.dir, state);
     const entries = new Map<string, Spend>();
+    const released = new Set<string>(); // attempts the guard refused after the ledger recorded them: never sent
     // An attempt is closed in the ledger as it stands now, never in the copy read when it was reserved, so nothing
     // written in between is lost.
     const close = (id: string, usd: number | null) => {
@@ -367,6 +411,10 @@ export async function teach(options: {
       },
       settle: (id, usd) => close(id, usd),
       uncertain: (id) => close(id, null),
+      release: (id) => {
+        released.add(id);
+        close(id, 0);
+      },
     };
     let outcome: PageOutcome;
     let stop: string | undefined;
@@ -380,7 +428,12 @@ export async function teach(options: {
         parsed = null;
       }
       outcome = parsed?.success
-        ? { status: parsed.data.lure === page.labels.lure ? "agreed" : "disputed", answer: parsed.data, applied: false }
+        ? {
+            status: parsed.data.lure === page.labels.lure ? "agreed" : "disputed",
+            answer: parsed.data,
+            applied: false,
+            checked,
+          }
         : { status: "failed", reason: "Spark's answer was not a valid PageAnswer" };
     } catch (error) {
       if (error instanceof BudgetExceeded || error instanceof BudgetUnavailable) {
@@ -392,7 +445,8 @@ export async function teach(options: {
               ? `the ledger could not be written: ${unsaved}`
               : "the Meta budget could not be reached";
         // An attempt before it was refused may have been sent: the page is failed, its spend in the ledger as it stood.
-        outcome = entries.size
+        const sent = [...entries.keys()].some((id) => !released.has(id));
+        outcome = sent
           ? { status: "failed", reason: `a retry was refused: ${stop}` }
           : { status: "refused", reason: stop };
       } else outcome = { status: "failed", reason: `no answer (${(error as Error).name})` };
@@ -416,11 +470,22 @@ export async function teach(options: {
   return result;
 }
 
-// The store a receipt was written for: its page count and a digest of every page's id and file hashes.
-export function snapshotOf(pages: StoredPage[]): { pages: number; digest: string } {
-  const lines = pages.map((p) => `${p.id} ${p.sha256.screenshot} ${p.sha256.text}`).sort();
-  return { pages: pages.length, digest: createHash("sha256").update(lines.join("\n")).digest("hex") };
+// What a receipt was written for: every page's id, file hashes, host, labels and their sources, the exclusions and the
+// teacher's outcomes, so a label corrected, a page excluded or a check changed after the receipt makes it stale.
+export function snapshotOf(dir: string, pages: StoredPage[]): { pages: number; digest: string } {
+  const lines = pages
+    .map((p) =>
+      JSON.stringify([p.id, p.sha256.screenshot, p.sha256.text, p.host, sorted(p.labels), sorted(p.label_source)]),
+    )
+    .sort();
+  const hash = createHash("sha256").update(lines.join("\n"));
+  hash.update(`\n${JSON.stringify([...readExcluded(dir)].sort())}`);
+  hash.update(`\n${JSON.stringify([...readTeacherState(dir)].sort(([a], [b]) => a.localeCompare(b)))}`);
+  return { pages: pages.length, digest: hash.digest("hex") };
 }
+const sorted = (record: object) => Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b)));
+
+const FIELDS = ["lure", "lure_type", "brand", "has_login_form", "has_payment_form"] as const;
 
 export type Receipt = {
   at: string;
@@ -430,11 +495,24 @@ export type Receipt = {
   excluded: Record<string, number>; // reason -> pages
   teacher: Record<string, number>; // state -> pages
   unchecked: number; // evaluation candidates the teacher has not checked
-  unresolvedBrands: number; // lures whose text named no brand the rules know
+  unresolvedBrands: { pages: number; ofLures: number }; // lures whose text named no brand the rules know
+  // Spark's answers against the stored labels, every field, by the stored label's source: what the checks paid for.
+  fields: Record<string, Record<string, { agree: number; disagree: number }>>;
+  // The pages Spark agreed with, which alone may enter evaluation: by source, region, verdict and lure type.
+  agreed: {
+    bySource: Record<string, number>;
+    southAfrica: number;
+    lures: number;
+    benign: number;
+    byType: Record<string, number>;
+  };
   spend: { measuredUsd: number; uncertainUsd: number }; // the teacher's runs, over every attempt in the ledger
 };
 
 const receiptFile = (dir: string) => join(dir, "raw", "teacher", "receipt.json");
+const bump = (record: Record<string, number>, key: string) => {
+  record[key] = (record[key] ?? 0) + 1;
+};
 
 // The run's receipt, written temp-then-replace and read back: the store it covers and how every page ended.
 export function writeReceipt(store: ReturnType<typeof openStore>, ledger: Spend[], at: Date = new Date()): Receipt {
@@ -444,34 +522,65 @@ export function writeReceipt(store: ReturnType<typeof openStore>, ledger: Spend[
   const bySource: Receipt["bySource"] = {};
   const excludedBy: Record<string, number> = {};
   const teacher: Record<string, number> = {};
-  for (const reason of excluded.values()) {
-    const key = reason.replace(/ \(.*$/, "");
-    excludedBy[key] = (excludedBy[key] ?? 0) + 1;
-  }
-  for (const outcome of state.values()) teacher[outcome.status] = (teacher[outcome.status] ?? 0) + 1;
+  const fields: Receipt["fields"] = {};
+  const agreed: Receipt["agreed"] = { bySource: {}, southAfrica: 0, lures: 0, benign: 0, byType: {} };
+  for (const reason of excluded.values()) bump(excludedBy, reason.replace(/ \(.*$/, ""));
   let complete = 0;
-  let unresolvedBrands = 0;
+  let unresolved = 0;
+  let lures = 0;
   for (const page of pages) {
     if (completeLabel(page.labels) && !excluded.has(page.id)) complete++;
     for (const [field, source] of Object.entries(page.label_source)) {
       bySource[field] ??= {};
-      (bySource[field] as Record<string, number>)[source as string] =
-        ((bySource[field] as Record<string, number>)[source as string] ?? 0) + 1;
+      bump(bySource[field] as Record<string, number>, source as string);
     }
-    if (page.labels.lure === true && page.labels.brand === null && page.label_source.brand === "rule")
-      unresolvedBrands++;
+    if (page.labels.lure === true) {
+      lures++;
+      if (page.labels.brand === null && page.label_source.brand === "rule") unresolved++;
+    }
+    const status = teacherState(state, page);
+    bump(teacher, status === "unchecked" ? "unchecked" : status);
+    const outcome = state.get(page.id);
+    if (outcome && (outcome.status === "agreed" || outcome.status === "disputed") && outcome.answer) {
+      for (const field of FIELDS) {
+        const stored = page.labels[field];
+        if (stored === undefined) continue;
+        const given = outcome.answer[field];
+        const same =
+          field === "brand"
+            ? (stored === null ? null : canonicalBrand(stored as string)) ===
+              (given === null ? null : canonicalBrand(given as string))
+            : stored === given;
+        fields[field] ??= {};
+        const byField = fields[field] as Record<string, { agree: number; disagree: number }>;
+        const source = page.label_source[field] ?? "none";
+        byField[source] ??= { agree: 0, disagree: 0 };
+        (byField[source] as { agree: number; disagree: number })[same ? "agree" : "disagree"]++;
+      }
+    }
+    if (status === "agreed") {
+      bump(agreed.bySource, page.source);
+      if (page.south_africa) agreed.southAfrica++;
+      if (page.labels.lure) {
+        agreed.lures++;
+        if (page.labels.lure_type) bump(agreed.byType, page.labels.lure_type);
+      } else agreed.benign++;
+    }
   }
+  delete teacher.unchecked;
   const done = new Set([...state].filter(([, o]) => o.status !== "refused").map(([id]) => id));
   const teacherRuns = ledger.filter((e) => e.run.startsWith("glimmer-teacher-"));
   const receipt: Receipt = {
     at: at.toISOString(),
-    snapshot: snapshotOf(pages),
+    snapshot: snapshotOf(store.dir, pages),
     complete,
     bySource,
     excluded: excludedBy,
     teacher,
     unchecked: candidates(pages, done).length,
-    unresolvedBrands,
+    unresolvedBrands: { pages: unresolved, ofLures: lures },
+    fields,
+    agreed,
     spend: {
       measuredUsd: teacherRuns.filter((e) => e.state === "settled").reduce((s, e) => s + (e.cost ?? 0), 0),
       uncertainUsd: teacherRuns.filter((e) => e.state !== "settled").reduce((s, e) => s + e.estimate, 0),
@@ -483,8 +592,9 @@ export function writeReceipt(store: ReturnType<typeof openStore>, ledger: Spend[
   return receipt;
 }
 
-// Why the labels are not ready for §10: a page with neither a complete label nor an exclusion, a missing receipt, or a
-// receipt for another store than the one there now. Empty when they are.
+// Why the labels are not ready for §10: a page with neither a complete label nor an exclusion, a damaged page not
+// excluded (its record readable or not), a missing receipt, or a receipt for another store, labels, exclusions or
+// teacher outcomes than those there now. Empty when they are.
 export function checkLabels(store: ReturnType<typeof openStore>): string[] {
   const problems: string[] = [];
   const pages = store.manifest({ tolerant: true });
@@ -492,16 +602,17 @@ export function checkLabels(store: ReturnType<typeof openStore>): string[] {
   const loose = pages.filter((p) => !excluded.has(p.id) && !completeLabel(p.labels));
   if (loose.length)
     problems.push(`${loose.length} pages have neither a complete label nor an exclusion (first: ${loose[0]?.id})`);
-  const listed = new Set(pages.map((p) => p.id));
-  const unread = store.verify().damaged.filter((id) => !excluded.has(id) && !listed.has(id));
-  if (unread.length) problems.push(`${unread.length} damaged records are not excluded (first: ${unread[0]})`);
+  const damaged = store.verify().damaged.filter((id) => !excluded.has(id));
+  if (damaged.length) problems.push(`${damaged.length} damaged pages are not excluded (first: ${damaged[0]})`);
   const file = receiptFile(store.dir);
   if (!existsSync(file)) problems.push("no receipt: run the teacher");
   else {
     const receipt = JSON.parse(readFileSync(file, "utf-8")) as Receipt;
-    const now = snapshotOf(pages);
+    const now = snapshotOf(store.dir, pages);
     if (receipt.snapshot.digest !== now.digest)
-      problems.push(`the receipt covers ${receipt.snapshot.pages} pages, not the ${now.pages} stored now: run again`);
+      problems.push(
+        `the receipt covers ${receipt.snapshot.pages} pages and other labels or outcomes than the ${now.pages} stored now: run again`,
+      );
   }
   return problems;
 }
@@ -524,9 +635,17 @@ if (import.meta.filename === process.argv[1] && process.argv[2] !== "check") {
   try {
     const secrets = await readSecretsFromVault();
     const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
-    const ask = sparkAsk({ env, budget: localBudget("glimmer-teacher-label") });
+    const clock = sharedClock();
+    const ask = sparkAsk({ env, budget: localBudget("glimmer-teacher-label", undefined, clock.guard) });
     const store = openStore(storeDir());
-    const result = await teach({ store, ask, ledgerFile, run: `glimmer-teacher-${Date.now()}`, max });
+    const result = await teach({
+      store,
+      ask,
+      ledgerFile,
+      run: `glimmer-teacher-${Date.now()}`,
+      max,
+      now: clock.teacher,
+    });
     console.log(JSON.stringify(result));
     console.log(JSON.stringify(writeReceipt(store, readLedger(ledgerFile))));
   } finally {

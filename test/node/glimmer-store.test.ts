@@ -503,6 +503,35 @@ describe("the brand rule (D03 T04 §9)", () => {
     expect(derivedBrand(page({ lure: true }), "Game over: Clicks and Rain")).toBeNull();
     // An unknown name stays as given.
     expect(canonicalBrand("  Metamorphosis ")).toBe("Metamorphosis");
+    // Any case of a several-word name or long form, and a one-word name in capitals.
+    for (const text of ["STANDARD BANK online", "your standard bank card", "Standard Bank Group plc"])
+      expect(derivedBrand(page({ lure: true }), text), text).toBe("Standard Bank");
+    expect(derivedBrand(page({ lure: true }), "First National Bank: verify")).toBe("FNB");
+    expect(derivedBrand(page({ lure: true }), "ABSA secure login")).toBe("Absa");
+    // A one-word brand in lower case is a word ("a travel visa").
+    expect(derivedBrand(page({ lure: true }), "apply for a travel visa today")).toBeNull();
+    // A brand a rule set earlier is set again as the rule now reads it; a source's own brand is never touched.
+    const ruled = {
+      id: "x",
+      host: null,
+      labels: { lure: true, brand: null },
+      label_source: { brand: "rule" },
+    } as never;
+    expect(derivedBrand(ruled, "STANDARD BANK")).toBe("Standard Bank");
+    const sourced = {
+      id: "x",
+      host: null,
+      labels: { lure: true, brand: "Std" },
+      label_source: { brand: "ground-truth" },
+    };
+    expect(derivedBrand(sourced as never, "STANDARD BANK")).toBeUndefined();
+    const same = {
+      id: "x",
+      host: null,
+      labels: { lure: true, brand: "Absa" },
+      label_source: { brand: "rule" },
+    } as never;
+    expect(derivedBrand(same, "ABSA login")).toBeUndefined();
   });
 });
 

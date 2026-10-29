@@ -196,53 +196,82 @@ function listedBrands(): string[] {
 const LISTED = listedBrands();
 
 // One name per brand, whatever its spelling or host: the key is the name in lowercase letters and digits only, so
-// `standardbank.co.za` and "Standard Bank" meet, and a few known long forms map to the short one.
+// `standardbank.co.za`, "STANDARD BANK" and "Standard Bank" meet, and a few known long forms map to the short one.
 const brandKey = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 const CANONICAL = new Map<string, string>();
 for (const name of [...KNOWN_BRANDS, ...LISTED])
   if (!CANONICAL.has(brandKey(name))) CANONICAL.set(brandKey(name), name);
-for (const [alias, name] of [
-  ["standardbankgroup", "Standard Bank"],
-  ["firstnationalbank", "FNB"],
-  ["absabank", "Absa"],
-  ["absagroup", "Absa"],
-  ["capitecbank", "Capitec"],
-  ["nedbankgroup", "Nedbank"],
-  ["discoverybank", "Discovery"],
-  ["southafricanrevenueservice", "SARS"],
-  ["sarsefiling", "SARS"],
-] as const)
-  CANONICAL.set(alias, name);
+// Long forms a page writes out, with the name each stands for.
+const LONG_FORMS: [string, string][] = [
+  ["Standard Bank Group", "Standard Bank"],
+  ["First National Bank", "FNB"],
+  ["Absa Bank", "Absa"],
+  ["Absa Group", "Absa"],
+  ["Capitec Bank", "Capitec"],
+  ["Nedbank Group", "Nedbank"],
+  ["Discovery Bank", "Discovery"],
+  ["South African Revenue Service", "SARS"],
+  ["SARS eFiling", "SARS"],
+];
+for (const [form, name] of LONG_FORMS) CANONICAL.set(brandKey(form), name);
 
 // The one name a brand goes by (a known spelling, or the name as given when it is not one we know).
 export function canonicalBrand(name: string): string {
   return CANONICAL.get(brandKey(name)) ?? name.trim();
 }
 
-const MATCHED = [
-  ...new Set([...KNOWN_BRANDS, ...LISTED.filter((name) => name.length > 3 && !EVERYDAY.has(name))]),
-].sort((a, b) => b.length - a.length);
-const BRAND_RULE = new RegExp(
-  `(?<![\\p{L}\\p{N}])(${MATCHED.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\p{N}])`,
-  "u",
+const escaped = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const bounded = (names: string[]) =>
+  `(?<![\\p{L}\\p{N}])(${[...new Set(names)]
+    .sort((a, b) => b.length - a.length)
+    .map(escaped)
+    .join("|")})(?![\\p{L}\\p{N}])`;
+// The known brands as they are; the list's names only past three letters and when not an everyday word.
+const SINGLE = [...KNOWN_BRANDS, ...LISTED.filter((name) => name.length > 3 && !EVERYDAY.has(name))].filter(
+  (name) => !/\s/.test(name),
 );
+const SEVERAL = [...KNOWN_BRANDS, ...LISTED, ...LONG_FORMS.map(([form]) => form)].filter(
+  (name) => /\s/.test(name) && !EVERYDAY.has(name),
+);
+// A one-word name as listed or in capitals ("Absa", "ABSA"; "visa" or "square" in running text is a word, not a brand);
+// a name of several words, or a long form, in any case ("standard bank", "FIRST NATIONAL BANK").
+const BRAND_RULE = new RegExp(
+  `${bounded(SEVERAL)}|${bounded([...SINGLE, ...SINGLE.map((n) => n.toUpperCase())])}`,
+  "iu",
+);
+const SINGLE_EXACT = new Set([...SINGLE, ...SINGLE.map((n) => n.toUpperCase())]);
+function firstBrand(text: string): string | undefined {
+  const pattern = new RegExp(BRAND_RULE.source, "giu");
+  for (const match of text.matchAll(pattern)) {
+    const several = match[1];
+    if (several) return several;
+    // The pattern is case-blind; a one-word name counts only in a case it is listed in, or in capitals.
+    const single = match[2];
+    if (single && SINGLE_EXACT.has(single)) return single;
+  }
+  return undefined;
+}
 // Another service named only to sign in with it, or as a page's maker, is not the page's brand.
 const THIRD_PARTY =
   /\b(?:(?:sign|log) ?(?:in|on|up)|continue|connect|register) (?:with|using|via) [\p{L}\p{N}]+(?:\.\p{L}{2,})?|\bpowered by [\p{L}\p{N}]+(?:\.\p{L}{2,})?/giu;
 
-// A page's brand when its source gave none: a lure's, the first known brand its text names near the top (with sign-in
+// A page's brand when its source gave none, or when a rule gave the one it has (rules are re-run as they improve; a
+// source's own brand is never touched): a lure's, the first known brand its text names near the top (with sign-in
 // buttons for other services left out), canonical; else none, which the receipt counts as unresolved; a real page's,
 // its site's name from its host (`standardbank.co.za` is "Standard Bank", `en.wikipedia.org` is `wikipedia`), else
-// none. A source's own brand is never touched.
+// none. Undefined when there is nothing to set.
 export function derivedBrand(page: StoredPage, text: string): string | null | undefined {
-  if (page.labels.brand !== undefined || page.labels.lure === undefined) return undefined;
+  if (page.labels.lure === undefined) return undefined;
+  if (page.labels.brand !== undefined && page.label_source.brand !== "rule") return undefined;
+  let brand: string | null;
   if (page.labels.lure) {
-    const found = BRAND_RULE.exec(text.slice(0, 2000).replace(THIRD_PARTY, " "))?.[1];
-    return found ? canonicalBrand(found) : null;
+    const found = firstBrand(text.slice(0, 2000).replace(THIRD_PARTY, " "));
+    brand = found ? canonicalBrand(found) : null;
+  } else {
+    const stem = (page.host ? getDomain(page.host) : null)?.split(".")[0];
+    brand = stem ? canonicalBrand(stem) : null;
   }
-  const site = page.host ? getDomain(page.host) : null;
-  const stem = site?.split(".")[0];
-  return stem ? canonicalBrand(stem) : null;
+  return page.labels.brand === brand ? undefined : brand;
 }
 
 // A label complete as the screener answers (every field of `PageAnswer` but its confidence).
@@ -333,6 +362,17 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
     }
     const problem = labelProblem(current);
     if (problem) excluded.set(page.id, problem);
+  }
+  // A page whose teacher answer was lost (`quarantined` in raw/teacher/state.json, read here without the teacher's
+  // module) may have been disputed: kept out of training and evaluation.
+  const teacherFile = join(store.dir, "raw", "teacher", "state.json");
+  if (existsSync(teacherFile)) {
+    const { pages } = JSON.parse(readFileSync(teacherFile, "utf-8")) as {
+      pages: Record<string, { status: string; reason?: string }>;
+    };
+    for (const [id, outcome] of Object.entries(pages))
+      if (outcome.status === "quarantined" && !excluded.has(id))
+        excluded.set(id, `the teacher's answer was lost (${outcome.reason ?? "quarantined"})`);
   }
   writeExcluded(store.dir, excluded);
   for (const reason of excluded.values()) count(`excluded: ${reason.replace(/ \(.*$/, "")}`);
