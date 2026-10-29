@@ -391,7 +391,7 @@ describe("a teacher run that stops", () => {
 
   it("estimates an attempt at the whole answer the request allows", () => {
     expect(ESTIMATE_USD).toBe(tokenCost(SPARK, 9_000, TEACHER_MAX_OUTPUT_TOKENS));
-    expect(TEACHER_MAX_OUTPUT_TOKENS).toBe(600);
+    expect(TEACHER_MAX_OUTPUT_TOKENS).toBe(2_000);
   });
 
   it("fails a page whose call was out when the run stopped, and never sends it again", async () => {
@@ -762,5 +762,93 @@ describe("a disagreement whose queue entry was lost (round 3)", () => {
     expect(calls).toBe(0);
     expect(readQueue(join(dir, "store")).map((e) => e.id)).toEqual([id]);
     expect(checkLabels(store).join()).not.toMatch(/review queue/);
+  });
+});
+
+describe("a reply cut off before its answer", () => {
+  it("is failed as cut off, and asked again only when failed pages are retried", async () => {
+    const id = await stored(1, true);
+    const ledgerFile = join(dir, "ledger", "meta-spend.json");
+    const cut: Ask = async (_input, _instructions, attempts) => {
+      attempts.settle(attempts.reserve(1, ESTIMATE_USD), 0.004);
+      return { text: "", usd: 0.004, incomplete: "max_output_tokens" };
+    };
+    await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile,
+      run: "glimmer-teacher-t",
+      max: 5,
+      now: NOW,
+      ask: cut,
+    });
+    expect(readTeacherState(join(dir, "store")).get(id)).toEqual({
+      status: "failed",
+      reason: "Spark's answer was cut off (max_output_tokens)",
+    });
+    let calls = 0;
+    const answer1 = answering(
+      () => answer(true),
+      0.004,
+      () => calls++,
+    );
+    await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile,
+      run: "glimmer-teacher-t",
+      max: 5,
+      now: NOW,
+      ask: answer1,
+    });
+    expect(calls).toBe(0);
+    await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile,
+      run: "glimmer-teacher-t",
+      max: 5,
+      now: NOW,
+      ask: answer1,
+      retryFailed: true,
+    });
+    expect(calls).toBe(1);
+    expect(statusOf(id)).toBe("agreed");
+  });
+
+  it("asks Spark at low reasoning effort with room to answer", async () => {
+    let body: Record<string, unknown> = {};
+    const ask = sparkAsk({
+      env: {
+        META_API_KEY: "LLM_test_key_0123456789",
+        CF_AIG_TOKEN: "aig-token-0123456789",
+        META_GATEWAY_URL: "https://gateway.test/v1/",
+      },
+      budget: {
+        reserve: async (_m, _e, _a, id) => id as string,
+        settle: async () => {},
+        uncertain: async () => {},
+        refused: async () => {},
+        cached: async () => {},
+        outputFailed: async () => {},
+      },
+      fetch: (async (_url: string, init: { body: string }) => {
+        body = JSON.parse(init.body);
+        return new Response(
+          JSON.stringify({
+            id: "r",
+            object: "response",
+            status: "incomplete",
+            incomplete_details: { reason: "max_output_tokens" },
+            output: [],
+            output_text: "",
+            usage: { input_tokens: 10, output_tokens: 2000 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }) as never,
+      sleep: async () => {},
+      random: () => 0.5,
+    });
+    const reply = await ask([], "x", { reserve: () => "id", settle: () => {}, uncertain: () => {}, release: () => {} });
+    expect(body).toMatchObject({ max_output_tokens: 2_000, reasoning: { effort: "low" } });
+    expect(reply.incomplete).toBe("max_output_tokens");
   });
 });

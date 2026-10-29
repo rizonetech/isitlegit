@@ -1,6 +1,6 @@
 // Muse Spark as a second opinion on Loupe's evaluation pages (D03 T04 §9).
 //
-//   node scripts/glimmer/teacher-label.ts [--max <pages>]   # after label-rules.ts; writes raw/teacher/receipt.json
+//   node scripts/glimmer/teacher-label.ts [--max <pages>] [--retry-failed]   # after label-rules.ts; writes the receipt
 //   node scripts/glimmer/teacher-label.ts check             # every page complete or excluded, the receipt current
 //
 // The free rules (`label-rules.ts`) fill every brand and lure type, so Spark's job is a check, not a fill: it answers
@@ -41,8 +41,11 @@ import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
 export const GLIMMER_CAP_USD = 20;
-// The teacher's answer is one PageAnswer object (a verdict, a brand, two form flags and a short reason).
-export const TEACHER_MAX_OUTPUT_TOKENS = 600;
+// Spark reasons before it answers, and its reasoning counts as output: at 600 tokens and its default effort it spent
+// them all reasoning and returned no text (427 of 500 checks, 2026-10-29). At low effort an answer took 285 to 529
+// tokens; 2,000 leave room for both.
+export const TEACHER_MAX_OUTPUT_TOKENS = 2_000;
+export const TEACHER_REASONING_EFFORT = "low";
 // A worst case for one attempt: the system prompt and up to 6,000 characters of text, one 1280 by 2000 screenshot, and
 // the whole answer the request allows.
 export const ESTIMATE_USD = tokenCost(SPARK, 9_000, TEACHER_MAX_OUTPUT_TOKENS);
@@ -68,11 +71,12 @@ export function sharedClock(now: () => Date = () => new Date()): { teacher: () =
   return { teacher: () => (at = now()), guard: () => at };
 }
 
+// `incomplete`: why the reply was cut off before its answer ended (Meta's `incomplete_details.reason`), when it was.
 export type Ask = (
   input: unknown[],
   instructions: string,
   attempts: AttemptLedger,
-) => Promise<{ text: string; usd: number | null }>;
+) => Promise<{ text: string; usd: number | null; incomplete?: string }>;
 
 // The teacher's Spark call, through main's client and budget guard (D03 T01 §2): every attempt the client makes is
 // reserved first in the local ledger (`attempts`) and then in `budget` under the same id, and closed in both. A cap's
@@ -111,7 +115,13 @@ export function sparkAsk(context: Omit<MetaContext, "owner">): Ask {
       },
     };
     const { data } = await metaResponses(
-      { model: SPARK, input: input as never, instructions, max_output_tokens: TEACHER_MAX_OUTPUT_TOKENS },
+      {
+        model: SPARK,
+        input: input as never,
+        instructions,
+        max_output_tokens: TEACHER_MAX_OUTPUT_TOKENS,
+        reasoning: { effort: TEACHER_REASONING_EFFORT },
+      },
       { ...context, budget, owner: { kind: "script", name: "glimmer-teacher-label" } },
     );
     const usage = (
@@ -123,7 +133,12 @@ export function sparkAsk(context: Omit<MetaContext, "owner">): Ask {
       typeof usage?.input_tokens === "number" && typeof usage?.output_tokens === "number"
         ? tokenCost(SPARK, usage.input_tokens, usage.output_tokens, usage.input_tokens_details?.cached_tokens ?? 0)
         : null;
-    return { text: (data as { output_text?: string }).output_text ?? "", usd };
+    const reply = data as { output_text?: string; status?: string; incomplete_details?: { reason?: string } | null };
+    return {
+      text: reply.output_text ?? "",
+      usd,
+      ...(reply.status === "incomplete" ? { incomplete: reply.incomplete_details?.reason ?? "incomplete" } : {}),
+    };
   };
 }
 
@@ -355,6 +370,9 @@ export async function teach(options: {
   run: string;
   max: number;
   now?: () => Date;
+  // Ask again the pages whose check produced no valid answer (a reply cut off, or one that was not a PageAnswer):
+  // nothing was learned from them, so nothing is lost. A quarantined page, whose answer may have been lost, never is.
+  retryFailed?: boolean;
 }): Promise<TeacherResult> {
   const { store, ask, ledgerFile, run } = options;
   const now = options.now ?? (() => new Date());
@@ -398,7 +416,11 @@ export async function teach(options: {
     result.recovered++;
   }
   // A page the budget refused sent nothing: it is asked again; any other state is never sent twice.
-  const done = new Set([...state].filter(([, outcome]) => outcome.status !== "refused").map(([id]) => id));
+  const done = new Set(
+    [...state]
+      .filter(([, outcome]) => outcome.status !== "refused" && !(options.retryFailed && outcome.status === "failed"))
+      .map(([id]) => id),
+  );
   for (const page of candidates(pages, done).slice(0, options.max)) {
     const read = store.readVerifiedPage(page.id);
     if (!read) {
@@ -463,14 +485,16 @@ export async function teach(options: {
       } catch {
         parsed = null;
       }
-      outcome = parsed?.success
-        ? {
-            status: parsed.data.lure === page.labels.lure ? "agreed" : "disputed",
-            answer: parsed.data,
-            applied: false,
-            checked,
-          }
-        : { status: "failed", reason: "Spark's answer was not a valid PageAnswer" };
+      outcome = reply.incomplete
+        ? { status: "failed", reason: `Spark's answer was cut off (${reply.incomplete})` }
+        : parsed?.success
+          ? {
+              status: parsed.data.lure === page.labels.lure ? "agreed" : "disputed",
+              answer: parsed.data,
+              applied: false,
+              checked,
+            }
+          : { status: "failed", reason: "Spark's answer was not a valid PageAnswer" };
     } catch (error) {
       if (error instanceof BudgetExceeded || error instanceof BudgetUnavailable) {
         stop = capReached
@@ -701,6 +725,7 @@ if (import.meta.filename === process.argv[1] && process.argv[2] !== "check") {
       run: `glimmer-teacher-${Date.now()}`,
       max,
       now: clock.teacher,
+      retryFailed: process.argv.includes("--retry-failed"),
     });
     console.log(JSON.stringify(result));
     // The rules again, so every page this run quarantined is excluded before the receipt is written.
