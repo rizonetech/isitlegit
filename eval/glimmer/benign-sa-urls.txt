@@ -664,3 +664,11 @@ login	https://app.stitch.money/	Stitch
 login	https://merchant.payflex.co.za/	Payflex
 login	https://portal.payjustnow.com/	PayJustNow
 login	https://app.easyequities.co.za/	EasyEquities	openeasy.io
+login	https://my.telkom.co.za/	Telkom
+login	https://www.exclusivebooks.co.za/account/login	Exclusive Books
+login	https://www.lottostar.co.za/login	LottoStar
+login	https://www.quicket.co.za/account/login	Quicket
+login	https://portal.paygate.co.za/	PayGate
+login	https://dashboard.ikhokha.com/	iKhokha
+login	https://compeasy.labour.gov.za/	CompEasy
+login	https://secure.intercape.co.za/	Intercape
