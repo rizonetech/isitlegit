@@ -1,8 +1,9 @@
 // Loads the curated brand table into the Worker's `CACHE` namespace under `brands:v1` (D02 T03 §3), so a new revision is
 // read without a deploy. It validates the table first, keeps the value it replaces under `brands:v1:previous`, writes,
 // then reads the key back and compares it whole, retrying for KV's eventual consistency, and exits non-zero on a refused
-// write or a read-back that never matches. `--restore` writes the previous value back (and keeps the replaced one as the
-// new previous). The target is always named: `--local` (Wrangler's local storage) or `--remote` (production).
+// write or a read-back that never matches. `--restore` makes the previous value live again and leaves the copy as it is,
+// so a restore retried after a lost answer restores the same revision (round 1). The target is always named:
+// `--local` (Wrangler's local storage) or `--remote` (production).
 //
 //   node scripts/load-brands.ts --local|--remote [--restore] [--table data/brands.json]
 import { spawnSync } from "node:child_process";
@@ -74,8 +75,8 @@ export async function loadBrands(options: LoadOptions): Promise<{ revision: stri
       throw new LoadRefused(`the table is malformed: ${parsed.error.issues[0]?.message ?? "invalid"}`);
     const text = JSON.stringify(parsed.data);
     // A load keeps the value it replaces as the rollback copy first, so a refused or interrupted write leaves the live
-    // value where it was and a retry works. A restore writes the live key first and only then the copy, so the revision
-    // being restored is never overwritten before it is live (completion review).
+    // value where it was and a retry works. A restore never writes the copy: the revision it restores stays the rollback
+    // target however often it is retried (completion review, round 1); the revision it replaces is in git.
     if (!options.restore && current !== null && current !== text) put(BRANDS_PREVIOUS_KEY, current);
     put(BRANDS_KEY, text);
     // KV is eventually consistent: the key may read its old value for a while after the write.
@@ -85,8 +86,6 @@ export async function loadBrands(options: LoadOptions): Promise<{ revision: stri
       if (Date.now() >= deadline) throw new LoadRefused(`${BRANDS_KEY} did not read back as written`);
       await sleep(2_000);
     }
-    deadline = Number.POSITIVE_INFINITY;
-    if (options.restore && current !== null && current !== text) put(BRANDS_PREVIOUS_KEY, current);
     return { revision: parsed.data.revision, key: BRANDS_KEY };
   } finally {
     rmSync(dir, { recursive: true, force: true });

@@ -96,9 +96,21 @@ function brandAt(table: BrandTable, host: string, path: string | null): BrandMat
   if (!brand) return null;
   const hosted = brand.user_content.some((entry) => {
     const slash = entry.indexOf("/");
-    const entryHost = slash < 0 ? entry : entry.slice(0, slash);
-    if (lower !== entryHost && !lower.endsWith(`.${entryHost}`)) return false;
-    return slash < 0 || (path !== null && path.startsWith(entry.slice(slash)));
+    const spec = slash < 0 ? entry : entry.slice(0, slash);
+    const exact = spec.startsWith("=");
+    const entryHost = exact ? spec.slice(1) : spec;
+    if (lower !== entryHost && (exact || !lower.endsWith(`.${entryHost}`))) return false;
+    // A host alone cannot say which path it serves, so a host with other people's content on some paths is not
+    // answered as official without one (round 1): only a web address's own path clears it.
+    return slash < 0 || path === null || pathUnder(path, entry.slice(slash));
   });
   return { brand, official: !hosted };
+}
+
+// Whether a path lies under a prefix whose `*` segments match any one segment.
+function pathUnder(path: string, prefix: string): boolean {
+  const want = prefix.split("/").slice(1, -1);
+  const have = path.split("/").slice(1);
+  if (have.length <= want.length) return false;
+  return want.every((segment, i) => segment === "*" || segment === have[i]);
 }

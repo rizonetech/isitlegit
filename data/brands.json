@@ -215,11 +215,15 @@
         "Microsoft account team"
       ],
       "domains": [
-        "microsoft.com"
+        "microsoft.com",
+        "microsoftonline.com",
+        "live.com"
       ],
       "user_content": [
         "answers.microsoft.com",
-        "techcommunity.microsoft.com"
+        "techcommunity.microsoft.com",
+        "learn.microsoft.com/*/answers/",
+        "=live.com"
       ],
       "sources": [
         {
@@ -229,6 +233,15 @@
             "microsoft.com"
           ],
           "evidence": "the email address domain is @accountprotection.microsoft.com, it is safe to trust the message and open it."
+        },
+        {
+          "url": "https://support.microsoft.com/en-us/office/troubleshoot-sign-in-issues-for-support-microsoft-com",
+          "read": "2026-10-29",
+          "names": [
+            "microsoftonline.com",
+            "live.com"
+          ],
+          "evidence": "login.microsoftonline.com for Microsoft account (personal) and Azure Active Directory (work or school); login.live.com for Microsoft account"
         }
       ]
     },
@@ -273,7 +286,8 @@
         "icloud.com"
       ],
       "user_content": [
-        "icloud.com"
+        "icloud.com",
+        "discussions.apple.com"
       ],
       "sources": [
         {

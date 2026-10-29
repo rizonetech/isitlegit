@@ -197,6 +197,38 @@ describe("the completion review (2026-10-29)", () => {
   });
 });
 
+describe("round 1 (2026-10-29)", () => {
+  it("gives Microsoft Q&A and Apple Discussions no official standing", () => {
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-us/answers/questions/123/lure")).toMatchObject({
+      brand: { name: "Microsoft" },
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-za/answers/questions/9")).toMatchObject({
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-us/azure/")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "discussions.apple.com")).toMatchObject({
+      brand: { name: "Apple" },
+      official: false,
+    });
+  });
+
+  it("answers a host alone as not official when some of its paths carry other people's content", () => {
+    expect(brandForDomain(bundled, "www.paypal.com")).toMatchObject({ brand: { name: "PayPal" }, official: false });
+    expect(brandForDomain(bundled, "paypal.com")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "learn.microsoft.com")).toMatchObject({ official: false });
+  });
+
+  it("knows Microsoft's sign-in hosts, and that live.com itself is anyone's mailbox", () => {
+    expect(brandForDomain(bundled, "login.microsoftonline.com")).toMatchObject({
+      brand: { name: "Microsoft" },
+      official: true,
+    });
+    expect(brandForDomain(bundled, "login.live.com")).toMatchObject({ brand: { name: "Microsoft" }, official: true });
+    expect(brandForDomain(bundled, "live.com")).toMatchObject({ brand: { name: "Microsoft" }, official: false });
+  });
+});
+
 describe("getBrand and brandForDomain", () => {
   it("finds a brand by any of its names, without regard to case, spacing or punctuation", () => {
     expect(getBrand(bundled, "fnb")?.name).toBe("FNB");

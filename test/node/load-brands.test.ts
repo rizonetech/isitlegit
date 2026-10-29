@@ -144,12 +144,14 @@ describe("loadBrands", () => {
     );
   });
 
-  it("restores the previous value, keeping the replaced one as the new previous", async () => {
+  it("restores the previous value and leaves it the rollback copy, so a retried restore restores the same revision", async () => {
     const fake = fakeKv({ [BRANDS_KEY]: table("2026-11-05"), [BRANDS_PREVIOUS_KEY]: table("2026-10-29") });
-    expect((await loadBrands({ target: "local", restore: true, run: fake.run, sleep: noSleep })).revision).toBe(
-      "2026-10-29",
-    );
-    expect(JSON.parse(fake.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-11-05");
+    for (let attempt = 0; attempt < 2; attempt++)
+      expect((await loadBrands({ target: "local", restore: true, run: fake.run, sleep: noSleep })).revision).toBe(
+        "2026-10-29",
+      );
+    expect(JSON.parse(fake.store.get(BRANDS_KEY) as string).revision).toBe("2026-10-29");
+    expect(JSON.parse(fake.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-10-29");
     await expect(loadBrands({ target: "local", restore: true, run: fakeKv().run })).rejects.toThrow(
       /no brands:v1:previous/,
     );
@@ -161,10 +163,21 @@ describe("loadBrands", () => {
     const refused = fakeKv(start, { puts: 0 });
     await expect(loadBrands({ target: "local", restore: true, run: refused.run, sleep: noSleep })).rejects.toThrow();
     expect(JSON.parse(refused.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-10-29");
-    // The live key written, the copy refused: 2026-10-29 is live, so nothing is lost.
-    const partway = fakeKv(start, { puts: 1 });
-    await expect(loadBrands({ target: "local", restore: true, run: partway.run, sleep: noSleep })).rejects.toThrow();
-    expect(JSON.parse(partway.store.get(BRANDS_KEY) as string).revision).toBe("2026-10-29");
+    // The write commits but its answer is lost: the run fails, and a retry restores the same revision.
+    const lost = fakeKv(start);
+    let first = true;
+    const losing: Run = (args, ms) => {
+      const done = lost.run(args, ms);
+      if (args[2] === "put" && first) {
+        first = false;
+        return { status: 1, stdout: "", stderr: "connection reset" };
+      }
+      return done;
+    };
+    await expect(loadBrands({ target: "local", restore: true, run: losing, sleep: noSleep })).rejects.toThrow();
+    const retried = await loadBrands({ target: "local", restore: true, run: losing, sleep: noSleep });
+    expect(retried.revision).toBe("2026-10-29");
+    expect(JSON.parse(lost.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-10-29");
     // A load refused partway keeps the live value live.
     const loading = fakeKv({ [BRANDS_KEY]: table("2026-10-29") }, { puts: 1 });
     await expect(
