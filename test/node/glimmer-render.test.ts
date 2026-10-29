@@ -28,6 +28,7 @@ import {
   readingsAgree,
   readJournal,
   recheckStored,
+  renderReceipt,
   reopenExcluded,
   runBatch,
   saList,
@@ -849,6 +850,38 @@ describe("the batch run", () => {
     }
   });
 
+  it("writes a render receipt: every listed URL's terminal outcome, its runs' concurrency, unfinished ones named", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    // Two runs of this list (a restart), at two widths, and another list's run between them in the same journal.
+    await runBatch({ list: list(["/page"]), store, journal, render: renderer.render, concurrency: 2 });
+    await runBatch({
+      list: { ...list(["/other"]), name: "majestic" },
+      store,
+      journal,
+      render: async () => {
+        throw new HttpStatus(404);
+      },
+    });
+    await runBatch({
+      list: list(["/missing", "/flaky"]),
+      store,
+      journal,
+      concurrency: 3,
+      render: async (url) => {
+        throw url.endsWith("/flaky") ? new HttpStatus(503) : new HttpStatus(404);
+      },
+    });
+    const receipt = renderReceipt(list(["/page", "/missing", "/flaky", "/never"]), journal, store);
+    expect(receipt).toMatchObject({ urls: 4, stored: 1, excluded: { "HTTP 404": 1 }, concurrency: [2, 3] });
+    // A URL at retry, and one no run reached, are unfinished; the other list's URL is not counted.
+    expect(receipt.unfinished).toEqual([`${origin}/flaky`, `${origin}/never`]);
+    expect(receipt.missing_pages).toEqual([]);
+    // A stored page that has gone from the store is reported.
+    store.removePage(store.manifest()[0]?.id as string);
+    expect(renderReceipt(list(["/page"]), journal, store).missing_pages).toEqual([`${origin}/page`]);
+  });
+
   it("stores the usable pages, excludes the rest, and a rerun stores nothing twice", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "store/raw/benign/progress.jsonl");
@@ -885,7 +918,7 @@ describe("the batch run", () => {
         },
       }),
     ).rejects.toThrow("stopped");
-    expect(readJournal(journal).map((e) => e.event)).toEqual(["started"]);
+    expect(readJournal(journal).map((e) => e.event)).toEqual(["run", "started"]);
     let rendered = 0;
     const rerun = await runBatch({
       list: urls,

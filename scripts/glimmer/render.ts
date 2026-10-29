@@ -1172,7 +1172,10 @@ export async function openRenderer(
 // `reopened` when an exclusion a fault of the renderer made is cleared, so the next run renders the page again.
 export type JournalEvent = {
   url: string;
-  event: "started" | "stored" | "excluded" | "retry" | "reopened";
+  event: "started" | "stored" | "excluded" | "retry" | "reopened" | "run";
+  // A batch run's start (`run`): its list and how many renders it held at once (§18's render receipt).
+  list?: string;
+  concurrency?: number;
   id?: string;
   reason?: string;
   // A retry the browser's own failure caused: it never counts toward the page's tries (§26).
@@ -1346,6 +1349,70 @@ export function recheckStored(
   return result;
 }
 
+export type RenderReceipt = {
+  list: string;
+  list_sha256: string;
+  urls: number;
+  stored: number;
+  excluded: Record<string, number>;
+  unfinished: string[];
+  missing_pages: string[];
+  concurrency: number[];
+  active_seconds: number;
+};
+
+// The widened render's receipt (§18): the list it rendered (its URLs' SHA-256), each listed URL's latest terminal
+// outcome (stored, with its page still in the store, or excluded with its reason; a URL at `retry`, `started` or never
+// met is unfinished), the concurrency its runs held, and its active time: from each event of this list's URLs to the
+// next, with gaps over five minutes (pauses, other lists' runs) left out. Written temp-then-replace and read back.
+export function renderReceipt(list: UrlList, journal: string, store: ReturnType<typeof openStore>): RenderReceipt {
+  const urls = new Set(list.entries.map((entry) => entry.url));
+  const last = new Map<string, JournalEvent>();
+  const times: number[] = [];
+  const concurrency = new Set<number>();
+  for (const event of readJournal(journal)) {
+    if (event.event === "run") {
+      if (event.list === list.name && event.concurrency) concurrency.add(event.concurrency);
+      continue;
+    }
+    if (!urls.has(event.url)) continue;
+    times.push(Date.parse(event.at));
+    // A reopened page goes back to unfinished until its next outcome.
+    last.set(event.url, event);
+  }
+  const present = new Set(store.manifest({ tolerant: true }).map((page) => page.id));
+  const receipt: RenderReceipt = {
+    list: list.name,
+    list_sha256: createHash("sha256")
+      .update([...urls].sort().join("\n"))
+      .digest("hex"),
+    urls: urls.size,
+    stored: 0,
+    excluded: {},
+    unfinished: [],
+    missing_pages: [],
+    concurrency: [...concurrency].sort((a, b) => a - b),
+    active_seconds: 0,
+  };
+  for (const url of [...urls].sort()) {
+    const event = last.get(url);
+    if (event?.event === "stored") {
+      if (event.id && present.has(event.id)) receipt.stored++;
+      else receipt.missing_pages.push(url);
+    } else if (event?.event === "excluded") {
+      const reason = (event.reason ?? "").replace(/ \(.*$/, "");
+      receipt.excluded[reason] = (receipt.excluded[reason] ?? 0) + 1;
+    } else receipt.unfinished.push(url);
+  }
+  times.sort((a, b) => a - b);
+  for (let i = 1; i < times.length; i++) {
+    const gap = ((times[i] as number) - (times[i - 1] as number)) / 1000;
+    if (gap <= 300) receipt.active_seconds += gap;
+  }
+  receipt.active_seconds = Math.round(receipt.active_seconds);
+  return receipt;
+}
+
 // Reopens every page whose last outcome is an exclusion whose reason matches: the record stays, and a `reopened` line
 // after it names the reason, so the next run renders the page again from its first try. A stored page is never
 // reopened. Returns the URLs reopened.
@@ -1376,6 +1443,7 @@ export async function runBatch(options: {
   mkdirSync(resolve(journal, ".."), { recursive: true });
   const state = new Map<string, { outcome?: "stored" | "excluded"; open: boolean; retries: number }>();
   for (const event of readJournal(journal)) {
+    if (event.event === "run") continue; // a run's start, not a page's
     const entry = state.get(event.url) ?? { open: false, retries: 0 };
     if (event.event === "started") entry.open = true;
     else {
@@ -1396,6 +1464,7 @@ export async function runBatch(options: {
   // bytes is the same page, recorded as excluded, never as a second store.
   const urlById = new Map(stored.flatMap((page) => (page.url ? [[page.id, page.url] as const] : [])));
   const result: BatchResult = { stored: 0, excluded: 0, retry: 0, skipped: 0, recovered: 0 };
+  appendJournal(journal, { url: "", event: "run", list: list.name, concurrency: options.concurrency ?? 4 });
   const source = list.name === "majestic" ? "benign-majestic" : `benign-${list.name.replace(/^benign-/, "")}`;
   let next = 0;
   let done = 0;
@@ -1588,6 +1657,9 @@ export function parseCommand(
   // `--coverage` is the spelling §6's checkpoint names; `coverage` the subcommand's.
   const command = given === "--coverage" ? "coverage" : (given ?? "");
   if ((command === "coverage" || command === "recheck") && rest.length === 1) return { command, concurrency };
+  // `receipt majestic|benign-sa`: the list's render receipt (§18).
+  if (command === "receipt" && rest.length === 2 && (rest[1] === "majestic" || rest[1] === "benign-sa"))
+    return { command, only: rest[1], concurrency };
   // `recheck --rerender-legacy`: every page stored before its evidence was kept is rendered again by the next run.
   if (command === "recheck" && rest.length === 2 && rest[1] === "--rerender-legacy")
     return { command, concurrency, rerenderLegacy: true };
@@ -1624,6 +1696,27 @@ if (import.meta.filename === process.argv[1]) {
     );
     // Clean only when every page was verified and judged: zero removals alone is not clean.
     process.exit(result.damaged.length || result.unassessed.length ? 1 : 0);
+  }
+  if (command === "receipt" && only) {
+    const list =
+      only === "majestic"
+        ? majesticList(readFileSync(join(dir, "raw/majestic/top.csv"), "utf-8"))
+        : saList(readFileSync(join(ROOT, "eval/glimmer/benign-sa-urls.txt"), "utf-8"));
+    const receipt = renderReceipt(list, join(dir, "raw/benign/progress.jsonl"), store);
+    const file = join(dir, "raw", only === "majestic" ? "majestic" : "benign", "RENDER.json");
+    mkdirSync(dirname(file), { recursive: true });
+    const temporary = `${file}.${process.pid}.tmp`;
+    writeFileSync(
+      temporary,
+      `${JSON.stringify({ ...receipt, unfinished: receipt.unfinished.slice(0, 50) }, null, 1)}\n`,
+    );
+    renameSync(temporary, file);
+    const back = JSON.parse(readFileSync(file, "utf-8")) as RenderReceipt;
+    if (back.list_sha256 !== receipt.list_sha256) throw new Error("the render receipt did not read back as written");
+    const short = { ...receipt, unfinished: receipt.unfinished.length, missing_pages: receipt.missing_pages.length };
+    console.log(JSON.stringify(short));
+    // Complete only when every listed URL has its terminal outcome and every stored one its page.
+    process.exit(receipt.unfinished.length || receipt.missing_pages.length ? 1 : 0);
   }
   if (command === "reopen" && matching) {
     const reopened = reopenExcluded(join(dir, "raw/benign/progress.jsonl"), matching);
