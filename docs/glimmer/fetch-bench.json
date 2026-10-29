@@ -212,61 +212,69 @@
  "scenarios": {
   "drop": {
    "fetch.py (one stream)": {
-    "median_seconds": 12.26,
+    "median_seconds": 12.24,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    },
    "fetch.py (four segments)": {
-    "median_seconds": 3.5,
+    "median_seconds": 3.41,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    },
    "aria2c (one connection)": {
-    "median_seconds": 12.13,
+    "median_seconds": 12.16,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    },
    "aria2c (four connections)": {
-    "median_seconds": 3.21,
-    "median_refetched_bytes": 65536,
+    "median_seconds": 3.14,
+    "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    }
   },
   "mirror": {
    "fetch.py (one stream)": {
-    "median_seconds": 13.29,
+    "median_seconds": 15.22,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    },
    "fetch.py (four segments)": {
-    "median_seconds": 4.75,
+    "median_seconds": 5.19,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    },
    "aria2c (one connection)": {
-    "median_seconds": 17.27,
+    "median_seconds": 17.13,
     "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    },
    "aria2c (four connections)": {
-    "median_seconds": 6.31,
-    "median_refetched_bytes": 65536,
+    "median_seconds": 6.22,
+    "median_refetched_bytes": 0,
     "recovered": 5,
     "intact": 5,
+    "cut": 5,
     "runs": 5
    }
   }
@@ -274,28 +282,36 @@
  "acceptance": {
   "drop": {
    "met": true,
-   "time_ratio": 1.09,
+   "time_ratio": 1.086,
    "refetched": [
     0,
-    65536
+    0
    ],
    "intact": [
+    5,
+    5
+   ],
+   "cut": [
     5,
     5
    ]
   },
   "mirror": {
    "met": true,
-   "time_ratio": 0.753,
+   "time_ratio": 0.834,
    "refetched": [
     0,
-    65536
+    0
    ],
    "intact": [
+    5,
+    5
+   ],
+   "cut": [
     5,
     5
    ]
   }
  },
- "measured": "2026-10-29T04:14:35Z"
+ "measured": "2026-10-29T04:59:11Z"
 }

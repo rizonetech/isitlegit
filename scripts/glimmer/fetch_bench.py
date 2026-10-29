@@ -4,7 +4,8 @@
 
 A local server serves a seeded payload (its SHA-256 recorded) with range support, at most `--cap-mib` MiB a second on
 each connection (as a dataset host caps one connection). Two scenarios: `drop`, where each run's first transfer is cut
-at half of what it asked for, and `mirror`, where the first URL answers every request `503` and a second URL (the same
+once it has sent an eighth of the file (12 MiB of 96: inside the first range of every tool, since aria2c's first
+connection reads only its quarter of the file and a cut at half of what it asked for never reached it), and `mirror`, where the first URL answers every request `503` and a second URL (the same
 file, cut the same way) has to serve it. Each tool fetches it `--runs` times per scenario under one recorded
 configuration: `fetch.py` on one stream and on four segments, aria2c on one connection and on four (`-x4 -s4 -k1M`),
 all with 3 tries, a 1-second retry wait, 30-second connect and read timeouts, a 16 KiB/s rate floor and the published
@@ -108,7 +109,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(end - start + 1))
         self.end_headers()
         with server.lock:
-            drop_at = None if server.dropped else start + (end - start + 1) // 2  # half of what this transfer asked
+            # An eighth of the file into the first transfer, whatever range it asked for: the same byte for every tool.
+            drop_at = None if server.dropped else min(end + 1, start + len(body) // 8)
             server.dropped = True
         at, began = start, time.monotonic()
         try:

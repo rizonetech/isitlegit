@@ -53,15 +53,16 @@ class Harness(unittest.TestCase):
         self.assertFalse(uncut["drop"]["met"])  # never interrupted: no recovery was measured
 
     def test_the_cut_happens_on_a_piece_boundary(self):
-        # A transfer whose half falls exactly where a 64 KiB piece ends was never cut before (completion review G9).
-        body = bench.payload(4 * 65536)
+        # A cut point exactly where a 64 KiB piece ends was never cut before (completion review G9): an eighth of
+        # this file is one piece.
+        body = bench.payload(8 * 65536)
         server = bench.Bench(body, 10**9)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(lambda: (server.shutdown(), server.server_close()))
         with self.assertRaises(Exception):
             urllib.request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/x", timeout=5).read()
         self.assertEqual(server.drops, 1)
-        self.assertEqual(server.sent, 2 * 65536)
+        self.assertEqual(server.sent, 65536)
 
     def test_refuses_nonsense_settings(self):
         with mock.patch("sys.stderr"):

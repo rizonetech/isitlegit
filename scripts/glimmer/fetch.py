@@ -30,7 +30,8 @@ content coding and a strong validator comes in up to four ranges at once (`--seg
 D03 T04 §20, where four connections took 74 percent less time than one against a host that caps each connection).
 Each range is written at its offset, its progress saved every 4 MiB after a flush, and checked as a resume is; all of
 them share the attempt budget, the limits and the lock. An answer that does not fit starts the file again on one
-stream, and the file is published only whole and verified, as above.
+stream, and the file is published only whole and verified, as above; its digest is read back in file order as the
+leading ranges fill, so no whole-file pass follows the transfer.
 
 `--mirror URL` (repeatable) adds URLs for the same file, tried in order under the same rules: a counted failure moves
 on to the next, a refused route or a refused answer rules that URL out, a digest mismatch rules it out and starts the
@@ -333,6 +334,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     partial = partial_dir / target.name
     state_file = partial_dir / f"{target.name}.state.json"
     fetched = 0
+    streamed: dict[str, str] = {}  # the digest a segmented run computed as its ranges arrived, read back from the file
 
     def outcome(status, **extra):
         return {"status": status, "bytes": target.stat().st_size if target.exists() else 0, "fetched": fetched, **extra}
@@ -703,13 +705,51 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         continue
                     run(item)
 
+            hasher = hashlib.new(kind)
+            hashed = {"at": 0, "failed": False}
+
+            def frontier() -> int:
+                # The end of the unbroken run of written bytes from the start of the file.
+                with guard:
+                    for item in state["segments"]:
+                        if rest(item) > 0:
+                            return item[0] + item[2]
+                    return state["total"]
+
+            def hash_up_to(end: int):
+                while hashed["at"] < end:
+                    block = os.pread(fd, min(1 << 20, end - hashed["at"]), hashed["at"])
+                    if not block:
+                        raise OSError(errno.EIO, "the partial file ended early")
+                    hasher.update(block)
+                    hashed["at"] += len(block)
+
+            def hash_along():
+                # The digest is computed in file order as the leading ranges fill, read back from the file, so only
+                # the last stretch is left to hash when the transfer ends (aria2c hashes the whole file after it).
+                try:
+                    while not stop.is_set() and any(thread.is_alive() for thread in threads):
+                        hash_up_to(frontier())
+                        stop.wait(0.05)
+                except OSError:
+                    hashed["failed"] = True  # the whole-file pass after the transfer judges it instead
+
             try:
                 count = segments if segments > 0 else 4
                 threads = [threading.Thread(target=worker, daemon=True) for _ in range(count)]
                 for thread in threads:
                     thread.start()
+                along = threading.Thread(target=hash_along, daemon=True)
+                along.start()
                 for thread in threads:
                     thread.join()
+                along.join()
+                if not errors and not hashed["failed"] and frontier() == state["total"]:
+                    try:
+                        hash_up_to(state["total"])
+                        streamed["digest"] = hasher.hexdigest()
+                    except OSError:
+                        pass  # the whole-file pass after the transfer judges it instead
                 try:
                     save()
                 except OSError as error:
@@ -870,7 +910,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     connection.close()
 
             try:
-                found = _digest(partial, kind)
+                found = streamed.pop("digest", None) or _digest(partial, kind)
             except OSError as error:
                 raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
             if found != want:

@@ -923,6 +923,14 @@ class Fetch(unittest.TestCase):
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
 
+    def test_a_segmented_file_is_hashed_as_it_arrives(self):
+        # No second pass over the whole file after the transfer: the digest was read back in file order as the ranges
+        # filled (a corrupt range is still caught by it: test_a_segmented_file_is_published_only_whole_and_verified).
+        with mock.patch.object(fetch, "_digest", side_effect=AssertionError("a whole-file pass")):
+            result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual((result["status"], result["sha256"]), ("fetched", SHA))
+        self.assert_whole()
+
     def test_an_inconsistent_segment_state_starts_again(self):
         Path("src/.partial").mkdir(parents=True)
         Path("src/.partial/data.bin").write_bytes(b"x" * 100)
