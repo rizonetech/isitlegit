@@ -11,6 +11,8 @@
     // A module a Node script also runs (src/meta/client.ts, by scripts/meta-client-live.ts) names its imports with
     // their extension, the only form Node's type stripping resolves; Wrangler's bundler takes either.
     "allowImportingTsExtensions": true,
+    // The lookalike module's generated Unicode data (src/checks/confusables-map.json, D02 T03 §1).
+    "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "jsx": "react-jsx",

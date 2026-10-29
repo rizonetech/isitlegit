@@ -14,7 +14,8 @@
       "biome.json",
       "!src/web/styles/tokens.css",
       "!src/web/styles/fonts.css",
-      "!src/web/assets.ts"
+      "!src/web/assets.ts",
+      "!src/checks/confusables-map.json"
     ]
   },
   "css": { "parser": { "tailwindDirectives": true } },
