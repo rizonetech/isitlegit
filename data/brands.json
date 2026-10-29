@@ -1,6 +1,16 @@
 {
   "version": 1,
   "revision": "2026-10-29",
+  "community_labels": [
+    "answers",
+    "community",
+    "communityhub",
+    "discussions",
+    "forum",
+    "forums",
+    "groups",
+    "techcommunity"
+  ],
   "brands": [
     {
       "name": "Standard Bank",
@@ -18,7 +28,7 @@
           "names": [
             "standardbank.co.za"
           ],
-          "evidence": "The bank's own scams page at this address; its text could not be read (the addresses are hidden by its bot protection)."
+          "evidence": "To confirm inbound calls from Standard Bank, use Trust Call: https://www.standardbank.co.za/southafrica/personal/products-and-services/security-centre/bank-safely/trust-call"
         }
       ]
     },
@@ -115,48 +125,6 @@
       ]
     },
     {
-      "name": "Investec",
-      "display_names": [
-        "Investec",
-        "Investec Private Bank"
-      ],
-      "domains": [
-        "investec.com"
-      ],
-      "user_content": [],
-      "sources": [
-        {
-          "url": "https://www.investec.com/en_za.html",
-          "read": "2026-10-29",
-          "names": [
-            "investec.com"
-          ],
-          "evidence": "Investec's South African home page at this address; its text could not be read (HTTP 403)."
-        }
-      ]
-    },
-    {
-      "name": "Capitec",
-      "display_names": [
-        "Capitec",
-        "Capitec Bank"
-      ],
-      "domains": [
-        "capitecbank.co.za"
-      ],
-      "user_content": [],
-      "sources": [
-        {
-          "url": "https://www.capitecbank.co.za/",
-          "read": "2026-10-29",
-          "names": [
-            "capitecbank.co.za"
-          ],
-          "evidence": "Capitec's home page at this address; its text could not be read (HTTP 403)."
-        }
-      ]
-    },
-    {
       "name": "Discovery Bank",
       "display_names": [
         "Discovery Bank",
@@ -215,11 +183,17 @@
         "Microsoft account team"
       ],
       "domains": [
-        "microsoft.com"
+        "microsoft.com",
+        "microsoftonline.com",
+        "live.com"
       ],
       "user_content": [
         "answers.microsoft.com",
-        "techcommunity.microsoft.com"
+        "techcommunity.microsoft.com",
+        "learn.microsoft.com/*/answers/",
+        "learn.microsoft.com/answers/",
+        "=live.com",
+        "onedrive.live.com"
       ],
       "sources": [
         {
@@ -229,6 +203,15 @@
             "microsoft.com"
           ],
           "evidence": "the email address domain is @accountprotection.microsoft.com, it is safe to trust the message and open it."
+        },
+        {
+          "url": "https://support.microsoft.com/en-us/office/troubleshoot-sign-in-issues-for-support-microsoft-com",
+          "read": "2026-10-29",
+          "names": [
+            "microsoftonline.com",
+            "live.com"
+          ],
+          "evidence": "login.microsoftonline.com for Microsoft account (personal) and Azure Active Directory (work or school); login.live.com for Microsoft account"
         }
       ]
     },
@@ -240,14 +223,16 @@
         "Gmail"
       ],
       "domains": [
-        "google.com"
+        "google.com",
+        "gmail.com"
       ],
       "user_content": [
         "sites.google.com",
         "docs.google.com",
         "drive.google.com",
         "script.google.com",
-        "groups.google.com"
+        "groups.google.com",
+        "gmail.com"
       ],
       "sources": [
         {
@@ -257,6 +242,14 @@
             "google.com"
           ],
           "evidence": "\"Mailed by\" header with the domain name, like google.com."
+        },
+        {
+          "url": "https://support.google.com/accounts/answer/6063333?hl=en",
+          "read": "2026-10-29",
+          "names": [
+            "gmail.com"
+          ],
+          "evidence": "Google's account-recovery help page links Gmail at www.gmail.com."
         }
       ]
     },
@@ -273,7 +266,8 @@
         "icloud.com"
       ],
       "user_content": [
-        "icloud.com"
+        "icloud.com",
+        "discussions.apple.com"
       ],
       "sources": [
         {
@@ -362,7 +356,8 @@
         "SARS eFiling"
       ],
       "domains": [
-        "sars.gov.za"
+        "sars.gov.za",
+        "sarsefiling.co.za"
       ],
       "user_content": [],
       "sources": [
@@ -373,6 +368,14 @@
             "sars.gov.za"
           ],
           "evidence": "always hover over hyperlinks to make sure it's a sars.gov.za link"
+        },
+        {
+          "url": "https://www.sars.gov.za/",
+          "read": "2026-10-29",
+          "names": [
+            "sarsefiling.co.za"
+          ],
+          "evidence": "SARS's home page links eFiling at https://secure.sarsefiling.co.za/ (its log-in and forgotten-details pages)."
         }
       ]
     },
@@ -409,7 +412,9 @@
         "sage.com",
         "sagecity.com"
       ],
-      "user_content": [],
+      "user_content": [
+        "communityhub.sage.com"
+      ],
       "sources": [
         {
           "url": "https://communityhub.sage.com/za/sage-pastel-payroll/f/announcements/205116/alert-how-to-contact-official-sage-support-to-avoid-third-party-scams",
@@ -568,7 +573,10 @@
       "domains": [
         "paypal.com"
       ],
-      "user_content": [],
+      "user_content": [
+        "paypal.com/invoice/",
+        "paypal.com/myaccount/transfer/"
+      ],
       "sources": [
         {
           "url": "https://www.paypal.com/us/smarthelp/article/how-to-spot-fake-emails-faq2340",
@@ -587,7 +595,8 @@
         "PayFast"
       ],
       "domains": [
-        "payfast.io"
+        "payfast.io",
+        "payfast.co.za"
       ],
       "user_content": [],
       "sources": [
@@ -598,6 +607,14 @@
             "payfast.io"
           ],
           "evidence": "Payfast's home page at this address."
+        },
+        {
+          "url": "https://payfast.io/",
+          "read": "2026-10-29",
+          "names": [
+            "payfast.co.za"
+          ],
+          "evidence": "Payfast's home page links its developer documentation at https://developers.payfast.co.za/docs."
         }
       ]
     },
@@ -623,6 +640,14 @@
     }
   ],
   "excluded": [
+    {
+      "name": "Capitec",
+      "reason": "Every page of its site answered HTTP 403 to the fetches made on 2026-10-29, so no brand-owned page naming a domain could be read (a home page's address alone is not taken as a source); add it in a later revision once one can."
+    },
+    {
+      "name": "Investec",
+      "reason": "Every page of its site answered HTTP 403 to the fetches made on 2026-10-29, so no brand-owned page naming a domain could be read (a home page's address alone is not taken as a source); add it in a later revision once one can."
+    },
     {
       "name": "The Courier Guy",
       "reason": "Every page of its site answered HTTP 403 to the fetches made on 2026-10-29, so no brand-owned page naming a domain could be read; add it in a later revision once one can."

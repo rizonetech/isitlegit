@@ -5,7 +5,7 @@
 // logged. A brand's registrable domains are its own except the hosts where it publishes other people's content
 // (`user_content`), answered as its platform but not the brand.
 import BUNDLED from "../../data/brands.json";
-import { BRANDS_KEY, BRANDS_SCHEMA, type Brand, BrandTable, registrable } from "./brand-schema";
+import { BRANDS_KEY, BRANDS_SCHEMA, type Brand, BrandTable, covers, registrable } from "./brand-schema";
 
 export { BRANDS_KEY, BRANDS_PREVIOUS_KEY, BRANDS_SCHEMA, type Brand, BrandTable, registrable } from "./brand-schema";
 export const KV_READ_MS = 1_000;
@@ -14,7 +14,7 @@ export const HELD_MS = 60_000;
 // The bundled table, checked when the module loads: a malformed one fails every test and the deploy's build.
 export const bundled: BrandTable = BrandTable.parse(BUNDLED);
 
-type Held = { table: BrandTable; until: number };
+type Held = { table: BrandTable; until: number; namespace: KVNamespace };
 let held: Held | undefined;
 // For tests: forget what this isolate read.
 export const forgetBrandTable = () => {
@@ -25,7 +25,8 @@ export type BrandEnv = { CACHE: KVNamespace };
 
 // The table in force: KV's copy when it reads in time and is valid, else the bundled one, the reason logged.
 export async function brandTable(env: BrandEnv, now: () => number = Date.now): Promise<BrandTable> {
-  if (held && now() < held.until) return held.table;
+  // Held per namespace, so another binding never gets this one's table (final review).
+  if (held && held.namespace === env.CACHE && now() < held.until) return held.table;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stalled = new Promise<"stalled">((resolve) => {
     timer = setTimeout(() => resolve("stalled"), KV_READ_MS);
@@ -37,7 +38,8 @@ export async function brandTable(env: BrandEnv, now: () => number = Date.now): P
     else if (read === null) log("missing");
     else {
       const parsed = BrandTable.safeParse(read);
-      if (parsed.success) table = parsed.data;
+      if (parsed.success && covers(parsed.data, bundled).length === 0) table = parsed.data;
+      else if (parsed.success) log("shrunk");
       else log((read as { version?: unknown }).version === BRANDS_SCHEMA ? "invalid" : "version");
     }
   } catch (error) {
@@ -45,7 +47,7 @@ export async function brandTable(env: BrandEnv, now: () => number = Date.now): P
   } finally {
     clearTimeout(timer);
   }
-  held = { table, until: now() + HELD_MS };
+  held = { table, until: now() + HELD_MS, namespace: env.CACHE };
   return table;
 }
 
@@ -73,11 +75,58 @@ export type BrandMatch = { brand: Brand; official: boolean };
 // The brand a host belongs to: official on its registrable domains and their subdomains, its platform but not the brand
 // on a host where it publishes other people's content; null for any other host.
 export function brandForDomain(table: BrandTable, host: string): BrandMatch | null {
+  return brandAt(table, host, null);
+}
+
+// The same for a web address, where a path can carry other people's content on a brand's own host (a PayPal invoice at
+// `www.paypal.com/invoice/...` is the sender's words, not PayPal's).
+export function brandForUrl(table: BrandTable, url: string): BrandMatch | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  return brandAt(table, parsed.hostname, parsed.pathname);
+}
+
+function brandAt(table: BrandTable, host: string, path: string | null): BrandMatch | null {
   const lower = host.toLowerCase().replace(/\.$/, "");
   const domain = registrable(lower);
   if (!domain) return null;
   const brand = table.brands.find((b) => b.domains.includes(domain));
   if (!brand) return null;
-  const hosted = brand.user_content.some((h) => lower === h || lower.endsWith(`.${h}`));
+  // Any label left of the registrable domain counts: `community.fabric.microsoft.com` as much as `community.x.com`.
+  const below = lower === domain ? [] : lower.slice(0, -domain.length - 1).split(".");
+  if (below.some((label) => table.community_labels.includes(label))) return { brand, official: false };
+  const hosted = brand.user_content.some((entry) => {
+    const slash = entry.indexOf("/");
+    const spec = slash < 0 ? entry : entry.slice(0, slash);
+    const exact = spec.startsWith("=");
+    const entryHost = exact ? spec.slice(1) : spec;
+    if (lower !== entryHost && (exact || !lower.endsWith(`.${entryHost}`))) return false;
+    // A host alone cannot say which path it serves, so a host with other people's content on some paths is not
+    // answered as official without one (round 1): only a web address's own path clears it.
+    return slash < 0 || path === null || pathUnder(path, entry.slice(slash));
+  });
   return { brand, official: !hosted };
+}
+
+// Whether a path lies under a prefix whose `*` segments match any one segment.
+function pathUnder(path: string, prefix: string): boolean {
+  const want = prefix.split("/").slice(1, -1);
+  // Each segment decoded and case-folded, so `%61nswers` and `Answers` are `answers` (round 2); a segment that does not
+  // decode is compared as written.
+  const have = path
+    .split("/")
+    .slice(1)
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment).toLowerCase();
+      } catch {
+        return segment.toLowerCase();
+      }
+    });
+  if (have.length < want.length) return false;
+  return want.every((segment, i) => segment === "*" || segment === have[i]);
 }

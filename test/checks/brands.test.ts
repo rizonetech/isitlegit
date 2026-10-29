@@ -3,6 +3,7 @@ import {
   BRANDS_KEY,
   BrandTable,
   brandForDomain,
+  brandForUrl,
   brandTable,
   bundled,
   forgetBrandTable,
@@ -42,10 +43,11 @@ const NAMED = [
 ];
 
 const source = (url: string, names: string[]) => ({ url, read: "2026-10-29", names, evidence: "Official site." });
-// A table unlike the bundled one, to tell which the reader used.
-const kvTable = (revision = "2026-10-30") => ({
+// A one-brand table, to exercise the schema.
+const smallTable = (revision = "2026-10-30") => ({
   version: 1,
   revision,
+  community_labels: [],
   brands: [
     {
       name: "Fynbos Freight",
@@ -57,6 +59,8 @@ const kvTable = (revision = "2026-10-30") => ({
   ],
   excluded: [],
 });
+// The bundled table under another revision, to tell which the reader used: a KV copy must name every bundled brand.
+const kvTable = (revision = "2026-10-30") => ({ ...bundled, revision });
 
 function kv(get: (key: string) => Promise<unknown>) {
   return { CACHE: { get: vi.fn(get) } as unknown as KVNamespace };
@@ -97,7 +101,7 @@ describe("the bundled table", () => {
 });
 
 describe("the schema", () => {
-  const valid = kvTable();
+  const valid = smallTable();
   const brand = valid.brands[0] as (typeof valid.brands)[number];
   const withBrand = (change: Record<string, unknown>) => ({ ...valid, brands: [{ ...brand, ...change }] });
 
@@ -132,6 +136,7 @@ describe("brandTable", () => {
       ["missing", async () => null],
       ["version", async () => ({ ...kvTable(), version: 2 })],
       ["invalid", async () => ({ ...kvTable(), brands: [] })],
+      ["shrunk", async () => smallTable()],
       ["refused", async () => Promise.reject(new TypeError("KV down"))],
       ["stalled", () => new Promise(() => {})],
     ];
@@ -169,6 +174,127 @@ describe("brandTable", () => {
     stored = kvTable("2026-10-30");
     now += HELD_MS;
     expect((await brandTable(env, () => now)).revision).toBe("2026-10-30");
+  });
+});
+
+describe("the completion review (2026-10-29)", () => {
+  it("knows the brands' operational domains: SARS eFiling and Payfast's own", () => {
+    expect(brandForDomain(bundled, "secure.sarsefiling.co.za")).toMatchObject({
+      brand: { name: "SARS" },
+      official: true,
+    });
+    expect(brandForDomain(bundled, "www.payfast.co.za")).toMatchObject({ brand: { name: "Payfast" }, official: true });
+  });
+
+  it("gives customer content on a brand's own host or path no official standing", () => {
+    expect(brandForUrl(bundled, "https://www.paypal.com/invoice/p/#INV2-ABCD")).toMatchObject({
+      brand: { name: "PayPal" },
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://www.paypal.com/signin")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "communityhub.sage.com")).toMatchObject({
+      brand: { name: "Sage" },
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://sites.google.com/view/lure")).toMatchObject({ official: false });
+    expect(brandForUrl(bundled, "not a url")).toBeNull();
+  });
+});
+
+describe("round 1 (2026-10-29)", () => {
+  it("gives Microsoft Q&A and Apple Discussions no official standing", () => {
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-us/answers/questions/123/lure")).toMatchObject({
+      brand: { name: "Microsoft" },
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-za/answers/questions/9")).toMatchObject({
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-us/azure/")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "discussions.apple.com")).toMatchObject({
+      brand: { name: "Apple" },
+      official: false,
+    });
+  });
+
+  it("answers a host alone as not official when some of its paths carry other people's content", () => {
+    expect(brandForDomain(bundled, "www.paypal.com")).toMatchObject({ brand: { name: "PayPal" }, official: false });
+    // PayPal's mail can carry a customer's invoice from any PayPal host, so a host alone never says PayPal is speaking.
+    expect(brandForDomain(bundled, "paypal.com")).toMatchObject({ official: false });
+    expect(brandForUrl(bundled, "https://paypal.com/invoice/p/#INV2-ABCD")).toMatchObject({ official: false });
+    expect(brandForUrl(bundled, "https://www.paypal.com/signin")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "learn.microsoft.com")).toMatchObject({ official: false });
+  });
+
+  it("knows Microsoft's sign-in hosts, and that live.com itself is anyone's mailbox", () => {
+    expect(brandForDomain(bundled, "login.microsoftonline.com")).toMatchObject({
+      brand: { name: "Microsoft" },
+      official: true,
+    });
+    expect(brandForDomain(bundled, "login.live.com")).toMatchObject({ brand: { name: "Microsoft" }, official: true });
+    expect(brandForDomain(bundled, "live.com")).toMatchObject({ brand: { name: "Microsoft" }, official: false });
+  });
+});
+
+describe("round 2 (2026-10-29)", () => {
+  it("matches a path however it is encoded or cased", () => {
+    for (const path of [
+      "/en-us/%61nswers/questions/1",
+      "/en-us/Answers/questions/1",
+      "/EN-US/ANSWERS/x",
+      "/en-us/answer%73/q",
+    ])
+      expect(brandForUrl(bundled, `https://learn.microsoft.com${path}`), path).toMatchObject({ official: false });
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-us/%zz/answers")).toMatchObject({ official: true });
+  });
+
+  it("treats a community, forum, discussion or answers host as other people's content on any brand", () => {
+    for (const host of [
+      "community.fabric.microsoft.com",
+      "community.adobe.com",
+      "forums.docusign.com",
+      "answers.netflix.com",
+    ])
+      expect(brandForDomain(bundled, host), host).toMatchObject({ official: false });
+    expect(brandForDomain(bundled, "communications.fnb.co.za")).toMatchObject({ official: true });
+  });
+});
+
+describe("the final review (2026-10-29)", () => {
+  it("matches a prefix itself and the locale-less route", () => {
+    for (const path of ["/answers/questions/1", "/en-us/answers", "/answers"])
+      expect(brandForUrl(bundled, `https://learn.microsoft.com${path}`), path).toMatchObject({ official: false });
+  });
+
+  it("gives OneDrive no official standing, while Microsoft's sign-in stays official", () => {
+    expect(brandForDomain(bundled, "onedrive.live.com")).toMatchObject({
+      brand: { name: "Microsoft" },
+      official: false,
+    });
+    expect(brandForDomain(bundled, "login.live.com")).toMatchObject({ official: true });
+  });
+
+  it("pins the standing of the hosts that carry customers' words on a brand's own platform", () => {
+    expect(brandForDomain(bundled, "docusign.net")).toMatchObject({ brand: { name: "DocuSign" }, official: false });
+    expect(brandForDomain(bundled, "docusign.com")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "icloud.com")).toMatchObject({ brand: { name: "Apple" }, official: false });
+    expect(brandForDomain(bundled, "apple.com")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "gmail.com")).toMatchObject({ brand: { name: "Google" }, official: false });
+    expect(brandForDomain(bundled, "live.com")).toMatchObject({ brand: { name: "Microsoft" }, official: false });
+  });
+
+  it("keeps the community labels in the table, and reads them from the table in force", () => {
+    expect(bundled.community_labels).toContain("community");
+    const plain = { ...bundled, community_labels: [] };
+    expect(brandForDomain(plain, "community.adobe.com")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "community.adobe.com")).toMatchObject({ official: false });
+  });
+
+  it("holds a read per namespace", async () => {
+    const one = kv(async () => kvTable("2026-10-30"));
+    const two = kv(async () => kvTable("2026-11-01"));
+    expect((await brandTable(one, () => 0)).revision).toBe("2026-10-30");
+    expect((await brandTable(two, () => 1)).revision).toBe("2026-11-01");
   });
 });
 

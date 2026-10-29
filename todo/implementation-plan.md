@@ -100,7 +100,7 @@ Sections: 35 | Checklist items: 191
 | [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
 | [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
-| [ ]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
+| [x]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
 | [ ]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 5     |
 | [ ]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [ ]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
@@ -324,6 +324,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 76/255 verified sections, 35 ready to run now.
+Progress: 77/255 verified sections, 37 ready to run now.
 
-Checklist: 823/1619 items completed (includes Commit items).
+Checklist: 824/1619 items completed (includes Commit items).

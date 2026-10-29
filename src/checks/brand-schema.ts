@@ -16,7 +16,10 @@ const Domain = z
   .string()
   .regex(/^[a-z0-9.-]+$/)
   .refine((domain) => registrable(domain) === domain, "a registrable domain");
-const Host = z.string().regex(/^[a-z0-9.-]+$/);
+// Where a brand publishes other people's content: a host and its subdomains (`sites.google.com`), one host exactly
+// (`=live.com`, a consumer mailbox domain whose `login.` host is the brand's own), or a host and a path prefix, a `*`
+// standing for one path segment (`learn.microsoft.com/*/answers/`, under any locale).
+const Host = z.string().regex(/^=?[a-z0-9.-]+(?:\/(?:[A-Za-z0-9._~-]+|\*)(?:\/(?:[A-Za-z0-9._~-]+|\*))*\/)?$/);
 const Source = z.strictObject({
   url: z.url({ protocol: /^https$/ }),
   read: z.iso.date(),
@@ -44,15 +47,26 @@ const Brand = z
         if (!brand.domains.includes(name))
           ctx.addIssue({ code: "custom", message: `${brand.name}: a source names ${name}, not one of its domains` });
     }
-    for (const host of brand.user_content)
+    for (const entry of brand.user_content) {
+      const host = (entry.split("/")[0] as string).replace(/^=/, "");
       if (!brand.domains.includes(registrable(host) ?? ""))
-        ctx.addIssue({ code: "custom", message: `${brand.name}: ${host} is not under one of its domains` });
+        ctx.addIssue({ code: "custom", message: `${brand.name}: ${entry} is not under one of its domains` });
+    }
   });
 export const BrandTable = z.strictObject({
   version: z.literal(BRANDS_SCHEMA),
   revision: z.iso.date(),
+  // A label below a brand's registrable domain that marks other people's content on any brand (`community`, `forums`).
+  community_labels: z.array(z.string().regex(/^[a-z0-9-]+$/)),
   brands: z.array(Brand).min(1),
   excluded: z.array(z.strictObject({ name: z.string().min(1), reason: z.string().min(1) })),
 });
 export type BrandTable = z.infer<typeof BrandTable>;
+
+// Whether a table names every brand another one does, as a brand or as excluded: a refresh may add and correct, never
+// drop one (final review: a wrong file loaded into KV would otherwise shrink the table in production).
+export function covers(table: BrandTable, required: BrandTable): string[] {
+  const named = new Set([...table.brands.map((b) => b.name), ...table.excluded.map((e) => e.name)]);
+  return [...required.brands.map((b) => b.name), ...required.excluded.map((e) => e.name)].filter((n) => !named.has(n));
+}
 export type Brand = z.infer<typeof Brand>;
