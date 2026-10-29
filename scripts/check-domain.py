@@ -262,6 +262,9 @@ if __name__ == "__main__":
     parser.add_argument("--expect-ns", help="a planned move's new nameservers, comma-separated")
     parser.add_argument("--expect-ds", help="a planned move's new DS, as the registry shows it")
     options = parser.parse_args()
+    if options.diagnose and (options.expect_ns is not None or options.expect_ds is not None):
+        # The diagnosis reads no reviewed values, so it never seems to have checked them (final review).
+        parser.error("--diagnose takes no --expect-ns or --expect-ds; run the check with them separately")
     if options.diagnose:
         code, line = diagnose()
         print(line, file=sys.stderr if code else sys.stdout)

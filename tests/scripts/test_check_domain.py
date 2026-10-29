@@ -2,6 +2,7 @@
 import importlib.util
 import pathlib
 import subprocess
+import sys
 import unittest
 from unittest import mock
 
@@ -210,7 +211,7 @@ class Recovery(unittest.TestCase):
         self.assertLess(b.index("--diagnose"), b.index("Pull the DS"))
         a = section[section.index("### (a)"):section.index("### (b)")]
         self.assertLess(a.index("Remove the DS"), a.index("Move the nameservers"))
-        self.assertLess(a.index("Move the nameservers"), a.index("Sign the zone"))
+        self.assertLess(a.index("Move the nameservers"), a.index("sign the zone at the new provider"))
         self.assertIn("Roll back", a)
         e = section[section.index("### (e)"):]
         self.assertLess(e.index("revoke it now"), e.index("Create a new key"))
@@ -223,6 +224,12 @@ class Recovery(unittest.TestCase):
         # before the old DS.
         self.assertLess(a.index("wait twice the DS TTL"), a.index("set the old nameservers back"))
         self.assertLess(a.index("wait twice the NS TTL"), a.index("only then publish the old DS again"))
+        # Forward, the new DS only after the NS cache has passed, and the gate before any change off Cloudflare.
+        self.assertLess(a.index("wait twice that NS TTL"), a.index("Only once step 5's wait is over"))
+        self.assertLess(a.index("**Gate:**"), a.index("2. Measure the DS TTL"))
+        self.assertIn("D01 T01 §15", a)
+        # The emergency waits out the old key before the new DS.
+        self.assertLess(b.index("wait twice it after re-enabling"), b.index("4. Publish that DS"))
         # A compromised key revoked before anything else (round 3), then the records, which need no key, then the
         # replacement; the key's permissions include what the checker reads first.
         self.assertLess(e.index("revoke it now"), e.index("Sender-domain records removed:"))
@@ -236,6 +243,14 @@ class Recovery(unittest.TestCase):
             part = section[section.index(procedure):]
             nxt = part.find("### (", 5)
             self.assertIn("check-domain.py", part[: nxt if nxt > 0 else len(part)], procedure)
+
+class CommandLine(unittest.TestCase):
+    def test_diagnose_refuses_reviewed_values_it_would_not_read(self):
+        done = subprocess.run([sys.executable, str(REPO / "scripts/check-domain.py"), "--diagnose", "--expect-ds",
+                               "garbage"], capture_output=True, text=True, timeout=30)
+        self.assertEqual(done.returncode, 2)
+        self.assertIn("--diagnose takes no --expect-ns or --expect-ds", done.stderr)
+
 
 class Progress(unittest.TestCase):
     def test_each_lookup_is_announced_before_it_starts(self):
