@@ -200,7 +200,11 @@ The same screenshot, PDF or URL seen twice is not paid for twice once its answer
 
 ## 5. Structured output helper with zod
 
+> **Started:** 2026-10-29T06:11Z
+
 Every model output passes a zod schema before use (`AGENTS.md`). The helper converts a zod schema to JSON Schema with `z.toJSONSchema()`, sends it as `text.format` on the Responses API (non-recursive schemas only), validates the reply, retries once on a validation failure, and then throws `ModelOutputError`.
+
+**Corrected 2026-10-29** (plan fact-check against `sources/meta-api/docs/docs/structured-output.md` and the Responses schemas): with `strict: true` Meta validates the schema against its strict subset and answers HTTP 400 otherwise: the root a plain object, no `allOf` or `oneOf` anywhere, every object `additionalProperties: false`, every object's `required` listing all its properties (so a zod `.optional()` field is refused; a field that may be absent is `.nullable()`), nesting at most 10 levels; the format's `name` is 1 to 64 of `A-Z a-z 0-9 _ -`. A recursive zod schema converts to a `$ref` (`"$ref": "#"`), which Meta refuses. Decoding is constrained to the schema, so a reply fails zod only on what JSON Schema cannot say (a refinement) or when it was cut off: an answer that ended `incomplete` (its output limit reached) is not retried with the same limit, it throws. Each attempt is one `metaResponses` call, reserved and recorded (D03 T01 §2, §3).
 
 **Phase:** 1
 **Needs:** none
@@ -211,9 +215,9 @@ Every model output passes a zod schema before use (`AGENTS.md`). The helper conv
 
 1. Write `src/meta/structured.ts` with `structured(schema, request, ctx)`. Done when: valid, invalid-then-valid and twice-invalid stub replies behave as specified.
 
-- [ ] Write `structured(schema, request, ctx)` building `text: { format: { type: "json_schema", name, schema: z.toJSONSchema(schema), strict: true } }`. Done when: `test/meta/structured.test.ts` checks the request body.
-- [ ] Refuse recursive schemas at build time (the API returns 400 for them). Done when: a test passing a recursive schema throws before any call.
-- [ ] Parse with `schema.safeParse`; on failure retry once with the validation errors appended as a developer message; then throw `ModelOutputError`. Done when: the three stub scenarios pass. Cheaper substitute: `JSON.parse` with a type cast.
+- [ ] Write `structured(schema, request, ctx)` building `text: { format: { type: "json_schema", name, schema: z.toJSONSchema(schema) (its `$schema` key dropped), strict: true } }` on `metaResponses`, and returning the parsed value with the call's `logId`. Done when: `test/meta/structured.test.ts` checks the request body sent through the real client.
+- [ ] Refuse, before any call, a schema Meta would refuse: a `$ref` (a recursive schema), a root that is not an object, `allOf` or `oneOf`, an object without `additionalProperties: false` or with a property missing from `required` (a zod `.optional()`), nesting past 10 levels, or a `name` outside `[A-Za-z0-9_-]{1,64}`; each throws `ModelOutputError` (`schema`) with nothing reserved or sent. Done when: a test per rule throws with no request and no `model_spend` row, and a nullable field is accepted.
+- [ ] Read the answer's `output_text` parts; parse with `JSON.parse` then `schema.safeParse`; on a failure retry once with the validation errors (paths and messages, never the reply's content) appended as a developer message; then throw `ModelOutputError` (`invalid`). An answer that is `incomplete` or carries a `refusal` part throws `ModelOutputError` (`incomplete`, `refused`) without a retry. Done when: valid, invalid-then-valid (two requests, the second carrying the errors) and twice-invalid (two requests, then the throw) stub replies pass, and an incomplete and a refused answer each throw after one request. Cheaper substitute: `JSON.parse` with a type cast.
 - [ ] Never coerce: the schemas use strict objects and no `z.coerce`. Done when: a grep test finds no `z.coerce` under `src/`.
 - [ ] Commit: `meta: structured output helper with zod validation`
 
