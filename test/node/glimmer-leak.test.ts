@@ -651,7 +651,7 @@ describe("the redaction benchmark", () => {
     expect(refused).toBeGreaterThan(pages.length / 2);
   }, 120_000);
 
-  // Presidio's own venv is a local install of a 600 MB model, which no CI host carries.
+  // WORKAROUND: Presidio's own venv is a local install of a 600 MB model, which no CI host carries.
   it.skipIf(!existsSync(join(homedir(), ".venvs", "presidio", "bin", "python")))(
     "runs Presidio as the redaction step on the same pages, its failures counted apart from refusals",
     async () => {

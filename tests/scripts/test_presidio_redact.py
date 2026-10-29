@@ -9,6 +9,7 @@ SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "glimmer" / "presidio
 PYTHON = Path.home() / ".venvs" / "presidio" / "bin" / "python"
 
 
+# WORKAROUND: Presidio's model is a 600 MB local install in its own venv, which no CI host carries.
 @unittest.skipUnless(PYTHON.exists(), "Presidio's venv (~/.venvs/presidio) is not installed here")
 class PresidioRedact(unittest.TestCase):
     @classmethod
@@ -21,6 +22,7 @@ class PresidioRedact(unittest.TestCase):
     def tearDownClass(cls):
         cls.process.stdin.close()
         cls.process.wait(timeout=30)
+        cls.process.stdout.close()
 
     def ask(self, request):
         self.process.stdin.write((request if isinstance(request, str) else json.dumps(request)) + "\n")
