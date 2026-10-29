@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 25 | Checklist items: 316
+Sections: 26 | Checklist items: 324
 
 | Status | Reference   | Deliverable                              | Needs                | Items |
 | ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
@@ -24,7 +24,7 @@ Sections: 25 | Checklist items: 316
 | [x]    | D03 T04 §3  | PageScreen contract and training store   | none                 | 15    |
 | [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
 | [x]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
-| [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
+| [x]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
 | [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
 | [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 10    |
@@ -34,6 +34,7 @@ Sections: 25 | Checklist items: 316
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero   | none                 | 7     |
 | [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 12    |
 | [ ]    | D03 T04 §17 | Loupe model card per version             | none                 | 9     |
+| [ ]    | D03 T04 §26 | Benign render hardening                  | none                 | 8     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                        | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                          | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §11 | AI Gateway config snapshot and restore   | cloudflare           | 6     |
@@ -319,6 +320,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 66/250 verified sections, 27 ready to run now.
+Progress: 67/251 verified sections, 29 ready to run now.
 
-Checklist: 752/1555 items completed (includes Commit items).
+Checklist: 760/1563 items completed (includes Commit items).

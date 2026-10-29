@@ -40,7 +40,7 @@ track: day-6
 | 2 | §3 | PageScreen contract and training store | -- | [x] |
 | 3 | §4 | Astra as dataset collector | -- | [x] |
 | 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [x] |
-| 5 | §6 | Benign real pages rendered locally | §3 | [ ] |
+| 5 | §6 | Benign real pages rendered locally | §3 | [x] |
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [ ] |
 | 7 | §8 | Synthetic South African lures | §6, §7 | [ ] |
 | 8 | §9 | Spark teacher labels and human check | §5, §6, §7 | [ ] |
@@ -61,6 +61,7 @@ track: day-6
 | 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
+| 26 | §26 | Benign render hardening | §6 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -262,9 +263,12 @@ The screener must tell lures from the real pages they copy, so the training set 
 - [x] Accept a capture only when it is usable: HTTP status 2xx, the final page on the listed site's registrable domain (or a domain recorded for it in the list), at least 50 characters of visible text after the page settles (load, then up to 3 seconds without network), and none of the challenge or wall signs (`Just a moment`, `Verify you are human`, `Access denied`, a CAPTCHA frame, a cookie wall covering the page); anything else is excluded with its reason, never stored as benign. Done when: the test excludes an HTTP 404, a cross-site redirect, a loading shell, a challenge page and a consent wall, and keeps a real page. **Corrected 2026-10-28 (plan review finding 3):** popularity is not verification, and a render can capture a page that is not the site.
 - [x] Write the batch run in `render.ts`: four pages at a time, each rendered page stored through `await putPage` with `origin: benign`, `licence` naming its list, `host` (the final URL's lowercase host), `template: null`, `south_africa` (a `.za` host or the South African list), labels `lure: false`, `lure_type: none`, the DOM form flags and, from the South African list, `brand`, with `label_source` `ground-truth` for `lure`, `lure_type` and `brand` and `dom` for the form flags; `url` and `kind` (the list's tag: `home`, `login`, `checkout`, `account`, `shop`, `company` or `social`, two optional fields added to the store's `meta.json`); each URL's outcome in `raw/benign/progress.jsonl` as `started` before the render and `stored` (with its page id), `excluded` (with the reason) or `retry` (a timeout or a 5xx, tried again on a rerun, at most three times) after it, through an append that a rerun repairs (a truncated last line dropped, the file rewritten temp-then-rename). A URL `started` with no outcome is looked up in the store by its `url` before it is rendered again, so a stop between storing and recording never makes a second page. Done when: the test renders three local fixture URLs, stores two, excludes one, finds a stop injected between `putPage` and the progress write completed on rerun with one page, repairs a truncated journal, and retries a 503 once. **Corrected 2026-10-28:** `putPage` is async and needs §3's page fields; about 5,000 live renders need concurrency and a resumable run (plan review finding 5: a stop between store and journal, a truncated journal and retryable failures each have a rule). **Corrected 2026-10-28 (implementation):** some Chromium builds fail the navigation of an empty 5xx (`net::ERR_HTTP_RESPONSE_CODE_FAILURE`) instead of answering it (CI run 40749362466); the guard records each page's main-frame status and a failed navigation after an error status is reported as `HttpStatus`, a 5xx retried and a 4xx excluded.
 - [x] Render the homepage of each listed domain and every South African URL with the batch run in the background, replacing each excluded South African URL by another of its kind until the kind's minimum of usable captures holds. Done when: `benignCoverage()` in `render.ts`, reading the store's manifest scoped to `origin: benign`, reports at least 3,000 pages, at least 300 of them South African, and at least 120 `login`, `checkout` or `account`, 40 `shop`, 40 `company` and 20 `social` captures, each read back with its screenshot and text paired and its `brand`, `south_africa` and `label_source` intact; its test fails when pages of another origin labelled benign are what reach the totals. **Corrected 2026-10-28 (plan review findings 6 and 7):** `counts()` has no origin, region or kind breakdown, and URL-list minimums did not guarantee captures of each kind. **Done 2026-10-29:** `render.ts coverage` at 13:09 SAST read 3,465 benign pages, 443 South African, 121 sign-in, checkout or account, 42 shop, 40 company and 36 social, with no problems; the South African list grew by 52 sign-in and account pages checked to answer on their own sites (c21cfeb, b42d72e, aea0a6c and earlier), a reader fault that excluded 31 good pages was fixed and those pages reopened (58594ae), and 13 stored bot walls were taken out (36f15c3). The Majestic batch keeps rendering the rest of its 20,576 domains for §18 and 1.1; §6's minimums do not wait on it.
-- [ ] Commit: `glimmer: benign real pages rendered locally`
+- [x] Commit: `glimmer: benign real pages rendered locally`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/benign-urls.test.ts` passes and fails if a username-only, password or card field is missed, an unusable or cross-site capture is stored, a redirect reaches a private address, a rerun stores a page twice, or the benign coverage counts pages of another origin; `node scripts/glimmer/render.ts --coverage` prints the coverage against the real store.
+
+> **Verified:** 2026-10-29 | §6 | cded1bf40f5b0db19d135ec99aef128d492a24d6
+> **Review:** `docs/reviews/d03-t04-s6.json`
 
 ## 7. Redacted sample mail converted to pages
 
@@ -804,6 +808,34 @@ Filed 2026-10-29, split out of D03 T04 §24 by its plan review (gaps 4 to 10): �
 - [ ] Commit: `glimmer: the signals rubric in the prompts, measured`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-signals-experiment.test.ts` passes, and the results file records the frozen experiment's verified figures and its decision.
+
+## 26. Benign render hardening
+
+> **Started:** 2026-10-29T11:28Z
+
+Filed 2026-10-29 by main's decision on §6's stamp: work added to `scripts/glimmer/render.ts`, `scripts/glimmer/source-pages.ts` and `scripts/glimmer/store.ts` after D03 T04 §6's final review, while §6's render ran toward its coverage minimums, gets its own section and reviews instead of riding on §6's. Its earlier rounds, recorded in §6's findings file, are kept as written in `docs/reviews/03-vision/D03-T04-s6-later-work.md` and do not count here. The render found two faults in the field: a bot-detection script that gives a hidden frame its own DOM methods returning nothing (29 good pages excluded with a TypeError), and two bot walls (HUMAN's "Press & Hold", Imperva's checkbox) the challenge check did not know (13 stored as benign pages).
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Keep the render's deadline for the page: a cold browser's start and first context outside it, and the batch's width chosen per run. Done when: the warm-up and `--concurrency` tests pass.
+2. Read every page through the browser's own DOM methods, and survive a page with no root. Done when: the masked-frame and rootless-page tests fail before the change and pass after it.
+3. Refuse every bot wall seen in the field, and take out the ones already stored. Done when: the challenge, `removePage` and `recheck` tests pass, and the real store holds no page the check refuses.
+4. Recover the pages a renderer fault excluded, keeping the record. Done when: the `reopen` test passes and the real journal's reopened pages are rendered again.
+
+- [x] Make a fresh browser's first context at launch (`warmups()` in `scripts/glimmer/render.ts`), outside every render's deadline, so a cold Chromium's first page is not timed out (59b7959). Done when: `test/node/glimmer-render.test.ts` proves one warm-up per launch and the first render meets its deadline.
+- [x] Take `--concurrency N` (1 to 16, 4 by default) in `parseCommand` in `scripts/glimmer/render.ts` (6b90ada). Done when: `test/node/benign-urls.test.ts` proves the range, the default and each refusal.
+- [x] Read text, form flags, walls and frame visibility through `Element.prototype` and `Node.prototype` and the inline-style getter in `shownText` and `readFormFlags` (`scripts/glimmer/source-pages.ts`) and `readWalls` and `frameShown` (`scripts/glimmer/render.ts`), never through methods the page left on an element (58594ae). Done when: the `/masked` page test, a hidden frame and element whose own methods and style return nothing, fails before the change (TypeError reading `width`) and passes after it.
+- [x] Read a page that removed its own root element as a short page: the height reads 0 and the screenshot takes the viewport instead of a full-page capture that waits forever (58594ae). Done when: the `/no-root` test, which timed out before the change, passes.
+- [x] Clear an exclusion a renderer fault made with a `reopened` journal event, written by `reopenExcluded` and `render.ts reopen --matching <pattern>`, the excluded record kept and a stored page never reopened (58594ae). Done when: `test/node/glimmer-render.test.ts` proves only the matching exclusion renders again, and the real journal's 31 TypeError exclusions are reopened and rendered.
+- [x] Name HUMAN's and Imperva's walls in `CHALLENGE` in `scripts/glimmer/render.ts` (36f15c3). Done when: `unusable` refuses both wordings in `test/node/glimmer-render.test.ts`.
+- [x] Take one page out with `removePage` in `scripts/glimmer/store.ts` (renamed out of view, then deleted, like `removeSource`), and every stored benign page a newer check refuses with `recheckStored` and `render.ts recheck`, each recorded excluded in the journal (36f15c3). Done when: `test/node/glimmer-store.test.ts` and `test/node/glimmer-render.test.ts` prove one page goes and the rest stay, a bad id is refused, and a recheck takes out the wall and records it; on the real store, `recheck` removed 13 pages.
+- [ ] Commit: `glimmer: benign render hardening after §6's final review`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-source-pages.test.ts test/node/glimmer-store.test.ts test/node/benign-urls.test.ts` passes, and `node scripts/glimmer/render.ts recheck` on the real store removes 0 pages.
 
 ## Verification
 
