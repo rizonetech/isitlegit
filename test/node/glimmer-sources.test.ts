@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { manifestDigest, parseSources, reconcile, syntheticLeftovers } from "../../scripts/glimmer/sources.ts";
+import {
+  manifestDigest,
+  parseSources,
+  reconcile,
+  storeProblems,
+  syntheticLeftovers,
+} from "../../scripts/glimmer/sources.ts";
 import type { StoredPage } from "../../scripts/glimmer/store.ts";
 
 // scripts/glimmer/sources.ts (D03 T04 §5): the record of public page datasets is reconciled both ways with what was
@@ -32,7 +38,6 @@ const base = {
   },
   pages: [page("set-a"), page("set-a")],
   notice: "| `set-a`: Set A (https://example.org) | CC BY 4.0 | credit |",
-  synthetic: "Generate at least 1,500 lures",
 };
 
 describe("parseSources", () => {
@@ -90,36 +95,54 @@ describe("reconcile", () => {
     );
   });
 
-  it("fails any synthetic page, and any generator file or raw folder, once §8 is removed", () => {
-    const removed = "## 8. Synthetic\n\n**Removed 2026-10-28 (operator):** no synthetic lure is made.";
+  it("fails any synthetic page, and each generator file or raw folder, whatever the TODO text says", () => {
     const page = { ...base.pages[0], origin: "synthetic" } as (typeof base.pages)[number];
-    expect(reconcile({ ...base, synthetic: removed })).toEqual([]);
-    expect(reconcile({ ...base, pages: [...base.pages, page], synthetic: removed })).toContain(
+    expect(reconcile(base)).toEqual([]);
+    expect(reconcile({ ...base, pages: [...base.pages, page] })).toContain(
       "1 stored pages have origin synthetic, yet §8 was removed",
     );
     const root = mkdtempSync(join(tmpdir(), "glimmer-s8-"));
     try {
       const store = join(root, "store");
       expect(syntheticLeftovers(root, store)).toEqual([]);
-      // Untracked as much as tracked: the check reads the disk, not git.
-      mkdirSync(join(root, "scripts/glimmer/templates"), { recursive: true });
-      mkdirSync(join(store, "raw", "synthetic"), { recursive: true });
+      // Each path on its own, untracked: the check reads the disk, not git.
+      const leftovers: [string, () => void][] = [
+        ["scripts/glimmer/synth.ts", () => writeFileSync(join(root, "scripts/glimmer/synth.ts"), "")],
+        ["scripts/glimmer/templates", () => mkdirSync(join(root, "scripts/glimmer/templates"))],
+        ["test/node/glimmer-synth.test.ts", () => writeFileSync(join(root, "test/node/glimmer-synth.test.ts"), "")],
+        ["raw/synthetic", () => mkdirSync(join(store, "raw", "synthetic"), { recursive: true })],
+      ];
+      mkdirSync(join(root, "scripts/glimmer"), { recursive: true });
       mkdirSync(join(root, "test/node"), { recursive: true });
-      writeFileSync(join(root, "test/node/glimmer-synth.test.ts"), "");
-      expect(syntheticLeftovers(root, store)).toEqual([
-        "scripts/glimmer/templates",
-        "test/node/glimmer-synth.test.ts",
-        "raw/synthetic",
-      ]);
+      for (const [path, make] of leftovers) {
+        make();
+        expect(syntheticLeftovers(root, store)).toContain(path);
+      }
+      expect(syntheticLeftovers(root, store)).toHaveLength(4);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("fails the no-source fallback until §8 asks for 3,000 lures", () => {
+  it("finds none of the generator's files in this repository", () => {
+    expect(syntheticLeftovers(join(import.meta.dirname, "../.."), join(tmpdir(), "glimmer-no-store"))).toEqual([]);
+  });
+
+  it("refuses a leftover through the problems check and freeze both read", () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-s8-store-"));
+    try {
+      const root = join(import.meta.dirname, "../..");
+      expect(storeProblems(store, root).problems).not.toContain("raw/synthetic exists, yet §8 was removed");
+      mkdirSync(join(store, "raw", "synthetic"), { recursive: true });
+      expect(storeProblems(store, root).problems).toContain("raw/synthetic exists, yet §8 was removed");
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when no source is accepted", () => {
     const none = { ...base, sources: [header, row("set-b", "rejected")].join("\n"), imports: {}, pages: [] };
-    expect(reconcile(none).join()).toContain("§8 still asks for 1,500");
-    expect(reconcile({ ...none, synthetic: "Generate at least 3,000 lures ... shows 3,000 lures" })).toEqual([]);
+    expect(reconcile(none)).toContain("no source was accepted");
   });
 });
 
@@ -137,7 +160,6 @@ describe("import accounting (D03 T04 §5)", () => {
         imports: { set: record as never },
         pages,
         notice: "| `set`: Set | CC0 | x |",
-        synthetic: "",
       });
     expect(check({ status: "complete", expected: 0, imported: 0, stored: 0 }, [])).toContain(
       "set: accepted, but the import stored no page",

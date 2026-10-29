@@ -10,8 +10,9 @@
 // source's converter writes `<store>/raw/<source>/IMPORT.json` with its counts. The check fails, both ways, when an
 // accepted source has no complete import or a store count that differs from it, a rejected source has pages in the
 // store, the store holds a source with no row, a source above 10 percent label errors still has a `lure` read as
-// ground truth, an accepted source is missing from NOTICE.md, or no source is accepted while §8 still asks for 1,500
-// synthetic lures. Each accepted source is bound too (§18): its inputs manifest (`INPUTS.json`), its converter's export
+// ground truth, an accepted source is missing from NOTICE.md, or no source is accepted. Nothing may come from §8's
+// synthetic generator, removed by the operator on 2026-10-28: no stored page with origin synthetic, and no generator
+// script, templates, test or raw folder on the disk, tracked or not. Each accepted source is bound too (§18): its inputs manifest (`INPUTS.json`), its converter's export
 // receipt (`EXPORT.json`, for the sources converted to rows) reconciled and naming that manifest, and an import that
 // names both; an import made from other inputs or other rows is refused.
 //
@@ -127,7 +128,6 @@ export function reconcile(input: {
   imports: Record<string, ImportRecord | undefined>;
   pages: StoredPage[];
   notice: string;
-  synthetic: string;
   // Each source's manifest digest and export receipt, as read beside its import (§18); left out, the binding is not
   // checked (a caller with no store).
   bindings?: Record<string, { manifest?: string; export?: ExportReceipt }>;
@@ -203,19 +203,11 @@ export function reconcile(input: {
   }
   for (const source of bySource.keys())
     if (!named.has(source)) problems.push(`${source}: in the store with no row in docs/glimmer/sources.md`);
-  // §8 removed (operator, 2026-10-28): no page may come from the generator, whatever its source is called.
-  const removed = /\*\*Removed \d{4}-\d{2}-\d{2}/.test(input.synthetic);
-  if (removed) {
-    const synthetic = input.pages.filter((page) => page.origin === "synthetic").length;
-    if (synthetic) problems.push(`${synthetic} stored pages have origin synthetic, yet §8 was removed`);
-  }
-  if (rows.length && !rows.some((row) => row.decision === "accepted")) {
-    // No public source: §8's synthetic target and its acceptance count both rise to 3,000; with §8 removed, Loupe would
-    // have no lures but the samples'.
-    if (removed) problems.push("no source was accepted, and §8's synthetic lures were removed");
-    else if (/\b1,500 lures\b/.test(input.synthetic) || !/\b3,000 lures\b/.test(input.synthetic))
-      problems.push("no source was accepted, yet §8 still asks for 1,500 synthetic lures");
-  }
+  // §8 was removed (operator, 2026-10-28): no page may come from the generator, whatever its source is called.
+  const synthetic = input.pages.filter((page) => page.origin === "synthetic").length;
+  if (synthetic) problems.push(`${synthetic} stored pages have origin synthetic, yet §8 was removed`);
+  // No public source leaves Loupe no lures but the samples'.
+  if (rows.length && !rows.some((row) => row.decision === "accepted")) problems.push("no source was accepted");
   return problems;
 }
 
@@ -233,16 +225,51 @@ export function syntheticLeftovers(root: string, store: string): string[] {
   ];
 }
 
-// §8's leftovers as check problems, while its text says it was removed.
-function removalProblems(store: string): string[] {
-  if (!/\*\*Removed \d{4}-\d{2}-\d{2}/.test(section8())) return [];
-  return syntheticLeftovers(ROOT, store).map((path) => `${path} exists, yet §8 was removed`);
-}
-
-function section8(): string {
-  const todo = readFileSync(join(ROOT, "todo/03-vision/TODO-04-glimmer.md"), "utf-8");
-  const start = todo.indexOf("## 8. ");
-  return todo.slice(start, todo.indexOf("## 9. ", start));
+// Every problem the store and its record hold, for `check` and for `freeze` alike: the record reconciled with the
+// imports, bindings and pages, damaged pages, and §8's leftovers on the disk.
+export function storeProblems(
+  dir: string,
+  root = ROOT,
+): { problems: string[]; imports: Record<string, ImportRecord>; pages: StoredPage[]; sourcesMd: string } {
+  const store = openStore(dir);
+  const pages = store.manifest({ tolerant: true }); // an unreadable record is reported by verify() below
+  const imports: Record<string, ImportRecord> = {};
+  for (const source of new Set(pages.map((p) => p.source))) {
+    const file = join(dir, "raw", source, "IMPORT.json");
+    if (existsSync(file)) imports[source] = JSON.parse(readFileSync(file, "utf-8"));
+  }
+  const sourcesMd = readFileSync(join(root, "docs/glimmer/sources.md"), "utf-8");
+  for (const row of parseSources(sourcesMd).rows) {
+    const file = join(dir, "raw", row.source, "IMPORT.json");
+    if (!imports[row.source] && existsSync(file)) imports[row.source] = JSON.parse(readFileSync(file, "utf-8"));
+  }
+  // Damaged pages of an accepted source fail the check: a count can match while a page no longer reads whole.
+  const damagedBy: Record<string, number> = {};
+  for (const id of store.verify().damaged) {
+    const source = /^(.+)-[0-9a-f]{16}$/.exec(id)?.[1] ?? id;
+    damagedBy[source] = (damagedBy[source] ?? 0) + 1;
+  }
+  const bindings: Record<string, { manifest?: string; export?: ExportReceipt }> = {};
+  for (const row of parseSources(sourcesMd).rows) {
+    const folder = join(dir, "raw", row.source);
+    const inputsFile = join(folder, "INPUTS.json");
+    const exportFile = join(folder, "EXPORT.json");
+    bindings[row.source] = {
+      ...(existsSync(inputsFile) ? { manifest: manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8"))) } : {}),
+      ...(existsSync(exportFile) ? { export: JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt } : {}),
+    };
+  }
+  const problems = reconcile({
+    sources: sourcesMd,
+    imports,
+    pages,
+    notice: readFileSync(join(root, "NOTICE.md"), "utf-8"),
+    bindings,
+  });
+  for (const path of syntheticLeftovers(root, dir)) problems.push(`${path} exists, yet §8 was removed`);
+  for (const [source, count] of Object.entries(damagedBy))
+    problems.push(`${source}: ${count} damaged pages in the store`);
+  return { problems, imports, pages, sourcesMd };
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -327,31 +354,7 @@ if (import.meta.filename === process.argv[1]) {
     // The collection as it stands (§18): every source's binding and every page in the store, written whole. The
     // builder reads only pages it names, so nothing stored later can enter this version. Refused unless the sources
     // reconcile, so a freeze never holds an unbound or incomplete import.
-    const store = openStore(dir);
-    const pages = store.manifest({ tolerant: true });
-    const sourcesMd = readFileSync(join(ROOT, "docs/glimmer/sources.md"), "utf-8");
-    const imports: Record<string, ImportRecord> = {};
-    const bindings: Record<string, { manifest?: string; export?: ExportReceipt }> = {};
-    for (const row of parseSources(sourcesMd).rows) {
-      const folder = join(dir, "raw", row.source);
-      const file = join(folder, "IMPORT.json");
-      if (existsSync(file)) imports[row.source] = JSON.parse(readFileSync(file, "utf-8"));
-      const inputsFile = join(folder, "INPUTS.json");
-      const exportFile = join(folder, "EXPORT.json");
-      bindings[row.source] = {
-        ...(existsSync(inputsFile) ? { manifest: manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8"))) } : {}),
-        ...(existsSync(exportFile) ? { export: JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt } : {}),
-      };
-    }
-    const problems = reconcile({
-      sources: sourcesMd,
-      imports,
-      pages,
-      notice: readFileSync(join(ROOT, "NOTICE.md"), "utf-8"),
-      synthetic: section8(),
-      bindings,
-    });
-    problems.push(...removalProblems(dir));
+    const { problems, imports, pages, sourcesMd } = storeProblems(dir);
     if (problems.length) {
       for (const problem of problems) console.log(`sources: ${problem}`);
       console.error(`sources: not frozen: ${problems.length} problems`);
@@ -386,45 +389,7 @@ if (import.meta.filename === process.argv[1]) {
     console.error("usage: node scripts/glimmer/sources.ts check | status | remove <source> | bind <source> | freeze");
     process.exit(2);
   }
-  const store = openStore(dir);
-  const pages = store.manifest({ tolerant: true }); // an unreadable record is reported by verify() below
-  const imports: Record<string, ImportRecord> = {};
-  for (const source of new Set(pages.map((p) => p.source))) {
-    const file = join(dir, "raw", source, "IMPORT.json");
-    if (existsSync(file)) imports[source] = JSON.parse(readFileSync(file, "utf-8"));
-  }
-  const sourcesMd = readFileSync(join(ROOT, "docs/glimmer/sources.md"), "utf-8");
-  for (const row of parseSources(sourcesMd).rows) {
-    const file = join(dir, "raw", row.source, "IMPORT.json");
-    if (!imports[row.source] && existsSync(file)) imports[row.source] = JSON.parse(readFileSync(file, "utf-8"));
-  }
-  // Damaged pages of an accepted source fail the check: a count can match while a page no longer reads whole.
-  const damagedBy: Record<string, number> = {};
-  for (const id of store.verify().damaged) {
-    const source = /^(.+)-[0-9a-f]{16}$/.exec(id)?.[1] ?? id;
-    damagedBy[source] = (damagedBy[source] ?? 0) + 1;
-  }
-  const bindings: Record<string, { manifest?: string; export?: ExportReceipt }> = {};
-  for (const row of parseSources(sourcesMd).rows) {
-    const folder = join(dir, "raw", row.source);
-    const inputsFile = join(folder, "INPUTS.json");
-    const exportFile = join(folder, "EXPORT.json");
-    bindings[row.source] = {
-      ...(existsSync(inputsFile) ? { manifest: manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8"))) } : {}),
-      ...(existsSync(exportFile) ? { export: JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt } : {}),
-    };
-  }
-  const problems = reconcile({
-    sources: sourcesMd,
-    imports,
-    pages,
-    notice: readFileSync(join(ROOT, "NOTICE.md"), "utf-8"),
-    synthetic: section8(),
-    bindings,
-  });
-  problems.push(...removalProblems(dir));
-  for (const [source, count] of Object.entries(damagedBy))
-    problems.push(`${source}: ${count} damaged pages in the store`);
+  const { problems } = storeProblems(dir);
   for (const problem of problems) console.log(`sources: ${problem}`);
   console.log(problems.length ? `sources: ${problems.length} problems` : "sources: reconciled");
   process.exit(problems.length ? 1 : 0);
