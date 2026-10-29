@@ -84,7 +84,7 @@ Sections: 42 | Checklist items: 337
 | [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
-| [ ]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 12    |
+| [x]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 12    |
 | [ ]    | D01 T01 §14 | Near-limit forward on the live Worker     | operator, live-mail   | 3     |
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
@@ -311,6 +311,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 54/242 verified sections, 28 ready to run now.
+Progress: 55/242 verified sections, 29 ready to run now.
 
-Checklist: 570/1417 items completed (includes Commit items).
+Checklist: 571/1417 items completed (includes Commit items).

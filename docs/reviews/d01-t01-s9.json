@@ -1,0 +1,122 @@
+{
+  "ref": "D01 T01 \u00a79",
+  "title": "check@ routing and live smoke",
+  "implementation_sha": "7b534283e9dce6acfcb1b731e4c8f7ba33b00f36",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T01-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T01-s9.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T01-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "live 2026-10-29 01:57 UTC: a forward from the operator Microsoft 365 mailbox admitted as case 01M62P0FCKTGQ4A6YY7XNXE933, reply sent 14 s later, threaded; node scripts/live-intake.ts --message-id <forward> -> exit 0",
+    "the delivered report link verifies (verifyReportLink, the vault secret): ok, case and organisation match",
+    "raw-store fault live: Email Routing answered a temporary failure; Microsoft 365 retried after 32 minutes; the retry made one case and its reply",
+    "pnpm exec vitest run --project worker test/intake -> 146 passed; test/node/live-intake.test.ts -> 7 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T01-s9.md",
+    "verdict": "filed",
+    "candidate": "c7188d732a875e6b7fa34c7d639e44b5b5299d39",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a71",
+      "D01 T01 \u00a714",
+      "D01 T01 \u00a710"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T01-s9.md",
+    "candidate": "99ff6385ea82e8c2b3ff2bd961581e633371a51c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T01-s9.md",
+    "verdict": "fixed",
+    "candidate": "ac41d0f71867f7c3d477c1a66760406df262df1c",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
