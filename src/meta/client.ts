@@ -179,7 +179,7 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       }),
       call,
       undefined,
-      (error) => describeFailure(error, seen),
+      (error) => describeFailure(error, seen.last),
     );
   });
 }
@@ -278,7 +278,7 @@ export async function metaRaw(
       },
       call,
       undefined,
-      (error) => describeFailure(error, seen),
+      (error) => describeFailure(error, seen.last),
     );
   });
 }
@@ -355,7 +355,7 @@ function settings(env: MetaEnv) {
 // The gateway logs each call's metadata (it logs nothing by default, D00 T01 §6) and never its body.
 // The call's owner as the gateway's opaque metadata (D03 T01 §3), so its log filters by case or monitor run: ids and
 // the step only, the host as a hash, never a name, an address or content.
-async function metadataHeader(owner: Owner): Promise<Record<string, string>> {
+export async function metadataHeader(owner: Owner): Promise<Record<string, string>> {
   const fields: Record<string, string> =
     owner.kind === "case"
       ? { case: owner.caseId, step: owner.step }
@@ -416,8 +416,11 @@ function observe(send: typeof fetch): Observed {
 // could not be read is still that status (so a cut-off 503 is retried), and the trace ids are kept either way.
 // A failed attempt as its record keeps it (D03 T01 §3, completion review C1): the client's own kind for it, its status
 // and the gateway's and Meta's ids, read before the attempt's record is written.
-function describeFailure(error: unknown, seen: Observed): Described {
-  const failure = completed(classify(error), seen.last);
+// The same, for a caller with its own transport (scripts/meta-smoke.ts): what the error itself carries.
+export const describeError = (error: unknown): Described => describeFailure(error, null);
+
+function describeFailure(error: unknown, last: Seen | null): Described {
+  const failure = completed(classify(error), last);
   return {
     errorClass: failure.kind,
     status: failure.details.status,
@@ -555,7 +558,7 @@ function statusError(status: number, headers: Headers, body: unknown): ModelErro
 }
 
 const identifier = (value: unknown) => (typeof value === "string" && IDENTIFIER.test(value) ? value : null);
-const traced = (headers: Headers) => ({
+export const traced = (headers: Headers) => ({
   logId: identifier(headers.get("cf-aig-log-id")),
   requestId: identifier(headers.get("x-request-id")),
 });

@@ -796,3 +796,36 @@ describe("the smoke test's call record (D03 T01 §3)", () => {
       expect(record).toMatchObject({ outcome: expect.any(String), certainty: expect.any(String) });
   });
 });
+
+describe("round 1: the smoke test's calls carry the record every caller writes", () => {
+  it("settles a refused call at nothing with its kind and ids, and tags every request with its owner", async () => {
+    const settled: { usd: number | null; record: Record<string, unknown> }[] = [];
+    const budget = {
+      reserve: async () => "held",
+      settle: async (_id: string, usd: number, record?: unknown) =>
+        void settled.push({ usd, record: record as Record<string, unknown> }),
+      uncertain: async (_id: string, record?: unknown) =>
+        void settled.push({ usd: null, record: record as Record<string, unknown> }),
+    };
+    const limited = () =>
+      new Response(JSON.stringify({ error: { type: "rate_limit_error", code: null, param: null, message: "slow" } }), {
+        status: 429,
+        headers: { "content-type": "application/json", "x-request-id": "req-limited" },
+      });
+    const { fetchStub, sent } = world({ answers: { "spark-text": limited } });
+    await live(fetchStub, { budget }).run;
+    expect(settled[0]).toEqual({
+      usd: 0,
+      record: expect.objectContaining({
+        outcome: "refused",
+        certainty: "none",
+        errorClass: "rate-limit",
+        logId: "log-1",
+        requestId: "req-limited",
+      }),
+    });
+    expect(settled.slice(1).every((s) => s.record.outcome === "ok")).toBe(true);
+    for (const request of sent)
+      expect(JSON.parse(request.headers.get("cf-aig-metadata") ?? "{}")).toEqual({ script: "meta-smoke" });
+  });
+});

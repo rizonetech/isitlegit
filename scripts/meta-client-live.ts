@@ -255,12 +255,13 @@ async function run(
         // already counted.
         budget: {
           ...options.budget,
-          reserve: (model, estimateUsd, attempt) =>
+          reserve: (model, estimateUsd, attempt, _id, call) =>
             options.budget.reserve(
               model,
               estimateUsd,
               attempt,
               ledgerId(today, runId, `client Spark attempt ${attempt}`),
+              call,
             ),
         },
       },

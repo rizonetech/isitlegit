@@ -347,3 +347,24 @@ describe("meta-client-live", () => {
     expect(sent).toHaveLength(0);
   });
 });
+
+describe("round 1: the live check keeps each attempt's call record", () => {
+  it("forwards the client's call (its id and owner) with the ledger's row id", async () => {
+    const { options } = world();
+    const reserved: unknown[][] = [];
+    options.budget = {
+      reserve: async (...args: unknown[]) => {
+        reserved.push(args);
+        return "held";
+      },
+      settle: async () => {},
+      uncertain: async () => {},
+    } as LiveOptions["budget"];
+    expect((await runClientLive(options)).code).toBe(0);
+    expect(reserved[0]?.[3]).toMatch(/^ledger:/);
+    expect(reserved[0]?.[4]).toMatchObject({
+      callId: expect.any(String),
+      owner: { kind: "script", name: "meta-client-live" },
+    });
+  });
+});

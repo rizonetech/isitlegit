@@ -26,8 +26,9 @@ import { parseArgs } from "node:util";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
 import OpenAI from "openai";
 import { z } from "zod";
+import { describeError, metadataHeader, traced } from "../src/meta/client.ts";
 import { sastDay } from "../src/meta/day.ts";
-import { type Budget, BudgetExceeded } from "../src/meta/guard.ts";
+import { type Budget, BudgetExceeded, type Described } from "../src/meta/guard.ts";
 import type { ModelId } from "../src/meta/models.ts";
 import { ledgerId, localBudget } from "./lib/meta-budget.ts";
 import { installSignalCleanup, runCommand } from "./smoke.ts";
@@ -51,6 +52,7 @@ export const SAM_PER_IMAGE = 2.5 / 1000;
 export const RUN_CAP = 0.5;
 export const DAY_CAP = 2;
 export const MODELS = ["muse-spark-1.3", "sam-3.1", "muse-wonder-1.0"] as const;
+const SMOKE_OWNER = { kind: "script", name: "meta-smoke" } as const;
 // A generous worst case for an image's input tokens, so the estimate never undercounts.
 const IMAGE_TOKENS = 4000;
 
@@ -667,7 +669,8 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
   const client = new OpenAI({
     apiKey: secrets.meta,
     baseURL: GATEWAY_URL,
-    defaultHeaders: headers(secrets.run),
+    // The owner's gateway metadata, as every caller sends it (D03 T01 §3), so the gateway's log filters by this script.
+    defaultHeaders: { ...headers(secrets.run), ...(await metadataHeader(SMOKE_OWNER)) },
     fetch: fetchImpl,
     maxRetries: 0,
     timeout: timeoutMs,
@@ -757,7 +760,7 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
       // Named for its ledger entry, and carrying the call record every caller writes (D03 T01 §3).
       held = await budget.reserve(call.model as ModelId, call.estimate, 1, ledgerId(today, runId, call.name), {
         callId: crypto.randomUUID(),
-        owner: { kind: "script", name: "meta-smoke" },
+        owner: SMOKE_OWNER,
       });
     } catch (error) {
       say(
@@ -784,12 +787,15 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     const started = Date.now();
     let check: Check;
     let logId: string | null = null;
+    let requestId: string | null = null;
+    let failure: Described | null = null;
     let usage: Row["usage"] = null;
     // One deadline from request to the end of the stream.
     const deadline = AbortSignal.timeout(timeoutMs);
     try {
       const { data, response } = await client.responses.create(call.body as never, { signal: deadline }).withResponse();
       logId = response.headers.get("cf-aig-log-id");
+      requestId = traced(response.headers).requestId;
       const usageOf = (answer: unknown): Usage | null => {
         const counts = (
           answer as {
@@ -823,6 +829,10 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
       }
     } catch (error) {
       const e = error as { status?: number; name?: string; message?: string };
+      // Its kind and ids as the client reads them, for the attempt's record.
+      failure = describeError(error);
+      logId ??= failure.logId;
+      requestId ??= failure.requestId;
       check = {
         ok: false,
         detail: safe(
@@ -840,9 +850,13 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     const logCheck: LogCheck = logId
       ? await checkLog(getLog, logId, call, usage, options.logWaitMs ?? 30_000)
       : { ok: false, detail: "no cf-aig-log-id came back, so the gateway did not log the call" };
-    // Settled at Meta's reported cost when there is one; otherwise the reservation stands at the estimate.
-    const cost =
-      call.model === "sam-3.1"
+    // Refused by Meta or the gateway (a 4xx other than a timeout): nothing was charged (D03 T01 §2's rule, as the client
+    // applies it). Otherwise settled at Meta's reported cost when there is one; else the reservation stands at the estimate.
+    const refused =
+      failure?.status !== undefined && failure.status >= 400 && failure.status < 500 && failure.status !== 408;
+    const cost = refused
+      ? 0
+      : call.model === "sam-3.1"
         ? logCheck.log?.success
           ? SAM_PER_IMAGE
           : null
@@ -852,9 +866,9 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     const passed = check.ok && logCheck.ok;
     rows.push({ call, passed, detail: check.detail, excerpt: check.excerpt, ms, usage, log: logCheck, cost });
     say(`${passed ? "passed" : "failed"}: ${call.name} (${check.detail}; log: ${logCheck.detail})`);
-    // Settled at Meta's reported cost; without it, the call stays counted at its estimate.
-    // The attempt's record: SAM's per-image cost is the price of the image sent, labelled estimated; a token model's is
-    // Meta's reported usage, measured.
+    // The attempt's record, of the model call (the smoke's own verdict is in its report): a refusal costs nothing; SAM's
+    // per-image cost is the price of the image sent, labelled estimated; a token model's is Meta's reported usage.
+    const measured = cost !== null && !refused && call.model !== "sam-3.1";
     const record = {
       ms,
       inputTokens: usage?.input,
@@ -862,10 +876,11 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
       outputTokens: usage?.output,
       ...(call.model === "sam-3.1" ? { images: 1 } : {}),
       logId,
-      outcome: check.ok ? ("ok" as const) : ("error" as const),
-      ...(check.ok ? {} : { errorClass: "SmokeCheckFailed" }),
-      certainty: cost !== null && call.model !== "sam-3.1" ? ("measured" as const) : ("estimated" as const),
-      source: cost !== null && call.model !== "sam-3.1" ? ("meta-usage" as const) : ("estimate" as const),
+      requestId,
+      outcome: refused ? ("refused" as const) : failure ? ("error" as const) : ("ok" as const),
+      ...(failure ? { errorClass: failure.errorClass } : {}),
+      certainty: refused ? ("none" as const) : measured ? ("measured" as const) : ("estimated" as const),
+      source: measured ? ("meta-usage" as const) : ("estimate" as const),
     };
     await (cost === null ? budget.uncertain(held, record) : budget.settle(held, cost, record)).catch(() =>
       say(`meta-smoke: the shared budget's record of ${call.name} could not be updated; it stands at its estimate`),
