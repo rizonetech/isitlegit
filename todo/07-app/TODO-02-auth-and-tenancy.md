@@ -226,7 +226,11 @@ Evidence 2026-10-28. Migration `0015_domains.sql` adds `org_domains`, `org_addre
 
 ## 6. Sign-in rate limits and auth audit trail
 
+> **Started:** 2026-10-29T07:11Z
+
 Sign-in routes are rate-limited per address and per IP (stack doc), and every sign-in, failure, invite, removal and verification is recorded for the admin console and incident review.
+
+**Corrected 2026-10-29** (plan fact-check against the code and Better Auth 1.7.13): the per-IP limit is Better Auth's own limiter (`rateLimit`, keyed by `cf-connecting-ip` and path, D07 T02 §10), which by default counts in each Worker instance's memory, so no limit holds across instances; it gets a `customStorage` that counts in D1 with one atomic upsert (`rate_limits`, migration `0027`). KV, which the first plan named, is eventually consistent and cannot count a limit across instances. The per-address limit on sign-in mail already holds inside `sendMail` (D01 T02 §2: 5 per address per 10 minutes, from `mail_sends`) and answers like a sent link. No verification-code endpoint exists yet: the sign-in code is D07 T02 §11, filed for the operator's decision, and takes these rules when it lands. Migrations through `0026` exist, so the audit table is `0027` too.
 
 **Phase:** 1
 **Needs:** none
@@ -236,13 +240,15 @@ Sign-in routes are rate-limited per address and per IP (stack doc), and every si
 
 1. Add `auth_events` and rate limiting. Done when: the sixth magic-link request in ten minutes for one address is refused.
 
-- [ ] Add migration `src/db/migrations/<next number>_auth_events.sql` (**Corrected 2026-10-28:** said `0006_auth_events.sql`; 0006 is `0006_mail_searched_at.sql` and 0010 is the newest) with `auth_events` (`at`, `kind`, `org_id`, `user_id`, `ip_hash`, `detail_json` without secrets). Done when: it applies locally.
-- [ ] Rate-limit magic-link and verification-code requests to 5 per address and 20 per IP per 10 minutes with KV counters (the per-address limit on sign-in mail already holds inside `sendMail`, D01 T02 §2, counted from `mail_sends`; this adds the per-IP limit, the verification-code limits and their audit rows, and answers a limited request the same as a sent one so it reveals nothing). Done when: `test/auth/ratelimit.test.ts` sees the sixth request refused with 429.
-- [ ] Write an `auth_events` row for sign-in, failure, invite, removal, verification and rate-limit refusal. Done when: the test finds one row per kind.
+- [ ] Add migration `src/db/migrations/0027_auth_events.sql` with `auth_events` (`id`, `at`, `kind`, `org_id`, `user_id`, `actor_id`, `target_id`, `ip_hash`, `detail_json` without secrets or addresses) and `rate_limits` (`key`, `count`, `window_start`). Done when: it applies locally and the test stand-ins carry it.
+- [ ] Count Better Auth's per-IP limits in D1 (`customStorage`: one `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` per request, so two instances cannot both pass the last slot), `enabled: true`, with rules: 20 magic-link requests and 20 link verifications per IP per 10 minutes. Done when: `test/auth/ratelimit.test.ts` sees the 21st request from one IP refused with 429 while another IP is served, and twenty racing requests at the limit admit exactly the rest.
+- [ ] Keep the per-address limit where it is (`sendMail`), answered like a sent link so it reveals nothing, and audit its refusal. Done when: the sixth request in ten minutes for one address, from six different IPs, answers as the first did, sends no mail, and leaves a `rate-limited` row.
+- [ ] Write an `auth_events` row for a sign-in (a session made), a failed link (used, expired, no account), an invitation, a removal, a verification (a domain verified, D07 T02 §5) and a rate-limit refusal (per IP and per address), with the IP as an HMAC under `BETTER_AUTH_SECRET` (never the address itself) and no address, token or link in any column. Done when: the test finds one row per kind, and no row holds the test's address, token or IP.
 - [ ] Record team changes with who did them and to whom, and let owners read them: role changes, invitation revocations and removals each write one `auth_events` row naming the organisation, the actor, the target, the action and the time (after hooks on `/organization/update-member-role`, `/organization/cancel-invitation` and `/organization/remove-member`, beside §3's), kept after the target leaves; an owner-only, organisation-scoped read (`requireOrg`, newest first, filtered by action and date) serves it to D07 T04 §3. Done when: `test/auth/audit.test.ts` finds one attributable row per change, still there after the member is removed, an owner reads them filtered and a member or another organisation's owner is refused. Source: D07 T02 §3 completion review (Part 2 item 3).
+- [ ] An audit row that cannot be written never fails the sign-in or the change it records: it is logged. Done when: a failing `auth_events` insert still signs the member in, with one log line.
 - [ ] Commit: `auth: sign-in rate limits and the audit trail`
 
-**Test checkpoint:** `pnpm exec vitest run test/auth/ratelimit.test.ts` passes and fails if the per-address limit is removed.
+**Test checkpoint:** `pnpm exec vitest run test/auth/ratelimit.test.ts` passes and fails if the per-IP limit or the per-address limit is removed.
 
 ## 7. Sign-in, signup, invite and domain verification pages
 
