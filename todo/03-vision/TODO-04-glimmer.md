@@ -345,6 +345,8 @@ Public sets are mostly foreign brands. Synthetic pages fill the South African ga
 
 ## 9. Spark teacher labels and human check
 
+> **Started:** 2026-10-29T11:58Z
+
 Public labels say lure or not; the screener also answers brand and form flags. Muse Spark fills the missing fields as a teacher, every disagreement with a source label goes to a review queue that Astra at `xhigh` and Claude decide independently (a label two model families agree on, or no label), and both check the same random sample before anything trains (operator, 2026-10-28 15:31 SAST). Sample-derived pages go to Astra only when redacted (consent extended 2026-10-28 15:34 SAST). The operator accepted the terms risk of Astra's and Claude's decisions becoming training labels (2026-10-28 15:36 SAST: OpenAI forbids using output to develop models that compete with OpenAI, Anthropic's commercial terms forbid training competing AI models; a narrow phishing-page screener is not judged to compete).
 
 **Corrected 2026-10-29:** no longer waits on §8. The operator removed §8 on 2026-10-28 (21:41 SAST; `docs/glimmer/training.md`): no synthetic lure is made, and §7's redacted pilot-client pages are the South African lures instead, so a dependency on §8 could never be met and held §9, and with it the whole training path, closed for good. §8's section stays as the record of that removal.
