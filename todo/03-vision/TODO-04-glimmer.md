@@ -43,7 +43,7 @@ track: day-6
 | 5 | §6 | Benign real pages rendered locally | §3 | [x] |
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [x] |
 | 7 | §8 | Synthetic South African lures | §6, §7 | [x] |
-| 8 | §9 | Spark teacher labels and human check | §5, §6, §7 | [ ] |
+| 8 | §9 | Spark teacher labels and human check | §5, §6, §7 | [x] |
 | 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [ ] |
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [ ] |
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [ ] |
@@ -394,11 +394,14 @@ Public labels say lure or not; the screener also answers brand and form flags. M
 - [x] Canonicalise brands (`canonicalBrand()` in `scripts/glimmer/label-rules.ts`): one name per brand across spellings and host stems (`standardbank.co.za` and "Standard Bank" both `Standard Bank`), lure text matched against the known brands and the brands our South African list names, a lure naming none recorded as unresolved (brand none, source `rule`, counted unresolved in the receipt), and a source's own brand kept as given (plan review gap 6). Done when: tests prove aliases meet, a third-party mention (a "Sign in with Google" button) does not become the brand, a listed South African brand outside `KNOWN_BRANDS` is found, and a source brand is untouched.
 - [x] Write a run receipt, `raw/teacher/receipt.json` (temp-then-replace, read back): the store snapshot it ran on (page count and manifest digest), labels completed by rule and by Spark, exclusions by reason, teacher states by count, pages left unchecked, unresolved brands, and spend measured and uncertain; record its figures in `docs/glimmer/training.md`; `teacher-label.ts check` exits 1 for any page without a complete label or an exclusion, or a receipt that does not match the store (plan review gap 7). Done when: tests prove the check fails on an unexplained page and a stale receipt; the real store's run ends with the check at exit 0.
 - [x] Date each local ledger entry by the SAST day at the attempt (`sastDay()` from `src/meta/day.ts`, through an injected clock), the same day main's guard records (plan review gap 8). Done when: tests around SAST midnight, with a run crossing it, show both records on one day each time.
-- [ ] Commit: `glimmer: teacher labels and human check`
+- [x] Commit: `glimmer: teacher labels and human check`
 
 **Corrected 2026-10-29:** the checkpoint named `tests.scripts.test_astra_judge`, the test of the Astra judge the operator removed on 2026-10-28 (21:32 SAST) with the human checks; no judge runs and no page reaches Astra, so the checkpoint is the teacher's own test, now also proving each Spark attempt through main's budget guard.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-teacher.test.ts test/node/glimmer-store.test.ts` passes, failing if a teacher answer overwrites a source label instead of queueing the disagreement, a call or a retry is sent when the budget refuses or cannot be reached, a reservation and its ledger entry do not share one id, a stop pays twice or loses a disagreement, or a page ends without a complete label or an exclusion; `node scripts/glimmer/teacher-label.ts check` exits 0 on the real store after its run.
+
+> **Verified:** 2026-10-29 | §9 | 7d27690ca55ad2fb735f43b13944eb945942e7a6
+> **Review:** `docs/reviews/d03-t04-s9.json`
 
 ## 10. Deduplicated seed-disjoint training set
 
