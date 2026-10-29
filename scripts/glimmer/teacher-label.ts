@@ -16,6 +16,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { metaResponses } from "../../src/meta/client.ts";
 import { buildScreenRequest, PageAnswer, SCREENER_SYSTEM_PROMPT } from "../../src/vision/page-screen.ts";
+import { localBudget } from "../lib/meta-budget.ts";
 import {
   GATEWAY_URL,
   metaLedger,
@@ -161,6 +162,9 @@ export async function teach(options: {
   return result;
 }
 
+// The teacher's answer is one PageAnswer object (a verdict, a brand, two form flags and a short reason).
+export const TEACHER_MAX_OUTPUT_TOKENS = 600;
+
 if (import.meta.filename === process.argv[1]) {
   const at = process.argv.indexOf("--max");
   const max = at >= 0 ? Number(process.argv[at + 1]) : 500;
@@ -173,8 +177,15 @@ if (import.meta.filename === process.argv[1]) {
   try {
     const secrets = await readSecretsFromVault();
     const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
+    // Every attempt is reserved in main's budget (D03 T01 §2) before it is sent and settled after, by the client;
+    // the answer is one short JSON object, so its output is bounded.
+    const budget = localBudget("glimmer-teacher-label");
+    const owner = { kind: "script", name: "glimmer-teacher-label" } as const;
     const ask: Ask = async (input, instructions) => {
-      const { data } = await metaResponses({ model: SPARK, input: input as never, instructions }, { env });
+      const { data } = await metaResponses(
+        { model: SPARK, input: input as never, instructions, max_output_tokens: TEACHER_MAX_OUTPUT_TOKENS },
+        { env, budget, owner },
+      );
       const usage = (
         data as {
           usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } };
