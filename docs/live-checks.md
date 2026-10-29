@@ -52,3 +52,7 @@ One call through `src/meta/client.ts` by `node scripts/meta-client-live.ts --con
 ## The app host
 
 `https://app.isitlegit.co.za` serves the `isitlegit` Worker as a Workers custom domain from 2026-10-28 23:30 UTC (D07 T06 §9), the host `APP_URL` (sign-in and invitation links) and `PUBLIC_ORIGIN` (report links) name, so those links resolve. Tested deployment: `24e43d6` (version `261facf8-7495-4d27-b731-ab869cd66a24`); `/health` answers 200 with that SHA on it and on `isitlegit.derick-f5a.workers.dev`, which stays for `scripts/smoke.ts`. The apex and `www` stay with D07 T06 §6.
+
+## Sign-in links and link scanners
+
+Scanner-safe sign-in, 2026-10-29 (D07 T02 §10, deployed `1f09b70`): the test user had 0 sessions; a sign-in link was requested at 00:06:32 UTC and SMTP2GO confirmed it at 00:06:33; Microsoft 365's link scanner fetched `/signin/confirm` twice at 00:06:49 UTC (`wrangler tail`: two `{"event":"signin-confirm","step":"shown"}` lines, from AS Microsoft Corporation, token not logged), 37 s before the mail reached the inbox at 00:07:26 ("Your IsItLegit sign-in link", internetMessageId `<E1xMDf9-AIkwcC8ht6s-V7Ab@message-id.smtpcorp.com>`); the user still had 0 sessions; the page's form, submitted from this session, answered 303 to `/cases` with a session for the test user, and the count read 1. Before the fix (23:39 UTC) the same scanner's fetch signed itself in and the member's click was refused `INVALID_TOKEN`.
