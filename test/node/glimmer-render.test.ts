@@ -191,6 +191,11 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<style>.c::before { content: ""; position: fixed; inset: 0; background-image: url(data:image/gif;base64,R0lGODlhAQABAAAAACw=) }</style><p>${words}</p><div class=c></div><script src="https://client.px-cdn.net/main.min.js"></script>`,
     ),
+  "/wall-pseudo-text": (res) =>
+    html(
+      res,
+      `<style>.c::before { content: "Press & Hold"; position: fixed; inset: 0; background: white; z-index: 9999 }</style><p>${words}</p><div class=c></div>`,
+    ),
   "/frame-overflow": (res) =>
     html(
       res,
@@ -950,6 +955,7 @@ describe("the batch run", () => {
       "/wall-css",
       "/wall-shadow-text",
       "/wall-pseudo",
+      "/wall-pseudo-text",
     ];
     const result = await runBatch({ list: list(walls), store, journal, render: renderer.render, concurrency: 1 });
     expect(result).toMatchObject({ stored: 0, excluded: walls.length });

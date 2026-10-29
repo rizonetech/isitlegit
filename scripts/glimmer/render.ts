@@ -239,6 +239,11 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     for (const part of ["::before", "::after"]) {
       const style = getComputedStyle(el, part);
       if (style.content === "none" || style.content === "normal") continue;
+      // Words a pseudo-element draws (`content: "Press & Hold"`) reach no text reader: they join the overlays.
+      const drawn = [...style.content.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) =>
+        (m[1] ?? "").replace(/\\(.)/g, "$1"),
+      );
+      if (drawn.join("").trim()) overlays.push(drawn.join(" ").trim());
       if (style.position !== "fixed" && style.position !== "absolute") continue;
       if (style.backgroundImage === "none" && !/url\(/.test(style.content)) continue;
       if (spans(style.width, style.left, style.right, width) && spans(style.height, style.top, style.bottom, height))
