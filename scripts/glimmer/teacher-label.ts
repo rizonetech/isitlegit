@@ -194,11 +194,16 @@ function writeDurably(path: string, text: string): void {
     closeSync(fd);
   }
   renameSync(temporary, path);
-  const parent = openSync(dirname(path), "r");
+  syncFolder(dirname(path));
+}
+
+// A folder's entries made durable: a file just created or renamed into it survives a power loss.
+function syncFolder(folder: string): void {
+  const fd = openSync(folder, "r");
   try {
-    fsyncSync(parent);
+    fsyncSync(fd);
   } finally {
-    closeSync(parent);
+    closeSync(fd);
   }
 }
 
@@ -268,6 +273,8 @@ function appendQueue(dir: string, entry: { id: string; source: { lure: boolean }
   } finally {
     closeSync(fd);
   }
+  // The first entry creates the file: its name in the store's folder is made durable before the page is marked applied.
+  syncFolder(dirname(file));
 }
 
 // A page's teacher state for §10: only `agreed` lets a page into evaluation, and only while its lure label and files
@@ -380,6 +387,15 @@ export async function teach(options: {
       apply(store, state, page, result);
       result.recovered++;
     }
+  }
+  // A disagreement marked applied whose queue entry did not survive (a power loss before the queue's name reached the
+  // disk) is queued again: the queue, not the state, is what keeps it out of training.
+  const queued = new Set(readQueue(store.dir).map((entry) => entry.id));
+  for (const [id, outcome] of state) {
+    const page = byId.get(id);
+    if (outcome.status !== "disputed" || !outcome.applied || !outcome.answer || !page || queued.has(id)) continue;
+    appendQueue(store.dir, { id, source: { lure: page.labels.lure as boolean }, spark: outcome.answer });
+    result.recovered++;
   }
   // A page the budget refused sent nothing: it is asked again; any other state is never sent twice.
   const done = new Set([...state].filter(([, outcome]) => outcome.status !== "refused").map(([id]) => id));
@@ -632,7 +648,14 @@ export function checkLabels(store: ReturnType<typeof openStore>): string[] {
     problems.push(`${loose.length} pages have neither a complete label nor an exclusion (first: ${loose[0]?.id})`);
   const damaged = store.verify().damaged.filter((id) => !excluded.has(id));
   if (damaged.length) problems.push(`${damaged.length} damaged pages are not excluded (first: ${damaged[0]})`);
-  const held = [...readTeacherState(store.dir)].filter(([id, o]) => o.status === "quarantined" && !excluded.has(id));
+  const state = readTeacherState(store.dir);
+  const queued = new Set(readQueue(store.dir).map((entry) => entry.id));
+  const unqueued = [...state].filter(([id, o]) => o.status === "disputed" && o.applied && !queued.has(id));
+  if (unqueued.length)
+    problems.push(
+      `${unqueued.length} disagreements are not in the review queue: run the teacher again (first: ${unqueued[0]?.[0]})`,
+    );
+  const held = [...state].filter(([id, o]) => o.status === "quarantined" && !excluded.has(id));
   if (held.length)
     problems.push(
       `${held.length} quarantined pages are not excluded: run label-rules.ts again (first: ${held[0]?.[0]})`,

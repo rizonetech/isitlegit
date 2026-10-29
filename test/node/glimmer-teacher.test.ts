@@ -734,3 +734,33 @@ describe("the teacher's records through a stop or a short write (round 1)", () =
     expect(readExcluded(join(dir, "store")).get(id)).toMatch(/teacher's answer was lost/);
   });
 });
+
+describe("a disagreement whose queue entry was lost (round 3)", () => {
+  it("is refused by the check and queued again when the teacher resumes", async () => {
+    const id = await stored(2, false);
+    mkdirSync(join(dir, "store", "raw", "teacher"), { recursive: true });
+    // The state reached the disk as applied; the queue's first entry did not (a power loss).
+    writeFileSync(
+      join(dir, "store", "raw", "teacher", "state.json"),
+      JSON.stringify({ pages: { [id]: { status: "disputed", answer: JSON.parse(answer(true)), applied: true } } }),
+    );
+    const store = openStore(join(dir, "store"));
+    expect(checkLabels(store).join()).toMatch(/1 disagreements are not in the review queue/);
+    let calls = 0;
+    await teach({
+      store,
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => calls++,
+      ),
+    });
+    expect(calls).toBe(0);
+    expect(readQueue(join(dir, "store")).map((e) => e.id)).toEqual([id]);
+    expect(checkLabels(store).join()).not.toMatch(/review queue/);
+  });
+});
