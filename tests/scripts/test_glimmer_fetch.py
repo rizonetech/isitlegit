@@ -153,6 +153,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        if "segment-403" in modes and re.fullmatch(r"bytes=\d+-\d+", self.headers.get("Range") or ""):
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if "not-found" in modes:
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -970,6 +975,16 @@ class Fetch(unittest.TestCase):
         with mock.patch.object(fetch.os, "pwrite", half):
             result = self.run_fetch(**self.SEGMENTED)
         self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+
+    def test_a_range_refused_by_the_first_url_fails_over_without_spending_attempts(self):
+        # The HEAD qualifies but every range GET is refused (access that expired after the HEAD): the mirror serves it.
+        other, base = self.mirror()
+        self.server.modes = {"segment-403"}
+        result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[base + "/file"], timeout=2, sleep=lambda s: None, log=lambda line: None,
+                             segment_threshold=1 << 20, attempts=1, **ROOMY)
+        self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
         self.assert_whole()
 
     def test_a_server_without_head_is_fetched_by_its_get(self):

@@ -584,6 +584,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 failed(f"HTTP {response.status}", _retry_after(response.getheader("Retry-After")),
                                        source=source)
                                 continue
+                            if response.status >= 400 and response.status != 416:
+                                # This URL refuses the file (expired access, a missing copy): it is ruled out, as the
+                                # one stream rules it out, and the next URL resumes the ranges.
+                                raise _Route(f"refused: HTTP {response.status}")
                             span = _content_range(response.getheader("Content-Range"))
                             encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
                             if (response.status != 206 or span is None or span[0] != first + done or span[1] > last
