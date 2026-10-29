@@ -77,7 +77,7 @@ def _vetted(host: str, port: int, allow_loopback: bool) -> str:
     return addresses[0]
 
 
-def _connect(url: str, timeout: float, allow_loopback: bool):
+def _connect(url: str, timeout: float, allow_loopback: bool, watch=None):
     """A connection pinned to the vetted address: the name is resolved once, here, and never again by the library."""
     parts = urllib.parse.urlsplit(url)
     port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -88,6 +88,8 @@ def _connect(url: str, timeout: float, allow_loopback: bool):
         class Pinned(http.client.HTTPSConnection):
             def connect(self):
                 raw = socket.create_connection((address, port), timeout)
+                if watch is not None:
+                    watch.sock = raw
                 self.sock = context.wrap_socket(raw, server_hostname=parts.hostname)
 
         return Pinned(parts.hostname, port, timeout=timeout, context=context)
@@ -95,6 +97,8 @@ def _connect(url: str, timeout: float, allow_loopback: bool):
     class PinnedPlain(http.client.HTTPConnection):
         def connect(self):
             self.sock = socket.create_connection((address, port), timeout)
+            if watch is not None:
+                watch.sock = self.sock
 
     return PinnedPlain(parts.hostname, port, timeout=timeout)
 
@@ -106,7 +110,9 @@ class _Watchdog:
 
     def __init__(self, min_rate: float, window: float):
         self.min_rate, self.window = min_rate, window
-        self.connection = None
+        # The transport socket itself, kept from the moment it connects: `http.client` drops the connection's own
+        # reference on a `Connection: close` response while the response goes on reading from it.
+        self.sock = None
         self.bytes = 0
         self.tripped = False
         self._stop = threading.Event()
@@ -125,7 +131,7 @@ class _Watchdog:
         while not self._stop.wait(self.window):
             if self.bytes - seen < self.min_rate * self.window:
                 self.tripped = True
-                sock = getattr(self.connection, "sock", None)
+                sock = self.sock
                 if sock is not None:
                     try:
                         sock.shutdown(socket.SHUT_RDWR)
@@ -144,9 +150,7 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
             raise Refused(f"refused: {parts.scheme or 'no'} scheme")
         if parts.scheme == "http" and previous is not None and urllib.parse.urlsplit(previous).hostname != parts.hostname:
             raise Refused("refused: a redirect to plain http on another host")
-        connection = _connect(url, timeout, allow_loopback)
-        if watch is not None:
-            watch.connection = connection
+        connection = _connect(url, timeout, allow_loopback, watch)
         path = parts.path or "/"
         if parts.query:
             path += f"?{parts.query}"

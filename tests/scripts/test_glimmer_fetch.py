@@ -55,10 +55,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.redirect(target)
         if self.path == "/loop":
             return self.redirect("/loop")
-        if self.path == "/slow-framing":
+        if self.path in ("/slow-framing", "/slow-framing-close"):
             # A chunked body whose first chunk-size line is a long extension sent a byte at a time.
             self.send_response(200)
             self.send_header("Transfer-Encoding", "chunked")
+            if self.path.endswith("-close"):
+                # http.client then drops the connection's own reference to the socket the response reads.
+                self.send_header("Connection", "close")
             self.end_headers()
             try:
                 self.wfile.write(b"10;")
@@ -346,8 +349,13 @@ class Fetch(unittest.TestCase):
         self.assertEqual(self.server.served[1], SIZE)
 
     def test_slow_chunk_framing_is_cut_by_the_watchdog(self):
-        with self.assertRaisesRegex(fetch.Refused, "slower than the rate floor"):
-            self.run_fetch(path="/slow-framing", min_rate=1024 * 1024, rate_window=0.5, attempts=1, timeout=5)
+        for path in ("/slow-framing", "/slow-framing-close"):
+            with self.subTest(path=path):
+                started = time.monotonic()
+                with self.assertRaisesRegex(fetch.Refused, "slower than the rate floor"):
+                    self.run_fetch(path=path, min_rate=1024 * 1024, rate_window=0.5, attempts=1, timeout=5)
+                # Cut within a window or two, not after the server's 10 seconds of trickle.
+                self.assertLess(time.monotonic() - started, 4)
 
     def test_obsolete_asctime_dates_are_read_as_gmt(self):
         self.assertEqual(self.run_fetch(path="/asctime")["status"], "fetched")
