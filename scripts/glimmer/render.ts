@@ -7,7 +7,8 @@
 // Lists: `raw/majestic/top.csv` in the store (the Majestic Million's top 20,000 domains and the 576 highest-ranked `.za`
 // not among them, CC BY 3.0) and `eval/glimmer/benign-sa-urls.txt` (our own: `<kind>\t<url>\t<brand>[\t<also domains>]`). A list is
 // rendered only when its licence is on the commercial-use allowlist. Each render gets a fresh browser context: 1280 by
-// 800, downloads, permissions, pop-ups, service workers and WebSockets refused, no stored credentials, 20 seconds in
+// 2000 (the crop the screenshot keeps, so readers and picture share one layout; §6 set 1280 by 800, corrected by §26),
+// downloads, permissions, pop-ups, service workers and WebSockets refused, no stored credentials, 20 seconds in
 // all; every request and every redirect hop goes only to public addresses. A capture is stored only when usable: HTTP
 // 2xx, still on the listed site, at least 50 characters of visible text, and no challenge, CAPTCHA or consent wall.
 // Each URL's outcome goes to `raw/benign/progress.jsonl`, so a stopped run resumes without storing a page twice.
@@ -18,14 +19,18 @@ import {
   existsSync,
   fsyncSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readFileSync,
   renameSync,
+  rmSync,
   unlinkSync,
+  writeFileSync,
   writeSync,
 } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { type AddressInfo, isIP, connect as netConnect, type Socket } from "node:net";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { type Browser, type BrowserContext, chromium } from "playwright-core";
 import { getDomain } from "tldts";
@@ -124,6 +129,9 @@ export type Capture = {
   // page and every shown frame, and whether a near-empty cover over a page carrying a bot-wall vendor's script hides it.
   overlays: string;
   challengeCover: boolean;
+  // A large picture with few words of its own was on the page: what OCR read off the screenshot ("" when none was).
+  imageCover: boolean;
+  imageText: string;
   downloadsWritten: number;
   popupsClosed: number;
   serviceWorkers: number;
@@ -146,7 +154,13 @@ export class HttpStatus extends Error {
 }
 
 // Signs that the page is not the site but a wall in front of it. Run inside the page.
-export function readWalls(): { captcha: boolean; consentWall: boolean; overlays: string; challengeCover: boolean } {
+export function readWalls(): {
+  captcha: boolean;
+  consentWall: boolean;
+  overlays: string;
+  challengeCover: boolean;
+  imageCover: boolean;
+} {
   const width = innerWidth;
   const height = innerHeight;
   // The browser's own methods, never ones the page left on an element (see `readFormFlags`).
@@ -175,8 +189,11 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
       !/recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha/i.test(frame.src || "")
     )
       return false;
+    // A widget the viewer is asked to solve (a Turnstile, hCaptcha or reCAPTCHA checkbox is about 300 by 65), not the
+    // invisible kind's corner badge (`size=invisible`).
+    if (/[?&]size=invisible\b/i.test(frame.src || "")) return false;
     const box = Element.prototype.getBoundingClientRect.call(frame);
-    return shown(frame) && box.width >= 150 && box.height >= 100 && area(frame) > 0;
+    return shown(frame) && box.width >= 150 && box.height >= 50 && area(frame) > 0;
   });
   const consentWords =
     /we use cookies|accept (all )?cookies|(cookie|privacy) (settings|preferences)|manage cookies|consent to|your consent/i;
@@ -193,6 +210,21 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
   let backdrop = false;
   let dialog = false;
   let cover = false;
+  // A large picture with almost no words of its own, in any position (a wall can sit in the page's flow): its words, if
+  // any, are in its pixels, which the render reads by OCR before storing the page.
+  let imageCover = false;
+  for (const el of all) {
+    if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
+    if (area(el) < 0.4 * width * height || !shown(el)) continue;
+    // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
+    if (((el as HTMLElement).innerText || "").trim().length >= 40) continue;
+    if (
+      el.matches("img, canvas, svg, video, object, embed") ||
+      getComputedStyle(el).backgroundImage !== "none" ||
+      el.querySelector("img, canvas, svg, video, object, embed")
+    )
+      imageCover = true;
+  }
   const overlays: string[] = [];
   for (const el of all) {
     if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
@@ -253,8 +285,9 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     }
   }
   // A bot-wall vendor's script on the page: HUMAN (PerimeterX), DataDome, Imperva (Incapsula), Akamai, hCaptcha.
+  // Cloudflare's challenge platform, GeeTest, Kasada, F5 (TSPD), Akamai's sensor and Arkose too.
   const vendor = [...document.scripts].some((script) =>
-    /perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs/i.test(
+    /perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs|funcaptcha|cdn-cgi\/challenge-platform|challenges\.cloudflare\.com|geetest|kasada|\/TSPD\/|_bm\/|sec-cpt|recaptcha\/(api|enterprise)/i.test(
       script.src || "",
     ),
   );
@@ -264,6 +297,7 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     // Bounded only against a hostile page's size; the evidence kept with a stored page is cut later, after checking.
     overlays: overlays.join("\n").slice(0, 200_000),
     challengeCover: cover && vendor,
+    imageCover,
   };
 }
 
@@ -342,6 +376,20 @@ export function readingsAgree(a: Reading, b: Reading): boolean {
   );
 }
 
+// A screenshot's words, read by §7's OCR engine from a temporary file that is removed after.
+async function ocrScreenshot(png: Uint8Array): Promise<string> {
+  const { systemOcr } = await import("./import-samples.ts");
+  const folder = mkdtempSync(join(tmpdir(), "glimmer-ocr-"));
+  try {
+    const file = join(folder, "shot.png");
+    writeFileSync(file, png);
+    const [text] = await systemOcr([file]);
+    return text ?? "";
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+}
+
 // The readings a stored benign page keeps beside its text, so `recheckStored` applies the refusals admission applied.
 export function evidenceOf(capture: Capture): NonNullable<PageInput["evidence"]> {
   return {
@@ -391,10 +439,12 @@ const WALL_ONLY =
 
 // Whether a capture (or a stored page's kept evidence) shows a bot wall, whitespace folded so "Press\n&\nHold" reads
 // as one phrase (§26, plan review gaps 3 and 4).
-export function wallShown(seen: { title: string; text: string; overlays: string }): boolean {
+export function wallShown(seen: { title: string; text: string; overlays: string; imageText?: string }): boolean {
   const fold = (s: string) => s.replace(/\s+/g, " ");
-  const anywhere = fold(`${seen.title}\n${seen.text}\n${seen.overlays}`);
-  const opening = fold(`${seen.title}\n${seen.text.slice(0, 2000)}\n${seen.overlays}`);
+  // What OCR read off a picture covering the page counts as what is drawn over it.
+  const drawn = `${seen.overlays}\n${seen.imageText ?? ""}`;
+  const anywhere = fold(`${seen.title}\n${seen.text}\n${drawn}`);
+  const opening = fold(`${seen.title}\n${seen.text.slice(0, 2000)}\n${drawn}`);
   return WALL_ONLY.test(anywhere) || CHALLENGE.test(opening);
 }
 
@@ -622,6 +672,8 @@ export async function openRenderer(
     launch?: (launchOptions: Parameters<typeof chromium.launch>[0]) => Promise<Browser>;
     // A fault to raise when a frame is read (tests make a shown frame unreadable); none otherwise.
     readFault?: (frame: { url: string; main: boolean }) => Error | null;
+    // What a screenshot's pixels say (OCR, §7's engine); tests give their own.
+    ocr?: (png: Uint8Array) => Promise<string>;
   } = {},
 ) {
   const found = chromiumPath();
@@ -869,26 +921,43 @@ export async function openRenderer(
         };
         for (const node of nodes) placed.set(node.id, await place(node));
         // A closed shadow root hides its contents from every reader (a wall or a form drawn in one cannot be read):
-        // the DOM tree, which sees through it, counts each one in a shown frame as part of the page left unread.
+        // the DOM tree, which sees through it, finds each one, and one whose host is shown on the captured page counts
+        // as part of the page left unread. A hidden closed widget is not on the screenshot, so it does not.
         try {
-          const { root } = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as {
-            root: { shadowRootType?: string; children?: unknown[]; shadowRoots?: unknown[]; contentDocument?: unknown };
-          };
-          const closed = (node: {
+          type DomNode = {
+            backendNodeId?: number;
+            frameId?: string;
             shadowRootType?: string;
-            children?: unknown[];
-            shadowRoots?: unknown[];
-            contentDocument?: unknown;
-          }): number =>
-            (node.shadowRootType === "closed" ? 1 : 0) +
-            [
-              ...(node.children ?? []),
-              ...(node.shadowRoots ?? []),
-              ...(node.contentDocument ? [node.contentDocument] : []),
-            ]
-              .map((child) => closed(child as typeof node))
-              .reduce((sum, n) => sum + n, 0);
-          unreadable += closed(root);
+            children?: DomNode[];
+            shadowRoots?: DomNode[];
+            contentDocument?: DomNode;
+          };
+          const { root } = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root: DomNode };
+          const hosts: { backendNodeId: number; frame: string }[] = [];
+          const walk = (node: DomNode, frame: string) => {
+            if (node.backendNodeId && node.shadowRoots?.some((shadow) => shadow.shadowRootType === "closed"))
+              hosts.push({ backendNodeId: node.backendNodeId, frame });
+            for (const child of [...(node.children ?? []), ...(node.shadowRoots ?? [])]) walk(child, frame);
+            if (node.contentDocument) walk(node.contentDocument, node.frameId ?? frame);
+          };
+          walk(root, (nodes[0] as FrameNode).id);
+          for (const host of hosts) {
+            if (!placed.get(host.frame)) continue; // in a frame that is not seen
+            try {
+              const { object } = await cdp.send("DOM.resolveNode", {
+                backendNodeId: host.backendNodeId,
+                executionContextId: await world(host.frame),
+              });
+              const { result } = await cdp.send("Runtime.callFunctionOn", {
+                objectId: object.objectId as string,
+                functionDeclaration: OWNER_BOX,
+                returnByValue: true,
+              });
+              if ((result.value as { shown: boolean }).shown) unreadable++;
+            } catch {
+              unreadable++; // a host that could not be judged leaves its root unread
+            }
+          }
         } catch {
           unreadable++; // the tree that would show a closed root could not be read
         }
@@ -929,10 +998,12 @@ export async function openRenderer(
             consentWall: false,
             overlays: "",
             challengeCover: false,
+            imageCover: false,
           });
           walls.captcha ||= inner.captcha;
           walls.consentWall ||= inner.consentWall;
           walls.challengeCover ||= inner.challengeCover;
+          walls.imageCover ||= inner.imageCover;
           if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 200_000);
         }
         // A page may remove its own root element; then nothing is drawn below the top.
@@ -974,6 +1045,16 @@ export async function openRenderer(
       if (!readingsAgree(reading, check)) throw new Unsettled("the page kept changing while it was captured");
     }
     const { title, text, has_login_form, has_payment_form, walls } = reading;
+    // A large picture with few words of its own: its words, a wall's "Press & Hold" among them, are read off the
+    // screenshot. A picture that cannot be read leaves the page unjudged, so it is not stored.
+    let imageText = "";
+    if (walls.imageCover) {
+      try {
+        imageText = await (options.ocr ?? ocrScreenshot)(new Uint8Array(shot));
+      } catch (error) {
+        throw new Unsettled(`a picture covering the page could not be read (${(error as Error).message.slice(0, 80)})`);
+      }
+    }
     const written = (await Promise.all(downloads)).filter((path) => path !== null).length;
     return {
       listed: url,
@@ -988,6 +1069,7 @@ export async function openRenderer(
       has_login_form,
       has_payment_form,
       ...walls,
+      imageText,
       downloadsWritten: written,
       popupsClosed,
       serviceWorkers: context.serviceWorkers().length,
@@ -1036,6 +1118,26 @@ export async function openRenderer(
     } catch (error) {
       if (error instanceof RenderTimeout || /Timeout \d+ms exceeded/.test((error as Error).message))
         throw new RenderTimeout((error as Error).message.split("\n")[0]);
+      // The shared browser died under this page (killed for memory, crashed): the browser's fault, retried, never the
+      // page's exclusion. The page's own error can arrive before the browser reports its disconnection, so that report
+      // is awaited briefly.
+      if (browser.isConnected())
+        await new Promise<void>((settle) => {
+          const done = setTimeout(settle, 500);
+          browser.once("disconnected", () => {
+            clearTimeout(done);
+            settle();
+          });
+        });
+      if (
+        !browser.isConnected() ||
+        /Target page, context or browser has been closed|Browser has been closed|browser has disconnected/i.test(
+          String((error as Error)?.message),
+        )
+      )
+        throw new BrowserFault(
+          `the browser closed under the page: ${String((error as Error)?.message).split("\n")[0]}`,
+        );
       throw error;
     } finally {
       abandoned = true;

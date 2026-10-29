@@ -10,6 +10,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   assertListLicence,
+  BrowserFault,
   benignCoverage,
   brandShown,
   type Capture,
@@ -228,6 +229,22 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<p>${words}</p><iframe style="position:absolute;top:1800px;left:0;border:0;transform:scale(.5);transform-origin:top left" width=400 height=400 srcdoc="<div style='height:300px'></div><input type=password>"></iframe>`,
     ),
+  // §26's final review: a wall drawn as a picture in the page's flow, text clipped away, a CAPTCHA checkbox widget,
+  // and a hidden closed-root widget.
+  "/wall-flow-image": (res) =>
+    html(
+      res,
+      `<div style="height:100vh;background-image:url(data:image/gif;base64,R0lGODlhAQABAAAAACw=)"></div><p>${words}</p>`,
+    ),
+  "/clipped-text": (res) =>
+    html(res, `<p>A short visible line.</p><div style="height:0;overflow:hidden"><p>${words}</p></div>`),
+  "/captcha-widget": (res) =>
+    html(res, `<p>${words}</p><iframe src="https://challenges.invalid/captcha/checkbox" width=300 height=65></iframe>`),
+  "/closed-hidden": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div id=h style="display:none"></div><script>h.attachShadow({ mode: 'closed' }).textContent = 'hidden'</script>`,
+    ),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
@@ -393,7 +410,8 @@ beforeAll(async () => {
   await new Promise<void>((done) => secret.listen(0, "127.0.0.1", done));
   secretOrigin = `http://127.0.0.1:${(secret.address() as AddressInfo).port}`;
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  renderer = await openRenderer({ allowOrigins: [origin, frameOrigin], limitMs: 8_000 });
+  // OCR is §7's engine in production; here a picture's words are none unless a test says otherwise.
+  renderer = await openRenderer({ allowOrigins: [origin, frameOrigin], limitMs: 8_000, ocr: async () => "" });
   // The browser starts lazily on the first page; it starts here, inside the hook's 60 seconds, so no test pays
   // Chromium's start-up on a slow CI runner (three runs on 2026-10-28 timed out at 15 seconds that way).
   await renderer.render(`${origin}/page`);
@@ -653,6 +671,8 @@ describe("usable", () => {
     consentWall: false,
     overlays: "",
     challengeCover: false,
+    imageCover: false,
+    imageText: "",
     downloadsWritten: 0,
     popupsClosed: 0,
     serviceWorkers: 0,
@@ -1011,7 +1031,7 @@ describe("the batch run", () => {
       text,
       has_login_form: false,
       has_payment_form: false,
-      walls: { captcha: false, consentWall: false, overlays: "", challengeCover: false },
+      walls: { captcha: false, consentWall: false, overlays: "", challengeCover: false, imageCover: false },
       unreadable: 0,
       height: 900,
     });
@@ -1025,6 +1045,67 @@ describe("the batch run", () => {
     const shot = await renderer.render(`${origin}/wall-pseudo-hidden`);
     expect(shot.overlays).not.toContain("Press & Hold");
   });
+
+  it("reads a picture covering the page by OCR: a wall's words refuse it, an unreadable one leaves it unstored", async () => {
+    const walled = await openRenderer({ allowOrigins: [origin], ocr: async () => "Press & Hold to confirm" });
+    const blind = await openRenderer({
+      allowOrigins: [origin],
+      ocr: async () => {
+        throw new Error("no OCR engine");
+      },
+    });
+    const hero = await openRenderer({ allowOrigins: [origin], ocr: async () => "Summer collection" });
+    try {
+      const run = async (render: typeof renderer.render, name: string) => {
+        const store = openStore(join(dir, name));
+        const journal = join(dir, `${name}.jsonl`);
+        const result = await runBatch({ list: list(["/wall-flow-image"]), store, journal, render });
+        return { result, reason: readJournal(journal).at(-1)?.reason };
+      };
+      expect(await run(walled.render, "walled")).toMatchObject({ result: { stored: 0 }, reason: "a challenge page" });
+      expect((await run(blind.render, "blind")).reason).toMatch(/picture covering the page could not be read/);
+      expect((await run(hero.render, "hero")).result.stored).toBe(1);
+    } finally {
+      await Promise.all([walled.close(), blind.close(), hero.close()]);
+    }
+  }, 60_000);
+
+  it("leaves text clipped away out, sees a CAPTCHA checkbox, and passes a hidden closed widget", async () => {
+    expect((await renderer.render(`${origin}/clipped-text`)).text).not.toContain("Welcome to the example service");
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    await runBatch({
+      list: list(["/captcha-widget", "/closed-hidden"]),
+      store,
+      journal,
+      render: renderer.render,
+      concurrency: 1,
+    });
+    const outcome = (path: string) =>
+      readJournal(journal)
+        .filter((e) => e.url === `${origin}${path}`)
+        .at(-1);
+    expect(outcome("/captcha-widget")?.reason).toBe("a CAPTCHA frame");
+    expect(outcome("/closed-hidden")?.event).toBe("stored");
+  });
+
+  it("calls a browser that died under a page the browser's fault, never the page's", async () => {
+    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+    const dying = await openRenderer({
+      allowOrigins: [origin],
+      launch: async (launchOptions) => {
+        browser = await chromium.launch(launchOptions);
+        return browser;
+      },
+    });
+    try {
+      const rendering = dying.render(`${origin}/slow`);
+      setTimeout(() => void browser?.close(), 1_000);
+      await expect(rendering).rejects.toBeInstanceOf(BrowserFault);
+    } finally {
+      await dying.close();
+    }
+  }, 40_000);
 
   it("refuses a page with a closed shadow root, whose contents no reader can see", async () => {
     const store = openStore(join(dir, "store"));

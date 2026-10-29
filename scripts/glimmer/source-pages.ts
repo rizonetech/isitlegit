@@ -212,12 +212,28 @@ export function shownText(): string {
   // `innerText` leaves out what display and visibility hide, but not what opacity 0 or a position off the page hides.
   // Those elements (the outermost of each) leave the layout while the text is read, and are put back after, so the
   // screenshot that follows sees the page as it was.
+  // Clipped away by an ancestor that hides its overflow (`height: 0; overflow: hidden`): drawn nowhere, so not seen,
+  // as `readFormFlags` judges a field.
+  const clippedAway = (el: Element) => {
+    const box = Element.prototype.getBoundingClientRect.call(el);
+    if (box.width <= 0 || box.height <= 0) return false; // an empty box is judged by its children
+    let { left, top, right, bottom } = box;
+    for (let at = el.parentElement; at; at = at.parentElement) {
+      const style = getComputedStyle(at);
+      if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+      const outer = Element.prototype.getBoundingClientRect.call(at);
+      if (style.overflowX !== "visible") (left = Math.max(left, outer.left)), (right = Math.min(right, outer.right));
+      if (style.overflowY !== "visible") (top = Math.max(top, outer.top)), (bottom = Math.min(bottom, outer.bottom));
+      if (left >= right || top >= bottom) return true;
+    }
+    return false;
+  };
   const hidden: Element[] = [];
   for (const el of body.querySelectorAll("*")) {
     if (hidden.some((outer) => Node.prototype.contains.call(outer, el))) continue;
     const box = Element.prototype.getBoundingClientRect.call(el);
     const offPage = box.width > 0 && box.height > 0 && (box.right <= 0 || box.bottom <= 0 || box.left >= innerWidth);
-    if (offPage || !seen(el)) hidden.push(el);
+    if (offPage || !seen(el) || clippedAway(el)) hidden.push(el);
   }
   const saved = hidden.flatMap((el) => {
     const style = inline(el);

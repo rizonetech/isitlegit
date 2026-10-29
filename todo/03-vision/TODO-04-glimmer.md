@@ -850,6 +850,8 @@ Filed 2026-10-29 by main's decision on §6's stamp: work added to `scripts/glimm
 
 **Corrected 2026-10-29 (plan review, `docs/reviews/03-vision/D03-T04-s26.md`):** prototype calls are still page-replaceable (gap 1); an unreadable frame read as no form (gap 2); wall wording missed across line breaks and past 2,000 characters (gap 3), and in frames and shadow roots (gap 4); text, flags and screenshot could come from different moments (gap 5); `recheck` could not see titles or structure, trusted unverified files, and could lose an exclusion record between removal and journal (gaps 6 to 8); `removePage` deleted before its rename was durable (gap 9); warm-up failure and slow starts were untested and a failed warm-up excluded the URL (gap 10); concurrency was tested only at parsing (gap 11). Items whose bar rose are reopened below.
 
+**Corrected 2026-10-29 (final review, `docs/reviews/03-vision/D03-T04-s26.md`):** the render's viewport is now 1280 by 2000, the crop the screenshot keeps, replacing D03 T04 §6's 1280 by 800, so readers and picture share one layout and what is on top can be asked anywhere in it (the header of `scripts/glimmer/render.ts` says so); a page stored without complete evidence is no longer judged by OCR of its screenshot (OCR cannot show a consent wall or a CAPTCHA is absent): it is refused when its text shows a wall, otherwise left unassessed until `render.ts recheck --rerender-legacy` renders it again; a capture with a large picture of few words is read by OCR before it is stored, and one OCR cannot read is not stored.
+
 **Phase:** 0
 **Needs:** none
 **Surface:** no
