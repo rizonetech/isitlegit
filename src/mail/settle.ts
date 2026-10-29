@@ -46,10 +46,11 @@ export function cancelStatement(sendKey: string, at: string): string {
   return `UPDATE mail_sends SET resend_state = 'cancelled', resend_at = '${at}' WHERE send_key = '${sendKey}' AND resend_state = 'requested'`;
 }
 
-// A resend asked for (again): a reply settled failed without --resend (completion review, G1), or an exhausted or
-// cancelled one after a repair, its runs, outcome and alert reset.
+// A resend asked for (again): a reply settled failed without --resend (completion review, G1), one whose earlier resend
+// ended uncertain and was then settled failed (round 1: `done` with the row failed), or an exhausted or cancelled one
+// after a repair, its runs, outcome and alert reset.
 export function requeueStatement(sendKey: string, at: string): string {
   checkKey(sendKey);
   if (!isReply(sendKey)) throw new Error(`mail-settle: only a reply can be sent again (${sendKey})`);
-  return `UPDATE mail_sends SET resend_state = 'requested', resend_runs = 0, resend_at = '${at}', resend_outcome = NULL, resend_alerted = 0 WHERE send_key = '${sendKey}' AND kind = 'reply' AND status = 'failed' AND (resend_state IS NULL OR resend_state IN ('exhausted', 'cancelled'))`;
+  return `UPDATE mail_sends SET resend_state = 'requested', resend_runs = 0, resend_at = '${at}', resend_outcome = NULL, resend_alerted = 0 WHERE send_key = '${sendKey}' AND kind = 'reply' AND status = 'failed' AND (resend_state IS NULL OR resend_state IN ('done', 'exhausted', 'cancelled'))`;
 }

@@ -15,7 +15,7 @@ const FORWARDER = "member@demo.isitlegit.co.za";
 const CLAIMED = "2026-10-29T08:00:00.000Z";
 
 type Sent = { to: string[]; subject: string; text_body: string };
-function stubSmtp2go(answer: (body: Sent) => "sent" | "refused" = () => "sent") {
+function stubSmtp2go(answer: (body: Sent) => "sent" | "refused" | "silent" = () => "sent") {
   const requests: Sent[] = [];
   const real = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -23,6 +23,7 @@ function stubSmtp2go(answer: (body: Sent) => "sent" | "refused" = () => "sent") 
     if (url !== SMTP2GO_URL) return real(input, init);
     const body = JSON.parse(String(init?.body ?? "{}")) as Sent;
     requests.push(body);
+    if (answer(body) === "silent") throw new DOMException("timed out", "TimeoutError");
     if (answer(body) === "refused")
       return Response.json({ data: { error_code: "E_ApiResponseCodes.API_EXCEPTION" } }, { status: 400 });
     return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${requests.length}` } });
@@ -287,5 +288,79 @@ describe("completion review (2026-10-29)", () => {
       .first<{ resend_outcome: string }>();
     expect(row?.resend_outcome).toMatch(/^refused \(/);
     expect(row?.resend_outcome).not.toContain("stranger@");
+  });
+});
+
+describe("round 1 (2026-10-29)", () => {
+  it("tries a request once a run, so one run never spends all three tries", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go((body) => (body.to[0] === FORWARDER ? "refused" : "sent"));
+    const id = await settledCase("done");
+    await resendRequested(env);
+    expect(requests.filter((r) => r.to[0] === FORWARDER)).toHaveLength(1);
+    expect(await rowOf(id)).toMatchObject({ resend_state: "requested", resend_runs: 1 });
+  });
+
+  it("tries the least recently tried exhaustion alert first, so uncertain ones never hold the rest back", async () => {
+    mutedLogs();
+    await env.DB.prepare("UPDATE mail_sends SET resend_alerted = 1 WHERE resend_state = 'exhausted'").run();
+    const keys: string[] = [];
+    for (let i = 0; i < 11; i++) {
+      const key = `reply:01ALERT${String(i).padStart(19, "0")}`;
+      keys.push(key);
+      await env.DB.prepare(
+        "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at, claimed_at, resend_state, resend_runs, resend_at) VALUES (?, ?, 'reply', ?, 'failed', 1, ?, ?, ?, 'exhausted', 3, ?)",
+      )
+        .bind(
+          crypto.randomUUID(),
+          key,
+          "a".repeat(64),
+          CLAIMED,
+          CLAIMED,
+          CLAIMED,
+          `2026-10-29T09:00:${String(i).padStart(2, "0")}.000Z`,
+        )
+        .run();
+    }
+    const requests = stubSmtp2go(() => "silent");
+    await resendRequested(env);
+    await resendRequested(env);
+    const tried = new Set(requests.map((r) => keys.find((k) => r.subject.includes(k))).filter(Boolean));
+    expect(tried.size).toBe(11);
+  });
+
+  it("asks again for a resend that ended uncertain and was then settled failed", async () => {
+    const { requeueStatement } = await import("../../src/mail/settle");
+    const id = await settledCase("done");
+    await env.DB.prepare("UPDATE mail_sends SET resend_state = 'done' WHERE send_key = ?").bind(`reply:${id}`).run();
+    expect((await env.DB.prepare(requeueStatement(`reply:${id}`, new Date().toISOString())).run()).meta.changes).toBe(
+      1,
+    );
+    expect((await rowOf(id))?.resend_state).toBe("requested");
+  });
+
+  it("resends the stored verdict of a case whose only failure was delivering its reply", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    const made = await createCase(env.DB, {
+      orgId: ORG,
+      channel: "email",
+      headersAvailable: false,
+      forwardedBy: FORWARDER,
+      messageId: "<forward-99@fictional-recipient.example>",
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await setStatus(env.DB, ORG, id, "running");
+    await storeVerdict(env.DB, ORG, id, { ...STUB_VERDICT, headline: "Kept-4 headline" });
+    await setStatus(env.DB, ORG, id, "partial");
+    await recordEvent(env.DB, id, "reply", "failed", { errorClass: "ReplyNotSent", once: true });
+    await env.DB.prepare(
+      "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at, claimed_at, resend_state, resend_at) VALUES (?, ?, ?, 'reply', ?, 'failed', 1, ?, ?, ?, 'requested', ?)",
+    )
+      .bind(crypto.randomUUID(), `reply:${id}`, id, "a".repeat(64), CLAIMED, CLAIMED, CLAIMED, CLAIMED)
+      .run();
+    await resendRequested(env);
+    expect(requests.find((r) => r.to[0] === FORWARDER && r.text_body.includes("Kept-4 headline"))).toBeTruthy();
   });
 });

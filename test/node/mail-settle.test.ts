@@ -68,6 +68,7 @@ function live() {
   );
   db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0031_mail_resend.sql"), "utf-8"));
   db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0032_mail_resend_outcome.sql"), "utf-8"));
+  db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0033_mail_resend_alert_tried.sql"), "utf-8"));
   const add = (key: string, kind: string, status = "uncertain") =>
     db
       .prepare(

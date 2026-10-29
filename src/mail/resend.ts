@@ -28,13 +28,19 @@ export async function rebuildState(db: D1Database, caseId: string): Promise<Repo
     return { status: "ready", verdict: stored.value.verdict };
   }
   if (found.value.status === "partial") {
+    // The analysis's own failure, never the reply step's: a case whose only failure was delivering its reply kept its
+    // verdict, and that is what it resends (round 1).
     const failure = await db
       .prepare(
-        "SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' ORDER BY CASE WHEN step = 'reply' THEN 1 ELSE 0 END, id LIMIT 1",
+        "SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' AND step <> 'reply' ORDER BY id LIMIT 1",
       )
       .bind(caseId)
       .first<{ step: string; error: string | null }>();
-    if (!failure) throw new ResendError("ResendFailureUnknown");
+    if (!failure) {
+      const stored = await getVerdict(db, caseId);
+      if (stored?.ok) return { status: "ready", verdict: stored.value.verdict };
+      throw new ResendError("ResendFailureUnknown");
+    }
     return {
       status: "partial",
       failedStep: failure.step as Extract<ReportState, { status: "partial" }>["failedStep"],
@@ -64,13 +70,18 @@ export type ResendReport = {
 export async function resendRequested(env: Env, now = () => new Date()): Promise<ResendReport> {
   const report: ResendReport = { done: 0, retried: 0, exhausted: 0, recovered: 0, alerted: 0, errors: [] };
   const started = Date.now();
+  // Each request is tried once a run (round 1): one put back for the next run is stamped at or after this, so this run
+  // does not select it again.
+  const runStart = now().toISOString();
   await recoverAbandoned(env.DB, now(), report);
   await retryAlerts(env, report);
   // Every request in one run, a batch at a time within the run's budget (G4).
   while (Date.now() - started < RUN_BUDGET_MS) {
     const rows = await env.DB.prepare(
-      `SELECT send_key, case_id, resend_runs FROM mail_sends WHERE resend_state = 'requested' AND kind = 'reply' AND status = 'failed' ORDER BY resend_at LIMIT ${BATCH}`,
-    ).all<{ send_key: string; case_id: string | null; resend_runs: number }>();
+      `SELECT send_key, case_id, resend_runs FROM mail_sends WHERE resend_state = 'requested' AND kind = 'reply' AND status = 'failed' AND resend_at < ? ORDER BY resend_at LIMIT ${BATCH}`,
+    )
+      .bind(runStart)
+      .all<{ send_key: string; case_id: string | null; resend_runs: number }>();
     if (rows.results.length === 0) break;
     let claimedAny = false;
     for (const row of rows.results) {
@@ -154,7 +165,8 @@ async function recoverAbandoned(db: D1Database, at: Date, report: ResendReport) 
       .bind(
         again ? "requested" : "done",
         again ? row.resend_runs + 1 : row.resend_runs,
-        at.toISOString(),
+        // Stamped before this run began, so an unsent one recovered here is tried in this same run.
+        again ? before : at.toISOString(),
         again ? "a run stopped before sending; asked for again" : "a run stopped while sending; left to the reconciler",
         row.send_key,
         before,
@@ -169,10 +181,14 @@ async function recoverAbandoned(db: D1Database, at: Date, report: ResendReport) 
 async function retryAlerts(env: Env, report: ResendReport) {
   if (!env.OPERATOR_EMAIL) return;
   const deps: MailDeps = { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL };
+  // The least recently tried first, each try stamped, so an alert left uncertain never holds the others back (round 1).
   const rows = await env.DB.prepare(
-    `SELECT send_key, resend_at FROM mail_sends WHERE resend_state = 'exhausted' AND resend_alerted = 0 LIMIT ${BATCH}`,
+    `SELECT send_key, resend_at FROM mail_sends WHERE resend_state = 'exhausted' AND resend_alerted = 0 ORDER BY coalesce(resend_alert_tried_at, '') LIMIT ${BATCH}`,
   ).all<{ send_key: string; resend_at: string }>();
   for (const row of rows.results) {
+    await env.DB.prepare("UPDATE mail_sends SET resend_alert_tried_at = ? WHERE send_key = ?")
+      .bind(new Date().toISOString(), row.send_key)
+      .run();
     const outcome = await sendMail(deps, {
       sendKey: `resend-exhausted:${row.send_key}@${row.resend_at}`,
       kind: "alert",
