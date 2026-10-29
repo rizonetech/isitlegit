@@ -59,6 +59,7 @@ track: day-6
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [ ] |
 | 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
 | 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
+| 24 | §24 | A phishing-signals rubric from public guidance | -- | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -735,6 +736,28 @@ Filed 2026-10-29 from D03 T04 §21's completion review (items 9 to 12). §21 bea
 - [ ] Commit: `glimmer: a start-up-inclusive, repeatable win over aria2c`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes, and `docs/glimmer/fetch-bench.json` records raw ratios with 95 percent intervals whose upper bounds are under 1.00 in every scenario.
+
+## 24. A phishing-signals rubric from public guidance
+
+Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phishing detection guides, docs, and articles?"). Guides and articles are not training data for Loupe: a LoRA learns from screened pages and their answers, and prose would add noise, while most articles are copyrighted and this run uses licence-checked sources only. They are worth having as a rubric: the cues that tell a lure from a real page, drawn from authoritative public guidance, cited and written in our own words, given to the screener and the Spark teacher as instructions, and turned into evaluation cases. Not a prerequisite of training: if this section stamps before §10 builds its set, Loupe 1.0 carries the rubric; otherwise Loupe 1.1 does.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Write the rubric from cited public guidance. Done when: `docs/glimmer/signals.md` lists each cue with its sources.
+2. Give it to the screener and the teacher, and measure. Done when: the held-out set's scores with and without it are recorded.
+
+- [ ] Gather the public guidance on recognising phishing pages from authoritative sources (CISA, the UK NCSC, SABRIC and the South African Banking Risk Information Centre's consumer advice, APWG, the major banks' and SARS's own "how to spot a fake" pages), each with its URL, publisher, date and licence or terms, in `docs/glimmer/signals.md`. Done when: every source has those four facts and no text is copied beyond short quotes.
+- [ ] Write the rubric in our own words in `docs/glimmer/signals.md`: each cue (a credential or card form on a host that is not the brand's, a brand shown on an unrelated domain, urgency or threat wording, a payment or "verification" fee, a mismatched sender or support channel, a look-alike or freshly made domain, a page that is only a form) with what it looks like on a page, what a genuine page does instead, and the sources it rests on. Done when: each cue names at least one source and one South African example.
+- [ ] Put the rubric's cues into the screener's instructions and the teacher's prompt, through their owners (`SCREENER_SYSTEM_PROMPT` in `src/vision/page-screen.ts`, the teacher in `scripts/glimmer/teacher-label.ts`), with a test that each cue is present. Done when: both prompts carry the cues and their tests pass.
+- [ ] Turn the guidance's own examples into evaluation cases (described pages, synthetic and brand-neutral, never a working lure), added to the held-out set's report as their own slice. Done when: `metrics.json` reports the slice.
+- [ ] Measure the screener on the held-out set with and without the rubric (false alarms on the benign South African pages, detections on lures), and record both in `docs/glimmer/signals.md`. Done when: both runs' figures are recorded, and the rubric stays only if detections rise or false alarms fall without the other getting worse.
+- [ ] Commit: `glimmer: a phishing-signals rubric from public guidance`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-signals.test.ts` passes (every cue sourced, both prompts carrying the cues), and `docs/glimmer/signals.md` records the held-out figures with and without the rubric.
 
 ## Verification
 
