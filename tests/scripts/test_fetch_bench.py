@@ -6,6 +6,7 @@ import json
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 import urllib.request
 from pathlib import Path
@@ -24,23 +25,39 @@ class Harness(unittest.TestCase):
 
     def test_a_small_run_records_fetch_py_recovering_intact(self):
         out = Path(tempfile.mkdtemp(prefix="bench-")) / "bench.json"
-        # Without aria2c the harness measures fetch.py alone and says so; with it, all four tools.
-        with mock.patch.object(bench, "aria2c", return_value=None), mock.patch("sys.stdout"):
-            self.assertEqual(bench.main(["--size-mib", "2", "--cap-mib", "8", "--runs", "1", "--out", str(out)]), 0)
+        # Without aria2c the harness measures fetch.py alone and says so; with it, every tool.
+        with mock.patch.object(bench, "aria2c", return_value=None), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
+            self.assertEqual(bench.main(["--size-mib", "2", "--cap-mib", "8", "--runs", "1", "--gigabyte-mib", "40",
+                                         "--latency-ms", "5", "--out", str(out)]), 0)
         figures = json.loads(out.read_text())
-        for scenario in ("drop", "mirror"):
-            for tool in ("fetch.py (one stream)", "fetch.py (four segments)"):
+        for scenario, tools in (("drop", ("fetch.py (one stream)", "fetch.py (four segments)")),
+                                ("mirror", ("fetch.py (one stream)", "fetch.py (four segments)")),
+                                ("gigabyte", ("fetch.py (four segments)",))):
+            for tool in tools:
                 row = figures["scenarios"][scenario][tool]
-                self.assertEqual((row["recovered"], row["intact"], row["cut"], row["runs"]), (1, 1, 1, 1), (scenario, tool))
-            # A resume refetches nothing: the server sent one copy of the file in all.
-            self.assertEqual(figures["scenarios"][scenario]["fetch.py (one stream)"]["median_refetched_bytes"], 0)
+                self.assertEqual((row["recovered"], row["intact"], row["cut"], row["latency"], row["runs"]), (1, 1, 1, 1, 1),
+                                 (scenario, tool))
             self.assertFalse(figures["acceptance"][scenario]["met"])  # aria2c not measured: not met
+        # The gigabyte scenario's first process was killed and a second one finished from what the first had saved.
+        self.assertEqual(figures["scenarios"]["gigabyte"]["fetch.py (four segments)"]["resumed"], 1)
+        self.assertNotIn("fetch.py (one stream)", figures["scenarios"]["gigabyte"])
+        self.assertEqual(figures["scenarios"]["drop"]["fetch.py (one stream)"]["median_refetched_bytes"], 0)
+        self.assertIn("aria2c", figures)
         self.assertIn("not installed", figures["aria2c"])
+        self.assertGreater(figures["estimate_seconds"], 0)
+        self.assertIn("wall_seconds", figures)
         recorded = json.dumps(figures["commands"])
         self.assertIn("<url>", recorded)
         self.assertIn("<mirror 1>", recorded)
+        self.assertIn("<certificate>", recorded)
         self.assertNotIn(str(Path.home()), recorded)
         self.assertIn("<repo>/scripts/glimmer/fetch.py", recorded)
+
+    def test_a_tool_past_its_deadline_is_ended_with_its_process_group(self):
+        started = time.monotonic()
+        code = bench.run_bounded(["sh", "-c", "sleep 30 & sleep 30"], Path(tempfile.mkdtemp()), deadline=0.5)
+        self.assertIsNone(code)
+        self.assertLess(time.monotonic() - started, 5)
 
     def test_the_acceptance_line_judges_time_refetch_and_integrity(self):
         def row(seconds, refetched=0, **counts):

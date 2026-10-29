@@ -24,6 +24,7 @@ import http.server
 import json
 import os
 import shutil
+import signal
 import statistics
 import subprocess
 import sys
@@ -198,7 +199,10 @@ def tools(urls: list[str], sha: str, dest: Path, ca: Path | None = None) -> dict
         common = [f"--checksum=sha-256={sha}", f"--max-tries={tries}", "--retry-wait=1", "--lowest-speed-limit=16K",
                   "--connect-timeout=30", "--timeout=30", "--allow-overwrite=true", "--auto-file-renaming=false",
                   "--file-allocation=none", "--console-log-level=error", "--summary-interval=0", "-d", str(dest / "src"),
-                  "-o", "data.bin"] + ([f"--ca-certificate={ca}", "--check-certificate=true"] if ca else [])
+                  "-o", "data.bin", "--continue=true", "--auto-save-interval=1"]
+        # aria2c's own control file saved every second and read on a rerun, as fetch.py's range state is: a killed run
+        # of either tool resumes from what it last saved.
+        common += [f"--ca-certificate={ca}", "--check-certificate=true"] if ca else []
         out["aria2c (one connection)"] = [*binary, "-x1", "-s1", *common, *urls]
         out["aria2c (four connections)"] = [*binary, "-x4", "-s4", "-k1M", *common, *urls]
     return out
@@ -211,22 +215,93 @@ def portable(part: str, url: str, work: Path) -> str:
     return part.replace(str(Path.home()), "~")
 
 
-def measure(size: int, cap: int, runs: int, latency: float = 0.02) -> dict:
-    body = payload(size)
-    sha = hashlib.sha256(body).hexdigest()
+RUN_DEADLINE = 900.0  # seconds a tool run may take before it is ended with its process group
+
+
+def run_bounded(command: list[str], cwd: Path, deadline: float = RUN_DEADLINE) -> int | None:
+    """The tool's exit code, or None when it passed the deadline and was ended (its whole process group)."""
+    process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               start_new_session=True)
+    try:
+        return process.wait(timeout=deadline)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+        return None
+
+
+def file_sha256(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 22), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: int, deadline: float) -> dict:
+    """The first process killed (SIGKILL, its whole group) once the server has sent `kill_at` bytes, then a second one
+    started on the same folder; time and bytes count across both. `resumed`: the second asked for at most what the
+    first had not received (half its share of slack, for bytes in flight when it died)."""
+    began = time.monotonic()
+    first = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    killed = False
+    while first.poll() is None and time.monotonic() - began < deadline:
+        if server.sent >= kill_at:
+            os.killpg(first.pid, signal.SIGKILL)
+            killed = True
+            break
+        time.sleep(0.01)
+    if first.poll() is None:
+        os.killpg(first.pid, signal.SIGKILL)
+    first.wait()
+    time.sleep(0.5)  # the dead process's connections end on the server side
+    before = server.sent
+    code = run_bounded(command, cwd, max(1.0, deadline - (time.monotonic() - began)))
+    after = server.sent - before
+    return {"seconds": time.monotonic() - began, "code": code, "killed": killed,
+            "resumed": killed and after <= server_size(server) - before // 2}
+
+
+def server_size(server: "Bench") -> int:
+    return len(server.body)
+
+
+# Each scenario: its payload, its servers (False a healthy one, True one answering every request 503), how each run is
+# interrupted (a cut connection, or a killed process resumed by a second), and the tools it compares.
+FOUR = ("fetch.py (four segments)", "aria2c (four connections)")
+
+
+def measure(size: int, cap: int, runs: int, latency: float = 0.02, gigabyte: int = 1 << 30,
+            deadline: float = RUN_DEADLINE) -> dict:
+    scenarios_spec = {
+        "drop": {"size": size, "servers": (False,), "interrupt": "cut", "tools": None},
+        "mirror": {"size": size, "servers": (True, False), "interrupt": "cut", "tools": None},
+        "gigabyte": {"size": gigabyte, "servers": (False,), "interrupt": "kill", "tools": FOUR},
+    }
     certificates = Path(tempfile.mkdtemp(prefix="fetch-bench-tls-"))
     tls = make_certificate(certificates)
-    scenarios = {}
-    commands = {}
-    for scenario in ("drop", "mirror"):
+    estimate = sum(spec["size"] / (cap * (4 if spec["tools"] else 2.5)) * runs * len(spec["tools"] or tools(["URL"], "0", Path("D")))
+                   for spec in scenarios_spec.values())
+    print(f"fetch_bench: about {estimate / 60:.0f} minutes of transfer at {cap / 2**20:.0f} MiB/s a connection",
+          file=sys.stderr)
+    started = time.monotonic()
+    scenarios, commands = {}, {}
+    for scenario, spec in scenarios_spec.items():
+        body = payload(spec["size"])
+        sha = hashlib.sha256(body).hexdigest()
         results = {}
         for name in tools(["URL"], sha, Path("DIR")):
+            if spec["tools"] and name not in spec["tools"]:
+                continue
             rows = []
             for _ in range(runs):
-                servers = ([Bench(body, cap, tls=tls, latency=latency)] if scenario == "drop"
-                           else [Bench(body, cap, failing=True, tls=tls, latency=latency), Bench(body, cap, tls=tls, latency=latency)])
+                servers = [Bench(body, cap, failing=failing, tls=tls, latency=latency) for failing in spec["servers"]]
                 for server in servers:
                     threading.Thread(target=server.serve_forever, daemon=True).start()
+                    server.dropped = spec["interrupt"] != "cut"  # a killed process is the interruption instead
                 urls = [f"{server.scheme}://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
                 work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
                 (work / "src").mkdir()
@@ -236,15 +311,20 @@ def measure(size: int, cap: int, runs: int, latency: float = 0.02) -> dict:
                     shown = [part.replace(address, "<url>" if index == 0 else f"<mirror {index}>") for part in shown]
                 shown = [part.replace(str(tls[0]), "<certificate>") for part in shown]
                 commands.setdefault(scenario, {})[name] = [portable(part, "<url>", work) for part in shown]
-                began = time.monotonic()
-                done = subprocess.run(command, cwd=work, capture_output=True, text=True, check=False)
-                seconds = time.monotonic() - began
-                got = work / "src" / "data.bin"
-                intact = got.exists() and hashlib.sha256(got.read_bytes()).hexdigest() == sha
+                if spec["interrupt"] == "kill":
+                    run = killed_and_resumed(command, work, servers[-1], spec["size"] // 8, deadline)
+                    seconds, code, cut, resumed = run["seconds"], run["code"], run["killed"], run["resumed"]
+                else:
+                    began = time.monotonic()
+                    code = run_bounded(command, work, deadline)
+                    seconds, cut, resumed = time.monotonic() - began, sum(s.drops for s in servers) > 0, None
+                intact = file_sha256(work / "src" / "data.bin") == sha
                 sent = sum(server.sent for server in servers)
-                rows.append({"seconds": seconds, "refetched": max(0, sent - size), "recovered": done.returncode == 0,
-                             "intact": intact, "cut": sum(server.drops for server in servers) > 0,
-                             "latency": all(server.delayed == server.requests > 0 for server in servers)})
+                row = {"seconds": seconds, "refetched": max(0, sent - spec["size"]), "recovered": code == 0,
+                       "intact": intact, "cut": cut, "latency": all(s.delayed == s.requests > 0 for s in servers)}
+                if resumed is not None:
+                    row["resumed"] = resumed
+                rows.append(row)
                 for server in servers:
                     server.shutdown()
                     server.server_close()
@@ -252,19 +332,19 @@ def measure(size: int, cap: int, runs: int, latency: float = 0.02) -> dict:
             results[name] = {
                 "median_seconds": round(statistics.median(r["seconds"] for r in rows), 2),
                 "median_refetched_bytes": int(statistics.median(r["refetched"] for r in rows)),
-                "recovered": sum(r["recovered"] for r in rows),
-                "intact": sum(r["intact"] for r in rows),
-                "cut": sum(r["cut"] for r in rows),
-                "latency": sum(r["latency"] for r in rows),
+                **{check: sum(r[check] for r in rows) for check in ("recovered", "intact", "cut", "latency")},
+                **({"resumed": sum(r["resumed"] for r in rows)} if "resumed" in rows[0] else {}),
                 "runs": runs,
+                "seconds": [round(r["seconds"], 2) for r in rows],
             }
-        scenarios[scenario] = results
+        scenarios[scenario] = {"payload_bytes": spec["size"], "payload_sha256": sha, **results}
     binary = aria2c()
     version = subprocess.run([*binary, "--version"], capture_output=True, text=True).stdout.splitlines()[0] if binary else None
     shutil.rmtree(certificates, ignore_errors=True)
-    return {"payload_bytes": size, "payload_sha256": sha, "cap_bytes_per_connection": cap,
+    return {"cap_bytes_per_connection": cap,
             "transport": f"HTTPS, a certificate for 127.0.0.1 made per run by {openssl_version()}, trusted through each "
                          "tool's own option", "latency_ms": round(latency * 1000),
+            "estimate_seconds": round(estimate), "wall_seconds": round(time.monotonic() - started),
             "aria2c": version or "not installed: only fetch.py was measured", "commands": commands,
             "scenarios": scenarios, "acceptance": acceptance(scenarios)}
 
@@ -287,7 +367,7 @@ def acceptance(scenarios: dict, required: tuple[str, ...] = REQUIRED) -> dict:
             verdicts[scenario] = {"met": False, "reason": "not measured for both tools"}
             continue
         ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
-        checks = ["recovered", "cut", "intact"] + (["resumed"] if "resumed" in ours or "resumed" in theirs else [])
+        checks = ["recovered", "cut", "intact"] + [extra for extra in ("resumed", "latency") if extra in ours or extra in theirs]
         whole = all(row.get(check) == row["runs"] for row in (ours, theirs) for check in checks)
         met = ratio < 1.0 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
         verdicts[scenario] = {"met": met, "time_ratio": ratio,
@@ -303,12 +383,15 @@ def main(argv=None) -> int:
     parser.add_argument("--cap-mib", type=float, default=8)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--latency-ms", type=float, default=20, help="added before every answer")
+    parser.add_argument("--gigabyte-mib", type=float, default=1024, help="the size of the gigabyte scenario's file")
+    parser.add_argument("--deadline", type=float, default=RUN_DEADLINE, help="seconds a tool run may take")
     parser.add_argument("--out", default=str(ROOT / "docs" / "glimmer" / "fetch-bench.json"))
     args = parser.parse_args(argv)
     if args.size_mib <= 0 or args.cap_mib <= 0 or args.runs < 1 or args.latency_ms < 0:
         print("--size-mib, --cap-mib and --runs must be positive", file=sys.stderr)
         return 2
-    figures = measure(int(args.size_mib * 1024 * 1024), int(args.cap_mib * 1024 * 1024), args.runs, args.latency_ms / 1000)
+    figures = measure(int(args.size_mib * 1024 * 1024), int(args.cap_mib * 1024 * 1024), args.runs, args.latency_ms / 1000,
+                      int(args.gigabyte_mib * 1024 * 1024), args.deadline)
     figures["measured"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     out = Path(args.out)
     temporary = out.with_name(f"{out.name}.{os.getpid()}.tmp")
