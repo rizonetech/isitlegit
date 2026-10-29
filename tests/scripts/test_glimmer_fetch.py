@@ -131,7 +131,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             chunk = body
             length = len(chunk)
-        if "weak-etag" in modes or ("weak-etag-on-range" in modes and honour):
+        if "no-validator-on-range" in modes and honour:
+            pass  # a 206 that names no representation
+        elif "weak-etag" in modes or ("weak-etag-on-range" in modes and honour):
             self.send_header("ETag", 'W/"v2"' if "weak-etag-on-range" in modes else 'W/"v1"')
         elif "date-now" in modes:
             self.send_header("Last-Modified", self.date_time_string())
@@ -340,6 +342,38 @@ class Fetch(unittest.TestCase):
             line = self.run_fetch()
         self.assertEqual((line["status"], line["resumed"]), ("fetched", False))
 
+    def test_a_range_that_names_no_validator_restarts(self):
+        self.half_partial()
+        self.server.modes = {"no-validator-on-range"}
+        original = Handler.do_GET
+
+        def once(handler):
+            original(handler)
+            handler.server.modes = set()
+
+        with mock.patch.object(Handler, "do_GET", once):
+            line = self.run_fetch()
+        self.assertEqual((line["status"], line["resumed"]), ("fetched", False))
+
+    def test_a_malformed_url_is_a_refusal_with_the_documented_fields(self):
+        out = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", "http://127.0.0.1:99999/x", "--dest", "src/x",
+                              "--sha256", SHA, "--allow-loopback", "--min-free", "0"], capture_output=True, text=True,
+                             cwd=self.dir, check=False)
+        self.assertEqual(out.returncode, 1, out.stderr)
+        line = json.loads(out.stdout)
+        self.assertEqual(set(line), {"status", "bytes", "fetched", "sha256", "resumed", "reason"})
+        self.assertIn("malformed URL", line["reason"])
+
+    def test_one_download_into_a_source_at_a_time(self):
+        Path("src/.partial").mkdir(parents=True)
+        with open("src/.partial/.lock", "a") as held:
+            import fcntl
+
+            fcntl.flock(held, fcntl.LOCK_EX)
+            with self.assertRaisesRegex(fetch.Refused, "another download"):
+                self.run_fetch()
+        self.assertEqual(self.run_fetch()["status"], "fetched")
+
     def test_a_date_validator_is_used_only_when_strong(self):
         # Last-Modified equal to the response's Date is weak: a drop then means starting again, not resuming.
         self.server.modes = {"date-now", "drop-once"}
@@ -455,8 +489,15 @@ class Fetch(unittest.TestCase):
         # A floor crossed while streaming a file of no stated length stops it, before its first write past the floor.
         shutil.rmtree("src", ignore_errors=True)
         self.server.modes = {"no-length"}
-        with self.assertRaisesRegex(fetch.Refused, "fell under"):
-            self.run_fetch(min_free=shutil.disk_usage(".").free - 128 * 1024)
+        # A disk whose free space falls by exactly what the download writes, so nothing else on the host moves it.
+        start = 10**12
+
+        def disk(_path):
+            written = Path("src/.partial/data.bin")
+            return mock.Mock(free=start - (written.stat().st_size if written.exists() else 0))
+
+        with mock.patch.object(fetch.shutil, "disk_usage", disk), self.assertRaisesRegex(fetch.Refused, "fell under"):
+            self.run_fetch(min_free=start - 512 * 1024)
         self.assertFalse(Path("src/data.bin").exists())
 
     def test_a_429_waits_as_long_as_the_server_asks(self):
