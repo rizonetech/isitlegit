@@ -618,6 +618,10 @@ Filed 2026-10-29 from D03 T04 §7's completion review (gaps 14, 15 and 17): the 
 
 ## 20. Faster and mirrored dataset downloads
 
+> **Started:** 2026-10-29T03:02Z
+
+**Corrected 2026-10-29:** aria2c is installable after all without root: Ubuntu's signed `aria2` and `libaria2-0` packages (1.37.0), fetched with `apt-get download` and unpacked with `dpkg -x` under `~/.local/aria2`, run against the system's own libraries.
+
 Filed 2026-10-29 from D03 T04 §16's completion review (E1, E5, E6): `scripts/glimmer/fetch.py` downloads one file over one connection from one URL. aria2c, the strongest alternative, is not installed on this host and cannot be without root, so the measured head-to-head waits for a host that has it; segmented downloading and failover between a dataset's authorised mirrors would beat both on a large file.
 
 **Phase:** 7
