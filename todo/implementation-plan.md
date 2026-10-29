@@ -270,7 +270,7 @@ Sections: 59 | Checklist items: 238
 
 ### Phase 7: After the event
 
-Sections: 15 | Checklist items: 76
+Sections: 15 | Checklist items: 82
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -281,7 +281,7 @@ Sections: 15 | Checklist items: 76
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 4     |
-| [ ]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 4     |
+| [ ]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 10    |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -314,4 +314,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 55/243 verified sections, 28 ready to run now.
 
-Checklist: 647/1458 items completed (includes Commit items).
+Checklist: 647/1464 items completed (includes Commit items).
