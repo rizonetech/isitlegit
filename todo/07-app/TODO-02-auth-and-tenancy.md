@@ -42,7 +42,7 @@ track: day-1
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [x] |
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [x] |
 | 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
-| 8 | §8 | Plans, trial and feature flags | §4 | [ ] |
+| 8 | §8 | Plans, trial and feature flags | §4 | [x] |
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [ ] |
@@ -309,9 +309,12 @@ Features carry a plan flag checked in code (spec 2b): free check (counterparty v
 - [x] Hand each consumer its gate, with a behavioural test in its own checklist (free and expired organisations get no restricted processing, mutation or outbound request; an entitled one runs; removing the gate fails it): D05 T01 §3 (the identity page, `requireFeature("identity")`), D05 T02 §4 (impersonation alerts, `hasFeature` on the protected organisation), D05 T02 §6 and §7 (the verify page and the live badge show "Not verified" once the protected organisation's plan lapses, not from a stored switch), D05 T03 §1 (closed-loop verification, queued, `hasFeature`), D05 T04 §2 (the monitor's daily run, `hasFeature`), D06 T01 §3 (bank-change detection), D06 T02 §3 (the payment document path, uploaded and emailed) and D05 T02 §1 (staff inbox checks: an expired organisation's staff forwards fall through to the free per-sender check). The plan's readers use `planOf`, not `org_limits`: D07 T08 §4 (the plan page), the `AppShell` trial pill's caller, and D07 T08 §5 (the admin detail). The MSP console and the MSP's own branding have no section in the plan yet (spec 2b prices the MSP tier; recorded for the operator in the run file). Done when: each named section carries its item. Done 2026-10-29: the items are in D05 T01 §3, D05 T02 §1, §4, §6 and §7, D05 T03 §1, D05 T04 §2, D06 T01 §3, D06 T02 §3, and D07 T08 §4 and §5; the MSP console and branding are now D07 T04 §6 (its gate item there), recorded in the run file for the operator.
 - [x] Close the completion review's in-scope gaps (2026-10-29): an extension's date must be an ISO 8601 date-time with its zone and a real calendar date (`parseExtension`), so `2027-02-30` or `03/04/2027` changes nothing; the plan test enumerates every spec 2b feature apart from `FEATURES` and checks each at the trial's last second, expired, extended and explicit free. Done when: `test/node/org-plan.test.ts` refuses each bad date with no write and `test/auth/plans.test.ts` fails if a feature is dropped.
 - [x] Close the final review (2026-10-29): an extension only ever moves the trial's end later and never replaces Protect or MSP; a plan clears any extension; a stored date that does not read is `PlanUnavailable`. Done when: `test/auth/plans.test.ts` "final review" refuses both extensions with nothing changed, reads an explicit free after an extension with no trial end, and throws `PlanUnavailable` on a corrupt date.
-- [ ] Commit: `auth: plans, trial and feature flags`
+- [x] Commit: `auth: plans, trial and feature flags` (landed as `e9461e3`, with the reviews' fixes in `f77b084`, `a668d61` and `8f139ab`)
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/plans.test.ts` passes and fails if an expired trial keeps Protect features.
+
+> **Verified:** 2026-10-29 | §8 | 8f139ab3dddff8c280d1eb319ad189e5e8884eb6
+> **Review:** `docs/reviews/d07-t02-s8.json`
 
 ## 9. Account closure and coordinated purge
 

@@ -81,7 +81,7 @@ Sections: 42 | Checklist items: 358
 | [x]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
 | [x]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 12    |
-| [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 8     |
+| [x]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 8     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
 | [x]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 12    |
@@ -312,6 +312,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 60/243 verified sections, 27 ready to run now.
+Progress: 61/243 verified sections, 27 ready to run now.
 
-Checklist: 617/1460 items completed (includes Commit items).
+Checklist: 618/1460 items completed (includes Commit items).

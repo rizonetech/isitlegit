@@ -1,0 +1,127 @@
+{
+  "ref": "D07 T02 \u00a78",
+  "title": "Plans, trial and feature flags",
+  "implementation_sha": "8f139ab3dddff8c280d1eb319ad189e5e8884eb6",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s8.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T02-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/auth/plans.test.ts -> 11 passed (the trial from createdAt and its last second, the whole matrix apart from FEATURES across every state, operator changes, refusals, the gate through the Worker, extensions never shortening or replacing a paid plan, corrupt dates)",
+    "pnpm exec vitest run --project node test/node/org-plan.test.ts -> 1 passed (the script on the real migration, strict dates refused with no write)",
+    "pnpm exec vitest run --maxWorkers=2 -> 1200 passed, 2 skipped",
+    "mutation: an expired trial keeping Protect fails four tests",
+    "live: migration 0030 applied and read back; 8f139ab deployed, /health ok"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s8.md",
+    "verdict": "filed",
+    "candidate": "e9461e32272d2dacc7a3945e4c0bf725cdeb9e24",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D05 T01 \u00a73",
+      "D05 T02 \u00a71",
+      "D05 T03 \u00a71",
+      "D06 T01 \u00a73",
+      "D07 T08 \u00a74",
+      "D07 T08 \u00a75",
+      "D07 T04 \u00a76"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s8.md",
+    "candidate": "aa82ae4954b7dfa2b3c26474f6a082e9de3c03f5",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/07-app/D07-T02-s8.md",
+    "verdict": "fixed",
+    "candidate": "007dc14edcf24959383abd36d11b46a83be4f2e3",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
