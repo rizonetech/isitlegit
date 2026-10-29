@@ -19,7 +19,12 @@ export async function orgPlan(args: string[], run: Runner = runCommand, now = ne
         : null;
   if (!statement) throw new Error(`no such plan: ${action}`);
   const answer = await execute(statement, run);
-  if ((answer.meta?.changes ?? 0) !== 1) throw new Error(`no organisation ${orgId}`);
+  if ((answer.meta?.changes ?? 0) !== 1)
+    throw new Error(
+      action === "extend"
+        ? `${orgId} not extended: no such organisation, a paid plan, or not later than its current trial end`
+        : `no organisation ${orgId}`,
+    );
   return action === "extend"
     ? `${orgId}: trial until ${parseExtension(when ?? "").toISOString()}`
     : `${orgId}: ${action}`;

@@ -37,6 +37,9 @@ describe("scripts/org-plan.ts", () => {
       plan: "protect",
       daily_cases: 50,
     });
+    // An extension never replaces a paid plan (final review).
+    await expect(orgPlan(["org-1", "extend", "2026-11-05T00:00:00Z"], w.run, now)).rejects.toThrow(/a paid plan/);
+    expect(await orgPlan(["org-1", "free"], w.run, now)).toBe("org-1: free");
     expect(await orgPlan(["org-1", "extend", "2026-11-05T00:00:00Z"], w.run, now)).toContain("trial until");
     expect(w.db.prepare("SELECT plan, trial_ends_at FROM org_limits").get()).toEqual({
       plan: null,

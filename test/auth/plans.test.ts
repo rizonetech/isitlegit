@@ -214,3 +214,34 @@ describe("requireFeature through the Worker", () => {
     expect((await visit(cookie)).status).toBe(200);
   });
 });
+
+describe("final review (2026-10-29)", () => {
+  it("never shortens a running trial nor replaces a paid plan with an extension", async () => {
+    const now = Date.now();
+    const paid = await orgAged(20, now);
+    await setPlan(db, paid, "protect");
+    expect(await extendTrial(db, paid, new Date(now + 30 * DAY), new Date(now))).toBe(false);
+    expect((await planOf(db, paid, new Date(now)))?.plan).toBe("protect");
+    expect(await hasFeature(db, paid, "msp-console", new Date(now))).toBe(false);
+    const running = await orgAged(4, now);
+    expect(await extendTrial(db, running, new Date(now + DAY), new Date(now))).toBe(false);
+    expect(await planOf(db, running, new Date(now))).toMatchObject({ plan: "trial", daysLeft: 10 });
+    expect(await extendTrial(db, running, new Date(now + 20 * DAY), new Date(now))).toBe(true);
+    expect(await planOf(db, running, new Date(now))).toMatchObject({ plan: "trial", daysLeft: 20 });
+  });
+
+  it("clears an extension when a plan is set, so an explicit free has no trial end", async () => {
+    const now = Date.now();
+    const id = await orgAged(20, now);
+    await extendTrial(db, id, new Date(now + 5 * DAY), new Date(now));
+    await setPlan(db, id, "protect");
+    await setPlan(db, id, "free");
+    expect(await planOf(db, id, new Date(now))).toEqual({ plan: "free", trialEndedAt: null });
+  });
+
+  it("throws PlanUnavailable on a stored date that does not read", async () => {
+    const id = await orgAged(1);
+    await db.prepare("INSERT INTO org_limits (org_id, trial_ends_at) VALUES (?, 'not-a-date')").bind(id).run();
+    await expect(hasFeature(db, id, "identity")).rejects.toThrow(PlanUnavailable);
+  });
+});

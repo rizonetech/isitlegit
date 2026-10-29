@@ -56,6 +56,8 @@ export async function planOf(db: D1Database, orgId: string, now = new Date()): P
   const end = row.trial_ends_at
     ? new Date(row.trial_ends_at)
     : new Date(new Date(row.createdAt).getTime() + TRIAL_DAYS * DAY_MS);
+  // A stored date that does not read is an unreadable plan, never a lapsed one (final review).
+  if (Number.isNaN(end.getTime())) throw new PlanUnavailable("the plan's trial end could not be read");
   if (row.plan !== "free" && now < end)
     return {
       plan: "trial",

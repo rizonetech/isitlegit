@@ -3,6 +3,8 @@
 import type { Statement } from "../meta/budget-sql.ts";
 
 export const STORED_PLANS = ["free", "protect", "msp"] as const;
+// The trial's length (./plans TRIAL_DAYS), here as SQL needs it.
+const TRIAL_DAYS_SQL = 14;
 
 // An extension's end, as the operator writes it: an ISO 8601 date-time with its zone (`2026-11-12T00:00:00Z`, or with
 // an offset), and a real calendar date. Anything else (`2027-02-30`, `03/04/2027`, a date with no zone) is refused, so
@@ -31,7 +33,8 @@ export function parseExtension(text: string): Date {
 export function setPlanStatement(orgId: string, plan: (typeof STORED_PLANS)[number]): Statement {
   if (!(STORED_PLANS as readonly string[]).includes(plan)) throw new RangeError(`no such plan: ${plan}`);
   return {
-    sql: 'INSERT INTO org_limits (org_id, plan) SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM "organization" WHERE id = ?1) ON CONFLICT (org_id) DO UPDATE SET plan = excluded.plan',
+    // A plan replaces the trial, and any extension with it (final review: no stale trial end is left behind).
+    sql: 'INSERT INTO org_limits (org_id, plan) SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM "organization" WHERE id = ?1) ON CONFLICT (org_id) DO UPDATE SET plan = excluded.plan, trial_ends_at = NULL',
     params: [orgId, plan],
   };
 }
@@ -40,7 +43,9 @@ export function extendTrialStatement(orgId: string, until: Date, now = new Date(
   if (Number.isNaN(until.getTime()) || until <= now)
     throw new RangeError("a trial is extended to a time still to come");
   return {
-    sql: 'INSERT INTO org_limits (org_id, plan, trial_ends_at) SELECT ?1, NULL, ?2 WHERE EXISTS (SELECT 1 FROM "organization" WHERE id = ?1) ON CONFLICT (org_id) DO UPDATE SET plan = NULL, trial_ends_at = excluded.trial_ends_at',
+    // Only ever later, and never over a paid plan (final review): an extension that would end before the trial's current
+    // end (its own extension, else 14 days from createdAt), or that would replace Protect or MSP, changes nothing.
+    sql: `INSERT INTO org_limits (org_id, plan, trial_ends_at) SELECT ?1, NULL, ?2 WHERE EXISTS (SELECT 1 FROM "organization" WHERE id = ?1) AND NOT EXISTS (SELECT 1 FROM org_limits WHERE org_id = ?1 AND plan IN ('protect', 'msp')) AND ?2 > coalesce((SELECT trial_ends_at FROM org_limits WHERE org_id = ?1), (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', "createdAt", '+${TRIAL_DAYS_SQL} days') FROM "organization" WHERE id = ?1)) ON CONFLICT (org_id) DO UPDATE SET plan = NULL, trial_ends_at = excluded.trial_ends_at`,
     params: [orgId, until.toISOString()],
   };
 }
