@@ -1,0 +1,631 @@
+{
+  "version": 1,
+  "revision": "2026-10-29",
+  "brands": [
+    {
+      "name": "Standard Bank",
+      "display_names": [
+        "Standard Bank"
+      ],
+      "domains": [
+        "standardbank.co.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.standardbank.co.za/southafrica/personal/products-and-services/security-centre/bank-safely/scams",
+          "read": "2026-10-29",
+          "names": [
+            "standardbank.co.za"
+          ],
+          "evidence": "The bank's own scams page at this address; its text could not be read (the addresses are hidden by its bot protection)."
+        }
+      ]
+    },
+    {
+      "name": "FNB",
+      "display_names": [
+        "FNB",
+        "First National Bank",
+        "FNB Cheque",
+        "FNB Online Banking"
+      ],
+      "domains": [
+        "fnb.co.za",
+        "fnbstatements.co.za",
+        "ebucks.co.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.fnb.co.za/security-centre/fraud-types/current-scams.html",
+          "read": "2026-10-29",
+          "names": [
+            "fnb.co.za"
+          ],
+          "evidence": "Report phishing emails to phishing@fnb.co.za"
+        },
+        {
+          "url": "https://www.fnb.co.za/security-centre/fraud-types/current-scams.html",
+          "read": "2026-10-29",
+          "names": [
+            "fnbstatements.co.za"
+          ],
+          "evidence": "Real card statements: FNB Cheque [fnbcheque@fnbstatements.co.za]"
+        },
+        {
+          "url": "https://www.fnb.co.za/security-centre/fraud-types/current-scams.html",
+          "read": "2026-10-29",
+          "names": [
+            "ebucks.co.za"
+          ],
+          "evidence": "you will be redirected to a fake website that mimics eBucks.co.za."
+        }
+      ]
+    },
+    {
+      "name": "Absa",
+      "display_names": [
+        "Absa",
+        "MyAbsa",
+        "Absa Online"
+      ],
+      "domains": [
+        "absa.co.za",
+        "absa.africa"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.absa.co.za/self-service/safety-security/phishing-scams",
+          "read": "2026-10-29",
+          "names": [
+            "absa.co.za"
+          ],
+          "evidence": "Email us at: secmon@absa.co.za"
+        },
+        {
+          "url": "https://www.absa.co.za/self-service/safety-security/phishing-scams",
+          "read": "2026-10-29",
+          "names": [
+            "absa.africa"
+          ],
+          "evidence": "Send the suspicious email as an attachment to Secmon@absa.africa"
+        }
+      ]
+    },
+    {
+      "name": "Nedbank",
+      "display_names": [
+        "Nedbank"
+      ],
+      "domains": [
+        "nedbank.co.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://personal.nedbank.co.za/home/fraud-awareness/cybercrime.html",
+          "read": "2026-10-29",
+          "names": [
+            "nedbank.co.za"
+          ],
+          "evidence": "If you receive a suspicious email, forward it to phishing@nedbank.co.za immediately."
+        }
+      ]
+    },
+    {
+      "name": "Investec",
+      "display_names": [
+        "Investec",
+        "Investec Private Bank"
+      ],
+      "domains": [
+        "investec.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.investec.com/en_za.html",
+          "read": "2026-10-29",
+          "names": [
+            "investec.com"
+          ],
+          "evidence": "Investec's South African home page at this address; its text could not be read (HTTP 403)."
+        }
+      ]
+    },
+    {
+      "name": "Capitec",
+      "display_names": [
+        "Capitec",
+        "Capitec Bank"
+      ],
+      "domains": [
+        "capitecbank.co.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.capitecbank.co.za/",
+          "read": "2026-10-29",
+          "names": [
+            "capitecbank.co.za"
+          ],
+          "evidence": "Capitec's home page at this address; its text could not be read (HTTP 403)."
+        }
+      ]
+    },
+    {
+      "name": "Discovery Bank",
+      "display_names": [
+        "Discovery Bank",
+        "Discovery"
+      ],
+      "domains": [
+        "discovery.co.za",
+        "discovery.bank"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.discovery.co.za/investments/protect-yourself-against-phishing-scams",
+          "read": "2026-10-29",
+          "names": [
+            "discovery.co.za"
+          ],
+          "evidence": "Emails from us always originate from a mailbox that ends in discovery.co.za"
+        },
+        {
+          "url": "https://www.discovery.co.za/investments/protect-yourself-against-phishing-scams",
+          "read": "2026-10-29",
+          "names": [
+            "discovery.bank"
+          ],
+          "evidence": "send them to phishing@discovery.bank"
+        }
+      ]
+    },
+    {
+      "name": "TymeBank",
+      "display_names": [
+        "TymeBank",
+        "Tyme Bank",
+        "GoTyme Bank"
+      ],
+      "domains": [
+        "gotyme.co.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://gotyme.co.za/personal/security-landing/security-list/how-to-protect-yourself-from-banking-fraud-and-scams",
+          "read": "2026-10-29",
+          "names": [
+            "gotyme.co.za"
+          ],
+          "evidence": "by email (service@gotyme.co.za)"
+        }
+      ]
+    },
+    {
+      "name": "Microsoft",
+      "display_names": [
+        "Microsoft",
+        "Microsoft account team"
+      ],
+      "domains": [
+        "microsoft.com"
+      ],
+      "user_content": [
+        "answers.microsoft.com",
+        "techcommunity.microsoft.com"
+      ],
+      "sources": [
+        {
+          "url": "https://support.microsoft.com/en-us/help/10636/microsoft-account-trust-email-from-account-team",
+          "read": "2026-10-29",
+          "names": [
+            "microsoft.com"
+          ],
+          "evidence": "the email address domain is @accountprotection.microsoft.com, it is safe to trust the message and open it."
+        }
+      ]
+    },
+    {
+      "name": "Google",
+      "display_names": [
+        "Google",
+        "Google Security",
+        "Gmail"
+      ],
+      "domains": [
+        "google.com"
+      ],
+      "user_content": [
+        "sites.google.com",
+        "docs.google.com",
+        "drive.google.com",
+        "script.google.com",
+        "groups.google.com"
+      ],
+      "sources": [
+        {
+          "url": "https://support.google.com/mail/answer/180707?hl=en",
+          "read": "2026-10-29",
+          "names": [
+            "google.com"
+          ],
+          "evidence": "\"Mailed by\" header with the domain name, like google.com."
+        }
+      ]
+    },
+    {
+      "name": "Apple",
+      "display_names": [
+        "Apple",
+        "Apple ID",
+        "iCloud",
+        "Apple Support"
+      ],
+      "domains": [
+        "apple.com",
+        "icloud.com"
+      ],
+      "user_content": [
+        "icloud.com"
+      ],
+      "sources": [
+        {
+          "url": "https://support.apple.com/en-us/102568",
+          "read": "2026-10-29",
+          "names": [
+            "apple.com"
+          ],
+          "evidence": "please forward it to reportphishing@apple.com"
+        },
+        {
+          "url": "https://support.apple.com/en-us/102568",
+          "read": "2026-10-29",
+          "names": [
+            "icloud.com"
+          ],
+          "evidence": "send them to abuse@icloud.com"
+        }
+      ]
+    },
+    {
+      "name": "DocuSign",
+      "display_names": [
+        "DocuSign",
+        "Docusign",
+        "Docusign eSignature"
+      ],
+      "domains": [
+        "docusign.net",
+        "docusign.com"
+      ],
+      "user_content": [
+        "docusign.net"
+      ],
+      "sources": [
+        {
+          "url": "https://www.docusign.com/trust/alerts/fraud-alert-spoofed-docusign-emails-june-1-2025",
+          "read": "2026-10-29",
+          "names": [
+            "docusign.net"
+          ],
+          "evidence": "The sender's email address should always come from a legitimate Docusign domain, such as Docusign.net."
+        },
+        {
+          "url": "https://www.docusign.com/trust/alerts/fraud-alert-spoofed-docusign-emails-june-1-2025",
+          "read": "2026-10-29",
+          "names": [
+            "docusign.com"
+          ],
+          "evidence": "These emails are spoofed to appear as if they've been sent from docusign.net or docusign.com"
+        }
+      ]
+    },
+    {
+      "name": "Adobe",
+      "display_names": [
+        "Adobe",
+        "Adobe Acrobat Sign",
+        "Adobe Creative Cloud"
+      ],
+      "domains": [
+        "adobe.com"
+      ],
+      "user_content": [
+        "acrobat.adobe.com",
+        "express.adobe.com",
+        "indd.adobe.com",
+        "spark.adobe.com"
+      ],
+      "sources": [
+        {
+          "url": "https://www.adobe.com/",
+          "read": "2026-10-29",
+          "names": [
+            "adobe.com"
+          ],
+          "evidence": "Adobe's home page at this address."
+        }
+      ]
+    },
+    {
+      "name": "SARS",
+      "display_names": [
+        "SARS",
+        "South African Revenue Service",
+        "SARS eFiling"
+      ],
+      "domains": [
+        "sars.gov.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.sars.gov.za/latest-news/stay-alert-latest-auto-assessment-scam/",
+          "read": "2026-10-29",
+          "names": [
+            "sars.gov.za"
+          ],
+          "evidence": "always hover over hyperlinks to make sure it's a sars.gov.za link"
+        }
+      ]
+    },
+    {
+      "name": "Xero",
+      "display_names": [
+        "Xero",
+        "Xero Limited"
+      ],
+      "domains": [
+        "xero.com"
+      ],
+      "user_content": [
+        "post.xero.com"
+      ],
+      "sources": [
+        {
+          "url": "https://blog.xero.com/?p=12045",
+          "read": "2026-10-29",
+          "names": [
+            "xero.com"
+          ],
+          "evidence": "you can forward the email to phishing@xero.com and we'll check it out for you."
+        }
+      ]
+    },
+    {
+      "name": "Sage",
+      "display_names": [
+        "Sage",
+        "Sage South Africa"
+      ],
+      "domains": [
+        "sage.com",
+        "sagecity.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://communityhub.sage.com/za/sage-pastel-payroll/f/announcements/205116/alert-how-to-contact-official-sage-support-to-avoid-third-party-scams",
+          "read": "2026-10-29",
+          "names": [
+            "sage.com"
+          ],
+          "evidence": "Authentic Sage sites will always use domains like \"sage.com.\""
+        },
+        {
+          "url": "https://communityhub.sage.com/za/sage-pastel-payroll/f/announcements/205116/alert-how-to-contact-official-sage-support-to-avoid-third-party-scams",
+          "read": "2026-10-29",
+          "names": [
+            "sagecity.com"
+          ],
+          "evidence": "add [email protected] and @sagecity.com to your safe sender's list."
+        }
+      ]
+    },
+    {
+      "name": "DHL",
+      "display_names": [
+        "DHL",
+        "DHL Express"
+      ],
+      "domains": [
+        "dhl.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.dhl.com/za-en/home.html",
+          "read": "2026-10-29",
+          "names": [
+            "dhl.com"
+          ],
+          "evidence": "DHL's South African home page at this address."
+        }
+      ]
+    },
+    {
+      "name": "FedEx",
+      "display_names": [
+        "FedEx"
+      ],
+      "domains": [
+        "fedex.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.fedex.com/en-br/trust-center/report-fraud.html",
+          "read": "2026-10-29",
+          "names": [
+            "fedex.com"
+          ],
+          "evidence": "you can call us anytime at 1.800.GoFedEx 1.800.463.3339 or visit fedex.com."
+        }
+      ]
+    },
+    {
+      "name": "Aramex",
+      "display_names": [
+        "Aramex"
+      ],
+      "domains": [
+        "aramex.com",
+        "aramex.co.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://aramex.co.za/aramex-scam-awareness-fake-emails-texts/",
+          "read": "2026-10-29",
+          "names": [
+            "aramex.com"
+          ],
+          "evidence": "a legitimate URL might be “www.aramex.com,” while a fake one might be “www.aramexx.com.”"
+        },
+        {
+          "url": "https://aramex.co.za/aramex-scam-awareness-fake-emails-texts/",
+          "read": "2026-10-29",
+          "names": [
+            "aramex.co.za"
+          ],
+          "evidence": "Aramex South Africa's scam-awareness page, published at this address."
+        }
+      ]
+    },
+    {
+      "name": "PostNet",
+      "display_names": [
+        "PostNet",
+        "PostNet South Africa"
+      ],
+      "domains": [
+        "postnet.co.za"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.postnet.co.za/contact-postnet",
+          "read": "2026-10-29",
+          "names": [
+            "postnet.co.za"
+          ],
+          "evidence": "Email address: callcentre@postnet.co.za"
+        }
+      ]
+    },
+    {
+      "name": "Takealot",
+      "display_names": [
+        "Takealot"
+      ],
+      "domains": [
+        "takealot.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.takealot.com",
+          "read": "2026-10-29",
+          "names": [
+            "takealot.com"
+          ],
+          "evidence": "Takealot's home page at this address."
+        }
+      ]
+    },
+    {
+      "name": "Netflix",
+      "display_names": [
+        "Netflix"
+      ],
+      "domains": [
+        "netflix.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://help.netflix.com/en/node/65674",
+          "read": "2026-10-29",
+          "names": [
+            "netflix.com"
+          ],
+          "evidence": "Forward the email to phishing@netflix.com."
+        }
+      ]
+    },
+    {
+      "name": "PayPal",
+      "display_names": [
+        "PayPal"
+      ],
+      "domains": [
+        "paypal.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://www.paypal.com/us/smarthelp/article/how-to-spot-fake-emails-faq2340",
+          "read": "2026-10-29",
+          "names": [
+            "paypal.com"
+          ],
+          "evidence": "To report a suspicious email or website, forward it to phishing@paypal.com."
+        }
+      ]
+    },
+    {
+      "name": "Payfast",
+      "display_names": [
+        "Payfast",
+        "PayFast"
+      ],
+      "domains": [
+        "payfast.io"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://payfast.io/",
+          "read": "2026-10-29",
+          "names": [
+            "payfast.io"
+          ],
+          "evidence": "Payfast's home page at this address."
+        }
+      ]
+    },
+    {
+      "name": "Yoco",
+      "display_names": [
+        "Yoco"
+      ],
+      "domains": [
+        "yoco.com"
+      ],
+      "user_content": [],
+      "sources": [
+        {
+          "url": "https://yoco.com/za/articles/fraud-guide",
+          "read": "2026-10-29",
+          "names": [
+            "yoco.com"
+          ],
+          "evidence": "We will only contact you via official @yoco.com emails or calls from our support line."
+        }
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "name": "The Courier Guy",
+      "reason": "Every page of its site answered HTTP 403 to the fetches made on 2026-10-29, so no brand-owned page naming a domain could be read; add it in a later revision once one can."
+    }
+  ]
+}
