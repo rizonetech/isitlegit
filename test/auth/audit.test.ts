@@ -596,3 +596,77 @@ describe("round 3 (2026-10-29)", () => {
     }
   });
 });
+
+describe("final review (2026-10-29)", () => {
+  it("releases a role change's hold when the change fails with an error Better Auth rethrows", async () => {
+    const { cookie } = await owner(`fail-${unique()}@example.org`);
+    const memberEmail = `failing-${unique()}@example.org`;
+    await joiner(cookie, memberEmail, "member");
+    const id =
+      (
+        await db
+          .prepare(`SELECT m.id FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE u.email = ?`)
+          .bind(memberEmail)
+          .first<{ id: string }>()
+      )?.id ?? "";
+    await db.prepare(`CREATE TRIGGER fail_role BEFORE UPDATE ON "member" BEGIN SELECT RAISE(ABORT, 'disk'); END`).run();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const failed = await api("/api/auth/organization/update-member-role", cookie, { memberId: id, role: "admin" });
+      expect(failed.status).toBeGreaterThanOrEqual(500);
+    } finally {
+      await db.prepare("DROP TRIGGER fail_role").run();
+    }
+    expect(await db.prepare("SELECT 1 FROM member_locks WHERE member_id = ?").bind(id).first()).toBeNull();
+    expect(
+      (await api("/api/auth/organization/update-member-role", cookie, { memberId: id, role: "admin" })).status,
+    ).toBe(200);
+  });
+
+  it("ends a removed member's sessions before recording it, and says so when they could not be ended", async () => {
+    const { cookie, orgId } = await owner(`sessions-${unique()}@example.org`);
+    const memberEmail = `sess-${unique()}@example.org`;
+    await joiner(cookie, memberEmail, "member");
+    await db
+      .prepare(`CREATE TRIGGER keep_sessions BEFORE DELETE ON "session" BEGIN SELECT RAISE(ABORT, 'disk'); END`)
+      .run();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect((await api("/api/auth/organization/remove-member", cookie, { memberIdOrEmail: memberEmail })).status).toBe(
+        200,
+      );
+    } finally {
+      await db.prepare("DROP TRIGGER keep_sessions").run();
+    }
+    const [row] = await events("remove-member", "org_id = ?", orgId);
+    expect(JSON.parse(row?.detail_json ?? "{}")).toEqual({ sessionsEnded: false });
+  });
+
+  it("keeps rows of one millisecond in the order they happened", async () => {
+    const { cookie, orgId } = await owner(`order-${unique()}@example.org`);
+    const at = "2026-10-29T08:00:00.000Z";
+    for (const id of ["ffffffff-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"])
+      await db
+        .prepare("INSERT INTO auth_events (id, at, kind, outcome, org_id) VALUES (?, ?, 'remove-member', 'removed', ?)")
+        .bind(id, at, orgId)
+        .run();
+    const read = (await (await call("/api/team/history", { headers: { cookie } })).json()) as {
+      changes: { at: string }[];
+    };
+    expect(read.changes).toHaveLength(2);
+    const { readTeamHistory } = await import("../../src/auth/audit");
+    const { changes } = await readTeamHistory(db, orgId);
+    // The later insert first, although its id sorts first: insertion order, not the random id.
+    expect(changes.map((c) => c.id)).toEqual([
+      "00000000-0000-4000-8000-000000000002",
+      "ffffffff-0000-4000-8000-000000000001",
+    ]);
+  });
+
+  it("normalises a mapped IPv4 address alike in dotted and hex form", async () => {
+    const { normalizeIp } = await import("../../src/auth/audit");
+    expect(normalizeIp("::ffff:c000:0201")).toBe("192.0.2.1");
+    expect(normalizeIp("::FFFF:192.0.2.1")).toBe("192.0.2.1");
+    expect(normalizeIp("2001:db8:abcd:12::7")).toBe("2001:0db8:abcd:0012:0000:0000:0000:0000");
+  });
+});

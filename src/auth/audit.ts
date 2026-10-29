@@ -58,6 +58,13 @@ export function normalizeIp(ip: string): string {
   const value = ip.trim().toLowerCase();
   const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(value);
   if (mapped?.[1]) return mapped[1];
+  // The same mapping written in hex (`::ffff:c000:0201`), as Better Auth reads it.
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(value);
+  if (hex?.[1] && hex[2]) {
+    const high = Number.parseInt(hex[1], 16);
+    const low = Number.parseInt(hex[2], 16);
+    return [high >> 8, high & 255, low >> 8, low & 255].join(".");
+  }
   if (!value.includes(":")) return value;
   const [head = "", tail] = value.split("::");
   const left = head ? head.split(":") : [];
@@ -101,6 +108,7 @@ export async function recordAuthEvent(db: D1Database, secret: string, event: Aut
 export const clientIp = (headers: Headers | undefined | null) => headers?.get("cf-connecting-ip") ?? null;
 
 export type TeamChange = {
+  seq: number;
   id: string;
   at: string;
   kind: (typeof TEAM_ACTIONS)[number];
@@ -111,8 +119,8 @@ export type TeamChange = {
 };
 
 // One organisation's team history, newest first, by action and date (D07 T04 §3 reads it through its owner-only route),
-// a page at a time: each page ends with the cursor of its last row, `at` then `id` (completion review, G5), so rows
-// sharing a time are never skipped or repeated. Dates are compared as the stored ISO timestamps (G4: the route
+// a page at a time: each page ends with the cursor of its last row, `at` then its insertion order (`rowid`; completion
+// review G5, final review), so rows sharing a time keep the order they happened in and are never skipped or repeated. Dates are compared as the stored ISO timestamps (G4: the route
 // normalises them first).
 export const HISTORY_PAGE = 100;
 export async function readTeamHistory(
@@ -130,7 +138,7 @@ export async function readTeamHistory(
   const [afterAt, afterId] = filter.after ? filter.after.split("|") : [null, null];
   const rows = await db
     .prepare(
-      `SELECT id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? AND (? IS NULL OR at < ? OR (at = ? AND id < ?)) ORDER BY at DESC, id DESC LIMIT ?`,
+      `SELECT rowid AS seq, id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? AND (? IS NULL OR at < ? OR (at = ? AND rowid < ?)) ORDER BY at DESC, rowid DESC LIMIT ?`,
     )
     .bind(
       orgId,
@@ -140,13 +148,13 @@ export async function readTeamHistory(
       afterAt ?? null,
       afterAt ?? null,
       afterAt ?? null,
-      afterId ?? null,
+      afterId === null || afterId === undefined ? null : Number(afterId),
       HISTORY_PAGE + 1,
     )
     .all<TeamChange>();
   const changes = rows.results.slice(0, HISTORY_PAGE);
   const last = changes.at(-1);
-  return { changes, next: rows.results.length > HISTORY_PAGE && last ? `${last.at}|${last.id}` : null };
+  return { changes, next: rows.results.length > HISTORY_PAGE && last ? `${last.at}|${last.seq}` : null };
 }
 
 // The cron's sweep (D07 T02 §6): expired limiter buckets, and audit rows past their retention, each in a bounded batch.

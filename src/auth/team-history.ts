@@ -19,7 +19,7 @@ const Filter = z.strictObject({
   to: When,
   after: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\|[0-9a-f-]{36}$/)
+    .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\|\d{1,18}$/)
     .optional(),
 });
 

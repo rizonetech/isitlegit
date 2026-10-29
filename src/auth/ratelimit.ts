@@ -9,12 +9,15 @@ import { type AuthEvent, bucketKey } from "./audit";
 // counted apart (Better Auth keys a bucket by IP and path). The per-address limit on sign-in mail is sendMail's own (D01 T02 §2).
 export const LINK_WINDOW_SECONDS = 600;
 export const LINK_MAX = 20;
+export const SIGNUP_MAX = 10;
 export const RATE_RULES = {
   "/sign-in/magic-link": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
   "/magic-link/verify": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
   // A passkey sign-in is a challenge then its proof, each bounded the same (completion review, G1).
   "/passkey/generate-authenticate-options": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
   "/passkey/verify-authentication": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
+  // The invite-code signup keeps a limit of its own (Better Auth's default for /sign-up is not counted here).
+  "/sign-up/invite-code": { window: LINK_WINDOW_SECONDS, max: SIGNUP_MAX },
 } as const;
 
 // The paths counted are the ones with a rule here; every other path passes without a write, as it did when Better Auth's
@@ -47,12 +50,15 @@ export function d1RateLimit(
         .first<{ count: number; window_start: number }>();
       if (!row || row.count <= rule.max) return { allowed: true, retryAfter: null };
       const retryAfter = Math.max(1, row.window_start + rule.window - at);
-      await refused({
-        kind: "rate-limited",
-        outcome: "per-ip",
-        ip,
-        detail: { path, retryAfter },
-      });
+      // One row for each window a client is refused in, not one per refusal, so a flood cannot grow the trail at its
+      // own rate (final review).
+      if (row.count === rule.max + 1)
+        await refused({
+          kind: "rate-limited",
+          outcome: "per-ip",
+          ip,
+          detail: { path, retryAfter },
+        });
       return { allowed: false, retryAfter };
     },
   };

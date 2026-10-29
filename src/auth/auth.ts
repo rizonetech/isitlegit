@@ -61,17 +61,7 @@ export function authOptions(
 ) {
   // The audit trail (D07 T02 §6, ./audit): a row that cannot be written is logged, never a failed sign-in.
   const audit = (event: AuthEvent) => recordAuthEvent(mail().db, env.BETTER_AUTH_SECRET ?? "", event);
-  // A role change's hold on its member, released once it has run, whatever its answer.
-  const releaseMember = async (request: Request | undefined) => {
-    const memberId = request ? lockedMembers.get(request) : undefined;
-    if (!request || !memberId) return;
-    lockedMembers.delete(request);
-    await mail()
-      .db.prepare("DELETE FROM member_locks WHERE member_id = ?")
-      .bind(memberId)
-      .run()
-      .catch(() => console.error(JSON.stringify({ event: "auth-audit", outcome: "member-lock-unreleased" })));
-  };
+  const releaseMember = (request: Request | undefined) => releaseHeld(mail().db, request);
   const schema = schemaOptions(
     {
       sendMagicLink: async ({ email, url, token }, ctx) => {
@@ -214,16 +204,17 @@ export function authOptions(
               (callerRoles.includes("admin") && !roles(target.role).includes("owner") && !asked.includes("owner")));
           if (typeof memberId === "string" && mayChange) {
             const now = Math.floor(Date.now() / 1000);
+            const holder = crypto.randomUUID();
             const held = await mail()
               .db.prepare(
-                "INSERT INTO member_locks (member_id, until) VALUES (?1, ?2) ON CONFLICT (member_id) DO UPDATE SET until = excluded.until WHERE member_locks.until < ?3 RETURNING member_id",
+                "INSERT INTO member_locks (member_id, until, holder) VALUES (?1, ?2, ?4) ON CONFLICT (member_id) DO UPDATE SET until = excluded.until, holder = excluded.holder WHERE member_locks.until < ?3 RETURNING member_id",
               )
-              .bind(memberId, now + MEMBER_LOCK_SECONDS, now)
+              .bind(memberId, now + MEMBER_LOCK_SECONDS, now, holder)
               .first();
             // Taken when the row came back: a held member returns none.
             if (!held)
               throw new APIError("CONFLICT", { message: "another change to this member is in progress; try again" });
-            lockedMembers.set(ctx.request, memberId);
+            lockedMembers.set(ctx.request, { memberId, holder });
             const member = await ctx.context.adapter.findOne<{ role: string }>({
               model: "member",
               where: [{ field: "id", value: memberId }],
@@ -443,6 +434,24 @@ export function authOptions(
           const removed = ctx.context.returned as { member?: { userId?: string; organizationId?: string } } | null;
           const member = removed?.member;
           if (!member?.userId || !member.organizationId || isAPIError(removed)) return;
+          // Sessions first, then the row, which says whether they ended (final review): the membership is already gone,
+          // so a session delete that fails is logged and recorded, never a 500 an owner's retry could not repair
+          // (requireOrg refuses those sessions in the organisation either way).
+          const ended = await ctx.context.adapter
+            .deleteMany({
+              model: "session",
+              where: [
+                { field: "userId", value: member.userId },
+                { field: "activeOrganizationId", value: member.organizationId },
+              ],
+            })
+            .then(
+              () => true,
+              () => {
+                console.error(JSON.stringify({ event: "auth-audit", outcome: "removed-sessions-not-ended" }));
+                return false;
+              },
+            );
           await audit({
             kind: "remove-member",
             outcome: "removed",
@@ -450,13 +459,7 @@ export function authOptions(
             actorId: (await getSessionFromCtx(ctx))?.user.id ?? null,
             targetId: member.userId,
             ip: clientIp(ctx.request?.headers),
-          });
-          await ctx.context.adapter.deleteMany({
-            model: "session",
-            where: [
-              { field: "userId", value: member.userId },
-              { field: "activeOrganizationId", value: member.organizationId },
-            ],
+            detail: { sessionsEnded: ended },
           });
         }
       }),
@@ -495,8 +498,22 @@ export function authOptions(
 
 // A role change's previous role and its held member, from its before hook to its after hook, by request.
 const previousRoles = new WeakMap<Request, string>();
-const lockedMembers = new WeakMap<Request, string>();
-const MEMBER_LOCK_SECONDS = 30;
+const lockedMembers = new WeakMap<Request, { memberId: string; holder: string }>();
+const MEMBER_LOCK_SECONDS = 10;
+
+// A role change's hold released once it has run, whatever its answer: from the after hook, and again around the
+// handler, since Better Auth skips after hooks on an error that is not an APIError (final review). Only its own holder
+// releases it, so a late release never frees a hold another request has since taken.
+async function releaseHeld(db: D1Database, request: Request | undefined): Promise<void> {
+  const held = request ? lockedMembers.get(request) : undefined;
+  if (!request || !held) return;
+  lockedMembers.delete(request);
+  await db
+    .prepare("DELETE FROM member_locks WHERE member_id = ? AND holder = ?")
+    .bind(held.memberId, held.holder)
+    .run()
+    .catch(() => console.error(JSON.stringify({ event: "auth-audit", outcome: "member-lock-unreleased" })));
+}
 
 // The way a session was made, as the audit trail names it.
 function methodOf(path: string | undefined): string {
@@ -540,6 +557,15 @@ export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
       (email, outcome) => outcomes.set(email.toLowerCase(), outcome),
     ),
   );
+  // Every request's hold released when it ends, even past an error Better Auth rethrows before its after hooks.
+  const handler = auth.handler;
+  auth.handler = async (request: Request) => {
+    try {
+      return await handler(request);
+    } finally {
+      await releaseHeld(env.DB, request);
+    }
+  };
   return auth;
 }
 
