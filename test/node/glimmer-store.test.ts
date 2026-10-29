@@ -334,6 +334,21 @@ describe("recovery, integrity and removal", () => {
     expect(readdirSync(join(dir, "pages"))).toEqual([]);
   });
 
+  it("reads a page only when both its files match their hashes", async () => {
+    const store = openStore(dir);
+    const whole = await store.putPage("public", page({ text: "whole" }));
+    const altered = await store.putPage("public", page({ text: "to alter" }));
+    const swapped = await store.putPage("public", page({ text: "to swap" }));
+    const malformed = await store.putPage("public", page({ text: "to break" }));
+    expect(store.readVerifiedPage(whole)?.text).toBe("whole");
+    writeFileSync(join(dir, "pages", altered, "text.txt"), "altered");
+    // A valid JPEG, but not the one recorded.
+    writeFileSync(join(dir, "pages", swapped, "screenshot.jpg"), fakeJpeg(12, 12));
+    writeFileSync(join(dir, "pages", malformed, "meta.json"), "{ not json");
+    for (const id of [altered, swapped, malformed, "public-0000000000000000"])
+      expect(store.readVerifiedPage(id), id).toBeNull();
+  });
+
   it("removes one page and leaves the rest", async () => {
     const store = openStore(dir);
     const gone = await store.putPage("public", page({ text: "a" }));

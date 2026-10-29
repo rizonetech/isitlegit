@@ -382,5 +382,31 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     };
   }
 
-  return { dir, putPage, setLabels, manifest, counts, readPage, verify, removeSource, removePage };
+  // A page's files, refused unless both match the SHA-256 its record holds (D03 T04 §9): a rule or the teacher never
+  // reads a damaged page as a whole one. Null for a page whose record or files do not read or do not match.
+  function readVerifiedPage(id: string): { page: StoredPage; screenshot: Uint8Array; text: string } | null {
+    try {
+      const folder = join(pages, id);
+      const meta = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+      const screenshot = new Uint8Array(readFileSync(join(folder, "screenshot.jpg")));
+      const raw = readFileSync(join(folder, "text.txt"));
+      if (sha256(screenshot) !== meta.sha256.screenshot || sha256(raw) !== meta.sha256.text) return null;
+      return { page: { id, ...meta }, screenshot, text: raw.toString("utf-8") };
+    } catch {
+      return null;
+    }
+  }
+
+  return {
+    dir,
+    putPage,
+    setLabels,
+    manifest,
+    counts,
+    readPage,
+    readVerifiedPage,
+    verify,
+    removeSource,
+    removePage,
+  };
 }

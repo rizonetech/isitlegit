@@ -5,16 +5,21 @@ import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
 import {
+  type Ask,
   candidates,
   ESTIMATE_USD,
   glimmerSpend,
   ledgerLock,
+  readQueue,
+  readTeacherState,
   SPARK,
   sparkAsk,
+  TEACHER_MAX_OUTPUT_TOKENS,
   teach,
+  teacherState,
 } from "../../scripts/glimmer/teacher-label.ts";
 import { ledgerId } from "../../scripts/lib/meta-budget.ts";
-import { readLedger } from "../../scripts/meta-smoke.ts";
+import { readLedger, tokenCost } from "../../scripts/meta-smoke.ts";
 import { type Budget, BudgetExceeded } from "../../src/meta/guard.ts";
 
 // scripts/glimmer/teacher-label.ts (D03 T04 §9): Spark's second opinion on evaluation pages, through the shared Meta
@@ -52,6 +57,17 @@ async function stored(seed: number, lure: boolean, extra: Partial<PageInput> = {
     ...extra,
   });
 }
+
+// A fake Spark that answers at once, reserving and settling its one attempt as the client would.
+const answering =
+  (text: (input: unknown[]) => string, usd = 0.004, onCall?: () => void): Ask =>
+  async (input, _instructions, attempts) => {
+    onCall?.();
+    const id = attempts.reserve(1, ESTIMATE_USD);
+    attempts.settle(id, usd);
+    return { text: text(input), usd };
+  };
+const NOW = () => new Date("2026-10-29T10:00:00Z");
 
 const answer = (lure: boolean) =>
   JSON.stringify({
@@ -108,13 +124,12 @@ describe("teach", () => {
       ledgerFile,
       run: "glimmer-teacher-test",
       max: 10,
-      date: "2026-10-29",
-      ask: async (input) => {
-        calls++;
-        const text = JSON.stringify(input);
-        const id = text.includes("page 2 ") ? disagree : agree;
-        return { text: replies[id] as string, usd: 0.004 };
-      },
+      now: NOW,
+      ask: answering(
+        (input) => replies[JSON.stringify(input).includes("page 2 ") ? disagree : agree] as string,
+        0.004,
+        () => calls++,
+      ),
     });
     expect(calls).toBe(2);
     expect(result).toMatchObject({ checked: 2, agreed: 1, queued: 1, filled: 2 });
@@ -143,7 +158,7 @@ describe("teach", () => {
       ledgerFile,
       run: "glimmer-teacher-test",
       max: 10,
-      ask: async () => ({ text: answer(true), usd: 0.004 }),
+      ask: answering(() => answer(true)),
     });
     expect(again.checked).toBe(0);
   });
@@ -167,12 +182,15 @@ describe("teach", () => {
       ledgerFile,
       run: "glimmer-teacher-test",
       max: 10,
-      ask: async () => {
-        calls++;
-        return { text: answer(true), usd: 0.004 };
-      },
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => calls++,
+      ),
     });
-    expect(calls).toBe(0);
+    // The fake was asked, but its one attempt was refused before anything was sent.
+    expect(calls).toBe(1);
+    expect(readLedger(ledgerFile)).toHaveLength(2);
     expect(result.stopped).toMatch(/past US\$20/);
   });
 });
@@ -238,7 +256,7 @@ describe("the teacher's calls through main's budget guard", () => {
       ledgerFile,
       run: "teacher-guard",
       max: 5,
-      date: "2026-10-29",
+      now: NOW,
     });
     const entry = readLedger(ledgerFile)[0];
     return { result, sent, entry, id: entry ? ledgerId(entry.date, entry.run, entry.call) : "" };
@@ -268,14 +286,230 @@ describe("the teacher's calls through main's budget guard", () => {
     expect(result.stopped).toMatch(/could not be reached/);
   });
 
-  it("marks a lost answer uncertain, attempt by attempt, the first under the call's id", async () => {
+  it("marks a lost answer uncertain, attempt by attempt, each guard row under its own ledger entry's id", async () => {
     const { guard, rows } = budget();
     const { sent, entry, id } = await run(guard, async () => {
       throw new TypeError("fetch failed");
     });
     expect(sent).toBeGreaterThan(0);
     expect(rows[0]).toMatchObject({ id, attempt: 1, state: "uncertain" });
-    expect(rows.slice(1).every((r) => r.id === `${id}:${r.attempt}` && r.state === "uncertain")).toBe(true);
+    const ledger = readLedger(join(dir, "ledger", "meta-spend.json"));
+    expect(rows.map((r) => r.id)).toEqual(ledger.map((e) => ledgerId(e.date, e.run, e.call)));
+    expect(ledger.every((e) => e.state === "uncertain" && e.cost === null)).toBe(true);
     expect(entry).toMatchObject({ state: "uncertain", cost: null });
+  });
+
+  it("counts a failed attempt and its retry, each in the ledger under the guard row's id", async () => {
+    const { guard, rows } = budget();
+    let n = 0;
+    const { result, sent } = await run(guard, async () =>
+      ++n === 1 ? new Response("busy", { status: 503 }) : reply(),
+    );
+    expect(sent).toBe(2);
+    expect(result).toMatchObject({ checked: 1, agreed: 1 });
+    const ledger = readLedger(join(dir, "ledger", "meta-spend.json"));
+    expect(ledger.map((e) => e.state)).toEqual(["uncertain", "settled"]);
+    expect(ledger[1]?.call).toMatch(/ attempt 2$/);
+    expect(rows.map((r) => r.id)).toEqual(ledger.map((e) => ledgerId(e.date, e.run, e.call)));
+  });
+
+  it("sends no retry that would pass US$20, keeping the first attempt's spend counted", async () => {
+    const { guard } = budget();
+    let estimate = 0;
+    const watched: Budget = {
+      ...guard,
+      async reserve(model, estimateUsd, attempt, id, call) {
+        estimate = estimateUsd;
+        return guard.reserve(model, estimateUsd, attempt, id, call);
+      },
+    };
+    const ledgerFile = join(dir, "ledger", "meta-spend.json");
+    let n = 0;
+    const { result, sent } = await run(watched, async () => {
+      if (++n === 1) {
+        // While the first attempt is out, other Glimmer work brings the spend to half an attempt short of US$20.
+        const ledger = readLedger(ledgerFile);
+        const fill = 20 - glimmerSpend(ledger) - estimate / 2;
+        writeFileSync(
+          ledgerFile,
+          JSON.stringify([
+            ...ledger,
+            { date: "2026-10-29", run: "glimmer-other", call: "x", estimate: fill, cost: fill, state: "settled" },
+          ]),
+        );
+      }
+      return new Response("busy", { status: 503 });
+    });
+    expect(sent).toBe(1);
+    expect(result.stopped).toMatch(/past US\$20/);
+    const ledger = readLedger(ledgerFile);
+    expect(ledger.filter((e) => e.run === "teacher-guard").map((e) => e.state)).toEqual(["uncertain"]);
+    expect(glimmerSpend(ledger)).toBeLessThanOrEqual(20);
+    // The page was sent once and is not sent again.
+    expect([...readTeacherState(join(dir, "store")).values()][0]).toMatchObject({ status: "failed" });
+  });
+});
+
+describe("a teacher run that stops", () => {
+  const ledgerFile = () => join(dir, "ledger", "meta-spend.json");
+  const stateOf = () => join(dir, "store", "raw", "teacher", "state.json");
+  const save = (pages: Record<string, unknown>) => {
+    mkdirSync(join(dir, "store", "raw", "teacher"), { recursive: true });
+    writeFileSync(stateOf(), JSON.stringify({ pages }));
+  };
+
+  it("estimates an attempt at the whole answer the request allows", () => {
+    expect(ESTIMATE_USD).toBe(tokenCost(SPARK, 9_000, TEACHER_MAX_OUTPUT_TOKENS));
+    expect(TEACHER_MAX_OUTPUT_TOKENS).toBe(600);
+  });
+
+  it("fails a page whose call was out when the run stopped, and never sends it again", async () => {
+    const id = await stored(1, true);
+    save({ [id]: { status: "pending" } });
+    let calls = 0;
+    const result = await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile: ledgerFile(),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => calls++,
+      ),
+    });
+    expect(calls).toBe(0);
+    expect(result.recovered).toBe(1);
+    expect(teacherState(readTeacherState(join(dir, "store")), id)).toBe("failed");
+  });
+
+  it("applies an answer kept before the stop without calling again, queueing a disagreement once", async () => {
+    const id = await stored(2, false);
+    save({ [id]: { status: "disputed", answer: JSON.parse(answer(true)), applied: false } });
+    // The stop came mid-way through the queue's write: a torn line is left.
+    writeFileSync(join(dir, "store", "review-queue.jsonl"), `{"id":"${id}","sou`);
+    let calls = 0;
+    for (let i = 0; i < 2; i++)
+      await teach({
+        store: openStore(join(dir, "store")),
+        ledgerFile: ledgerFile(),
+        run: "glimmer-teacher-test",
+        max: 10,
+        now: NOW,
+        ask: answering(
+          () => answer(true),
+          0.004,
+          () => calls++,
+        ),
+      });
+    expect(calls).toBe(0);
+    const queue = readQueue(join(dir, "store"));
+    expect(queue.map((e) => e.id)).toEqual([id]);
+    expect(readTeacherState(join(dir, "store")).get(id)).toMatchObject({ status: "disputed", applied: true });
+  });
+
+  it("names each page's state: unchecked, agreed, disputed, failed on a bad answer, refused by the budget", async () => {
+    const agreed = await stored(1, true);
+    const disputed = await stored(2, false);
+    const bad = await stored(3, true);
+    const left = await stored(4, true);
+    const store = openStore(join(dir, "store"));
+    const replies: Record<string, string> = { [agreed]: answer(true), [disputed]: answer(true), [bad]: "not json" };
+    const byText = (input: unknown[]) => {
+      const text = JSON.stringify(input);
+      const id = text.includes("page 1 ") ? agreed : text.includes("page 2 ") ? disputed : bad;
+      return replies[id] as string;
+    };
+    // South African pages first (2 and 4), then 1 and 3; the budget refuses the fourth page.
+    let n = 0;
+    const result = await teach({
+      store,
+      ledgerFile: ledgerFile(),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: async (input, instructions, attempts) => {
+        if (++n === 4) throw new BudgetExceeded("day", SPARK);
+        return answering(byText)(input, instructions, attempts);
+      },
+    });
+    expect(result.stopped).toMatch(/budget refused/);
+    const state = readTeacherState(join(dir, "store"));
+    const states = Object.fromEntries([agreed, disputed, bad, left].map((id) => [id, teacherState(state, id)]));
+    expect(Object.values(states).sort()).toEqual(["agreed", "disputed", "failed", "refused"]);
+    expect(teacherState(state, "set-0000000000000000")).toBe("unchecked");
+    // A refused page is asked again on the next run; the others are not.
+    let again = 0;
+    await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile: ledgerFile(),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => again++,
+      ),
+    });
+    expect(again).toBe(1);
+  });
+
+  it("never sends a page whose files no longer match their hashes, and lists it", async () => {
+    const id = await stored(1, true);
+    writeFileSync(join(dir, "store", "pages", id, "text.txt"), "altered");
+    let calls = 0;
+    const result = await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile: ledgerFile(),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => calls++,
+      ),
+    });
+    expect(calls).toBe(0);
+    expect(result.damaged).toEqual([id]);
+  });
+
+  it("dates each attempt by the SAST day it is made, across midnight", async () => {
+    await stored(1, true);
+    await stored(3, true);
+    const clock = [new Date("2026-10-29T21:59:59Z"), new Date("2026-10-29T22:00:01Z")];
+    let tick = 0;
+    await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile: ledgerFile(),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: () => clock[Math.min(tick++, 1)] as Date,
+      ask: answering(() => answer(true)),
+    });
+    expect(readLedger(ledgerFile()).map((e) => e.date)).toEqual(["2026-10-29", "2026-10-30"]);
+  });
+
+  it("reads an earlier version's checked list as applied outcomes, sending none of them again", async () => {
+    const id = await stored(1, true);
+    mkdirSync(join(dir, "store", "raw", "teacher"), { recursive: true });
+    writeFileSync(join(dir, "store", "raw", "teacher", "checked.jsonl"), `${JSON.stringify({ id, answered: true })}\n`);
+    let calls = 0;
+    await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile: ledgerFile(),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => calls++,
+      ),
+    });
+    expect(calls).toBe(0);
+    expect(teacherState(readTeacherState(join(dir, "store")), id)).toBe("agreed");
   });
 });
