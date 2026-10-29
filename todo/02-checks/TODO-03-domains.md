@@ -33,7 +33,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Confusables skeleton and edit distance module | D02 T01 §1 | [ ] |
+| 1 | §1 | Confusables skeleton and edit distance module | D02 T01 §1 | [x] |
 | 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [ ] |
 | 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [ ] |
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
@@ -66,6 +66,9 @@ UTS #39 defines a "skeleton" that maps visually confusable characters to one pro
 - [x] Commit: `checks: confusables skeleton and edit distance` Done 2026-10-29: 8ef36b7, then the review fixes. Test checkpoint 2026-10-29: `pnpm exec vitest run test/checks/lookalike.test.ts test/node/confusables-map.test.ts` 25 passed; removing either NFD stage fails one test each.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts test/node/confusables-map.test.ts` passes, and the lookalike test fails if either NFD stage is removed.
+
+> **Verified:** 2026-10-29 | §1 | e4db21e724318f7bd33fdf88c2792bafc2371df9
+> **Review:** `docs/reviews/d02-t03-s1.json`
 
 ## 2. Lookalike check against own, supplier and brand names
 
