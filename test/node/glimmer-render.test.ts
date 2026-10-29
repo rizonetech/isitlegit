@@ -101,6 +101,28 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<p>${words}</p><form><input type=password></form><iframe id=f style="display:none"></iframe><div id=d style="opacity:0">unseen</div><script>for (const el of [f, d]) { for (const name of ['getBoundingClientRect', 'checkVisibility', 'contains']) Object.defineProperty(el, name, { value: () => undefined }); for (const name of ['style', 'tagName', 'src']) Object.defineProperty(el, name, { get: () => undefined }) }</script>`,
     ),
+  // Bot walls as the render meets them (§26, plan review gaps 3 and 4).
+  "/wall-split": (res) => html(res, `<p>${words}</p><p>Press<br>&amp;<br>Hold to confirm</p>`),
+  "/wall-late": (res) =>
+    html(
+      res,
+      `<p>${words.repeat(30)}</p><div style="position:fixed;bottom:0;left:0;width:300px;height:80px;background:#fff">Access denied</div>`,
+    ),
+  "/wall-frame": (res) =>
+    html(
+      res,
+      `<p>${words}</p><iframe width=600 height=400 srcdoc="<iframe src='https://challenge.invalid/recaptcha/api2/anchor' width=320 height=200></iframe>"></iframe>`,
+    ),
+  "/wall-shadow": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div id=host></div><script>host.attachShadow({ mode: 'open' }).innerHTML = '<div style="position:fixed;top:0;left:0;width:400px;height:100px;background:#fff">Access denied</div>'</script>`,
+    ),
+  "/wall-cover": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div style="position:fixed;inset:0;background:#fff"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width=200 height=200></div><script src="https://client.px-cdn.net/main.min.js"></script>`,
+    ),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
@@ -495,6 +517,8 @@ describe("usable", () => {
     screenshot: new Uint8Array(),
     captcha: false,
     consentWall: false,
+    overlays: "",
+    challengeCover: false,
     downloadsWritten: 0,
     popupsClosed: 0,
     serviceWorkers: 0,
@@ -693,6 +717,55 @@ describe("the batch run", () => {
     expect(store.manifest().map((p) => p.url)).toEqual([`${origin}/page`]);
     expect(readJournal(journal).at(-1)).toMatchObject({ url: `${origin}/old-wall`, event: "excluded" });
     expect(recheckStored(store, journal).removed).toEqual([]);
+  });
+
+  it("stores no bot wall, however it is drawn", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const walls = ["/wall-split", "/wall-late", "/wall-frame", "/wall-shadow", "/wall-cover"];
+    const result = await runBatch({ list: list(walls), store, journal, render: renderer.render, concurrency: 1 });
+    expect(result).toMatchObject({ stored: 0, excluded: walls.length });
+    const reasons = readJournal(journal)
+      .filter((e) => e.event === "excluded")
+      .map((e) => e.reason);
+    expect(
+      reasons.every((r) => /challenge|CAPTCHA/.test(r ?? "")),
+      reasons.join("; "),
+    ).toBe(true);
+  });
+
+  it("audits a stored page by its kept evidence, and a legacy page by OCR, unassessed when OCR cannot read it", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const shot = await renderer.render(`${origin}/page`);
+    const put = (text: string, evidence?: { title: string; overlays: string }) =>
+      store.putPage("benign-test", {
+        screenshot: shot.screenshot,
+        text,
+        origin: "benign",
+        licence: "test",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+        label_source: {
+          lure: "ground-truth",
+          lure_type: "ground-truth",
+          has_login_form: "dom",
+          has_payment_form: "dom",
+        },
+        redacted: false,
+        url: `${origin}/${text.length}`,
+        ...(evidence ? { evidence } : {}),
+      });
+    const overlaid = await put(`${words} one`, { title: "Shop", overlays: "Access denied" });
+    const clean = await put(`${words} two`, { title: "Shop", overlays: "" });
+    const legacyWall = await put(`${words} three`);
+    const legacyUnread = await put(`${words} four`);
+    const audit = recheckStored(store, journal, new Map([[legacyWall, "Press & Hold"]]));
+    expect(audit.removed.sort()).toEqual([overlaid, legacyWall].sort());
+    expect(audit.unassessed).toEqual([legacyUnread]);
+    expect(store.manifest().map((p) => p.id)).toContain(clean);
   });
 
   it("lists a damaged page instead of passing it, and finishes a removal a stop interrupted", async () => {

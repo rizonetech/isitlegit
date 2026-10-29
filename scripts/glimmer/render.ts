@@ -120,6 +120,10 @@ export type Capture = {
   screenshot: Uint8Array;
   captcha: boolean;
   consentWall: boolean;
+  // The text of what is drawn over the page (shown fixed elements, and absolute ones covering half the view), in the
+  // page and every shown frame, and whether a near-empty cover over a page carrying a bot-wall vendor's script hides it.
+  overlays: string;
+  challengeCover: boolean;
   downloadsWritten: number;
   popupsClosed: number;
   serviceWorkers: number;
@@ -137,7 +141,7 @@ export class HttpStatus extends Error {
 }
 
 // Signs that the page is not the site but a wall in front of it. Run inside the page.
-export function readWalls(): { captcha: boolean; consentWall: boolean } {
+export function readWalls(): { captcha: boolean; consentWall: boolean; overlays: string; challengeCover: boolean } {
   const width = innerWidth;
   const height = innerHeight;
   // The browser's own methods, never ones the page left on an element (see `readFormFlags`).
@@ -183,6 +187,8 @@ export function readWalls(): { captcha: boolean; consentWall: boolean } {
   let covering = false;
   let backdrop = false;
   let dialog = false;
+  let cover = false;
+  const overlays: string[] = [];
   for (const el of all) {
     if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
     const style = getComputedStyle(el);
@@ -197,8 +203,23 @@ export function readWalls(): { captcha: boolean; consentWall: boolean } {
     // A full-screen backdrop with almost nothing written on it, and a consent dialog of any size above the page.
     if (big && text.trim().length < 40) backdrop = true;
     if (text.length < 3000 && consentWords.test(text)) dialog = true;
+    // What sits over the page, wherever it is: a fixed element of any size, an absolute one covering half the view.
+    if ((style.position === "fixed" || big) && text.trim()) overlays.push(text.trim().slice(0, 2000));
+    // A cover with no words of its own but a picture or a canvas: a wall drawn as an image.
+    if (big && text.trim().length < 40 && el.querySelector("img, canvas, svg, iframe")) cover = true;
   }
-  return { captcha, consentWall: covering || providerFrame || (backdrop && dialog) };
+  // A bot-wall vendor's script on the page: HUMAN (PerimeterX), DataDome, Imperva (Incapsula), Akamai, hCaptcha.
+  const vendor = [...document.scripts].some((script) =>
+    /perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs/i.test(
+      script.src || "",
+    ),
+  );
+  return {
+    captcha,
+    consentWall: covering || providerFrame || (backdrop && dialog),
+    overlays: overlays.join("\n").slice(0, 8000),
+    challengeCover: cover && vendor,
+  };
 }
 
 // Why a capture cannot be stored as a benign page of the listed site, or null when it can.
@@ -212,7 +233,8 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
   const listed = site(entry.url);
   const landed = site(capture.finalUrl);
   if (!landed || (landed !== listed && !entry.also.includes(landed))) return `cross-site redirect to ${landed}`;
-  if (CHALLENGE.test(`${capture.title}\n${capture.text.slice(0, 2000)}`)) return "a challenge page";
+  if (wallShown(capture)) return "a challenge page";
+  if (capture.challengeCover) return "a bot challenge drawn over the page";
   // Past a site's navigation, too: an error page's message often follows a long header.
   if (NOT_FOUND.test(`${capture.title}\n${capture.text.slice(0, 3000)}`)) return "an error page answered with 200";
   if (capture.captcha) return "a CAPTCHA frame";
@@ -228,9 +250,21 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
 }
 
 // What a bot wall shows instead of the site: Cloudflare's, Akamai's, and HUMAN's "Press & Hold" and Imperva's checkbox
-// (both found stored as benign pages, 2026-10-29).
+// (both found stored as benign pages, 2026-10-29). Wording no page uses but a wall counts wherever it is drawn; wording a
+// page may use in passing ("access denied" in an article) counts in the title, the page's opening, or an overlay.
 export const CHALLENGE =
   /just a moment|verify you are human|access denied|attention required|checking your browser|are you a robot|are you a human|press (&|and) hold|additional security check is required|pass the security check/i;
+const WALL_ONLY =
+  /are you a human|press (&|and) hold|additional security check is required|pass the security check|verify you are (a )?human|checking (if the site connection is secure|your browser)/i;
+
+// Whether a capture (or a stored page's kept evidence) shows a bot wall, whitespace folded so "Press\n&\nHold" reads
+// as one phrase (§26, plan review gaps 3 and 4).
+export function wallShown(seen: { title: string; text: string; overlays: string }): boolean {
+  const fold = (s: string) => s.replace(/\s+/g, " ");
+  const anywhere = fold(`${seen.title}\n${seen.text}\n${seen.overlays}`);
+  const opening = fold(`${seen.title}\n${seen.text.slice(0, 2000)}\n${seen.overlays}`);
+  return WALL_ONLY.test(anywhere) || CHALLENGE.test(opening);
+}
 
 const NOT_FOUND =
   /page not found|404 not found|error 404|\b404\b.{0,20}(page|error)|(page|file) (you|you're) (were )?looking for|(doesn't|does not|could not|can't|cannot) be found|no longer (exists|available)/i;
@@ -599,7 +633,20 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       if (frame !== page.mainFrame()) text += `\n${await readFrame(frame, shownText, "")}`;
     }
     const title = await page.title();
+    // The walls of the page and of every frame on it a viewer sees: a CAPTCHA or a wall can sit in a nested frame.
     const walls = await page.evaluate(readWalls);
+    for (const frame of page.frames()) {
+      if (frame === page.mainFrame() || !(await frameShown(frame))) continue;
+      const inner = await readFrame(frame, readWalls, {
+        captcha: false,
+        consentWall: false,
+        overlays: "",
+        challengeCover: false,
+      });
+      walls.captcha ||= inner.captcha;
+      walls.challengeCover ||= inner.challengeCover;
+      if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 8000);
+    }
     // A page may remove its own root element; then nothing is drawn below the top.
     const height = await page.evaluate(() => document.documentElement?.scrollHeight ?? 0);
     // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
@@ -791,7 +838,11 @@ function finishRemoval(store: ReturnType<typeof openStore>, journal: string, rem
 // their hashes first (a damaged or unreadable record is listed, never passed as clean), and a refused page is taken out
 // and recorded excluded so no run stores it again, through an intent a stop cannot lose. A removal a stopped recheck
 // left is finished first.
-export function recheckStored(store: ReturnType<typeof openStore>, journal: string): Recheck {
+export function recheckStored(
+  store: ReturnType<typeof openStore>,
+  journal: string,
+  ocrText: Map<string, string> = new Map(),
+): Recheck {
   if (existsSync(intentFile(journal)))
     finishRemoval(store, journal, JSON.parse(readFileSync(intentFile(journal), "utf-8")) as Removal);
   const result: Recheck = { checked: 0, removed: [], damaged: [], unassessed: [] };
@@ -805,7 +856,19 @@ export function recheckStored(store: ReturnType<typeof openStore>, journal: stri
       continue;
     }
     result.checked++;
-    if (!CHALLENGE.test(read.text.slice(0, 2000))) continue;
+    // The evidence kept with the page; a page stored before it was kept is judged on its text and what the screenshot
+    // shows (`ocr`, when given), and is unassessed when neither can decide.
+    const evidence = read.page.evidence;
+    let wall = wallShown({ title: evidence?.title ?? "", text: read.text, overlays: evidence?.overlays ?? "" });
+    if (!wall && !evidence) {
+      const seen = ocrText.get(page.id);
+      if (seen === undefined) {
+        result.unassessed.push(page.id);
+        continue;
+      }
+      wall = wallShown({ title: "", text: read.text, overlays: seen });
+    }
+    if (!wall) continue;
     removeAndRecord(store, journal, {
       id: page.id,
       url: page.url ?? page.id,
@@ -931,6 +994,7 @@ export async function runBatch(options: {
       redacted: false,
       url: entry.url,
       kind: capturedKind(entry, capture),
+      evidence: { title: capture.title.slice(0, 2000), overlays: capture.overlays },
     });
     const first = urlById.get(id);
     if (first && first !== entry.url) {
@@ -1070,7 +1134,24 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(coverage.met ? 0 : 1);
   }
   if (command === "recheck") {
-    const result = recheckStored(store, join(dir, "raw/benign/progress.jsonl"));
+    // A page stored before its evidence was kept is judged on its text and on what its screenshot shows, read by OCR
+    // (§7's engine) in batches; one OCR cannot read is left unassessed.
+    const legacy = store
+      .manifest({ tolerant: true })
+      .filter((page) => page.source.startsWith("benign-") && !page.evidence);
+    const ocrText = new Map<string, string>();
+    const { systemOcr } = await import("./import-samples.ts");
+    for (let at = 0; at < legacy.length; at += 25) {
+      const batch = legacy.slice(at, at + 25);
+      try {
+        const texts = await systemOcr(batch.map((page) => join(dir, "pages", page.id, "screenshot.jpg")));
+        for (const [i, page] of batch.entries()) ocrText.set(page.id, texts[i] ?? "");
+      } catch (error) {
+        console.error(`recheck: OCR failed for ${batch.length} pages (${(error as Error).message})`);
+      }
+      if (at % 500 === 0) console.error(`recheck: OCR ${Math.min(at + 25, legacy.length)} of ${legacy.length}`);
+    }
+    const result = recheckStored(store, join(dir, "raw/benign/progress.jsonl"), ocrText);
     console.log(
       JSON.stringify({ ...result, damaged: result.damaged.slice(0, 20), unassessed: result.unassessed.slice(0, 20) }),
     );

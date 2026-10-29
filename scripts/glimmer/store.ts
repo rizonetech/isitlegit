@@ -92,6 +92,9 @@ export const PageMeta = z
     // The dataset item a public or sample page came from (its file, row or member id), so every stored page traces
     // back to its source row and a resumed import skips what it already stored (§5).
     item: z.string().min(1).max(500).optional(),
+    // What a benign render saw beside the text (its title and what was drawn over the page), so a later wall check can
+    // judge a stored page as it judged the capture (§26).
+    evidence: z.strictObject({ title: z.string().max(2000), overlays: z.string().max(8000) }).optional(),
   })
   .refine((meta) => Object.keys(meta.label_source).every((k) => k in meta.labels), {
     message: "every label_source names a label the page has",
