@@ -54,8 +54,10 @@ lenses = ["plan"]
 [schedule.completion]
 effort = "high"
 
+# Round 1 at high, not xhigh, from 2026-10-30 00:30 SAST (operator: quicker, with the plan and completion reviews kept
+# at high, since they find the most real gaps).
 [[schedule.rounds]]
-effort = "xhigh"
+effort = "high"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 
 [[schedule.rounds]]

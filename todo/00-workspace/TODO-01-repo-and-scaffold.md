@@ -53,6 +53,7 @@ track: day-0
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
 | 13 | §13 | Type check before every push | §4 | [ ] |
 | 14 | §14 | Timing-free render, import and fetch tests | §4 | [ ] |
+| 15 | §15 | Review schedule by section risk | §4 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -563,6 +564,27 @@ Filed 2026-10-29 at the operator's request: most of the red CI runs that are not
 - [ ] Commit: `glimmer: render, import and fetch tests wait on events, not time`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-import.test.ts` and `python3 -m pytest tests/scripts/test_fetch_bench.py` pass 20 times in a row under load.
+
+## 15. Review schedule by section risk
+
+Filed 2026-10-30 at the operator's request, to go quicker without lowering the bar where it matters. Every section runs one review schedule today (`.conclave/reviewers.toml` `[schedule]`: a plan review, a completion review, then rounds until one finds no P1 or P2). In this session the plan and completion reviews found real gaps on every section, while rounds after the first rarely did on tooling and documentation sections. A section's risk should choose its schedule: the full one for code that handles authentication, mail, money, model calls or stored data; a lighter one (the plan review, the completion review and one round) for tooling, documentation and test-only sections.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Say each section's risk. Done when: every section carries a risk the validator checks, or one derived from its domain and paths.
+2. Run each risk's schedule. Done when: the dispatcher picks the schedule by the section's risk, and the stamp checks the receipt against it.
+
+- [ ] Add a `**Risk:**` line (`full` or `light`) to the section format in `todo/README.md` and the validator in `scripts/lib/todo_graph.py`, defaulting to `full` when absent, so no section gets the lighter schedule by accident. Done when: `python3 scripts/todo-graph.py validate` refuses an unknown risk, and a section with none is `full`.
+- [ ] Add `[schedule.light]` to `.conclave/reviewers.toml` (the plan review, the completion review and the first round, the loop ending after it) and have `scripts/review-dispatch.py` choose it for a `light` section, read from the record's section. Done when: `scripts/tests/test_review_dispatch.py` shows a light section refused a second round and a full section running its rounds as today.
+- [ ] Have the stamp hold a light section's receipt to the light schedule and a full section's to the full one, the schedule at the stamped commit deciding, as the final review's mode does. Done when: `tests/scripts/test_todo_graph.py` covers a light section stamping after one round and a full section refused after one.
+- [ ] Refuse `light` for a section whose paths touch `src/auth/`, `src/mail/`, `src/meta/`, `src/db/` or a migration. Done when: a test shows such a section refused `light`.
+- [ ] Commit: `tools: a lighter review schedule for low-risk sections`
+
+**Test checkpoint:** `python3 -m pytest scripts/tests/test_review_dispatch.py tests/scripts/test_todo_graph.py` passes, including a light section stamped after one round and a full one refused.
 
 ## Verification
 

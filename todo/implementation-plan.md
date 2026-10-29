@@ -276,11 +276,12 @@ Sections: 61 | Checklist items: 257
 
 ### Phase 7: After the event
 
-Sections: 24 | Checklist items: 144
+Sections: 25 | Checklist items: 149
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
 | [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none     | 6     |
+| [ ]    | D00 T01 §15 | Review schedule by section risk                  | none     | 5     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
@@ -327,6 +328,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 77/258 verified sections, 39 ready to run now.
+Progress: 77/259 verified sections, 40 ready to run now.
 
-Checklist: 827/1637 items completed (includes Commit items).
+Checklist: 827/1642 items completed (includes Commit items).
