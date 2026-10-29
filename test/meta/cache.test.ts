@@ -284,3 +284,39 @@ describe("withCache", () => {
     expect(errors.join("\n")).toMatch(/cache-read-failed[\s\S]*cache-write-failed/);
   });
 });
+
+describe("completion review: a stalled store never holds the call", () => {
+  it("treats a stalled read as a miss, and returns the answer past a stalled write or hit record", async () => {
+    const never = new Promise<never>(() => {});
+    const stalled = { get: () => never, put: () => never } as unknown as KVNamespace;
+    const kept: Promise<unknown>[] = [];
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((line: string) => void errors.push(String(line)));
+    try {
+      const m = model();
+      const ctx = cacheCtx(m.budget, { kv: stalled, storageWaitMs: 50, waitUntil: (p) => void kept.push(p) });
+      const started = Date.now();
+      const got = await withCache(ctx, await keyOf(), "muse-spark-1.3", 3600, Verdict, m.fn);
+      expect(got).toEqual({ value: { verdict: "legit" }, hit: false });
+      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(m.sent).toHaveLength(1);
+      expect(kept).toHaveLength(2);
+
+      const key = await keyOf({ params: { text: "stalled record" } });
+      await withCache(cacheCtx(m.budget), key, "muse-spark-1.3", 3600, Verdict, m.fn);
+      const slowRecord = { ...m.budget, cached: () => never };
+      const hit = await withCache(
+        cacheCtx(slowRecord, { storageWaitMs: 50 }),
+        key,
+        "muse-spark-1.3",
+        3600,
+        Verdict,
+        m.fn,
+      );
+      expect(hit).toEqual({ value: { verdict: "legit" }, hit: true });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(errors.join("\n")).toMatch(/cache-read-late[\s\S]*cache-write-late[\s\S]*cache-hit-record-late/);
+  });
+});

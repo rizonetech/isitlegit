@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 341
+Sections: 42 | Checklist items: 342
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -77,7 +77,7 @@ Sections: 42 | Checklist items: 341
 | [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
 | [x]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 8     |
-| [ ]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 7     |
+| [ ]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
 | [ ]    | D03 T01 §5  | Structured output helper with zod         | none                  | 5     |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
 | [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 5     |
@@ -205,7 +205,7 @@ Sections: 23 | Checklist items: 106
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 238
+Sections: 59 | Checklist items: 239
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -253,7 +253,7 @@ Sections: 59 | Checklist items: 238
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 5     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -313,4 +313,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 57/242 verified sections, 27 ready to run now.
 
-Checklist: 586/1421 items completed (includes Commit items).
+Checklist: 587/1423 items completed (includes Commit items).

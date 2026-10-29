@@ -52,7 +52,27 @@ export type CacheContext = {
   budget: Budget;
   owner: Owner;
   now?: () => number;
+  // How long each storage wait (the KV read, the KV write, the hit's record) may hold the call (default STORAGE_WAIT_MS).
+  storageWaitMs?: number;
+  // Keeps a write that outlives its wait alive (a Workflow step's or a request's own waitUntil).
+  waitUntil?: (promise: Promise<unknown>) => void;
 };
+
+// A storage wait is bounded (D03 T01 §4 completion review): a stalled KV or D1 never keeps the model's call from
+// starting, nor an answer already in hand from its caller. A read past it is a miss; a write past it goes on, kept alive
+// by `waitUntil`, and is logged.
+export const STORAGE_WAIT_MS = 1_000;
+
+async function bounded<T>(work: Promise<T>, ms: number, late: T, ctx: CacheContext): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<"late">((resolve) => {
+    timer = setTimeout(() => resolve("late"), ms);
+  });
+  const settled = await Promise.race([work, expired]).finally(() => clearTimeout(timer));
+  if (settled !== "late") return settled;
+  ctx.waitUntil?.(work.catch(() => {}));
+  return late;
+}
 
 // What `fn` returns: the model's output, validated here against the schema, and whether it is whole (a partial result
 // is used but never kept).
@@ -74,16 +94,27 @@ export async function withCache<S extends z.ZodType>(
     );
   const now = ctx.now ?? Date.now;
   const started = performance.now();
-  const stored = await ctx.kv.get<Entry>(key, "json").catch(() => {
-    log("cache-read-failed");
-    return null;
-  });
+  const wait = ctx.storageWaitMs ?? STORAGE_WAIT_MS;
+  const stored = await bounded(
+    ctx.kv.get<Entry>(key, "json").catch(() => {
+      log("cache-read-failed");
+      return null;
+    }),
+    wait,
+    undefined,
+    ctx,
+  );
+  if (stored === undefined) log("cache-read-late");
   if (stored && typeof stored.expiresAt === "number" && stored.expiresAt > now()) {
     const parsed = schema.safeParse(stored.value);
     if (parsed.success) {
       const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
       // Served whether or not its record is written: it cost nothing, and it never becomes a paid call.
-      await ctx.budget.cached(model, call, performance.now() - started).catch(() => log("cache-hit-unrecorded"));
+      const recorded = ctx.budget.cached(model, call, performance.now() - started).then(
+        () => true,
+        () => (log("cache-hit-unrecorded"), true),
+      );
+      if (!(await bounded(recorded, wait, false, ctx))) log("cache-hit-record-late");
       return { value: parsed.data, hit: true };
     }
   }
@@ -93,7 +124,11 @@ export async function withCache<S extends z.ZodType>(
   if (!parsed.success) throw new ModelError("malformed", "Meta's answer did not match its schema");
   if (!fresh.partial) {
     const entry: Entry = { expiresAt: now() + ttlSeconds * 1000, value: parsed.data };
-    await ctx.kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds }).catch(() => log("cache-write-failed"));
+    const written = ctx.kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds }).then(
+      () => true,
+      () => (log("cache-write-failed"), true),
+    );
+    if (!(await bounded(written, wait, false, ctx))) log("cache-write-late");
   }
   return { value: parsed.data, hit: false };
 }
