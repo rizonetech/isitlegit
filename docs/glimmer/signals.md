@@ -1,0 +1,112 @@
+# Phishing signals for Loupe
+
+The cues that tell a lure page from a genuine one, drawn from authoritative public guidance, cited and written in our own words (D03 T04 §24). The screener sees only a page's host, its screenshot and its visible text (`buildScreenRequest` in `src/vision/page-screen.ts`), so each cue says what it needs from those, and what the screener must not infer when the evidence is not there: missing evidence is never evidence of fraud. Each cue names its false-positive risk and a paired genuine and lure South African case, described in words, synthetic and brand-neutral (never a working page). The rubric changes no answer field's meaning: the four lure types, the two form flags and confidence keep the definitions in `SCREENER_SYSTEM_PROMPT`. Putting it into the screener's and the teacher's prompts, and measuring it, is D03 T04 §25's.
+
+Researched 2026-10-29 by Claude for IsItLegit; review again by 2027-10-29.
+
+## Sources
+
+A source is accepted only when it is current (published or reviewed within five years, or still served as current advice), applies to judging a web page (not only email or calls), and allows what we do with it: citing it and paraphrasing it with attribution. No accepted source's text is copied here beyond short attributed quotes.
+
+| Id | Title | Publisher | URL | Date | Decision | Reason |
+| -- | ----- | --------- | --- | ---- | -------- | ------ |
+| S1 | Shopping and paying safely online | UK National Cyber Security Centre | https://www.ncsc.gov.uk/guidance/shopping-online-securely | 2019-01-17, reviewed 2024-07-15 | accepted | Current; its signs are about scam shops and payment pages; Crown copyright under the Open Government Licence v3.0, which allows reuse with acknowledgement (https://www.ncsc.gov.uk/section/about-this-website/terms-and-conditions). |
+| S2 | How to spot a scam email, text message or call | UK National Cyber Security Centre | https://www.ncsc.gov.uk/collection/phishing-scams/spot-scams | 2021-11-26, reviewed 2022-09-05 | accepted | Current; its five persuasion signs (authority, urgency, emotion, scarcity, current events) apply to a page's wording as to a message's; Open Government Licence v3.0. |
+| S3 | How To Recognize and Avoid Phishing Scams | US Federal Trade Commission | https://consumer.ftc.gov/articles/how-recognize-and-avoid-phishing-scams | 2022-09 | accepted | Current; its signs about requests to confirm or update personal or payment details, refund bait and logos that prove nothing apply to the pages such messages lead to; a work of the US federal government, not subject to copyright (17 U.S.C. 105). |
+| S4 | Scams and Phishing | South African Revenue Service | https://www.sars.gov.za/targeting-tax-crime/scams-and-phishing/ | updated 2026-08-04 | accepted | Current; states what SARS never asks for (passwords, one-time PINs, banking PINs, eFiling credentials, card details) and that it sends no links to other sites; used only for those facts, paraphrased and attributed, no text copied (no reuse terms are published at the page). |
+| S5 | How to Stay Safe | South African Banking Risk Information Centre (SABRIC) | https://www.sabric.co.za/how-to-stay-safe/ | 2024-10-05, modified 2026-08-24 | accepted | Current; states that no bank asks customers to confirm or update account details by email, warns of very low prices and of paying outside a shop's own payment gateway; used only for those facts, paraphrased and attributed, no text copied (no reuse terms are published at the site). |
+| S6 | Recognize and Report Phishing | US Cybersecurity and Infrastructure Security Agency | https://www.cisa.gov/secure-our-world/recognize-and-report-phishing | none shown | rejected | The page is marked "Archived Content", so it is not current advice; its signs (lookalike addresses, urgency, requests for information) are covered by S1 to S3. |
+| S7 | How to Avoid Phishing Scams | Anti-Phishing Working Group | https://education.apwg.org/resources/overview/avoid-phishing-scams | not verified | rejected | The page itself could not be read and verified on 2026-10-29; its advice as reported is covered by S1 to S3. |
+
+## Cues
+
+### C1. A brand shown on a host that is not the brand's
+
+- Sources: S1, S3
+- Evidence: the host, and the brand the screenshot or text shows (its name or logo); the cue holds only when the host plainly cannot be the brand's: the brand's name inside an unrelated domain, a free hosting or site-builder subdomain, or an IP address.
+- Unavailable: whether an unfamiliar host belongs to the brand. A host the screener cannot place is not evidence either way; it must not be read as fraud.
+- False-positive risk: genuine third-party hosts that show a brand: a payment gateway's own domain naming the shop as the merchant, an identity provider's sign-in page for an employer, a bank's sign-in hosted on its group's domain, a booking engine for a hotel.
+- Genuine case: a South African retailer's checkout continues on a payment gateway's domain, which shows the retailer's name as the merchant and the order total.
+- Lure case: a page on a free site-builder subdomain shows a South African bank's logo and asks for its online banking username and password.
+
+### C2. A host that imitates a known brand's address
+
+- Sources: S1
+- Evidence: the host alone: a known brand's name with letters swapped, doubled or replaced by look-alike characters, or with an added word ("secure", "verify", "update", a country) around it.
+- Unavailable: the brand's full list of real domains. Only an imitation the screener can see in the host counts; a host that is merely unfamiliar does not.
+- False-positive risk: genuine variants: a brand's country domains (`.co.za`, `.com`), its campaign domains, abbreviations and group names.
+- Genuine case: a South African insurer's sign-in page on its own `.co.za` domain whose name is an abbreviation of the insurer's full name.
+- Lure case: a sign-in page whose host spells a South African bank's name with a digit in place of a letter and adds "secure" in front.
+
+### C3. Credentials, card details or one-time PINs asked for where the brand would not ask
+
+- Sources: S3, S4, S5
+- Evidence: the form fields the screenshot and text show (username, password, card number, CVV, PIN, one-time PIN), together with C1 or C2, or with wording that ties the form to a message ("confirm your details to keep your account").
+- Unavailable: how the visitor reached the page (a link in an email or SMS) and whether they asked to sign in. A sign-in form on its own is never a lure: that is every genuine sign-in page.
+- False-positive risk: the brand's own sign-in and payment pages, including a genuine one-time PIN step during a real payment.
+- Genuine case: a South African bank's online banking sign-in on its own domain asks for a username and password, then a one-time PIN sent to the registered number.
+- Lure case: a page with a bank's branding on an unrelated host asks for the card number, CVV, the card PIN and the one-time PIN together "to keep your account active".
+
+### C4. Something asked for that the organisation says it never asks for
+
+- Sources: S4, S5
+- Evidence: the text and form fields: a revenue-service page asking for banking PINs, one-time PINs or card details, or for eFiling credentials outside the revenue service's own sign-in; a bank page asking to "confirm" or "update" account details following a message.
+- Unavailable: the organisation's policy where no accepted source states it; the cue covers only what S4 and S5 state.
+- False-positive risk: the organisation's own pages where it does ask: a bank's own sign-in, the revenue service's own eFiling sign-in, a payment step at a genuine checkout.
+- Genuine case: the national revenue service's eFiling sign-in page on its own domain asks for the taxpayer's eFiling username and password.
+- Lure case: a page with the revenue service's branding offers a refund and asks for the taxpayer's bank card number, PIN and one-time PIN to "release" it.
+
+### C5. Pressure: urgency, threats, fines or suspension
+
+- Sources: S2, S5
+- Evidence: the text: a short deadline, a threat (an account closed, a fine, legal action, a service cut), or a demand for action now.
+- Unavailable: whether the threat is true. Pressure alone is never decisive: it raises the weight of C1 to C4, it does not stand in for them.
+- False-positive risk: genuine notices: a municipality's overdue-account page, a bank's real fraud-alert page, a licence renewal reminder.
+- Genuine case: a metropolitan municipality's e-services page on its own domain shows an overdue rates balance and the date after which interest is added.
+- Lure case: a page with a bank's branding on an unrelated host says the account "will be suspended within 24 hours" unless the visitor signs in now.
+
+### C6. Offers too good to be true, and scarcity
+
+- Sources: S1, S2, S5
+- Evidence: the text and screenshot: prices far below the usual (well over half off on most items), prizes, free money, or stock or time said to be about to run out.
+- Unavailable: what the item usually costs. Without a usual price on the page, a low price is weak evidence.
+- False-positive risk: genuine sales (Black Friday, clearance), genuine competitions on a brand's own domain, genuine vouchers.
+- Genuine case: a South African electronics retailer's own domain shows a Black Friday sale with 30 percent off selected items and its usual payment options.
+- Lure case: an online shop on an unfamiliar host sells current-model phones at 85 percent off, "only 3 left", payable only by bank transfer.
+
+### C7. Payment outside a shop's own payment gateway
+
+- Sources: S1, S5
+- Evidence: the text: payment only by direct bank transfer to a personal or unrelated account, by voucher, gift card or cryptocurrency, or "pay the courier/agent first", in place of the shop's checkout.
+- Unavailable: whether the account belongs to the shop. A bank transfer option on its own is not evidence.
+- False-positive risk: genuine small South African businesses that take EFT to their business account beside or instead of card payments, which is common.
+- Genuine case: a small South African online shop's checkout offers card payment through a payment gateway and, as an alternative, EFT to the company's business account, with the company's registration number shown.
+- Lure case: a page selling furniture at a fraction of the usual price accepts payment only by EFT to an individual's account, with the order released "once proof of payment is sent on WhatsApp".
+
+### C8. Refund, prize or government payment bait
+
+- Sources: S3, S4
+- Evidence: the text: an unexpected refund, grant, prize or "unclaimed funds" to be released once the visitor enters personal, banking or card details.
+- Unavailable: whether the visitor is due a payment. A page about refunds is not a lure on that alone.
+- False-positive risk: the revenue service's own pages explaining refunds, a social grant agency's own application pages, a genuine competition's claim page on the brand's domain.
+- Genuine case: the national revenue service's own page explains how refunds are paid into the bank account the taxpayer registered, with no form asking for card details.
+- Lure case: a page with the revenue service's branding on an unrelated host says a refund is waiting and asks for card details and a one-time PIN to pay it.
+
+### C9. Poor spelling, grammar or design (weak)
+
+- Sources: S2
+- Evidence: the text and screenshot: misspelled brand names, broken grammar, blurred or misplaced logos.
+- Unavailable: nothing; but S2 notes these clues are less reliable now, and polished lures are common. This cue is never decisive and never a reason on its own; its absence is not evidence of a genuine page.
+- False-positive risk: genuine small businesses' and municipalities' pages with typos or dated design.
+- Genuine case: a small town municipality's own site with dated design and a typo in a notice, showing its rates contact details.
+- Lure case: a bank-branded sign-in page with a misspelled bank name, combined with C1 and C3.
+
+## Out of reach
+
+Cues the guidance gives that need what the screener never receives; the screener must not infer them, and their absence is not evidence:
+
+- How the visitor reached the page (a link in an email, SMS, WhatsApp or QR code; S2, S3, S5).
+- The sender of a message and its address (S2, S3).
+- A domain's age, registrant or ownership.
+- The browser's padlock and certificate details (the screenshot holds the page, not the browser).
+- Where a link on the page would lead (no hover, no clicks).
