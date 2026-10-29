@@ -61,6 +61,17 @@ export function authOptions(
 ) {
   // The audit trail (D07 T02 §6, ./audit): a row that cannot be written is logged, never a failed sign-in.
   const audit = (event: AuthEvent) => recordAuthEvent(mail().db, env.BETTER_AUTH_SECRET ?? "", event);
+  // A role change's hold on its member, released once it has run, whatever its answer.
+  const releaseMember = async (request: Request | undefined) => {
+    const memberId = request ? lockedMembers.get(request) : undefined;
+    if (!request || !memberId) return;
+    lockedMembers.delete(request);
+    await mail()
+      .db.prepare("DELETE FROM member_locks WHERE member_id = ?")
+      .bind(memberId)
+      .run()
+      .catch(() => console.error(JSON.stringify({ event: "auth-audit", outcome: "member-lock-unreleased" })));
+  };
   const schema = schemaOptions(
     {
       sendMagicLink: async ({ email, url, token }, ctx) => {
@@ -159,9 +170,21 @@ export function authOptions(
         if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/organization/update-member-role" && ctx.request) {
-          // The role being replaced, read before the change, for its audit row (completion review, E1).
+          // The role being replaced, read before the change, for its audit row (completion review, E1). The member is
+          // held while the change runs (migration 0028), so a second change at once is refused, not recorded against a
+          // role it did not replace (round 1).
           const memberId = (ctx.body as { memberId?: unknown } | undefined)?.memberId;
           if (typeof memberId === "string") {
+            const now = Math.floor(Date.now() / 1000);
+            const held = await mail()
+              .db.prepare(
+                "INSERT INTO member_locks (member_id, until) VALUES (?1, ?2) ON CONFLICT (member_id) DO UPDATE SET until = excluded.until WHERE member_locks.until < ?3",
+              )
+              .bind(memberId, now + MEMBER_LOCK_SECONDS, now)
+              .run();
+            if ((held.meta.changes ?? 0) !== 1)
+              throw new APIError("CONFLICT", { message: "another change to this member is in progress; try again" });
+            lockedMembers.set(ctx.request, memberId);
             const member = await ctx.context.adapter.findOne<{ role: string }>({
               model: "member",
               where: [{ field: "id", value: memberId }],
@@ -342,9 +365,13 @@ export function authOptions(
             role?: string;
             status?: string;
           } | null;
-          if (!returned || isAPIError(returned) || !returned.organizationId) return;
+          if (!returned || isAPIError(returned) || !returned.organizationId) {
+            await releaseMember(ctx.request);
+            return;
+          }
           const role = ctx.path === "/organization/update-member-role";
           const before = ctx.request ? previousRoles.get(ctx.request) : undefined;
+          await releaseMember(ctx.request);
           await audit({
             kind: role ? "update-member-role" : "cancel-invitation",
             outcome: role ? "changed" : "revoked",
@@ -354,6 +381,20 @@ export function authOptions(
             ip: clientIp(ctx.request?.headers),
             // A role change says what it replaced (E1), read before the change was made.
             ...(role ? { detail: { from: before ?? null, to: returned.role ?? null } } : {}),
+          });
+          return;
+        }
+        if (ctx.path === "/organization/leave") {
+          // A member who leaves is a departure in the team history, by themselves (round 1).
+          const left = ctx.context.returned as { userId?: string; organizationId?: string } | null;
+          if (!left?.userId || !left.organizationId || isAPIError(left)) return;
+          await audit({
+            kind: "leave-organization",
+            outcome: "left",
+            orgId: left.organizationId,
+            actorId: left.userId,
+            targetId: left.userId,
+            ip: clientIp(ctx.request?.headers),
           });
           return;
         }
@@ -413,8 +454,10 @@ export function authOptions(
   } satisfies BetterAuthOptions;
 }
 
-// A role change's previous role, from its before hook to its after hook, by request (dropped with the request).
+// A role change's previous role and its held member, from its before hook to its after hook, by request.
 const previousRoles = new WeakMap<Request, string>();
+const lockedMembers = new WeakMap<Request, string>();
+const MEMBER_LOCK_SECONDS = 30;
 
 // The way a session was made, as the audit trail names it.
 function methodOf(path: string | undefined): string {

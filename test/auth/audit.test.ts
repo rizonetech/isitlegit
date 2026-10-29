@@ -417,3 +417,92 @@ describe("completion review (2026-10-29)", () => {
     expect(failed.at(-1)?.outcome).not.toBe("invalid_token");
   });
 });
+
+describe("round 1 (2026-10-29)", () => {
+  const memberRowOf = async (email: string) =>
+    (await db
+      .prepare(`SELECT m.id, m.role FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE u.email = ?`)
+      .bind(email)
+      .first<{ id: string; role: string }>()) ?? { id: "", role: "" };
+
+  it("lets one of two simultaneous role changes through, so each row names the role it really replaced", async () => {
+    const { cookie, orgId } = await owner(`race-${unique()}@example.org`);
+    const memberEmail = `raced-${unique()}@example.org`;
+    await joiner(cookie, memberEmail, "member");
+    const { id } = await memberRowOf(memberEmail);
+    const answers = await Promise.all(
+      ["owner", "admin"].map((role) =>
+        api("/api/auth/organization/update-member-role", cookie, { memberId: id, role }),
+      ),
+    );
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 409]);
+    const again = await api("/api/auth/organization/update-member-role", cookie, { memberId: id, role: "member" });
+    expect(again.status).toBe(200);
+    const chain = (await events("update-member-role", "org_id = ?", orgId)).map((e) =>
+      JSON.parse(e.detail_json ?? "{}"),
+    );
+    expect(chain).toHaveLength(2);
+    expect(chain[0]?.from).toBe("member");
+    expect(chain[1]?.from).toBe(chain[0]?.to);
+    expect((await memberRowOf(memberEmail)).role).toBe("member");
+  });
+
+  it("releases the member when a role change is refused, so the next one goes through at once", async () => {
+    const { cookie } = await owner(`refused-${unique()}@example.org`);
+    const memberEmail = `target-${unique()}@example.org`;
+    await joiner(cookie, memberEmail, "member");
+    const { cookie: plainCookie } = await joiner(cookie, `plain-${unique()}@example.org`, "member");
+    const { id } = await memberRowOf(memberEmail);
+    const refused = await api("/api/auth/organization/update-member-role", plainCookie, {
+      memberId: id,
+      role: "admin",
+    });
+    expect(refused.status).toBeGreaterThanOrEqual(400);
+    expect(refused.status).not.toBe(409);
+    expect(
+      (await api("/api/auth/organization/update-member-role", cookie, { memberId: id, role: "admin" })).status,
+    ).toBe(200);
+  });
+
+  it("records a member leaving as a departure in the team history", async () => {
+    const { cookie, orgId } = await owner(`leave-${unique()}@example.org`);
+    const leaverEmail = `leaver-${unique()}@example.org`;
+    const { cookie: leaverCookie } = await joiner(cookie, leaverEmail, "member");
+    expect((await api("/api/auth/organization/leave", leaverCookie, { organizationId: orgId })).status).toBe(200);
+    const leaverId = await userIdOf(leaverEmail);
+    expect(await events("leave-organization", "org_id = ?", orgId)).toEqual([
+      expect.objectContaining({ actor_id: leaverId, target_id: leaverId, outcome: "left" }),
+    ]);
+    const history = (await (await call("/api/team/history", { headers: { cookie } })).json()) as {
+      changes: { action: string }[];
+    };
+    expect(history.changes.map((c) => c.action)).toContain("leave-organization");
+  });
+
+  it("hashes an IPv6 client alike in its sign-in and in its rate-limit refusal", async () => {
+    const v6 = "2001:db8:abcd:12::7";
+    const email = `six-${unique()}@example.org`;
+    await owner(email);
+    await call("/api/auth/sign-in/magic-link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const token = new URL(lastLink()).searchParams.get("token") ?? "";
+    await call("/signin/confirm", {
+      method: "POST",
+      headers: { "cf-connecting-ip": v6 },
+      body: new URLSearchParams({ token, callbackURL: "/cases" }),
+    });
+    const signedIn = (await events("sign-in", "user_id = ?", await userIdOf(email))).at(-1);
+    for (let i = 0; i <= 20; i++)
+      await call("/api/auth/sign-in/magic-link", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": v6 },
+        body: JSON.stringify({ email: `x${i}-${unique()}@example.org` }),
+      });
+    const refused = (await events("rate-limited", "outcome = 'per-ip'")).at(-1);
+    expect(signedIn?.ip_hash).toBeTruthy();
+    expect(refused?.ip_hash).toBe(signedIn?.ip_hash);
+  });
+});

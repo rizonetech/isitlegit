@@ -11,6 +11,7 @@ export type AuthEventKind =
   | "update-member-role"
   | "cancel-invitation"
   | "remove-member"
+  | "leave-organization"
   | "verify-domain"
   | "verify-address"
   | "rate-limited";
@@ -28,7 +29,7 @@ export type AuthEvent = {
 };
 
 // The team changes the owners' history shows (D07 T04 §3).
-export const TEAM_ACTIONS = ["update-member-role", "cancel-invitation", "remove-member"] as const;
+export const TEAM_ACTIONS = ["update-member-role", "cancel-invitation", "remove-member", "leave-organization"] as const;
 
 // Authentication logs are kept 12 months, the usual window for them; the operator can shorten it here.
 export const AUTH_EVENTS_RETENTION_DAYS = 365;
@@ -51,7 +52,23 @@ async function hmac(secret: string, value: string): Promise<string> {
     .join("");
 }
 
-export const ipHash = (secret: string, ip: string) => hmac(secret, `ip\n${ip}`);
+// The client's address as Better Auth's limiter keys it (an IPv6 address by its /64, a mapped IPv4 as IPv4, lowercase),
+// so a refusal's hash matches the same client's other rows (round 1).
+export function normalizeIp(ip: string): string {
+  const value = ip.trim().toLowerCase();
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(value);
+  if (mapped?.[1]) return mapped[1];
+  if (!value.includes(":")) return value;
+  const [head = "", tail] = value.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right];
+  if (groups.length !== 8 || groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return value;
+  return groups.map((g, i) => (i < 4 ? g.padStart(4, "0") : "0000")).join(":");
+}
+
+export const ipHash = (secret: string, ip: string) => hmac(secret, `ip\n${normalizeIp(ip)}`);
 export const bucketKey = (secret: string, key: string) => hmac(secret, `bucket\n${key}`);
 
 export async function recordAuthEvent(db: D1Database, secret: string, event: AuthEvent): Promise<void> {
