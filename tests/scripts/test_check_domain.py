@@ -168,7 +168,9 @@ class Recovery(unittest.TestCase):
         record = GOOD["DKIM"][0]
         for bad in (record.replace("v=DKIM1", "v=DKIM11"), record.replace("k=rsa", "k=ed25519"),
                     record.replace("h=sha256;", "h=sha256; h=sha1;"), record.rstrip('"') + '; p=AAAA"',
-                    record.replace("v=DKIM1; ", "") .replace("h=sha256;", "h=sha256; v=DKIM1;")):
+                    record.replace("v=DKIM1; ", "") .replace("h=sha256;", "h=sha256; v=DKIM1;"),
+                    record.replace("h=sha256", "h=sha25"), record.replace("k=rsa;", "k=rsa; s=mail;"),
+                    record.replace("; k=rsa", ";  k=rsa")):
             with self.subTest(bad[:40]):
                 passed, refusals = cd.check({**GOOD, "DKIM": [bad]})
                 self.assertTrue(any("DKIM key" in r for r in refusals), refusals)

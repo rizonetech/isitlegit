@@ -9,8 +9,8 @@ of: the two Cloudflare nameservers; Email Routing's three MX hosts; exactly one 
 `sp=reject`, relaxed alignment, `fo=1`, reports only to dmarc@isitlegit.co.za), a trailing semicolon allowed; CAA `issue` tags (not `issuewild`) naming only
 Universal SSL's authorities and including Let's Encrypt, Google Trust Services and SSL.com (RFC 8659 4.2, 4.3); the
 registry's DS (key tag 2371, algorithm 13, digest type 2, the recorded digest); the zone validated (`ad`); and
-Email Routing's own DKIM key published (`cf2024-1._domainkey`: one `v=DKIM1` record whose key is an RSA public key and
-the recorded one, by its digest: D99 T01 §9). Each lookup is announced on stderr before it starts.
+Email Routing's own DKIM record published (`cf2024-1._domainkey`: one record, byte for byte the one Cloudflare
+published, by its digest: D99 T01 §9); and the demo subdomain's own MX hosts and SPF record. Each lookup is announced on stderr before it starts.
     python3 scripts/check-domain.py --diagnose
 tells five states apart from the zone's SOA, an ordinary query against one with checking disabled (`+cd`), for the
 runbook's emergency procedure (docs/operations.md "Domain recovery"): authenticated (exit 0), a confirmed DNSSEC
@@ -23,7 +23,6 @@ A lookup that could not be made (no network, a resolver error, a timeout) is rep
 wrong record; an interrupted run exits 130 and judges nothing. Prints the number of checks passed and exits 0 only when all pass, 1 when a record is wrong. Stdlib
 only; needs `dig`.
 """
-import base64
 import hashlib
 import re
 import subprocess
@@ -48,12 +47,12 @@ DS = ("2371", "13", "2", "360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B72
 CHECKS = 9
 # The demo subdomain routes its own mail (D01 T02 §4): its own three MX hosts and SPF record.
 DEMO = f"demo.{DOMAIN}"
-# Email Routing's DKIM key (D99 T01 §2 enabled routing, which publishes it), so forwarded mail stays authenticated:
-# pinned, like the DS, by the SHA-256 of its `p=` value as read back on 2026-10-29, so a truncated or altered key fails.
+# Email Routing's DKIM record (D99 T01 §2 enabled routing, which publishes it), so forwarded mail stays authenticated:
+# pinned byte for byte as Cloudflare published it, like SPF and DMARC, by the SHA-256 of its text (its quoted strings
+# joined) as read back on 2026-10-29, since the key is long. Any edit to any tag or to the key fails (round 2: checking
+# tags one by one missed `h=` and `s=`); a key Cloudflare rotates is a reviewed commit of the new digest.
 ROUTING_DKIM = f"cf2024-1._domainkey.{DOMAIN}"
-ROUTING_DKIM_KEY_SHA256 = "9ebebc917a1fb77c51113129f6426296930ab094fe85a2de095fb9182c794ceb"
-# The DER of an RSA public key carries this algorithm identifier (rsaEncryption, 1.2.840.113549.1.1.1).
-RSA_OID = bytes.fromhex("2a864886f70d010101")
+ROUTING_DKIM_SHA256 = "7edf37256212f306d474921bcabff1e6abea831924737f785c040c8e6b5e8241"
 
 
 class LookupFailed(Exception):
@@ -158,34 +157,15 @@ def check(a, nameservers=None, ds_record=None):
     need("ad" in flag_words, "the resolver did not validate the zone (no ad flag)")
     # Any record that begins like a DKIM record counts, so a mistyped version is refused rather than skipped.
     dkim = [txt(r) for r in a["DKIM"] if txt(r).strip().lower().startswith("v=dkim")]
-    need(len(dkim) == 1 and dkim_key_ok(dkim[0]),
-         f"Email Routing's DKIM key ({ROUTING_DKIM}) is not the one recorded ({len(dkim)} DKIM1 record(s); a valid "
-         "RSA key whose p= value hashes to the recorded digest)")
+    need(len(dkim) == 1 and hashlib.sha256(dkim[0].strip().encode()).hexdigest() == ROUTING_DKIM_SHA256,
+         f"Email Routing's DKIM key ({ROUTING_DKIM}) is not the record Cloudflare published ({len(dkim)} DKIM "
+         "record(s); its text must match the recorded digest byte for byte)")
     demo_spf = [txt(r) for r in a["DEMO_TXT"] if txt(r).lower().startswith("v=spf1")]
     need({line.split()[-1] for line in a["DEMO_MX"] if line.split()} == MX_HOSTS
          and len(a["DEMO_MX"]) == len(MX_HOSTS) and demo_spf == [SPF_RECORD],
          f"{DEMO} does not route through Email Routing (MX {sorted(a['DEMO_MX'])}, {len(demo_spf)} SPF record(s))")
     return passed, refusals
 
-
-def dkim_key_ok(record):
-    """A DKIM record is valid (RFC 6376 3.6.1: `v=DKIM1` first, each tag once, `k` absent or `rsa`) and its key is an RSA
-    public key (base64 of its DER) and the recorded one."""
-    tags = [part.split("=", 1) for part in record.split(";") if part.strip()]
-    if any(len(tag) != 2 for tag in tags):
-        return False
-    names = [name.strip() for name, _ in tags]
-    values = dict((name.strip(), value.strip()) for name, value in tags)
-    if (len(set(names)) != len(names) or names[0] != "v" or values["v"] != "DKIM1"
-            or values.get("k", "rsa") != "rsa" or "p" not in values):
-        return False
-    value = "".join(values["p"].split())
-    try:
-        der = base64.b64decode(value, validate=True)
-    except ValueError:
-        return False
-    return (der[:1] == b"\x30" and RSA_OID in der
-            and hashlib.sha256(value.encode()).hexdigest() == ROUTING_DKIM_KEY_SHA256)
 
 
 DS_RECORD = re.compile(r"^(\d{1,5}) (\d{1,3}) (\d{1,3}) ([0-9A-Fa-f]{40,128})$")
