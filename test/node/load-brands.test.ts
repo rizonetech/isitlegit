@@ -42,16 +42,23 @@ function file(content: string) {
   return path;
 }
 // A fake Wrangler over an in-memory namespace; `stale` reads return the old value that many times after a write.
-function fakeKv(initial: Record<string, string> = {}, { stale = 0, refuse = false, remote404 = false } = {}) {
+function fakeKv(
+  initial: Record<string, string> = {},
+  { stale = 0, refuse = false, remote404 = false, puts = Number.POSITIVE_INFINITY, hang = false } = {},
+) {
   const store = new Map(Object.entries(initial));
   const calls: string[][] = [];
   let lagging = 0;
   let old: string | undefined;
-  const run: Run = (args) => {
+  let written = 0;
+  const bounds: number[] = [];
+  const run: Run = (args, timeoutMs) => {
     calls.push(args);
+    bounds.push(timeoutMs);
     const key = args[5] as string;
     if (args[2] === "put") {
-      if (refuse) return { status: 1, stdout: "", stderr: "denied" };
+      if (refuse || written >= puts) return { status: 1, stdout: "", stderr: "denied" };
+      written += 1;
       if (key === BRANDS_KEY) {
         old = store.get(key);
         lagging = stale;
@@ -59,6 +66,7 @@ function fakeKv(initial: Record<string, string> = {}, { stale = 0, refuse = fals
       store.set(key, readFileSync(args[args.indexOf("--path") + 1] as string, "utf8"));
       return { status: 0, stdout: "", stderr: "" };
     }
+    if (hang && written > 0) return { status: null, stdout: "", stderr: "" };
     if (key === BRANDS_KEY && lagging > 0) {
       lagging -= 1;
       return { status: 0, stdout: old ?? "Value not found", stderr: "" };
@@ -69,7 +77,7 @@ function fakeKv(initial: Record<string, string> = {}, { stale = 0, refuse = fals
       return { status: 1, stdout: "", stderr: "✘ [ERROR] Failed to fetch ... - 404: Not Found" };
     return { status: 0, stdout: value ?? "Value not found", stderr: "" };
   };
-  return { store, calls, run };
+  return { store, calls, run, bounds };
 }
 const noSleep = async () => {};
 
@@ -145,6 +153,40 @@ describe("loadBrands", () => {
     await expect(loadBrands({ target: "local", restore: true, run: fakeKv().run })).rejects.toThrow(
       /no brands:v1:previous/,
     );
+  });
+
+  it("keeps the revision being restored when the restore is refused partway, so a retry works", async () => {
+    const start = { [BRANDS_KEY]: table("2026-11-05"), [BRANDS_PREVIOUS_KEY]: table("2026-10-29") };
+    // The first write (the live key) refused: nothing changed.
+    const refused = fakeKv(start, { puts: 0 });
+    await expect(loadBrands({ target: "local", restore: true, run: refused.run, sleep: noSleep })).rejects.toThrow();
+    expect(JSON.parse(refused.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-10-29");
+    // The live key written, the copy refused: 2026-10-29 is live, so nothing is lost.
+    const partway = fakeKv(start, { puts: 1 });
+    await expect(loadBrands({ target: "local", restore: true, run: partway.run, sleep: noSleep })).rejects.toThrow();
+    expect(JSON.parse(partway.store.get(BRANDS_KEY) as string).revision).toBe("2026-10-29");
+    // A load refused partway keeps the live value live.
+    const loading = fakeKv({ [BRANDS_KEY]: table("2026-10-29") }, { puts: 1 });
+    await expect(
+      loadBrands({ target: "local", table: file(table("2026-11-05")), run: loading.run, sleep: noSleep }),
+    ).rejects.toThrow();
+    expect(JSON.parse(loading.store.get(BRANDS_KEY) as string).revision).toBe("2026-10-29");
+  });
+
+  it("bounds every Wrangler command, and ends when one stalls", async () => {
+    const stalled = fakeKv({}, { hang: true });
+    await expect(
+      loadBrands({
+        target: "remote",
+        table: file(table("2026-10-29")),
+        run: stalled.run,
+        sleep: noSleep,
+        verifyMs: 5_000,
+      }),
+    ).rejects.toThrow(/did not finish in time/);
+    expect(stalled.bounds.every((ms) => ms >= 1 && ms <= 30_000)).toBe(true);
+    // Verification commands get no more than the time left in the window.
+    expect(stalled.bounds.at(-1)).toBeLessThanOrEqual(5_000);
   });
 
   it("validates the committed table", async () => {

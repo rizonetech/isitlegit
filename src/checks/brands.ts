@@ -73,11 +73,32 @@ export type BrandMatch = { brand: Brand; official: boolean };
 // The brand a host belongs to: official on its registrable domains and their subdomains, its platform but not the brand
 // on a host where it publishes other people's content; null for any other host.
 export function brandForDomain(table: BrandTable, host: string): BrandMatch | null {
+  return brandAt(table, host, null);
+}
+
+// The same for a web address, where a path can carry other people's content on a brand's own host (a PayPal invoice at
+// `www.paypal.com/invoice/...` is the sender's words, not PayPal's).
+export function brandForUrl(table: BrandTable, url: string): BrandMatch | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  return brandAt(table, parsed.hostname, parsed.pathname);
+}
+
+function brandAt(table: BrandTable, host: string, path: string | null): BrandMatch | null {
   const lower = host.toLowerCase().replace(/\.$/, "");
   const domain = registrable(lower);
   if (!domain) return null;
   const brand = table.brands.find((b) => b.domains.includes(domain));
   if (!brand) return null;
-  const hosted = brand.user_content.some((h) => lower === h || lower.endsWith(`.${h}`));
+  const hosted = brand.user_content.some((entry) => {
+    const slash = entry.indexOf("/");
+    const entryHost = slash < 0 ? entry : entry.slice(0, slash);
+    if (lower !== entryHost && !lower.endsWith(`.${entryHost}`)) return false;
+    return slash < 0 || (path !== null && path.startsWith(entry.slice(slash)));
+  });
   return { brand, official: !hosted };
 }

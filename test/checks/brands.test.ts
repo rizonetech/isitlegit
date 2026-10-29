@@ -3,6 +3,7 @@ import {
   BRANDS_KEY,
   BrandTable,
   brandForDomain,
+  brandForUrl,
   brandTable,
   bundled,
   forgetBrandTable,
@@ -169,6 +170,30 @@ describe("brandTable", () => {
     stored = kvTable("2026-10-30");
     now += HELD_MS;
     expect((await brandTable(env, () => now)).revision).toBe("2026-10-30");
+  });
+});
+
+describe("the completion review (2026-10-29)", () => {
+  it("knows the brands' operational domains: SARS eFiling and Payfast's own", () => {
+    expect(brandForDomain(bundled, "secure.sarsefiling.co.za")).toMatchObject({
+      brand: { name: "SARS" },
+      official: true,
+    });
+    expect(brandForDomain(bundled, "www.payfast.co.za")).toMatchObject({ brand: { name: "Payfast" }, official: true });
+  });
+
+  it("gives customer content on a brand's own host or path no official standing", () => {
+    expect(brandForUrl(bundled, "https://www.paypal.com/invoice/p/#INV2-ABCD")).toMatchObject({
+      brand: { name: "PayPal" },
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://www.paypal.com/signin")).toMatchObject({ official: true });
+    expect(brandForDomain(bundled, "communityhub.sage.com")).toMatchObject({
+      brand: { name: "Sage" },
+      official: false,
+    });
+    expect(brandForUrl(bundled, "https://sites.google.com/view/lure")).toMatchObject({ official: false });
+    expect(brandForUrl(bundled, "not a url")).toBeNull();
   });
 });
 

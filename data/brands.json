@@ -362,7 +362,8 @@
         "SARS eFiling"
       ],
       "domains": [
-        "sars.gov.za"
+        "sars.gov.za",
+        "sarsefiling.co.za"
       ],
       "user_content": [],
       "sources": [
@@ -373,6 +374,14 @@
             "sars.gov.za"
           ],
           "evidence": "always hover over hyperlinks to make sure it's a sars.gov.za link"
+        },
+        {
+          "url": "https://www.sars.gov.za/",
+          "read": "2026-10-29",
+          "names": [
+            "sarsefiling.co.za"
+          ],
+          "evidence": "SARS's home page links eFiling at https://secure.sarsefiling.co.za/ (its log-in and forgotten-details pages)."
         }
       ]
     },
@@ -409,7 +418,9 @@
         "sage.com",
         "sagecity.com"
       ],
-      "user_content": [],
+      "user_content": [
+        "communityhub.sage.com"
+      ],
       "sources": [
         {
           "url": "https://communityhub.sage.com/za/sage-pastel-payroll/f/announcements/205116/alert-how-to-contact-official-sage-support-to-avoid-third-party-scams",
@@ -568,7 +579,10 @@
       "domains": [
         "paypal.com"
       ],
-      "user_content": [],
+      "user_content": [
+        "www.paypal.com/invoice/",
+        "www.paypal.com/myaccount/transfer/"
+      ],
       "sources": [
         {
           "url": "https://www.paypal.com/us/smarthelp/article/how-to-spot-fake-emails-faq2340",
@@ -587,7 +601,8 @@
         "PayFast"
       ],
       "domains": [
-        "payfast.io"
+        "payfast.io",
+        "payfast.co.za"
       ],
       "user_content": [],
       "sources": [
@@ -598,6 +613,14 @@
             "payfast.io"
           ],
           "evidence": "Payfast's home page at this address."
+        },
+        {
+          "url": "https://payfast.io/",
+          "read": "2026-10-29",
+          "names": [
+            "payfast.co.za"
+          ],
+          "evidence": "Payfast's home page links its developer documentation at https://developers.payfast.co.za/docs."
         }
       ]
     },

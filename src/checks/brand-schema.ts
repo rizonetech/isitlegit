@@ -16,7 +16,8 @@ const Domain = z
   .string()
   .regex(/^[a-z0-9.-]+$/)
   .refine((domain) => registrable(domain) === domain, "a registrable domain");
-const Host = z.string().regex(/^[a-z0-9.-]+$/);
+// A host, or a host and a path prefix (`www.paypal.com/invoice/`), where a brand publishes other people's content.
+const Host = z.string().regex(/^[a-z0-9.-]+(?:\/[A-Za-z0-9._~/-]*\/)?$/);
 const Source = z.strictObject({
   url: z.url({ protocol: /^https$/ }),
   read: z.iso.date(),
@@ -44,9 +45,11 @@ const Brand = z
         if (!brand.domains.includes(name))
           ctx.addIssue({ code: "custom", message: `${brand.name}: a source names ${name}, not one of its domains` });
     }
-    for (const host of brand.user_content)
+    for (const entry of brand.user_content) {
+      const host = entry.split("/")[0] as string;
       if (!brand.domains.includes(registrable(host) ?? ""))
-        ctx.addIssue({ code: "custom", message: `${brand.name}: ${host} is not under one of its domains` });
+        ctx.addIssue({ code: "custom", message: `${brand.name}: ${entry} is not under one of its domains` });
+    }
   });
 export const BrandTable = z.strictObject({
   version: z.literal(BRANDS_SCHEMA),

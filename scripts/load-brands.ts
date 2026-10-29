@@ -12,7 +12,8 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { BRANDS_KEY, BRANDS_PREVIOUS_KEY, BrandTable } from "../src/checks/brand-schema.ts";
 
-export type Run = (args: string[]) => { status: number | null; stdout: string; stderr: string };
+// One Wrangler command, stopped after `timeoutMs` (a stopped command answers a null status).
+export type Run = (args: string[], timeoutMs: number) => { status: number | null; stdout: string; stderr: string };
 export type LoadOptions = {
   target: "local" | "remote";
   restore?: boolean;
@@ -26,8 +27,8 @@ export class LoadRefused extends Error {
   override name = "LoadRefused";
 }
 
-const wrangler: Run = (args) => {
-  const done = spawnSync("pnpm", ["exec", "wrangler", ...args], { encoding: "utf8" });
+const wrangler: Run = (args, timeoutMs) => {
+  const done = spawnSync("pnpm", ["exec", "wrangler", ...args], { encoding: "utf8", timeout: timeoutMs });
   return { status: done.status, stdout: done.stdout ?? "", stderr: done.stderr ?? "" };
 };
 // A key that is not there: local storage prints this and exits 0; the remote API answers 404, and Wrangler exits 1.
@@ -38,9 +39,14 @@ export async function loadBrands(options: LoadOptions): Promise<{ revision: stri
   const run = options.run ?? wrangler;
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const where = `--${options.target}`;
+  // Every command is bounded, so verification ends within its window even when Wrangler stalls (completion review).
+  const COMMAND_MS = 30_000;
+  let deadline = Number.POSITIVE_INFINITY;
+  const bound = () => Math.max(1, Math.min(COMMAND_MS, deadline - Date.now()));
   const get = (key: string): string | null => {
-    const done = run(["kv", "key", "get", "--binding", "CACHE", key, where]);
+    const done = run(["kv", "key", "get", "--binding", "CACHE", key, where], bound());
     if (done.status !== 0 && REMOTE_MISSING.test(done.stdout + done.stderr)) return null;
+    if (done.status === null) throw new LoadRefused(`reading ${key} did not finish in time`);
     if (done.status !== 0) throw new LoadRefused(`reading ${key} failed (exit ${done.status})`);
     const value = done.stdout.trim();
     return value === MISSING || value === "" ? null : value;
@@ -50,7 +56,7 @@ export async function loadBrands(options: LoadOptions): Promise<{ revision: stri
     // From a file, so the table is never a command-line argument.
     const path = join(dir, "value.json");
     writeFileSync(path, value);
-    const done = run(["kv", "key", "put", "--binding", "CACHE", key, "--path", path, where]);
+    const done = run(["kv", "key", "put", "--binding", "CACHE", key, "--path", path, where], bound());
     if (done.status !== 0) throw new LoadRefused(`writing ${key} failed (exit ${done.status})`);
   };
   try {
@@ -67,15 +73,21 @@ export async function loadBrands(options: LoadOptions): Promise<{ revision: stri
     if (!parsed.success)
       throw new LoadRefused(`the table is malformed: ${parsed.error.issues[0]?.message ?? "invalid"}`);
     const text = JSON.stringify(parsed.data);
-    if (current !== null && current !== text) put(BRANDS_PREVIOUS_KEY, current);
+    // A load keeps the value it replaces as the rollback copy first, so a refused or interrupted write leaves the live
+    // value where it was and a retry works. A restore writes the live key first and only then the copy, so the revision
+    // being restored is never overwritten before it is live (completion review).
+    if (!options.restore && current !== null && current !== text) put(BRANDS_PREVIOUS_KEY, current);
     put(BRANDS_KEY, text);
     // KV is eventually consistent: the key may read its old value for a while after the write.
-    const deadline = Date.now() + (options.verifyMs ?? 60_000);
+    deadline = Date.now() + (options.verifyMs ?? 60_000);
     for (;;) {
-      if (get(BRANDS_KEY) === text) return { revision: parsed.data.revision, key: BRANDS_KEY };
+      if (get(BRANDS_KEY) === text) break;
       if (Date.now() >= deadline) throw new LoadRefused(`${BRANDS_KEY} did not read back as written`);
       await sleep(2_000);
     }
+    deadline = Number.POSITIVE_INFINITY;
+    if (options.restore && current !== null && current !== text) put(BRANDS_PREVIOUS_KEY, current);
+    return { revision: parsed.data.revision, key: BRANDS_KEY };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
