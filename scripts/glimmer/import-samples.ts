@@ -311,7 +311,7 @@ export function personalDetail(text: string): string | null {
 // A sample's HTML with its images replaced and its details redacted, then rendered, then checked: what the render
 // shows must hold no client term and no address, phone or long number, or the page is refused. The reason names the
 // kind of detail, never the detail.
-export async function renderRedacted<T extends { text: string }>(
+export async function renderRedacted<T extends { text: string; drawn?: string }>(
   render: (html: string) => Promise<T>,
   html: string,
   names: string[],
@@ -321,9 +321,11 @@ export async function renderRedacted<T extends { text: string }>(
   const clean = redact(stripImages(html), names, domains);
   if (hasImages(clean)) throw new Error("refused: an image survived the image rule");
   const page = await render(clean);
-  if (leaks([{ id: "page", text: page.text }], terms).length)
+  // Everything the page draws: its text, and the form values and placeholders `innerText` leaves out.
+  const shown = page.drawn ? `${page.text}\n${page.drawn}` : page.text;
+  if (leaks([{ id: "page", text: shown }], terms).length)
     throw new Error("refused: a client detail survived redaction");
-  const kind = personalDetail(page.text);
+  const kind = personalDetail(shown);
   if (kind) throw new Error(`refused: ${kind} survived redaction`);
   return page;
 }

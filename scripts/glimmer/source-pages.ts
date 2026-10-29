@@ -167,7 +167,7 @@ export function shownText(): string {
   }
 }
 
-export type RenderedHtml = { screenshot: Uint8Array; text: string } & FormFlags;
+export type RenderedHtml = { screenshot: Uint8Array; text: string; drawn?: string } & FormFlags;
 
 // The CSS properties that draw a picture, as the browser computes them.
 const PICTURE_PROPERTIES = [
@@ -193,6 +193,22 @@ export function removePictures(properties: string[]): void {
   const sheet = document.createElement("style");
   sheet.textContent = `*::before, *::after, *::marker { ${properties.map((p) => `${p}: none !important;`).join(" ")} }`;
   document.head?.append(sheet) ?? document.documentElement.append(sheet);
+}
+
+// Text the page draws that `innerText` leaves out: form controls' values and placeholders, and option labels, decoded by
+// the browser (character references and all) as the screenshot shows them. Run inside the page.
+export function controlText(): string {
+  const out: string[] = [];
+  for (const el of document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>(
+    "input, textarea, button",
+  )) {
+    if ((el as HTMLInputElement).type === "hidden" || (el as HTMLInputElement).type === "password") continue;
+    if (el.value) out.push(el.value);
+    const placeholder = el.getAttribute("placeholder");
+    if (placeholder) out.push(placeholder);
+  }
+  for (const option of document.querySelectorAll("option")) if (option.label) out.push(option.label);
+  return out.join("\n");
 }
 
 // How many elements or pseudo-elements still draw a picture, as the browser computes them. Run inside the page.
@@ -321,10 +337,12 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
   // captured, and a page it still finds one on is refused.
   async function renderHtml(html: string, options: { pictures?: boolean } = {}): Promise<RenderedHtml> {
     return withPage(html, async (page) => {
+      let drawn: string | undefined;
       if (options.pictures === false) {
         await page.evaluate(removePictures, PICTURE_PROPERTIES);
         if ((await page.evaluate(picturesLeft, PICTURE_PROPERTIES)) > 0)
           throw new Error("refused: a picture survived the browser's own reading of the page");
+        drawn = await page.evaluate(controlText);
       }
       // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
       const text = tidy(await page.evaluate(shownText));
@@ -336,7 +354,12 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
         clip: { x: 0, y: 0, width: 1280, height: MAX_HEIGHT },
         timeout: 10_000,
       });
-      return { screenshot: await normaliseScreenshot(new Uint8Array(shot)), text, ...flags };
+      return {
+        screenshot: await normaliseScreenshot(new Uint8Array(shot)),
+        text,
+        ...flags,
+        ...(drawn !== undefined ? { drawn } : {}),
+      };
     });
   }
   return {

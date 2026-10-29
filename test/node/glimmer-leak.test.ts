@@ -17,6 +17,7 @@ import {
   readClientNames,
   readManifest,
   redactionState,
+  renderRedacted,
   runImport,
   SOURCES,
 } from "../../scripts/glimmer/import-samples.ts";
@@ -439,6 +440,15 @@ describe("the sample import, end to end", () => {
 });
 
 describe("a sample render", () => {
+  it("refuses a name the page draws in a form value, however its letters are written", async () => {
+    // `&acy;` is a Cyrillic а the redactor's own table does not know; the browser decodes it and draws the name.
+    const html = `<p>${words}</p><input value="Th&acy;ndi" style="font-size:24px"><input placeholder="Dear Thandi">`;
+    await expect(renderRedacted(render, html, [], ["Thandi"])).rejects.toThrow(/a client detail survived/);
+    // A phone in a placeholder is redacted before the render, and the drawn text shows the placeholder.
+    const page = await renderRedacted(render, `<p>${words}</p><input placeholder="082 555 1234">`, [], ["Thandi"]);
+    expect(page.drawn).toBe("[phone]");
+  });
+
   it("draws no picture however the page writes it, by the browser's own reading", async () => {
     const red = (
       await sharp({ create: { width: 8, height: 8, channels: 3, background: "#ff0000" } })
