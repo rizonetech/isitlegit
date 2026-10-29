@@ -68,7 +68,8 @@ def final_mode(schedule):
     return final.get("mode", "required") if isinstance(final, dict) else None
 FINAL_KEYS = {"report", "verdict", "candidate", "reviewer", "model"}
 # Rounds recorded after a final review prove its fix; they are bounded on their own, outside the round cap, so a loop
-# that came back clean only at the cap can still prove a fix the final review asked for.
+# that came back clean only at the cap can still prove a fix the final review asked for. The dispatcher holds the same
+# number (its POST_FINAL_CAP) and refuses a round past it before running it.
 POST_FINAL_CAP = 3
 PIN = ".conclave/reviewers.toml"
 PLAN_KEYS = {"report", "candidate", "reviewer", "model", "effort", "lenses"}
