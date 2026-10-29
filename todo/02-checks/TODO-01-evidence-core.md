@@ -71,6 +71,10 @@ One zod schema defines Evidence; every check registers in one list with a name, 
 
 The Workflow `checks` step runs every registered check whose inputs are present, each with its own time budget. A failure produces a `not_checked` evidence item (info severity, the check name, the error class) so the report says what was not checked and the verdict knows coverage is incomplete (spec 4.3a "an outage leaves a not-checked line, never a guess").
 
+> **Started:** 2026-10-29T14:16Z
+
+**Corrected 2026-10-29** (at start, checked against the repository): (1) evidence is stored in D1 by `saveEvidence` (§1), so the `checks` step returns only its count and the `verdict` step reads the case's evidence with `readEvidence`, never a list passed between steps (a step's output is at most 1 MiB); (2) the `checks` step runs under `RETRIES`, four attempts of at most 30 seconds each (`src/pipeline/analysis-workflow.ts`), so every check's budget fits inside one attempt: `registerCheck` refuses a budget over `MAX_CHECK_MS` (20 seconds), and a check that calls a model runs in its own step (D03); a retried step replaces the evidence (§1), never adds to it; (3) "inputs present" is defined per input by `available(view, input)`: `headers` only when the header state says they are the original's (`tenant.headersAvailable`), `text` and `html` when not null, the rest always (an empty attachment list is a fact, not a gap); a skip is one `not_checked` item per missing input naming every check it held back, with the reason, since no header check exists yet and the registry's own checks are tested through fakes; (4) a failure is named by its error class only (`error.name`), never its message, which can carry hostile text.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -80,10 +84,10 @@ The Workflow `checks` step runs every registered check whose inputs are present,
 
 1. Replace the stub `checks` step with `runChecks`. Done when: a fixture case stores evidence from every registered check.
 
-- [ ] Write `runChecks(caseView)` in `src/checks/runner.ts` running checks concurrently with `Promise.allSettled` and per-check timeouts. Done when: `test/checks/runner.test.ts` runs three fake checks and stores their evidence.
-- [ ] Turn a thrown error or timeout into `{ check: "not_checked", severity: "info", summary: "<name> could not run", detail: { check, errorClass } }`. Done when: a failing fake check yields that item and the others still store. Cheaper substitute: skipping the failed check silently.
-- [ ] Skip a check whose `needs` are absent (for example header checks when `headers_available = 0`) with one info item explaining why. Done when: the inline-forward fixture yields the "headers not available" item.
-- [ ] Call `runChecks` from the Workflow `checks` step and pass the evidence key to `verdict`. Done when: the Workflow test sees evidence rows for the fixture.
+- [ ] Write `runChecks(view, registry)` in `src/checks/runner.ts` running the registry's checks concurrently with `Promise.allSettled`, each against its own timeout, and returning their evidence in registration order (each check's items together, whatever finished first), and add `MAX_CHECK_MS` to `registerCheck` in `src/checks/registry.ts`. Done when: `test/checks/runner.test.ts` runs three fake checks, one slower than the others, and stores their evidence in registration order; a budget over `MAX_CHECK_MS` is refused. (**Corrected 2026-10-29**, at start.)
+- [ ] Turn a thrown error, a rejected promise, a timeout or evidence that `Evidence` refuses into `{ check: "not_checked", severity: "info", summary: "<name> could not run", detail: { check, errorClass } }` (`errorClass` the error's name, `Timeout` for a timeout, `EvidenceRefused` for malformed items), in the failing check's place. Done when: each failing fake yields that item, no message text is stored, and the others still store. Cheaper substitute: skipping the failed check silently. (**Corrected 2026-10-29**, at start.)
+- [ ] Write `available(view, input)` and skip a check whose `needs` are not all available, with one `not_checked` info item per missing input naming the checks it held back and why (for example the original's headers when it was forwarded inline). Done when: the inline-forward fixture with a fake header check yields the "headers not available" item naming it, and the attached fixture runs the same check. (**Corrected 2026-10-29**, at start.)
+- [ ] Call `caseViewOf`, `runChecks` and `saveEvidence` from the Workflow `checks` step in `src/pipeline/analysis-workflow.ts`, returning the count, and have `verdict` read the case's evidence with `readEvidence`. Done when: `test/pipeline/analysis-workflow.test.ts` sees the fixture's evidence rows (`E1` the `intake.forward` item), a retried `checks` step leaves one list, and a malformed summary still fails the step. (**Corrected 2026-10-29**, at start.)
 - [ ] Commit: `checks: check runner step with failure isolation`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/runner.test.ts` passes and fails if a failing check stops the others.
