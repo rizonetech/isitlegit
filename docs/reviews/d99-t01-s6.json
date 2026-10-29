@@ -1,0 +1,134 @@
+{
+  "ref": "D99 T01 \u00a76",
+  "title": "Google Web Risk API key",
+  "implementation_sha": "3a299512c9f89d54f1be342e6b8101fa9de6f016",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/99-manual/D99-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/99-manual/D99-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/99-manual/D99-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/99-manual/D99-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/99-manual/D99-T01-s6.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/99-manual/D99-T01-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 scripts/check-webrisk-key.py -> exit 0 (test lure flagged, clean page clean, 7 other APIs refused the key)",
+    "python3 -m unittest tests.scripts.test_check_webrisk_key -> Ran 17 tests, OK",
+    "python3 scripts/todo-graph.py validate -> valid: 236 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/99-manual/D99-T01-s6.md",
+    "verdict": "filed",
+    "candidate": "877f497d620e8ce3f3727bf0100175df55276e87",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D99 T01 \u00a710"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/99-manual/D99-T01-s6.md",
+    "candidate": "800ee6dc407e61b4e822571a2898810ef79258d4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/99-manual/D99-T01-s6.md",
+    "verdict": "fixed",
+    "candidate": "33cf25b8c473e1f2e3a91c7aba975c01d9c6b009",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

@@ -275,6 +275,44 @@ describe("handleEmail", () => {
     expect(human.kind).toBe("admitted");
   });
 
+  it("logs one line a delivery naming its outcome, and for a drop the member match and the auth results, never an address", async () => {
+    const { from } = await member();
+    const lines: string[] = [];
+    const log = (line: string) => lines.push(line);
+    const unknown = message("someone@unknown.co.za");
+    expect(await handleEmail(unknown.forwardable, mailEnv, new Date(), log)).toEqual({ kind: "dropped" });
+    const failed = message(from, {
+      auth: `${EMAIL_ROUTING_AUTHSERV_ID}; spf=fail smtp.mailfrom=${from}; dkim=pass header.d=evil.com`,
+    });
+    expect(await handleEmail(failed.forwardable, mailEnv, new Date(), log)).toEqual({ kind: "dropped" });
+    const admitted = await handleEmail(message(from).forwardable, mailEnv, new Date(), log);
+    expect(admitted.kind).toBe("admitted");
+    const [first, second, third] = lines.map((line) => JSON.parse(line));
+    expect(first).toEqual({
+      event: "intake",
+      outcome: "dropped",
+      member: null,
+      auth: {
+        authservId: EMAIL_ROUTING_AUTHSERV_ID,
+        results: [
+          { method: "spf", result: "pass", domain: "unknown.co.za" },
+          { method: "dkim", result: "pass", domain: "unknown.co.za" },
+        ],
+      },
+    });
+    expect(second).toMatchObject({ outcome: "dropped", member: "domain" });
+    expect(second.auth.results).toEqual([
+      { method: "spf", result: "fail", domain: from.slice(from.indexOf("@") + 1) },
+      { method: "dkim", result: "pass", domain: "evil.com" },
+    ]);
+    expect(third).toEqual({ event: "intake", outcome: "admitted", caseId: (admitted as { caseId: string }).caseId });
+    for (const line of lines) {
+      expect(line).not.toContain("someone@");
+      expect(line).not.toContain(from);
+      expect(line).not.toContain(unknown.messageId);
+    }
+  });
+
   it("drops mail from an unknown sender, and a member's address in a forward authenticated for another domain", async () => {
     const { orgId, from } = await member();
     for (const m of [

@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { addInviteCode } from "../fixtures/auth/members";
-import { authEnv, call, pathOf, requestLink, sessionCookie, stubSmtp2go, target } from "./helpers";
+import { authEnv, call, redeem, requestLink, sessionCookie, stubSmtp2go, target } from "./helpers";
 
 // D07 T02 §4: invite-code signup through the Worker's own fetch, resumable from its redemption, and the gate on every
 // other way of making an account.
@@ -63,7 +63,7 @@ describe("invite-code signup", () => {
     expect(redemption?.status).toBe("complete");
     // The first link went (the membership admits the address), and redeeming it signs in to the new organisation.
     expect(smtp.sends.map((s) => s.to)).toEqual(["Founder@Example.org".toLowerCase()]);
-    const redeemed = await call(pathOf(smtp.sends[0]?.link ?? ""));
+    const redeemed = await redeem(smtp.sends[0]?.link ?? "");
     expect(target(redeemed)).toBe("/cases");
     expect(await activeOf(sessionCookie(redeemed))).toBe(redemption?.org_id);
   });
@@ -120,7 +120,7 @@ describe("invite-code signup", () => {
         .status,
     ).toBe(201);
     const link = smtp.sends.at(-1)?.link ?? "";
-    const cookie = sessionCookie(await call(pathOf(link)));
+    const cookie = sessionCookie(await redeem(link));
     const renamed = await call("/api/auth/organization/update", {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
@@ -404,7 +404,7 @@ describe("invite-code signup", () => {
       const working = stubSmtp2go();
       restore = working.restore;
       expect((await requestLink(email)).status, answer).toBe(200);
-      const redeemed = await call(pathOf(working.sends.at(-1)?.link ?? ""));
+      const redeemed = await redeem(working.sends.at(-1)?.link ?? "");
       expect(sessionCookie(redeemed), answer).toMatch(/session_token=/);
       expect(await accountOf(email), answer).toEqual({ users: 1, organisations: 1, redemptions: 1 });
       expect(await usesOf(codeId), answer).toBe(1);
@@ -424,9 +424,12 @@ describe("making an account any other way", () => {
     expect((await requestLink("stranger@example.org", undefined, minted)).status).toBe(200);
     const link = smtp.sends.at(-1)?.link ?? "";
     expect(link).not.toBe("");
-    const redeemed = await call(pathOf(link));
+    const redeemed = await redeem(link);
     expect(sessionCookie(redeemed)).toBe("");
-    expect(target(redeemed) ?? "").toMatch(/error=/);
+    // No account and no session: the page says the address has no account and to ask for an invitation (a new link
+    // would be refused the same way). The mail went to this address, so it tells its reader nothing new.
+    expect(redeemed.status).toBe(403);
+    expect(await redeemed.text()).toContain("This address has no IsItLegit account");
     expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE email = 'stranger@example.org'`)).toBe(0);
   });
 });

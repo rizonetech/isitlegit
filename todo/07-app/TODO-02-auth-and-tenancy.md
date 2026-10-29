@@ -44,6 +44,8 @@ track: day-1
 | 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [ ] |
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
+| 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
+| 11 | §11 | Sign-in code for another device | §10 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -310,6 +312,76 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 - [ ] Commit: `app: account closure and the 30-day purge`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts` passes, and fails if the purge touches an open organisation.
+
+
+## 10. Scanner-safe sign-in links
+
+> **Started:** 2026-10-28T23:46Z
+
+The sign-in link verifies on GET (`/api/auth/magic-link/verify?token=...`, Better Auth's magic-link plugin, §1), so whatever fetches it first signs in. Found live on 2026-10-29 (D01 T01 §9): the first link sent to a Microsoft 365 mailbox was opened by a pre-delivery link scanner 18 seconds after the send and before the mail reached the inbox, which created a session for the user (a scripted Chrome user agent) and left the member's own click `INVALID_TOKEN`. Every member on a mail system that scans links (Microsoft Defender Safe Links, Mimecast, Proofpoint) is locked out, and the scanner holds a valid session. The industry practice is a link that only shows a confirm page, the token consumed by a POST from that page, which scanners do not send.
+
+**Corrected 2026-10-29** (plan review): a native form POST from a page served with `Referrer-Policy: no-referrer` carries `Origin: null` (Fetch Standard, "append a request Origin header"), which the origin check refuses, so the page uses `same-origin` (it loads nothing from another origin, so the token in its URL goes nowhere else) and a real browser proves the Origin it sends; the return path (`callbackURL`) is carried through both link forms, the POST and the recovery, since Better Auth's stored token does not keep it; the "link used or expired" state has a working recovery form (A1's "Email me a new link"); `ErrorState` (D07 T01 §8) is not built, so the page is drawn with `Document`, `Field` and `Button` (D07 T01 §6) on a plain sign-in frame, recorded in `design/SPEC.md` A1 for D07 T02 §7 to take over; the auth suite's own sign-in helper redeems links by GET and is converted.
+
+**Phase:** 1
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 Sign in (its "link expired or used" state; the confirm step is added to A1)
+**Job:** a member who asked for a sign-in link clicks it and is signed in, even when their mail system opened the link first.
+**Treatment:** one button, plain words; a used or expired link says so and offers a new one
+**Chrome:** `Document`, `Field` and `Button` from D07 T01 §6 on a plain sign-in frame; D07 T02 §7 replaces it with A1's frame
+
+**Build order:**
+
+1. Make the mailed link side-effect free. Done when: a GET of the mailed link creates no session and keeps the token.
+2. Sign in from the confirm page. Done when: the page's button signs the member in once, at the destination the link named, and a second use of the token is refused.
+3. Recover from a used or expired link. Done when: the page's form sends a new link that signs in.
+
+- [x] Mail `/signin/confirm?token=<token>&callbackURL=<path>` (on `APP_URL`, the token and validated return path taken from the URL Better Auth hands `sendMagicLink`) and serve that page: a GET answers 200 with one "Sign in to IsItLegit" button in a form that POSTs the token and the return path, `Cache-Control: no-store`, `Referrer-Policy: same-origin`, `X-Robots-Tag: noindex`, and creates nothing; it logs one line `{"event":"signin-confirm","step":"shown"}` (no token, no address) so a scanner's fetch is visible. Done when: `test/auth/magic-link-confirm.test.ts` fetches the mailed link twice (as a scanner would) and finds no session, the token still usable, and the page's form with both fields.
+- [x] Add `POST /signin/confirm`, refused unless `Origin` is the app's own (§1's check), that redeems the token through Better Auth's verify endpoint server-side and returns its session cookie and a 303 to the return path (a path on this site only, else `/cases`). A used, expired or unknown token answers the "link expired or used" state; a failure after the token was taken (the session not stored) answers a 503 page that says to request a new link, logged apart from an expired link. Done when: the test signs in once through the POST and lands at the exact path and query the link named (`/cases/42?tab=evidence`), refuses the same token again, refuses a cross-origin or `Origin: null` POST, refuses an expired token, refuses an external return path (`//evil.example`, `https://evil.example`), and finds the 503 for a session store that fails.
+- [x] Prove with a real browser (Playwright's Chromium, `test/node/signin-confirm-browser.test.ts`) that the rendered page's form, submitted by clicking its button with no header injected, sends `Origin: https://<the page's own origin>` and both fields to the POST, so the check admits it. Done when: the test fails with `Referrer-Policy: no-referrer` and passes with `same-origin`.
+- [x] Recover in the "link expired or used" state: a labelled email field and an "Email me a new link" button that POSTs to `/signin/link` (same origin check), which asks Better Auth's magic-link endpoint for a new link with the same return path, then answers one neutral "If that address can sign in, a new link is on its way" for a sent, refused or rate-limited address alike, and a retryable "the link could not be sent; try again" for a failed send. Done when: the test submits the rendered form, captures the replacement mail, redeems it through the confirm page and lands signed in; and finds the same neutral answer for an unknown address and for the rate limit. **Corrected 2026-10-29** (at build): the busy state needs a script, and none runs on these pages until D07 T01 §9, so it is deferred to D07 T02 §7 as A1's own loading state is.
+- [x] Keep the plugin's own GET verify from being a way in: a GET of `/api/auth/magic-link/verify` answers a 303 to the confirm page with the same token and return path, so a link mailed before this change still completes the GET, confirm, POST flow and a scanner that finds it still creates no session. Done when: the test follows an old-format link through the confirm page to a signed-in session at its return path, and finds the GET alone creating none.
+- [x] Convert the auth suite to the new flow: `test/auth/helpers.ts` `signIn` and every flow test that redeems a link by GET go through GET confirm then POST, keeping their cookie, persisted-session, organisation and redirect assertions. Done when: `pnpm exec vitest run test/auth` passes with no test redeeming a link by GET.
+- [x] Add the confirm step to `design/SPEC.md` A1 (the button, its busy state, the "link expired or used" recovery, the 503 state; built from A1's controls, not drawn), with the rendered page checked at phone width (375 px) and by keyboard (the button and the email field reachable and labelled). Done when: A1 lists the step and its states, and `test/node/signin-confirm-browser.test.ts` checks both.
+Evidence 2026-10-29: `src/auth/confirm.tsx` (the routes) and `src/auth/confirm-page.tsx` (the pages and the mailed link; `src/auth/paths.ts` holds the return-path rule they share with `src/auth/auth.ts`). `test/auth/magic-link-confirm.test.ts` (7 tests) and `test/node/signin-confirm-browser.test.ts` (3, in Chromium: the click sends the page's origin, `no-referrer` would send `Origin: null` and the first test fails with it, 375 px and keyboard); the auth suite converted (110 tests), full suite 1045 passed and 2 skipped, Python script tests 546 OK.
+
+- [x] Prove it live: before signing in with the operator's Microsoft 365 mailbox, read the user's session count; after the mail arrives and before the click, a `signin-confirm` `shown` line in the Worker's logs (`wrangler tail`, token redacted) shows the pre-click fetch, and the session count is unchanged; then the click (the connector cannot click, so the operator's own browser, or the link opened and the form submitted from this session) signs in and the count rises by one. Done when: `docs/live-checks.md` records the baseline, the pre-click fetch and unchanged count, and the signed-in read-back; a run with no pre-click fetch is recorded as inconclusive, not as proof. Done 2026-10-29: Scanner-safe sign-in, 2026-10-29 (D07 T02 §10, deployed `1f09b70`): the test user had 0 sessions; a sign-in link was requested at 00:06:32 UTC and SMTP2GO confirmed it at 00:06:33; Microsoft 365's link scanner fetched `/signin/confirm` twice at 00:06:49 UTC (`wrangler tail`: two `{"event":"signin-confirm","step":"shown"}` lines, from AS Microsoft Corporation, token not logged), 37 s before the mail reached the inbox at 00:07:26 ("Your IsItLegit sign-in link", internetMessageId `<E1xMDf9-AIkwcC8ht6s-V7Ab@message-id.smtpcorp.com>`); the user still had 0 sessions; the page's form, submitted from this session, answered 303 to `/cases` with a session for the test user, and the count read 1. Before the fix (23:39 UTC) the same scanner's fetch signed itself in and the member's click was refused `INVALID_TOKEN`.
+- [x] Close the completion review's in-scope gaps (2026-10-29): the internal calls to Better Auth carry the member's own `cf-connecting-ip`, and Better Auth reads that header (Cloudflare's; `X-Forwarded-For` a client can write), so members never share one limiter bucket (G1); the did-not-finish and could-not-be-sent pages carry the new-link form with the return path and the address kept (G2); the inbox state has A1's Send another link and Use a different email (`GET /signin/link`, the form with the address to correct) (G3); the browser test serves the shipped stylesheet and fonts and checks the recovery form at 375 px and by keyboard (G4); the address's link limit through `/signin/link` answers the same neutral page and sends nothing more (G5). Done when: `test/auth/magic-link-confirm.test.ts` (12 tests) and `test/node/signin-confirm-browser.test.ts` (4) pass.
+
+> **Deferred:** the busy state and repeat-submit prevention on the confirm and recovery forms, which need the app script -> XREF: D07 T02 §7
+
+- [x] Commit: `auth: sign-in links survive link scanners` (landed as `d037e56`, with the reviews' fixes in `f0ced79`, `e63561a`, `5576a8c`, `bef350f` and `18f2cdc`)
+
+**Test checkpoint:** `pnpm exec vitest run test/auth test/node/signin-confirm-browser.test.ts` passes, and fails if a GET of either link creates a session or consumes the token, a used, expired, cross-origin or `Origin: null` POST signs in, the return path is lost or can leave the site, the recovery form sends no working link, or the real browser's POST is refused.
+
+> **Verified:** 2026-10-29 | §10 | 18f2cdce63700a6281c2d953216e14495116a610
+> **Review:** `docs/reviews/d07-t02-s10.json`
+
+
+## 11. Sign-in code for another device
+
+A sign-in link signs in whichever browser opens it, so a member who asked on a laptop and reads the mail on a phone ends up signed in on the phone (D07 T02 §10 completion review, 2026-10-29: Okta's email authenticator offers a code to type into the browser that asked). Whether IsItLegit offers a code beside the link, and how it looks, is a design decision for the operator, then built here.
+
+**Phase:** 2
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 Sign in (a code state is not drawn yet)
+**Job:** a member who asked for a sign-in link on one device and opened the mail on another finishes signing in where they asked.
+**Treatment:** the mail shows a short code beside the link; the asking page has one code field
+**Chrome:** `Field`, `Button` from D07 T01 §6 on A1's frame (D07 T02 §7)
+
+**Operator decision (open):** offer a one-time code in the sign-in mail beside the link, or keep the link alone. Recording `Code sign-in: <yes|no> (YYYY-MM-DD)` here releases the section.
+
+**Build order:**
+
+1. Decide and record. Done when: the `Code sign-in:` line is recorded.
+2. If yes, sign in by code in the browser that asked. Done when: a code typed into the asking browser signs it in once, within the link's lifetime, and a guessed code is locked out.
+
+- [ ] Record the operator's decision. Done when: the `Code sign-in:` line is recorded.
+- [ ] If yes: mail a 6-digit code with the link (one per link, stored hashed, the link's 15 minutes), show a code field on the "check your inbox" state, and sign in the browser that submits it, three wrong codes ending that code. Done when: `test/auth/sign-in-code.test.ts` signs in by code once, refuses a used, expired or guessed code, and locks the code after three wrong tries.
+- [ ] Commit: `auth: sign in by code on another device`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/sign-in-code.test.ts` passes (or, if the decision is no, `grep -c '^Code sign-in: no' todo/07-app/TODO-02-auth-and-tenancy.md` prints `1`).
 
 ## Verification
 

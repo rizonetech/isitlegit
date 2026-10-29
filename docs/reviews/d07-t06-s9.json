@@ -1,0 +1,116 @@
+{
+  "ref": "D07 T06 \u00a79",
+  "title": "Serve the app on app.isitlegit.co.za",
+  "implementation_sha": "4813b1383186c3060a613247baecab22d9942581",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T06-s9.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T06-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "curl -sf https://app.isitlegit.co.za/health -> 200 {\"ok\":true,\"commit\":\"24e43d6...\"} (the deployed configuration commit)",
+    "curl -sf https://isitlegit.derick-f5a.workers.dev/health -> 200 {\"ok\":true,\"commit\":\"24e43d6...\"}",
+    "pnpm exec vitest run --project node test/node/wrangler-hosts.test.ts test/node/smoke-script.test.ts -> 26 passed",
+    "python3 scripts/todo-graph.py validate -> valid: 240 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T06-s9.md",
+    "verdict": "filed",
+    "candidate": "9b3fcf47255051b5885b3c498ce75c2b2eba2b86",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a71",
+      "D07 T02 \u00a77"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T06-s9.md",
+    "candidate": "cfe2e22fddc1df108a4a82809515161eecbafc26",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/07-app/D07-T06-s9.md",
+    "verdict": "fixed",
+    "candidate": "7585ad43687f5e472a9fbcdbe2166c693b22ac56",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

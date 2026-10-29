@@ -69,6 +69,12 @@ function checkMessage(message: MailMessage): void {
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(to.trim()))
     throw new Error("sendMail: the recipient is not one address");
   if (![from, subject].every(oneLine)) throw new Error("sendMail: the sender and subject are one line each");
+  // The product sends as isitlegit.co.za and nothing else, no subdomain either (stack doc: the key is "sender restricted
+  // to isitlegit.co.za"; the only verified sender domain): SMTP2GO refuses unverified domains account-wide, but the key
+  // cannot show which domains the account has verified.
+  const address = /<([^<>\s]+)>\s*$/.exec(from)?.[1] ?? from.trim();
+  if (!/^[^\s@<>]+@isitlegit\.co\.za$/i.test(address))
+    throw new Error("sendMail: the sender must be an isitlegit.co.za address");
   if (!text.trim()) throw new Error("sendMail: a message needs a text body");
   for (const [name, value] of Object.entries(headers)) {
     if (FORBIDDEN_HEADERS.has(name.toLowerCase())) throw new Error(`sendMail: SMTP2GO refuses the ${name} header`);
@@ -86,6 +92,9 @@ async function attempt(deps: MailDeps, apiKey: string, payload: string): Promise
       method: "POST",
       headers: { "content-type": "application/json", "x-smtp2go-api-key": apiKey },
       body: payload,
+      // Never followed: a redirect would carry the key's header to wherever it points, and its answer be read as
+      // SMTP2GO's. A 3xx stays a 3xx here and is judged below as no confirmed send.
+      redirect: "manual",
       signal: AbortSignal.timeout(deps.timeoutMs ?? 30_000),
     });
   } catch (error) {

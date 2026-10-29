@@ -41,9 +41,9 @@ track: day-1
 | 4 | §4 | Forward-as-attachment detection | §3 | [x] |
 | 5 | §5 | MIME parsing and attachment extraction | §4 | [x] |
 | 6 | §6 | Outlook .msg parsing | §5 | [x] |
-| 7 | §7 | AnalysisWorkflow skeleton, partial reports | §5 | [x] |
+| 7 | §7 | AnalysisWorkflow skeleton, partials | §5 | [x] |
 | 8 | §8 | Signed expiring report links | §1 | [x] |
-| 9 | §9 | Email Routing for check@ and live smoke | §7, D01 T02 §3 | [ ] |
+| 9 | §9 | check@ routing and live smoke | §7, D01 T02 §3, D07 T06 §9, D07 T02 §10 | [ ] |
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
 | 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
 | 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
@@ -251,7 +251,7 @@ Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno
 > **Verified:** 2026-10-28 | §6 | 5ed1fca1d309637b5181bc06a2669c8c4189af71
 > **Review:** `docs/reviews/d01-t01-s6.json`
 
-## 7. AnalysisWorkflow skeleton, partial reports
+## 7. AnalysisWorkflow skeleton, partials
 
 > **Started:** 2026-10-28T12:32:02Z
 
@@ -318,9 +318,15 @@ The absolute `https://` link a reply carries is built by D01 T02 §3 from a trus
 > **Verified:** 2026-10-27 | §8 | 7c100e4770a4a24c45b47b2b3c0a479f7e3161ff
 > **Review:** `docs/reviews/d01-t01-s8.json`
 
-## 9. Email Routing for check@ and live smoke
+## 9. check@ routing and live smoke
+
+> **Started:** 2026-10-28T23:13Z
 
 The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (stack doc). This section creates the rule and proves the whole loop on the live service with a synthetic fixture: forward in, stub reply out.
+
+**Corrected 2026-10-29** (at start, checked against the live account): (1) the Worker has no route on the zone; it serves at `isitlegit.derick-f5a.workers.dev` (D00 T01 §5), so `/health` is read there, and `check@` is reached only through Email Routing; (2) the zone's routing rules today are `hello@`, `dmarc@`, `conduct@` and three `demo.` aliases, all forwarding to the operator's mailbox, with the catch-all disabled, so `check@` has no rule and mail to it is refused; (3) SMTP2GO sends only as isitlegit.co.za (D99 T01 §4) and intake identifies the forwarder by the envelope sender (`message.from`, §3), which for an SMTP2GO send is its return-path domain, not the From address, to be confirmed by the first live send before the test sender is chosen; a forward from the operator's own mailbox (the Microsoft 365 connector's forward) has envelope and From equal, as a member's would; (4) the live D1 was migrated to 0019 on 2026-10-29 (it had stood at 0002), so the case tables exist.
+
+**Corrected 2026-10-29** (plan review): the SMTP2GO fixture send cannot model a member (finding 3 above, confirmed live: its envelope is SMTP2GO's bounce address), so the smoke forwards from the operator's own mailbox, `derick@rizonetech.com`, through the Microsoft 365 connector's forward (envelope and From agree, as for any member's forward), and that address is the one the test organisation verifies; a report link in the reply points at `PUBLIC_ORIGIN` (`https://app.isitlegit.co.za`), which has no route until D07 T06 §9 and no report page until D07 T03 §1, so this section proves the reply carries a link signed for its case and opening it live is D07 T03 §1's; the helper `scripts/send-fixture.ts` never existed and is replaced by `scripts/live-intake.ts`, run with `node` as `scripts/smoke.ts` is.
 
 **Phase:** 1
 **Needs:** cloudflare, live-mail
@@ -328,21 +334,22 @@ The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (st
 
 **Build order:**
 
-1. Enable Email Routing on the zone and route `check@isitlegit.co.za` to the Worker. Done when: the routing rule reads back with the Worker as its action.
-2. Send a synthetic fixture from the operator's verified test mailbox alias and read the reply. Done when: the reply arrives with a working signed report link.
+1. Route `check@isitlegit.co.za` to the Worker. Done when: the routing rule reads back with the Worker as its action.
+2. Forward a synthetic suspicious message from the operator's mailbox and read the reply. Done when: the reply arrives in that mailbox, threaded under the forward, with a link signed for the run's case.
 
-- [ ] Enable Email Routing on zone `88aeec6df134bc59bfa16a25751241ef` and create a rule `check@isitlegit.co.za` to Worker `isitlegit` (standing authorisation, `AGENTS.md`). Done when: the Cloudflare API lists the rule enabled.
-- [ ] Deploy the Worker after the gates pass (`AGENTS.md` deploy rule). Done when: `/health` returns the deployed SHA.
-- [ ] Register the Rizonetech test organisation and its verified test sending address through the D07 T02 domain verification flow. Done when: `findMemberBySender` returns it.
-- [ ] Send `test/fixtures/forward/attached-rfc822.eml` as an attachment from the test sending address through SMTP2GO to `check@isitlegit.co.za` with `scripts/send-fixture.ts`. Done when: a case row appears with `headers_available = 1`.
-- [ ] Read the reply where it lands, `derick@rizonetech.com` through the Microsoft 365 connector, and cross-check it in the SMTP2GO activity log (`docs/live-checks.md`, operator 2026-10-27: Claude runs mail tests itself); record the case id, the reply's `internetMessageId` and the reply time in `docs/live-checks.md`. Done when: the file names the case, the reply's `In-Reply-To` and the elapsed seconds.
-- [ ] Record the topmost `Authentication-Results` header Email Routing added to the live smoke's case (its `authserv-id` and the `spf=`, `smtp.mailfrom=`, `dkim=` and `header.d=` fields) in `docs/live-checks.md`, and add that header verbatim as a fixture to `test/intake/sender.test.ts`. Done when: `senderAuthenticated` (§3) admits the recorded header and the fixture test passes. Source: D01 T01 §3's sender check, written from RFC 8601 before a live header was seen.
-- [ ] Deliver a message while the Worker's raw store is made to fail (a deployed flag that only the operator's test sender trips, removed afterwards) and record what the sending side saw (a 4xx retry or a 5xx bounce) in `docs/live-checks.md`. Done when: the record names the SMTP outcome and, for a retry, that the retried delivery created exactly one case. Source: D01 T01 §3's undo path; Email Routing does not document a thrown handler's outcome.
-- [ ] Send a near-limit forward (about 24 MiB: an attached original carrying twenty large text parts and several MiB of attachments) through the live path and confirm the deployed Worker and the Workflow's `parse` step finish it without an `exceededMemory` or `exceededCpu` outcome (Workers Logs / Tail), recording the outcome, the step's duration and the parsed summary's `truncated` in `docs/live-checks.md`. Done when: the record shows the case reached a verdict or a named partial, with no memory or CPU outcome. Source: D01 T01 §5 completion review (Part 1 item 9: a Node heap limit is not the isolate's memory, which only the deployed Worker shows).
+- [x] Create a rule `check@isitlegit.co.za` to Worker `isitlegit` on zone `88aeec6df134bc59bfa16a25751241ef` (standing authorisation, `AGENTS.md`; Email Routing was enabled by D99 T01 §2). Done when: the Cloudflare API lists the rule enabled. Done 2026-10-28 23:12 UTC: rule `ba3c41f1cb86483d806607ec00f4958e`, enabled, action `worker` `isitlegit`, read back (`docs/live-checks.md`).
+- [x] Log why a delivery was not admitted, before admission, without changing what is admitted: one `{"event":"intake","outcome":...}` line per delivery naming the outcome (`dropped`, `automatic`, `too-large`, `duplicate`, `capped`, admitted), and for a drop whether a member matched, the topmost `Authentication-Results` authserv-id and each method's result and aligned domain (no address, no Message-ID). Done when: `test/intake/email.test.ts` finds the line for a drop by an unknown sender and by a failed check, and no address in either. Done 2026-10-29: `handleEmail` logs `{"event":"intake","outcome":...}` for every delivery (the case id for an admission; for a drop `member` (null, `domain` or `address`) and `auth` from `authenticationSummary` in `src/intake/sender.ts`); `test/intake/email.test.ts` covers an unknown sender, a failed check and an admission with no address or Message-ID in any line, and fails on the previous handler.
+- [ ] Deploy the Worker after the gates pass (`AGENTS.md` deploy rule, migrations first). Done when: `/health` on `isitlegit.derick-f5a.workers.dev` returns the deployed SHA.
+- [ ] Register the Rizonetech test organisation (an invite code from `scripts/invite-code.ts`, sign-up as `derick@rizonetech.com`) and verify that address through the address-claim flow (`POST /api/org/addresses`, the code read from the operator's mailbox). Needs D07 T06 §9 (the sign-in mail links to the app host) and D07 T02 §10 (**Corrected 2026-10-29** (at build): the first sign-in link sent to the operator's mailbox was consumed by its link scanner, so signing in needs links that survive one). Done when: `findMemberBySender` returns the organisation for the address, read back with `wrangler d1 execute --remote`.
+- [x] Write `scripts/live-intake.ts`: given the forward's `internetMessageId` (read from Sent Items through the connector) and a deadline, it finds that run's case by its `message_id` in the live D1, waits for its status `done` and its `reply:<caseId>` send `sent`, and exits non-zero naming the cause on a timeout, a missing case, a failed analysis or an unsent reply, so an earlier run's case can never satisfy it. Done when: `test/node/live-intake.test.ts` drives it against a stand-in for each outcome. Done 2026-10-29: `test/node/live-intake.test.ts` (5 tests) covers the pass, a missing case at the deadline, a partial analysis, a failed, refused or still uncertain reply, two cases for one Message-ID, a failed read retried to the deadline, and a Message-ID that could leave the SQL literal.
+- [ ] Forward a synthetic suspicious message (sent first to `hello@isitlegit.co.za` through SMTP2GO, so it lands in the operator's mailbox, with a run token in its subject) from `derick@rizonetech.com` to `check@isitlegit.co.za` with the connector's forward, and run `scripts/live-intake.ts` on it. Done when: it exits 0 with the case id. If the intake log shows a drop, the cause is fixed at its layer and the forward repeated until admitted.
+- [ ] Read the reply in the operator's mailbox through the connector: its `In-Reply-To` is the forward's `internetMessageId`, and its report link is signed for the run's case (`verifyReportLink`, D01 T01 §8); record the case id, both message ids and the elapsed seconds in `docs/live-checks.md`. Done when: the file holds them. Opening the link live is D07 T03 §1's.
+- [ ] Record the topmost `Authentication-Results` header of the run's case (its `authserv-id` and the `spf=`, `smtp.mailfrom=`, `dkim=` and `header.d=` fields) from the stored raw message in `docs/live-checks.md`, and add it verbatim as a fixture to `test/intake/sender.test.ts`. Done when: `senderAuthenticated` (§3) admits the recorded header and the fixture test passes. Source: D01 T01 §3's sender check, written from RFC 8601 before a live header was seen.
+- [ ] Deliver a message while the raw store is made to fail (a deployed variable naming one test sender, which makes `putRaw` throw for that sender only) and record what the sending side saw. Done when: the record names the outcome: a 4xx retry (and the retried delivery made exactly one case), a 5xx bounce, or silent loss; silent loss is a defect fixed at the intake's layer (the delivery refused so the sender is told) and the test repeated; afterwards the variable is removed, a deploy reads back without it, and one more forward reaches its reply. Source: D01 T01 §3's undo path; Email Routing does not document a thrown handler's outcome.
+- [ ] Send a near-limit forward (about 24 MiB: an attached original carrying twenty large text parts and several MiB of attachments) from a mailbox whose envelope is the verified member (the connector's forward refuses a message with attachments, so the transport is chosen and recorded at build), and confirm the deployed Worker and the Workflow's `parse` step finish it (Workers Logs / Tail). Done when: the record in `docs/live-checks.md` names the received `rawSize`, a successful `parse` event, the stored summary's `truncated` and its attachment records as the fixture predicts, with no `exceededMemory` or `exceededCpu` outcome; a later partial is acceptable only after those hold. Source: D01 T01 §5 completion review (Part 1 item 9: a Node heap limit is not the isolate's memory, which only the deployed Worker shows).
 - [ ] Commit: `intake: Email Routing for check@ with a live end-to-end smoke`
 
-**Test checkpoint:** `pnpm exec tsx scripts/send-fixture.ts test/fixtures/forward/attached-rfc822.eml --wait 120` exits 0 after finding the case in D1 with status `done` and a reply logged in SMTP2GO.
-
+**Test checkpoint:** `node scripts/live-intake.ts --message-id <the forward's internetMessageId> --wait 300` exits 0 after finding that forward's case `done` with its reply `sent`, and `pnpm exec vitest run test/node/live-intake.test.ts test/intake/email.test.ts test/intake/sender.test.ts` passes.
 
 ## 10. Outlook report button for check@
 

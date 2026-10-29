@@ -12,7 +12,7 @@ import { DEFAULT_DAILY_CASES } from "../db/cases";
 import { withoutComments } from "../mail/rfc5322";
 import { sendMail } from "../mail/smtp2go";
 import { admitDelivery, sha256Hex } from "./admit";
-import { senderAuthenticated } from "./sender";
+import { authenticationSummary, senderAuthenticated } from "./sender";
 import { putRaw, type Store } from "./store";
 
 export { CLAIM_LEASE_MS, DUPLICATE_WINDOW_MS, RetryDelivery, sweepIntake } from "./admit";
@@ -40,10 +40,27 @@ export function isAutomatic(value: string | null): boolean {
   return keyword !== "no";
 }
 
+// Every delivery logs one line naming its outcome (D01 T01 §9), so a forward that made no case can be told apart on the
+// live service: for a drop, whether a member matched and what the topmost Authentication-Results says (authserv-id,
+// each method's result and domain). No address, local part or Message-ID is logged.
 export async function handleEmail(
   message: ForwardableEmailMessage,
   env: Env,
   now = new Date(),
+  log: (line: string) => void = console.log,
+): Promise<IntakeOutcome> {
+  const detail: Record<string, unknown> = {};
+  const outcome = await intake(message, env, now, detail);
+  const caseId = outcome.kind === "admitted" ? { caseId: outcome.caseId } : {};
+  log(JSON.stringify({ event: "intake", outcome: outcome.kind, ...caseId, ...detail }));
+  return outcome;
+}
+
+async function intake(
+  message: ForwardableEmailMessage,
+  env: Env,
+  now: Date,
+  detail: Record<string, unknown>,
 ): Promise<IntakeOutcome> {
   if (message.rawSize > MAX_MESSAGE_BYTES) {
     message.setReject("Message too large");
@@ -58,7 +75,11 @@ export async function handleEmail(
   const from = message.from.trim().toLowerCase();
   // What the organisation verified decides what the mail must prove: its domain, or this one mailbox.
   const member = await memberOfSender(env.DB, from);
-  if (!member || !(await senderAuthenticated(raw, from, member.by))) return { kind: "dropped" };
+  if (!member || !(await senderAuthenticated(raw, from, member.by))) {
+    detail.member = member ? member.by : null;
+    detail.auth = await authenticationSummary(raw);
+    return { kind: "dropped" };
+  }
   const orgId = member.orgId;
 
   const messageId = headerValue(message.headers.get("Message-ID"));

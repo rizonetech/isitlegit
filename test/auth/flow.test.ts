@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { authOptions } from "../../src/auth/auth";
 import { addMember } from "../fixtures/auth/members";
-import { authEnv, call, pathOf, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "./helpers";
+import { authEnv, call, redeem, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "./helpers";
 
 // D07 T02 §1: signing in end to end through the Worker's own fetch: the link requested, sent through SMTP2GO, redeemed
 // over HTTP, and the session read back from D1.
@@ -31,8 +31,8 @@ describe("magic-link sign-in through the Worker", () => {
     const lifetime = new Date(stored?.at as string).getTime() - Date.now();
     expect(lifetime).toBeGreaterThan(14 * 60_000);
     expect(lifetime).toBeLessThanOrEqual(15 * 60_000);
-    const redeemed = await call(pathOf(sent.link));
-    expect(redeemed.status).toBe(302);
+    const redeemed = await redeem(sent.link);
+    expect(redeemed.status).toBe(303);
     expect(target(redeemed)).toBe("/cases?verdict=bad");
     const cookie = sessionCookie(redeemed);
     expect(cookie).toMatch(/session_token=/);
@@ -58,7 +58,7 @@ describe("magic-link sign-in through the Worker", () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
     await requestLink("nowhere@demo.isitlegit.co.za");
-    expect(target(await call(pathOf(smtp.sends[0]?.link ?? "")))).toBe("/cases");
+    expect(target(await redeem(smtp.sends[0]?.link ?? ""))).toBe("/cases");
   });
 
   it("refuses a destination off this site, before any mail goes", async () => {
@@ -76,33 +76,35 @@ describe("magic-link sign-in through the Worker", () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
     await requestLink("used@demo.isitlegit.co.za");
-    const link = pathOf(smtp.sends[0]?.link ?? "");
-    expect(sessionCookie(await call(link))).toMatch(/session_token=/);
-    // The second time: no session, and to sign-in with the destination kept and the reason, to ask for a new link.
-    const again = await call(link);
+    const link = smtp.sends[0]?.link ?? "";
+    expect(sessionCookie(await redeem(link))).toMatch(/session_token=/);
+    // The second time: no session, and the "link expired or used" page with its recovery form.
+    const again = await redeem(link);
     expect(sessionCookie(again)).toBe("");
-    expect(target(again)).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
+    expect(again.status).toBe(400);
+    expect(await again.text()).toContain("This link has expired or was used");
     // A link past its 15 minutes.
     await requestLink("late@demo.isitlegit.co.za");
     await db
       .prepare(`UPDATE "verification" SET "expiresAt" = ?`)
       .bind(new Date(Date.now() - 60_000).toISOString())
       .run();
-    const late = await call(pathOf(smtp.sends[1]?.link ?? ""));
+    const late = await redeem(smtp.sends[1]?.link ?? "");
     expect(sessionCookie(late)).toBe("");
-    expect(target(late)).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
+    expect([late.status, (await late.text()).includes("This link has expired or was used")]).toEqual([400, true]);
   });
 
-  it("sends a failed link for a page back to sign-in with that page kept", async () => {
+  it("keeps a failed link's page for the new link it offers", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
     await requestLink("keep@demo.isitlegit.co.za", "/cases/42?tab=evidence");
-    const link = pathOf(smtp.sends[0]?.link ?? "");
-    await call(link);
-    expect(target(await call(link))).toBe("/signin?next=%2Fcases%2F42%3Ftab%3Devidence&error=INVALID_TOKEN");
+    const link = smtp.sends[0]?.link ?? "";
+    await redeem(link);
+    const again = await redeem(link);
+    expect(await again.text()).toContain('name="callbackURL" value="/cases/42?tab=evidence"');
   });
 
-  it("sets the failure and new-user paths itself, and refuses an edited link that leaves the site", async () => {
+  it("mails only the token and a same-site return path, and an edited link cannot leave the site", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
     const asked = await call("/api/auth/sign-in/magic-link", {
@@ -116,52 +118,40 @@ describe("magic-link sign-in through the Worker", () => {
       }),
     });
     expect(asked.status).toBe(200);
+    // The confirm page (D07 T02 §10), with the token and the return path and nothing a client named.
     const link = new URL(smtp.sends[0]?.link ?? "");
-    expect(link.searchParams.get("errorCallbackURL")).toBe("/signin?next=%2Fcases");
-    expect(link.searchParams.get("newUserCallbackURL")).toBe("/cases");
-    // Edited to fail toward another site: refused, and the link is still good.
-    for (const name of ["errorCallbackURL", "newUserCallbackURL", "callbackURL"]) {
-      for (const value of ["//evil.example/x", "https://evil.example/", "http://localhost/elsewhere"]) {
-        const edited = new URL(link);
-        edited.searchParams.set(name, value);
-        const refused = await call(`${edited.pathname}${edited.search}`);
-        // Better Auth's origin check answers 403 for another site; a full URL even on this one is not a path (400).
-        expect(value.startsWith("http://localhost") ? [400] : [400, 403], `${name}=${value}`).toContain(refused.status);
-        expect(sessionCookie(refused), name).toBe("");
-      }
+    expect(link.pathname).toBe("/signin/confirm");
+    expect([...link.searchParams.keys()].sort()).toEqual(["callbackURL", "token"]);
+    expect(link.searchParams.get("callbackURL")).toBe("/cases");
+    // Edited toward another site: the page carries the default path instead, and the link is still good.
+    for (const value of ["//evil.example/x", "https://evil.example/", "http://localhost/elsewhere"]) {
+      const edited = new URL(link);
+      edited.searchParams.set("callbackURL", value);
+      const shown = await call(`${edited.pathname}${edited.search}`);
+      expect(await shown.text(), value).toContain('name="callbackURL" value="/cases"');
+      expect(sessionCookie(shown), value).toBe("");
     }
-    // A new member lands where the link was asked for, not on a page the client named.
-    expect(target(await call(`${link.pathname}${link.search}`))).toBe("/cases");
+    // A POST naming another site lands on the default, never there.
+    const token = link.searchParams.get("token") ?? "";
+    const posted = await call("/signin/confirm", {
+      method: "POST",
+      body: new URLSearchParams({ token, callbackURL: "https://evil.example/" }),
+    });
+    expect([posted.status, target(posted)]).toEqual([303, "/cases"]);
+    expect(sessionCookie(posted)).toMatch(/session_token=/);
   });
 
-  it("lands a link with its return parameters removed on the app's paths, not Better Auth's defaults", async () => {
+  it("lands a link with its return path removed on /cases, and keeps a page asked for", async () => {
     const smtp = stubSmtp2go();
     restore = smtp.restore;
     await requestLink("stripped@demo.isitlegit.co.za", "/cases/7");
-    const link = new URL(smtp.sends[0]?.link ?? "");
-    // Without the failure path: a used link still goes to sign-in with the page kept.
-    const noError = new URL(link);
-    noError.searchParams.delete("errorCallbackURL");
-    expect(target(await call(`${noError.pathname}${noError.search}`))).toBe("/cases/7");
-    expect(target(await call(`${noError.pathname}${noError.search}`))).toBe(
-      "/signin?next=%2Fcases%2F7&error=INVALID_TOKEN",
-    );
-    // Changed to another page on this site: the failure still goes to sign-in.
-    await requestLink("moved@demo.isitlegit.co.za", "/cases/8");
-    const moved = new URL(smtp.sends.at(-1)?.link ?? "");
-    moved.searchParams.set("errorCallbackURL", "/cases");
-    await call(`${moved.pathname}${moved.search}`);
-    expect(target(await call(`${moved.pathname}${moved.search}`))).toBe(
-      "/signin?next=%2Fcases%2F8&error=INVALID_TOKEN",
-    );
-    // With all three removed: a redirect to /cases (never session JSON), and a failure to sign-in.
+    expect(target(await redeem(smtp.sends[0]?.link ?? ""))).toBe("/cases/7");
     await requestLink("bare@demo.isitlegit.co.za");
     const bare = new URL(smtp.sends.at(-1)?.link ?? "");
-    for (const name of ["callbackURL", "errorCallbackURL", "newUserCallbackURL"]) bare.searchParams.delete(name);
-    const first = await call(`${bare.pathname}${bare.search}`);
-    expect([first.status, target(first)]).toEqual([302, "/cases"]);
+    bare.searchParams.delete("callbackURL");
+    const first = await redeem(bare.toString());
+    expect([first.status, target(first)]).toEqual([303, "/cases"]);
     expect(sessionCookie(first)).toMatch(/session_token=/);
-    expect(target(await call(`${bare.pathname}${bare.search}`))).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
   });
 
   it("stores a link's token only as its hash", async () => {
@@ -183,21 +173,21 @@ describe("magic-link sign-in through the Worker", () => {
     restore = smtp.restore;
     await requestLink("rotate@demo.isitlegit.co.za");
     await requestLink("rotate@demo.isitlegit.co.za");
-    const [kept, voided] = smtp.sends.slice(-2).map((s) => pathOf(s.link));
+    const [kept, voided] = smtp.sends.slice(-2).map((s) => s.link);
     const rotated = { ...authEnv, BETTER_AUTH_SECRET: "a-new-secret-0123456789abcdef-0123456789" };
     // The new secret refuses the session it did not sign: the member is signed out.
     expect(
       (await call("/api/auth/get-session", { headers: { cookie } }, rotated).then((r) => r.json())) ?? null,
     ).toBeNull();
     // A link sent before it still signs in.
-    const keptAnswer = await call(kept as string, {}, rotated);
-    expect([keptAnswer.status, target(keptAnswer)]).toEqual([302, "/cases"]);
+    const keptAnswer = await redeem(kept as string, rotated);
+    expect([keptAnswer.status, target(keptAnswer)]).toEqual([303, "/cases"]);
     expect(sessionCookie(keptAnswer)).toMatch(/session_token=/);
     // Deleting the outstanding link records (docs/operations.md) voids the rest.
     await db.prepare(`DELETE FROM "verification" WHERE identifier LIKE 'magic-link:%'`).run();
-    const late = await call(voided as string, {}, rotated);
+    const late = await redeem(voided as string, rotated);
     expect(sessionCookie(late)).toBe("");
-    expect(target(late)).toBe("/signin?next=%2Fcases&error=INVALID_TOKEN");
+    expect(late.status).toBe(400);
   });
 
   it("sends a new, usable link for each request, under its own send key", async () => {
@@ -213,7 +203,7 @@ describe("magic-link sign-in through the Worker", () => {
     const twice = keys.results.slice(-2).map((r) => r.send_key);
     expect(new Set(twice).size).toBe(2);
     for (const key of twice) expect(key).toMatch(/^signin:[0-9a-f]{64}$/);
-    expect(sessionCookie(await call(pathOf(smtp.sends[1]?.link ?? "")))).toMatch(/session_token=/);
+    expect(sessionCookie(await redeem(smtp.sends[1]?.link ?? ""))).toMatch(/session_token=/);
   });
 
   it("answers an error, never 'check your email', when the link does not go", async () => {

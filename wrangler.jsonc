@@ -7,6 +7,10 @@
   "alias": { "@eshaz/web-worker": "./src/voice/no-web-worker.ts" },
   "compatibility_date": "2026-10-26",
   "compatibility_flags": ["nodejs_compat"],
+  // The app's own host (D07 T06 §9): the links it mails name it (APP_URL, PUBLIC_ORIGIN). workers.dev stays on for
+  // scripts/smoke.ts, which sends its token only to isitlegit.derick-f5a.workers.dev or this host (D00 T01 §5).
+  "routes": [{ "pattern": "app.isitlegit.co.za", "custom_domain": true }],
+  "workers_dev": true,
   // Fingerprinted stylesheet and fonts (D07 T01 §5); public/_headers gives /static/* a year-long immutable cache.
   "assets": { "directory": "./public" },
   // IsItLegit's own resources (D00 T01 §5), created under the operator's standing authorisation (AGENTS.md).

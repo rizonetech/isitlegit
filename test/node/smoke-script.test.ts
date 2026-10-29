@@ -51,8 +51,10 @@ const quick = {
 describe("scripts/smoke.ts", () => {
   it("sends the token only over HTTPS to the IsItLegit Worker, refused before any secret is set", async () => {
     expect(destinationProblem("https://isitlegit.derick-f5a.workers.dev")).toBeNull();
-    expect(destinationProblem("https://isitlegit.co.za")).toBeNull();
     expect(destinationProblem("https://app.isitlegit.co.za")).toBeNull();
+    // The apex and www are the marketing site, and any other name on the zone could be pointed elsewhere.
+    for (const other of ["https://isitlegit.co.za", "https://www.isitlegit.co.za", "https://demo.isitlegit.co.za"])
+      expect(destinationProblem(other), other).toMatch(/is not the IsItLegit Worker/);
     expect(destinationProblem("http://isitlegit.derick-f5a.workers.dev")).toMatch(/not HTTPS/);
     expect(destinationProblem("https://evil.example")).toMatch(/is not the IsItLegit Worker/);
     expect(destinationProblem("https://isitlegit.co.za.evil.example")).toMatch(/is not the IsItLegit Worker/);

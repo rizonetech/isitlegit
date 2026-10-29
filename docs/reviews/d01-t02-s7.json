@@ -1,0 +1,112 @@
+{
+  "ref": "D01 T02 \u00a77",
+  "title": "Automatic recovery of ambiguous sends",
+  "implementation_sha": "b63bfd4af74bba98ef3e061cbb582f20a1d771d8",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s7.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T02-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/mail/reconcile.test.ts test/scheduled.test.ts -> Tests 21 passed (21)",
+    "grep -c '^Recovery design: keep SMTP2GO' todo/01-intake/TODO-02-outbound-mail.md -> 1",
+    "python3 scripts/todo-graph.py validate -> valid: 238 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s7.md",
+    "verdict": "completed",
+    "candidate": "bae3f7afd62dde44494ee26d312b68f72b616680",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s7.md",
+    "candidate": "f3ca74c1ffe812666252f48caa4f243c50674fd6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/01-intake/D01-T02-s7.md",
+    "verdict": "fixed",
+    "candidate": "133e0d907fe8d78a9f8ad178442beb76fdf3f359",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

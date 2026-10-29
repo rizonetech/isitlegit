@@ -37,18 +37,23 @@ track: day-0
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Meta API billing and API key | -- | [ ] |
-| 2 | §2 | Domain verification and nameservers | -- | [ ] |
-| 3 | §3 | Workers Paid plan | -- | [ ] |
-| 4 | §4 | SMTP2GO sender domain | §2 | [ ] |
+| 1 | §1 | Meta API billing and API key | -- | [x] |
+| 2 | §2 | Domain verification and nameservers | -- | [x] |
+| 3 | §3 | Workers Paid plan | -- | [x] |
+| 4 | §4 | SMTP2GO sender domain | §2 | [x] |
 | 5 | §5 | WhatsApp test number | -- | [ ] |
-| 6 | §6 | Google Web Risk API key | -- | [ ] |
+| 6 | §6 | Google Web Risk API key | -- | [x] |
 | 7 | §7 | Partner credits for Glimmer | -- | [x] |
 | 8 | §8 | AI Gateway tokens | -- | [x] |
+| 9 | §9 | Domain and mail recovery runbook | §2, §4 | [ ] |
+| 10 | §10 | Web Risk key restriction read from Google | §6 | [ ] |
+| 11 | §11 | SMTP2GO key permissions and senders read back | §4 | [ ] |
 
 ## 1. Meta API billing and API key
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:26Z
+
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z, written before the plan review; the section's build (the checkpoint fixes and `scripts/check-meta-key.py`) began after that review, at this commit's time, so the line records that.
 
 Credits apply in batches after the claim form; until they show, every call is charged to the card (`sources/cerebralvalley/2026-10-26-credit-claim.md`).
 
@@ -70,17 +75,22 @@ Credits apply in batches after the claim form; until they show, every call is ch
 - [x] Confirm US$150 under Billing, "free credits", and record it here as a line `Meta credit visible: YYYY-MM-DD`. Done when: the line is written; every `meta-api` section checks for it before its first call. Evidence: the operator reported the credit showing on Billing at 00:40 SAST on 2026-10-27.
 The key and the credit are on one Meta Model API team: the operator created the key in the same Model API dashboard whose Billing shows the hackathon credit (2026-10-27, items above), and the key's live calls are billed there (`docs/meta-smoke-test.md`, `docs/live-checks.md`). The `Meta credit visible` line proves the credit was visible on that date, not what remains; remaining spend is the budget guard's (D03 T01 §2).
 
-- [ ] Commit: `todo: record the Meta Model API account as ready`
+- [x] Commit: `todo: record the Meta Model API account as ready`
 
 Meta credit visible: 2026-10-27
 
 **Test checkpoint:** `python3 scripts/check-meta-key.py` exits 0 and prints `HTTP 200, <n> models listed, muse-spark-1.3 among them; key shape ok`: the vault's key has Meta's shape, is the recorded key (the SHA-256 of its public numeric id matches `EXPECTED_KEY_ID`, so another team's working key fails before any call; round 2 found a working foreign key passed), and Meta accepts it on its free model list, so a placeholder, a revoked or a replaced key fails, and a stalled vault (60 s) or network (30 s) fails with a reason; the key is never printed (`tests/scripts/test_check_meta_key.py`). **Corrected 2026-10-28** (the final review): it counted the credential's bytes, which proved only that something was stored; earlier still it called bare `op item get`. Evidence 2026-10-28 23:12 SAST: `check-meta-key: HTTP 200, 9 models listed, muse-spark-1.3 among them; the recorded key`, exit 0.
 
+> **Verified:** 2026-10-28 | §1 | fa9e5be213fadf9c075c398b2a2cf6a93a7c5552
+> **Review:** `docs/reviews/d99-t01-s1.json`
+
 ## 2. Domain verification and nameservers
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:56Z
 
-`isitlegit.co.za` is on `serverHold` until the registrant contact is verified; the nameserver change to Cloudflare is queued behind it.
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, so the review comes before the build as the process requires.
+
+`isitlegit.co.za` was on `serverHold` until the registrar released it; the nameserver change to Cloudflare was queued behind it. **Corrected 2026-10-28** (plan review): it read "until the registrant contact is verified", but Domains.co.za needs no contact verification (struck item below, operator 2026-10-27); what mattered was the hold lifting.
 
 **Phase:** 99
 **Needs:** none
@@ -90,7 +100,7 @@ Meta credit visible: 2026-10-27
 
 **Build order:**
 
-1. Verify the registrant contact from the Domains.co.za email to Rizonetech's registrant contact mailbox. Done when: Domains.co.za shows the registrant verified and the hold lifted.
+1. Get the domain released from `serverHold` and delegated to Cloudflare. Done when: the registrar reads status `ok` and public DNS names Cloudflare's nameservers (**Corrected 2026-10-28:** it required a verified registrant contact, which the operator's 2026-10-27 decision below made unnecessary).
 2. Confirm the nameservers. Done when: the Cloudflare zone reads `active`.
 
 - [x] Find the Domains.co.za verification email in Rizonetech's registrant contact mailbox and complete it. Done when: the Domains.co.za domain page no longer shows `serverHold`. Evidence 2026-10-27 00:30 SAST: the registrar reports status `ok` (EPP `ok`); its registrant contact still reads `Unverified`, covered by the next item.
@@ -98,22 +108,27 @@ Meta credit visible: 2026-10-27
 - [x] Confirm zone `88aeec6df134bc59bfa16a25751241ef` is active in Cloudflare. Done when: the zone status reads `active`. Evidence 2026-10-27 00:30 SAST: the registrar and 1.1.1.1 (DNS over HTTPS) list both nameservers and the zone reads `active`.
 - [x] ~~Complete the Domains.co.za registrant contact verification email sent to `hostmaster@rizonetech.com`. Done when: the registrar's registrant contact reads verified.~~ **Struck 2026-10-27 (operator):** Domains.co.za does not require contact verification; the registrant contact's `Unverified` flag needs no action, and no verification email exists in either mailbox.
 - [x] Enable Email Routing on the zone and add `hostmaster@rizonetech.com` (the operator's mailbox, operator 2026-10-27) as its destination address. Done when: Email Routing reads `ready` with Cloudflare's MX, SPF and DKIM records and the destination exists. Evidence 2026-10-27 00:30 SAST: routing `ready`; MX route1 to route3, SPF `include:_spf.mx.cloudflare.net`, DKIM `cf2024-1`; destination created, unverified.
-- [x] Publish DMARC `p=reject` (operator 2026-10-27) with reports to `dmarc@isitlegit.co.za`, and CAA records allowing only the certificate authorities Universal SSL uses (`letsencrypt.org`, `pki.goog`, `ssl.com`). Done when: both read back from the zone. Evidence 2026-10-27 00:30 SAST: `_dmarc` TXT and three CAA `issue` records present.
+- [x] Publish DMARC `p=reject` (operator 2026-10-27) with reports to `dmarc@isitlegit.co.za`, and CAA records allowing only the certificate authorities Universal SSL uses (`letsencrypt.org`, `pki.goog`, `ssl.com`). Done when: both read back from the zone (**Corrected 2026-10-28** (final review): Cloudflare's Universal SSL adds its own CAA rows for Sectigo's `comodoca.com` and DigiCert beside the three published here; all five read back from the zone on 2026-10-28, and the checkpoint allows exactly those five). Evidence 2026-10-27 00:30 SAST: `_dmarc` TXT and three CAA `issue` records present.
 - [x] Turn on auto-renew (operator 2026-10-27). Done when: the registrar reads `autorenew: true`. Evidence 2026-10-27 00:30 SAST: it does; the domain expires 2027-10-26 and the reseller balance is R9.45, flagged low.
 - [x] Turn on DNSSEC in Cloudflare. Done when: Cloudflare returns the DS record. Evidence 2026-10-27 00:30 SAST: pending, DS `isitlegit.co.za. 3600 IN DS 2371 13 2 360CD8AC177997F22F9239EF3EB686AAAEDF101C211B330C684B723928504665`.
 - [x] Add that DS record at Domains.co.za (key tag 2371, algorithm 13, digest type 2, the digest above); the connector has no DS tool, so the operator pastes it in the portal. Progress: Evidence 2026-10-27 00:40 SAST: the registrar reads `bDNSSec: true` with exactly that record; the `.co.za` zone does not publish it yet, so Cloudflare still reads `pending`. Done when: the registrar reads `bDNSSec: true`, Cloudflare's DNSSEC reads `active`, and 1.1.1.1 answers with the AD flag set. Evidence 2026-10-27 00:55 SAST: the registrar reads `bDNSSec: true`, the co.za servers publish DS 2371 13 2, Cloudflare's DNSSEC reads `active`, and `dig +dnssec isitlegit.co.za SOA @1.1.1.1` returns the `ad` flag.
 - [x] Turn on the registrar transfer lock once DNSSEC is active (operator 2026-10-27). Done when: the registrar reads `locked`. Evidence 2026-10-27 00:55 SAST: the registrar reads `locked`.
 - [x] Click the Cloudflare Email Routing verification link sent to the operator's Rizonetech mailbox once Claude has added it as a destination address (design spec section 11, Mailbox). Done when: the zone's Email Routing destination addresses list it as verified. Evidence 2026-10-27 00:40 SAST: the destination reads verified; the `hello@`, `conduct@` and `dmarc@` rules are enabled.
 - [x] Add an Email Routing custom address `hello@isitlegit.co.za` forwarding to the operator's mailbox (named on the about page, D07 T06 §8). Done when: a test mail to it arrives. Evidence 2026-10-27 00:59 SAST: the test "IsItLegit routing test (hello@)" from rizonetech@gmail.com, sent 22:58:56 UTC on 2026-10-26, arrived in derick@rizonetech.com seconds later (internetMessageId `<CA+OCnvm2p3BUGO6k=ErfsauOqTjLiufUef5E99C-Lmp9WoiKXg@mail.gmail.com>`).
-- [x] Add an Email Routing custom address `dmarc@isitlegit.co.za` forwarding to the operator's mailbox (DMARC aggregate reports). Done when: the rule reads enabled. Evidence 2026-10-27 00:40 SAST: enabled.
+- [x] Add an Email Routing custom address `dmarc@isitlegit.co.za` forwarding to the operator's mailbox (DMARC aggregate reports). Done when: the rule reads enabled and a test mail to it arrives in the operator's mailbox (**Corrected 2026-10-28** (plan review): "rule reads enabled" did not prove delivery). Evidence 2026-10-27 00:40 SAST: enabled. Evidence 2026-10-28 23:13 SAST: the test "IsItLegit routing test (dmarc@) 2026-10-28" from rizonetech@gmail.com, sent 21:13:39 UTC, arrived in derick@rizonetech.com at 21:13:48 UTC (internetMessageId `<CA+OCnvkunt34fuzUosHJvddeCsQWO7x3SS0PM-jO0ZkMN-5BKw@mail.gmail.com>`).
 - [x] Add an Email Routing custom address `conduct@isitlegit.co.za` forwarding to the operator's mailbox (named in `CODE_OF_CONDUCT.md` as the private conduct contact). Done when: a test mail to it arrives in the operator's mailbox. Evidence 2026-10-27 00:59 SAST: the test "IsItLegit routing test (conduct@)" from rizonetech@gmail.com, sent 22:58:56 UTC on 2026-10-26, arrived in derick@rizonetech.com seconds later (internetMessageId `<CA+OCnvmAHgudPYBzy2DtAo=cNyWodPTPE-XkgWTMZq4VS82uww@mail.gmail.com>`).
-- [ ] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
+- [x] Commit: `todo: record isitlegit.co.za as live on Cloudflare`
 
-**Test checkpoint:** `dig +short NS isitlegit.co.za @1.1.1.1` prints `carmelo.ns.cloudflare.com.` and `paris.ns.cloudflare.com.`.
+**Test checkpoint:** `python3 scripts/check-domain.py` exits 0 and prints `7 of 7 checks passed`: from public DNS (1.1.1.1), Cloudflare's two nameservers, Email Routing's three MX hosts, exactly one SPF record and exactly one DMARC record, each byte for byte the record published here (`v=spf1 include:_spf.mx.cloudflare.net ~all`; `v=DMARC1; p=reject; sp=reject; adkim=r; aspf=r; fo=1; rua=mailto:dmarc@isitlegit.co.za`, DMARC's trailing semicolon allowed), so any edit fails, a reordered, repeated, empty or added tag or term included (after four review rounds found what a parser let through, round 4, 2026-10-28), CAA `issue` tags (not `issuewild`) including Let's Encrypt, Google and SSL.com, and `issue` and `issuewild` alike only from Universal SSL's authorities (RFC 8659; Cloudflare adds Sectigo and DigiCert rows itself), exactly the recorded DS at the registry and no other (key tag 2371, algorithm 13, digest type 2, the recorded digest) and the zone validated (`ad`); any missing, duplicated or weakened record fails it (exit 1), and a lookup that could not be made is reported as that (exit 2), never as a wrong record (`tests/scripts/test_check_domain.py`; completion review, 2026-10-28). The registrar's `ok`, auto-renew and lock, and Email Routing's `ready` with its verified destination, are the dated read-backs in the items above. **Corrected 2026-10-28** (plan review): it checked only the nameservers; the earlier text, kept: `dig +short NS isitlegit.co.za @1.1.1.1` prints `carmelo.ns.cloudflare.com.` and `paris.ns.cloudflare.com.`. Evidence 2026-10-28 23:36 SAST (after the final review): `check-domain: 7 of 7 checks passed`, exit 0.
+
+> **Verified:** 2026-10-28 | §2 | f6eb9f4b5e434f266b10259e947a9585c07de6bc
+> **Review:** `docs/reviews/d99-t01-s2.json`
 
 ## 3. Workers Paid plan
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:56Z
+
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, so the review comes before the build as the process requires.
 
 Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"). The Cloudflare API token cannot read billing, so the operator confirms it in the dashboard.
 
@@ -129,17 +144,24 @@ Browser Run hours and Workflows limits need Workers Paid (stack doc "Principles"
 
 - [x] Open the Cloudflare dashboard for account `f5a529987f8dc7d52ce7aba3da25e226` and read the Workers plan. Done when: it reads Workers Paid. Evidence 2026-10-27 01:27 SAST: the operator confirmed the account is on Workers Paid (the API token cannot read billing).
 - [x] Record the plan and date in this section as a line `Plan read: Workers Paid, YYYY-MM-DD`. Done when: the line is written here. Evidence 2026-10-27 01:27 SAST: written below.
-- [ ] Commit: `todo: record the Workers Paid plan`
+The plan line proves the account was on Workers Paid when the operator read it, not that it still is: no token this repository holds can read billing (Wrangler's login has `workers (write)` and no billing scope, HTTP 403 on `/accounts/<id>/subscriptions`, 2026-10-28), so a later downgrade or a lapsed card is the operator's to see, through Cloudflare's billing notices to the account, and shows in the product as Worker limits or refused Browser Run sessions. D00 T01 §5 (stamped) relies on this section through an XREF rather than a dependency; that reliance holds once this section stamps, and the stamped section is not edited.
+
+- [x] Commit: `todo: record the Workers Paid plan`
 
 Plan read: Workers Paid, 2026-10-27
 
-**Test checkpoint:** `grep -cE '^Plan read: Workers Paid, 2026-[0-9]{2}-[0-9]{2}$' todo/99-manual/TODO-01-day0-accounts.md` prints `1`.
+**Test checkpoint:** `python3 -c 'import datetime,re,sys; d=re.findall(r"^Plan read: Workers Paid, (\d{4}-\d{2}-\d{2})$", open("todo/99-manual/TODO-01-day0-accounts.md").read(), re.M); [datetime.date.fromisoformat(x) for x in d]; print(len(d)); sys.exit(len(d) != 1)'` prints `1` and exits 0: exactly one plan line whose date is a real calendar date, any year (an impossible date raises and exits 1). **Corrected 2026-10-28** (the final review): the pattern accepted `2026-99-99` and refused a later year; the earlier text, kept: `grep -cE '^Plan read: Workers Paid, 2026-[0-9]{2}-[0-9]{2}$' todo/99-manual/TODO-01-day0-accounts.md` prints `1`.
+
+> **Verified:** 2026-10-28 | §3 | b96582215777d7616c021e9339b88339be8713e1
+> **Review:** `docs/reviews/d99-t01-s3.json`
 
 ## 4. SMTP2GO sender domain
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T22:07:52Z
 
-Replies, verification mails and alerts go out through SMTP2GO from `check@`, `verify@`, `alerts@` and `no-reply@isitlegit.co.za` (stack doc "Outbound mail"; **Corrected 2026-10-26:** `no-reply@` added for sign-in and invitation mail, D07 T08 §6). One verified sender domain covers every address. The DNS records SMTP2GO gives are added to the Cloudflare zone by Claude once the operator starts the sender-domain setup.
+**Corrected 2026-10-29:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, once §2 (its prerequisite) stamped.
+
+Replies, verification mails and alerts go out through SMTP2GO from `check@`, `verify@`, `alerts@` and `signin@isitlegit.co.za` (stack doc "Outbound mail"; **Corrected 2026-10-26:** `signin@` added for sign-in and invitation mail, D07 T08 §6). One verified sender domain covers every address. The DNS records SMTP2GO gives are added to the Cloudflare zone by Claude once the operator starts the sender-domain setup. (**Corrected 2026-10-29:** sign-in and invitation mail sends as `signin@` (`src/auth/auth.ts`), not `no-reply@`.) (**Corrected 2026-10-29:** sign-in and invitation mail sends as `signin@` (`src/auth/auth.ts`), not `no-reply@`.)
 
 **Phase:** 99
 **Needs:** none
@@ -155,10 +177,15 @@ Replies, verification mails and alerts go out through SMTP2GO from `check@`, `ve
 - [x] Add `isitlegit.co.za` under SMTP2GO Sending, Verified Senders, Sender Domains. Done when: SMTP2GO shows the records to add. Evidence 2026-10-27 00:50 SAST: SMTP2GO lists the domain.
 - [x] Give Claude the record names and targets (they are not secret) to add in Cloudflare DNS. Done when: the records exist in zone `88aeec6df134bc59bfa16a25751241ef`. Evidence 2026-10-27 00:50 SAST: SMTP2GO's setup added them through Cloudflare Domain Connect: `s1027207._domainkey` and `em1027207` CNAMEs (and an unused `link` tracking CNAME; tracking stays off, the emails promise none).
 - [x] Click verify in SMTP2GO. Done when: the sender domain reads verified. Evidence 2026-10-27 00:50 SAST: DKIM and return path read verified.
-- [x] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item exists. Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account. Done: Evidence 2026-10-27 01:27 SAST: the operator narrowed the key; a send from `no-reply@isitlegit.co.za` to `hello@isitlegit.co.za` ("IsItLegit SMTP2GO send test", SMTP2GO email id `1xLU5R-FnQW0hPtclR-gWDp`, sent 23:26:41 UTC on 2026-10-26) reached the derick@rizonetech.com Inbox nine seconds later (internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>`), passing DMARC `p=reject`. The narrowed key can still read account stats (read-only), which is harmless.
-- [ ] Commit: `todo: record the SMTP2GO sender domain as verified`
+- [x] Create an SMTP2GO API key restricted to sending and store it in the vault as "IsItLegit SMTP2GO" (Claude created the empty item on 2026-10-27; the operator pastes the key into its credential field). Done when: the vault item holds a live key that may send and search activity, SMTP2GO refuses it the probed account endpoints, the product sends only as isitlegit.co.za (`sendMail`), and an authenticated send has arrived (**Corrected 2026-10-29** (plan review, then the final review): "the vault item exists" passed an empty or over-privileged key; the key's complete permission set, its permitted senders and the domain's verified status are settings this key cannot read, deferred to §11). Progress: Evidence 2026-10-27 00:50 SAST: the key is stored and works (read-only stats call 200, 20,000 a month, none used), but it carries every permission except subaccounts; the item stays open until it is narrowed to sending, since a leaked Worker secret could otherwise change the account. Done: Evidence 2026-10-27 01:27 SAST: the operator narrowed the key; a send from `no-reply@isitlegit.co.za` to `hello@isitlegit.co.za` ("IsItLegit SMTP2GO send test", SMTP2GO email id `1xLU5R-FnQW0hPtclR-gWDp`, sent 23:26:41 UTC on 2026-10-26) reached the derick@rizonetech.com Inbox nine seconds later (internetMessageId `<E1xLU5R-FnQW0hPtclR-gWDp@message-id.smtpcorp.com>`), passing DMARC `p=reject`. The narrowed key can still read account stats (read-only), which is harmless. Evidence 2026-10-29 00:36 SAST: the sender domain still reads verified to SMTP2GO, shown by a send: "IsItLegit SMTP2GO sender domain check 2026-10-29" from check@isitlegit.co.za to hello@isitlegit.co.za, SMTP2GO email id `1xMCFV-FnQW0hPrEo4-B2FR`, sent 22:36:01 UTC, reached derick@rizonetech.com at 22:36:11 UTC (internetMessageId `<E1xMCFV-FnQW0hPrEo4-B2FR@message-id.smtpcorp.com>`). Evidence 2026-10-29 00:10 SAST: `scripts/check-smtp2go.py` reads the narrowing back from the key itself (stats HTTP 200; `domain/view` and `users/smtp/view` answer `ENDPOINT_PERMISSION_DENIED`). The sender limit: SMTP2GO refused a send as `probe@example.com` to hello@isitlegit.co.za with "From header sender domain not verified (example.com)" (0 sent, 2026-10-29 00:10 SAST), and `sendMail` (`src/mail/smtp2go.ts`) now refuses any sender outside isitlegit.co.za and its subdomains before calling SMTP2GO (`test/mail/smtp2go.test.ts`), since the key cannot list which domains the account has verified. What is and is not proven (**Corrected 2026-10-29**, completion review): SMTP2GO's own boundary is account-wide (it refuses unverified sender domains, not every domain but isitlegit.co.za), and the key's complete permission set is a saved setting only a key allowed `api_keys/view` can read (SMTP2GO refuses this one that endpoint, `ENDPOINT_PERMISSION_DENIED`); the product's boundary is `sendMail`. Reading back the key's full permissions and permitted senders is the operator's, filed as D99 T01 §11.
+> **Deferred:** the SMTP2GO key's complete permission set, its permitted sender domains, the sender domain's current verified status and click tracking being off, all settings only an account-level key or the dashboard shows -> XREF: D99 T01 §11
 
-**Test checkpoint:** `dig +short CNAME em1027207.isitlegit.co.za @1.1.1.1` prints `return.smtp2go.net.` and `dig +short CNAME s1027207._domainkey.isitlegit.co.za @1.1.1.1` prints `dkim.smtp2go.net.` (**Corrected 2026-10-28:** it named `em`, a placeholder; SMTP2GO gave `em1027207` and `s1027207._domainkey`, item 2's evidence).
+- [x] Commit: `todo: record the SMTP2GO sender domain as verified`
+
+**Test checkpoint:** `python3 scripts/check-smtp2go.py` exits 0: the vault's key has SMTP2GO's shape and reads its stats, it may send (an empty `email/send` answers `NON_VALIDATING_IN_PAYLOAD`, a payload error SMTP2GO gives only past its permission check, so no mail is sent), it searches activity as the reconciler does (a dated window, an events list), SMTP2GO refuses it `domain/view`, `users/smtp/view` and `api_keys/view` (narrowed, read back from the key), redirects are refused so the key never follows one, and the DKIM and return-path CNAMEs resolve to SMTP2GO; no mail is sent and the key is never printed; a placeholder, a revoked or unnarrowed key, or a wrong record exits 1, an unreachable vault, SMTP2GO or DNS exits 2 (`tests/scripts/test_check_smtp2go.py`). **Corrected 2026-10-29** (plan review): it checked only DNS; the earlier text, kept: `dig +short CNAME em1027207.isitlegit.co.za @1.1.1.1` prints `return.smtp2go.net.` and `dig +short CNAME s1027207._domainkey.isitlegit.co.za @1.1.1.1` prints `dkim.smtp2go.net.` (**Corrected 2026-10-28:** it named `em`, a placeholder; SMTP2GO gave `em1027207` and `s1027207._domainkey`, item 2's evidence). Evidence 2026-10-29 00:11 SAST: `check-smtp2go: the key is live and narrowed to sending, and SMTP2GO's DKIM and return-path records resolve`, exit 0.
+
+> **Verified:** 2026-10-29 | §4 | 29f6881cd227e5e65c77abb97b460187cd52ac82
+> **Review:** `docs/reviews/d99-t01-s4.json`
 
 ## 5. WhatsApp test number
 
@@ -185,7 +212,9 @@ The WhatsApp intake (design spec 4.1a) needs a Meta for Developers app with the 
 
 ## 6. Google Web Risk API key
 
-> **Started:** 2026-10-28T20:32:02Z
+> **Started:** 2026-10-28T21:11:56Z
+
+**Corrected 2026-10-28:** the Started line first read 2026-10-28T20:32:02Z; it is recorded again at this commit, which the plan review reads, so the review comes before the build as the process requires.
 
 URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls a month (design spec 4.3a).
 
@@ -204,9 +233,12 @@ URL and domain reputation uses the Web Risk Lookup API, free up to 100,000 calls
 - [x] Confirm the project's Web Risk metrics show no `threatLists.computeDiff` or `hashes.search` calls (the key is in the shared Rizonetech project, operator 2026-10-27; one `computeDiff` there would bill every lookup at US$50 per 1,000). Done when: the operator confirms none, or the key moves to a project of its own. Evidence 2026-10-27 01:36 SAST: the operator confirmed the metrics show only `uris.search` (Claude's two test lookups), nothing for `threatLists.computeDiff` or `hashes.search`.
 - [x] ~~Cap `uris.search` at 3,000 requests a day in the project's Web Risk quotas, so a looping bug stays inside the 100,000-a-month free tier. Done when: the quota page shows the cap.~~ **Struck 2026-10-27:** the project's quotas offer only `SearchUris per minute` (6,000, not adjustable here), no daily limit; the daily bound is the code cap in D02 T06 §1 (3,000 a day globally, 500 per organisation, tested).
 - [x] ~~Add a Google Cloud budget alert on the Rizonetech project for the Web Risk API at US$1 (alerts at 50, 90 and 100%), so any charge at all is seen the same day. Done when: Billing, Budgets and alerts lists it.~~ **Struck 2026-10-27:** the budget's Services filter lists only services with billable usage, and Web Risk has none (its free tier is not billed); a project-wide alert would fire on the project's other services. Charges are already bounded: the code caps lookups at 3,000 a day (D02 T06 §1) and a test refuses any Update API call; the metrics check below covers the other path.
-- [ ] Commit: `todo: record the Web Risk key`
+- [x] Commit: `todo: record the Web Risk key`
 
-**Test checkpoint:** `bash -o pipefail -c '~/.local/bin/conclave-op read "op://Conclave/IsItLegit Web Risk/credential" | tr -d "\r\n" | wc -c'` exits 0 and prints a number greater than 1 (the lookup succeeded and the key is filled in; only the count is shown, never the value). **Corrected 2026-10-28** (D99 T01 §1's plan review): it called bare `op item get`, outside WSL's Conclave path (`conclave-op` with the service account), and a failed lookup could still print a count; the earlier text, kept: `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has).
+**Test checkpoint:** `python3 scripts/check-webrisk-key.py` exits 0: the vault's key has a Google API key's shape, Web Risk `uris.search` flags Google's test phishing page `SOCIAL_ENGINEERING` and finds https://www.google.com/ clean, and seven other Google APIs each refuse the key (`API_KEY_SERVICE_BLOCKED` or `SERVICE_DISABLED`), at least one by its API restriction, proving the key is restricted and refused by every common Google API probed (the exact allowed-service list needs a Google Cloud credential this repository lacks: D99 T01 §10); a quota (429) or server (5xx) answer at any step exits 2 as inconclusive, never as a bad key or a threat (completion review C2); the key travels only in the `x-goog-api-key` header and is never printed; a placeholder, an invalid or revoked key, an unrestricted key and a lookup that misses the lure exit 1, an unreachable vault or Google exits 2 (`tests/scripts/test_check_webrisk_key.py`); the only Web Risk method called is `uris.search`, never the billed `computeDiff` or `hashes.search`, and the seven other APIs are read-only GETs; an answer that is not a whole JSON object of the expected shape is unreadable (exit 2), redirects are refused so the key's header stays with Google, and each call has a 30 second deadline for its whole answer (final review, 2026-10-28). **Corrected 2026-10-28** (plan review): it counted the credential's bytes, which an empty placeholder or a revoked key could pass, and could not show the restriction; the earlier text, kept: `bash -o pipefail -c '~/.local/bin/conclave-op read "op://Conclave/IsItLegit Web Risk/credential" | tr -d "\r\n" | wc -c'` exits 0 and prints a number greater than 1 (the lookup succeeded and the key is filled in; only the count is shown, never the value). **Corrected 2026-10-28** (D99 T01 §1's plan review): it called bare `op item get`, outside WSL's Conclave path (`conclave-op` with the service account), and a failed lookup could still print a count; the earlier text, kept: `op item get "IsItLegit Web Risk" --vault Conclave --fields credential --reveal | wc -c` prints more than 1 (the key is filled in; only the count is shown, never the value; **Corrected 2026-10-27:** this read the item id, which an empty placeholder also has). Evidence 2026-10-28 23:52 SAST: `check-webrisk-key: the test lure flagged SOCIAL_ENGINEERING, the clean page clean, and all 7 other Google APIs refused the key (4 by its API restriction): working and restricted`, exit 0.
+
+> **Verified:** 2026-10-29 | §6 | 3a299512c9f89d54f1be342e6b8101fa9de6f016
+> **Review:** `docs/reviews/d99-t01-s6.json`
 
 ## 7. Partner credits for Glimmer
 
@@ -274,6 +306,68 @@ Evidence 2026-10-27 16:35 SAST, after the final review: `node scripts/check-gate
 
 > **Verified:** 2026-10-27 | §8 | 32b3b8b8c77a6639c2e5f014d862f3d328aa94c3
 > **Review:** `docs/reviews/d99-t01-s8.json`
+
+
+## 9. Domain and mail recovery runbook
+
+D99 T01 §2 set up isitlegit.co.za with DNSSEC (the DS at the registry), Cloudflare's nameservers, Email Routing and DMARC `p=reject`. A nameserver or signing change made with the DS still in place stops the domain resolving, and with it the site, mail intake and every report link (Cloudflare's DNSSEC documentation, https://developers.cloudflare.com/dns/dnssec/). The operator needs one ordered procedure for the changes that can break it, each step with its read-back, rather than researching during an incident. Filed from §2's completion review (out-of-scope gap C5 and E2, 2026-10-28).
+
+**Phase:** 99
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Write the runbook. Done when: `docs/operations.md` has a "Domain recovery" section with ordered steps and a read-back after each.
+2. Walk it through once. Done when: the walkthrough is recorded with each step's expected read-back.
+
+- [ ] Write `docs/operations.md` "Domain recovery" covering, in order, (a) a planned nameserver move (remove the DS at Domains.co.za, wait two DS TTLs, move, re-sign, publish the new DS), (b) an emergency when resolution fails with a DS present (`dig +cd` against `dig` to tell a DNSSEC failure from an outage, then pulling the DS), (c) restoring Email Routing (MX, SPF, the verified destination and its rules) and (d) restoring DMARC and CAA, citing Cloudflare's DNSSEC and Email Routing pages. Done when: each step names the command or dashboard action and the read-back that shows it worked. Cheaper substitute: a link to Cloudflare's documentation alone.
+- [ ] Add (e) recovering SMTP2GO sending: a revoked or leaked key (create a sending-only key, narrow it, store it in the vault as "IsItLegit SMTP2GO", `wrangler secret put SMTP2GO_API_KEY` from the vault without printing it), and removed sender-domain records (restore `em1027207` and `s1027207._domainkey` from SMTP2GO's Sender Domains page, then verify there), each ending in `python3 scripts/check-smtp2go.py`. Done when: the procedure names each action, its read-back and the order the vault and the Worker change in (filed from D99 T01 §4's completion review, gap C4).
+- [ ] End every domain procedure with `python3 scripts/check-domain.py` as the final read-back (7 of 7, or the named refusal), and say what exit 2 (a lookup failed) means during an incident. Done when: each procedure's last step names it.
+- [ ] Walk the runbook against the live domain without changing it (each read-back command run and its current output recorded), and record the walkthrough under the section with its date. Done when: the record lists every step with its observed read-back.
+- [ ] Commit: `todo: domain recovery runbook`
+
+**Test checkpoint:** `grep -c "check-domain.py" docs/operations.md` prints at least 4 (one per procedure), and `python3 scripts/check-domain.py` exits 0.
+
+
+## 10. Web Risk key restriction read from Google
+
+D99 T01 §6's check proves the Web Risk key works and that seven other Google APIs refuse it, at least one by the key's API restriction; it cannot read the key's exact allowed-service list, so a key allowed Web Risk and an eighth, unprobed API would pass. Google's API Keys API reads that list (`keys.lookupKey` with the key string, then `keys.get` for its `restrictions.apiTargets`; https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys), but needs a Google Cloud credential with `apikeys.keys.lookup` and `apikeys.keys.get` on the Rizonetech project, which this repository does not hold. Filed from §6's completion review (gap C1 and E1, 2026-10-28).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Operator action (open):** create a Google Cloud service account in the Rizonetech project with the API Keys Viewer role only, and store its JSON key in the Conclave vault as "IsItLegit Google API keys viewer". Recording `Operator ready: API keys viewer (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Read the Web Risk key's allowed services from Google. Done when: `scripts/check-webrisk-key.py` asserts the allowed-service set is exactly `webrisk.googleapis.com`.
+
+- [ ] Add to `scripts/check-webrisk-key.py` a step that signs a token from the vault's service account (read through `conclave-op`, never printed), calls `apikeys.googleapis.com/v2/keys:lookupKey` with the stored key in the request (not the URL or the output), then `keys.get` on the returned key name, and refuses unless `restrictions.apiTargets` names exactly `webrisk.googleapis.com`. Done when: `tests/scripts/test_check_webrisk_key.py` refuses a key whose targets add any other service, and the live check passes. Cheaper substitute: the seven-API probe alone.
+- [ ] Commit: `todo: read the Web Risk key's restriction from Google`
+
+**Test checkpoint:** `python3 scripts/check-webrisk-key.py` exits 0 and names the exact allowed-service set it read.
+
+
+## 11. SMTP2GO key permissions and senders read back
+
+D99 T01 §4's check proves the SMTP2GO key is live and refused two account endpoints, and `sendMail` refuses any sender outside isitlegit.co.za, but the key's complete saved permission set and its permitted sender domains are settings only an account-level key can read (SMTP2GO refuses the sending key `api_keys/view` with `ENDPOINT_PERMISSION_DENIED`, 2026-10-29). A key granted one extra permission, or allowed another verified domain in the account, would still pass. Filed from §4's completion review (gaps C1, C2 and E1, 2026-10-29).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Operator action (open):** in SMTP2GO, either confirm on the API keys page that the "IsItLegit SMTP2GO" key holds only the sending permission, the read-only stats, and activity search (which `src/mail/reconcile.ts` needs to settle an uncertain send) that isitlegit.co.za is the only verified sender domain and still reads verified, and that click and open tracking are off for it (the `link` tracking CNAME Domain Connect added stays unused, since the product's mail promises no tracking), recording what the page shows with its date, or create an account-level read-only key with the API keys view permission and store it in the vault as "IsItLegit SMTP2GO admin". Recording `Operator ready: <which> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Read the key's saved permissions and senders back. Done when: `scripts/check-smtp2go.py` compares them with the intended minimum, or §4 records the operator's dated read of the API keys page.
+
+- [ ] With the admin key, read the sending key's saved permission set and the account's verified sender domains in `scripts/check-smtp2go.py`, refusing any permission beyond sending, stats and activity search, and any sender domain but isitlegit.co.za. Done when: `tests/scripts/test_check_smtp2go.py` refuses an extra permission, a missing send permission and a second domain, and the live check passes. Cheaper substitute: the operator's dated read of the dashboard, recorded in §4.
+- [ ] Commit: `todo: read back the SMTP2GO key's permissions and senders`
+
+**Test checkpoint:** `python3 scripts/check-smtp2go.py` exits 0 and names the permission set and sender domains it read.
 
 ## Verification
 

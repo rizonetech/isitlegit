@@ -20,14 +20,14 @@ import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "b
 import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
+import { mailedLink } from "./confirm-page";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
+import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { inviteSignup, type SendFirstLink } from "./signup";
 
-export { MAGIC_LINK_SECONDS };
+export { DEFAULT_RETURN, MAGIC_LINK_SECONDS, sameSitePath };
 export const SIGNIN_FROM = "IsItLegit <signin@isitlegit.co.za>";
-// Where a redeemed link goes when it was asked for nowhere in particular.
-export const DEFAULT_RETURN = "/cases";
 // Where a link that fails goes: sign-in, with the destination kept as `next` (Better Auth appends `error`).
 export const recoveryPath = (destination: string) => `/signin?next=${encodeURIComponent(destination)}`;
 const RETURN_PARAMS = ["callbackURL", "errorCallbackURL", "newUserCallbackURL"] as const;
@@ -41,11 +41,6 @@ export type AuthEnv = {
   SMTP2GO_API_KEY?: string;
   OPERATOR_EMAIL?: string;
 };
-
-// A path on this site, with its query: one leading slash, not two, and no scheme, host or backslash.
-export function sameSitePath(value: unknown): value is string {
-  return typeof value === "string" && /^\/(?!\/)/.test(value) && !/[\\\s]/.test(value) && !value.includes("://");
-}
 
 const encoder = new TextEncoder();
 const sha256Hex = async (text: string) =>
@@ -71,7 +66,8 @@ export function authOptions(
           to: email,
           from: SIGNIN_FROM,
           subject: "Your IsItLegit sign-in link",
-          text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${url}\n\nIf you did not ask for it, ignore this mail.`,
+          // The confirm page, not Better Auth's verify URL, which signs in on GET (D07 T02 §10).
+          text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${mailedLink(env.APP_URL, url, token)}\n\nIf you did not ask for it, ignore this mail.`,
         });
         onMagicLinkOutcome(email, outcome);
         // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
@@ -127,6 +123,9 @@ export function authOptions(
     basePath: "/api/auth",
     trustedOrigins: [new URL(env.APP_URL).origin],
     advanced: {
+      // Cloudflare sets the client's address in CF-Connecting-IP and a client cannot; X-Forwarded-For (Better Auth's
+      // default) a client can write, so the limiter and the stored sessions read the one Cloudflare set (D07 T02 §10).
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
       useSecureCookies: true,
       defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" as const },
     },

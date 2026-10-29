@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import worker, { scheduledReconcile } from "../src/index";
-import { ACTIVITY_URL, HEADER } from "../src/mail/reconcile";
+import { ACTIVITY_URL, BOUNDS, HEADER } from "../src/mail/reconcile";
 
 // The Worker's scheduled entrypoint (D01 T02 §5): the cron trigger runs the reconciler over the live send log with
 // its band (claims older than 30 minutes, younger than 3 days), beside the HTTP routes, which still answer.
@@ -34,6 +34,34 @@ describe("the scheduled entrypoint", () => {
     expect(
       await env.DB.prepare("SELECT status, provider_id FROM mail_sends WHERE send_key = 'reply:cron'").first(),
     ).toEqual({ status: "sent", provider_id: "from-cron" });
+  });
+
+  it("runs with the kept design's band, and leaves a send younger than 30 minutes for a later run", async () => {
+    // D01 T02 §7 kept SMTP2GO on these bounds (operator, 2026-10-28): changing them changes the recorded decision.
+    expect(BOUNDS).toEqual({ olderThanMinutes: 30, youngerThanDays: 3 });
+    const claimed = new Date(Date.now() - 20 * 60_000).toISOString();
+    await env.DB.prepare(
+      "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at, claimed_at) VALUES ('s2', 'reply:young', 'reply', ?, 'uncertain', 1, ?, ?, ?)",
+    )
+      .bind("b".repeat(64), claimed, claimed, claimed)
+      .run();
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      calls.push(String(input));
+      return Response.json({ data: { events: [] } });
+    });
+    const waits: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+    await worker.scheduled(
+      { scheduledTime: Date.now(), cron: "*/15 * * * *", noRetry: () => {} },
+      { ...env, SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+      ctx as unknown as ExecutionContext,
+    );
+    await Promise.all(waits);
+    expect(calls).toEqual([]);
+    expect(await env.DB.prepare("SELECT status FROM mail_sends WHERE send_key = 'reply:young'").first()).toEqual({
+      status: "uncertain",
+    });
   });
 
   it("does nothing without the SMTP2GO key, and the HTTP routes still answer", async () => {
