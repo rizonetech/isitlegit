@@ -44,6 +44,14 @@ class Server(http.server.ThreadingHTTPServer):
         self.segment_requests = 0  # ranges asked with an end: what only the segmented path sends
         self.active = 0
         self.peak = 0  # the most segment requests open at once
+        self.group = None  # a shared {"active", "peak", "lock"} when several servers count their open ranges together
+        self.pace = 0.0  # seconds between 64 KiB pieces of a ranged answer, when set
+        self.damaged = set()  # absolute offsets whose byte this server gets wrong, whichever request covers them
+        self.flip_after = None  # after this many ranged requests the server's file has another validator
+        self.ranges = []  # (first, last, when) of every ranged request, in arrival order
+        self.heads = 0
+        self.flip_etag = '"v2"'  # what the validator becomes at the flip (None: it stays)
+        self.flip_body = None  # what the file becomes at the flip (None: it stays)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -55,6 +63,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # `do_HEAD` is the name BaseHTTPRequestHandler dispatches a HEAD to.
     def do_HEAD(self):  # noqa: N802
         server, modes = self.server, self.server.modes
+        with server.lock:
+            server.heads += 1
         if "head-trickle" in modes:
             # Headers a byte at a time, each well inside the socket timeout: only a rate check ends it.
             try:
@@ -85,15 +95,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         ranged = self.headers.get("Range") or ""
         if re.fullmatch(r"bytes=\d+-\d+", ranged) and self.path == "/file":
+            first, last = (int(n) for n in ranged.split("=")[1].split("-"))
             with self.server.lock:
                 self.server.segment_requests += 1
                 self.server.active += 1
                 self.server.peak = max(self.server.peak, self.server.active)
+                self.server.ranges.append((first, last, time.monotonic()))
+                if self.server.group is not None:
+                    self.server.group["active"] += 1
+                    self.server.group["peak"] = max(self.server.group["peak"], self.server.group["active"])
+                if self.server.flip_after is not None and self.server.segment_requests > self.server.flip_after:
+                    self.server.etag = self.server.flip_etag or self.server.etag
+                    self.server.body = self.server.flip_body or self.server.body
             try:
                 return self.answer()
             finally:
                 with self.server.lock:
                     self.server.active -= 1
+                    if self.server.group is not None:
+                        self.server.group["active"] -= 1
         return self.answer()
 
     def answer(self):
@@ -158,6 +178,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        ranged_get = bool(re.fullmatch(r"bytes=\d+-\d+", self.headers.get("Range") or ""))
+        if ranged_get and modes & {"segment-503", "segment-429"}:
+            self.send_response(503 if "segment-503" in modes else 429)
+            if "segment-429" in modes:
+                self.send_header("Retry-After", "30")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if ranged_get and "segment-private" in modes:
+            return self.redirect("https://10.0.0.1/x")
         if "not-found" in modes:
             self.send_response(404)
             self.send_header("Content-Length", "0")
@@ -200,6 +230,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(206)
             self.send_header("Content-Range", f"bytes {first}-{last}/{len(body)}")
             chunk = body[start:end + 1]
+            for offset in server.damaged:
+                if start <= offset <= end:
+                    chunk = chunk[:offset - start] + bytes([chunk[offset - start] ^ 0xFF]) + chunk[offset - start + 1:]
             if "segment-corrupt" in modes and segment and start > 0:
                 chunk = bytes(b ^ 0xFF for b in chunk[:16]) + chunk[16:]
             length = len(chunk) + (7 if "bad-length" in modes or ("segment-bad-length" in modes and segment) else 0)
@@ -210,6 +243,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         else:
             self.send_response(200)
             chunk = body
+            for offset in server.damaged:
+                chunk = chunk[:offset] + bytes([chunk[offset] ^ 0xFF]) + chunk[offset + 1:]
             length = len(chunk)
         if "no-validator-on-range" in modes and honour:
             pass  # a 206 that names no representation
@@ -243,13 +278,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 server.dropped_segment = True
             if drop:
                 cut = len(chunk) // 2
-        if ("segment-slow" in modes and segment) or ("slow-first-range" in modes and segment and start == 0):
+        if "segment-stall" in modes and segment:
+            try:
+                self.wfile.write(chunk[:1 << 16])
+                with server.lock:
+                    server.served.append(1 << 16)
+                time.sleep(5)  # then nothing: only the rate floor ends it
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the fetcher cut the stalled answer, as it must
+            return
+        if ("segment-slow" in modes and segment) or (server.pace and segment) or ("slow-first-range" in modes and segment and start == 0):
             try:
                 for at in range(0, cut, 1 << 16):
                     self.wfile.write(chunk[at:min(cut, at + (1 << 16))])
                     with server.lock:
                         server.served.append(min(cut, at + (1 << 16)) - at)
-                    time.sleep(0.05)
+                    time.sleep(server.pace or 0.05)
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the fetcher was killed mid-download, as the test means it to be
             return
@@ -462,7 +506,7 @@ class Fetch(unittest.TestCase):
                              cwd=self.dir, check=False)
         self.assertEqual(out.returncode, 1, out.stderr)
         line = json.loads(out.stdout)
-        self.assertEqual(set(line), {"status", "bytes", "fetched", "sha256", "resumed", "url", "reason"})
+        self.assertEqual(set(line), {"status", "bytes", "fetched", "sha256", "resumed", "url", "urls", "reason"})
         self.assertIn("malformed URL", line["reason"])
 
     def test_one_download_into_a_source_at_a_time(self):
@@ -1387,6 +1431,481 @@ class Fetch(unittest.TestCase):
         Path("src/a.bin").write_bytes(b"changed")
         with self.assertRaisesRegex(fetch.Refused, "differs"):
             self.run_fetch(dest="src/a.bin")
+
+
+    # Several healthy mirrors at once (D03 T04 §22).
+    def mixed(self, *others, log=None, **options):
+        """This server first, then each of `others` (their base URLs) as mirrors, all given the one segmented run."""
+        merged = {**ROOMY, "timeout": 2, "sleep": lambda s: None, "log": log or (lambda line: None),
+                  "segment_threshold": 1 << 20, **options}
+        return fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                           mirrors=[base + "/file" for base in others], **merged)
+
+    def share_peak(self, *servers):
+        group = {"active": 0, "peak": 0}
+        for server in servers:
+            server.group = group
+        return group
+
+    def recording_writes(self):
+        """Every write the ranges make: (when, offset, length), and the patch that records them."""
+        writes, real = [], os.pwrite
+
+        def pwrite(descriptor, data, offset):
+            writes.append((time.monotonic(), offset, len(data)))
+            return real(descriptor, data, offset)
+
+        return writes, mock.patch.object(fetch.os, "pwrite", pwrite)
+
+    def assert_no_overlap(self, writes):
+        spans = sorted((offset, offset + length) for _, offset, length in writes)
+        for (_, before), (after, _) in zip(spans, spans[1:]):
+            self.assertGreaterEqual(after, before)
+
+    def test_two_agreeing_hosts_both_serve_ranges_with_four_connections_at_most(self):
+        other, base = self.mirror()
+        group = self.share_peak(self.server, other)
+        self.server.pace = other.pace = 0.02  # paced, so the ranges are seen to overlap
+        result = self.mixed(base, min_rate=0)
+        self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+        self.assert_whole()
+        self.assertEqual((self.server.segment_requests, other.segment_requests), (2, 2))
+        self.assertEqual(sum(self.server.served) + sum(other.served), SIZE)
+        self.assertEqual(set(result["urls"]), {self.base + "/file", base + "/file"})
+        self.assertEqual(result["url"], result["urls"][0])
+        self.assertGreaterEqual(group["peak"], 3)
+        self.assertLessEqual(group["peak"], 4)
+
+    def test_a_host_that_disagrees_on_the_file_serves_no_range_while_the_others_are_healthy(self):
+        agreeing, first = self.mirror()
+        disagreeing, second = self.mirror()
+        disagreeing.etag = '"v2"'
+        logged = []
+        result = self.mixed(second, first, log=logged.append)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertEqual((disagreeing.segment_requests, disagreeing.requests), (0, 0))
+        self.assertGreater(agreeing.segment_requests, 0)
+        self.assertGreater(self.server.segment_requests, 0)
+        self.assertTrue(any(second in line and "not in the mix" in line for line in logged), logged)
+        # A length that differs is a disagreement too.
+        shutil.rmtree("src")
+        disagreeing.etag, disagreeing.body = '"v1"', BODY + b"x"
+        self.run_mixed_without_a_range_from(disagreeing, second, first)
+
+    def run_mixed_without_a_range_from(self, outsider, outside, inside):
+        result = self.mixed(outside, inside)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertEqual(outsider.segment_requests, 0)
+
+    def test_the_disagreeing_host_completes_when_the_agreeing_one_serves_an_outdated_file(self):
+        outdated, first = self.mirror()
+        outdated.body = self.server.body = bytes(SIZE)  # the same validator, other bytes: outdated copies
+        current, second = self.mirror()
+        current.etag = '"v2"'
+        result = self.mixed(first, second)  # this server and `outdated` agree and are both outdated
+        self.assertEqual((result["status"], result["url"], result["urls"]), ("fetched", second + "/file", [second + "/file"]))
+        self.assert_whole()
+        self.assertGreater(current.requests, 0)
+
+    def test_a_host_that_slows_leaves_its_tail_to_the_faster_one_and_no_byte_has_two_writers(self):
+        fast, base = self.mirror()
+        self.server.pace = 0.05
+        group = self.share_peak(self.server, fast)
+        writes, recording = self.recording_writes()
+        with mock.patch.object(fetch, "MIN_SPLIT", 128 * 1024), recording:
+            result = self.mixed(base, min_rate=0)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assert_no_overlap(writes)
+        self.assertLessEqual(group["peak"], 4)
+        quarter = -(-SIZE // 4)
+        slow_ranges = [(0, quarter - 1), (2 * quarter, 3 * quarter - 1)]
+        taken = [(first, last) for first, last, _ in fast.ranges
+                 if any(low < first <= high for low, high in slow_ranges)]
+        self.assertTrue(taken, fast.ranges)  # the fast host was asked for part of a range the slow one began
+        middle = taken[0][0]
+        low, high = next((low, high) for low, high in slow_ranges if low < middle <= high)
+        tail_done = max(when for when, offset, _ in writes if middle <= offset <= high)
+        kept_done = max(when for when, offset, _ in writes if low <= offset < middle)
+        self.assertLess(tail_done, kept_done)  # the taken tail was finished before the slow host's kept half
+
+    def test_a_stalled_host_loses_its_work_to_the_other_within_the_one_budget(self):
+        healthy, base = self.mirror()
+        self.server.modes = {"segment-stall"}
+        group = self.share_peak(self.server, healthy)
+        writes, recording = self.recording_writes()
+        started = time.monotonic()
+        with mock.patch.object(fetch, "MIN_SPLIT", 128 * 1024), recording:
+            result = self.mixed(base, attempts=5, rate_window=0.6, min_rate=50_000)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assert_no_overlap(writes)
+        self.assertLess(time.monotonic() - started, 20)
+        self.assertLessEqual(group["peak"], 4)
+        quarter = -(-SIZE // 4)
+        self.assertTrue([1 for first, _, _ in healthy.ranges if 0 < first < quarter or 2 * quarter < first < 3 * quarter])
+        self.assertIn(base + "/file", result["urls"])
+
+    def test_a_host_that_disconnects_hands_its_unfinished_range_to_the_other(self):
+        healthy, base = self.mirror()
+        self.server.modes = {"segment-drop-once"}
+        group = self.share_peak(self.server, healthy)
+        writes, recording = self.recording_writes()
+        with recording:
+            result = self.mixed(base)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assert_no_overlap(writes)
+        self.assertLessEqual(group["peak"], 4)
+        quarter = -(-SIZE // 4)
+        # Every request the healthy host got beyond its own two ranges began inside a range this host had begun.
+        starts = sorted(first for first, _, _ in healthy.ranges)
+        self.assertEqual(len(starts), 3, starts)
+        self.assertTrue(any(first not in (quarter, 3 * quarter) for first in starts), starts)
+
+
+    # §20's rules with several sources active (D03 T04 §22).
+    def test_failures_from_any_source_spend_the_one_budget_and_blame_stays_with_the_source(self):
+        healthy, base = self.mirror()
+        self.server.modes = {"segment-503"}  # this host answers HEAD, then refuses every range
+        result = self.mixed(base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(self.server.segment_requests, 2)  # its two ranges, each refused once and handed to the other
+        self.assertEqual(sum(healthy.served), SIZE)
+        shutil.rmtree("src")
+        self.server.segment_requests = 0
+        with self.assertRaisesRegex(fetch.Refused, "2 attempts failed"):
+            self.mixed(base, attempts=2)  # the same two refusals, counted against a budget of two
+        self.assertFalse(Path("src/data.bin").exists())
+
+    def test_a_retry_after_pauses_only_the_source_that_sent_it(self):
+        healthy, base = self.mirror()
+        self.server.modes = {"segment-429"}  # Retry-After: 30
+        started = time.monotonic()
+        result = self.mixed(base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+        self.assert_whole()
+        self.assertLess(time.monotonic() - started, 10)  # nobody waited the 30 seconds out
+        self.assertEqual(self.server.segment_requests, 2)  # and the paused host was not asked again
+
+    def test_each_connection_keeps_its_rate_floor_while_the_other_source_writes(self):
+        healthy, base = self.mirror()
+        self.server.pace = 0.5  # 128 KiB a second on each connection, under the floor
+        logged = []
+        result = self.mixed(base, attempts=5, rate_window=1.0, min_rate=300_000, log=logged.append)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertTrue(any("slower than the rate floor" in line for line in logged), logged)
+        self.assertIn(base + "/file", result["urls"])
+
+    def test_the_lock_the_folder_limit_and_the_floor_hold_for_the_whole_run(self):
+        healthy, base = self.mirror()
+        with self.assertRaisesRegex(fetch.Refused, "limit"):
+            self.mixed(base, source_limit=SIZE // 2)
+        self.assertFalse(Path("src/data.bin").exists())
+        real = shutil.disk_usage
+
+        def tight(path):
+            usage = real(path)
+            return type(usage)(usage.total, usage.used, 10**6 + SIZE // 2)  # room for about half the file
+
+        with mock.patch.object(fetch.shutil, "disk_usage", tight), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+            self.mixed(base, min_free=10**6)
+        self.assertFalse(Path("src/data.bin").exists())
+        shutil.rmtree("src")
+        self.server.pace = healthy.pace = 0.05
+        outcome = {}
+        runner = threading.Thread(target=lambda: outcome.update(self.mixed(base, min_rate=0)))
+        runner.start()
+        deadline = time.monotonic() + 10
+        while not Path("src/.partial/data.bin.state.json").exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        with self.assertRaisesRegex(fetch.Refused, "another download"):
+            self.mixed(base)
+        runner.join()
+        self.assertEqual(outcome["status"], "fetched")
+
+    def test_an_ignored_range_a_malformed_answer_or_a_refused_redirect_fails_only_that_source(self):
+        for modes in ({"ignore-range"}, {"segment-wrong-offset"}, {"segment-private"}, {"segment-bad-length"}):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                healthy, base = self.mirror()
+                self.server.modes, self.server.segment_requests, self.server.requests = set(modes), 0, 0
+                result = self.mixed(base, attempts=3)
+                self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+                self.assert_whole()
+                # The healthy host was never asked for the whole file: nothing started again on one stream.
+                self.assertEqual(healthy.requests, healthy.segment_requests)
+                self.assertEqual(healthy.heads, 1)
+
+    def changing_host(self, **flip):
+        """This host, flipping to another file after its first two ranged answers, serving the first half of every
+        range with a wrong byte early on, and a healthy mirror; the mirror's base URL."""
+        healthy, base = self.mirror()
+        self.server.modes = {"segment-short"}
+        self.server.damaged = {100}
+        self.server.flip_after = 2
+        for name, value in flip.items():
+            setattr(self.server, name, value)
+        return healthy, base
+
+    def snapshots(self):
+        """Every state the run writes, and every write to the file, in order."""
+        events, real_write, real_pwrite = [], fetch._write_json, os.pwrite
+
+        def write_json(path, value):
+            if path.name.endswith(".state.json"):
+                events.append(("state", json.loads(json.dumps(value))))
+            return real_write(path, value)
+
+        def pwrite(descriptor, data, offset):
+            events.append(("write", offset))
+            return real_pwrite(descriptor, data, offset)
+
+        return events, (mock.patch.object(fetch, "_write_json", write_json), mock.patch.object(fetch.os, "pwrite", pwrite))
+
+    def test_a_source_whose_validator_changes_has_its_ranges_invalidated_before_any_replacement(self):
+        for flip in ({}, {"flip_etag": None, "flip_body": BODY + b"x"}):  # a new validator; then a new length
+            with self.subTest(flip=flip):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.etag, self.server.body, self.server.segment_requests = '"v1"', BODY, 0
+                healthy, base = self.changing_host(**flip)
+                events, (patch_state, patch_writes) = self.snapshots()
+                with patch_state, patch_writes:
+                    result = self.mixed(base, attempts=5)
+                # The wrong bytes the changing host sent first never reached the published file, nor its digest:
+                # nothing was started again whole, and the healthy host supplied everything.
+                self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+                self.assert_whole()
+                self.assertEqual(healthy.requests, healthy.segment_requests)
+                writes_at_start = [number for number, event in enumerate(events) if event == ("write", 0)]
+                self.assertGreaterEqual(len(writes_at_start), 2)  # its bytes, then the replacement's
+                saved = [event[1] for event in events[writes_at_start[0] + 1:writes_at_start[1]] if event[0] == "state"]
+                self.assertTrue(any(
+                    state_["segments"][0][2] == 0 and state_["sources"]
+                    and all(span[2] != state_["sources"].index(self.base + "/file") for span in state_["provenance"])
+                    for state_ in saved), saved)  # the cut was saved before the first replacement byte
+
+    def test_a_stop_during_a_replacement_is_resumed_by_a_fresh_process(self):
+        for where in ("before the first replacement byte", "after some replacement bytes"):
+            with self.subTest(where):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.etag, self.server.body, self.server.segment_requests = '"v1"', BODY, 0
+                healthy, base = self.changing_host()
+                mine = self.base + "/file"
+                real_write, real_pwrite = fetch._write_json, os.pwrite
+                seen = {"cut": False, "replaced": 0}
+
+                def cut_saved(value):
+                    names = value.get("sources") or []
+                    return mine in names and all(span[2] != names.index(mine) for span in value.get("provenance") or [])
+
+                def write_json(path, value):
+                    real_write(path, value)
+                    if path.name.endswith(".state.json") and cut_saved(value) and not seen["cut"]:
+                        seen["cut"] = True
+                        if where.startswith("before"):
+                            raise fetch.Refused("incomplete: the test stops the run")
+
+                def pwrite(descriptor, data, offset):
+                    if seen["cut"] and not where.startswith("before"):
+                        seen["replaced"] += 1
+                        if seen["replaced"] == 3:
+                            raise fetch.Refused("incomplete: the test stops the run")
+                    return real_pwrite(descriptor, data, offset)
+
+                with mock.patch.object(fetch, "_write_json", write_json), mock.patch.object(fetch.os, "pwrite", pwrite), \
+                        self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
+                    self.mixed(base, attempts=5)
+                self.assertTrue(seen["cut"])
+                saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+                self.assertEqual(saved["segments"][0][2] if where.startswith("before") else 0, 0)
+                names = saved["sources"]
+                self.assertTrue(all(span[2] != names.index(mine) for span in saved["provenance"]))
+                self.assertFalse(Path("src/data.bin").exists())
+                result = self.mixed(base, attempts=5)  # a fresh call: the host has the other file now
+                self.assertEqual((result["status"], result["resumed"]), ("fetched", True))
+                self.assertEqual(result["urls"], [base + "/file"])
+                self.assert_whole()
+
+
+    # A mixed-source digest failure, recovered in isolation (D03 T04 §22).
+    def one_corrupt(self, corrupt_first: bool, offset: int):
+        """This server first and a mirror second, one of them damaged at `offset`: (corrupt, healthy, their URLs)."""
+        mirror, base = self.mirror()
+        corrupt, healthy = (self.server, mirror) if corrupt_first else (mirror, self.server)
+        corrupt.damaged = {offset}
+        urls = (self.base + "/file", base + "/file")
+        return corrupt, healthy, (urls[0], urls[1]) if corrupt_first else (urls[1], urls[0]), base
+
+    @staticmethod
+    def trials(server):
+        """Whole-file requests the server answered: what a trial is (a range request carries its end)."""
+        return server.requests - server.segment_requests
+
+    def stopping_after(self, wanted):
+        """Raises after the state the `wanted` test accepts has been written, as a killed process leaves it."""
+        real = fetch._write_json
+        seen = {"hit": False}
+
+        def write_json(path, value):
+            real(path, value)
+            if path.name.endswith(".state.json") and not seen["hit"] and wanted(value):
+                seen["hit"] = True
+                raise fetch.Refused("incomplete: the test stops the run")
+
+        return mock.patch.object(fetch, "_write_json", write_json)
+
+    def test_a_mixed_source_digest_failure_publishes_only_the_healthy_sources_bytes(self):
+        cases = ((True, 100), (True, 5_500_000), (False, 3_000_000), (False, 8_000_000))  # each order, early and late
+        for corrupt_first, offset in cases:
+            with self.subTest(corrupt_first=corrupt_first, offset=offset):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.damaged, self.server.requests, self.server.segment_requests = set(), 0, 0
+                corrupt, healthy, (bad, good), base = self.one_corrupt(corrupt_first, offset)
+                logged = []
+                result = self.mixed(base, attempts=5, log=logged.append)
+                self.assertEqual((result["status"], result["urls"], result["resumed"]), ("fetched", [good], False))
+                self.assert_whole()
+                self.assertEqual(self.trials(healthy), 1)
+                ruled = [line for line in logged if "ruled out" in line]
+                if corrupt_first:
+                    # Its trial came first and named it; the healthy source's verified.
+                    self.assertEqual(self.trials(corrupt), 1)
+                    self.assertEqual(len(ruled), 1)
+                    self.assertIn(bad, ruled[0])
+                else:
+                    self.assertEqual((self.trials(corrupt), ruled), (0, []))  # the healthy one verified first
+
+    def test_the_search_is_kept_in_the_state_and_a_fresh_process_goes_on_from_it(self):
+        corrupt, healthy, (bad, good), base = self.one_corrupt(True, 100)
+
+        def just_started(value):
+            return bool(value.get("recovery")) and not value["recovery"]["ruled_out"]
+
+        with self.stopping_after(just_started), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
+            self.mixed(base, attempts=5)
+        saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+        self.assertEqual((saved["recovery"]["candidates"], saved["recovery"]["ruled_out"]), ([bad, good], []))
+        self.assertFalse(Path("src/.partial/data.bin").exists())  # the mixed bytes are gone: no trial reads them
+        self.assertFalse(Path("src/data.bin").exists())
+        result = self.mixed(base, attempts=5)  # a fresh call, as a fresh process would be
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [good]))
+        self.assert_whole()
+        self.assertEqual((self.trials(corrupt), self.trials(healthy)), (1, 1))
+
+    def test_a_source_named_bad_is_never_readmitted_by_a_fresh_process(self):
+        corrupt, healthy, (bad, good), base = self.one_corrupt(True, 100)
+
+        def bad_named(value):
+            return (value.get("recovery") or {}).get("ruled_out") == [bad]
+
+        with self.stopping_after(bad_named), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
+            self.mixed(base, attempts=5)
+        saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+        self.assertEqual(saved["recovery"]["ruled_out"], [bad])
+        before = (corrupt.heads, corrupt.requests)
+        result = self.mixed(base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [good]))
+        self.assert_whole()
+        self.assertEqual((corrupt.heads, corrupt.requests), before)  # not asked again, not even for a HEAD
+
+    def test_a_state_from_before_provenance_existed_starts_the_trials(self):
+        mirror, base = self.mirror()
+        damaged = bytearray(BODY)
+        damaged[100] ^= 0xFF
+        half = SIZE // 2
+        Path("src/.partial").mkdir(parents=True)
+        Path("src/.partial/data.bin").write_bytes(bytes(damaged))
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": self.base + "/file", "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity",
+            "total": SIZE, "segments": [[0, half - 1, half], [half, SIZE - 1, SIZE - half]],
+            "sources": [self.base + "/file", base + "/file"]}))  # two sources, and no word of which wrote what
+        result = self.mixed(base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [self.base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(self.trials(self.server), 1)
+
+    def test_a_search_that_runs_out_of_budget_or_of_sources_ends_refused_with_nothing_published(self):
+        corrupt, healthy, (bad, good), base = self.one_corrupt(True, 100)
+
+        def every_source_fails(value):
+            if value.get("recovery"):
+                self.server.modes = healthy.modes = {"fail"}
+            return False
+
+        with self.stopping_after(every_source_fails), self.assertRaisesRegex(fetch.Refused, "3 attempts failed"):
+            self.mixed(base)
+        self.assertFalse(Path("src/data.bin").exists())
+        shutil.rmtree("src")
+        self.server.modes = healthy.modes = set()
+        self.server.damaged, healthy.damaged = {100}, {3_000_000}  # both sources give damaged bytes
+        self.server.requests = healthy.requests = self.server.segment_requests = healthy.segment_requests = 0
+        with self.assertRaisesRegex(fetch.Refused, "does not match"):
+            self.mixed(base, attempts=5)
+        self.assertEqual((self.trials(self.server), self.trials(healthy)), (1, 1))
+        self.assertFalse(Path("src/data.bin").exists())
+        self.assertFalse(Path("src/.partial/data.bin").exists())
+        self.assertFalse(Path("src/.partial/data.bin.state.json").exists())
+
+
+    # The JSON line's `urls` (D03 T04 §22).
+    def cli_run(self, *args, dest="src/data.bin", sha=SHA):
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", dest, "--sha256", sha,
+                               "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE), "--timeout", "2",
+                               "--segment-threshold", str(1 << 20), *args], capture_output=True, text=True, cwd=self.dir,
+                              check=False)
+        return done.returncode, json.loads(done.stdout)
+
+    def test_the_json_line_names_every_url_that_supplied_bytes(self):
+        other, base = self.mirror()
+        mine, theirs = self.base + "/file", base + "/file"
+        self.server.pace = other.pace = 0.01
+        code, line = self.cli_run("--mirror", theirs, "--min-rate", "0")  # two sources
+        self.assertEqual(code, 0, line)
+        self.assertEqual(set(line["urls"]), {mine, theirs})
+        self.assertEqual(line["url"], line["urls"][0])
+        shutil.rmtree("src")
+        self.server.pace = other.pace = 0.0
+        code, line = self.cli_run()  # one source
+        self.assertEqual((code, line["urls"], line["url"]), (0, [mine], mine))
+        code, line = self.cli_run()  # already in place
+        self.assertEqual((code, line["status"], line["urls"], line["url"]), (0, "present", [], None))
+        code, line = self.cli_run(sha="0" * 64, dest="src/other.bin")  # refused: the digest never matches
+        self.assertEqual((code, line["status"], line["urls"], line["url"]), (1, "refused", [], None))
+
+    def test_a_resume_names_the_earlier_process_sources_and_the_new_one(self):
+        other, base = self.mirror()
+        mine, theirs = self.base + "/file", base + "/file"
+        quarter = -(-SIZE // 4)
+        # What an earlier process left: the first two ranges whole, from this host alone, with their source recorded.
+        Path("src/.partial").mkdir(parents=True)
+        with open("src/.partial/data.bin", "wb") as handle:
+            handle.truncate(SIZE)
+            handle.write(BODY[:2 * quarter])
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": mine, "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity", "total": SIZE,
+            "segments": [[0, quarter - 1, quarter], [quarter, 2 * quarter - 1, quarter],
+                         [2 * quarter, 3 * quarter - 1, 0], [3 * quarter, SIZE - 1, 0]],
+            "sources": [mine], "provenance": [[0, 2 * quarter - 1, 0]]}))
+        self.server.modes = {"fail"}  # the first host is down now: only the mirror gives the rest
+        code, line = self.cli_run("--mirror", theirs)
+        self.assertEqual(code, 0, line)
+        self.assertEqual((line["resumed"], line["urls"], line["url"]), (True, [mine, theirs], mine))
+        self.assert_whole()
+
+    def test_the_mirror_wording_is_in_the_help_and_the_guide(self):
+        guide = (SCRIPT.parents[2] / "docs" / "glimmer" / "importing.md").read_text(encoding="utf-8")
+        helped = subprocess.run([sys.executable, "-I", str(SCRIPT), "--help"], capture_output=True, text=True, check=False).stdout
+        for words in ("Sources used together", "Failover between them", "`urls`", "same length and the same strong validator"):
+            self.assertIn(words, guide)
+        self.assertIn("serve ranges together", " ".join(helped.split()))
+        self.assertIn("--mirror", helped)
+        for words in ("`urls`", "serves ranges together"):
+            self.assertIn(words, " ".join(fetch.__doc__.split()))
 
 
 if __name__ == "__main__":

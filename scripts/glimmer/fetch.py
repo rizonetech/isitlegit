@@ -19,12 +19,13 @@ the file again. A `416` is success only when the partial is already whole and it
 
 Each connection goes to the address this script resolved and checked (public unless `--allow-loopback`, for the
 tests' local server), at most 5 redirects, `https` (or `http` on the same host). Restarts, disconnects, timeouts,
-`429` and `5xx` all spend one budget of `--attempts` tries; `Retry-After` is honoured up to 60 seconds (a longer one
+`429` and `5xx` all spend one budget of `--attempts` tries (whichever source they come from); `Retry-After` is honoured up to 60 seconds (a longer one
 is cut to 60, so a run stays bounded, and the log says so) and other waits double from 1 second; a transfer slower than `--min-rate` over 60 seconds is cut and counted as a failure. Before and
 during a transfer the source folder (every file in it, partials included) stays under `--source-limit` and the disk
 keeps `--min-free` free. Progress goes to standard error; one JSON line goes to standard output (`status`, `bytes`,
-`fetched`, `sha256`, `resumed`, `url`, `reason`; `url` is the URL the file came from, null when it was already in
-place or the run failed). The exit is 0 only for a file in place.
+`fetched`, `sha256`, `resumed`, `url`, `urls`, `reason`; `urls` names every URL that supplied bytes of the file, in the
+order each first supplied one, counting an earlier process's on a resume, and `url` is the first of them; both are
+empty or null when the file was already in place or the run failed). The exit is 0 only for a file in place.
 
 A file of at least `--segment-threshold` bytes (64 MiB) whose `HEAD` gives its length, `Accept-Ranges: bytes`, no
 content coding and a strong validator comes in up to four ranges at once (`--segments`: 0 automatic, 1 one stream;
@@ -34,10 +35,19 @@ them share the attempt budget, the limits and the lock. An answer that does not 
 stream, and the file is published only whole and verified, as above; its digest is read back in file order as the
 leading ranges fill, so no whole-file pass follows the transfer.
 
-`--mirror URL` (repeatable) adds URLs for the same file, tried in order under the same rules: a counted failure moves
-on to the next, a refused route or a refused answer rules that URL out, a digest mismatch rules it out and starts the
-file again on the next, and a partial resumes across URLs only under the same validator. The JSON line's `url` names
-where the file came from.
+`--mirror URL` (repeatable) adds URLs for the same file (D03 T04 §22). On a segmented run every live URL whose `HEAD`
+gives the same length and the same strong validator as the first serves ranges together, up to four connections in all,
+spread over them, so two hosts that each cap a connection give the file both hosts' bandwidth. A free connection takes
+half of the slowest range's rest from the fastest source, and a source that fails, stalls or is asked to wait
+(`Retry-After`) hands its unfinished ranges to the others, while a source whose file changes mid-run is dropped and
+every range it wrote fetched again. A URL that gives another length or validator stays out of that mix but is kept as
+the ordered fallback: when the sources in the mix are ruled out, the file starts again, whole, from the next one. On a
+single stream the URLs are tried in order under the same rules: a counted failure moves on to the next, a refused route
+or a refused answer rules that URL out, and a partial resumes across URLs only under the same validator. A digest
+mismatch from bytes of one URL rules it out; from bytes of several, each source that agreed on the file is downloaded
+whole on its own into a file of its own and checked, the one whose bytes verify is published, those whose bytes do not
+are ruled out (kept in the state, so a fresh process never asks them again), and nothing is published unless the full
+digest matches.
 """
 
 import argparse
@@ -83,7 +93,12 @@ class _Route(Refused):
 
 
 class _Misfit(Exception):
-    """A segment's answer that does not fit the file (its range, length, coding or validator)."""
+    """A segment's answer that does not fit the file (its range, length, coding or validator). `changed` is true when
+    the answer names another representation (a new validator or length) and not merely a malformed one."""
+
+    def __init__(self, message: str, changed: bool = False):
+        super().__init__(message)
+        self.changed = changed
 
 
 class _Retry(Exception):
@@ -366,6 +381,17 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     def outcome(status, **extra):
         return {"status": status, "bytes": target.stat().st_size if target.exists() else 0, "fetched": fetched, **extra}
 
+    def contributors() -> list[str]:
+        """The URLs that supplied bytes of the file in the state, in the order each first supplied one. A segmented
+        state names the source of every byte, so a URL whose bytes were all replaced is not one; one that does not (a
+        one-stream partial, a state written before provenance existed) counts every URL it lists."""
+        sources = state.get("sources") or []
+        spans = state.get("provenance")
+        if not isinstance(spans, list):
+            return list(sources)
+        used = {span[2] for span in spans}
+        return [name for number, name in enumerate(sources) if number in used]
+
     if target.exists():
         try:
             found = _digest(target, kind)
@@ -374,7 +400,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         if found == want:
             # Not fetched this run, so no URL served it: `url` is null (the line keeps one shape).
             return outcome("present", sha256=_digest(target, "sha256") if kind != "sha256" else found, resumed=False,
-                           url=None)
+                           url=None, urls=[])
         raise Refused(f"refused: {target} is in place but its {kind} differs")
 
     partial_dir.mkdir(parents=True, exist_ok=True)
@@ -405,16 +431,21 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
 
         # The URLs not yet ruled out, in the order given: the first, then each --mirror. A counted failure moves to the
         # next; a refused route, or a file whose digest does not match, rules that URL out for the run.
-        live = list(dict.fromkeys([url, *mirrors]))
+        # A source a mixed-source digest failure ruled out is never asked again for this download, by this process or a
+        # fresh one that finds it in the state.
+        ruled_out = (state.get("recovery") or {}).get("ruled_out") or []
+        live = [name for name in dict.fromkeys([url, *mirrors]) if name not in ruled_out]
+        if not live:
+            state_file.unlink(missing_ok=True)
+            raise Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
+        (partial_dir / f"{target.name}.trial").unlink(missing_ok=True)  # a killed process's trial: not part of any download
         where = {"at": 0}
 
         def here() -> str:
             return live[where["at"] % len(live)]
 
-        def rotate(source: str | None = None):
-            # Only a failure of the URL in use moves on: one from a URL already left behind (a range's request still
-            # out when another range moved on) must not move past the URL that is working.
-            if len(live) > 1 and (source is None or source == here()):
+        def rotate():
+            if len(live) > 1:
                 where["at"] = (where["at"] + 1) % len(live)
                 log(f"fetch: trying the next URL ({where['at'] + 1} of {len(live)})")
 
@@ -431,31 +462,25 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             where["at"] = live.index(current) if current != gone else index % len(live)
             log(f"fetch: {error}; trying the next URL ({len(live)} left)")
 
-        def charge(reason: str, retry_after: float | None = None, progressed: bool = False, source: str | None = None,
-                   stay: bool = False) -> float:
-            """One failure counted against the one budget every stream and segment shares; the wait it earns. A
+        def charge(reason: str, retry_after: float | None = None, progressed: bool = False, stay: bool = False) -> float:
+            """One failure counted against the one budget every stream, segment and source shares; the wait it earns. A
             connection cut after it delivered bytes is tried again at once: the host is answering, so waiting buys
             nothing (aria2c does the same); its wait does not grow."""
             nonlocal failures, wait
-            if source is not None and source not in (here(),):
-                # A failure of a URL the run has already left (another range's request to it, still out when the
-                # run moved on): that URL was already counted and left, so the range simply goes on the current one.
-                log(f"fetch: {reason} from a URL already left; that range goes on the current one")
-                return 0.0
             failures += 1
             if failures >= attempts:
                 raise Refused(f"incomplete: {attempts} attempts failed ({reason}); the partial file is kept")
             if progressed and retry_after is None:
                 log(f"fetch: {reason} after bytes arrived; trying again now ({failures} of {attempts} attempts spent)")
                 if not stay:
-                    rotate(source)
+                    rotate()
                 return 0.0
             pause = min(retry_after, 60.0) if retry_after is not None else wait
             cut = f" (the server asked for {retry_after:.0f}; waits stop at 60)" if retry_after and retry_after > 60 else ""
             log(f"fetch: {reason}; trying again in {pause:.0f} seconds{cut} ({failures} of {attempts} attempts spent)")
             wait = min(wait * 2, 30.0)
             if not stay:
-                rotate(source)
+                rotate()
             return pause
 
         def spend(reason: str, retry_after: float | None = None, progressed: bool = False, stay: bool = False):
@@ -494,63 +519,130 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 at = last + 1
             return at == total and partial.exists() and partial.stat().st_size == total and bool(saved.get("validator"))
 
+        barred: set[str] = set()  # URLs taken out of the concurrent mix for the rest of this run (a malformed or changed answer)
+        agreed: list[str] = []  # the URLs that agreed on the file in the latest segmented pass, in the order tried
+
+        def probe(candidate: str) -> dict:
+            """One URL's `HEAD`, sorted: `qualifies` (a length of at least `segment_threshold`, `Accept-Ranges: bytes`, no
+            content coding and a strong validator), `other` (it answered, but not so), `failed` (a counted failure) or
+            `route` (a refused route)."""
+            watch = _Watchdog(min_rate, rate_window).__enter__()
+            try:
+                connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, method="HEAD",
+                                                   ca_file=ca_file)
+                try:
+                    status = response.status
+                    length = _count(response.getheader("Content-Length"))
+                    # A list of range units (RFC 9110 14.3): `bytes` among them qualifies.
+                    ranges = {unit.strip().lower() for unit in (response.getheader("Accept-Ranges") or "").split(",")}
+                    validator = _validator(response.headers)
+                    encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
+                    wait_asked = _retry_after(response.getheader("Retry-After"))
+                finally:
+                    connection.close()
+            except _Route as error:
+                return {"kind": "route", "error": error}
+            except (_Retry, OSError, http.client.HTTPException) as error:
+                return {"kind": "failed", "wait": None,
+                        "reason": "the HEAD was slower than the rate floor" if watch.tripped else f"the HEAD failed ({error})"}
+            finally:
+                watch.__exit__()
+            if status == 429 or (status >= 500 and status != 501):
+                return {"kind": "failed", "reason": f"HTTP {status} to the HEAD", "wait": wait_asked}
+            qualifies = (status == 200 and length is not None and "bytes" in ranges and validator and encoding == "identity"
+                         and length >= segment_threshold)
+            return {"kind": "qualifies" if qualifies else "other", "total": length, "validator": validator,
+                    "no_head": status == 501}
+
+        def choose(resuming: bool):
+            """The URLs that serve ranges together: every live URL whose `HEAD` gives the same length and the same strong
+            validator as the first to answer (on a resume, as the saved ranges). One that answers otherwise stays in
+            `live` for the ordered fallback and is kept out of the mix. Returns (URLs, length, validator), or the status
+            that hands the run back to its caller."""
+            nonlocal state, one_stream, agreed
+            order = live[where["at"]:] + live[:where["at"]]
+            if resuming and len(order) == 1:
+                agreed = list(order)  # one URL: the ranges check themselves against the saved validator, as they always did
+                return agreed, state["total"], state["validator"]
+            results: dict[str, dict] = {}
+
+            def ask(name: str):
+                try:
+                    results[name] = probe(name)
+                except Exception as error:  # a probe that raised is a failed HEAD, not a lost thread
+                    results[name] = {"kind": "failed", "reason": f"the HEAD failed ({error.__class__.__name__})", "wait": None}
+
+            if len(order) == 1:
+                ask(order[0])
+            else:
+                threads = [threading.Thread(target=ask, args=(name,), daemon=True) for name in order]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join()
+            pauses = []
+            for name in order:
+                if results[name]["kind"] == "route":
+                    drop(results[name]["error"], name)
+                elif results[name]["kind"] == "failed":
+                    pauses.append(charge(results[name]["reason"], results[name]["wait"], stay=True))
+            answered = [name for name in order if name in live and name not in barred
+                        and results[name]["kind"] in ("qualifies", "other")]
+            if not answered:
+                if pauses:
+                    if max(pauses):
+                        sleep(max(pauses))
+                    return "again"
+                one_stream = True
+                return "one-stream"
+            qualifying = [name for name in answered if results[name]["kind"] == "qualifies"]
+            if resuming:
+                reference = (state["total"], state["validator"])
+            else:
+                head = results[answered[0]]
+                if head["kind"] != "qualifies":
+                    one_stream = True  # the first to answer does not do ranges (or HEAD): its GET serves the file whole
+                    return "one-stream"
+                reference = (head["total"], head["validator"])
+            agreed = [name for name in qualifying if (results[name]["total"], results[name]["validator"]) == reference]
+            for name in qualifying:
+                if name not in agreed:
+                    log(f"fetch: {name} gives another length or validator; it stays in the fallback, not in the mix")
+            if not agreed:
+                if not qualifying:
+                    return [answered[0]], *reference  # nothing qualifies: the saved ranges ask for themselves, under If-Range
+                # The saved ranges belong to a file no live URL gives now: the first to answer starts it again.
+                log("fetch: no URL gives the file the saved ranges belong to; starting again from the next one")
+                partial.unlink(missing_ok=True)
+                state_file.unlink(missing_ok=True)
+                state = {}
+                return "again"
+            return agreed, *reference
+
         def segmented() -> str:
-            """The file in up to four ranges at once (`segments`: 0 automatic, 1 one stream), when a HEAD gives a
-            length of at least `segment_threshold`, `Accept-Ranges: bytes`, no content coding and a strong validator.
-            Each range is written at its offset and its progress kept in the state, so a fresh process resumes each
-            where it stopped. "done" when every range is whole; "one-stream" hands the file to the one stream (a server
-            that does not qualify, or a one-stream partial from an earlier run); "again" asks the loop to come back (a
-            segment answer that did not fit, so the rest of this run goes one stream, or a URL ruled out)."""
-            nonlocal state, fetched, resumed, one_stream
+            """The file in up to four ranges at once (`segments`: 0 automatic, 1 one stream), spread over every live URL
+            that agrees on it (one `HEAD` each: the same length, `Accept-Ranges: bytes`, no content coding and the same
+            strong validator), at most four connections in all. Each range is written at its offset and its progress and
+            the source of each byte kept in the state, so a fresh process resumes each where it stopped. "done" when every
+            range is whole; "one-stream" hands the file to the one stream (a server that does not qualify, or a
+            one-stream partial from an earlier run); "again" asks the loop to come back (every source of the mix gone, a
+            partial no URL gives now, or a failed HEAD)."""
+            nonlocal state, fetched, resumed, one_stream, agreed
             if state.get("segments") and not consistent(state):
                 # Ranges that do not tile the file, or a partial of the wrong length: start again, whatever this run
                 # asks (a one-stream run would otherwise read the sparse partial's full length as a whole file).
                 partial.unlink(missing_ok=True)
                 state_file.unlink(missing_ok=True)
                 state = {}
-            if state.get("segments"):
-                pass  # saved ranges are resumed whatever this run asks (on one connection under --segments 1)
-            elif one_stream or state:
+            resuming = bool(state.get("segments"))
+            if not resuming and (one_stream or state):
                 return "one-stream"
-            if not state.get("segments"):
-                # Any failure of the HEAD, or an answer that does not qualify, leaves the file to the one stream,
-                # which has its own budget and checks.
-                head_watch = _Watchdog(min_rate, rate_window).__enter__()
-                try:
-                    connection, response, _ = _request(here(), {}, timeout, allow_loopback, head_watch, method="HEAD",
-                                                       ca_file=ca_file)
-                    try:
-                        status = response.status
-                        length = response.getheader("Content-Length") or ""
-                        # A list of range units (RFC 9110 14.3): `bytes` among them qualifies.
-                        ranges = {unit.strip().lower() for unit in (response.getheader("Accept-Ranges") or "").split(",")}
-                        validator = _validator(response.headers)
-                        encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
-                        wait_asked = _retry_after(response.getheader("Retry-After"))
-                    finally:
-                        connection.close()
-                except _Route as error:
-                    drop(error)
-                    return "again"
-                except (_Retry, OSError, http.client.HTTPException) as error:
-                    # A host that is down is a counted failure, and the next URL is asked: a mirror may qualify.
-                    spend("the HEAD was slower than the rate floor" if head_watch.tripped else f"the HEAD failed ({error})")
-                    return "again"
-                finally:
-                    head_watch.__exit__()
-                if status == 501:
-                    one_stream = True  # this server does not do HEAD (RFC 9110 15.6.2): its GET still may
-                    return "one-stream"
-                if status == 429 or status >= 500:
-                    spend(f"HTTP {status} to the HEAD", wait_asked)
-                    return "again"
-                ok = status == 200
-                if not (ok and _count(length) is not None and "bytes" in ranges and validator and encoding == "identity"
-                        and _count(length) >= segment_threshold):
-                    one_stream = True
-                    return "one-stream"
-                total = _count(length)
-                count = segments if segments > 0 else 4
+            count = segments if segments > 0 else 4
+            chosen = choose(resuming)
+            if isinstance(chosen, str):
+                return chosen
+            sources_agreeing, total, validator = chosen
+            if not resuming:
                 size = -(-total // count)
                 room(total)
                 try:
@@ -561,17 +653,28 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     raise Refused(f"incomplete: the partial file could not be made ({error.strerror})") from error
                 state = {"url": url, "expected": [kind, want], "validator": validator, "encoding": "identity",
                          "total": total, "segments": [[a, min(a + size, total) - 1, 0] for a in range(0, total, size)],
-                         "sources": []}
+                         "sources": [], "provenance": []}
                 _write_json(state_file, state)
             else:
                 room(0)  # the partial already holds its full length: the source and disk must still allow it now
                 resumed = resumed or any(item[2] for item in state["segments"])
+                state.setdefault("sources", [])
+            mix = sources_agreeing[:count]  # the sources serving now; the rest wait to take the place of one that leaves
+            bench = sources_agreeing[count:]
+            # Where every byte came from, as [first, last, source index]; None for a state written before this existed,
+            # whose bytes then count as from unknown sources.
+            prov = state.get("provenance") if isinstance(state.get("provenance"), list) else None
+            if prov is None:
+                state.pop("provenance", None)
+            else:
+                state["provenance"] = prov
+            ends = {span[1]: span for span in prov} if prov is not None else {}
             guard = threading.Lock()
             stop = threading.Event()
             # Rung when a range ends, a connection finishes or the run stops: an idle connection or the hasher waits on
             # it instead of sleeping, so a finished run returns at once (a 0.25-second poll held each run back).
             changed = threading.Condition()
-            live = {"workers": 0}
+            running = {"workers": 0}
 
             def wake():
                 with changed:
@@ -588,60 +691,230 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 # the flush did not cover.
                 with saving:
                     with guard:
-                        claimed = {**state, "segments": [list(item) for item in state["segments"]]}
+                        claimed = {**state, "segments": [list(item) for item in state["segments"]],
+                                   "sources": list(state["sources"])}
+                        if prov is not None:
+                            claimed["provenance"] = sorted(list(span) for span in prov)
                     os.fsync(fd)
                     _write_json(state_file, claimed)
 
-            def failed(reason: str, retry_after: float | None = None, progressed: bool = False, source: str | None = None):
+            owner: dict[int, str] = {}  # each range's source: the one its next request goes to
+            hold: dict[str, float] = {}  # a source asked to wait (Retry-After): when it may be asked again
+            fails: dict[str, int] = {}  # failures in a row, cleared by the next byte a source delivers
+            busy: dict[str, int] = {}  # requests in flight, by source
+            speed: dict[str, float] = {}  # a source's pace on its last finished request
+            reading: dict[int, tuple[list, str]] = {}  # the ranges with a request in flight, and the source of each
+            parked: set[int] = set()  # ranges whose progress was just invalidated: nothing is written to them until it is saved
+            taken: set[int] = set()
+            working: set[int] = set()  # ranges a connection is working on now
+            pace: dict[int, tuple[float, int]] = {}  # each range's current request: when it began, and its progress then
+            for number, item in enumerate(state["segments"]):
+                owner[id(item)] = mix[number % len(mix)]
+
+            def usable(avoid: str | None = None) -> list[str]:
+                now = time.monotonic()
+                return [name for name in mix if name != avoid and hold.get(name, 0.0) <= now]
+
+            def other_source(avoid: str | None = None) -> str | None:
+                """A source for a range that must not stay where it was: the one with the fewest requests in flight, one
+                that has not just failed first."""
+                options = usable(avoid)
+                return min(options, key=lambda name: (fails.get(name, 0) > 0, busy.get(name, 0), mix.index(name)), default=None)
+
+            def pace_of(name: str) -> float:
+                """A source's pace now: the best of its requests in flight, else its last finished one."""
+                now, rates = time.monotonic(), []
+                for item, source_ in reading.values():
+                    began, then = pace.get(id(item), (0.0, item[2]))
+                    if source_ == name and began and now - began >= 0.25:
+                        rates.append((item[2] - then) / (now - began))
+                return max(rates) if rates else speed.get(name, 0.0)
+
+            def fastest() -> str | None:
+                options = usable()
+                return max(options, key=lambda name: (fails.get(name, 0) == 0, pace_of(name), -busy.get(name, 0), -mix.index(name)),
+                           default=None)
+
+            def pick(item: list) -> tuple[str | None, float]:
+                """The source for a range's next request, and the seconds to wait before it. The range stays with its
+                source unless that one has left or been asked to wait and another is free."""
+                name = owner.get(id(item))
+                if name in mix and hold.get(name, 0.0) <= time.monotonic():
+                    return name, 0.0
+                other = other_source()
+                if other is not None:
+                    owner[id(item)] = other
+                    return other, 0.0
+                if not mix:
+                    return None, 0.0
+                name = min(mix, key=lambda candidate: hold.get(candidate, 0.0))  # every source is waiting: the first to be free
+                owner[id(item)] = name
+                return name, max(0.0, hold.get(name, 0.0) - time.monotonic())
+
+            def failed(reason: str, retry_after: float | None = None, progressed: bool = False, source: str | None = None,
+                       item: list | None = None):
                 with guard:
-                    pause = charge(reason, retry_after, progressed, source)
+                    pause = charge(reason, retry_after, progressed, stay=True)
+                    fails[source] = fails.get(source, 0) + 1
+                    if retry_after is not None:
+                        hold[source] = time.monotonic() + min(retry_after, 60.0)  # only this source waits
+                    other = other_source(avoid=source)
+                    if other is not None and item is not None:
+                        owner[id(item)] = other  # the failed source's range goes on at another
+                        pause = 0.0
                 if stop.wait(pause):
                     raise Refused("incomplete: another segment failed; the partial file is kept")
 
             def rest(item: list) -> int:
                 return item[1] - (item[0] + item[2]) + 1
 
+            hashed = {"at": 0, "failed": False, "gen": 0, "seen": 0, "hash": hashlib.new(kind)}
+
+            def save_or_stop():
+                # A state that cannot be written ends the run as such: the partial is kept for a rerun.
+                try:
+                    save()
+                except Refused as error:  # _write_json's own refusal (a failed temporary write or rename)
+                    errors.append(error)
+                    stop.set()
+                    wake()
+                except OSError as error:
+                    errors.append(Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept"))
+                    stop.set()
+                    wake()
+
+            def invalidate(source: str):
+                """The bytes `source` wrote are no longer trusted: every range's progress is cut back to the first byte
+                of it, the cut saved before any replacement byte is written (the ranges are parked until it is), and
+                the in-order digest is reset to be rebuilt over the replacements."""
+                with guard:
+                    index = state["sources"].index(source) if source in state["sources"] else None
+                    cut_ranges = []
+                    for item in state["segments"]:
+                        first, last, done = item
+                        if not done:
+                            continue
+                        if prov is None:
+                            cut = first  # unknown provenance: any of it may be this source's
+                        else:
+                            cuts = [max(span[0], first) for span in prov
+                                    if span[2] == index and span[1] >= first and span[0] <= first + done - 1]
+                            if not cuts:
+                                continue
+                            cut = min(cuts)
+                        item[2] = cut - first
+                        if prov is not None:
+                            prov[:] = [span for span in prov if not (first <= span[0] <= last and span[0] >= cut)]
+                        cut_ranges.append(item)
+                    if not cut_ranges:
+                        return
+                    ends.clear()
+                    ends.update({span[1]: span for span in prov or []})
+                    hashed["gen"] += 1
+                    for item in cut_ranges:
+                        parked.add(id(item))
+                        if id(item) not in working:
+                            taken.discard(id(item))  # nobody is on it: the next free connection takes it
+                save_or_stop()
+                with guard:
+                    parked.difference_update(id(item) for item in cut_ranges)
+                wake()
+
+            def leave(source: str, error: BaseException, route: bool = False, changed_file: bool = False) -> bool:
+                """`source` goes out of the mix, its connections ending where they are. True when other sources remain to
+                carry the run on; otherwise the run ends with `error`. A refused route also rules the URL out for the run;
+                a changed file also invalidates what the source wrote."""
+                with guard:
+                    if source not in mix:
+                        return bool(mix)
+                    mix.remove(source)
+                    if bench:
+                        mix.append(bench.pop(0))
+                    if not route:
+                        barred.add(source)
+                    remaining = bool(mix)
+                    if remaining and route:
+                        drop(error, source)  # more than this URL is live: it is the mix that held them
+                if not remaining:
+                    error.source = source
+                    errors.append(error)
+                    stop.set()
+                    wake()
+                    return False
+                log(f"fetch: {source} leaves the mix ({error}); the others go on")
+                if changed_file:
+                    invalidate(source)
+                wake()
+                return True
+
             def run(item: list):
                 while not stop.is_set():
                     with guard:
                         first, last, done = item
-                    if first + done > last:
+                        if first + done > last:
+                            working.discard(id(item))
+                            return
+                        if id(item) in parked:
+                            name, delay = "", 0.0
+                        else:
+                            name, delay = pick(item)
+                    if name == "":
+                        with changed:
+                            changed.wait(HASH_WAIT)  # rung once the invalidation is saved
+                        continue
+                    if name is None:
+                        return  # no source is left: the run is ending
+                    if delay and stop.wait(delay):
                         return
                     progressed = False
                     with guard:
-                        pace[id(item)] = (time.monotonic(), done)
+                        if name not in mix or id(item) in parked:
+                            continue
+                        at = item[0] + item[2]
+                        last = item[1]
+                        busy[name] = busy.get(name, 0) + 1
+                        reading[id(item)] = (item, name)
+                        pace[id(item)] = (time.monotonic(), item[2])
                     watch = _Watchdog(min_rate, rate_window).__enter__()
-                    source = here()
+                    source = name
+                    began = time.monotonic()
+                    got = 0
                     try:
                         try:
                             connection, response, _ = _request(
-                                source, {"Range": f"bytes={first + done}-{last}", "If-Range": state["validator"]}, timeout,
+                                source, {"Range": f"bytes={at}-{last}", "If-Range": state["validator"]}, timeout,
                                 allow_loopback, watch, ca_file=ca_file)
                         except _Retry as error:
-                            failed(str(error), source=source)
+                            failed(str(error), source=source, item=item)
                             continue
                         try:
                             if response.status == 429 or response.status >= 500:
                                 failed(f"HTTP {response.status}", _retry_after(response.getheader("Retry-After")),
-                                       source=source)
+                                       source=source, item=item)
                                 continue
                             if response.status >= 400 and response.status != 416:
                                 # This URL refuses the file (expired access, a missing copy): it is ruled out, as the
-                                # one stream rules it out, and the next URL resumes the ranges.
+                                # one stream rules it out, and the others carry on.
                                 raise _Route(f"refused: HTTP {response.status}")
                             span = _content_range(response.getheader("Content-Range"))
                             encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
-                            if (response.status != 206 or span is None or span[0] != first + done or span[1] > last
+                            if (response.status != 206 or span is None or span[0] != at or span[1] > last
                                     or span[2] != state["total"] or encoding != "identity"
                                     or not _same_representation(response.headers, state["validator"])
                                     or (response.getheader("Content-Length") is not None
                                         and _count(response.getheader("Content-Length")) != span[1] - span[0] + 1)):
-                                raise _Misfit("a segment's answer does not fit the file")
-                            at = first + done
+                                newer = _validator(response.headers)
+                                length = _count(response.getheader("Content-Length"))
+                                differs = ((newer is not None and newer != state["validator"])
+                                           or (span is not None and span[2] != state["total"])
+                                           or (response.status == 200 and length is not None and length != state["total"]))
+                                raise _Misfit("a segment's answer does not fit the file", changed=differs)
+                            abandoned = False
                             while True:
                                 with guard:
                                     end = min(span[1], item[1])  # a free connection may have taken this range's tail
-                                if at > end:
+                                    abandoned = name not in mix or at != item[0] + item[2]
+                                if abandoned or at > end:
                                     break
                                 if stop.is_set():
                                     return  # another segment ended the run: this one stops where it is
@@ -649,6 +922,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 if not block:
                                     break
                                 with guard:
+                                    if name not in mix or at != item[0] + item[2]:
+                                        # The source left, or the range's progress was cut back, while this block was
+                                        # in flight: it is not written.
+                                        abandoned = True
+                                        block = b""
                                     block = block[:max(0, item[1] - at + 1)]  # never past this range's current end
                                     if block:
                                         # The floor with this write counted, one writer at a time: the partial is
@@ -660,30 +938,53 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                             view = view[os.pwrite(fd, view, at + len(block) - len(view)):]
                                         if source not in state["sources"]:
                                             state["sources"].append(source)
+                                        if prov is not None:
+                                            index = state["sources"].index(source)
+                                            tail = ends.pop(at - 1, None)
+                                            if tail is not None and tail[2] == index:
+                                                tail[1] = at + len(block) - 1
+                                                ends[tail[1]] = tail
+                                            else:
+                                                if tail is not None:
+                                                    ends[at - 1] = tail
+                                                fresh = [at, at + len(block) - 1, index]
+                                                prov.append(fresh)
+                                                ends[fresh[1]] = fresh
                                         at += len(block)
-                                        item[2] = at - first
+                                        item[2] = at - item[0]
+                                        fails[source] = 0
                                         counted["since"] += len(block)
                                         counted["run"] += len(block)
                                     due = counted["since"] >= STATE_EVERY
                                 if block:
                                     progressed = True
+                                    got += len(block)
                                     watch.bytes += len(block)
+                                if abandoned:
+                                    break
                                 if due:
                                     wake()  # the hasher's thread saves it, so this connection never waits on a flush
+                            if abandoned:
+                                continue  # the source left or the range was cut back: the next request is chosen afresh
                             with guard:
                                 end = min(span[1], item[1])
                             if at <= end:
                                 # A valid shorter answer is progress; one that stopped early is a failure.
                                 failed("slower than the rate floor" if watch.tripped else "a segment ended early",
-                                       progressed=progressed and not watch.tripped, source=source)
+                                       progressed=progressed and not watch.tripped, source=source, item=item)
                             elif span[1] - span[0] + 1 < SHORT_ANSWER and last - span[0] + 1 >= 2 * SHORT_ANSWER:
                                 # Valid, but tiny when more was asked: progress a hostile host could stretch forever.
                                 failed(f"a range answer of {span[1] - span[0] + 1} bytes when more was asked",
-                                       progressed=True, source=source)
+                                       progressed=True, source=source, item=item)
                         finally:
                             connection.close()
-                    except (Refused, _Misfit) as error:
-                        error.source = source  # which URL gave it, so only that one is ruled out
+                    except _Route as error:
+                        if not leave(source, error, route=True):
+                            return
+                    except _Misfit as error:
+                        if not leave(source, error, changed_file=error.changed):
+                            return
+                    except Refused as error:
                         errors.append(error)
                         stop.set()
                         return
@@ -695,16 +996,19 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         try:
                             failed("slower than the rate floor" if watch.tripped
                                    else f"a segment broke off ({error.__class__.__name__})",
-                                   progressed=progressed and not watch.tripped, source=source)
+                                   progressed=progressed and not watch.tripped, source=source, item=item)
                         except Refused as spent:
                             errors.append(spent)
                             stop.set()
                             return
                     finally:
                         watch.__exit__()
-
-            taken: set[int] = set()
-            pace: dict[int, tuple[float, int]] = {}  # each range's current request: when it began, and its progress then
+                        with guard:
+                            busy[source] -= 1
+                            reading.pop(id(item), None)
+                            elapsed = time.monotonic() - began
+                            if got:
+                                speed[source] = got / max(elapsed, 0.001)
 
             def left(item: list) -> float:
                 """Seconds of this range still to come at its own pace; 0 when its pace is not yet known."""
@@ -716,24 +1020,29 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 return float("inf") if rate <= 0 else rest(item) / rate
 
             def claim() -> list | None:
-                """The next range for a free connection: an untaken one, or else the second half of the largest rest
-                another connection is still reading (it stops at the new end), as aria2c's connections do."""
+                """The next range for a free connection: an untaken one, or else the second half of the range with the
+                longest still to come (it stops at the new end, in the same step the new range is made, so the taken
+                tail starts at once and no byte has two writers), read from the fastest source."""
                 with guard:
                     for item in state["segments"]:
-                        if id(item) not in taken and rest(item) > 0:
+                        if id(item) not in taken and id(item) not in parked and rest(item) > 0:
                             taken.add(id(item))
+                            working.add(id(item))
                             return item
                     # A range about to finish is left alone: splitting it would only throw away bytes on their way.
-                    busy = [item for item in state["segments"]
-                            if id(item) in taken and rest(item) >= 2 * MIN_SPLIT and left(item) >= SPLIT_AFTER]
-                    if not busy or len(state["segments"]) >= MAX_RANGES:
+                    busy_ranges = [item for item in state["segments"]
+                                   if id(item) in taken and id(item) not in parked and rest(item) >= 2 * MIN_SPLIT
+                                   and left(item) >= SPLIT_AFTER]
+                    if not busy_ranges or len(state["segments"]) >= MAX_RANGES:
                         return None
-                    widest = max(busy, key=left)
+                    widest = max(busy_ranges, key=left)
                     middle = widest[0] + widest[2] + rest(widest) // 2
                     tail = [middle, widest[1], 0]
                     widest[1] = middle - 1
                     state["segments"].insert(state["segments"].index(widest) + 1, tail)
                     taken.add(id(tail))
+                    working.add(id(tail))
+                    owner[id(tail)] = fastest() or owner.get(id(widest))
                     return tail
 
             def worker():
@@ -741,7 +1050,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     attempt_work()
                 finally:
                     with guard:
-                        live["workers"] -= 1
+                        running["workers"] -= 1
                     wake()
 
             def attempt_work():
@@ -763,16 +1072,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         # end: either rings `changed` (checked under it, so no ring is missed).
                         with changed:
                             with guard:
-                                reading = any(rest(item) > 0 for item in state["segments"])
-                            if not reading or stop.is_set():
+                                unfinished = any(rest(item) > 0 for item in state["segments"])
+                            if not unfinished or stop.is_set():
                                 return
                             changed.wait(IDLE_WAIT)
                         continue
                     run(item)
                     wake()
-
-            hasher = hashlib.new(kind)
-            hashed = {"at": 0, "failed": False}
 
             def frontier() -> int:
                 # The end of the unbroken run of written bytes from the start of the file.
@@ -783,25 +1089,24 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     return state["total"]
 
             def hash_up_to(end: int):
-                while hashed["at"] < end:
-                    block = os.pread(fd, min(1 << 20, end - hashed["at"]), hashed["at"])
+                """The digest read on to `end`, in file order, from the file. An invalidation (the generation moved) starts
+                it over from the first byte; it is then left to the caller to ask again for the frontier, which the
+                invalidation lowered."""
+                while True:
+                    with guard:
+                        if hashed["seen"] != hashed["gen"]:
+                            hashed.update(hash=hashlib.new(kind), at=0, seen=hashed["gen"])
+                        generation, at = hashed["gen"], hashed["at"]
+                    if at >= end:
+                        return
+                    block = os.pread(fd, min(1 << 20, end - at), at)
                     if not block:
                         raise OSError(errno.EIO, "the partial file ended early")
-                    hasher.update(block)
-                    hashed["at"] += len(block)
-
-            def save_or_stop():
-                # A state that cannot be written ends the run as such: the partial is kept for a rerun.
-                try:
-                    save()
-                except Refused as error:  # _write_json's own refusal (a failed temporary write or rename)
-                    errors.append(error)
-                    stop.set()
-                    wake()
-                except OSError as error:
-                    errors.append(Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept"))
-                    stop.set()
-                    wake()
+                    with guard:
+                        if hashed["gen"] != generation:
+                            return
+                        hashed["hash"].update(block)
+                        hashed["at"] = at + len(block)
 
             def hash_along():
                 # The digest is computed in file order as the leading ranges fill, read back from the file, so only
@@ -817,7 +1122,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             save_or_stop()
                         with changed:
                             with guard:
-                                if live["workers"] == 0:
+                                if running["workers"] == 0:
                                     break
                                 if counted["since"] >= STATE_EVERY:
                                     continue  # more came while saving: save again before waiting
@@ -826,9 +1131,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     hashed["failed"] = True  # the whole-file pass after the transfer judges it instead
 
             try:
-                count = segments if segments > 0 else 4
                 threads = [threading.Thread(target=worker, daemon=True) for _ in range(count)]
-                live["workers"] = len(threads)
+                running["workers"] = len(threads)
                 for thread in threads:
                     thread.start()
                 along = threading.Thread(target=hash_along, daemon=True)
@@ -848,7 +1152,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 if not errors and not hashed["failed"] and frontier() == state["total"]:
                     try:
                         hash_up_to(state["total"])
-                        streamed["digest"] = hasher.hexdigest()
+                        if hashed["at"] == state["total"]:
+                            streamed["digest"] = hashed["hash"].hexdigest()
                     except OSError:
                         pass  # the whole-file pass after the transfer judges it instead
                 try:
@@ -860,7 +1165,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 fetched += counted["run"]
             misfit = next((error for error in errors if isinstance(error, _Misfit)), None)
             if misfit is not None:
-                # The server's ranges cannot be trusted for this file: it starts again on the one stream.
+                # No source is left that the ranges can be trusted from: it starts again on the one stream.
                 one_stream = True
                 restart(str(misfit))
                 return "again"
@@ -875,7 +1180,114 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 raise errors[0]
             return "done" if all(item[0] + item[2] > item[1] for item in state["segments"]) else "again"
 
+        trial_path = partial_dir / f"{target.name}.trial"
+
+        def trial(candidate: str, total: int) -> str:
+            """One whole-file download from `candidate` alone, into a temporary file of its own and checked against the
+            published digest, so no other source's bytes can be in it. "verified" (the file is now the partial),
+            "wrong" (this source gives other bytes), "failed" (a counted failure: it may be asked again) or "skip" (it
+            does not give this file, or its route is refused)."""
+            nonlocal fetched
+            room(total)
+            watch = _Watchdog(min_rate, rate_window).__enter__()
+            try:
+                try:
+                    connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, ca_file=ca_file)
+                except _Route as error:
+                    drop(error, candidate)
+                    return "skip"
+                except _Retry as error:
+                    pause = charge("slower than the rate floor" if watch.tripped else str(error), stay=True)
+                    sleep(pause)
+                    return "failed"
+                try:
+                    code = response.status
+                    if code == 429 or code >= 500:
+                        pause = charge(f"HTTP {code}", _retry_after(response.getheader("Retry-After")), stay=True)
+                        sleep(pause)
+                        return "failed"
+                    encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
+                    if code != 200 or _count(response.getheader("Content-Length")) != total or encoding != "identity":
+                        log(f"fetch: {candidate} does not give the whole file this download is of; it is not tried")
+                        return "skip"
+                    hash_, got, base = hashlib.new(kind), 0, _folder_bytes(source)
+                    try:
+                        with trial_path.open("wb") as handle:
+                            while True:
+                                block = response.read1(CHUNK)
+                                if not block:
+                                    break
+                                got += len(block)
+                                fetched += len(block)
+                                watch.bytes += len(block)
+                                if got > total:
+                                    raise Refused("refused: the server sent more than it said")
+                                if base + got > source_limit:
+                                    raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
+                                if shutil.disk_usage(partial_dir).free - len(block) < min_free:
+                                    raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
+                                handle.write(block)
+                                hash_.update(block)
+                            handle.flush()
+                            os.fsync(handle.fileno())
+                    except (OSError, http.client.HTTPException) as error:
+                        if getattr(error, "errno", None) == errno.ENOSPC:
+                            raise Refused("incomplete: the disk is full") from error
+                        sleep(charge("slower than the rate floor" if watch.tripped else f"the transfer broke off ({error.__class__.__name__})",
+                                     progressed=got > 0 and not watch.tripped, stay=True))
+                        return "failed"
+                    if watch.tripped or got < total:
+                        sleep(charge("slower than the rate floor" if watch.tripped else f"the body ended at {got} of {total} bytes",
+                                     stay=True))
+                        return "failed"
+                    if hash_.hexdigest() != want:
+                        return "wrong"
+                    os.replace(trial_path, partial)
+                    return "verified"
+                finally:
+                    connection.close()
+            finally:
+                watch.__exit__()
+                trial_path.unlink(missing_ok=True)
+
+        def recover() -> bool:
+            """The search a mixed-source digest failure starts: each candidate source, one at a time, downloaded whole on
+            its own (`trial`). The one whose bytes verify is published and every one whose bytes do not is ruled out. The
+            candidates, and the sources ruled out so far, are kept in the state, so a fresh process goes on from there
+            and never asks a ruled-out source again. True when a trial verified; False when every candidate is spent
+            (the other live URLs then start the file again, whole, under their own representation)."""
+            nonlocal state
+            recovery = state["recovery"]
+            queue = [name for name in recovery["candidates"] if name in live and name not in recovery["ruled_out"]]
+            while queue:
+                candidate = queue.pop(0)
+                result = trial(candidate, state["total"])
+                if result == "verified":
+                    state = {"url": url, "expected": [kind, want], "validator": state.get("validator"),
+                             "encoding": state.get("encoding"), "total": state["total"], "sources": [candidate]}
+                    log(f"fetch: {candidate} gives bytes that verify; published")
+                    return True
+                if result == "failed":
+                    queue.append(candidate)  # the budget bounds how often
+                elif result == "wrong":
+                    recovery["ruled_out"].append(candidate)
+                    _write_json(state_file, state)
+                    live.remove(candidate)
+                    where["at"] = where["at"] % len(live) if live else 0
+                    log(f"fetch: {candidate} gives bytes that do not match; ruled out ({len(live)} URLs left)")
+            state_file.unlink(missing_ok=True)
+            state = {}
+            if not live:
+                raise Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
+            return False
+
+        found = None
         while True:
+            if state.get("recovery"):
+                if recover():
+                    found = want
+                    break
+                continue
             while True:
                 step = segmented()
                 if step == "done":
@@ -1026,19 +1438,27 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 partial.unlink(missing_ok=True)
                 state_file.unlink(missing_ok=True)
                 mismatch = Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
-                sources = state.get("sources") or []
+                suppliers = contributors()
+                kept = {key: state.get(key) for key in ("validator", "encoding", "total")}
                 state = {}
                 one_stream = segments == 1
-                if len(live) == 1 or len(sources) == 1:
+                if len(live) == 1 or len(suppliers) == 1:
                     # The file was one URL's bytes alone (or there is only one URL): it serves other bytes, and is
                     # ruled out; with no other URL left, that is the answer.
-                    drop(mismatch, sources[0] if len(sources) == 1 else None)
+                    drop(mismatch, suppliers[0] if len(suppliers) == 1 else None)
                 else:
-                    # Bytes from several URLs (or from a run that did not record them): no one URL can be blamed, so
-                    # the file starts again whole from the URL in use, which the next mismatch can then rule out.
-                    spend(f"the {kind} does not match and the bytes came from {len(sources) or 'unrecorded'} URLs", stay=True)
+                    # Bytes from several URLs (or from a run that did not record them): no one URL can be blamed. Each
+                    # source that agreed on the file is tried alone, whole, into a file of its own (`recover`).
+                    known = {*suppliers, *agreed}
+                    candidates = [name for name in dict.fromkeys([url, *mirrors]) if name in live and name in known]
+                    state = {"url": url, "expected": [kind, want], **kept, "sources": [],
+                             "recovery": {"candidates": candidates or list(live), "ruled_out": []}}
+                    _write_json(state_file, state)
+                    log(f"fetch: the {kind} does not match and the bytes came from {len(suppliers) or 'unrecorded'} URLs; "
+                        "trying each source alone")
                 continue
             break
+        supplied = contributors() or [here()]
         sha256 = found if kind == "sha256" else _digest(partial, "sha256")
         try:
             with partial.open("rb") as handle:
@@ -1055,7 +1475,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             state_file.unlink(missing_ok=True)
         except OSError:
             pass  # the file is in place and verified; a stale state file beside no partial is ignored by the next run
-        return outcome("fetched", sha256=sha256, resumed=resumed, url=here())
+        return outcome("fetched", sha256=sha256, resumed=resumed, url=supplied[0], urls=supplied)
     finally:
         lock.close()
 
@@ -1074,7 +1494,9 @@ def main(argv=None) -> int:
     parser.add_argument("--min-rate", type=float, default=16 * 1024)
     parser.add_argument("--segments", type=int, default=0, help="0: automatic (up to 4 over 64 MiB); 1: one stream")
     parser.add_argument("--segment-threshold", type=int, default=SEGMENT_THRESHOLD, help="the smallest file segmented")
-    parser.add_argument("--mirror", action="append", default=[], help="another URL for the same file; repeatable, tried in order")
+    parser.add_argument("--mirror", action="append", default=[],
+                        help="another URL for the same file; repeatable. Mirrors that agree on the file (same length and "
+                             "strong validator) serve ranges together; a mirror that disagrees is the ordered fallback")
     parser.add_argument("--ca-file", help="a PEM file of extra certificate authorities to trust (verification stays on)")
     parser.add_argument("--allow-loopback", action="store_true", help="for the tests' local server only")
     args = parser.parse_args(argv)
@@ -1088,7 +1510,7 @@ def main(argv=None) -> int:
         reason = str(error)
         # The same fields as a success, so a caller reads one shape; `fetched` is unknown on a failure.
         print(json.dumps({"status": reason.split(":")[0], "bytes": 0, "fetched": None, "sha256": None,
-                          "resumed": False, "url": None, "reason": reason}))
+                          "resumed": False, "url": None, "urls": [], "reason": reason}))
         return 1
     print(json.dumps(line))
     return 0
