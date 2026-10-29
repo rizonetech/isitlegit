@@ -38,7 +38,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Model client: store false, Standard IDs | D00 T01 §6, D01 T01 §7 | [x] |
 | 2 | §2 | Budget guard with daily and total caps | §1 | [x] |
-| 3 | §3 | Cost and latency events per model call | §1 | [ ] |
+| 3 | §3 | Cost and latency events per model call | §1 | [x] |
 | 4 | §4 | Result cache by artefact hash | §1 | [ ] |
 | 5 | §5 | Structured output helper with zod | §1 | [ ] |
 | 6 | §6 | Untrusted content blocks | §5 | [ ] |
@@ -158,9 +158,12 @@ The model trace on the report (D07 T03 §5), the cost-per-case dashboard and the
 - [x] Write `caseCost(db, owner)` for a case or a monitor run: the measured total, the estimated total and the count of attempts with no known cost, never adding an estimate into the measured figure. Done when: the test reads two cases and a monitor run with mixed rows and finds each total isolated and the three parts exact. Done 2026-10-29: `caseCost` in `src/meta/budget.ts`; the test reads two cases and a monitor run with measured and unmeasured calls, each total isolated and the parts apart.
 - [x] Tag each gateway request with `cf-aig-metadata`: the owner's opaque ids (case id, or monitor run and a host hash) and the step, no names, addresses or content. Done when: `test/meta/client.test.ts` finds the header on Responses and raw requests, and no personal data in it. Done 2026-10-29: `metadataHeader` in `src/meta/client.ts`; `test/meta/client.test.ts` finds it on a Responses and an image-edit request, the host hashed and no address in it.
 - [x] Close the completion review's in-scope gaps (2026-10-29): a failed attempt's record keeps the client's kind for it and the gateway's and Meta's ids, on every retry (`describeFailure`); a cost derived from the request (SAM's images, an image edit with no returned images) is labelled estimated; migration `0023` keeps the non-token units (`images`, `audio_seconds`) and leaves rows written before the call record estimated, an import measured; the smoke test reserves with its call and owner and settles with its record; a failed sweep is logged. Done when: `test/meta/events.test.ts`, `test/node/meta-budget-local.test.ts`, `test/node/meta-smoke.test.ts` and `test/scheduled.test.ts` cover each.
-- [ ] Commit: `meta: cost and latency events per model call`
+- [x] Commit: `meta: cost and latency events per model call` (landed as `7b53428` and `f1f20e3`, with the reviews' fixes in `2202788`, `553b9c4`, `4c67263` and `bfdbca0`)
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/events.test.ts` passes, and fails if a path skips its record, writes a constant latency, records a prompt or response string, or counts an estimate as measured.
+
+> **Verified:** 2026-10-29 | §3 | bfdbca02d6bafba01b12687152e7496157b41254
+> **Review:** `docs/reviews/d03-t01-s3.json`
 
 ## 4. Result cache by artefact hash
 
