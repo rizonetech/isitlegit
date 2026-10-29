@@ -1,5 +1,5 @@
 import { createSocket } from "node:dgram";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -689,10 +689,47 @@ describe("the batch run", () => {
       kind: "home",
     });
     await runBatch({ list: list(["/page"]), store, journal, render: renderer.render });
-    expect(recheckStored(store, journal)).toEqual([id]);
+    expect(recheckStored(store, journal)).toMatchObject({ removed: [id], damaged: [], unassessed: [] });
     expect(store.manifest().map((p) => p.url)).toEqual([`${origin}/page`]);
     expect(readJournal(journal).at(-1)).toMatchObject({ url: `${origin}/old-wall`, event: "excluded" });
-    expect(recheckStored(store, journal)).toEqual([]);
+    expect(recheckStored(store, journal).removed).toEqual([]);
+  });
+
+  it("lists a damaged page instead of passing it, and finishes a removal a stop interrupted", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    await runBatch({ list: list(["/page", "/frame-login"]), store, journal, render: renderer.render, concurrency: 1 });
+    const [first, second] = store.manifest().map((p) => p.id) as [string, string];
+    const shot = await renderer.render(`${origin}/page`);
+    const third = await store.putPage("benign-test", {
+      screenshot: shot.screenshot,
+      text: "a third benign page",
+      origin: "benign",
+      licence: "test",
+      host: null,
+      template: null,
+      south_africa: false,
+      labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+      label_source: { lure: "ground-truth", lure_type: "ground-truth", has_login_form: "dom", has_payment_form: "dom" },
+      redacted: false,
+    });
+    writeFileSync(join(dir, "store", "pages", first, "text.txt"), "altered");
+    writeFileSync(join(dir, "store", "pages", third, "meta.json"), "{ not json");
+    const audit = recheckStored(store, journal);
+    expect(audit.damaged.sort()).toEqual([first, third].sort());
+    expect(audit.checked).toBe(1);
+    // A stop after the page went but before its exclusion was written: the next recheck writes it, once.
+    const url = store.manifest({ tolerant: true }).find((p) => p.id === second)?.url as string;
+    writeFileSync(
+      `${journal}.removing.json`,
+      JSON.stringify({ id: second, url, reason: "a challenge page (found on a recheck)" }),
+    );
+    store.removePage(second);
+    recheckStored(store, journal);
+    recheckStored(store, journal);
+    const lines = readJournal(journal).filter((e) => e.url === url && e.event === "excluded");
+    expect(lines).toHaveLength(1);
+    expect(existsSync(`${journal}.removing.json`)).toBe(false);
   });
 
   it("renders an exclusion a renderer fault made again once it is reopened, and nothing else", async () => {

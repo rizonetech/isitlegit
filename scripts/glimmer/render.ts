@@ -13,7 +13,17 @@
 // Each URL's outcome goes to `raw/benign/progress.jsonl`, so a stopped run resumes without storing a page twice.
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeSync,
+} from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { type AddressInfo, isIP, connect as netConnect, type Socket } from "node:net";
 import { join, resolve } from "node:path";
@@ -746,22 +756,64 @@ const TRANSIENT =
 
 export type BatchResult = { stored: number; excluded: number; retry: number; skipped: number; recovered: number };
 
-// Takes out every stored benign page whose text a challenge check made after it was stored now refuses (its title is
-// not kept, so the text alone is read), and records each as excluded so no run stores it again. Returns the ids.
-export function recheckStored(store: ReturnType<typeof openStore>, journal: string): string[] {
-  const removed: string[] = [];
+export type Recheck = { checked: number; removed: string[]; damaged: string[]; unassessed: string[] };
+
+// A removal in progress: written before the page is removed and cleared once its exclusion is in the journal, so a stop
+// between the two leaves the intent for the next recheck to finish (plan review gap 8).
+type Removal = { id: string; url: string; reason: string };
+const intentFile = (journal: string) => `${journal}.removing.json`;
+
+function removeAndRecord(store: ReturnType<typeof openStore>, journal: string, removal: Removal): void {
+  const file = intentFile(journal);
+  const temporary = `${file}.${process.pid}.tmp`;
+  const fd = openSync(temporary, "w");
+  try {
+    writeSync(fd, JSON.stringify(removal));
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(temporary, file);
+  finishRemoval(store, journal, removal);
+}
+
+function finishRemoval(store: ReturnType<typeof openStore>, journal: string, removal: Removal): void {
+  store.removePage(removal.id); // false when a stop came after it: the page is already gone
+  const last = readJournal(journal)
+    .filter((event) => event.url === removal.url)
+    .at(-1);
+  if (!(last?.event === "excluded" && last.reason === removal.reason))
+    appendJournal(journal, { url: removal.url, event: "excluded", reason: removal.reason });
+  unlinkSync(intentFile(journal));
+}
+
+// Audits every stored benign page with the challenge check as it reads now: each page's files are verified against
+// their hashes first (a damaged or unreadable record is listed, never passed as clean), and a refused page is taken out
+// and recorded excluded so no run stores it again, through an intent a stop cannot lose. A removal a stopped recheck
+// left is finished first.
+export function recheckStored(store: ReturnType<typeof openStore>, journal: string): Recheck {
+  if (existsSync(intentFile(journal)))
+    finishRemoval(store, journal, JSON.parse(readFileSync(intentFile(journal), "utf-8")) as Removal);
+  const result: Recheck = { checked: 0, removed: [], damaged: [], unassessed: [] };
+  const benign = (id: string) => /^benign-/.test(id);
+  result.damaged.push(...store.verify().damaged.filter(benign));
   for (const page of store.manifest({ tolerant: true })) {
-    if (!page.source.startsWith("benign-")) continue;
-    if (!CHALLENGE.test(store.readPage(page.id).text.slice(0, 2000))) continue;
-    store.removePage(page.id);
-    appendJournal(journal, {
+    if (!page.source.startsWith("benign-") || result.damaged.includes(page.id)) continue;
+    const read = store.readVerifiedPage(page.id);
+    if (!read) {
+      result.damaged.push(page.id);
+      continue;
+    }
+    result.checked++;
+    if (!CHALLENGE.test(read.text.slice(0, 2000))) continue;
+    removeAndRecord(store, journal, {
+      id: page.id,
       url: page.url ?? page.id,
-      event: "excluded",
       reason: "a challenge page (found on a recheck)",
     });
-    removed.push(page.id);
+    result.removed.push(page.id);
   }
-  return removed;
+  return result;
 }
 
 // Reopens every page whose last outcome is an exclusion whose reason matches: the record stays, and a `reopened` line
@@ -1018,9 +1070,12 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(coverage.met ? 0 : 1);
   }
   if (command === "recheck") {
-    const removed = recheckStored(store, join(dir, "raw/benign/progress.jsonl"));
-    console.log(`removed ${removed.length} stored pages a challenge check now refuses`);
-    process.exit(0);
+    const result = recheckStored(store, join(dir, "raw/benign/progress.jsonl"));
+    console.log(
+      JSON.stringify({ ...result, damaged: result.damaged.slice(0, 20), unassessed: result.unassessed.slice(0, 20) }),
+    );
+    // Clean only when every page was verified and judged: zero removals alone is not clean.
+    process.exit(result.damaged.length || result.unassessed.length ? 1 : 0);
   }
   if (command === "reopen" && matching) {
     const reopened = reopenExcluded(join(dir, "raw/benign/progress.jsonl"), matching);
