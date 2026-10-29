@@ -4,6 +4,28 @@ import type { Statement } from "../meta/budget-sql.ts";
 
 export const STORED_PLANS = ["free", "protect", "msp"] as const;
 
+// An extension's end, as the operator writes it: an ISO 8601 date-time with its zone (`2026-11-12T00:00:00Z`, or with
+// an offset), and a real calendar date. Anything else (`2027-02-30`, `03/04/2027`, a date with no zone) is refused, so
+// a mistyped date never changes access (completion review).
+const ISO = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
+export function parseExtension(text: string): Date {
+  const m = ISO.exec(text.trim());
+  if (!m)
+    throw new RangeError("an extension ends at an ISO 8601 date and time with its zone, such as 2026-11-12T00:00:00Z");
+  const [, y, mo, d, h, mi, se] = m.map(Number) as number[];
+  const calendar = new Date(Date.UTC(y as number, (mo as number) - 1, d as number));
+  if (
+    calendar.getUTCFullYear() !== y ||
+    calendar.getUTCMonth() !== (mo as number) - 1 ||
+    calendar.getUTCDate() !== d ||
+    (h as number) > 23 ||
+    (mi as number) > 59 ||
+    (se ?? 0) > 59
+  )
+    throw new RangeError(`${text} is not a real date and time`);
+  return new Date(text.trim());
+}
+
 // The operator's changes (scripts/org-plan.ts; the admin detail page's controls, D07 T08 §5). A plan replaces the trial;
 // an extension puts the organisation back on its trial until the given time. `daily_cases` is kept either way.
 export function setPlanStatement(orgId: string, plan: (typeof STORED_PLANS)[number]): Statement {

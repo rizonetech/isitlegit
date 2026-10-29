@@ -46,9 +46,23 @@ const SPEC: Record<Plan, Feature[]> = {
     "monitor",
     "payment-document",
   ],
-  msp: Object.keys(FEATURES) as Feature[],
-  trial: Object.keys(FEATURES) as Feature[],
+  msp: [
+    "counterparty-verdict",
+    "identity",
+    "impersonation-alerts",
+    "staff-inbox",
+    "bank-change",
+    "closed-loop",
+    "monitor",
+    "payment-document",
+    "msp-console",
+    "msp-branding",
+  ],
+  trial: [],
 };
+SPEC.trial = SPEC.msp;
+// Every feature spec 2b names, written out apart, so a feature dropped from FEATURES fails here.
+const ALL: Feature[] = [...SPEC.msp];
 
 describe("planOf and hasFeature", () => {
   it("puts a new organisation on its 14-day trial, counted from its createdAt", async () => {
@@ -69,6 +83,10 @@ describe("planOf and hasFeature", () => {
     expect(await hasFeature(db, ended, "counterparty-verdict", new Date(now))).toBe(true);
   });
 
+  it("names every spec 2b feature, and nothing else", () => {
+    expect(Object.keys(FEATURES).sort()).toEqual([...ALL].sort());
+  });
+
   it("follows the whole feature-by-plan matrix of spec 2b", async () => {
     const trial = await orgAged(1);
     const free = await orgAged(30);
@@ -78,8 +96,26 @@ describe("planOf and hasFeature", () => {
     await setPlan(db, msp, "msp");
     const orgs: Record<Plan, string> = { trial, free, protect, msp };
     for (const plan of Object.keys(orgs) as Plan[])
-      for (const feature of Object.keys(FEATURES) as Feature[])
+      for (const feature of ALL)
         expect(await hasFeature(db, orgs[plan], feature), `${plan} ${feature}`).toBe(SPEC[plan].includes(feature));
+    // The trial's last second, an expired trial, an extended one and an explicit free: every feature.
+    const now = Date.now();
+    const last = await orgAged(TRIAL_DAYS - 1 / 86_400, now);
+    const expired = await orgAged(TRIAL_DAYS + 1, now);
+    const extended = await orgAged(TRIAL_DAYS + 1, now);
+    await extendTrial(db, extended, new Date(now + DAY), new Date(now));
+    const explicit = await orgAged(1, now);
+    await setPlan(db, explicit, "free");
+    for (const feature of ALL) {
+      expect(await hasFeature(db, last, feature, new Date(now)), `last second ${feature}`).toBe(true);
+      expect(await hasFeature(db, expired, feature, new Date(now)), `expired ${feature}`).toBe(
+        SPEC.free.includes(feature),
+      );
+      expect(await hasFeature(db, extended, feature, new Date(now)), `extended ${feature}`).toBe(true);
+      expect(await hasFeature(db, explicit, feature, new Date(now)), `free ${feature}`).toBe(
+        SPEC.free.includes(feature),
+      );
+    }
   });
 
   it("changes with the operator: upgrade, downgrade, an extended trial that expires again, daily_cases kept", async () => {

@@ -125,6 +125,8 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 - [ ] Build `src/web/pages/settings-plan.tsx` reading `org_limits` and the day's case count. Done when: `test/web/plan.test.ts` checks days left, usage and the feature list.
 - [ ] Read the plan from `planOf` (D07 T02 §8), not `org_limits`: an organisation with no row is on the trial. Done when: the page, the AppShell trial pill and `hasFeature` agree before expiry, at expiry and after an operator change, from persisted data. Source: D07 T02 §8 plan review.
+- [ ] Give a plan refusal a browser journey: a page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 403 `code: "plan"`) says what the feature needs and links to this page in one action, keeping where they came from; a plan that could not be read (503) is its own retryable state. Done when: rendered tests show both states, keyboard operation, and the return path kept. Source: D07 T02 §8 completion review.
+- [ ] Tell an owner before the trial ends: one notice three days before and one at the end, saying the exact end time, which protection stops and that free checks continue, sent once each (a send key per trial end) and not after an extension moves the end. Done when: a test sends each once, an extension suppresses the stale ones, and a resend sends nothing more. Source: D07 T02 §8 completion review.
 - [ ] Commit: `web: plan and trial page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` passes.

@@ -45,5 +45,19 @@ describe("scripts/org-plan.ts", () => {
     await expect(orgPlan(["org-1", "gold"], w.run, now)).rejects.toThrow(/no such plan/);
     await expect(orgPlan(["org-1", "extend", "2026-10-01T00:00:00Z"], w.run, now)).rejects.toThrow(/still to come/);
     await expect(orgPlan(["org-9", "free"], w.run, now)).rejects.toThrow(/no organisation/);
+    // A mistyped date changes nothing (completion review).
+    const before = w.db.prepare("SELECT plan, trial_ends_at FROM org_limits").get();
+    for (const bad of [
+      "2027-02-30T00:00:00Z",
+      "03/04/2027",
+      "2027-03-04",
+      "2027-03-04T25:00:00Z",
+      "2027-03-04T00:00:00",
+    ])
+      await expect(orgPlan(["org-1", "extend", bad], w.run, now), bad).rejects.toThrow(RangeError);
+    expect(w.db.prepare("SELECT plan, trial_ends_at FROM org_limits").get()).toEqual(before);
+    expect(await orgPlan(["org-1", "extend", "2027-03-04T09:30:00+02:00"], w.run, now)).toBe(
+      "org-1: trial until 2027-03-04T07:30:00.000Z",
+    );
   });
 });

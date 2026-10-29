@@ -34,6 +34,7 @@ track: day-6
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §7 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
+| 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -158,6 +159,31 @@ Adding a domain today means copying a TXT record into the registrar by hand and 
 - [ ] Commit: `web: registrar-assisted domain verification`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/domain-connect.test.ts test/web/domains-page.test.ts` passes and fails if a domain verifies without its token in DNS or an unsupported registrar shows the Connect button.
+
+## 6. MSP console and own branding
+
+Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console, own branding"), and D07 T02 §8 names both as features (`msp-console`, `msp-branding`, on the trial and MSP), but no section built either (D07 T02 §8 completion review). An MSP manages its client organisations from one console and shows its own name and logo to them; the spec places MSP after the event.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+
+**Fidelity:** none yet: the console and branding pages need their `design/SPEC.md` rows and boards first.
+**Job:** an MSP's staff open one console listing their client organisations, open any client's cases in one action, and the clients see the MSP's name and logo in their mail and pages.
+**Treatment:** the member console's list and shell (§1, D07 T01), scoped to the MSP's clients.
+**Chrome:** the app shell's own controls, no new dialog shape.
+
+**Build order:**
+
+1. Design and model the MSP relation. Done when: the SPEC rows and boards exist and an MSP-to-client relation is stored.
+2. Build the console and the branding. Done when: an MSP's staff see only their clients, and a client's pages and mail carry the MSP's brand.
+
+- [ ] Add the MSP console and the branding settings to `design/SPEC.md`'s page inventory, with their boards. Done when: both rows name their owning section (this one) and their states.
+- [ ] Store which organisations an MSP manages (a migration and its reads), the MSP's staff reaching a client only through it. Done when: a test finds an MSP's staff reading their client's cases and refused another organisation's.
+- [ ] Gate the console on `msp-console` and the branding on `msp-branding` (`requireFeature`, D07 T02 §8). Done when: a Protect organisation is refused both, an MSP or trial organisation passes, and removing a gate fails the test.
+- [ ] Commit: `web: MSP console and own branding`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/msp-console.test.ts` passes and fails if an MSP reads a client it does not manage or a non-MSP plan reaches the console.
 
 ## Verification
 

@@ -3,7 +3,7 @@
 //
 //   node scripts/org-plan.ts <organisation id> free|protect|msp
 //   node scripts/org-plan.ts <organisation id> extend <ISO date>
-import { extendTrialStatement, STORED_PLANS, setPlanStatement } from "../src/auth/plan-sql.ts";
+import { extendTrialStatement, parseExtension, STORED_PLANS, setPlanStatement } from "../src/auth/plan-sql.ts";
 import { execute } from "./lib/meta-budget.ts";
 import { type Runner, runCommand } from "./smoke.ts";
 
@@ -13,14 +13,16 @@ export async function orgPlan(args: string[], run: Runner = runCommand, now = ne
     throw new Error("usage: node scripts/org-plan.ts <organisation id> free|protect|msp|extend <ISO date>");
   const statement =
     action === "extend"
-      ? extendTrialStatement(orgId, new Date(when ?? ""), now)
+      ? extendTrialStatement(orgId, parseExtension(when ?? ""), now)
       : (STORED_PLANS as readonly string[]).includes(action)
         ? setPlanStatement(orgId, action as (typeof STORED_PLANS)[number])
         : null;
   if (!statement) throw new Error(`no such plan: ${action}`);
   const answer = await execute(statement, run);
   if ((answer.meta?.changes ?? 0) !== 1) throw new Error(`no organisation ${orgId}`);
-  return action === "extend" ? `${orgId}: trial until ${new Date(when ?? "").toISOString()}` : `${orgId}: ${action}`;
+  return action === "extend"
+    ? `${orgId}: trial until ${parseExtension(when ?? "").toISOString()}`
+    : `${orgId}: ${action}`;
 }
 
 if (import.meta.filename === process.argv[1]) {
