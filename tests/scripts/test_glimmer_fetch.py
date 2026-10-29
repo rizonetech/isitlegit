@@ -682,6 +682,23 @@ class Fetch(unittest.TestCase):
         self.assert_whole()
         self.assertEqual(sum(self.server.served), SIZE - kept)
 
+    def test_a_killed_run_has_saved_its_progress_every_mib(self):
+        # At the production interval: killed once 2.5 MiB have arrived, the state holds at least 1 MiB of progress
+        # (with saves 4 MiB apart it held none, and a resume fetched everything again).
+        self.server.modes = {"segment-slow"}
+        command = [sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin", "--sha256", SHA,
+                   "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE), "--segment-threshold", str(1 << 20),
+                   "--min-rate", "0"]
+        run = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.monotonic() + 30
+        while sum(self.server.served) < 5 * 512 * 1024 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.2)  # the hasher's thread is rung at each MiB; let it write the last one due
+        run.kill()
+        run.wait()
+        saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+        self.assertGreaterEqual(sum(item[2] for item in saved["segments"]), 1024 * 1024)
+
     def test_segment_limits_hold(self):
         with self.assertRaisesRegex(fetch.Refused, "limit"):
             self.run_fetch(source_limit=SIZE // 2, **self.SEGMENTED)
@@ -1014,10 +1031,26 @@ class Fetch(unittest.TestCase):
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
 
-    def test_a_missing_ca_file_is_refused_before_anything_connects(self):
-        with self.assertRaisesRegex(fetch.Refused, "--ca-file"):
-            self.run_fetch(ca_file="no-such-ca.pem")
+    def test_a_bad_ca_file_is_refused_before_anything_connects(self):
+        Path("not-pem.pem").write_text("not a certificate")
+        Path("unreadable.pem").write_text("x")
+        os.chmod("unreadable.pem", 0)
+        for name in ("no-such-ca.pem", "not-pem.pem", "unreadable.pem"):
+            with self.subTest(name=name), self.assertRaisesRegex(fetch.Refused, "--ca-file"):
+                self.run_fetch(ca_file=name)
         self.assertEqual(self.server.requests, 0)
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin",
+                               "--sha256", SHA, "--ca-file", "not-pem.pem"], capture_output=True, text=True, check=False)
+        self.assertNotIn("Traceback", done.stderr)
+        self.assertIn("--ca-file", json.loads(done.stdout)["reason"])
+
+    def test_a_ca_file_adds_to_the_system_authorities(self):
+        folder = Path(tempfile.mkdtemp(prefix="ca-"))
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(folder / "k.pem"),
+                        "-out", str(folder / "c.pem"), "-days", "1", "-subj", "/CN=test"], check=True, capture_output=True)
+        plain = fetch._tls_context(None).cert_store_stats()["x509_ca"]
+        added = fetch._tls_context(str(folder / "c.pem")).cert_store_stats()["x509_ca"]
+        self.assertEqual(added, plain + 1)  # the system's authorities kept, one added
 
     def test_every_json_line_has_a_url(self):
         self.run_fetch()

@@ -108,14 +108,22 @@ def _vetted(host: str, port: int, allow_loopback: bool) -> str:
     return addresses[0]
 
 
+def _tls_context(ca_file: str | None) -> ssl.SSLContext:
+    """The system's authorities, with `--ca-file`'s added (never in their place): a test host's own authority, and a
+    publicly trusted mirror or redirect target, both verify. Verification is always on."""
+    context = ssl.create_default_context()
+    if ca_file is not None:
+        context.load_verify_locations(cafile=ca_file)
+    return context
+
+
 def _connect(url: str, timeout: float, allow_loopback: bool, watch=None, ca_file: str | None = None):
     """A connection pinned to the vetted address: the name is resolved once, here, and never again by the library."""
     parts = urllib.parse.urlsplit(url)
     port = parts.port or (443 if parts.scheme == "https" else 80)
     address = _vetted(parts.hostname or "", port, allow_loopback)
     if parts.scheme == "https":
-        # Verification is always on; `--ca-file` only adds the authorities a certificate may chain to (a test host).
-        context = ssl.create_default_context(cafile=ca_file)
+        context = _tls_context(ca_file)
 
         class Pinned(http.client.HTTPSConnection):
             def connect(self):
@@ -332,8 +340,12 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     if (attempts < 1 or not math.isfinite(timeout) or timeout <= 0 or source_limit <= 0 or min_free < 0 or min_rate < 0
             or not 0 <= segments <= 4 or segment_threshold < 1):
         raise Refused("refused: --attempts, --timeout, --source-limit, --min-free and --min-rate must be positive")
-    if ca_file is not None and not Path(ca_file).is_file():
-        raise Refused(f"refused: --ca-file {ca_file} is not a readable file")
+    if ca_file is not None:
+        # Read once before anything connects: a missing, unreadable or non-PEM file is a refusal line, not a traceback.
+        try:
+            _tls_context(ca_file)
+        except (OSError, ssl.SSLError) as error:
+            raise Refused(f"refused: --ca-file {ca_file} could not be read as PEM certificates ({error})") from None
     target = Path(dest)
     root = Path.cwd().resolve()
     if target.is_absolute() or ".." in target.parts or len(target.parts) != 2 or target.parts[1].startswith("."):

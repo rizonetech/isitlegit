@@ -48,18 +48,22 @@ def payload(size: int) -> bytes:
     return bytes(out[:size])
 
 
+HELPER_DEADLINE = 60  # seconds for each helper command (openssl, a start-up probe, a version)
+
+
 def make_certificate(folder: Path) -> tuple[Path, Path]:
     """A self-signed certificate for 127.0.0.1 (its subject alternative name), made by this host's openssl for the
     run; each tool trusts it through its own option, never by turning verification off."""
     cert, key = folder / "bench-cert.pem", folder / "bench-key.pem"
     subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert),
                     "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"],
-                   check=True, capture_output=True)
+                   check=True, capture_output=True, timeout=HELPER_DEADLINE)
     return cert, key
 
 
 def openssl_version() -> str:
-    return subprocess.run(["openssl", "version"], capture_output=True, text=True, check=False).stdout.strip()
+    return subprocess.run(["openssl", "version"], capture_output=True, text=True, check=False,
+                          timeout=HELPER_DEADLINE).stdout.strip()
 
 
 class Bench(http.server.ThreadingHTTPServer):
@@ -77,6 +81,11 @@ class Bench(http.server.ThreadingHTTPServer):
         self.latency = latency
         self.delayed = 0  # requests answered after the added latency: every one of them must be
         self.requests = 0
+        self.waits: list[tuple[str, float]] = []  # each request's kind and the delay it actually paid
+        self.kill_at: int | None = None  # bytes after which `reached` is set, so a run can be killed at that byte
+        self.reached = threading.Event()
+        self.phase = 1
+        self.starts: list[tuple[int, int]] = []  # (phase, the first byte each GET asked for)
         self.body = body
         self.cap = cap
         self.failing = failing
@@ -93,12 +102,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
 
     def wait(self):
-        """The added latency, before any answer: every request pays it (the HEAD, each range, each retry)."""
+        """The added latency, before any answer: every request pays it (the HEAD, each range, each retry, each refusal),
+        and the delay it actually paid is recorded with its kind."""
         with self.server.lock:
             self.server.requests += 1
+        began = time.monotonic()
         time.sleep(self.server.latency)
+        paid = time.monotonic() - began
+        kind = f"{self.command}{' range' if self.headers.get('Range') else ''}{' refused' if self.server.failing else ''}"
         with self.server.lock:
             self.server.delayed += 1
+            self.server.waits.append((kind, paid))
 
     def refuse(self) -> bool:
         self.wait()
@@ -126,6 +140,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         server, body = self.server, self.server.body
         start, end = 0, len(body) - 1
         ranged = self.headers.get("Range")
+        with server.lock:
+            server.starts.append((server.phase, int(ranged.split("=")[1].split("-")[0]) if ranged else 0))
         if ranged:
             first, _, last = ranged.split("=")[1].partition("-")
             start, end = int(first), int(last) if last else len(body) - 1
@@ -164,6 +180,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(piece)
                 with server.lock:
                     server.sent += len(piece)
+                    if server.kill_at is not None and server.sent >= server.kill_at:
+                        server.reached.set()
                 at += len(piece)
                 # The per-connection cap: this connection never runs ahead of cap bytes a second.
                 ahead = (at - start) / server.cap - (time.monotonic() - began)
@@ -228,7 +246,7 @@ def startup_seconds(tool: str) -> float:
     times = []
     for _ in range(7):
         began = time.monotonic()
-        subprocess.run(command, capture_output=True, check=False, cwd=tempfile.gettempdir())
+        subprocess.run(command, capture_output=True, check=False, cwd=tempfile.gettempdir(), timeout=HELPER_DEADLINE)
         times.append(time.monotonic() - began)
     return statistics.median(times)
 
@@ -259,28 +277,33 @@ def file_sha256(path: Path) -> str | None:
 
 
 def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: int, deadline: float) -> dict:
-    """The first process killed (SIGKILL, its whole group) once the server has sent `kill_at` bytes, then a second one
-    started on the same folder; time and bytes count across both. `resumed`: the second asked for at most what the
-    first had not received (half its share of slack, for bytes in flight when it died)."""
+    """The first process killed (SIGKILL, its whole group) the moment the server has sent `kill_at` bytes (the server
+    rings an event, so both tools die at the same byte, give or take one 64 KiB piece), then a second process started on
+    the same folder; time and bytes count across both. Recorded: the bytes sent at the kill, the second process's bytes
+    and the first byte each of its requests asked for. `resumed`: the second process fetched again less than half of
+    what the first had been sent (what it saved, kept)."""
+    server.kill_at = kill_at
     began = time.monotonic()
     first = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
-    killed = False
-    while first.poll() is None and time.monotonic() - began < deadline:
-        if server.sent >= kill_at:
-            os.killpg(first.pid, signal.SIGKILL)
-            killed = True
-            break
-        time.sleep(0.01)
-    if first.poll() is None:
+    killed = server.reached.wait(deadline) and first.poll() is None
+    try:
         os.killpg(first.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass  # it had ended by itself
     first.wait()
+    at_kill = server.sent
     time.sleep(0.5)  # the dead process's connections end on the server side
     before = server.sent
+    with server.lock:
+        server.phase = 2
     code = run_bounded(command, cwd, max(1.0, deadline - (time.monotonic() - began)))
     after = server.sent - before
-    return {"seconds": time.monotonic() - began, "code": code, "killed": killed,
-            "resumed": killed and after <= server_size(server) - before // 2}
+    again = max(0, before + after - len(server.body))
+    starts = sorted(start for phase, start in server.starts if phase == 2)
+    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "at_kill": at_kill,
+            "second_bytes": after, "second_starts": starts[:16],
+            "resumed": killed and code == 0 and again < before / 2}
 
 
 def server_size(server: "Bench") -> int:
@@ -300,7 +323,13 @@ def measure(size: int, cap: int, runs: int, latency: float = 0.02, gigabyte: int
         "gigabyte": {"size": gigabyte, "servers": (False,), "interrupt": "kill", "tools": FOUR},
     }
     certificates = Path(tempfile.mkdtemp(prefix="fetch-bench-tls-"))
-    tls = make_certificate(certificates)
+    try:
+        return _measure(scenarios_spec, runs, cap, latency, deadline, make_certificate(certificates))
+    finally:
+        shutil.rmtree(certificates, ignore_errors=True)
+
+
+def _measure(scenarios_spec: dict, runs: int, cap: int, latency: float, deadline: float, tls: tuple[Path, Path]) -> dict:
     estimate = sum(spec["size"] / (cap * (4 if spec["tools"] else 2.5)) * runs * len(spec["tools"] or tools(["URL"], "0", Path("D")))
                    for spec in scenarios_spec.values())
     print(f"fetch_bench: about {estimate / 60:.0f} minutes of transfer at {cap / 2**20:.0f} MiB/s a connection",
@@ -320,46 +349,57 @@ def measure(size: int, cap: int, runs: int, latency: float = 0.02, gigabyte: int
                 for server in servers:
                     threading.Thread(target=server.serve_forever, daemon=True).start()
                     server.dropped = spec["interrupt"] != "cut"  # a killed process is the interruption instead
-                urls = [f"{server.scheme}://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
                 work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
-                (work / "src").mkdir()
-                command = tools(urls, sha, work, ca=tls[0])[name]
-                shown = command
-                for index, address in enumerate(urls):
-                    shown = [part.replace(address, "<url>" if index == 0 else f"<mirror {index}>") for part in shown]
-                shown = [part.replace(str(tls[0]), "<certificate>") for part in shown]
-                commands.setdefault(scenario, {})[name] = [portable(part, "<url>", work) for part in shown]
-                if spec["interrupt"] == "kill":
-                    run = killed_and_resumed(command, work, servers[-1], spec["size"] // 8, deadline)
-                    seconds, code, cut, resumed = run["seconds"], run["code"], run["killed"], run["resumed"]
-                else:
-                    began = time.monotonic()
-                    code = run_bounded(command, work, deadline)
-                    seconds, cut, resumed = time.monotonic() - began, sum(s.drops for s in servers) > 0, None
-                intact = file_sha256(work / "src" / "data.bin") == sha
-                sent = sum(server.sent for server in servers)
-                row = {"seconds": seconds, "refetched": max(0, sent - spec["size"]), "recovered": code == 0,
-                       "intact": intact, "cut": cut, "latency": all(s.delayed == s.requests > 0 for s in servers)}
-                if resumed is not None:
-                    row["resumed"] = resumed
-                rows.append(row)
-                for server in servers:
-                    server.shutdown()
-                    server.server_close()
-                shutil.rmtree(work, ignore_errors=True)
+                try:  # the run's servers and folder are always ended, whatever the run raised
+                    (work / "src").mkdir()
+                    urls = [f"{server.scheme}://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
+                    command = tools(urls, sha, work, ca=tls[0])[name]
+                    shown = command
+                    for index, address in enumerate(urls):
+                        shown = [part.replace(address, "<url>" if index == 0 else f"<mirror {index}>") for part in shown]
+                    shown = [part.replace(str(tls[0]), "<certificate>") for part in shown]
+                    commands.setdefault(scenario, {})[name] = [portable(part, "<url>", work) for part in shown]
+                    kill = None
+                    if spec["interrupt"] == "kill":
+                        run = killed_and_resumed(command, work, servers[-1], spec["size"] // 8, deadline)
+                        seconds, code, cut, resumed = run["seconds"], run["code"], run["killed"], run["resumed"]
+                        kill = {key: run[key] for key in ("at_kill", "second_bytes", "second_starts")}
+                    else:
+                        began = time.monotonic()
+                        code = run_bounded(command, work, deadline)
+                        seconds, cut, resumed = time.monotonic() - began, sum(s.drops for s in servers) > 0, None
+                    intact = file_sha256(work / "src" / "data.bin") == sha
+                    sent = sum(server.sent for server in servers)
+                    # Every request of every server paid the latency, measured, not counted (a sleep removed shows here).
+                    paid = all(s.delayed == s.requests > 0 and min(w for _, w in s.waits) >= latency * 0.95 for s in servers)
+                    row = {"seconds": seconds, "refetched": max(0, sent - spec["size"]), "recovered": code == 0,
+                           "intact": intact, "cut": cut, "latency": paid,
+                           "waits": sorted({kind for s in servers for kind, _ in s.waits})}
+                    if resumed is not None:
+                        row["resumed"] = resumed
+                        row["kill"] = kill
+                    rows.append(row)
+                finally:
+                    for server in servers:
+                        server.shutdown()
+                        server.server_close()
+                    shutil.rmtree(work, ignore_errors=True)
             results[name] = {
-                "median_seconds": round(statistics.median(r["seconds"] for r in rows), 2),
-                "startup_seconds": round(startup_seconds(name), 3),
+                # Full precision: the acceptance line judges these, unrounded.
+                "median_seconds": statistics.median(r["seconds"] for r in rows),
+                "startup_seconds": startup_seconds(name),
                 "median_refetched_bytes": int(statistics.median(r["refetched"] for r in rows)),
                 **{check: sum(r[check] for r in rows) for check in ("recovered", "intact", "cut", "latency")},
                 **({"resumed": sum(r["resumed"] for r in rows)} if "resumed" in rows[0] else {}),
                 "runs": runs,
-                "seconds": [round(r["seconds"], 2) for r in rows],
+                "seconds": [r["seconds"] for r in rows],
+                "waits": sorted({kind for r in rows for kind in r["waits"]}),
+                **({"kills": [r["kill"] for r in rows]} if "kill" in rows[0] else {}),
             }
         scenarios[scenario] = {"payload_bytes": spec["size"], "payload_sha256": sha, **results}
     binary = aria2c()
-    version = subprocess.run([*binary, "--version"], capture_output=True, text=True).stdout.splitlines()[0] if binary else None
-    shutil.rmtree(certificates, ignore_errors=True)
+    version = (subprocess.run([*binary, "--version"], capture_output=True, text=True, timeout=HELPER_DEADLINE)
+               .stdout.splitlines()[0] if binary else None)
     return {"cap_bytes_per_connection": cap,
             "transport": f"HTTPS, a certificate for 127.0.0.1 made per run by {openssl_version()}, trusted through each "
                          "tool's own option", "latency_ms": round(latency * 1000),
@@ -368,8 +408,10 @@ def measure(size: int, cap: int, runs: int, latency: float = 0.02, gigabyte: int
             "scenarios": scenarios, "acceptance": acceptance(scenarios)}
 
 
-# The scenarios D03 T04 §21's bar is judged on; one missing is a bar not met.
+# The scenarios D03 T04 §21's bar is judged on, and the evidence each must carry; one missing is a bar not met.
 REQUIRED = ("drop", "mirror", "gigabyte")
+EVIDENCE = {"drop": ("latency",), "mirror": ("latency",), "gigabyte": ("latency", "resumed")}
+MIN_RUNS = 5
 OURS, THEIRS = "fetch.py (four segments)", "aria2c (four connections)"
 
 
@@ -391,8 +433,8 @@ def acceptance(scenarios: dict, required: tuple[str, ...] = REQUIRED) -> dict:
         ours_net = ours["median_seconds"] - ours.get("startup_seconds", 0.0)
         theirs_net = theirs["median_seconds"] - theirs.get("startup_seconds", 0.0)
         net = ours_net / theirs_net if theirs_net > 0 else float("inf")
-        checks = ["recovered", "cut", "intact"] + [extra for extra in ("resumed", "latency") if extra in ours or extra in theirs]
-        whole = all(row.get(check) == row["runs"] for row in (ours, theirs) for check in checks)
+        checks = ["recovered", "cut", "intact", *EVIDENCE.get(scenario, ("latency",))]
+        whole = all(row["runs"] >= MIN_RUNS and row.get(check) == row["runs"] for row in (ours, theirs) for check in checks)
         met = net < 1.0 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
         verdicts[scenario] = {"met": met, "net_ratio": net, "time_ratio": ratio,
                               "startup": [ours.get("startup_seconds", 0.0), theirs.get("startup_seconds", 0.0)],

@@ -38,8 +38,21 @@ class Harness(unittest.TestCase):
                 self.assertEqual((row["recovered"], row["intact"], row["cut"], row["latency"], row["runs"]), (1, 1, 1, 1, 1),
                                  (scenario, tool))
             self.assertFalse(figures["acceptance"][scenario]["met"])  # aria2c not measured: not met
-        # The gigabyte scenario's first process was killed and a second one finished from what the first had saved.
-        self.assertEqual(figures["scenarios"]["gigabyte"]["fetch.py (four segments)"]["resumed"], 1)
+        # The gigabyte scenario's first process was killed at the server's byte (one 64 KiB piece per connection of
+        # slack) and a second one finished from what the first had saved: none of its requests started at byte 0.
+        giga = figures["scenarios"]["gigabyte"]
+        self.assertEqual(giga["fetch.py (four segments)"]["resumed"], 1)
+        kill = giga["fetch.py (four segments)"]["kills"][0]
+        kill_at = giga["payload_bytes"] // 8
+        self.assertGreaterEqual(kill["at_kill"], kill_at)
+        self.assertLess(kill["at_kill"], kill_at + 8 * 65536)
+        self.assertTrue(kill["second_starts"])
+        self.assertGreater(min(kill["second_starts"]), 0)
+        self.assertLess(kill["second_bytes"], giga["payload_bytes"])
+        # Every kind of request paid the measured latency: the HEAD, the ranges, and the failing URL's refusals.
+        self.assertIn("HEAD", figures["scenarios"]["drop"]["fetch.py (four segments)"]["waits"])
+        self.assertIn("GET range", figures["scenarios"]["drop"]["fetch.py (four segments)"]["waits"])
+        self.assertIn("HEAD refused", figures["scenarios"]["mirror"]["fetch.py (four segments)"]["waits"])
         self.assertNotIn("fetch.py (one stream)", figures["scenarios"]["gigabyte"])
         self.assertEqual(figures["scenarios"]["drop"]["fetch.py (one stream)"]["median_refetched_bytes"], 0)
         self.assertIn("aria2c", figures)
@@ -60,9 +73,9 @@ class Harness(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 5)
 
     def test_the_acceptance_line_judges_time_refetch_and_integrity(self):
-        def row(seconds, refetched=0, **counts):
-            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "runs": 5,
-                    **{"recovered": 5, "cut": 5, "intact": 5, **counts}}
+        def row(seconds, refetched=0, runs=5, **counts):
+            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "runs": runs,
+                    **{"recovered": runs, "cut": runs, "intact": runs, "latency": runs, **counts}}
 
         def judged(ours, theirs=None, scenarios=("drop",)):
             theirs = theirs or row(3.31)
@@ -77,8 +90,8 @@ class Harness(unittest.TestCase):
         for check in ("recovered", "cut", "intact"):
             self.assertFalse(judged(row(3.0, **{check: 4}))["drop"]["met"], check)  # ours, one run short
             self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["drop"]["met"], check)  # aria2c's
-        resumed = judged(row(3.0, resumed=5), row(3.31, resumed=4))
-        self.assertFalse(resumed["drop"]["met"])  # aria2c's second process did not resume one run
+        resumed = judged(row(3.0, resumed=5), row(3.31, resumed=4), scenarios=("gigabyte",))
+        self.assertFalse(resumed["gigabyte"]["met"])  # aria2c's second process did not resume one run
         # Start-up is taken off each tool's time before the ratio: 3.30 against 3.25 raw, with 0.12 and 0.01 of
         # start-up, is 3.18 against 3.24 of downloading, and beats it; the raw ratio is kept beside it.
         started = judged(row(3.30, startup_seconds=0.12), row(3.25, startup_seconds=0.01))
@@ -86,6 +99,18 @@ class Harness(unittest.TestCase):
         self.assertGreater(started["drop"]["time_ratio"], 1.0)
         self.assertLess(started["drop"]["net_ratio"], 1.0)
         self.assertFalse(judged(row(3.40, startup_seconds=0.12), row(3.25, startup_seconds=0.01))["drop"]["met"])
+        # Five runs at least, and each scenario's own evidence: a run of one, or a row without its latency or (the
+        # gigabyte scenario) its resume evidence, is no bar met.
+        self.assertFalse(judged(row(3.0, runs=1), row(3.31, runs=1))["drop"]["met"])
+        no_latency = row(3.0)
+        del no_latency["latency"]
+        self.assertFalse(judged(no_latency)["drop"]["met"])
+        self.assertFalse(judged(row(3.0), scenarios=("gigabyte",))["gigabyte"]["met"])  # no `resumed`
+        self.assertTrue(judged(row(3.0, resumed=5), row(3.31, resumed=5), scenarios=("gigabyte",))["gigabyte"]["met"])
+        # Unrounded: 3.3349 and 3.2251 less 0.117 and 0.009 is 1.00056, not a win (rounded first, it read 0.9975).
+        close = judged(row(3.3349, startup_seconds=0.117), row(3.2251, startup_seconds=0.009))
+        self.assertFalse(close["drop"]["met"])
+        self.assertGreater(close["drop"]["net_ratio"], 1.0)
         missing = bench.acceptance({"drop": {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}}, required=("drop", "gigabyte"))
         self.assertFalse(missing["gigabyte"]["met"])
         self.assertFalse(missing["all"]["met"])
@@ -111,7 +136,10 @@ class Harness(unittest.TestCase):
                 if trusted:
                     self.assertEqual(done.returncode, 0, done.stderr[-300:])
                     self.assertEqual(server.delayed, server.requests)
-                    self.assertGreaterEqual(server.requests, 2)  # the HEAD and at least one range, each delayed
+                    self.assertGreaterEqual(server.requests, 2)  # the HEAD and at least one range
+                    # Each paid the latency, measured: a sleep removed from the server would show here.
+                    self.assertGreaterEqual(min(paid for _, paid in server.waits), 0.05 * 0.95)
+                    self.assertEqual({kind for kind, _ in server.waits} >= {"HEAD", "GET range"}, True)
                 else:
                     self.assertNotEqual(done.returncode, 0)
                     self.assertIn("certificate did not verify", json.loads(done.stdout)["reason"])
