@@ -1,7 +1,9 @@
 """scripts/glimmer/fetch_bench.py (D03 T04 §20): the harness measures each tool on the same seeded payload, dropped at
 half its length on its first transfer, and records medians, recovery and integrity with each tool's exact command."""
+import hashlib
 import importlib.util
 import json
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -63,6 +65,42 @@ class Harness(unittest.TestCase):
         missing = bench.acceptance({"drop": {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}}, required=("drop", "gigabyte"))
         self.assertFalse(missing["gigabyte"]["met"])
         self.assertFalse(missing["all"]["met"])
+
+    def test_https_is_verified_and_every_request_waits(self):
+        # The run's certificate is trusted only through each tool's own option: without it, the fetch is refused.
+        folder = Path(tempfile.mkdtemp(prefix="bench-tls-"))
+        tls = bench.make_certificate(folder)
+        body = bench.payload(2 * 1024 * 1024)
+        sha = hashlib.sha256(body).hexdigest()
+        for trusted in (False, True):
+            with self.subTest(trusted=trusted):
+                server = bench.Bench(body, 10**9, tls=tls, latency=0.05)
+                server.dropped = True  # no cut here: this test is about trust and latency
+                threading.Thread(target=server.serve_forever, daemon=True).start()
+                self.addCleanup(lambda s=server: (s.shutdown(), s.server_close()))
+                work = Path(tempfile.mkdtemp(prefix="bench-work-"))
+                (work / "src").mkdir()
+                url = f"https://127.0.0.1:{server.server_address[1]}/x"
+                with mock.patch.object(bench, "aria2c", return_value=None):
+                    command = bench.tools([url], sha, work, ca=tls[0] if trusted else None)["fetch.py (four segments)"]
+                done = subprocess.run(command, cwd=work, capture_output=True, text=True, check=False)
+                if trusted:
+                    self.assertEqual(done.returncode, 0, done.stderr[-300:])
+                    self.assertEqual(server.delayed, server.requests)
+                    self.assertGreaterEqual(server.requests, 2)  # the HEAD and at least one range, each delayed
+                else:
+                    self.assertNotEqual(done.returncode, 0)
+                    self.assertIn("certificate did not verify", json.loads(done.stdout)["reason"])
+        binary = bench.aria2c()
+        if binary:  # where aria2c is installed, it refuses the untrusted certificate too
+            server = bench.Bench(body, 10**9, tls=tls)
+            server.dropped = True
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            self.addCleanup(lambda: (server.shutdown(), server.server_close()))
+            work = Path(tempfile.mkdtemp(prefix="bench-work-"))
+            (work / "src").mkdir()
+            command = bench.tools([f"https://127.0.0.1:{server.server_address[1]}/x"], sha, work)["aria2c (four connections)"]
+            self.assertNotEqual(subprocess.run(command, cwd=work, capture_output=True, check=False).returncode, 0)
 
     def test_the_cut_happens_on_a_piece_boundary(self):
         # A cut point exactly where a 64 KiB piece ends was never cut before (completion review G9): an eighth of

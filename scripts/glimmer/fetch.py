@@ -106,13 +106,14 @@ def _vetted(host: str, port: int, allow_loopback: bool) -> str:
     return addresses[0]
 
 
-def _connect(url: str, timeout: float, allow_loopback: bool, watch=None):
+def _connect(url: str, timeout: float, allow_loopback: bool, watch=None, ca_file: str | None = None):
     """A connection pinned to the vetted address: the name is resolved once, here, and never again by the library."""
     parts = urllib.parse.urlsplit(url)
     port = parts.port or (443 if parts.scheme == "https" else 80)
     address = _vetted(parts.hostname or "", port, allow_loopback)
     if parts.scheme == "https":
-        context = ssl.create_default_context()
+        # Verification is always on; `--ca-file` only adds the authorities a certificate may chain to (a test host).
+        context = ssl.create_default_context(cafile=ca_file)
 
         class Pinned(http.client.HTTPSConnection):
             def connect(self):
@@ -171,7 +172,7 @@ class _Watchdog:
 
 
 def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None,
-             method: str = "GET"):
+             method: str = "GET", ca_file: str | None = None):
     """The final response after at most 5 redirects, each hop checked, with the URL it came from."""
     previous = None
     for _ in range(MAX_REDIRECTS + 1):
@@ -184,7 +185,7 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
             raise _Route(f"refused: {parts.scheme or 'no'} scheme")
         if parts.scheme == "http" and previous is not None and urllib.parse.urlsplit(previous).hostname != parts.hostname:
             raise _Route("refused: a redirect to plain http on another host")
-        connection = _connect(url, timeout, allow_loopback, watch)
+        connection = _connect(url, timeout, allow_loopback, watch, ca_file)
         path = parts.path or "/"
         if parts.query:
             path += f"?{parts.query}"
@@ -194,6 +195,10 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
         except http.client.InvalidURL as error:
             connection.close()
             raise _Route(f"refused: a malformed URL ({error})") from error
+        except ssl.SSLCertVerificationError as error:
+            # Not a passing fault: this host's certificate does not verify, so this URL is refused (another may not).
+            connection.close()
+            raise _Route(f"refused: the certificate did not verify ({error.verify_message})") from error
         except (OSError, http.client.HTTPException) as error:
             connection.close()
             raise _Retry(f"the request failed ({error.__class__.__name__})") from error
@@ -314,6 +319,7 @@ def _folder_bytes(folder: Path) -> int:
 def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int = 5 * 10**9, min_free: int = 10 * 10**9,
           timeout: float = 30.0, attempts: int = 3, min_rate: float = 16 * 1024, rate_window: float = RATE_WINDOW,
           segments: int = 0, segment_threshold: int = SEGMENT_THRESHOLD, mirrors: tuple[str, ...] | list[str] = (),
+          ca_file: str | None = None,
           allow_loopback: bool = False,
           writer=None, sleep=time.sleep, log=lambda line: print(line, file=sys.stderr)) -> dict:
     """The file at `dest`, fetched or found in place. `expected` is (`sha256` or `md5`, its published hex). Raises
@@ -324,6 +330,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     if (attempts < 1 or not math.isfinite(timeout) or timeout <= 0 or source_limit <= 0 or min_free < 0 or min_rate < 0
             or not 0 <= segments <= 4 or segment_threshold < 1):
         raise Refused("refused: --attempts, --timeout, --source-limit, --min-free and --min-rate must be positive")
+    if ca_file is not None and not Path(ca_file).is_file():
+        raise Refused(f"refused: --ca-file {ca_file} is not a readable file")
     target = Path(dest)
     root = Path.cwd().resolve()
     if target.is_absolute() or ".." in target.parts or len(target.parts) != 2 or target.parts[1].startswith("."):
@@ -491,7 +499,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 # which has its own budget and checks.
                 head_watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
-                    connection, response, _ = _request(here(), {}, timeout, allow_loopback, head_watch, method="HEAD")
+                    connection, response, _ = _request(here(), {}, timeout, allow_loopback, head_watch, method="HEAD",
+                                                       ca_file=ca_file)
                     try:
                         status = response.status
                         length = response.getheader("Content-Length") or ""
@@ -581,7 +590,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         try:
                             connection, response, _ = _request(
                                 source, {"Range": f"bytes={first + done}-{last}", "If-Range": state["validator"]}, timeout,
-                                allow_loopback, watch)
+                                allow_loopback, watch, ca_file=ca_file)
                         except _Retry as error:
                             failed(str(error), source=source)
                             continue
@@ -822,7 +831,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     continue
                 watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
-                    connection, response, final_url = _request(here(), headers, timeout, allow_loopback, watch)
+                    connection, response, final_url = _request(here(), headers, timeout, allow_loopback, watch,
+                                                               ca_file=ca_file)
                 except _Route as error:
                     watch.__exit__()
                     drop(error)
@@ -997,13 +1007,14 @@ def main(argv=None) -> int:
     parser.add_argument("--segments", type=int, default=0, help="0: automatic (up to 4 over 64 MiB); 1: one stream")
     parser.add_argument("--segment-threshold", type=int, default=SEGMENT_THRESHOLD, help="the smallest file segmented")
     parser.add_argument("--mirror", action="append", default=[], help="another URL for the same file; repeatable, tried in order")
+    parser.add_argument("--ca-file", help="a PEM file of extra certificate authorities to trust (verification stays on)")
     parser.add_argument("--allow-loopback", action="store_true", help="for the tests' local server only")
     args = parser.parse_args(argv)
     expected = ("sha256", (args.sha256 or "").lower()) if args.sha256 is not None else ("md5", (args.md5 or "").lower())
     try:
         line = fetch(args.url, args.dest, expected, source_limit=args.source_limit, min_free=args.min_free,
                      timeout=args.timeout, attempts=args.attempts, min_rate=args.min_rate, segments=args.segments,
-                     segment_threshold=args.segment_threshold, mirrors=args.mirror,
+                     segment_threshold=args.segment_threshold, mirrors=args.mirror, ca_file=args.ca_file,
                      allow_loopback=args.allow_loopback)
     except Refused as error:
         reason = str(error)

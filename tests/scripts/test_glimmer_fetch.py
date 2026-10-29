@@ -1014,6 +1014,11 @@ class Fetch(unittest.TestCase):
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
 
+    def test_a_missing_ca_file_is_refused_before_anything_connects(self):
+        with self.assertRaisesRegex(fetch.Refused, "--ca-file"):
+            self.run_fetch(ca_file="no-such-ca.pem")
+        self.assertEqual(self.server.requests, 0)
+
     def test_every_json_line_has_a_url(self):
         self.run_fetch()
         self.assertIsNone(self.run_fetch()["url"])  # present: not fetched this run

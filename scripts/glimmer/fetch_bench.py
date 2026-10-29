@@ -19,6 +19,7 @@ than 10 percent slower than aria2c on four connections, refetching no more, and 
 
 import argparse
 import hashlib
+import ssl
 import http.server
 import json
 import os
@@ -46,11 +47,35 @@ def payload(size: int) -> bytes:
     return bytes(out[:size])
 
 
+def make_certificate(folder: Path) -> tuple[Path, Path]:
+    """A self-signed certificate for 127.0.0.1 (its subject alternative name), made by this host's openssl for the
+    run; each tool trusts it through its own option, never by turning verification off."""
+    cert, key = folder / "bench-cert.pem", folder / "bench-key.pem"
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert),
+                    "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"],
+                   check=True, capture_output=True)
+    return cert, key
+
+
+def openssl_version() -> str:
+    return subprocess.run(["openssl", "version"], capture_output=True, text=True, check=False).stdout.strip()
+
+
 class Bench(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, body: bytes, cap: int, failing: bool = False):
+    def __init__(self, body: bytes, cap: int, failing: bool = False, tls: tuple[Path, Path] | None = None,
+                 latency: float = 0.0):
         super().__init__(("127.0.0.1", 0), Handler)
+        if tls is not None:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(str(tls[0]), str(tls[1]))
+            # The handshake happens in each request's own thread, so one slow client never holds the others back.
+            self.socket = context.wrap_socket(self.socket, server_side=True, do_handshake_on_connect=False)
+        self.scheme = "https" if tls is not None else "http"
+        self.latency = latency
+        self.delayed = 0  # requests answered after the added latency: every one of them must be
+        self.requests = 0
         self.body = body
         self.cap = cap
         self.failing = failing
@@ -66,7 +91,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def wait(self):
+        """The added latency, before any answer: every request pays it (the HEAD, each range, each retry)."""
+        with self.server.lock:
+            self.server.requests += 1
+        time.sleep(self.server.latency)
+        with self.server.lock:
+            self.server.delayed += 1
+
     def refuse(self) -> bool:
+        self.wait()
         if not self.server.failing:
             return False
         self.send_response(503)
@@ -146,12 +180,13 @@ def aria2c() -> list[str] | None:
     return [found] if found else None
 
 
-def tools(urls: list[str], sha: str, dest: Path) -> dict[str, list[str]]:
-    """Each tool's command for the URLs (the first, then mirrors), under the one configuration."""
+def tools(urls: list[str], sha: str, dest: Path, ca: Path | None = None) -> dict[str, list[str]]:
+    """Each tool's command for the URLs (the first, then mirrors), under the one configuration; `ca`, the run's
+    certificate, is trusted through each tool's own option."""
     tries = "3" if len(urls) == 1 else "6"
     fetch = [sys.executable, "-I", str(FETCH), "--url", urls[0], "--dest", "src/data.bin", "--sha256", sha,
              "--allow-loopback", "--min-free", "0", "--source-limit", str(10**12), "--attempts", tries, "--timeout", "30",
-             "--min-rate", str(16 * 1024)]
+             "--min-rate", str(16 * 1024)] + (["--ca-file", str(ca)] if ca else [])
     for mirror in urls[1:]:
         fetch += ["--mirror", mirror]
     out = {
@@ -163,7 +198,7 @@ def tools(urls: list[str], sha: str, dest: Path) -> dict[str, list[str]]:
         common = [f"--checksum=sha-256={sha}", f"--max-tries={tries}", "--retry-wait=1", "--lowest-speed-limit=16K",
                   "--connect-timeout=30", "--timeout=30", "--allow-overwrite=true", "--auto-file-renaming=false",
                   "--file-allocation=none", "--console-log-level=error", "--summary-interval=0", "-d", str(dest / "src"),
-                  "-o", "data.bin"]
+                  "-o", "data.bin"] + ([f"--ca-certificate={ca}", "--check-certificate=true"] if ca else [])
         out["aria2c (one connection)"] = [*binary, "-x1", "-s1", *common, *urls]
         out["aria2c (four connections)"] = [*binary, "-x4", "-s4", "-k1M", *common, *urls]
     return out
@@ -176,9 +211,11 @@ def portable(part: str, url: str, work: Path) -> str:
     return part.replace(str(Path.home()), "~")
 
 
-def measure(size: int, cap: int, runs: int) -> dict:
+def measure(size: int, cap: int, runs: int, latency: float = 0.02) -> dict:
     body = payload(size)
     sha = hashlib.sha256(body).hexdigest()
+    certificates = Path(tempfile.mkdtemp(prefix="fetch-bench-tls-"))
+    tls = make_certificate(certificates)
     scenarios = {}
     commands = {}
     for scenario in ("drop", "mirror"):
@@ -186,16 +223,18 @@ def measure(size: int, cap: int, runs: int) -> dict:
         for name in tools(["URL"], sha, Path("DIR")):
             rows = []
             for _ in range(runs):
-                servers = [Bench(body, cap)] if scenario == "drop" else [Bench(body, cap, failing=True), Bench(body, cap)]
+                servers = ([Bench(body, cap, tls=tls, latency=latency)] if scenario == "drop"
+                           else [Bench(body, cap, failing=True, tls=tls, latency=latency), Bench(body, cap, tls=tls, latency=latency)])
                 for server in servers:
                     threading.Thread(target=server.serve_forever, daemon=True).start()
-                urls = [f"http://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
+                urls = [f"{server.scheme}://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
                 work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
                 (work / "src").mkdir()
-                command = tools(urls, sha, work)[name]
+                command = tools(urls, sha, work, ca=tls[0])[name]
                 shown = command
                 for index, address in enumerate(urls):
                     shown = [part.replace(address, "<url>" if index == 0 else f"<mirror {index}>") for part in shown]
+                shown = [part.replace(str(tls[0]), "<certificate>") for part in shown]
                 commands.setdefault(scenario, {})[name] = [portable(part, "<url>", work) for part in shown]
                 began = time.monotonic()
                 done = subprocess.run(command, cwd=work, capture_output=True, text=True, check=False)
@@ -204,7 +243,8 @@ def measure(size: int, cap: int, runs: int) -> dict:
                 intact = got.exists() and hashlib.sha256(got.read_bytes()).hexdigest() == sha
                 sent = sum(server.sent for server in servers)
                 rows.append({"seconds": seconds, "refetched": max(0, sent - size), "recovered": done.returncode == 0,
-                             "intact": intact, "cut": sum(server.drops for server in servers) > 0})
+                             "intact": intact, "cut": sum(server.drops for server in servers) > 0,
+                             "latency": all(server.delayed == server.requests > 0 for server in servers)})
                 for server in servers:
                     server.shutdown()
                     server.server_close()
@@ -215,12 +255,16 @@ def measure(size: int, cap: int, runs: int) -> dict:
                 "recovered": sum(r["recovered"] for r in rows),
                 "intact": sum(r["intact"] for r in rows),
                 "cut": sum(r["cut"] for r in rows),
+                "latency": sum(r["latency"] for r in rows),
                 "runs": runs,
             }
         scenarios[scenario] = results
     binary = aria2c()
     version = subprocess.run([*binary, "--version"], capture_output=True, text=True).stdout.splitlines()[0] if binary else None
+    shutil.rmtree(certificates, ignore_errors=True)
     return {"payload_bytes": size, "payload_sha256": sha, "cap_bytes_per_connection": cap,
+            "transport": f"HTTPS, a certificate for 127.0.0.1 made per run by {openssl_version()}, trusted through each "
+                         "tool's own option", "latency_ms": round(latency * 1000),
             "aria2c": version or "not installed: only fetch.py was measured", "commands": commands,
             "scenarios": scenarios, "acceptance": acceptance(scenarios)}
 
@@ -258,12 +302,13 @@ def main(argv=None) -> int:
     parser.add_argument("--size-mib", type=float, default=96)
     parser.add_argument("--cap-mib", type=float, default=8)
     parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--latency-ms", type=float, default=20, help="added before every answer")
     parser.add_argument("--out", default=str(ROOT / "docs" / "glimmer" / "fetch-bench.json"))
     args = parser.parse_args(argv)
-    if args.size_mib <= 0 or args.cap_mib <= 0 or args.runs < 1:
+    if args.size_mib <= 0 or args.cap_mib <= 0 or args.runs < 1 or args.latency_ms < 0:
         print("--size-mib, --cap-mib and --runs must be positive", file=sys.stderr)
         return 2
-    figures = measure(int(args.size_mib * 1024 * 1024), int(args.cap_mib * 1024 * 1024), args.runs)
+    figures = measure(int(args.size_mib * 1024 * 1024), int(args.cap_mib * 1024 * 1024), args.runs, args.latency_ms / 1000)
     figures["measured"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     out = Path(args.out)
     temporary = out.with_name(f"{out.name}.{os.getpid()}.tmp")
