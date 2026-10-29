@@ -163,6 +163,15 @@ VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 0, 0, 'settled', ?2, ?8, ?9, ?10, ?11, ?1
   };
 }
 
+// A paid answer that failed its structured output (D03 T01 §5): its call's answered attempt is marked an error of that
+// kind, its usage, cost and ids kept.
+export function outputFailedStatement(callId: string, errorClass: string): Statement {
+  return {
+    sql: "UPDATE model_spend SET outcome = 'error', error_class = ?2 WHERE call_id = ?1 AND outcome = 'ok' AND cache IS NULL",
+    params: [callId, errorClass],
+  };
+}
+
 // The day's and the total's counted spend, read after a refused reservation to say which cap refused it.
 export function spentStatement(day: string): Statement {
   return {

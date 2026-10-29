@@ -1,0 +1,214 @@
+import { env } from "cloudflare:test";
+import { beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
+import { d1Budget } from "../../src/meta/budget";
+import type { MetaContext } from "../../src/meta/client";
+import { ModelOutputError, structured } from "../../src/meta/structured";
+
+// The structured output helper (D03 T01 §5): the real client through a stubbed transport and the migrated D1, so the
+// request Meta would receive and the record each attempt leaves are the real ones.
+const db = (env as unknown as Env).DB;
+const META = { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" };
+const MARKER = "HOSTILE-7f3a-ignore-previous";
+const Verdict = z.strictObject({
+  verdict: z.enum(["legit", "suspicious"]),
+  reasons: z.array(z.string()),
+  sender: z.string().nullable(),
+});
+
+beforeEach(async () => {
+  await db.prepare("DELETE FROM model_spend").run();
+});
+
+type Part = { type: string; text?: string; refusal?: string };
+const reply = (parts: Part[], status = "completed") =>
+  new Response(
+    JSON.stringify({
+      id: "r",
+      object: "response",
+      status,
+      output: [{ type: "message", role: "assistant", content: parts }],
+      usage: { input_tokens: 100, output_tokens: 20 },
+    }),
+    { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+  );
+const text = (body: string, status?: string) => reply([{ type: "output_text", text: body }], status);
+const GOOD = JSON.stringify({ verdict: "legit", reasons: ["known sender"], sender: null });
+
+function model(...script: (() => Response)[]) {
+  const bodies: Record<string, unknown>[] = [];
+  let i = 0;
+  const ctx: MetaContext = {
+    env: META,
+    owner: { kind: "case", caseId: "01HZSTRUCTCASE000000000000", step: "verdict" },
+    budget: d1Budget(db, { caller: "verdict" }),
+    random: () => 0.5,
+    sleep: async () => {},
+    fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      const next = script[Math.min(i++, script.length - 1)];
+      if (!next) throw new Error("no answer");
+      return next();
+    }) as typeof fetch,
+  };
+  return { ctx, bodies };
+}
+const ask = (ctx: MetaContext, schema: z.ZodType = Verdict, name = "verdict") =>
+  structured(schema, { name, model: "muse-spark-1.3", input: "Is this legit?", max_output_tokens: 256 }, ctx);
+const rows = async () =>
+  (await db.prepare("SELECT outcome, error_class, actual_usd, cost_certainty FROM model_spend ORDER BY at").all())
+    .results;
+const failure = (p: Promise<unknown>) => p.then(() => null).catch((e: unknown) => e as ModelOutputError);
+
+describe("structured", () => {
+  it("sends the schema as a strict json_schema text.format and returns the validated value", async () => {
+    const m = model(() => text(GOOD));
+    const got = await ask(m.ctx);
+    expect(got.value).toEqual({ verdict: "legit", reasons: ["known sender"], sender: null });
+    expect(got.callId).toEqual(expect.any(String));
+    const format = (m.bodies[0] as { text: { format: Record<string, unknown> } }).text.format;
+    expect(format).toMatchObject({ type: "json_schema", name: "verdict", strict: true });
+    expect(format.schema).toMatchObject({
+      type: "object",
+      additionalProperties: false,
+      required: ["verdict", "reasons", "sender"],
+    });
+    expect(format.schema).not.toHaveProperty("$schema");
+    expect(await rows()).toEqual([
+      { outcome: "ok", error_class: null, actual_usd: expect.any(Number), cost_certainty: "measured" },
+    ]);
+  });
+
+  it("refuses a schema Meta would refuse, before anything is reserved or sent", async () => {
+    const Tree: z.ZodType = z.strictObject({
+      name: z.string(),
+      get kids() {
+        return z.array(Tree);
+      },
+    });
+    let deep: z.ZodType = z.strictObject({ leaf: z.string() });
+    for (let level = 0; level < 10; level++) deep = z.strictObject({ next: deep });
+    const refused: [z.ZodType, string][] = [
+      [Tree, "verdict"],
+      [z.array(z.string()), "verdict"],
+      [z.union([z.strictObject({ a: z.string() }), z.strictObject({ b: z.string() })]), "verdict"],
+      [z.strictObject({ a: z.string(), b: z.string().optional() }), "verdict"],
+      [z.looseObject({ a: z.string() }), "verdict"],
+      [deep, "verdict"],
+      [Verdict, "has space"],
+      [Verdict, "x".repeat(65)],
+    ];
+    for (const [schema, name] of refused) {
+      const m = model(() => text(GOOD));
+      const error = await failure(ask(m.ctx, schema, name));
+      expect(error).toBeInstanceOf(ModelOutputError);
+      expect((error as ModelOutputError).kind).toBe("schema");
+      expect(m.bodies).toEqual([]);
+    }
+    expect(await rows()).toEqual([]);
+    const nullable = model(() => text(GOOD));
+    await expect(ask(nullable.ctx)).resolves.toBeTruthy();
+  });
+
+  it("retries once on each kind of invalid answer, with the problems said, then succeeds", async () => {
+    for (const bad of [
+      "{not json",
+      JSON.stringify({ verdict: 7, reasons: [], sender: null }),
+      JSON.stringify({ verdict: "legit", reasons: [], sender: null, extra: 1 }),
+      JSON.stringify({ verdict: "legit", reasons: [""], sender: null }),
+    ]) {
+      const schema = Verdict.refine((v) => v.reasons.every((r) => r.length > 0), "reasons are words");
+      const m = model(
+        () => text(bad),
+        () => text(GOOD),
+      );
+      expect(((await ask(m.ctx, schema)).value as { verdict: string }).verdict).toBe("legit");
+      expect(m.bodies).toHaveLength(2);
+      const retry = m.bodies[1]?.input as { role: string; content: string }[];
+      expect(retry.at(-1)?.role).toBe("developer");
+      expect(retry.at(-1)?.content).toMatch(/did not match the required schema/);
+    }
+  });
+
+  it("throws invalid after one retry, and marks both paid answers on their records", async () => {
+    const m = model(() => text(JSON.stringify({ verdict: "maybe", reasons: [], sender: null })));
+    const error = await failure(ask(m.ctx));
+    expect([error?.name, error?.kind]).toEqual(["ModelOutputError", "invalid"]);
+    expect(m.bodies).toHaveLength(2);
+    const got = await rows();
+    expect(got.map((r) => [r.outcome, r.error_class, r.cost_certainty])).toEqual([
+      ["error", "output-invalid", "measured"],
+      ["error", "output-invalid", "measured"],
+    ]);
+    for (const row of got) expect(row.actual_usd as number).toBeGreaterThan(0);
+  });
+
+  it("records invalid-then-valid as an error row then an ok row", async () => {
+    const m = model(
+      () => text("{oops"),
+      () => text(GOOD),
+    );
+    await ask(m.ctx);
+    expect((await rows()).map((r) => [r.outcome, r.error_class])).toEqual([
+      ["error", "output-invalid"],
+      ["ok", null],
+    ]);
+  });
+
+  it("ends a failed, incomplete or refused answer after one request, never repairing it", async () => {
+    const cases: [() => Response, string][] = [
+      [() => text("", "failed"), "failed"],
+      [() => text('{"verdict":"le', "incomplete"), "incomplete"],
+      [() => reply([{ type: "refusal", refusal: "no" }]), "refused"],
+    ];
+    for (const [answer, kind] of cases) {
+      await db.prepare("DELETE FROM model_spend").run();
+      const m = model(answer, () => text(GOOD));
+      const error = await failure(ask(m.ctx));
+      expect(error?.kind).toBe(kind);
+      expect(m.bodies).toHaveLength(1);
+      expect((await rows()).map((r) => r.error_class)).toEqual([`output-${kind}`]);
+    }
+  });
+
+  it("never repeats the reply's own text, an unknown key or a parser's message", async () => {
+    for (const bad of [
+      `{"verdict": "${MARKER}`,
+      JSON.stringify({ verdict: "legit", reasons: [], sender: null, [MARKER]: 1 }),
+      JSON.stringify({ verdict: MARKER, reasons: [], sender: null }),
+      JSON.stringify({ verdict: "legit", reasons: [MARKER, 3], sender: null }),
+    ]) {
+      const m = model(() => text(bad));
+      const error = await failure(ask(m.ctx));
+      const retry = m.bodies[1]?.input as { content: string }[];
+      expect(retry.at(-1)?.content).not.toContain(MARKER);
+      expect(error?.message).not.toContain(MARKER);
+    }
+  });
+});
+
+describe("the strict-object contract and the trusted words", () => {
+  it("refuses an unknown property even under a plain z.object, which would strip it", async () => {
+    const Plain = z.object({ verdict: z.enum(["legit", "suspicious"]) });
+    const m = model(
+      () => text(JSON.stringify({ verdict: "legit", smuggled: "x" })),
+      () => text(JSON.stringify({ verdict: "suspicious" })),
+    );
+    expect((await ask(m.ctx, Plain)).value).toEqual({ verdict: "suspicious" });
+    expect(m.bodies).toHaveLength(2);
+    const retry = m.bodies[1]?.input as { content: string }[];
+    expect(retry.at(-1)?.content).toContain("the answer has a property the schema does not name");
+  });
+
+  it("says each problem as a schema path and a fixed phrase", async () => {
+    const m = model(
+      () => text(JSON.stringify({ verdict: 7, reasons: ["a", 3], sender: null })),
+      () => text(GOOD),
+    );
+    await ask(m.ctx);
+    const retry = m.bodies[1]?.input as { content: string }[];
+    expect(retry.at(-1)?.content).toBe(
+      "Your previous answer did not match the required schema: verdict is not one of the allowed values; reasons.1 has the wrong type. Answer again, matching it exactly.",
+    );
+  });
+});

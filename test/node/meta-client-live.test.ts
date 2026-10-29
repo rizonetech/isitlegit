@@ -52,6 +52,7 @@ function world(w: World = {}) {
       uncertain: async () => {},
       refused: async () => {},
       cached: async () => {},
+      outputFailed: async () => {},
     },
     ledger: LEDGER,
     pending: PENDING,
@@ -367,6 +368,7 @@ describe("round 1: the live check keeps each attempt's call record", () => {
       uncertain: async () => {},
       refused: async () => {},
       cached: async () => {},
+      outputFailed: async () => {},
     } as LiveOptions["budget"];
     expect((await runClientLive(options)).code).toBe(0);
     expect(reserved[0]?.[3]).toMatch(/^ledger:/);

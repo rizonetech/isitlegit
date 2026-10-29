@@ -9,6 +9,7 @@ import {
   cachedStatement,
   capEventStatement,
   costStatement,
+  outputFailedStatement,
   ownerColumns,
   refusedStatement,
   reserveStatement,
@@ -147,6 +148,9 @@ export function d1Budget(
           errorClass,
         ),
       ).run();
+    },
+    outputFailed: async (callId, errorClass) => {
+      await run(db, outputFailedStatement(callId, errorClass)).run();
     },
     cached: async (model, call, ms) => {
       const now = new Date();
