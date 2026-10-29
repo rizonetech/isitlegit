@@ -9,6 +9,9 @@ export const CHECK_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/;
 // Names the runner itself writes (D02 T01 §2), which no check may register: a check that threw or ran out of time is
 // one `not_checked` item naming it, never a silence and never a guess.
 export const SYSTEM_CHECKS = ["not_checked"] as const;
+// A check's largest budget: the runner's checks all run inside one attempt of the Workflow's `checks` step, at most 30
+// seconds (`RETRIES` in src/pipeline/analysis-workflow.ts), so a check that needs longer (a model call) is its own step.
+export const MAX_CHECK_MS = 20_000;
 
 export type CheckInput = Exclude<keyof CaseView, "tenant">;
 
@@ -28,8 +31,8 @@ export class CheckRegistry {
     if ((SYSTEM_CHECKS as readonly string[]).includes(check.name))
       throw new TypeError(`${check.name} is written by the runner and cannot be registered`);
     if (this.#checks.has(check.name)) throw new TypeError(`a check named ${check.name} is already registered`);
-    if (!Number.isInteger(check.timeoutMs) || check.timeoutMs < 1)
-      throw new RangeError(`${check.name}'s time budget is a whole number of milliseconds`);
+    if (!Number.isInteger(check.timeoutMs) || check.timeoutMs < 1 || check.timeoutMs > MAX_CHECK_MS)
+      throw new RangeError(`${check.name}'s time budget is a whole number of milliseconds, at most ${MAX_CHECK_MS}`);
     this.#checks.set(check.name, check);
     return check;
   }

@@ -1,9 +1,11 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
 import { describe, expect, it } from "vitest";
+import { SummaryRefused } from "../../src/checks/case-view";
+import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
-import { parsedKey, putRaw, readArtefact, type Store, StoreError } from "../../src/intake/store";
+import { parsedKey, putParsed, putRaw, readArtefact, type Store, StoreError } from "../../src/intake/store";
 import { BudgetExceeded } from "../../src/meta/guard";
 import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
@@ -15,6 +17,7 @@ const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
 // A forward's source, as the admit step answers it for an email case.
 const MAIL = { channel: "email" as const, sourceKind: "mail" as const, headersAvailable: false };
 const ORG = "org-workflow";
+const TENANT = { orgId: ORG, channel: "email" as const };
 
 async function caseWith(raw: Uint8Array | null) {
   const made = await createCase(env.DB, { orgId: ORG, channel: "email", headersAvailable: false });
@@ -130,6 +133,64 @@ function forwardWithMsg(bytes: Uint8Array) {
 }
 
 describe("AnalysisWorkflow", () => {
+  it("stores the checks' evidence, passes on its count, and the verdict reads it back", async () => {
+    const id = await caseWith(forwards["attached-rfc822"]);
+    const instance = await introspectWorkflowInstance(env.ANALYSIS, id);
+    try {
+      await instance.modify(async (m) => {
+        await m.disableRetryDelays();
+        await m.disableSleeps();
+      });
+      await env.ANALYSIS.create({ id, params: { caseId: id } });
+      await instance.waitForStatus("complete");
+      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 1 });
+      expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
+        view: STUB_VERDICT,
+        evidence: [{ id: "E1", check: "intake.forward" }],
+      });
+    } finally {
+      await instance.dispose();
+    }
+    expect(await readEvidence(env.DB, id)).toMatchObject([
+      { id: "E1", check: "intake.forward", severity: "info", detail: { path: "rfc822", otherOriginals: 0 } },
+    ]);
+  });
+
+  it("hands the verdict this case's stored evidence in its order, not_checked lines included", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    const other = await caseWith(forwards["inline-forward"]);
+    const line = (check: string, n: number) => ({
+      check,
+      severity: "info" as const,
+      summary: `Line ${n}.`,
+      detail: { n },
+      artefacts: [],
+    });
+    await saveEvidence(env.DB, other, [line("intake.forward", 9)]);
+    await saveEvidence(env.DB, id, [line("intake.forward", 1), line("not_checked", 2), line("intake.truncated", 3)]);
+    const instance = await introspectWorkflowInstance(env.ANALYSIS, id);
+    try {
+      await instance.modify(async (m) => {
+        await m.disableRetryDelays();
+        await m.disableSleeps();
+        // The checks step's own write is replaced by the list stored above.
+        await m.mockStepResult({ name: "checks" }, { evidence: 3 });
+      });
+      await env.ANALYSIS.create({ id, params: { caseId: id } });
+      await instance.waitForStatus("complete");
+      expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
+        view: STUB_VERDICT,
+        evidence: [
+          { id: "E1", check: "intake.forward" },
+          { id: "E2", check: "not_checked" },
+          { id: "E3", check: "intake.truncated" },
+        ],
+      });
+    } finally {
+      await instance.dispose();
+    }
+  });
+
   it("ends an inline forward done with the stub verdict, two events a step, and the reply before done", async () => {
     const id = await caseWith(forwards["inline-forward"]);
     const { reply } = await run(id);
@@ -415,7 +476,7 @@ describe("round 1 cases", () => {
       await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
       await m.mockStepResult({ name: "parse" }, parsedKey(id));
       await m.mockStepResult({ name: "checks" }, { evidence: [] });
-      await m.mockStepResult({ name: "verdict" }, STUB_VERDICT);
+      await m.mockStepResult({ name: "verdict" }, { view: STUB_VERDICT, evidence: [] });
       await m.mockStepResult({ name: "store" }, "stored");
     });
     expect((await events(id)).map((e) => `${e.step}:${e.status}`)).toEqual([
@@ -487,7 +548,22 @@ describe("final review cases", () => {
 describe("the checks step and the event writer", () => {
   it("fails checks given a key with no summary", async () => {
     const id = await caseWith(null);
-    await expect(checks(store, id, parsedKey(id))).rejects.toThrow(/not stored/);
+    await expect(checks(store, id, parsedKey(id), TENANT)).rejects.toThrow(/not stored/);
+  });
+
+  it("fails checks on a summary of neither shape, storing no evidence", async () => {
+    const id = await caseWith(null);
+    await putParsed(store, id, { forward: { path: "carrier-pigeon" } });
+    await expect(checks(store, id, parsedKey(id), TENANT)).rejects.toThrow(SummaryRefused);
+    expect(await readEvidence(env.DB, id)).toEqual([]);
+  });
+
+  it("stores one list however often the step runs, and returns only its count", async () => {
+    const id = await caseWith(forwards["attached-rfc822"]);
+    await parse(store, id, MAIL);
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 1 });
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 1 });
+    expect((await readEvidence(env.DB, id)).map((e) => [e.id, e.check])).toEqual([["E1", "intake.forward"]]);
   });
 
   it("answers a database refusal, and stores only an error class", async () => {
