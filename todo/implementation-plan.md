@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 316
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 356
+Sections: 42 | Checklist items: 359
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -72,7 +72,7 @@ Sections: 42 | Checklist items: 356
 | [x]    | D01 T01 §6  | Outlook .msg parsing                      | none                  | 6     |
 | [x]    | D01 T01 §7  | AnalysisWorkflow skeleton, partials       | none                  | 12    |
 | [x]    | D01 T02 §3  | Threaded reply with a signed report link  | none                  | 12    |
-| [ ]    | D01 T02 §8  | Re-deliver a reply settled failed         | none                  | 3     |
+| [ ]    | D01 T02 §8  | Re-deliver a reply settled failed         | none                  | 4     |
 | [x]    | D01 T03 §1  | Upload API for mail, documents and audio  | none                  | 9     |
 | [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
@@ -81,7 +81,7 @@ Sections: 42 | Checklist items: 356
 | [x]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
 | [x]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 12    |
-| [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 6     |
+| [x]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 8     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
 | [x]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 12    |
@@ -205,7 +205,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 245
+Sections: 59 | Checklist items: 247
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -248,7 +248,7 @@ Sections: 59 | Checklist items: 245
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
 | [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
-| [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 3     |
+| [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
@@ -271,7 +271,7 @@ Sections: 59 | Checklist items: 245
 
 ### Phase 7: After the event
 
-Sections: 20 | Checklist items: 119
+Sections: 21 | Checklist items: 123
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -294,6 +294,7 @@ Sections: 20 | Checklist items: 119
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 8     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
+| [ ]    | D07 T04 §6  | MSP console and own branding                     | none     | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
 
 ### Phase 99: Manual, operator only
@@ -318,6 +319,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 65/249 verified sections, 27 ready to run now.
+Progress: 66/250 verified sections, 27 ready to run now.
 
-Checklist: 734/1540 items completed (includes Commit items).
+Checklist: 742/1549 items completed (includes Commit items).
