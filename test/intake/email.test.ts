@@ -853,21 +853,3 @@ describe("the Worker's email handler", () => {
     expect(await workflowExists(made?.id as string)).toBe(true);
   });
 });
-
-describe("the live raw-store fault (D01 T01 §9)", () => {
-  it("fails the store for the one named sender only, undoes the admission and asks Email Routing to retry", async () => {
-    const named = await member();
-    const other = await member();
-    const lines: string[] = [];
-    const faulty = { ...mailEnv, INTAKE_FAULT_SENDER: named.from.toUpperCase() };
-    const thrown = await handleEmail(message(named.from).forwardable, faulty, new Date(), (l) => lines.push(l)).catch(
-      (e: unknown) => e,
-    );
-    expect((thrown as Error).name).toBe("RetryDelivery");
-    expect(await casesOf(named.orgId)).toEqual([]);
-    expect(JSON.parse(lines.at(-1) ?? "{}")).toEqual({ event: "intake", outcome: "retry", error: "RetryDelivery" });
-    expect((await handleEmail(message(other.from).forwardable, faulty)).kind).toBe("admitted");
-    // Unset, the named sender's forward is admitted as any other.
-    expect((await handleEmail(message(named.from).forwardable, mailEnv)).kind).toBe("admitted");
-  });
-});

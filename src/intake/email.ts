@@ -101,12 +101,7 @@ async function intake(
       headersAvailable: false,
       forwardedBy: from,
       messageId,
-      store: async (caseId) => {
-        // D01 T01 §9's live fault: the raw store fails for the one sender the deployed variable names, and no other.
-        if (env.INTAKE_FAULT_SENDER && from === env.INTAKE_FAULT_SENDER.trim().toLowerCase())
-          throw new Error("the raw store failed (INTAKE_FAULT_SENDER, D01 T01 §9)");
-        await putRaw(store(env), caseId, raw);
-      },
+      store: (caseId) => putRaw(store(env), caseId, raw).then(() => {}),
     },
     now,
   );
