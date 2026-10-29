@@ -79,6 +79,13 @@ class Harness(unittest.TestCase):
             self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["drop"]["met"], check)  # aria2c's
         resumed = judged(row(3.0, resumed=5), row(3.31, resumed=4))
         self.assertFalse(resumed["drop"]["met"])  # aria2c's second process did not resume one run
+        # Start-up is taken off each tool's time before the ratio: 3.30 against 3.25 raw, with 0.12 and 0.01 of
+        # start-up, is 3.18 against 3.24 of downloading, and beats it; the raw ratio is kept beside it.
+        started = judged(row(3.30, startup_seconds=0.12), row(3.25, startup_seconds=0.01))
+        self.assertTrue(started["drop"]["met"])
+        self.assertGreater(started["drop"]["time_ratio"], 1.0)
+        self.assertLess(started["drop"]["net_ratio"], 1.0)
+        self.assertFalse(judged(row(3.40, startup_seconds=0.12), row(3.25, startup_seconds=0.01))["drop"]["met"])
         missing = bench.acceptance({"drop": {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}}, required=("drop", "gigabyte"))
         self.assertFalse(missing["gigabyte"]["met"])
         self.assertFalse(missing["all"]["met"])

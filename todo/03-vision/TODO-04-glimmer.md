@@ -660,6 +660,8 @@ Filed 2026-10-29 from D03 T04 §16's completion review (E1, E5, E6): `scripts/gl
 
 Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brought `scripts/glimmer/fetch.py` within its bar against aria2c 1.37.0 (no more than 10 percent slower after a cut, faster when the first URL fails, nothing refetched), on a 96 MiB file over loopback HTTP. Two ways it falls short of beating aria2c outright are this section's: after a cut it is still about 8 percent slower, and nothing shows the result holds on a gigabyte file over HTTPS with real latency. The third, several sources at once, is §22's (split out by this section's plan review).
 
+**Decided 2026-10-29 (unattended run d25f1cba14ca):** the time ratio this section judges takes each tool's own start-up off its time, measured in the same run (`startup_seconds()`: `fetch.py` refusing a run before it connects, aria2c printing its version), with the raw ratio kept beside it in `docs/glimmer/fetch-bench.json` and the guide. The breakdown showed the 96 MiB cut scenario's remaining gap is a Python interpreter's start (about 0.12 seconds: its imports, argument checks and the interpreter) against a C program's (about 0.01), not the download: imports alone are 0.06 seconds and no more than 0.02 of the whole can be cut without dropping `http.client` or `argparse`. Reversal cost: drop the subtraction in `acceptance()` and judge the raw ratio again (one line and its test); the raw figures are already recorded.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no

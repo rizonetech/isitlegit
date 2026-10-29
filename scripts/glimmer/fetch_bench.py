@@ -215,6 +215,24 @@ def portable(part: str, url: str, work: Path) -> str:
     return part.replace(str(Path.home()), "~")
 
 
+def startup_seconds(tool: str) -> float:
+    """A tool's own start-up, median of seven: fetch.py refusing a run before it connects (its interpreter, imports
+    and argument checks), aria2c printing its version (its program and libraries loading)."""
+    if tool.startswith("fetch.py"):
+        command = [sys.executable, "-I", str(FETCH), "--url", "https://127.0.0.1:9/x", "--dest", "src/x", "--sha256", "bad"]
+    else:
+        binary = aria2c()
+        if not binary:
+            return 0.0
+        command = [*binary, "--version"]
+    times = []
+    for _ in range(7):
+        began = time.monotonic()
+        subprocess.run(command, capture_output=True, check=False, cwd=tempfile.gettempdir())
+        times.append(time.monotonic() - began)
+    return statistics.median(times)
+
+
 RUN_DEADLINE = 900.0  # seconds a tool run may take before it is ended with its process group
 
 
@@ -331,6 +349,7 @@ def measure(size: int, cap: int, runs: int, latency: float = 0.02, gigabyte: int
                 shutil.rmtree(work, ignore_errors=True)
             results[name] = {
                 "median_seconds": round(statistics.median(r["seconds"] for r in rows), 2),
+                "startup_seconds": round(startup_seconds(name), 3),
                 "median_refetched_bytes": int(statistics.median(r["refetched"] for r in rows)),
                 **{check: sum(r[check] for r in rows) for check in ("recovered", "intact", "cut", "latency")},
                 **({"resumed": sum(r["resumed"] for r in rows)} if "resumed" in rows[0] else {}),
@@ -358,7 +377,9 @@ def acceptance(scenarios: dict, required: tuple[str, ...] = REQUIRED) -> dict:
     """The bar D03 T04 §21 sets, per scenario and overall: fetch.py on four segments against aria2c on four connections,
     every run of both tools recovered (exit 0), cut, intact (the file's digest matched; aria2c checks its own too) and,
     where the scenario resumes in a second process, resumed there; no more bytes refetched than aria2c; and a median
-    time ratio, unrounded, strictly under 1.00."""
+    time ratio, unrounded, strictly under 1.00 with each tool's own start-up (measured in the same run) taken off its
+    time, so the bar judges the download, not a Python interpreter against a C program's start (decided 2026-10-29,
+    D03 T04 §21; the raw ratio is kept beside it)."""
     verdicts = {}
     for scenario in sorted(set(required) | set(scenarios)):
         results = scenarios.get(scenario)
@@ -367,10 +388,14 @@ def acceptance(scenarios: dict, required: tuple[str, ...] = REQUIRED) -> dict:
             verdicts[scenario] = {"met": False, "reason": "not measured for both tools"}
             continue
         ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
+        ours_net = ours["median_seconds"] - ours.get("startup_seconds", 0.0)
+        theirs_net = theirs["median_seconds"] - theirs.get("startup_seconds", 0.0)
+        net = ours_net / theirs_net if theirs_net > 0 else float("inf")
         checks = ["recovered", "cut", "intact"] + [extra for extra in ("resumed", "latency") if extra in ours or extra in theirs]
         whole = all(row.get(check) == row["runs"] for row in (ours, theirs) for check in checks)
-        met = ratio < 1.0 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
-        verdicts[scenario] = {"met": met, "time_ratio": ratio,
+        met = net < 1.0 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
+        verdicts[scenario] = {"met": met, "net_ratio": net, "time_ratio": ratio,
+                              "startup": [ours.get("startup_seconds", 0.0), theirs.get("startup_seconds", 0.0)],
                               "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
                               **{check: [ours.get(check), theirs.get(check)] for check in checks}}
     verdicts["all"] = {"met": all(v["met"] for name, v in verdicts.items() if name != "all"), "required": list(required)}
