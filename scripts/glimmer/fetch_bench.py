@@ -225,24 +225,31 @@ def measure(size: int, cap: int, runs: int) -> dict:
             "scenarios": scenarios, "acceptance": acceptance(scenarios)}
 
 
-def acceptance(scenarios: dict) -> dict:
-    """The bar D03 T04 §20 set, judged per scenario: fetch.py on four segments against aria2c on four connections."""
+# The scenarios D03 T04 §21's bar is judged on; one missing is a bar not met.
+REQUIRED = ("drop", "mirror", "gigabyte")
+OURS, THEIRS = "fetch.py (four segments)", "aria2c (four connections)"
+
+
+def acceptance(scenarios: dict, required: tuple[str, ...] = REQUIRED) -> dict:
+    """The bar D03 T04 §21 sets, per scenario and overall: fetch.py on four segments against aria2c on four connections,
+    every run of both tools recovered (exit 0), cut, intact (the file's digest matched; aria2c checks its own too) and,
+    where the scenario resumes in a second process, resumed there; no more bytes refetched than aria2c; and a median
+    time ratio, unrounded, strictly under 1.00."""
     verdicts = {}
-    for scenario, results in scenarios.items():
-        ours, theirs = results.get("fetch.py (four segments)"), results.get("aria2c (four connections)")
+    for scenario in sorted(set(required) | set(scenarios)):
+        results = scenarios.get(scenario)
+        ours, theirs = (results or {}).get(OURS), (results or {}).get(THEIRS)
         if ours is None or theirs is None:
-            verdicts[scenario] = {"met": None, "reason": "aria2c was not measured"}
+            verdicts[scenario] = {"met": False, "reason": "not measured for both tools"}
             continue
         ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
-        # Every run of both tools must have been cut: a run the server never interrupted proves no recovery.
-        # Every compared run must have recovered (exit 0) and been cut, for both tools, and ours left the file intact.
-        whole = all(row.get("recovered") == row["runs"] and row.get("cut") == row["runs"] for row in (ours, theirs))
-        met = (ratio <= 1.10 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"]
-               and ours["intact"] == ours["runs"] and whole)
-        verdicts[scenario] = {"met": met, "time_ratio": round(ratio, 3),
+        checks = ["recovered", "cut", "intact"] + (["resumed"] if "resumed" in ours or "resumed" in theirs else [])
+        whole = all(row.get(check) == row["runs"] for row in (ours, theirs) for check in checks)
+        met = ratio < 1.0 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
+        verdicts[scenario] = {"met": met, "time_ratio": ratio,
                               "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
-                              "intact": [ours["intact"], ours["runs"]], "cut": [ours.get("cut"), theirs.get("cut")],
-                              "recovered": [ours.get("recovered"), theirs.get("recovered")]}
+                              **{check: [ours.get(check), theirs.get(check)] for check in checks}}
+    verdicts["all"] = {"met": all(v["met"] for name, v in verdicts.items() if name != "all"), "required": list(required)}
     return verdicts
 
 

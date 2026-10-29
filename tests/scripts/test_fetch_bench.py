@@ -32,7 +32,7 @@ class Harness(unittest.TestCase):
                 self.assertEqual((row["recovered"], row["intact"], row["cut"], row["runs"]), (1, 1, 1, 1), (scenario, tool))
             # A resume refetches nothing: the server sent one copy of the file in all.
             self.assertEqual(figures["scenarios"][scenario]["fetch.py (one stream)"]["median_refetched_bytes"], 0)
-            self.assertIsNone(figures["acceptance"][scenario]["met"])
+            self.assertFalse(figures["acceptance"][scenario]["met"])  # aria2c not measured: not met
         self.assertIn("not installed", figures["aria2c"])
         recorded = json.dumps(figures["commands"])
         self.assertIn("<url>", recorded)
@@ -41,21 +41,28 @@ class Harness(unittest.TestCase):
         self.assertIn("<repo>/scripts/glimmer/fetch.py", recorded)
 
     def test_the_acceptance_line_judges_time_refetch_and_integrity(self):
-        def row(seconds, refetched, intact, cut=5, recovered=5):
-            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "intact": intact, "cut": cut,
-                    "recovered": recovered, "runs": 5}
+        def row(seconds, refetched=0, **counts):
+            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "runs": 5,
+                    **{"recovered": 5, "cut": 5, "intact": 5, **counts}}
 
-        judged = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.5, 0, 5), "aria2c (four connections)": row(3.31, 65536, 5)},
-                                   "mirror": {"fetch.py (four segments)": row(4.0, 0, 5), "aria2c (four connections)": row(3.31, 0, 5)}})
-        self.assertTrue(judged["drop"]["met"])
-        self.assertFalse(judged["mirror"]["met"])  # 21 percent slower
-        uncut = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.0, 0, 5, cut=0),
-                                           "aria2c (four connections)": row(3.31, 0, 5)}})
-        self.assertFalse(uncut["drop"]["met"])  # never interrupted: no recovery was measured
-        for ours, theirs in ((0, 5), (5, 0)):
-            failed = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.0, 0, 5, recovered=ours),
-                                                "aria2c (four connections)": row(3.31, 0, 5, recovered=theirs)}})
-            self.assertFalse(failed["drop"]["met"])  # a run that did not exit 0 is no recovery, whoever's it was
+        def judged(ours, theirs=None, scenarios=("drop",)):
+            theirs = theirs or row(3.31)
+            return bench.acceptance({name: {bench.OURS: ours, bench.THEIRS: theirs} for name in scenarios},
+                                    required=scenarios)
+
+        self.assertTrue(judged(row(3.0))["drop"]["met"])
+        self.assertTrue(judged(row(3.0))["all"]["met"])
+        self.assertFalse(judged(row(3.31))["drop"]["met"])  # a ratio of exactly 1.00 does not beat aria2c
+        self.assertFalse(judged(row(3.3101))["drop"]["met"])  # unrounded: just above 1.00 fails
+        self.assertFalse(judged(row(3.0, refetched=1))["drop"]["met"])  # more refetched than aria2c
+        for check in ("recovered", "cut", "intact"):
+            self.assertFalse(judged(row(3.0, **{check: 4}))["drop"]["met"], check)  # ours, one run short
+            self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["drop"]["met"], check)  # aria2c's
+        resumed = judged(row(3.0, resumed=5), row(3.31, resumed=4))
+        self.assertFalse(resumed["drop"]["met"])  # aria2c's second process did not resume one run
+        missing = bench.acceptance({"drop": {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}}, required=("drop", "gigabyte"))
+        self.assertFalse(missing["gigabyte"]["met"])
+        self.assertFalse(missing["all"]["met"])
 
     def test_the_cut_happens_on_a_piece_boundary(self):
         # A cut point exactly where a 64 KiB piece ends was never cut before (completion review G9): an eighth of
