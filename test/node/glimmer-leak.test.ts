@@ -28,7 +28,9 @@ import { hasImages } from "../../scripts/glimmer/redact.ts";
 import {
   CONTROLS,
   DISCOVERY,
+  dictionary,
   KINDS,
+  renderRedactedBy,
   runBenchmark,
   seedPages,
   survives,
@@ -622,6 +624,30 @@ describe("the redaction benchmark", () => {
     expect(
       unlistedSurvives({ kind: "postal address", value: "14 Jacaranda Street, Parkhurst" }, "Deliver to [address]"),
     ).toBe(false);
+  }, 120_000);
+
+  it("runs the importer's path with only the redaction step swapped: the dictionary through it equals renderRedacted", async () => {
+    const { pages, names, terms, domains } = seedPages(8);
+    const outcome = (run: () => Promise<{ text: string }>) =>
+      run().then(
+        (page) => page.text,
+        (error: Error) => error.message,
+      );
+    for (const page of pages) {
+      const viaImporter = await outcome(() => renderRedacted(render, page.html, names, terms, domains));
+      const viaBenchmark = await outcome(() =>
+        renderRedactedBy(dictionary, render, page.html, { names, terms, domains }),
+      );
+      expect(viaBenchmark).toBe(viaImporter);
+    }
+    // Another redactor meets the same refusals: one that changes nothing is refused where its page still shows a detail.
+    let refused = 0;
+    for (const page of pages)
+      refused += await renderRedactedBy(async (html) => html, render, page.html, { names, terms, domains }).then(
+        () => 0,
+        (error: Error) => (/^refused: /.test(error.message) ? 1 : 0),
+      );
+    expect(refused).toBeGreaterThan(pages.length / 2);
   }, 120_000);
 
   it("counts a render that failed as a failure, never as a refusal", async () => {

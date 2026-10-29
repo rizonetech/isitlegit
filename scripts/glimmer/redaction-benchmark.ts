@@ -10,8 +10,8 @@
 import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { clientDomains, leaks, protectedTerms, renderRedacted } from "./import-samples.ts";
-import { namePieces, skeleton } from "./redact.ts";
+import { clientDomains, leaks, personalDetail, protectedTerms } from "./import-samples.ts";
+import { hasImages, namePieces, redact, skeleton, stripImages } from "./redact.ts";
 import { openTextReader } from "./source-pages.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -232,10 +232,40 @@ export function unlistedSurvives(detail: Unlisted, text: string): boolean {
 
 export type Tally = { seeded: number; refused: number; survived: number; removed: number };
 
+// The redaction step a pipeline uses, given the same lists the importer has: the dictionary (`redact`), or another
+// tool in its place (§19's head-to-head).
+export type Redactor = (
+  html: string,
+  lists: { names: string[]; terms: string[]; domains: string[] },
+) => Promise<string>;
+export const dictionary: Redactor = async (html, lists) => redact(html, lists.names, lists.domains);
+
+// `renderRedacted()`'s path with only the redaction step swapped: the same image rule before and after, the same inert
+// render, the same post-render refusals. With `dictionary` it gives what `renderRedacted()` gives (a test holds the
+// two equal on every seeded page), so a pipeline compared here differs from the importer's in its redaction step alone.
+export async function renderRedactedBy<T extends { text: string; drawn?: string }>(
+  redactor: Redactor,
+  render: (html: string) => Promise<T>,
+  html: string,
+  lists: { names: string[]; terms: string[]; domains: string[] },
+): Promise<T> {
+  const clean = await redactor(stripImages(html), lists);
+  if (hasImages(clean)) throw new Error("refused: an image survived the image rule");
+  const page = await render(clean);
+  const shown = page.drawn ? `${page.text}\n${page.drawn}` : page.text;
+  if (leaks([{ id: "page", text: shown }], lists.terms).length)
+    throw new Error("refused: a client detail survived redaction");
+  const kind = personalDetail(shown);
+  if (kind) throw new Error(`refused: ${kind} survived redaction`);
+  return page;
+}
+
 export async function runBenchmark(options: {
   pages: number;
   render: (html: string) => Promise<{ screenshot: Uint8Array; text: string }>;
   ocr?: (screenshots: Uint8Array[]) => Promise<string[]>;
+  // The redaction step under test; the dictionary when left out.
+  redactor?: Redactor;
 }) {
   const { pages, names, terms, domains } = seedPages(options.pages);
   const by = new Map<string, Tally>();
@@ -256,7 +286,11 @@ export async function runBenchmark(options: {
   let failedPages = 0;
   for (const page of pages) {
     try {
-      const shot = await renderRedacted(options.render, page.html, names, terms, domains);
+      const shot = await renderRedactedBy(options.redactor ?? dictionary, options.render, page.html, {
+        names,
+        terms,
+        domains,
+      });
       accepted.push({ shot: shot.screenshot, text: shot.text, seeded: page.seeded, unlisted: page.unlisted });
     } catch (error) {
       // Only the privacy check's own refusals count as refused; a render that failed measured nothing.
