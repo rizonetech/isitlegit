@@ -44,8 +44,10 @@ class Harness(unittest.TestCase):
         self.assertEqual(giga["fetch.py (four segments)"]["resumed"], 1)
         kill = giga["fetch.py (four segments)"]["kills"][0]
         kill_at = giga["payload_bytes"] // 8
-        self.assertGreaterEqual(kill["at_kill"], kill_at)
-        self.assertLess(kill["at_kill"], kill_at + 8 * 65536)
+        # The server rang at its kill byte, within one 64 KiB piece per connection; the kill itself followed it.
+        self.assertGreaterEqual(kill["at_signal"], kill_at)
+        self.assertLess(kill["at_signal"], kill_at + 4 * 65536)
+        self.assertGreaterEqual(kill["at_kill"], kill["at_signal"])
         self.assertTrue(kill["second_starts"])
         self.assertGreater(min(kill["second_starts"]), 0)
         self.assertLess(kill["second_bytes"], giga["payload_bytes"])
@@ -75,42 +77,49 @@ class Harness(unittest.TestCase):
     def test_the_acceptance_line_judges_time_refetch_and_integrity(self):
         def row(seconds, refetched=0, runs=5, **counts):
             return {"median_seconds": seconds, "median_refetched_bytes": refetched, "runs": runs,
-                    **{"recovered": runs, "cut": runs, "intact": runs, "latency": runs, **counts}}
+                    **{"recovered": runs, "cut": runs, "intact": runs, "latency": runs, "resumed": runs, **counts}}
 
-        def judged(ours, theirs=None, scenarios=("drop",)):
+        def judged(ours, theirs=None, scenarios=("gigabyte",)):
             theirs = theirs or row(3.31)
             return bench.acceptance({name: {bench.OURS: ours, bench.THEIRS: theirs} for name in scenarios},
                                     required=scenarios)
 
-        self.assertTrue(judged(row(3.0))["drop"]["met"])
+        self.assertTrue(judged(row(3.0))["gigabyte"]["met"])
         self.assertTrue(judged(row(3.0))["all"]["met"])
-        self.assertFalse(judged(row(3.31))["drop"]["met"])  # a ratio of exactly 1.00 does not beat aria2c
-        self.assertFalse(judged(row(3.3101))["drop"]["met"])  # unrounded: just above 1.00 fails
-        self.assertFalse(judged(row(3.0, refetched=1))["drop"]["met"])  # more refetched than aria2c
+        self.assertFalse(judged(row(3.31))["gigabyte"]["met"])  # a ratio of exactly 1.00 does not beat aria2c
+        self.assertFalse(judged(row(3.3101))["gigabyte"]["met"])  # unrounded: just above 1.00 fails
+        self.assertFalse(judged(row(3.0, refetched=1))["gigabyte"]["met"])  # more refetched than aria2c
         for check in ("recovered", "cut", "intact"):
-            self.assertFalse(judged(row(3.0, **{check: 4}))["drop"]["met"], check)  # ours, one run short
-            self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["drop"]["met"], check)  # aria2c's
+            self.assertFalse(judged(row(3.0, **{check: 4}))["gigabyte"]["met"], check)  # ours, one run short
+            self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["gigabyte"]["met"], check)  # aria2c's
         resumed = judged(row(3.0, resumed=5), row(3.31, resumed=4), scenarios=("gigabyte",))
         self.assertFalse(resumed["gigabyte"]["met"])  # aria2c's second process did not resume one run
         # Start-up is taken off each tool's time before the ratio: 3.30 against 3.25 raw, with 0.12 and 0.01 of
         # start-up, is 3.18 against 3.24 of downloading, and beats it; the raw ratio is kept beside it.
         started = judged(row(3.30, startup_seconds=0.12), row(3.25, startup_seconds=0.01))
-        self.assertTrue(started["drop"]["met"])
-        self.assertGreater(started["drop"]["time_ratio"], 1.0)
-        self.assertLess(started["drop"]["net_ratio"], 1.0)
-        self.assertFalse(judged(row(3.40, startup_seconds=0.12), row(3.25, startup_seconds=0.01))["drop"]["met"])
+        self.assertTrue(started["gigabyte"]["met"])
+        self.assertGreater(started["gigabyte"]["time_ratio"], 1.0)
+        self.assertLess(started["gigabyte"]["net_ratio"], 1.0)
+        self.assertFalse(judged(row(3.40, startup_seconds=0.12), row(3.25, startup_seconds=0.01))["gigabyte"]["met"])
         # Five runs at least, and each scenario's own evidence: a run of one, or a row without its latency or (the
         # gigabyte scenario) its resume evidence, is no bar met.
-        self.assertFalse(judged(row(3.0, runs=1), row(3.31, runs=1))["drop"]["met"])
+        self.assertFalse(judged(row(3.0, runs=1), row(3.31, runs=1))["gigabyte"]["met"])
         no_latency = row(3.0)
         del no_latency["latency"]
-        self.assertFalse(judged(no_latency)["drop"]["met"])
-        self.assertFalse(judged(row(3.0), scenarios=("gigabyte",))["gigabyte"]["met"])  # no `resumed`
-        self.assertTrue(judged(row(3.0, resumed=5), row(3.31, resumed=5), scenarios=("gigabyte",))["gigabyte"]["met"])
+        self.assertFalse(judged(no_latency)["gigabyte"]["met"])
+        no_resume = bench.acceptance({"gigabyte": {bench.OURS: {k: v for k, v in row(3.0).items() if k != "resumed"},
+                                                    bench.THEIRS: row(3.31)}}, required=("gigabyte",))
+        self.assertFalse(no_resume["gigabyte"]["met"])  # no `resumed`
+        # §20's 96 MiB cut scenario is held to §20's bar, 10 percent: a regression guard, not the win.
+        def drop(ours):
+            return bench.acceptance({"drop": {bench.OURS: ours, bench.THEIRS: row(3.25)}}, required=("drop",))["drop"]["met"]
+
+        self.assertTrue(drop(row(3.30)))
+        self.assertFalse(drop(row(3.60)))
         # Unrounded: 3.3349 and 3.2251 less 0.117 and 0.009 is 1.00056, not a win (rounded first, it read 0.9975).
         close = judged(row(3.3349, startup_seconds=0.117), row(3.2251, startup_seconds=0.009))
-        self.assertFalse(close["drop"]["met"])
-        self.assertGreater(close["drop"]["net_ratio"], 1.0)
+        self.assertFalse(close["gigabyte"]["met"])
+        self.assertGreater(close["gigabyte"]["net_ratio"], 1.0)
         missing = bench.acceptance({"drop": {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}}, required=("drop", "gigabyte"))
         self.assertFalse(missing["gigabyte"]["met"])
         self.assertFalse(missing["all"]["met"])

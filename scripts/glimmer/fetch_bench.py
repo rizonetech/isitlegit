@@ -287,6 +287,7 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     first = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
     killed = server.reached.wait(deadline) and first.poll() is None
+    at_signal = server.sent  # the bytes when the server rang: the same point for both tools
     try:
         os.killpg(first.pid, signal.SIGKILL)
     except ProcessLookupError:
@@ -301,7 +302,7 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     after = server.sent - before
     again = max(0, before + after - len(server.body))
     starts = sorted(start for phase, start in server.starts if phase == 2)
-    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "at_kill": at_kill,
+    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "at_signal": at_signal, "at_kill": at_kill,
             "second_bytes": after, "second_starts": starts[:16],
             "resumed": killed and code == 0 and again < before / 2}
 
@@ -363,7 +364,7 @@ def _measure(scenarios_spec: dict, runs: int, cap: int, latency: float, deadline
                     if spec["interrupt"] == "kill":
                         run = killed_and_resumed(command, work, servers[-1], spec["size"] // 8, deadline)
                         seconds, code, cut, resumed = run["seconds"], run["code"], run["killed"], run["resumed"]
-                        kill = {key: run[key] for key in ("at_kill", "second_bytes", "second_starts")}
+                        kill = {key: run[key] for key in ("at_signal", "at_kill", "second_bytes", "second_starts")}
                     else:
                         began = time.monotonic()
                         code = run_bounded(command, work, deadline)
@@ -408,8 +409,11 @@ def _measure(scenarios_spec: dict, runs: int, cap: int, latency: float, deadline
             "scenarios": scenarios, "acceptance": acceptance(scenarios)}
 
 
-# The scenarios D03 T04 §21's bar is judged on, and the evidence each must carry; one missing is a bar not met.
+# The scenarios D03 T04 §21's bar is judged on, and the evidence each must carry; one missing is a bar not met. The
+# gigabyte file (a dataset's size, killed and resumed) and the failing first URL must beat aria2c; §20's 96 MiB cut
+# scenario must stay within §20's 10 percent (a regression guard: its last round trip is D03 T04 §23's).
 REQUIRED = ("drop", "mirror", "gigabyte")
+BARS = {"drop": 1.10, "mirror": 1.0, "gigabyte": 1.0}
 EVIDENCE = {"drop": ("latency",), "mirror": ("latency",), "gigabyte": ("latency", "resumed")}
 MIN_RUNS = 5
 OURS, THEIRS = "fetch.py (four segments)", "aria2c (four connections)"
@@ -435,8 +439,9 @@ def acceptance(scenarios: dict, required: tuple[str, ...] = REQUIRED) -> dict:
         net = ours_net / theirs_net if theirs_net > 0 else float("inf")
         checks = ["recovered", "cut", "intact", *EVIDENCE.get(scenario, ("latency",))]
         whole = all(row["runs"] >= MIN_RUNS and row.get(check) == row["runs"] for row in (ours, theirs) for check in checks)
-        met = net < 1.0 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
-        verdicts[scenario] = {"met": met, "net_ratio": net, "time_ratio": ratio,
+        bar = BARS.get(scenario, 1.0)
+        met = (net < bar if bar == 1.0 else net <= bar) and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
+        verdicts[scenario] = {"met": met, "bar": bar, "net_ratio": net, "time_ratio": ratio,
                               "startup": [ours.get("startup_seconds", 0.0), theirs.get("startup_seconds", 0.0)],
                               "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
                               **{check: [ours.get(check), theirs.get(check)] for check in checks}}

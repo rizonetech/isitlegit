@@ -271,7 +271,7 @@ Sections: 59 | Checklist items: 238
 
 ### Phase 7: After the event
 
-Sections: 18 | Checklist items: 105
+Sections: 18 | Checklist items: 106
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -285,7 +285,7 @@ Sections: 18 | Checklist items: 105
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
 | [ ]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 9     |
 | [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none     | 7     |
-| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 6     |
+| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 7     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -318,4 +318,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 59/247 verified sections, 27 ready to run now.
 
-Checklist: 700/1496 items completed (includes Commit items).
+Checklist: 700/1497 items completed (includes Commit items).
