@@ -704,6 +704,8 @@ Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brough
 
 ## 22. Several healthy mirrors at once
 
+> **Started:** 2026-10-29T11:21Z
+
 Filed 2026-10-29, split out of D03 T04 §21 by its plan review (completion review E2 of D03 T04 §20; plan review gaps 4 to 7 and 9): `scripts/glimmer/fetch.py` uses one URL at a time and moves to the next only on a failure, where aria2c spreads its connections across every source it is given. With two healthy hosts each capped, aria2c gets both hosts' bandwidth and `fetch.py` one.
 
 **Phase:** 7
