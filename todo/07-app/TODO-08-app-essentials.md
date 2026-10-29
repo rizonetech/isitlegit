@@ -124,6 +124,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 1. Build the page from the plan flags and usage. Done when: trial, expired trial and Protect fixtures each render correctly.
 
 - [ ] Build `src/web/pages/settings-plan.tsx` reading `org_limits` and the day's case count. Done when: `test/web/plan.test.ts` checks days left, usage and the feature list.
+- [ ] Read the plan from `planOf` (D07 T02 §8), not `org_limits`: an organisation with no row is on the trial. Done when: the page, the AppShell trial pill and `hasFeature` agree before expiry, at expiry and after an operator change, from persisted data. Source: D07 T02 §8 plan review.
 - [ ] Commit: `web: plan and trial page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` passes.
@@ -145,6 +146,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 1. Build both pages behind `requireAccess`. Done when: a seeded database renders both and an Access-less request is refused.
 
 - [ ] Build `src/web/pages/admin-org.tsx` and `src/web/pages/admin-feedback.tsx` with a "resolved" toggle per feedback item recorded in `feedback.resolved_at`. Done when: `test/web/admin-detail.test.ts` checks content and the toggle.
+- [ ] Give the admin detail page its plan controls (`design/SPEC.md` X2: Extend trial, and the plan), through `setPlan` and `extendTrial` (D07 T02 §8), operator only, reading the plan with `planOf`. Done when: the operator extends a trial and changes a plan from the page, an organisation's own owner is refused, and the next feature check follows. Source: D07 T02 §8 plan review.
 - [ ] Commit: `admin: organisation detail and feedback queue`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails without Access.

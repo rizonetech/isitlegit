@@ -78,6 +78,7 @@ A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, re
 - [ ] Resolve candidates with DoH (`cloudflare-dns.com`, A and AAAA) at most 20 in parallel, and fetch the homepage of new or changed resolving hosts through Browser Run (downloads blocked). Done when: unchanged hosts are not re-fetched in the test.
 - [ ] Monitor only organisations whose plan flag allows it (trial or Protect). Done when: a free organisation is skipped.
 - [ ] Call `wakeGlimmer` (D03 T04 §15) at the start of the run's Workflow, before candidate resolution, so the screener's warm-up overlaps the DNS checks, and screen no page on Glimmer until it answers (added 2026-10-28, operator decision on the tuned Glimmer deployment). Done when: `test/monitor/cron.test.ts` shows the wake request before the first DNS lookup.
+- [ ] Run the daily monitor only for organisations with `monitor` (`hasFeature`, D07 T02 §8). Done when: a lapsed organisation's run makes no DNS or browser request, an entitled one's runs, and removing the check fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `monitor: daily run with DNS liveness and change tracking`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/cron.test.ts` passes.

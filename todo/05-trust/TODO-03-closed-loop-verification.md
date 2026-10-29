@@ -49,6 +49,7 @@ The recipient is the supplier's registered finance contact from code and stored 
 - [ ] Build the request in `src/trust/verify-request.ts` from `verify@isitlegit.co.za` with `Reply-To: verify+<token>@isitlegit.co.za`. Done when: `test/trust/verify-request.test.ts` snapshots it.
 - [ ] Send only to the identity's `finance_contact_email` through the allowlist, once per case. Done when: the test proves the invoice's own contact address is never used. Cheaper substitute: replying to the invoice sender.
 - [ ] Add a `verification.requested` evidence item. Done when: the case shows it.
+- [ ] Send a verification request only while the organisation has `closed-loop` (`hasFeature`, D07 T02 §8), checked when the queued request runs. Done when: an organisation that lapses before its queued request runs sends nothing, an entitled one sends, and removing the check fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `trust: verification request to the registered finance contact`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/verify-request.test.ts` passes and fails if the recipient comes from the invoice.

@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 316
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 353
+Sections: 42 | Checklist items: 356
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -80,8 +80,8 @@ Sections: 42 | Checklist items: 353
 | [x]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
 | [x]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
-| [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 11    |
-| [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
+| [x]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 12    |
+| [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 6     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
 | [x]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 12    |
@@ -175,37 +175,37 @@ Sections: 11 | Checklist items: 48
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 106
+Sections: 23 | Checklist items: 114
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
 | [ ]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 5     |
 | [ ]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 7     |
-| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 5     |
-| [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 4     |
+| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 6     |
+| [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 5     |
-| [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 4     |
+| [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
 | [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 3     |
-| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 5     |
-| [ ]    | D05 T02 §7 | Live signature badge and its copy-paste snippet       | none       | 5     |
+| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 6     |
+| [ ]    | D05 T02 §7 | Live signature badge and its copy-paste snippet       | none       | 6     |
 | [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
 | [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
 | [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 5     |
 | [ ]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 4     |
-| [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 5     |
-| [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 5     |
+| [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
+| [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
 | [ ]    | D06 T01 §5 | Synthetic invoice set with genuine and tampered pairs | none       | 3     |
 | [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 6     |
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
-| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 3     |
+| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 4     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 242
+Sections: 59 | Checklist items: 245
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -219,7 +219,7 @@ Sections: 59 | Checklist items: 242
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 4     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 3     |
 | [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
-| [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 6     |
+| [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
 | [ ]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 4     |
@@ -248,8 +248,8 @@ Sections: 59 | Checklist items: 242
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
 | [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
-| [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 2     |
-| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 2     |
+| [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 3     |
+| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
@@ -317,6 +317,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 63/248 verified sections, 29 ready to run now.
+Progress: 64/248 verified sections, 28 ready to run now.
 
-Checklist: 726/1520 items completed (includes Commit items).
+Checklist: 728/1534 items completed (includes Commit items).

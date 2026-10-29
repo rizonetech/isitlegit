@@ -192,6 +192,8 @@ describe("completion review (2026-10-29)", () => {
     const ip = freshIp();
     const raced = await Promise.all(Array.from({ length: 25 }, (_, i) => confirm(ip, `racing-${i}`)));
     expect(raced.filter((r) => r.status === 429)).toHaveLength(5);
+    // The twenty admitted are each a real verification of a token that is not one (round 5).
+    expect(raced.filter((r) => r.status === 400)).toHaveLength(20);
   });
 
   it("tells a throttled member how to get a new link if theirs runs out while they wait", async () => {
@@ -222,5 +224,33 @@ describe("completion review (2026-10-29)", () => {
     );
     await Promise.allSettled(waits);
     expect(await db.prepare("SELECT 1 FROM rate_limits WHERE key = 'stale'").first()).toBeNull();
+  });
+});
+
+describe("final review (2026-10-29)", () => {
+  it("writes one refusal row per window, however many refusals a flood makes", async () => {
+    restore = stubSmtp2go().restore;
+    const ip = freshIp();
+    const before = await rateRows("per-ip");
+    for (let i = 0; i < LINK_MAX + 10; i++) await askLink(ip);
+    expect(await rateRows("per-ip")).toBe(before + 1);
+  });
+
+  it("limits invite-code signups per IP", async () => {
+    const { SIGNUP_MAX } = await import("../../src/auth/ratelimit");
+    const ip = freshIp();
+    const signup = () =>
+      call("/api/auth/sign-up/invite-code", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+        body: JSON.stringify({
+          email: `s${Math.random().toString(36).slice(2)}@example.org`,
+          code: "no-such-code",
+          organizationName: "X",
+          consent: true,
+        }),
+      });
+    for (let i = 0; i < SIGNUP_MAX; i++) expect((await signup()).status).not.toBe(429);
+    expect((await signup()).status).toBe(429);
   });
 });

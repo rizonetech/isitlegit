@@ -90,6 +90,7 @@ A document case skips the mail checks and runs forensics, extraction and matchin
 
 - [ ] In the Workflow, run only document steps for `source_kind = document` and for mail with an empty body and one PDF or image. Done when: `test/invoice/document-path.test.ts` covers both entries. (**Corrected 2026-10-28**, D01 T03 §1's plan review P1 3: uploads record images as `source_kind = image`, so an uploaded screenshot of a POP takes this route too: `document` or `image`, with PNG, JPEG and WebP payment-document fixtures beside the PDF.)
 - [ ] Add the fixed POP action and the info item "This check can show a document is likely altered. It cannot prove that a payment was made." Done when: every POP case has both.
+- [ ] Gate the payment document path on `payment-document` (`requireFeature` for an upload, `hasFeature` for an emailed document, D07 T02 §8). Done when: a free organisation's upload and emailed document are refused with no processing, an entitled one's run, and removing either gate fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `invoice: standalone payment document path`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/document-path.test.ts` passes and fails if a POP case lacks the limit statement.
