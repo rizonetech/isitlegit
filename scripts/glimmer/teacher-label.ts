@@ -464,10 +464,11 @@ export async function teach(options: {
             : unsaved
               ? `the ledger could not be written: ${unsaved}`
               : "the Meta budget could not be reached";
-        // An attempt before it was refused may have been sent: the page is failed, its spend in the ledger as it stood.
+        // An attempt before the refused one was sent, and may have reached Meta with its answer lost: like any lost
+        // answer, the page is quarantined (its spend in the ledger as it stood). Nothing sent: refused, asked again.
         const sent = [...entries.keys()].some((id) => !released.has(id));
         outcome = sent
-          ? { status: "failed", reason: `a retry was refused: ${stop}` }
+          ? { status: "quarantined", reason: `a retry was refused after an attempt was sent: ${stop}` }
           : { status: "refused", reason: stop };
       }
       // The request may have reached Meta and its answer been lost on the way back (a cut connection, a settlement

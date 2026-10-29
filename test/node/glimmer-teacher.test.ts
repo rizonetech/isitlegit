@@ -376,8 +376,8 @@ describe("the teacher's calls through main's budget guard", () => {
     const ledger = readLedger(ledgerFile);
     expect(ledger.filter((e) => e.run === "teacher-guard").map((e) => e.state)).toEqual(["uncertain"]);
     expect(glimmerSpend(ledger)).toBeLessThanOrEqual(20);
-    // The page was sent once and is not sent again.
-    expect([...readTeacherState(join(dir, "store")).values()][0]).toMatchObject({ status: "failed" });
+    // The page was sent once, may have been answered, and is not sent again: quarantined (round 2).
+    expect([...readTeacherState(join(dir, "store")).values()][0]).toMatchObject({ status: "quarantined" });
   });
 });
 
