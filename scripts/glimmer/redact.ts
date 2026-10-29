@@ -148,11 +148,34 @@ export function decodeTextEntities(html: string): string {
 
 const IMAGE_TAG = /<(?:img|image|object|embed|picture|source|video|audio|input\s[^>]*type\s*=\s*["']?image)\b[^>]*>/gi;
 
+// CSS escapes read as what they stand for (`\\75rl` is `url`, `\\3a ` is `:`), in every style block and attribute, so
+// the picture rules see the CSS the browser will read (CSS Syntax 3, section 4.3.7).
+export function unescapeCss(html: string): string {
+  const decode = (css: string) =>
+    css.replace(/\\([0-9a-f]{1,6})[ \t\r\n\f]?|\\([^\r\n\f0-9a-f])/gi, (_m, hex: string, char: string) => {
+      if (char !== undefined) return char;
+      const point = Number.parseInt(hex, 16);
+      return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+        ? String.fromCodePoint(point)
+        : "\uFFFD";
+    });
+  return html
+    .replace(
+      /(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi,
+      (_m, open: string, css: string, close: string) => open + decode(css) + close,
+    )
+    .replace(/(\sstyle\s*=\s*)("([^"]*)"|'([^']*)')/gi, (_m, name: string, _q: string, dq?: string, sq?: string) =>
+      dq !== undefined ? `${name}"${decode(dq)}"` : `${name}'${decode(sq ?? "")}'`,
+    );
+}
+
 // Every picture out of the HTML before it is rendered: an `<img>` becomes a grey box of its size (so the layout a lure
 // draws stays), other embedded media go, and CSS images and `background` attributes are dropped.
 export function stripImages(html: string): string {
   return (
-    html
+    unescapeCss(html)
+      // An imported stylesheet can carry pictures of its own: it goes, whatever form its address takes.
+      .replace(/@import\b(?:"[^"]*"|'[^']*'|url\([^)]*\)|[^;"'])*;?/gi, "")
       // Vector artwork (a signature drawn as paths) goes whole, its own text with it.
       .replace(
         /<svg\b[\s\S]*?<\/svg\s*>/gi,
@@ -181,8 +204,8 @@ export function stripImages(html: string): string {
 // Whether any picture is left for a render to draw: checked before every render, so a rule `stripImages` missed is a
 // refusal, never a stored screenshot.
 export function hasImages(html: string): boolean {
-  return /<(?:img|image|svg|object|embed|picture|source|video|audio|iframe|frame|link)\b|url\(\s*["']?\s*(?:data:|cid:|https?:)|image-set\(|data:image\/|content\s*:\s*["']/i.test(
-    html,
+  return /<(?:img|image|svg|object|embed|picture|source|video|audio|iframe|frame|link)\b|url\(\s*["']?\s*(?:data:|cid:|https?:)|image-set\(|data:image\/|content\s*:\s*["']|@import\b/i.test(
+    unescapeCss(html),
   );
 }
 

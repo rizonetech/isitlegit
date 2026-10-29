@@ -135,6 +135,12 @@ describe("stripImages", () => {
     expect(more).not.toMatch(/DDDD|EEEE|iframe|data:image/);
     expect(hasImages(more)).toBe(false);
     expect(hasImages(`<p style='background:image-set("a.png" 1x)'>`)).toBe(true);
+    // CSS escapes that spell url( and data: out of the picture rules' sight, and an imported stylesheet.
+    const escaped = `<div style='width:300px;height:300px;background-image:\\75rl("data\\3a image/png;base64,FFFF")'></div><style>@import "data:text/css;base64,GGGG";.a{background:\\75rl(x.png)}</style>`;
+    expect(hasImages(escaped)).toBe(true);
+    const unescaped = stripImages(escaped);
+    expect(unescaped).not.toMatch(/FFFF|GGGG|x\.png|@import/);
+    expect(hasImages(unescaped)).toBe(false);
   });
 });
 

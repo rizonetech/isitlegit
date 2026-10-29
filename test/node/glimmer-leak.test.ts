@@ -357,7 +357,14 @@ describe("the sample import, end to end", () => {
     } as typeof store;
     await expect(runImport({ samples, store: dying, render })).rejects.toThrow(/killed/);
     for (const source of Object.values(SOURCES)) expect(sourceStatus(store, source)).toBe("running");
-    expect(redactionState(store).key).toBeNull();
+    expect(redactionState(store)).toMatchObject({ key: null, cleaned: false });
+    // The retry removes the old pages again before it skips anything, so none made under the old rules survives.
+    const lines: string[] = [];
+    expect((await runImport({ samples, store, render, log: (l) => lines.push(l) })).code).toBe(0);
+    expect(lines.some((l) => /earlier pages removed/.test(l))).toBe(true);
+    for (const page of store.manifest().filter((p) => p.origin === "samples"))
+      expect(store.readPage(page.id).text).not.toMatch(/FNB Online/);
+    expect(redactionState(store)).toMatchObject({ building: null, cleaned: true });
   }, 240_000);
 
   it("publishes nothing as complete when a step after the import fails", async () => {

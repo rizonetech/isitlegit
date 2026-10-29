@@ -375,12 +375,12 @@ export function redactionKey(samples: string, files: string[] = messageFiles(sam
 
 // `raw/samples/REDACTION.json`: `key`, the redaction the stored pages were all made under (null while none is whole),
 // and `building`, the one a rebuild under way is making them under. An interrupted rebuild keeps its finished pages.
-type RedactionState = { key: string | null; building: string | null; at?: string };
+type RedactionState = { key: string | null; building: string | null; cleaned?: boolean; at?: string };
 export function redactionState(store: ReturnType<typeof openStore>): RedactionState {
   const file = join(store.dir, "raw", "samples", "REDACTION.json");
   if (!existsSync(file)) return { key: null, building: null };
   const state = JSON.parse(readFileSync(file, "utf-8")) as Partial<RedactionState>;
-  return { key: state.key ?? null, building: state.building ?? null };
+  return { key: state.key ?? null, building: state.building ?? null, cleaned: state.cleaned === true };
 }
 
 function writeJson(file: string, value: unknown): void {
@@ -480,7 +480,9 @@ export async function runImport(options: {
   const key = redactionKey(samples, files);
   const keyFile = join(store.dir, "raw", "samples", "REDACTION.json");
   const state = redactionState(store);
-  if (state.key !== key && state.building !== key) {
+  // The old pages are gone only once `cleaned` says so: a rebuild whose removal failed removes them again on the
+  // next run, before any page under the new key is skipped as already made.
+  if (state.key !== key && (state.building !== key || !state.cleaned)) {
     // The old pages stop counting before any is touched: both import records and the key say so first, so a run that
     // dies part-way through the removal leaves nothing the dataset builder accepts.
     for (const source of Object.values(SOURCES)) {
@@ -492,8 +494,9 @@ export async function runImport(options: {
           reason: "rebuilding under a changed redaction",
         });
     }
-    writeJson(keyFile, { key: null, building: key, at: new Date().toISOString() });
+    writeJson(keyFile, { key: null, building: key, cleaned: false, at: new Date().toISOString() });
     const removed = Object.values(SOURCES).reduce((sum, source) => sum + store.removeSource(source), 0);
+    writeJson(keyFile, { key: null, building: key, cleaned: true, at: new Date().toISOString() });
     if (removed) log(`samples: the redaction changed; ${removed} earlier pages removed before the import`);
   } else if (state.key !== key) log("samples: resuming the rebuild under the current redaction");
 
@@ -600,7 +603,7 @@ export async function runImport(options: {
         };
     writeImport(join(store.dir, "raw", SOURCES[kind], "IMPORT.json"), whole);
   }
-  if (complete) writeJson(keyFile, { key, building: null, at: new Date().toISOString() });
+  if (complete) writeJson(keyFile, { key, building: null, cleaned: true, at: new Date().toISOString() });
   return { code: complete ? 0 : 1, inventory, results };
 }
 
