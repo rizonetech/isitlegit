@@ -271,7 +271,7 @@ Sections: 59 | Checklist items: 238
 
 ### Phase 7: After the event
 
-Sections: 15 | Checklist items: 82
+Sections: 16 | Checklist items: 89
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -282,7 +282,8 @@ Sections: 15 | Checklist items: 82
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 4     |
-| [ ]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 10    |
+| [ ]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
+| [ ]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 6     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -313,6 +314,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 57/244 verified sections, 28 ready to run now.
+Progress: 57/245 verified sections, 28 ready to run now.
 
-Checklist: 682/1469 items completed (includes Commit items).
+Checklist: 683/1476 items completed (includes Commit items).

@@ -56,6 +56,7 @@ track: day-6
 | 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6 | [ ] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [ ] |
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [ ] |
+| 21 | §21 | Downloads that beat aria2c outright | §20 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -642,9 +643,34 @@ Filed 2026-10-29 from D03 T04 §16's completion review (E1, E5, E6): `scripts/gl
 - [x] Fail over to the next `--mirror URL` (repeatable, in order, each held to the same address and redirect rules) on a disconnect, a 5xx, a refused redirect or a refused address; start the file again under a mirror whose validator differs; after a digest mismatch remove the partial and try the next mirror (plan review gap 4). Done when: the test finishes from the second mirror after the first drops, fails, serves different bytes or redirects to a private address, and reports failure when all mirrors fail.
 - [x] Document the segment option, its threshold and the mirror order and recovery in `docs/glimmer/importing.md` and in `fetch.py`'s usage (plan review gap 6). Done when: the brief test or a docs check requires both.
 - [x] Measure again after the build with `fetch_bench.py`, interrupted segmentation and mirror recovery included, against the same aria2c configuration, five runs each, and accept the section only when `fetch.py` is no slower than aria2c by more than 10 percent on time, refetches no more bytes, and verifies the published digest where aria2c is configured to as well (plan review gap 8). Done when: `docs/glimmer/fetch-bench.json` holds the post-build figures and the acceptance line. Measured 2026-10-29T04:14:35Z at `a41f542`: after a cut 3.5 s against aria2c's 3.21 (1.09), 0 bytes refetched against 65,536; with a failing first URL 4.75 s against 6.31 (0.75), 0 against 65,536; every run intact; `acceptance` met in both. The first post-build run missed (3.95 against 3.41; 13.75 against 6.46) and its three causes were fixed in `a41f542`.
+- [x] Close the completion review's gaps G1 to G9 in `scripts/glimmer/fetch.py` and `scripts/glimmer/fetch_bench.py` (a range's length checked against its range, bounded header numbers and a failing range ending the run, the `HEAD` under the rate watchdog, a resumed state held to the limits, the floor counting the pending write under the write lock, a restart staying on the URL that answered, failures blamed on the URL that gave them, the checks proven through the CLI with failed flushes, and a bench whose cut really happens and is recorded per run). Done when: `tests/scripts/test_glimmer_fetch.py` and `tests/scripts/test_fetch_bench.py` prove each, and `docs/glimmer/fetch-bench.json` is regenerated with every run cut.
 - [ ] Commit: `glimmer: faster and mirrored dataset downloads`
 
+> **Deferred:** beating aria2c outright (strictly faster after a cut, several healthy mirrors at once, a gigabyte file over HTTPS) -> XREF: D03 T04 §21
+
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes with the segment and mirror cases, and `docs/glimmer/fetch-bench.json` records the post-build comparison with its acceptance line.
+
+## 21. Downloads that beat aria2c outright
+
+Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brought `scripts/glimmer/fetch.py` within its bar against aria2c 1.37.0 (no more than 10 percent slower after a cut, faster when the first URL fails, nothing refetched), on a 96 MiB file over loopback HTTP. Three ways it still falls short of beating aria2c outright: after a cut it is still about 9 percent slower; it uses one healthy URL at a time where aria2c draws on several sources at once; and nothing shows the result holds on a gigabyte file over HTTPS with real latency.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Measure the gap on a gigabyte file over HTTPS with latency. Done when: `docs/glimmer/fetch-bench.json` holds a `gigabyte` scenario for both tools.
+2. Close it. Done when: the median time ratio is under 1.00 in every scenario, with nothing more refetched and every run cut and intact.
+
+- [ ] Add a `gigabyte` scenario to `scripts/glimmer/fetch_bench.py`: a 1 GiB seeded payload over local HTTPS (a self-signed certificate the run makes and both tools trust) with a fixed added latency per answer, cut once and resumed by a fresh process, five runs per tool (completion review E3). Done when: `tests/scripts/test_fetch_bench.py` runs the scenario small and the figures file holds it at full size.
+- [ ] Find where `fetch.py` spends the time aria2c does not after a cut (start-up, the `HEAD`, the digest pass, the state saves), measured per phase, and record the breakdown in `docs/glimmer/importing.md` (completion review E1). Done when: the breakdown is recorded with its figures.
+- [ ] Remove the largest costs the breakdown names (for example hashing while the ranges arrive instead of after, or fewer flushes), each with its regression test (completion review E1). Done when: the median time ratio after a cut is under 1.00 on the corrected bench, nothing more refetched, every run intact.
+- [ ] Draw on several healthy mirrors at once: ranges spread across live URLs that share a strong validator, each URL's failures blamed on it, with the per-source lock, limits and budget unchanged (completion review E2). Done when: `tests/scripts/test_glimmer_fetch.py` proves ranges served by two hosts at once, and a `two-sources` bench scenario (two healthy hosts, each capped) has a median time ratio under 1.00 against aria2c given both URLs.
+- [ ] Record the new figures and their limits in `docs/glimmer/importing.md`. Done when: the guide states each scenario's ratio, refetched bytes and conditions.
+- [ ] Commit: `glimmer: downloads that beat aria2c outright`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes, and `docs/glimmer/fetch-bench.json` records a median time ratio under 1.00 in every scenario with every run cut and intact.
 
 ## Verification
 
