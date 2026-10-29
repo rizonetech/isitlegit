@@ -205,7 +205,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 59 | Checklist items: 247
+Sections: 59 | Checklist items: 248
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -216,7 +216,7 @@ Sections: 59 | Checklist items: 247
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
 | [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 9     |
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 3     |
-| [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 4     |
+| [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 3     |
 | [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
@@ -314,4 +314,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 62/243 verified sections, 26 ready to run now.
 
-Checklist: 633/1469 items completed (includes Commit items).
+Checklist: 633/1470 items completed (includes Commit items).
