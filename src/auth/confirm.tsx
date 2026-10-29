@@ -117,7 +117,10 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   const error = failure?.pathname === "/signin" ? failure.searchParams.get("error") : null;
   if (answer.status >= 300 && answer.status < 400 && signedIn) {
     log("signed-in");
-    const out = new Response(null, { status: 303, headers: { location: callbackURL, "cache-control": "no-store" } });
+    // Serialised as a URL: a header carries no raw non-ASCII, and the token is already spent here (round 2).
+    const destination = new URL(callbackURL, verify);
+    const to = `${destination.pathname}${destination.search}${destination.hash}`;
+    const out = new Response(null, { status: 303, headers: { location: to, "cache-control": "no-store" } });
     for (const cookie of cookies) out.headers.append("set-cookie", cookie);
     return out;
   }

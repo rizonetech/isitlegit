@@ -309,3 +309,15 @@ describe("round 1 (2026-10-29)", () => {
     expect(smtp.sends).toEqual([]);
   });
 });
+
+describe("round 2 (2026-10-29)", () => {
+  it("signs in at a destination with non-ASCII characters, sent percent-encoded", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    await requestLink("unicode@demo.isitlegit.co.za", "/cases?search=📧");
+    const signedIn = await redeem(smtp.sends[0]?.link ?? "");
+    expect(signedIn.status).toBe(303);
+    expect(sessionCookie(signedIn)).toMatch(/session_token=/);
+    expect(signedIn.headers.get("location")).toBe("/cases?search=%F0%9F%93%A7");
+  });
+});
