@@ -21,6 +21,7 @@ import {
   pageResponse,
   returnPath,
 } from "./confirm-page";
+import { DEFAULT_RETURN } from "./paths";
 
 // The errors Better Auth's magic-link verify redirects with (better-auth/dist/plugins/magic-link): a used, expired or
 // unknown token, or an address that may not have an account, all of which need a new link (or none); and the two that
@@ -117,9 +118,10 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   const error = failure?.pathname === "/signin" ? failure.searchParams.get("error") : null;
   if (answer.status >= 300 && answer.status < 400 && signedIn) {
     log("signed-in");
-    // Serialised as a URL: a header carries no raw non-ASCII, and the token is already spent here (round 2).
-    const destination = new URL(callbackURL, verify);
-    const to = `${destination.pathname}${destination.search}${destination.hash}`;
+    // Serialised as an absolute URL on the app's own origin: a header carries no raw non-ASCII (round 2), and a path
+    // that resolves to `//host` can never become a protocol-relative redirect (round 3).
+    const destination = new URL(callbackURL, verify.origin);
+    const to = destination.origin === verify.origin ? destination.href : new URL(DEFAULT_RETURN, verify.origin).href;
     const out = new Response(null, { status: 303, headers: { location: to, "cache-control": "no-store" } });
     for (const cookie of cookies) out.headers.append("set-cookie", cookie);
     return out;

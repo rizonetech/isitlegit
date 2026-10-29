@@ -318,6 +318,24 @@ describe("round 2 (2026-10-29)", () => {
     const signedIn = await redeem(smtp.sends[0]?.link ?? "");
     expect(signedIn.status).toBe(303);
     expect(sessionCookie(signedIn)).toMatch(/session_token=/);
-    expect(signedIn.headers.get("location")).toBe("/cases?search=%F0%9F%93%A7");
+    expect(target(signedIn)).toBe("/cases?search=%F0%9F%93%A7");
+  });
+});
+
+describe("round 3 (2026-10-29)", () => {
+  it("never redirects off the site through dot segments, at the request, the confirm page or the POST", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    for (const away of ["/a/..//evil.example/path", "/./..//evil.example", "/x/%2e%2e//evil.example"]) {
+      expect((await requestLink("dots@demo.isitlegit.co.za", away)).status, away).toBe(400);
+      const shown = await call(`/signin/confirm?token=t&callbackURL=${encodeURIComponent(away)}`);
+      expect(await shown.text(), away).toContain('name="callbackURL" value="/cases"');
+    }
+    await requestLink("dots@demo.isitlegit.co.za");
+    const token = new URL(smtp.sends.at(-1)?.link ?? "").searchParams.get("token") ?? "";
+    const posted = await post("/signin/confirm", { token, callbackURL: "/a/..//evil.example/path" });
+    expect(posted.status).toBe(303);
+    const to = new URL(posted.headers.get("location") ?? "", "http://localhost");
+    expect([to.origin, to.pathname]).toEqual(["http://localhost", "/cases"]);
   });
 });
