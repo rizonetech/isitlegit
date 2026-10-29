@@ -57,6 +57,7 @@ track: day-6
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [ ] |
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [ ] |
+| 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -657,7 +658,7 @@ Filed 2026-10-29 from D03 T04 §16's completion review (E1, E5, E6): `scripts/gl
 
 > **Started:** 2026-10-29T05:47Z
 
-Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brought `scripts/glimmer/fetch.py` within its bar against aria2c 1.37.0 (no more than 10 percent slower after a cut, faster when the first URL fails, nothing refetched), on a 96 MiB file over loopback HTTP. Three ways it still falls short of beating aria2c outright: after a cut it is still about 9 percent slower; it uses one healthy URL at a time where aria2c draws on several sources at once; and nothing shows the result holds on a gigabyte file over HTTPS with real latency.
+Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brought `scripts/glimmer/fetch.py` within its bar against aria2c 1.37.0 (no more than 10 percent slower after a cut, faster when the first URL fails, nothing refetched), on a 96 MiB file over loopback HTTP. Two ways it falls short of beating aria2c outright are this section's: after a cut it is still about 8 percent slower, and nothing shows the result holds on a gigabyte file over HTTPS with real latency. The third, several sources at once, is §22's (split out by this section's plan review).
 
 **Phase:** 7
 **Needs:** none
@@ -665,17 +666,45 @@ Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brough
 
 **Build order:**
 
-1. Measure the gap on a gigabyte file over HTTPS with latency. Done when: `docs/glimmer/fetch-bench.json` holds a `gigabyte` scenario for both tools.
-2. Close it. Done when: the median time ratio is under 1.00 in every scenario, with nothing more refetched and every run cut and intact.
+1. Make the bench a fair, falsifiable judge: the stricter acceptance line, HTTPS with real trust and latency, a two-process resume. Done when: the harness tests reject every unfair or failed run.
+2. Measure the gap on a gigabyte file. Done when: `docs/glimmer/fetch-bench.json` holds a `gigabyte` scenario for both tools.
+3. Close it. Done when: the median time ratio is strictly under 1.00 in every scenario, with nothing more refetched and every run cut and intact.
 
-- [ ] Add a `gigabyte` scenario to `scripts/glimmer/fetch_bench.py`: a 1 GiB seeded payload over local HTTPS (a self-signed certificate the run makes and both tools trust) with a fixed added latency per answer, cut once and resumed by a fresh process, five runs per tool (completion review E3). Done when: `tests/scripts/test_fetch_bench.py` runs the scenario small and the figures file holds it at full size.
-- [ ] Find where `fetch.py` spends the time aria2c does not after a cut (start-up, the `HEAD`, the digest pass, the state saves), measured per phase, and record the breakdown in `docs/glimmer/importing.md` (completion review E1). Done when: the breakdown is recorded with its figures.
-- [ ] Remove the largest costs the breakdown names (for example hashing while the ranges arrive instead of after, or fewer flushes), each with its regression test (completion review E1). Done when: the median time ratio after a cut is under 1.00 on the corrected bench, nothing more refetched, every run intact.
-- [ ] Draw on several healthy mirrors at once: ranges spread across live URLs that share a strong validator, each URL's failures blamed on it, with the per-source lock, limits and budget unchanged (completion review E2). Done when: `tests/scripts/test_glimmer_fetch.py` proves ranges served by two hosts at once, and a `two-sources` bench scenario (two healthy hosts, each capped) has a median time ratio under 1.00 against aria2c given both URLs.
-- [ ] Record the new figures and their limits in `docs/glimmer/importing.md`. Done when: the guide states each scenario's ratio, refetched bytes and conditions.
+- [ ] Make the acceptance line §21's (plan review gap 1): `acceptance()` in `scripts/glimmer/fetch_bench.py` requires every named scenario, five runs per tool each recovered, cut (and, for the resume scenario, resumed by a second process) and intact for both tools (aria2c's own digest check passing included), no more refetched bytes than aria2c, and an unrounded median ratio strictly under 1.00. Done when: `tests/scripts/test_fetch_bench.py` rejects a ratio of 1.00, one above it, a missing scenario, a failed or uncut run of either tool, and more refetched bytes.
+- [ ] Serve the bench over HTTPS with a certificate the run makes (`openssl req -x509` on this host, recorded with its version; a subject alternative name for `127.0.0.1`), trusted only through each tool's own option (`fetch.py`'s new `--ca-file`, aria2c's `--ca-certificate`), never by turning verification off; and add a fixed latency to every answer (the `HEAD`, each range, each retry), recorded in the figures (plan review gap 2). Done when: the harness test proves a run with no trusted certificate fails for both tools, and that each kind of request waited the recorded latency.
+- [ ] Add the `gigabyte` scenario (completion review E3): a 1 GiB seeded payload over that HTTPS server, each tool's first process killed (SIGKILL) at the same byte count the server has sent, its partial and resume data kept, and a second process started that finishes the file; time and bytes counted across both processes through verified completion, and the server's log showing the second process asked only for missing ranges (plan review gap 3). Done when: `tests/scripts/test_fetch_bench.py` runs the scenario on a small payload and asserts the second process's requests start past the first's bytes, for both tools.
+- [ ] Bound the full run (plan review gap 8): the measured configurations are `fetch.py` and aria2c on four connections (the one-connection configurations stay in the 96 MiB scenarios only), an estimate printed before the run and the measured wall time recorded after, each subprocess ended at a deadline with its process group and its scratch folder removed. Done when: the figures file holds the estimate, the wall time and the configurations, and the harness test proves a hung tool is ended at its deadline.
+- [ ] Find where `fetch.py` spends the time aria2c does not after a cut (start-up, the `HEAD`, the range saves, the digest's tail), measured per phase on the corrected bench, and record the breakdown in `docs/glimmer/importing.md` (completion review E1). Done when: the breakdown is recorded with its figures.
+- [ ] Remove the largest costs the breakdown names, each with its regression test (completion review E1). Done when: the median time ratio is strictly under 1.00 in every scenario under the new acceptance line, nothing more refetched, every run intact.
+- [ ] Record the figures, their conditions (host load, latency, certificate, payloads) and limits in `docs/glimmer/importing.md`. Done when: the guide states each scenario's ratio, refetched bytes and conditions.
 - [ ] Commit: `glimmer: downloads that beat aria2c outright`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes, and `docs/glimmer/fetch-bench.json` records a median time ratio under 1.00 in every scenario with every run cut and intact.
+> **Deferred:** several healthy mirrors at once (completion review E2; plan review gaps 4 to 7 and 9) -> XREF: D03 T04 §22
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes, and `docs/glimmer/fetch-bench.json` records a median time ratio strictly under 1.00 in every scenario under the acceptance line, with every run of both tools cut, recovered and intact.
+
+## 22. Several healthy mirrors at once
+
+Filed 2026-10-29, split out of D03 T04 §21 by its plan review (completion review E2 of D03 T04 §20; plan review gaps 4 to 7 and 9): `scripts/glimmer/fetch.py` uses one URL at a time and moves to the next only on a failure, where aria2c spreads its connections across every source it is given. With two healthy hosts each capped, aria2c gets both hosts' bandwidth and `fetch.py` one.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Spread ranges across live URLs that agree on the file, keeping every rule §20 holds. Done when: the concurrent tests prove each rule with two sources active.
+2. Prove it against aria2c with two independently capped hosts. Done when: the `two-sources` scenario's median ratio is strictly under 1.00.
+
+- [ ] Choose the sources for a segmented run in `fetch.py`: every live URL whose `HEAD` gives the same length and the same strong validator as the first; a URL that disagrees is left out for the run and logged; at most four connections in all, spread round-robin over the agreeing URLs. Done when: `tests/scripts/test_glimmer_fetch.py` proves two agreeing hosts both serve ranges, a disagreeing one serves none, and no more than four connections are open.
+- [ ] Re-spread work when a source slows or fails (plan review gap 4): each range keeps its source; a free connection takes half of the slowest range's rest from the fastest agreeing source; a failed source's unfinished ranges go to the others; the writer of a range that is being split stops at its new end before the new range starts, so no two writers ever cover one byte. Done when: tests with unequal speeds, a mid-transfer stall and a disconnect prove the faster source takes the remaining work with no overlapping writes and at most four connections.
+- [ ] Hold §20's rules with several sources active (plan review gap 5): blame stays per source, with failures from any active source counted in the one budget (a URL being left behind is no longer the only kind of failure that arrives late); `Retry-After` pauses only that source; each connection keeps its rate floor; the per-source lock and the folder limit and floor hold for the whole run; a source whose validator or length changes mid-run is dropped and its ranges re-fetched elsewhere. Done when: a concurrent test proves each rule.
+- [ ] Recover a mixed-source digest failure in isolation (plan review gap 6): keep each byte range's provenance in the state, so it survives a resume; on a mismatch, re-fetch each source's ranges from one other agreeing source in turn, bounded by the budget, until the bad source is identified and ruled out. Done when: a test with one corrupt and one healthy mirror finishes with the healthy one's bytes and rules out only the corrupt one, before and after a resume.
+- [ ] Add a `two-sources` scenario to `scripts/glimmer/fetch_bench.py` (plan review gap 7): two hosts, each with its own aggregate cap (not only a per-connection one), four connections in all for each tool, both URLs given to both, the server logging which host served each byte, runs of the two tools interleaved and each run's raw timing and host load kept. Done when: the figures show both tools drew on both hosts, and the acceptance line requires it.
+- [ ] Update the contracts (plan review gap 9): `--mirror`'s help and the Mirrors guide in `docs/glimmer/importing.md` describe sources used together and the failover between them, and the JSON line names every URL that supplied bytes (`urls`), with `url` kept as the first of them. Done when: a CLI test reads back `urls` for a two-source download and the docs check requires the new wording.
+- [ ] Commit: `glimmer: several healthy mirrors at once`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes with the concurrent-source cases, and `docs/glimmer/fetch-bench.json` records the `two-sources` scenario with a median ratio strictly under 1.00 and both tools drawing on both hosts.
 
 ## Verification
 
