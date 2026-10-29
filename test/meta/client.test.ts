@@ -614,3 +614,17 @@ describe("final review (2026-10-29)", () => {
     expect(charges[0]?.estimate).toBeCloseTo((600 * 0.18) / 3600);
   });
 });
+
+describe("round 3 (2026-10-29)", () => {
+  it("settles a transcription with no reported length at its reservation, estimated, never at the length it was given", async () => {
+    const { ctx, charges } = transport(() => json(200, { transcript: "x" }));
+    const clip = new Blob([new Uint8Array(300_000)], { type: "audio/ogg" });
+    await metaRaw(
+      "/asr/transcribe",
+      { request: { model: "muse-voice-transcribe-1.0" }, audio: clip, audioSeconds: 1 },
+      ctx,
+    );
+    expect(charges[0]?.actual).toBeCloseTo(charges[0]?.estimate as number);
+    expect(charges[0]?.actual).toBeCloseTo((600 * 0.18) / 3600);
+  });
+});

@@ -199,7 +199,7 @@ export async function metaRaw(
   let contentType: Record<string, string> = {};
   let model: ModelId;
   let estimate: number;
-  let usage: (data: unknown) => { audioSeconds?: number; images?: number };
+  let usage: (data: unknown) => { audioSeconds?: number | undefined; images?: number };
   if (path === "/asr/transcribe") {
     const { request, audio, filename, audioSeconds } = body as TranscribeBody;
     model = standard(request.model, "/asr/transcribe");
@@ -211,11 +211,12 @@ export async function metaRaw(
     // Never less than the recording could hold: a given length is checked against the clip's size at the lowest
     // bitrate speech codecs use (D03 T01 §2 final review), so a short length cannot admit a long recording.
     estimate = estimateUsd(model, { audioSeconds: Math.max(audioSeconds, audio.size / MIN_AUDIO_BYTES_PER_SECOND) });
-    // Meta reports the recording's length as `audioDurationMs` (sources/meta-api/docs: the transcribe response); without
-    // it, the length given is the length billed.
+    // Meta reports the recording's length as `audioDurationMs` (sources/meta-api/docs: the transcribe response).
+    // Without it the length billed is unknown: the call settles at its reservation, marked estimated, never at the
+    // length the caller gave (round 3).
     usage = (data) => {
       const ms = numberAt(data, "audioDurationMs");
-      return { audioSeconds: ms === undefined ? audioSeconds : ms / 1000 };
+      return { audioSeconds: ms === undefined ? undefined : ms / 1000 };
     };
     const form = new FormData();
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
