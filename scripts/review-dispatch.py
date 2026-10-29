@@ -215,8 +215,15 @@ def check_schedule(schedule, clis, reviewers=None, families=()):
     its own reviewer, which must be of a family no writer and no round reviewer belongs to."""
     efforts = [e for e in EFFORTS["claude"] if all(e in EFFORTS[cli] for cli in clis if cli in EFFORTS)]
     keys = {"plan", "completion", "rounds", "rotation", "escalation", "severity_stop_after"}
-    if not isinstance(schedule, dict) or not keys <= set(schedule) <= keys | {"final"}:
-        raise Refused(f"[schedule] needs exactly {', '.join(sorted(keys))}, and may add final")
+    if not isinstance(schedule, dict) or not keys <= set(schedule) <= keys | {"final", "light"}:
+        raise Refused(f"[schedule] needs exactly {', '.join(sorted(keys))}, and may add final and light")
+    if "light" in schedule:
+        light = schedule["light"]
+        if not isinstance(light, dict) or set(light) != {"rounds"} or not isinstance(light["rounds"], list) \
+                or not light["rounds"]:
+            raise Refused("[schedule.light] needs exactly rounds, a list of at least one round")
+        for n, step in enumerate(light["rounds"], 1):
+            check_step(f"light round {n}", step, efforts)
     if "final" in schedule:
         final = schedule["final"]
         if not isinstance(final, dict) or not {"reviewer", "effort", "lenses"} <= set(final) <= {
@@ -282,7 +289,31 @@ def returned_review(entry):
         and bool(lines) and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
 
 
-def scheduled(schedule, kind, rounds, surface):
+# A section's risk (its `**Risk:**` line, D00 T01 §15) names the schedule its rounds run on; `full` when it says none.
+SCHEDULES = ("full", "light")
+RECORD_NAME = re.compile(r"^D(\d{2})-T(\d{2})-s(\d+)\.md$")
+
+
+def round_schedule(entry):
+    """The schedule a recorded round ran on: its `- Schedule:` line, or `full` for a round recorded without one."""
+    return entry.get("schedule") or "full"
+
+
+def section_risk(record, root=ROOT):
+    """The risk of the section a findings file belongs to (`docs/reviews/<domain>/DNN-TNN-sN.md` names it): its
+    `**Risk:**` line, or `full` when it has none, says something else, or the file names no section."""
+    name = RECORD_NAME.match(Path(record).name)
+    if not name:
+        return "full"
+    for todo in sorted((Path(root) / "todo").glob(f"{name[1]}-*/TODO-{name[2]}-*.md")):
+        body = re.search(rf"^## {int(name[3])}\. .*?(?=^## |\Z)", todo.read_text(encoding="utf-8"), re.M | re.S)
+        if body:
+            risk = re.search(r"^\*\*Risk:\*\*[ \t]*(\S+)[ \t]*$", body.group(0), re.M)
+            return risk.group(1) if risk and risk.group(1) in SCHEDULES else "full"
+    return "full"
+
+
+def scheduled(schedule, kind, rounds, surface, risk="full"):
     """The effort and lenses for the next pass, from the pin's schedule and the rounds already recorded.
 
     The position counts returned reviews only (`returned_review`): an outage, a self-review and a reply without the
@@ -294,20 +325,31 @@ def scheduled(schedule, kind, rounds, surface):
         step = schedule[kind]
         return {"position": None, "effort": step["effort"], "lenses": list(step.get("lenses", [])),
                 "escalated": False}
-    returned = [r for r in rounds if returned_review(r)]
+    if risk not in SCHEDULES:
+        raise Refused(f"a section's risk is one of {', '.join(SCHEDULES)}, not {risk!r}")
+    if risk == "light" and "light" not in schedule:
+        raise Refused("the section is light, but the pin's [schedule] has no light step")
+    fixed = schedule["light"]["rounds"] if risk == "light" else schedule["rounds"]
+    # The rounds on this schedule since it last changed: a section whose risk changed starts its rounds again on the
+    # new schedule, its earlier findings kept in the file (D00 T01 §15).
+    segment = []
+    for entry in rounds:
+        segment = [*segment, entry] if round_schedule(entry) == risk else []
+    returned = [r for r in segment if returned_review(r)]
     position = len(returned) + 1
     last = returned[-1] if returned else None
     if last is not None and last.get("effort") == "low" and highest(last.get("review")) == "P1":
         step, escalated = schedule["escalation"], True
-    elif position <= len(schedule["rounds"]):
-        step, escalated = schedule["rounds"][position - 1], False
+    elif position <= len(fixed):
+        step, escalated = fixed[position - 1], False
     else:
         rotation = [n for n in schedule["rotation"]["lenses"] if surface or n != "design"] \
             or schedule["rotation"]["lenses"]
         step = {"effort": schedule["rotation"]["effort"],
-                "lenses": [rotation[(position - len(schedule["rounds"]) - 1) % len(rotation)]]}
+                "lenses": [rotation[(position - len(fixed) - 1) % len(rotation)]]}
         escalated = False
-    return {"position": position, "effort": step["effort"], "lenses": list(step["lenses"]), "escalated": escalated}
+    return {"position": position, "effort": step["effort"], "lenses": list(step["lenses"]), "escalated": escalated,
+            "schedule": risk}
 
 
 def lens_block(plan):
@@ -607,7 +649,7 @@ def atomic_write(path, text):
 # past Python's digit limit raises). A review is at most MAX_OUTPUT_BYTES, so it has at most MAX_OUTPUT_BYTES + 1 lines,
 # and the count's width follows from that: whatever `record` writes, the reader reads.
 ROUND_HEADING = re.compile(r"^## Round ([0-9]{1,6}): (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
-ROUND_LINE = re.compile(r"^- (Writer|Run|Effort|Lenses|Lines|Digest|Skipped): (\S.*)$")
+ROUND_LINE = re.compile(r"^- (Writer|Run|Effort|Lenses|Schedule|Lines|Digest|Skipped): (\S.*)$")
 # The one-pass completion review, recorded beside the rounds and never counted as one. It always carries Lines, Digest
 # and the Candidate commit it reviewed; the writer's notes after it (its `- Filed:` lines) run to the next `## ` line.
 COMPLETION_HEADING = re.compile(r"^## Completion review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
@@ -700,7 +742,7 @@ def _read_findings(text):
         else:
             entry = {"number": int(heading.group(1)), "reviewer": heading.group(3), "model": heading.group(4),
                      "cli": heading.group(5), "writer": None, "run": None, "effort": None, "lenses": None,
-                     "skipped": []}
+                     "schedule": None, "skipped": []}
         count = sealed = None
         i += 2
         while i < len(lines) and lines[i] != "":
@@ -723,6 +765,8 @@ def _read_findings(text):
                     return None, head
                 sealed = value
             elif entry[key] is not None or (key == "candidate" and not CANDIDATE.fullmatch(value)):
+                return None, head
+            elif key == "schedule" and value not in SCHEDULES:
                 return None, head
             elif key == "lenses":
                 names = value.split(", ")
@@ -863,6 +907,9 @@ def metadata(result):
     lines = [f"- Effort: {result['effort']}"] if result.get("effort") else []
     if result.get("lenses"):
         lines.append(f"- Lenses: {', '.join(result['lenses'])}")
+    # Only a light round says so: a round without the line ran on the full schedule, as every older record did.
+    if result.get("schedule") == "light":
+        lines.append("- Schedule: light")
     return lines + [f"- Skipped: {f['reviewer']} ({f['reason']})" for f in result["failover"]]
 
 
@@ -1006,7 +1053,8 @@ def main(argv=None):
                     raise Refused(f"{args.record} already holds {after} rounds after its final review, the "
                                   f"{POST_FINAL_CAP} that may prove its fix; the stamp would refuse another, so none "
                                   f"was run. Work added after the final review is its own section")
-            plan = scheduled(pin["schedule"], args.kind, rounds, args.surface) \
+            plan = scheduled(pin["schedule"], args.kind, rounds, args.surface,
+                             section_risk(args.record) if args.record else "full") \
                 if args.kind != "final" or "final" in pin["schedule"] else None
         reviewer_name = None
         if args.kind == "final":
@@ -1043,7 +1091,7 @@ def main(argv=None):
     if one_pass:
         result.update(kind=args.kind, candidate=args.candidate)
     if plan and plan["position"]:
-        result.update(position=plan["position"], escalated=plan["escalated"])
+        result.update(position=plan["position"], escalated=plan["escalated"], schedule=plan["schedule"])
         stop_after = pin["schedule"]["severity_stop_after"]
         # The severity stop: a returned round past `severity_stop_after` whose worst finding is P3 ends the loop (0:
         # from round 1; todo_graph.SEVERITY_CUTOFF_ROUND is the same number, and `stamp`

@@ -160,6 +160,24 @@ def extract_ref(text, rows):
     return None, 2
 
 
+# The only paths a light section may name (D00 T01 §15), and the words that keep even those on the full schedule:
+# tooling, tests and documentation, never the product's code, its stored data, or anything that guards a secret or a
+# client's data.
+LIGHT_PREFIXES = ("scripts/", "tests/", "test/", "docs/", "todo/", ".claude/", ".github/", "design/")
+GUARDED_WORDS = ("auth", "mail", "meta", "secret", "credential", "redact", "leak", "migration", "sample", "trust",
+                 "bank", "payment")
+
+
+def light_paths(body):
+    """The paths a section names in backticks: a token with a slash and no space, not a web address."""
+    return sorted({token.lstrip("./") for token in re.findall(r"`([^`\s]+)`", body)
+                   if "/" in token and "://" not in token})
+
+
+def light_path(path):
+    return path.startswith(LIGHT_PREFIXES) and not any(word in path.lower() for word in GUARDED_WORDS)
+
+
 def field(body, name, required=True):
     empty = re.findall(r"^(?:> )?\*\*" + re.escape(name) + r":\*\*[ \t]*$", body, re.M)
     require(not empty, f"missing {name} field")
@@ -223,7 +241,7 @@ def _head_commits(root):
     return set(res.stdout.splitlines())
 
 
-def receipt_ok(root, receipt, ref, stamp_sha, commits=None, surface=None):
+def receipt_ok(root, receipt, ref, stamp_sha, commits=None, surface=None, risk="full"):
     """Check one receipt against its stamp and return it. `surface`: the section's Surface field is yes."""
     require(re.fullmatch(r"docs/reviews/[a-z0-9][a-z0-9.-]*\.json", receipt or "") is not None,
             f"invalid receipt path: {ref}")
@@ -236,7 +254,7 @@ def receipt_ok(root, receipt, ref, stamp_sha, commits=None, surface=None):
     # The stamped commit first: a fabricated SHA is named as such before anything the receipt says is compared.
     if commits is None or stamp_sha not in commits:
         commit_ok(root, stamp_sha)
-    receipt_data_ok(data, ref, stamp_sha, root=root, commits=commits, surface=surface)
+    receipt_data_ok(data, ref, stamp_sha, root=root, commits=commits, surface=surface, risk=risk)
     return data
 
 
@@ -497,7 +515,7 @@ def pin_schedule(root, sha, ref):
     return pin["schedule"]
 
 
-def schedule_ok(root, data, ref, surface):
+def schedule_ok(root, data, ref, surface, risk="full"):
     """Every pass the receipt names ran at the effort and lenses the pin's schedule gave it: every attempt at the plan
     and completion reviews, and each round in each findings file, replayed through the dispatcher's own `scheduled`
     over the rounds recorded before it (outages, self-reviews and replies without the OVERALL line do not advance the
@@ -533,10 +551,16 @@ def schedule_ok(root, data, ref, surface):
     for report in dict.fromkeys(r["report"] for r in data["reviews"]):
         recorded = dispatch.read_rounds((Path(root) / report).read_bytes().decode("utf-8"))
         for i, entry in enumerate(recorded):
-            check(f"{report} round {entry['number']}", entry, dispatch.scheduled(schedule, "round", recorded[:i], surface))
+            # Each round against the schedule it ran on; a change of risk starts the rounds again (D00 T01 §15).
+            check(f"{report} round {entry['number']}", entry,
+                  dispatch.scheduled(schedule, "round", recorded[:i], surface, dispatch.round_schedule(entry)))
+        last = dispatch.round_schedule(recorded[-1]) if recorded else risk
+        require(last == risk, f"{report}'s last rounds ran on the {last} schedule, but the section's Risk is {risk}: "
+                              f"run its rounds again, which start from round 1 on the {risk} schedule with the "
+                              f"earlier findings kept: {ref}")
 
 
-def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=None, surface=None):
+def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=None, surface=None, risk="full"):
     """building: stamp's first pass over its arguments, before it adds rounds_spent and round_cap."""
     require(isinstance(data, dict), f"receipt is not an object: {ref}")
     require(data.get("ref") == ref and data.get("implementation_sha") == stamp_sha,
@@ -681,7 +705,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                     f"receipt plan does not match its findings file {recorded['report']}: {ref}")
             require(pin_schedule(root, stamp_sha, ref) == data["schedule"],
                     f"receipt schedule is not the [schedule] in {PIN} at the stamped commit: {ref}")
-            schedule_ok(root, data, ref, surface)
+            schedule_ok(root, data, ref, surface, risk)
     elif not building:
         frozen = root is not None and (legacy_receipts(root).get(ref) == receipt_digest(data)
                                        or receipts_before_plan(root).get(ref) == receipt_digest(data))
@@ -864,6 +888,13 @@ def graph(root=ROOT):
                     f"runnable Test checkpoint required: {ref}")
             surface = field(section_body, "Surface")
             require(surface in {"yes", "no"}, f"Surface must be yes/no: {ref}")
+            risk = field(section_body, "Risk", False) or "full"
+            require(risk in {"full", "light"}, f"Risk must be full/light: {ref}")
+            if risk == "light":
+                named = light_paths(section_body)
+                require(bool(named) and all(light_path(p) for p in named),
+                        f"Risk light needs every path the section names to be tooling, tests or docs "
+                        f"({', '.join(LIGHT_PREFIXES)}), and none to touch a guarded area: {ref}")
             if surface == "yes":
                 for label in ("Fidelity", "Job", "Treatment", "Chrome"):
                     field(section_body, label)
@@ -882,7 +913,7 @@ def graph(root=ROOT):
                 require(m is not None, f"invalid stamp: {ref}")
                 if head_commits is None:
                     head_commits = _head_commits(root)
-                data = receipt_ok(root, receipt, ref, m[1], head_commits, surface=surface == "yes")
+                data = receipt_ok(root, receipt, ref, m[1], head_commits, surface=surface == "yes", risk=risk)
                 if "completion" in data:
                     filed_gaps[ref] = data["completion"]["filed"]
             sections[ref] = Section(ref, relative, n, h[2], int(phase), deps, needs, done,
@@ -1289,7 +1320,8 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
         require(final is None, f'--final given, but the final review is off at {sha} ([schedule.final] mode = "off"): {ref}')
     else:
         require(final is None, f"--final given, but the schedule at {sha} has no final step: {ref}")
-    receipt_data_ok(data, ref, sha, root=root, surface=field(row.body, "Surface") == "yes")
+    receipt_data_ok(data, ref, sha, root=root, surface=field(row.body, "Surface") == "yes",
+                    risk=field(row.body, "Risk", False) or "full")
     receipt_path = root / receipt
     require(not receipt_path.exists(), f"receipt already exists: {receipt}")
     path = root / row.path

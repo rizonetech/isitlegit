@@ -68,6 +68,7 @@ rounds = [{ effort = "high", lenses = ["adversarial", "integration", "source-def
           { effort = "medium", lenses = ["adversarial"] }, { effort = "low", lenses = ["adversarial"] }]
 rotation = { effort = "low", lenses = ["consistency", "quality", "design", "optimization", "record"] }
 escalation = { effort = "medium", lenses = ["adversarial"] }
+light = { rounds = [{ effort = "medium", lenses = ["adversarial", "plan-delivery"] }] }
 """
 STARTED = "> **Started:** 2026-10-23T00:00Z\n\n"
 
@@ -431,6 +432,37 @@ class Graph(Tree):
         self.assertEqual(len(ordered_refs), 1100)
         self.assertEqual(ordered_refs[0], "D00 T20 §55")
         self.assertEqual(ordered_refs[-1], "D00 T01 §1")
+
+
+class Risk(Tree):
+    """D00 T01 §15: a section's Risk line, `light` only for a section whose named paths are all tooling, tests or
+    docs."""
+
+    def with_risk(self, risk, work="- [ ] Work on `scripts/tool.py`."):
+        text = todo_file([(1, "Tool", 0, "none", "--")])
+        if risk is not None:
+            text = text.replace("**Surface:** no", f"**Risk:** {risk}\n**Surface:** no", 1)
+        self.write(text.replace("- [ ] Work.", work, 1))
+
+    def test_a_section_with_no_risk_is_full_and_light_is_accepted_for_tooling(self):
+        for risk, work in ((None, "- [ ] Work."), ("full", "- [ ] Work on `src/auth/auth.ts`."),
+                           ("light", "- [ ] Work on `scripts/tool.py` and `tests/scripts/test_tool.py`.")):
+            with self.subTest(risk=risk):
+                self.with_risk(risk, work)
+                tg.graph(self.root)
+
+    def test_light_is_refused_for_product_code_guarded_words_or_no_named_path(self):
+        for work in ("- [ ] Work on `src/trust/bank.ts`.", "- [ ] Work on `src/agent/loop.ts`.",
+                     "- [ ] Work on `scripts/tool.py` and `src/db/migrations/0040_x.sql`.",
+                     "- [ ] Work on `scripts/redact-samples.py`.", "- [ ] Work on `scripts/glimmer/leak-check.ts`.",
+                     "- [ ] Work."):
+            with self.subTest(work=work):
+                self.with_risk("light", work)
+                self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
+
+    def test_an_unknown_risk_is_refused(self):
+        self.with_risk("medium")
+        self.refuses("Risk must be full/light")
 
 
 class Stamp(Tree):
@@ -1276,9 +1308,15 @@ class Stamp(Tree):
     LOOP = "docs/reviews/00-workspace/D00-T01-s1.md"
     ROUND_1 = ["adversarial", "integration", "source-defect", "plan-delivery"]
 
-    def live(self, surface=False):
-        """Pin the live schedule shape (and, with surface, make §1 a surface section), committed as the stamped commit."""
+    def live(self, surface=False, risk=None):
+        """Pin the live schedule shape (and, with surface, make §1 a surface section; with risk, give §1 that Risk
+        line, naming a tooling path), committed as the stamped commit."""
         (self.root / tg.PIN).write_text(SCHEDULE_PIN, encoding="utf-8")
+        if risk:
+            path = self.root / "todo/00-workspace/TODO-01-a.md"
+            path.write_text(path.read_text(encoding="utf-8").replace(
+                "**Surface:** no", f"**Risk:** {risk}\n**Surface:** no\n\nIt changes `scripts/tool.py`.", 1),
+                encoding="utf-8")
         if surface:
             path = self.root / "todo/00-workspace/TODO-01-a.md"
             path.write_text(path.read_text(encoding="utf-8").replace(
@@ -1286,19 +1324,20 @@ class Stamp(Tree):
                 1), encoding="utf-8")
         self.sha = self.commit("live schedule")
 
-    def loop(self, steps, surface=False):
+    def loop(self, steps, surface=False, risk="full", fresh=True):
         """Record a review loop as the dispatcher would, each round at the pass `scheduled` gives it. A step is a
         severity (a returned needs-attention review declaring it), "clean", "outage", "self" (a self-review) or
         "malformed" (a reply without the final OVERALL line)."""
         dispatch = tg.review_dispatch()
         schedule = tg.pin_schedule(self.root, self.sha, "test")
         path = self.root / self.LOOP
-        if path.exists():  # a fresh loop: the rounds go, the section's plan review stays
+        if path.exists() and fresh:  # a fresh loop: the rounds go, the section's plan review stays
             path.write_bytes(self.only(path.read_bytes().decode("utf-8"), plans=True).encode("utf-8"))
         for step in steps:
             existing = path.read_bytes().decode("utf-8") if path.exists() else ""
-            plan = dispatch.scheduled(schedule, "round", dispatch.read_rounds(existing), surface)
+            plan = dispatch.scheduled(schedule, "round", dispatch.read_rounds(existing), surface, risk)
             result = {"writer": "claude", "effort": plan["effort"], "lenses": plan["lenses"], "failover": [],
+                      "schedule": plan["schedule"],
                       "reviewer": "astra", "model": "m", "cli": "codex",
                       "review": "1. ok.\n\nHIGHEST: none\n\nOVERALL: approve"}
             if step == "outage":
@@ -1310,7 +1349,8 @@ class Stamp(Tree):
             elif step != "clean":
                 result["review"] = f"1. [{step}] gap.\n\nHIGHEST: {step}\n\nOVERALL: needs-attention"
             dispatch.record(path, result, "2026-10-23T00:00:00Z")
-        self.reviews = [{"round": len(steps), "report": self.LOOP, "verdict": "clean"}]
+        rounds = len(dispatch.read_rounds(path.read_bytes().decode("utf-8")))
+        self.reviews = [{"round": rounds, "report": self.LOOP, "verdict": "clean"}]
 
     def edit_round(self, n, effort, lenses):
         """Rewrite round n's Effort and Lenses lines, which sit outside its digest, as a hand edit would."""
@@ -1460,6 +1500,45 @@ class Stamp(Tree):
         self.assertEqual(tg.build_start(self.root, path, body, "D00 T01 §2"), whole)
         self.assertEqual(tg.build_start(self.root, path, tg.section_text((self.root / path).read_text(
             encoding="utf-8"), 1), "D00 T01 §1"), self.start)
+
+    # D00 T01 §15: a section's risk picks its rounds' schedule, and the stamp holds each round to the one it ran on.
+
+    def test_a_light_section_stamps_on_the_light_schedule(self):
+        self.live(risk="light")
+        self.loop(["clean"], risk="light")
+        self.tick_work()
+        self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-30")
+        self.assertIn("- Schedule: light", (self.root / self.LOOP).read_text(encoding="utf-8"))
+
+    def test_a_full_section_refuses_light_rounds(self):
+        self.live()
+        self.loop(["clean"], risk="light")
+        self.stamp_refuses("last rounds ran on the light schedule, but the section's Risk is full")
+
+    def test_a_light_section_refuses_full_rounds(self):
+        self.live(risk="light")
+        self.loop(["clean"])
+        self.stamp_refuses("last rounds ran on the full schedule, but the section's Risk is light")
+
+    def test_a_section_made_full_partway_stamps_on_its_full_rounds_run_again(self):
+        self.live(risk="light")
+        self.loop(["P2"], risk="light")
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace("**Risk:** light", "**Risk:** full", 1),
+                        encoding="utf-8")
+        self.sha = self.commit("the section turns out to need the full schedule")
+        self.loop(["P2", "clean"], fresh=False)
+        rounds = tg.review_dispatch().read_rounds((self.root / self.LOOP).read_text(encoding="utf-8"))
+        self.assertEqual([(r["effort"], r["schedule"]) for r in rounds],
+                         [("medium", "light"), ("high", None), ("medium", None)])
+        self.tick_work()
+        self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-30")
+
+    def test_a_light_round_hand_edited_to_full_effort_is_refused(self):
+        self.live(risk="light")
+        self.loop(["clean"], risk="light")
+        self.edit_round(1, "high", self.ROUND_1)
+        self.stamp_refuses("round 1 ran at high")
 
     def test_round_1_runs_at_high_effort(self):
         self.live()

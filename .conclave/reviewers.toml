@@ -68,6 +68,12 @@ lenses = ["adversarial"]
 effort = "low"
 lenses = ["adversarial"]
 
+# A `light` section (its `**Risk:** light` line, D00 T01 §15: a section whose named paths are all tooling, tests or
+# documentation) runs these fixed rounds in place of the list above; the rotation, the escalation and the severity stop
+# are the same, so a round that finds a P1 or P2 still earns another round to prove its fix.
+[schedule.light]
+rounds = [{ effort = "medium", lenses = ["adversarial", "plan-delivery"] }]
+
 [schedule.rotation]
 effort = "low"
 lenses = ["consistency", "quality", "design", "optimization", "record"]
