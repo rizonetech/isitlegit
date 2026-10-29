@@ -22,7 +22,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
-import { majesticList, renderReceipt, saList } from "./render.ts";
+import { assessCapture, majesticList, renderReceipt, saList } from "./render.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -419,6 +419,19 @@ if (import.meta.filename === process.argv[1]) {
       if (receipt.unfinished.length || receipt.missing_pages.length)
         problems.push(
           `${name}: its render is not finished (${receipt.unfinished.length} unfinished, ${receipt.missing_pages.length} missing)`,
+        );
+      // Each stored page judged as `render.ts recheck` judges it (§18 round 2): a legacy capture not yet rendered again,
+      // or one whose kept evidence shows a wall, is not frozen.
+      const judged = { unassessed: 0, wall: 0 };
+      for (const outcome of Object.values(receipt.outcomes)) {
+        if (!("stored" in outcome)) continue;
+        const read = store.readVerifiedPage(outcome.stored);
+        const verdict = read ? assessCapture(read.page, read.text) : "unassessed";
+        if (verdict !== "clear") judged[verdict]++;
+      }
+      if (judged.unassessed || judged.wall)
+        problems.push(
+          `${name}: ${judged.unassessed} stored pages unassessed and ${judged.wall} showing a wall: run render.ts recheck --rerender-legacy and render again`,
         );
       renders[name] = {
         list_sha256: receipt.list_sha256,

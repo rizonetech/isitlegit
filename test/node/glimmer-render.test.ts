@@ -10,6 +10,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   assertListLicence,
+  assessCapture,
   BrowserFault,
   benignCoverage,
   brandShown,
@@ -893,6 +894,23 @@ describe("the batch run", () => {
     rmSync(join(dir, "store", "pages", id), { recursive: true });
     // A stored page that has gone from the store is reported.
     expect(renderReceipt(list(["/page"]), journal, store).missing_pages).toEqual([`${origin}/page`]);
+  });
+
+  it("judges a stored capture one way for the recheck and the freeze: clear, wall or unassessed", () => {
+    const page = (evidence?: Record<string, unknown>) => ({ evidence }) as unknown as StoredPage;
+    const full = {
+      title: "Bank",
+      overlays: "",
+      captcha: false,
+      consentWall: false,
+      challengeCover: false,
+      wall: false,
+    };
+    expect(assessCapture(page(full), "Welcome to the bank")).toBe("clear");
+    expect(assessCapture(page({ ...full, consentWall: true }), "Welcome to the bank")).toBe("wall");
+    expect(assessCapture(page(), "Are you a human? Press & Hold")).toBe("wall");
+    // Stored before its structural readings were kept: no words show a CAPTCHA or an image cover.
+    expect(assessCapture(page({ title: "Bank", overlays: "" }), "Welcome to the bank")).toBe("unassessed");
   });
 
   it("ends a run's time at the next run's start, a recheck's included, not at a later event", () => {

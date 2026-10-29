@@ -1285,6 +1285,31 @@ function finishRemoval(store: ReturnType<typeof openStore>, journal: string, rem
 // their hashes first (a damaged or unreadable record is listed, never passed as clean), and a refused page is taken out
 // and recorded excluded so no run stores it again, through an intent a stop cannot lose. A removal a stopped recheck
 // left is finished first.
+// A stored benign capture judged as admission judges it, from the evidence kept with it: `clear`, `wall` (admission
+// would refuse it), or `unassessed` (stored before every structural reading was kept, and showing no wall in its text:
+// a CAPTCHA, a consent wall or an image cover leaves no words). One judgement for the recheck and for the freeze.
+// Evidence is complete only with every structural reading admission takes; a record without them is a legacy capture.
+export function fullEvidence(page: StoredPage): StoredPage["evidence"] | undefined {
+  const kept = page.evidence;
+  return kept &&
+    typeof kept.captcha === "boolean" &&
+    typeof kept.consentWall === "boolean" &&
+    typeof kept.challengeCover === "boolean" &&
+    typeof kept.wall === "boolean"
+    ? kept
+    : undefined;
+}
+
+export function assessCapture(page: StoredPage, text: string): "clear" | "wall" | "unassessed" {
+  const kept = page.evidence;
+  const evidence = fullEvidence(page);
+  const wall =
+    Boolean(evidence?.captcha || evidence?.consentWall || evidence?.challengeCover || evidence?.wall) ||
+    wallShown({ title: kept?.title ?? "", text, overlays: kept?.overlays ?? "" });
+  if (wall) return "wall";
+  return evidence ? "clear" : "unassessed";
+}
+
 export function recheckStored(
   store: ReturnType<typeof openStore>,
   journal: string,
@@ -1305,22 +1330,10 @@ export function recheckStored(
       continue;
     }
     result.checked++;
-    // The evidence kept with the page: a page with all of it is judged as admission judged it; one without (stored
-    // before it was kept) is refused when its text shows a wall, and otherwise left unassessed until rendered again.
-    const kept = read.page.evidence;
-    // Evidence is complete only with every structural reading admission takes; a record without them (one stored
-    // before they were kept) is a legacy capture, which no reading of its text or picture can clear.
-    const evidence =
-      kept &&
-      typeof kept.captcha === "boolean" &&
-      typeof kept.consentWall === "boolean" &&
-      typeof kept.challengeCover === "boolean" &&
-      typeof kept.wall === "boolean"
-        ? kept
-        : undefined;
+    const verdict = assessCapture(read.page, read.text);
     // A legacy capture is rendered again under the current rules, when asked: the page goes, and the next run
     // renders its URL afresh.
-    if (!evidence && options.rerenderLegacy && read.page.url) {
+    if (!fullEvidence(read.page) && options.rerenderLegacy && read.page.url) {
       removeAndRecord(store, journal, {
         id: page.id,
         url: read.page.url,
@@ -1330,17 +1343,11 @@ export function recheckStored(
       result.rerendered.push(page.id);
       continue;
     }
-    // The refusals admission applies, from the readings kept with the page.
-    const wall =
-      Boolean(evidence?.captcha || evidence?.consentWall || evidence?.challengeCover || evidence?.wall) ||
-      wallShown({ title: kept?.title ?? "", text: read.text, overlays: kept?.overlays ?? "" });
-    // A legacy capture whose text shows no wall is still not cleared: a CAPTCHA, a consent wall or an image cover
-    // leaves no words. It stays unassessed until it is rendered again.
-    if (!wall && !evidence) {
+    if (verdict === "unassessed") {
       result.unassessed.push(page.id);
       continue;
     }
-    if (!wall) continue;
+    if (verdict === "clear") continue;
     removeAndRecord(store, journal, {
       id: page.id,
       url: page.url ?? page.id,

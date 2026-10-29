@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import {
   manifestDigest,
@@ -10,7 +11,7 @@ import {
   storeProblems,
   syntheticLeftovers,
 } from "../../scripts/glimmer/sources.ts";
-import type { StoredPage } from "../../scripts/glimmer/store.ts";
+import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
 
 // scripts/glimmer/sources.ts (D03 T04 §5): the record of public page datasets is reconciled both ways with what was
 // imported, so neither an import nor a decision can quietly go missing.
@@ -202,7 +203,7 @@ describe("reconcile", () => {
     }
   });
 
-  it("refuses to freeze twice or before the benign renders finish, and the build refuses a changed import", () => {
+  it("refuses to freeze twice or before the benign renders finish, and the build refuses a changed import", async () => {
     const store = mkdtempSync(join(tmpdir(), "glimmer-g13-"));
     const env = { ...process.env, GLIMMER_DATA_DIR: store };
     const script = (name: string) => join(import.meta.dirname, "../../scripts/glimmer", name);
@@ -225,6 +226,41 @@ describe("reconcile", () => {
       const partial = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
       expect(partial.status).toBe(1);
       expect(partial.stdout).toContain("majestic: its render is not finished (1 unfinished, 0 missing)");
+      // Every URL with an outcome, but one stored page a legacy capture recheck cannot clear: still not frozen.
+      const legacy = await openStore(store).putPage("benign-majestic", {
+        screenshot: new Uint8Array(
+          await sharp({ create: { width: 16, height: 16, channels: 3, background: "#fff" } })
+            .jpeg()
+            .toBuffer(),
+        ),
+        text: "Example Domain. This domain is for use in illustrative examples.",
+        origin: "benign",
+        licence: "CC BY 3.0",
+        host: "example.org",
+        template: null,
+        south_africa: false,
+        labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+        label_source: {
+          lure: "construction",
+          lure_type: "construction",
+          has_login_form: "dom",
+          has_payment_form: "dom",
+        },
+        redacted: false,
+        url: "https://example.org/",
+      } as Parameters<ReturnType<typeof openStore>["putPage"]>[1]);
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        [
+          { url: "https://example.com/", event: "excluded", reason: "HTTP 404", at: "2026-10-29T08:00:00.000Z" },
+          { url: "https://example.org/", event: "stored", id: legacy, at: "2026-10-29T08:00:05.000Z" },
+        ]
+          .map((event) => `${JSON.stringify(event)}\n`)
+          .join(""),
+      );
+      const unassessed = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(unassessed.status).toBe(1);
+      expect(unassessed.stdout).toContain("majestic: 1 stored pages unassessed and 0 showing a wall");
       mkdirSync(join(store, "raw", "set"), { recursive: true });
       writeFileSync(join(store, "raw", "set", "IMPORT.json"), "{}");
       writeFileSync(
