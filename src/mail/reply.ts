@@ -166,7 +166,7 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
       : budget === "day"
         ? "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply."
         : budget
-          ? "Checking is paused while we top up our capacity; we will email when it resumes. Until the message is checked, do not pay, click or reply."
+          ? "Checking is paused while we top up our capacity. Forward the message again later; until it is checked, do not pay, click or reply."
           : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
     lines = ["We could not finish checking this message, so we have no verdict on it yet.", "", advice];
     blocks = [

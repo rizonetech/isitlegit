@@ -119,3 +119,13 @@ describe("the statement for wrangler", () => {
     expect(() => inline({ sql: "SELECT ?1", params: [Number.NaN] })).toThrow(/finite/);
   });
 });
+
+describe("the cap a refusal names (completion review)", () => {
+  it("names the longer-lived cap when the day's is spent too, so no one is told to come back tomorrow in vain", async () => {
+    const { refusingCap } = await import("../../src/meta/caps");
+    // US$15 spent today and US$90 in all before the reserve days: tomorrow is refused too.
+    expect(refusingCap(15, 90, 1, "2026-11-01")).toBe("reserve");
+    expect(refusingCap(15, 120, 1, "2026-11-03")).toBe("total");
+    expect(refusingCap(15, 40, 1, "2026-11-01")).toBe("day");
+  });
+});

@@ -3,16 +3,14 @@
 // the total (raising either is a commit, and a new event). The event is the notice's send key, so `sendMail` sends it
 // once however many refusals race or however many Worker instances see them; a failed send is claimed again by the next
 // refusal; an uncertain one is settled by the reconciler (D01 T02 §5).
-import { sendMail } from "../mail/smtp2go";
-import { DAY_CAP_USD, RESERVE_USD, TOTAL_CAP_USD } from "./caps";
+import { type SendOutcome, sendMail } from "../mail/smtp2go";
+import { capEvent, DAY_CAP_USD, RESERVE_USD, TOTAL_CAP_USD } from "./caps";
+
+export { capEvent };
+
 import type { Cap } from "./guard";
 
 const ALERTS_FROM = "IsItLegit <alerts@isitlegit.co.za>";
-
-export function capEvent(cap: Cap, day: string): string {
-  if (cap === "day") return `budget:day:${day}`;
-  return cap === "reserve" ? `budget:reserve:${TOTAL_CAP_USD - RESERVE_USD}` : `budget:total:${TOTAL_CAP_USD}`;
-}
 
 const WHAT: Record<Cap, string> = {
   day: `today's US$${DAY_CAP_USD} cap`,
@@ -22,9 +20,9 @@ const WHAT: Record<Cap, string> = {
 
 export type NoticeEnv = { DB: D1Database; SMTP2GO_API_KEY?: string; OPERATOR_EMAIL?: string };
 
-export async function sendCapNotice(env: NoticeEnv, cap: Cap, model: string, day: string): Promise<void> {
-  if (!env.OPERATOR_EMAIL) return;
-  await sendMail(
+export async function sendCapNotice(env: NoticeEnv, cap: Cap, model: string, day: string): Promise<SendOutcome | null> {
+  if (!env.OPERATOR_EMAIL) return null;
+  return sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
     {
       sendKey: capEvent(cap, day),
@@ -40,4 +38,23 @@ export async function sendCapNotice(env: NoticeEnv, cap: Cap, model: string, day
       ].join("\n"),
     },
   );
+}
+
+// The cron's part (every 15 minutes, src/index.ts): each recorded cap event not yet notified is sent, and marked once
+// SMTP2GO confirmed it (or an earlier send of the same event did). A local script's refusal reaches the operator here.
+export async function sendPendingCapNotices(env: NoticeEnv): Promise<number> {
+  const pending = await env.DB.prepare(
+    "SELECT event, cap, model, day FROM budget_events WHERE notified_at IS NULL ORDER BY at LIMIT 20",
+  ).all<{ event: string; cap: Cap; model: string; day: string }>();
+  let sent = 0;
+  for (const row of pending.results) {
+    const outcome = await sendCapNotice(env, row.cap, row.model, row.day).catch(() => null);
+    if (outcome?.status === "sent" || (outcome?.status === "duplicate" && outcome.previous === "sent")) {
+      await env.DB.prepare("UPDATE budget_events SET notified_at = ? WHERE event = ?")
+        .bind(new Date().toISOString(), row.event)
+        .run();
+      sent += 1;
+    }
+  }
+  return sent;
 }

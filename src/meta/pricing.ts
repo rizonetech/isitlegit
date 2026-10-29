@@ -8,13 +8,23 @@ import { MODELS, type ModelId } from "./models.ts";
 // output limit the request sets, each image, each audio second.
 export type Bound = { inputBytes?: number; maxOutputTokens?: number; images?: number; audioSeconds?: number };
 
+// An image's input tokens scale with its resolution, about 1,300 to 1,500 for a ~1280px image, with no fixed figure
+// (sources/meta-api/docs/docs/image-understanding.md, "Image cost scales with resolution"); a token-priced call
+// reserves this many for each image it sends, four times that figure, and the request's own formatting overhead
+// (~110 tokens) on top, so an admitted call cannot cost more than it reserved (D03 T01 §2 completion review).
+export const IMAGE_TOKEN_BOUND = 6_000;
+export const REQUEST_OVERHEAD_TOKENS = 110;
+
 export function estimateUsd(model: ModelId, bound: Bound): number {
   const price = MODELS[model];
   switch (price.unit) {
-    case "token":
+    case "token": {
       if (bound.maxOutputTokens === undefined) throw new Error(`budget: a call to ${model} must set its output limit`);
-      return ((bound.inputBytes ?? 0) * price.input + bound.maxOutputTokens * price.output) / 1_000_000;
+      const input = (bound.inputBytes ?? 0) + (bound.images ?? 0) * IMAGE_TOKEN_BOUND + REQUEST_OVERHEAD_TOKENS;
+      return (input * price.input + bound.maxOutputTokens * price.output) / 1_000_000;
+    }
     case "image":
+      // Billed per image sent, one at least.
       return Math.max(1, bound.images ?? 1) * price.perImage;
     case "audio-second":
       if (bound.audioSeconds === undefined) throw new Error(`budget: a call to ${model} must give its audio length`);

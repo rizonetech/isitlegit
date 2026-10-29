@@ -20,9 +20,10 @@ export class BudgetExceeded extends Error {
 }
 
 // The budget behind one caller: `reserve` throws BudgetExceeded when a cap refuses, and any other error when the budget
-// cannot be reached, in which case nothing is sent.
+// cannot be reached, in which case nothing is sent. `id` names the row when the caller keeps its own record of the call
+// (a local ledger entry), so the same call is one row however often the history is imported.
 export type Budget = {
-  reserve(model: ModelId, estimateUsd: number, attempt: number): Promise<string>;
+  reserve(model: ModelId, estimateUsd: number, attempt: number, id?: string): Promise<string>;
   settle(id: string, actualUsd: number): Promise<void>;
   uncertain(id: string): Promise<void>;
 };
@@ -36,9 +37,10 @@ export class BudgetUnavailable extends Error {
 }
 
 // One attempt, charged: reserved at the estimate first; settled at the reported cost (the estimate when the usage is
-// unreadable); an answered refusal (an HTTP error status) settled at nothing, since Meta bills no refused request; and
-// an attempt whose answer was lost, cut off or unreadable left counted at its estimate. A failed settlement leaves the
-// row counted at its estimate, never released.
+// unreadable); a request Meta refused itself (a 4xx other than 408: invalid, unauthorised, rate-limited) settled at
+// nothing, since it was never run; and anything else left counted at its estimate: an answer lost, cut off or
+// unreadable, and a 5xx or a 408, which a gateway can answer after the request reached Meta (a 504 timeout) (D03 T01 §2
+// completion review). A failed settlement leaves the row counted at its estimate, never released.
 export async function charged<T>(
   budget: Budget,
   model: ModelId,
@@ -61,7 +63,7 @@ export async function charged<T>(
     const status =
       (error as { status?: unknown; details?: { status?: unknown } }).status ??
       (error as { details?: { status?: unknown } }).details?.status;
-    const refused = typeof status === "number" && status >= 400;
+    const refused = typeof status === "number" && status >= 400 && status < 500 && status !== 408;
     await (refused ? budget.settle(id, 0) : budget.uncertain(id)).catch(() => {});
     throw error;
   }

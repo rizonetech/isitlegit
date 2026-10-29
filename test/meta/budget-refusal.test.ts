@@ -4,7 +4,7 @@ import { d1Budget, reserve } from "../../src/meta/budget";
 import { metaResponses } from "../../src/meta/client";
 import { sastDay } from "../../src/meta/day";
 import { BudgetExceeded } from "../../src/meta/guard";
-import { capEvent, sendCapNotice } from "../../src/meta/notice";
+import { capEvent, sendCapNotice, sendPendingCapNotices } from "../../src/meta/notice";
 import { stubSmtp2go } from "../auth/helpers";
 
 // The real client on the Worker's real budget (D03 T01 §2): with the day's cap spent, a call is refused before
@@ -107,6 +107,32 @@ describe("the operator's notice for a cap event", () => {
       await sendCapNotice(noticeEnv, "total", "muse-wonder-1.0", sastDay());
       expect(smtp.sends).toHaveLength(1);
       expect(smtp.sends[0]?.to).toBe("hostmaster@rizonetech.com");
+    } finally {
+      smtp.restore();
+    }
+  });
+});
+
+describe("the cron's alert for recorded cap events (completion review)", () => {
+  it("alerts once for an event a local script and the Worker both recorded, and marks it", async () => {
+    await db.prepare("DELETE FROM mail_sends WHERE send_key LIKE 'budget:%'").run();
+    await db.prepare("DELETE FROM budget_events").run();
+    const day = "2099-02-01";
+    for (const _ of [1, 2])
+      await db
+        .prepare(
+          "INSERT OR IGNORE INTO budget_events (event, cap, model, day, at) VALUES (?, 'day', 'muse-spark-1.3', ?, ?)",
+        )
+        .bind(capEvent("day", day), day, new Date().toISOString())
+        .run();
+    const smtp = stubSmtp2go();
+    try {
+      const env2 = { DB: db, SMTP2GO_API_KEY: `api-${"k".repeat(32)}`, OPERATOR_EMAIL: "hostmaster@rizonetech.com" };
+      expect(await sendPendingCapNotices(env2)).toBe(1);
+      expect(await sendPendingCapNotices(env2)).toBe(0);
+      expect(smtp.sends).toHaveLength(1);
+      const row = await db.prepare("SELECT notified_at FROM budget_events").first<{ notified_at: string | null }>();
+      expect(row?.notified_at).not.toBeNull();
     } finally {
       smtp.restore();
     }

@@ -55,6 +55,14 @@ export function uncertainStatement(id: string): Statement {
   return { sql: "UPDATE model_spend SET state = 'uncertain' WHERE id = ?1 AND state = 'reserved'", params: [id] };
 }
 
+// A cap's refusal, recorded once per event (src/meta/caps.ts `capEvent`) for the operator's alert.
+export function capEventStatement(event: string, cap: string, model: string, day: string, at: string): Statement {
+  return {
+    sql: "INSERT OR IGNORE INTO budget_events (event, cap, model, day, at) VALUES (?1, ?2, ?3, ?4, ?5)",
+    params: [event, cap, model, day, at],
+  };
+}
+
 // Values written into the SQL for wrangler: numbers must be finite, strings plain printable text with no NUL (quotes
 // doubled), and nothing else, so a value can never end its literal.
 const literal = (value: string | number | null): string => {

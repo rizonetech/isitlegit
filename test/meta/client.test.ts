@@ -459,16 +459,38 @@ describe("the budget on every attempt (D03 T01 §2)", () => {
     expect(charges[0]?.estimate).toBeGreaterThan(0);
   });
 
-  it("reserves each retried attempt, settling an answered refusal at nothing", async () => {
+  it("reserves each retried attempt, keeping a 5xx counted, since a gateway can answer one after Meta ran it", async () => {
     const busy = () => json(503, envelope("server_error"));
     const { sent, ctx, charges } = transport(busy, busy, busy);
     await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, ctx));
     expect(sent).toHaveLength(3);
-    expect(charges.map((c) => [c.attempt, c.state, c.actual])).toEqual([
-      [1, "settled", 0],
-      [2, "settled", 0],
-      [3, "settled", 0],
+    expect(charges.map((c) => [c.attempt, c.state])).toEqual([
+      [1, "uncertain"],
+      [2, "uncertain"],
+      [3, "uncertain"],
     ]);
+    const timeout = transport(() => json(504, envelope("server_error")));
+    await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, timeout.ctx));
+    expect(timeout.charges[0]?.state).toBe("uncertain");
+  });
+
+  it("settles a request Meta refused itself (a 4xx) at nothing", async () => {
+    const { ctx, charges } = transport(() => json(400, envelope("invalid_request_error")));
+    await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, ctx));
+    expect(charges.map((c) => [c.state, c.actual])).toEqual([["settled", 0]]);
+  });
+
+  it("reserves an image at its stated bound, never for the characters that carry it", async () => {
+    const { ctx, charges } = transport(ok);
+    const image = { type: "input_image", image_url: `data:image/png;base64,${"A".repeat(200_000)}`, detail: "auto" };
+    await metaResponses(
+      { model: "muse-spark-1.3", input: [{ role: "user", content: [image] }] as never, max_output_tokens: 16 },
+      ctx,
+    );
+    const perToken = 1.25 / 1_000_000;
+    // At least the image's bound; far less than 200,000 characters priced as text.
+    expect(charges[0]?.estimate).toBeGreaterThanOrEqual(6_000 * perToken);
+    expect(charges[0]?.estimate).toBeLessThan(20_000 * perToken);
   });
 
   it("keeps an attempt whose answer was lost counted at its estimate", async () => {

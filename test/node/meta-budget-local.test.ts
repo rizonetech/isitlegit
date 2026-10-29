@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { execute, localBudget } from "../../scripts/lib/meta-budget.ts";
+import { execute, ledgerId, localBudget } from "../../scripts/lib/meta-budget.ts";
 import { BEFORE_LEDGER, importSpend } from "../../scripts/meta-spend-import.ts";
 import type { Runner } from "../../scripts/smoke.ts";
 import { inline, reserveStatement } from "../../src/meta/budget-sql.ts";
@@ -10,7 +10,9 @@ import { BudgetExceeded } from "../../src/meta/guard.ts";
 // The local callers' budget (D03 T01 §2): the same statement the Worker runs, sent through `wrangler d1 execute`. Here
 // wrangler is a stand-in that runs each command on an in-memory SQLite holding the real migration, so the SQL itself is
 // what is tested, a Worker's reservation racing a local one on the same rows.
-const MIGRATION = readFileSync(new URL("../../src/db/migrations/0020_model_spend.sql", import.meta.url), "utf-8");
+const MIGRATION = ["0020_model_spend.sql", "0021_budget_events.sql"]
+  .map((name) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8"))
+  .join("\n");
 
 function wrangler(db = new DatabaseSync(":memory:")) {
   db.exec(MIGRATION);
@@ -115,5 +117,39 @@ describe("the import of spend made before the guard", () => {
       .get() as { usd: number };
     expect(counted.usd).toBeCloseTo(0.008507 + 0.000291 + 0.0138 + 0.013);
     expect(first.total).toBeCloseTo(counted.usd);
+  });
+});
+
+describe("completion review (2026-10-29)", () => {
+  it("records a local refusal's cap event once, for the Worker's cron to alert the operator", async () => {
+    const w = wrangler();
+    const budget = localBudget("meta-smoke", w.run, at);
+    await budget.reserve("muse-spark-1.3", 15, 1);
+    for (const _ of [1, 2]) await budget.reserve("muse-spark-1.3", 1, 1).catch(() => null);
+    expect(w.db.prepare("SELECT event, cap, model, notified_at FROM budget_events").all()).toEqual([
+      { event: "budget:day:2026-10-30", cap: "day", model: "muse-spark-1.3", notified_at: null },
+    ]);
+  });
+
+  it("counts a guarded call once when the ledger that also records it is imported afterwards", async () => {
+    const w = wrangler();
+    const entry = {
+      date: "2026-10-30",
+      run: "run-1",
+      call: "Spark text",
+      estimate: 0.005,
+      cost: 0.005,
+      state: "settled" as const,
+    };
+    const budget = localBudget("meta-smoke", w.run, at);
+    const id = await budget.reserve("muse-spark-1.3", entry.estimate, 1, ledgerId(entry.date, entry.run, entry.call));
+    await budget.settle(id, entry.cost);
+    await importSpend([entry], w.run);
+    const counted = w.db
+      .prepare(
+        "SELECT count(*) AS n, sum(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END) AS usd FROM model_spend WHERE id LIKE 'ledger:%'",
+      )
+      .get() as { n: number; usd: number };
+    expect(counted).toEqual({ n: 1, usd: 0.005 });
   });
 });

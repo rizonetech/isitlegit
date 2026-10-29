@@ -12,8 +12,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { ModelError, metaResponses } from "../src/meta/client.ts";
+import { sastDay } from "../src/meta/day.ts";
 import type { Budget } from "../src/meta/guard.ts";
-import { localBudget } from "./lib/meta-budget.ts";
+import { ledgerId, localBudget } from "./lib/meta-budget.ts";
 import {
   adoptLegacyLedger,
   checkLog,
@@ -164,7 +165,8 @@ async function run(
   }
 
   const now = options.now ?? (() => new Date());
-  const today = now().toISOString().slice(0, 10);
+  // The budget's day, SAST (src/meta/day.ts), as the shared caps count it.
+  const today = sastDay(now());
   const runId = now().toISOString();
   const estimate = tokenCost(MODEL, INPUT_TOKENS_CEILING, MAX_OUTPUT_TOKENS);
 
@@ -247,7 +249,18 @@ async function run(
         fetch: guarded,
         deadlineMs: 60_000,
         // The shared budget in the live D1 (D03 T01 §2), beside this script's own ledger record of each attempt.
-        budget: options.budget,
+        // Each attempt's row named for its ledger entry (`client Spark attempt <n>`), so an import of the ledger finds it
+        // already counted.
+        budget: {
+          ...options.budget,
+          reserve: (model, estimateUsd, attempt) =>
+            options.budget.reserve(
+              model,
+              estimateUsd,
+              attempt,
+              ledgerId(today, runId, `client Spark attempt ${attempt}`),
+            ),
+        },
       },
     );
   } catch (error) {

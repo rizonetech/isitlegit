@@ -26,9 +26,10 @@ import { parseArgs } from "node:util";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
 import OpenAI from "openai";
 import { z } from "zod";
+import { sastDay } from "../src/meta/day.ts";
 import { type Budget, BudgetExceeded } from "../src/meta/guard.ts";
 import type { ModelId } from "../src/meta/models.ts";
-import { localBudget } from "./lib/meta-budget.ts";
+import { ledgerId, localBudget } from "./lib/meta-budget.ts";
 import { installSignalCleanup, runCommand } from "./smoke.ts";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -634,7 +635,8 @@ type Admitted = {
 async function spend(admitted: Admitted): Promise<RunOutcome> {
   const { options, fx, calls, partial, headers, ledgerFile, say, refuse, lines } = admitted;
   const now = options.now ?? (() => new Date());
-  const today = now().toISOString().slice(0, 10);
+  // The budget's day, SAST (src/meta/day.ts), as the shared caps count it.
+  const today = sastDay(now());
   const runId = now().toISOString();
   const estimate = calls.reduce((sum, c) => sum + c.estimate, 0);
   let ledger: Spend[];
@@ -751,7 +753,8 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     // The shared caps first (the one authority, the live D1), then this checkout's own ledger record.
     let held: string;
     try {
-      held = await budget.reserve(call.model as ModelId, call.estimate, 1);
+      // Named for its ledger entry, so an import of the ledger finds it already counted.
+      held = await budget.reserve(call.model as ModelId, call.estimate, 1, ledgerId(today, runId, call.name));
     } catch (error) {
       say(
         `meta-smoke: stopped before ${call.name}: ${error instanceof BudgetExceeded ? `the ${error.cap} cap refused it` : "the shared budget could not be reached"}`,
@@ -765,6 +768,8 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
       estimate: call.estimate,
     });
     if ("refused" in reserved) {
+      // Never sent: the shared reservation is released, so a failed local record cannot use up the allowance.
+      await budget.settle(held, 0).catch(() => {});
       say(`meta-smoke: stopped before ${call.name}: ${reserved.refused}`);
       return { code: 1, lines };
     }

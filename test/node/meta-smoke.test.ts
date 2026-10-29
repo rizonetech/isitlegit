@@ -460,8 +460,11 @@ describe("scripts/meta-smoke.ts", () => {
     const dir = join(DIR, "ledger");
     mkdirSync(dir);
     try {
+      // The shared reservation for the call that was never sent is released (completion review, 2026-10-29).
+      const settled: [string, number][] = [];
       const stopped = await live(fetchStub, {
         ledger: join(dir, "spend.json"),
+        budget: { ...openBudget(), settle: async (id: string, usd: number) => void settled.push([id, usd]) },
         readSecrets: async () => {
           chmodSync(dir, 0o500);
           return SECRETS;
@@ -471,6 +474,7 @@ describe("scripts/meta-smoke.ts", () => {
       expect(stopped.lines.at(-1)).toMatch(
         /stopped before Spark text: .*could not be written \(E[A-Z]+\); free space or fix its permissions/,
       );
+      expect(settled).toEqual([["held", 0]]);
     } finally {
       chmodSync(dir, 0o700);
     }

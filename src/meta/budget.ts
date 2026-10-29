@@ -4,8 +4,15 @@
 // (./budget-sql.ts).
 
 import type { Reservation, Statement } from "./budget-sql";
-import { inline as _inline, reserveStatement, settleStatement, spentStatement, uncertainStatement } from "./budget-sql";
-import { DAY_CAP_USD, refusingCap, totalLimitFor } from "./caps";
+import {
+  inline as _inline,
+  capEventStatement,
+  reserveStatement,
+  settleStatement,
+  spentStatement,
+  uncertainStatement,
+} from "./budget-sql";
+import { capEvent, DAY_CAP_USD, refusingCap, totalLimitFor } from "./caps";
 
 export { type Bound, costUsd, estimateUsd, type Usage } from "./pricing";
 
@@ -43,14 +50,15 @@ export function d1Budget(
   who: {
     caller: string;
     caseId?: string | null;
-    notify?: (cap: Cap, model: string, day: string) => Promise<void>;
+    notify?: (cap: Cap, model: string, day: string) => Promise<unknown>;
     waitUntil?: (promise: Promise<unknown>) => void;
   },
 ): Budget {
   return {
-    async reserve(model, estimateUsd, attempt) {
+    async reserve(model, estimateUsd, attempt, id) {
       const now = new Date();
       const reserved = await reserve(db, {
+        ...(id ? { id } : {}),
         at: now.toISOString(),
         day: sastDay(now),
         source: "worker",
@@ -61,6 +69,11 @@ export function d1Budget(
         estimateUsd,
       });
       if (!reserved.ok) {
+        const day = sastDay(now);
+        // Recorded first, so the cron sends the alert even if this instance's own send never finishes.
+        await run(db, capEventStatement(capEvent(reserved.cap, day), reserved.cap, model, day, now.toISOString()))
+          .run()
+          .catch(() => {});
         if (who.notify) {
           const notice = who.notify(reserved.cap, model, sastDay(now)).catch(() => {});
           who.waitUntil?.(notice);

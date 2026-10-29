@@ -4,10 +4,9 @@
 // source, inserted with INSERT OR IGNORE, so a second run adds nothing. Run with the operator's Wrangler login:
 //
 //   node scripts/meta-spend-import.ts [--dry]
-import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import type { Statement } from "../src/meta/budget-sql.ts";
-import { execute } from "./lib/meta-budget.ts";
+import { execute, ledgerId } from "./lib/meta-budget.ts";
 import { metaLedger, readLedger, type Spend } from "./meta-smoke.ts";
 import { installSignalCleanup, type Runner, runCommand } from "./smoke.ts";
 
@@ -44,7 +43,7 @@ export type ImportRow = {
 // A ledger entry as a row: its id from its own fields, its day the date it was recorded on (the ledger's dates are the
 // SAST days the smoke and the lane counted on), its cost when settled, its estimate counted otherwise.
 export function rowOf(entry: Spend): ImportRow {
-  const id = `ledger:${createHash("sha256").update(`${entry.date}\n${entry.run}\n${entry.call}`).digest("hex").slice(0, 32)}`;
+  const id = ledgerId(entry.date, entry.run, entry.call);
   const model = entry.call.split(" ")[0] ?? "unknown";
   return {
     id,

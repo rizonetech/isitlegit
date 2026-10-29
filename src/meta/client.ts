@@ -112,8 +112,10 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
   const body: ResponseCreateParamsNonStreaming = { ...params, model, stream: false, store: false };
   const json = JSON.stringify(body);
   const images = imagesIn(json);
+  // An image's data is priced as an image (IMAGE_TOKEN_BOUND), not as the characters that carry it.
+  const text = json.replace(/"data:[^"]*"/g, '""');
   const estimate = estimateUsd(model, {
-    inputBytes: new TextEncoder().encode(json).byteLength,
+    inputBytes: new TextEncoder().encode(text).byteLength,
     maxOutputTokens: params.max_output_tokens,
     images,
   });
@@ -136,7 +138,8 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
         inputTokens: data.usage?.input_tokens,
         cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
         outputTokens: data.usage?.output_tokens,
-        images,
+        // SAM is billed per image sent, one at least.
+        images: Math.max(1, images),
       }),
     ),
   );
@@ -249,8 +252,9 @@ async function rawAttempt(
   return { data, logId: response.headers.get("cf-aig-log-id") };
 }
 
-// The images a Responses request sends, which SAM is billed by (one at least).
-const imagesIn = (json: string) => Math.max(1, (json.match(/"type":"input_image"/g) ?? []).length);
+// The images a Responses request sends: SAM is billed by them (one at least, ./pricing.ts), and a token-priced model
+// reserves IMAGE_TOKEN_BOUND for each.
+const imagesIn = (json: string) => (json.match(/"type":"input_image"/g) ?? []).length;
 
 // A non-negative number at a field of an answer, or undefined.
 const numberAt = (data: unknown, field: string) => {

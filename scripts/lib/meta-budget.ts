@@ -3,7 +3,9 @@
 // (src/meta/budget-sql.ts), through `wrangler d1 execute isitlegit --remote` on the operator's Wrangler login. One budget
 // for every caller: a local call and a Worker call cannot both spend the last of an allowance. When the database cannot
 // be reached, the reservation fails and nothing is sent to Meta.
+import { createHash } from "node:crypto";
 import {
+  capEventStatement,
   inline,
   reserveStatement,
   type Statement,
@@ -11,7 +13,7 @@ import {
   spentStatement,
   uncertainStatement,
 } from "../../src/meta/budget-sql.ts";
-import { DAY_CAP_USD, refusingCap, totalLimitFor } from "../../src/meta/caps.ts";
+import { capEvent, DAY_CAP_USD, refusingCap, totalLimitFor } from "../../src/meta/caps.ts";
 import { sastDay } from "../../src/meta/day.ts";
 import { type Budget, BudgetExceeded } from "../../src/meta/guard.ts";
 import { type Runner, runCommand } from "../smoke.ts";
@@ -31,12 +33,17 @@ export async function execute(statement: Statement, run: Runner = runCommand, ti
   return answer;
 }
 
+// The row id of a call a local ledger records (scripts/meta-smoke.ts `Spend`): its date, run and call, so the guarded
+// reservation and a later import of the same ledger entry are one row (D03 T01 §2 completion review).
+export const ledgerId = (date: string, run: string, call: string) =>
+  `ledger:${createHash("sha256").update(`${date}\n${run}\n${call}`).digest("hex").slice(0, 32)}`;
+
 export function localBudget(caller: string, run: Runner = runCommand, now: () => Date = () => new Date()): Budget {
   return {
-    async reserve(model, estimateUsd, attempt) {
+    async reserve(model, estimateUsd, attempt, id) {
       const at = now();
       const row = {
-        id: crypto.randomUUID(),
+        id: id ?? crypto.randomUUID(),
         at: at.toISOString(),
         day: sastDay(at),
         source: "local" as const,
@@ -49,10 +56,10 @@ export function localBudget(caller: string, run: Runner = runCommand, now: () =>
       const inserted = await execute(reserveStatement(row, DAY_CAP_USD, totalLimitFor(row.day)), run);
       if (inserted.meta?.changes === 1) return row.id;
       const spent = (await execute(spentStatement(row.day), run)).results?.[0] ?? {};
-      throw new BudgetExceeded(
-        refusingCap(Number(spent.day_usd ?? 0), Number(spent.total_usd ?? 0), estimateUsd, row.day),
-        model,
-      );
+      const cap = refusingCap(Number(spent.day_usd ?? 0), Number(spent.total_usd ?? 0), estimateUsd, row.day);
+      // The cap's event, for the Worker's cron to alert the operator (a local script cannot send it).
+      await execute(capEventStatement(capEvent(cap, row.day), cap, model, row.day, row.at), run).catch(() => {});
+      throw new BudgetExceeded(cap, model);
     },
     async settle(id, actualUsd) {
       await execute(settleStatement(id, actualUsd, now().toISOString()), run);
