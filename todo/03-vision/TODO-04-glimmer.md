@@ -59,7 +59,7 @@ track: day-6
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [x] |
 | 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
 | 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
-| 24 | §24 | A phishing-signals rubric from public guidance | -- | [ ] |
+| 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
@@ -769,11 +769,14 @@ Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phis
 - [x] Write the rubric in our own words in `docs/glimmer/signals.md`: each cue states the evidence it needs from what the screener receives (the page's host, its screenshot and its visible text, `buildScreenRequest` in `src/vision/page-screen.ts`), and its unavailable state, where that evidence is not on the page (a domain's age, a sender, who owns a domain); a cue whose evidence the screener never receives is listed as out of reach, and missing evidence is never evidence of fraud (plan review gap 2). Done when: each cue names its evidence and its unavailable state, and the out-of-reach cues are listed apart.
 - [x] Give each cue its false-positive risk and a paired genuine and lure South African case, described in words, synthetic and brand-neutral, never a working page: a genuine third-party sign-in or payment host, a genuine urgent notice, a new business, a plain form page; and keep the screener's meanings unchanged (the four lure types, the two form flags, confidence) (plan review gap 3). Done when: every cue has its risk and both cases, and the rubric changes no answer field's meaning.
 - [x] Write `test/node/glimmer-signals.test.ts` reading `docs/glimmer/signals.md`: every accepted source has its decision and date, every cue cites an accepted source, names its evidence from the screener's inputs and its unavailable state, and has its false-positive risk and both cases; no cue rests on a rejected source. Done when: the test passes and fails on a cue with no evidence, no unavailable state, no counterexample or a rejected source.
-- [ ] Commit: `glimmer: a phishing-signals rubric from public guidance`
+- [x] Commit: `glimmer: a phishing-signals rubric from public guidance`
 
 > **Deferred:** the rubric in the screener's and the teacher's prompts, measured on held-out pages (plan review gaps 4 to 10) -> XREF: D03 T04 §25
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-signals.test.ts` passes: every source has its acceptance decision, and every cue is sourced, within the screener's inputs, with its unavailable state, its false-positive risk and a paired genuine and lure case.
+
+> **Verified:** 2026-10-29 | §24 | b36d132e91c72f98dd80eeee7f5b7f17015c09b8
+> **Review:** `docs/reviews/d03-t04-s24.json`
 
 ## 25. The signals rubric in the prompts, measured
 

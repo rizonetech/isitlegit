@@ -1,0 +1,117 @@
+{
+  "ref": "D03 T04 \u00a724",
+  "title": "A phishing-signals rubric from public guidance",
+  "implementation_sha": "b36d132e91c72f98dd80eeee7f5b7f17015c09b8",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s24.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s24.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s24.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-signals.test.ts -> 6 passed (every source with its acceptance decision, title, publisher, https URL and date; every cue sourced from accepted sources, within the screener's inputs, with its unavailable state, risk and paired South African cases; out-of-reach evidence, doubled fields and split pairs refused)"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s24.md",
+    "verdict": "filed",
+    "candidate": "ea8582cc52d72d5789ae148264d453b219a8f7c2",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a725"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s24.md",
+    "candidate": "315a2ceac22e24e652efd7c82995fb28b74d64a9",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s24.md",
+    "verdict": "fixed",
+    "candidate": "e6b8847dc0f051e4035f650debe667f958627e36",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

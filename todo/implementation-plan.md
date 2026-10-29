@@ -286,7 +286,7 @@ Sections: 20 | Checklist items: 119
 | [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 9     |
 | [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none     | 7     |
 | [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 7     |
-| [ ]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none     | 5     |
+| [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none     | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api | 7     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
@@ -318,6 +318,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 64/249 verified sections, 28 ready to run now.
+Progress: 65/249 verified sections, 27 ready to run now.
 
-Checklist: 733/1540 items completed (includes Commit items).
+Checklist: 734/1540 items completed (includes Commit items).
