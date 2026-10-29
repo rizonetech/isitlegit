@@ -56,7 +56,7 @@ track: day-6
 | 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6 | [ ] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [ ] |
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
-| 21 | §21 | Downloads that beat aria2c outright | §20 | [ ] |
+| 21 | §21 | Downloads that beat aria2c outright | §20 | [x] |
 | 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
 | 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [ ] |
@@ -689,12 +689,15 @@ Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brough
 - [x] Remove the largest costs the breakdown names, each with its regression test (completion review E1). Done when: `acceptance.all.met` is true under the per-scenario bars decided above, nothing more refetched, every run intact. Final, measured 2026-10-29T09:00:51Z at `4964bee` (after the final review; full precision, per-scenario bars, kills at the exact written byte, resumes within 4 MiB): gigabyte 0.9915 with start-up taken off (0.9959 raw), refetched 638,976 against 1,294,336; mirror 0.699 (0.716); the 96 MiB cut guard 0.9941 (1.063); every run of both tools recovered, cut, intact, latency paid, resumed; `acceptance.all.met` true. Changes: `d9383a6` (rung, not polled), `6c9086b` (saves every MiB off the connections).
 - [x] Record the figures, their conditions (host load, latency, certificate, payloads) and limits in `docs/glimmer/importing.md`. Done when: the guide states each scenario's ratio, refetched bytes and conditions.
 - [x] Close the completion review's gaps 1 to 8 in `scripts/glimmer/fetch_bench.py` and `scripts/glimmer/fetch.py` (five runs and each scenario's evidence required, full precision, `--ca-file` adding to the system's authorities, bad CA files refused, measured latency per request kind, the kill at the server's byte with the second process's requests recorded, bounded helpers and guaranteed cleanup, a test at the production save interval). Done when: `tests/scripts/test_fetch_bench.py` and `tests/scripts/test_glimmer_fetch.py` prove each, and the figures are regenerated with the new evidence.
-- [ ] Commit: `glimmer: downloads that beat aria2c outright`
+- [x] Commit: `glimmer: downloads that beat aria2c outright`
 
 > **Deferred:** several healthy mirrors at once (completion review E2; plan review gaps 4 to 7 and 9) -> XREF: D03 T04 §22
 > **Deferred:** a win with start-up included, a repeatable win over paired runs, one-stream recovery, real hosts (this section's completion review items 9 to 12) -> XREF: D03 T04 §23
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes, and `docs/glimmer/fetch-bench.json` records `acceptance.all.met` true under the per-scenario bars decided above (`BARS`: the gigabyte file and the failing first URL strictly under 1.00 with start-up taken off, §20's 96 MiB cut scenario within 1.10), with every run of both tools cut, recovered, intact and paying the latency, and the gigabyte scenario resumed within `RESUME_SLACK`.
+
+> **Verified:** 2026-10-29 | §21 | 3fea03ef805d1fd4dbf33405ae2328aa98ee5864
+> **Review:** `docs/reviews/d03-t04-s21.json`
 
 ## 22. Several healthy mirrors at once
 

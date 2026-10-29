@@ -1,0 +1,124 @@
+{
+  "ref": "D03 T04 \u00a721",
+  "title": "Downloads that beat aria2c outright",
+  "implementation_sha": "3fea03ef805d1fd4dbf33405ae2328aa98ee5864",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s21.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s21.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s21.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s21.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench -> 92 OK",
+    "python3 scripts/glimmer/fetch_bench.py -> exit 0, acceptance.all.met: gigabyte net 0.9915 (raw 0.9959), refetched 638,976 against 1,294,336; mirror 0.699; the 96 MiB guard 0.9941; every run of both tools recovered, cut, intact, latency paid, resumed within 4 MiB"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s21.md",
+    "verdict": "filed",
+    "candidate": "f05f1f79ea9fa6e8debda320e36a953fc7be817a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a723",
+      "D03 T04 \u00a722"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s21.md",
+    "candidate": "265a76626b5125c286616f1057a32f562da2bf1e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s21.md",
+    "verdict": "fixed",
+    "candidate": "324da43e30784c612a3a82fa462c02f821388994",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
