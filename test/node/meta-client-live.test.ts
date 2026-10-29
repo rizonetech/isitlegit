@@ -45,6 +45,8 @@ function world(w: World = {}) {
   const sent: string[] = [];
   let secretsRead = 0;
   const options: LiveOptions = {
+    // A shared budget that admits every attempt (D03 T01 §2; the real one is test/node/meta-budget-local.test.ts).
+    budget: { reserve: async () => "held", settle: async () => {}, uncertain: async () => {} },
     ledger: LEDGER,
     pending: PENDING,
     record: RECORD,

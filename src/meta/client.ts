@@ -14,7 +14,9 @@ import OpenAI from "openai";
 import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
 // extensionless path.
+import { type Budget, BudgetExceeded, BudgetUnavailable, charged } from "./guard.ts";
 import { ENDPOINTS, type Endpoint, isModelId, type ModelId } from "./models.ts";
+import { estimateUsd } from "./pricing.ts";
 
 export const DEFAULT_DEADLINE_MS = 60_000;
 export const MAX_ATTEMPTS = 3;
@@ -32,6 +34,9 @@ const IDENTIFIER = /^[A-Za-z0-9_.:[\]-]{1,80}$/;
 export type MetaEnv = { META_API_KEY?: string; CF_AIG_TOKEN?: string; META_GATEWAY_URL?: string };
 export type MetaContext = {
   env: MetaEnv;
+  // The caps (D03 T01 §2): every attempt is reserved here before it is sent and settled after. Required, so no call
+  // can be made outside the budget.
+  budget: Budget;
   // The whole call, every attempt and every wait between them included.
   deadlineMs?: number;
   fetch?: typeof fetch;
@@ -87,6 +92,12 @@ export type ResponsesParams = Omit<ResponseCreateParamsNonStreaming, "model" | "
 
 export async function metaResponses(params: ResponsesParams, ctx: MetaContext): Promise<MetaAnswer<MetaResponse>> {
   const model = standard(params.model, "responses");
+  // The output limit bounds what a call can cost (D03 T01 §2): a call without one cannot be reserved for.
+  if (typeof params.max_output_tokens !== "number" || params.max_output_tokens < 1)
+    throw new ModelError(
+      "invalid-request",
+      "a Responses call must set max_output_tokens, which the budget reserves for",
+    );
   const { apiKey, token, base } = settings(ctx.env);
   const seen = observe(ctx.fetch ?? fetch);
   const client = new OpenAI({
@@ -99,21 +110,48 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
   });
   // Forced last, so no caller's `store` reaches Meta.
   const body: ResponseCreateParamsNonStreaming = { ...params, model, stream: false, store: false };
-  return withRetries(ctx, seen, async (signal) => {
-    const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
-    if (!isResponse(data))
-      throw new ModelError("malformed", "Meta's answer is not a response object", {
-        status: response.status,
-        ...traced(response.headers),
-      });
-    return { data, logId: response.headers.get("cf-aig-log-id") };
+  const json = JSON.stringify(body);
+  const images = imagesIn(json);
+  const estimate = estimateUsd(model, {
+    inputBytes: new TextEncoder().encode(json).byteLength,
+    maxOutputTokens: params.max_output_tokens,
+    images,
   });
+  return withRetries(ctx, seen, (signal, n) =>
+    charged(
+      ctx.budget,
+      model,
+      estimate,
+      n,
+      async () => {
+        const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
+        if (!isResponse(data))
+          throw new ModelError("malformed", "Meta's answer is not a response object", {
+            status: response.status,
+            ...traced(response.headers),
+          });
+        return { data, logId: response.headers.get("cf-aig-log-id") };
+      },
+      ({ data }) => ({
+        inputTokens: data.usage?.input_tokens,
+        cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
+        outputTokens: data.usage?.output_tokens,
+        images,
+      }),
+    ),
+  );
 }
 
 // The endpoints the SDK route does not cover, each with its own wire contract: transcription is multipart, a `request`
 // part (the settings as JSON) and an `audio` part (sources/meta-api/docs/docs/api-reference/voice/transcribe.md); an
 // image edit is JSON (.../images/edit-image.md). Any other path is refused before the network.
-export type TranscribeBody = { request: { model: string } & Record<string, unknown>; audio: Blob; filename?: string };
+// `audioSeconds` is the recording's length, which the budget reserves for (D03 T01 §2).
+export type TranscribeBody = {
+  request: { model: string } & Record<string, unknown>;
+  audio: Blob;
+  filename?: string;
+  audioSeconds: number;
+};
 export type ImageEditBody = { model: string } & Record<string, unknown>;
 export const RAW_PATHS = ["/asr/transcribe", "/images/edits"] as const;
 export type RawPath = (typeof RAW_PATHS)[number];
@@ -129,49 +167,96 @@ export async function metaRaw(
     throw new ModelError("invalid-request", `${String(path).slice(0, 80)} is not an endpoint this client sends to`);
   let payload: BodyInit;
   let contentType: Record<string, string> = {};
+  let model: ModelId;
+  let estimate: number;
+  let usage: (data: unknown) => { audioSeconds?: number; images?: number };
   if (path === "/asr/transcribe") {
-    const { request, audio, filename } = body as TranscribeBody;
-    standard(request.model, "/asr/transcribe");
+    const { request, audio, filename, audioSeconds } = body as TranscribeBody;
+    model = standard(request.model, "/asr/transcribe");
+    if (!(Number.isFinite(audioSeconds) && audioSeconds > 0))
+      throw new ModelError(
+        "invalid-request",
+        "a transcription must give its audio length, which the budget reserves for",
+      );
+    estimate = estimateUsd(model, { audioSeconds });
+    // Meta reports the recording's duration when it can; otherwise the length given is the length billed.
+    usage = (data) => ({ audioSeconds: numberAt(data, "duration") ?? audioSeconds });
     const form = new FormData();
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
     form.append("audio", audio, filename ?? "audio");
     payload = form;
   } else {
-    standard((body as ImageEditBody).model, "/images/edits");
+    model = standard((body as ImageEditBody).model, "/images/edits");
+    const asked = (body as ImageEditBody).n;
+    const count = typeof asked === "number" && asked >= 1 ? asked : 1;
+    estimate = estimateUsd(model, { images: count });
+    usage = (data) => {
+      const made = (data as { data?: unknown } | null)?.data;
+      return { images: Array.isArray(made) ? made.length : count };
+    };
     payload = JSON.stringify(body);
     contentType = { "content-type": "application/json" };
   }
   const { apiKey, token, base } = settings(ctx.env);
   const seen = observe(ctx.fetch ?? fetch);
-  return withRetries(ctx, seen, async (signal) => {
-    const response = await seen.fetch(`${base}${path}`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        accept: "application/json",
-        ...contentType,
-        ...gatewayHeaders(token),
-      },
-      body: payload,
-      signal,
-    });
-    const text = await response.text();
-    let data: unknown;
-    let parsed = true;
-    try {
-      data = text ? JSON.parse(text) : undefined;
-    } catch {
-      parsed = false;
-    }
-    if (!response.ok) throw statusError(response.status, response.headers, parsed ? data : undefined);
-    if (!parsed || typeof data !== "object" || data === null)
-      throw new ModelError("malformed", `Meta's answer from ${path} is not a JSON object`, {
-        status: response.status,
-        ...traced(response.headers),
-      });
-    return { data, logId: response.headers.get("cf-aig-log-id") };
-  });
+  return withRetries(ctx, seen, (signal, n) =>
+    charged(
+      ctx.budget,
+      model,
+      estimate,
+      n,
+      () => rawAttempt(seen, base, path, apiKey, token, contentType, payload, signal),
+      ({ data }) => usage(data),
+    ),
+  );
 }
+
+async function rawAttempt(
+  seen: Observed,
+  base: string,
+  path: RawPath,
+  apiKey: string,
+  token: string,
+  contentType: Record<string, string>,
+  payload: BodyInit,
+  signal: AbortSignal,
+): Promise<MetaAnswer<unknown>> {
+  const response = await seen.fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      accept: "application/json",
+      ...contentType,
+      ...gatewayHeaders(token),
+    },
+    body: payload,
+    signal,
+  });
+  const text = await response.text();
+  let data: unknown;
+  let parsed = true;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    parsed = false;
+  }
+  if (!response.ok) throw statusError(response.status, response.headers, parsed ? data : undefined);
+  if (!parsed || typeof data !== "object" || data === null)
+    throw new ModelError("malformed", `Meta's answer from ${path} is not a JSON object`, {
+      status: response.status,
+      ...traced(response.headers),
+    });
+  return { data, logId: response.headers.get("cf-aig-log-id") };
+}
+
+// The images a Responses request sends, which SAM is billed by (one at least).
+const imagesIn = (json: string) => Math.max(1, (json.match(/"type":"input_image"/g) ?? []).length);
+
+// A non-negative number at a field of an answer, or undefined.
+const numberAt = (data: unknown, field: string) => {
+  const value = (data as Record<string, unknown> | null)?.[field];
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+};
 
 function standard(model: unknown, endpoint: Endpoint): ModelId {
   if (!isModelId(model))
@@ -252,7 +337,7 @@ function completed(failure: ModelError, seen: Seen | null): ModelError {
 async function withRetries<T>(
   ctx: MetaContext,
   seen: Observed,
-  attempt: (signal: AbortSignal) => Promise<T>,
+  attempt: (signal: AbortSignal, n: number) => Promise<T>,
 ): Promise<T> {
   const deadlineMs = ctx.deadlineMs ?? DEFAULT_DEADLINE_MS;
   const sleep = ctx.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -278,8 +363,10 @@ async function withRetries<T>(
     for (let n = 1; ; n++) {
       seen.last = null;
       try {
-        return await Promise.race([attempt(controller.signal), expired]);
+        return await Promise.race([attempt(controller.signal, n), expired]);
       } catch (error) {
+        // A cap's refusal, or a budget that could not be reached: nothing was sent, and trying again cannot help.
+        if (error instanceof BudgetExceeded || error instanceof BudgetUnavailable) throw error;
         const failure = completed(classify(error), seen.last);
         const { status, retryAfterMs } = failure.details;
         attempts.push({

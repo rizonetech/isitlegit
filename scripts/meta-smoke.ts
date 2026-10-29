@@ -26,6 +26,9 @@ import { parseArgs } from "node:util";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
 import OpenAI from "openai";
 import { z } from "zod";
+import { type Budget, BudgetExceeded } from "../src/meta/guard.ts";
+import type { ModelId } from "../src/meta/models.ts";
+import { localBudget } from "./lib/meta-budget.ts";
 import { installSignalCleanup, runCommand } from "./smoke.ts";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -536,6 +539,9 @@ export type RunOptions = {
   logWaitMs?: number;
   runCap?: number;
   dayCap?: number;
+  // The shared Meta budget in the live D1 (D03 T01 §2): every call is reserved there before it is sent. The command line
+  // gives `localBudget`; a paid run without one is refused.
+  budget?: Budget;
 };
 export type RunOutcome = { code: 0 | 1 | 2; lines: string[] };
 
@@ -584,6 +590,8 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
     }
     return { code: 0, lines };
   }
+  if (!options.dry && options.confirmCredit && !options.budget)
+    return refuse("no Meta budget was given; every call is reserved against the shared caps (D03 T01 §2)");
   if (!options.confirmCredit)
     return refuse("a live run spends Meta credit; pass --confirm-credit once the credit shows (D99 T01 §1)");
 
@@ -738,7 +746,18 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     return refuse(`${reportFile} could not be written (${(error as Error).message})`);
   }
 
+  const budget = options.budget as Budget;
   for (const call of calls) {
+    // The shared caps first (the one authority, the live D1), then this checkout's own ledger record.
+    let held: string;
+    try {
+      held = await budget.reserve(call.model as ModelId, call.estimate, 1);
+    } catch (error) {
+      say(
+        `meta-smoke: stopped before ${call.name}: ${error instanceof BudgetExceeded ? `the ${error.cap} cap refused it` : "the shared budget could not be reached"}`,
+      );
+      return { code: 1, lines };
+    }
     const reserved = reserveSpend(ledgerFile, ledger, {
       date: today,
       run: runId,
@@ -822,6 +841,10 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     const passed = check.ok && logCheck.ok;
     rows.push({ call, passed, detail: check.detail, excerpt: check.excerpt, ms, usage, log: logCheck, cost });
     say(`${passed ? "passed" : "failed"}: ${call.name} (${check.detail}; log: ${logCheck.detail})`);
+    // Settled at Meta's reported cost; without it, the call stays counted at its estimate.
+    await (cost === null ? budget.uncertain(held) : budget.settle(held, cost)).catch(() =>
+      say(`meta-smoke: the shared budget's record of ${call.name} could not be updated; it stands at its estimate`),
+    );
     const unsettled = settleSpend(ledgerFile, ledger, entry, cost);
     if (unsettled) say(`meta-smoke: ${unsettled}; the reservation for ${call.name} stands at its estimate`);
     try {
@@ -897,6 +920,6 @@ if (import.meta.filename === process.argv[1]) {
   }
   installSignalCleanup("meta-smoke");
   const { help: _help, ...run } = args;
-  const outcome = await runMetaSmoke({ ...run, log: (line) => console.log(line) });
+  const outcome = await runMetaSmoke({ ...run, budget: localBudget("meta-smoke"), log: (line) => console.log(line) });
   process.exit(outcome.code);
 }

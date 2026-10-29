@@ -158,9 +158,16 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
     // The message itself could not be read (the parsers refused it) only on a ParseError; any other failure, the
     // stored message gone or a service fault included, is ours, and forwarding it again is the advice.
     const unreadable = input.report.failedStep === "parse" && input.report.errorClass === "ParseError";
+    // The model budget refused the check (D03 T01 §2, `budget:<cap>:<model>`): forwarding again in a few minutes would
+    // be refused too, so the advice names when checks resume.
+    const budget = /^budget:(day|total|reserve):/.exec(input.report.errorClass)?.[1];
     const advice = unreadable
       ? "We could not read the message you forwarded. Forward it again as an attachment; if it was an Outlook .msg file, save it as .eml first."
-      : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
+      : budget === "day"
+        ? "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply."
+        : budget
+          ? "Checking is paused while we top up our capacity; we will email when it resumes. Until the message is checked, do not pay, click or reply."
+          : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
     lines = ["We could not finish checking this message, so we have no verdict on it yet.", "", advice];
     blocks = [
       "<p>We could not finish checking this message, so we have no verdict on it yet.</p>",

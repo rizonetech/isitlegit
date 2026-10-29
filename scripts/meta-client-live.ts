@@ -12,6 +12,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { ModelError, metaResponses } from "../src/meta/client.ts";
+import type { Budget } from "../src/meta/guard.ts";
+import { localBudget } from "./lib/meta-budget.ts";
 import {
   adoptLegacyLedger,
   checkLog,
@@ -64,6 +66,8 @@ export type LiveOptions = {
   logWaitMs?: number;
   pause?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
+  // The shared Meta budget in the live D1 (D03 T01 §2); the command line gives `localBudget`.
+  budget: Budget;
 };
 export type LiveOutcome = { code: 0 | 1; lines: string[] };
 // A call in flight or answered, until its log is checked and recorded: no body, only its identifiers and counts. It is
@@ -81,7 +85,7 @@ export type Pending = {
 
 type Say = (line: string) => void;
 
-export async function runClientLive(options: LiveOptions = {}): Promise<LiveOutcome> {
+export async function runClientLive(options: LiveOptions): Promise<LiveOutcome> {
   const lines: string[] = [];
   const say: Say = (line) => {
     lines.push(line);
@@ -242,6 +246,8 @@ async function run(
         env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
         fetch: guarded,
         deadlineMs: 60_000,
+        // The shared budget in the live D1 (D03 T01 §2), beside this script's own ledger record of each attempt.
+        budget: options.budget,
       },
     );
   } catch (error) {
@@ -441,6 +447,6 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(2);
   }
   installSignalCleanup("meta-client-live");
-  const outcome = await runClientLive({ log: (line) => console.log(line) });
+  const outcome = await runClientLive({ budget: localBudget("meta-client-live"), log: (line) => console.log(line) });
   process.exit(outcome.code);
 }

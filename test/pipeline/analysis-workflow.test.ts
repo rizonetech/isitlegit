@@ -1,8 +1,10 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
+import { NonRetryableError } from "cloudflare:workflows";
 import { describe, expect, it } from "vitest";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
 import { parsedKey, putRaw, readArtefact, type Store, StoreError } from "../../src/intake/store";
+import { BudgetExceeded } from "../../src/meta/guard";
 import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
 import { forwards } from "../fixtures/forward/load";
@@ -498,5 +500,22 @@ describe("the checks step and the event writer", () => {
     expect(named.ok && named.value.error).toBe("ParseError");
     const quoted = await recordEvent(env.DB, id, "parse", "failed", { errorClass: "the subject was 'pay now'" });
     expect(quoted.ok && quoted.value.error).toBe("Error");
+  });
+});
+
+describe("a model call the budget refused (D03 T01 §2)", () => {
+  it("ends the step at once, never retried, and keeps the cap and model as the case's reason", async () => {
+    const refused = await safely(async () => {
+      throw new BudgetExceeded("day", "muse-spark-1.3");
+    }).catch((error: Error) => error);
+    expect((refused as Error).message).toBe("budget:day:muse-spark-1.3");
+    const id = await caseWith(forwards["inline-forward"]);
+    const { output } = await run(id, (m) =>
+      m.mockStepError({ name: "checks" }, new NonRetryableError("budget:day:muse-spark-1.3"), 1),
+    );
+    expect((await caseRow(id))?.status).toBe("partial");
+    expect(output).toMatchObject({
+      state: { status: "partial", failedStep: "checks", errorClass: "budget:day:muse-spark-1.3" },
+    });
   });
 });

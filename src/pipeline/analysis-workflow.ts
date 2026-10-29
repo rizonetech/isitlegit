@@ -23,6 +23,7 @@ import {
   threading,
 } from "../mail/reply";
 import { sendMail } from "../mail/smtp2go";
+import { BudgetExceeded } from "../meta/guard";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -85,9 +86,11 @@ const fatal = (errorClass: (typeof FATAL)[number]) => new NonRetryableError(erro
 function classOf(error: unknown): string {
   if (!(error instanceof Error)) return "Error";
   const named = error.message.replace(/^(NonRetryableError|Error):\s*/, "");
-  return (FATAL as readonly string[]).includes(named) || CLASS.test(named) ? named : error.name;
+  return (FATAL as readonly string[]).includes(named) || CLASS.test(named) || BUDGET.test(named) ? named : error.name;
 }
 const CLASS = /^[A-Z][A-Za-z0-9]{0,63}$/;
+// A model call the budget refused (D03 T01 §2): its cap and model, which the reply turns into the member's next step.
+const BUDGET = /^budget:(day|total|reserve):[a-z0-9.-]{1,64}$/;
 
 // A step's own error, made safe before it leaves the step: Cloudflare keeps each attempt's error message in the
 // instance's logs, and an error from below can quote the message analysed (a storage error names an attachment's file,
@@ -97,6 +100,8 @@ export async function safely<T>(work: () => Promise<T>): Promise<T> {
     return await work();
   } catch (error) {
     if (error instanceof NonRetryableError) throw error;
+    // A cap's refusal is never retried: the step ends at once, carrying the cap and the model.
+    if (error instanceof BudgetExceeded) throw new NonRetryableError(`budget:${error.cap}:${error.model}`);
     const name = error instanceof Error && CLASS.test(error.name) ? error.name : "Error";
     throw new Error(name);
   }
@@ -145,9 +150,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
             const errorClass =
               error instanceof NonRetryableError
                 ? error.message
-                : error instanceof Error && CLASS.test(error.name)
-                  ? error.name
-                  : "Error";
+                : error instanceof BudgetExceeded
+                  ? `budget:${error.cap}:${error.model}`
+                  : error instanceof Error && CLASS.test(error.name)
+                    ? error.name
+                    : "Error";
             await recordEvent(db, caseId, name, "error", { startedAt, ms: Date.now() - began, errorClass });
             throw error;
           }

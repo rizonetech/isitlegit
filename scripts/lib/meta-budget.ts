@@ -1,0 +1,64 @@
+// The Meta budget for a local caller (D03 T01 §2): the smoke test, the live client check and the Glimmer lane's teacher
+// labels reserve every attempt in the same `model_spend` table the Worker does, with the same statement
+// (src/meta/budget-sql.ts), through `wrangler d1 execute isitlegit --remote` on the operator's Wrangler login. One budget
+// for every caller: a local call and a Worker call cannot both spend the last of an allowance. When the database cannot
+// be reached, the reservation fails and nothing is sent to Meta.
+import {
+  inline,
+  reserveStatement,
+  type Statement,
+  settleStatement,
+  spentStatement,
+  uncertainStatement,
+} from "../../src/meta/budget-sql.ts";
+import { DAY_CAP_USD, refusingCap, totalLimitFor } from "../../src/meta/caps.ts";
+import { sastDay } from "../../src/meta/day.ts";
+import { type Budget, BudgetExceeded } from "../../src/meta/guard.ts";
+import { type Runner, runCommand } from "../smoke.ts";
+
+type D1Answer = { results?: Record<string, unknown>[]; success?: boolean; meta?: { changes?: number } };
+
+// One statement on the live D1; its answer, or an error when wrangler fails or answers anything but success.
+export async function execute(statement: Statement, run: Runner = runCommand, timeoutMs = 60_000): Promise<D1Answer> {
+  const out = await run(
+    "pnpm",
+    ["exec", "wrangler", "d1", "execute", "isitlegit", "--remote", "--json", "--command", inline(statement)],
+    "",
+    Date.now() + timeoutMs,
+  );
+  const answer = (JSON.parse(out) as D1Answer[])[0];
+  if (!answer?.success) throw new Error("wrangler d1 execute did not succeed");
+  return answer;
+}
+
+export function localBudget(caller: string, run: Runner = runCommand, now: () => Date = () => new Date()): Budget {
+  return {
+    async reserve(model, estimateUsd, attempt) {
+      const at = now();
+      const row = {
+        id: crypto.randomUUID(),
+        at: at.toISOString(),
+        day: sastDay(at),
+        source: "local" as const,
+        caller,
+        model,
+        caseId: null,
+        attempt,
+        estimateUsd,
+      };
+      const inserted = await execute(reserveStatement(row, DAY_CAP_USD, totalLimitFor(row.day)), run);
+      if (inserted.meta?.changes === 1) return row.id;
+      const spent = (await execute(spentStatement(row.day), run)).results?.[0] ?? {};
+      throw new BudgetExceeded(
+        refusingCap(Number(spent.day_usd ?? 0), Number(spent.total_usd ?? 0), estimateUsd, row.day),
+        model,
+      );
+    },
+    async settle(id, actualUsd) {
+      await execute(settleStatement(id, actualUsd, now().toISOString()), run);
+    },
+    async uncertain(id) {
+      await execute(uncertainStatement(id), run);
+    },
+  };
+}

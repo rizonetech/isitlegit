@@ -17,6 +17,13 @@ import {
   USAGE,
 } from "../../scripts/meta-smoke.ts";
 
+// A shared budget that admits every call (D03 T01 §2); test/node/meta-budget-local.test.ts covers the real one.
+const openBudget = () => ({
+  reserve: async () => "held",
+  settle: async () => {},
+  uncertain: async () => {},
+});
+
 // scripts/meta-smoke.ts (D00 T01 §7) against a stubbed transport: the real dispatch path carries the gateway headers
 // and `store: false`, the spend is bounded before any call, a failed probe never passes, and no secret is printed.
 const DIR = join(import.meta.dirname, `../../build/test-meta-smoke-${process.pid}`);
@@ -145,6 +152,7 @@ const live = (fetchStub: typeof fetch, extra: Partial<RunOptions> = {}) => {
     run: runMetaSmoke({
       dry: false,
       confirmCredit: true,
+      budget: openBudget(),
       fixtures: fx,
       readSecrets: async () => {
         secretsRead++;
@@ -192,6 +200,7 @@ describe("scripts/meta-smoke.ts", () => {
     const contributor = await runMetaSmoke({
       dry: false,
       confirmCredit: true,
+      budget: openBudget(),
       model: "muse-spark-1.3-contributor",
       fixtures: fx,
       fetch: fetchStub,
@@ -744,5 +753,20 @@ describe("scripts/meta-smoke.ts", () => {
     expect(day.secretsRead()).toBe(0);
     expect(sent).toHaveLength(0);
     expect(existsSync(join(DIR, "report.md"))).toBe(false);
+  });
+});
+
+describe("the shared budget (D03 T01 §2)", () => {
+  it("refuses a paid run with no budget, sending nothing", async () => {
+    const sent: string[] = [];
+    const counting = (async (input: RequestInfo | URL) => {
+      sent.push(String(input));
+      return new Response("{}", { status: 500 });
+    }) as typeof fetch;
+    const fx = loadFixtures();
+    const none = await runMetaSmoke({ dry: false, confirmCredit: true, fixtures: fx, fetch: counting });
+    expect(none.code).toBe(2);
+    expect(none.lines.join("\n")).toMatch(/no Meta budget was given/);
+    expect(sent).toEqual([]);
   });
 });

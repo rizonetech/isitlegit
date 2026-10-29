@@ -1,6 +1,7 @@
 // The Meta client (D03 T01 §1), at the transport: what reaches the gateway, how often, and what every failure becomes.
 import { describe, expect, it } from "vitest";
 import { type MetaContext, ModelError, metaRaw, metaResponses } from "../../src/meta/client";
+import { type Budget, BudgetExceeded, BudgetUnavailable } from "../../src/meta/guard";
 
 const KEY = "LLM_test_key_0123456789";
 const TOKEN = "aig-run-token-0123456789";
@@ -18,12 +19,36 @@ const envelope = (type: string, code: string | null = null, message = "something
   error: { message, type, param: null, code },
 });
 
+// A budget that admits every attempt and keeps what happened to each (D03 T01 §2).
+type Charge = { id: string; model: string; estimate: number; attempt: number; state: string; actual?: number };
+function ledger(refuse?: () => Error) {
+  const charges: Charge[] = [];
+  const find = (id: string) => charges.find((c) => c.id === id) as Charge;
+  const budget: Budget = {
+    async reserve(model, estimate, attempt) {
+      if (refuse) throw refuse();
+      const id = `r${charges.length + 1}`;
+      charges.push({ id, model, estimate, attempt, state: "reserved" });
+      return id;
+    },
+    async settle(id, actual) {
+      Object.assign(find(id), { state: "settled", actual });
+    },
+    async uncertain(id) {
+      find(id).state = "uncertain";
+    },
+  };
+  return { budget, charges };
+}
+
 // A transport that answers from a script, one response per call, and keeps every request it was sent.
 function transport(...script: (() => Response | Promise<Response>)[]) {
   const sent: Request[] = [];
   const waits: number[] = [];
+  const spend = ledger();
   const ctx: MetaContext = {
     env,
+    budget: spend.budget,
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       sent.push(new Request(input, init));
       const next = script[Math.min(sent.length, script.length) - 1];
@@ -35,22 +60,27 @@ function transport(...script: (() => Response | Promise<Response>)[]) {
     },
     random: () => 0.5,
   };
-  return { sent, waits, ctx };
+  return { sent, waits, ctx, charges: spend.charges };
 }
 
 const audio = () => new Blob([new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0])], { type: "audio/wav" });
 // Every way out: a call with a model that succeeds against `ok`, the same call with any model, and its exact URL.
 const entries = {
   responses: {
-    call: (ctx: MetaContext) => metaResponses({ model: "muse-spark-1.3", input: "hello" }, ctx),
-    with: (ctx: MetaContext, model: string) => metaResponses({ model, input: "hello" }, ctx),
+    call: (ctx: MetaContext) => metaResponses({ model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 }, ctx),
+    with: (ctx: MetaContext, model: string) => metaResponses({ model, input: "hello", max_output_tokens: 16 }, ctx),
     ok: () => json(200, answer),
     url: "https://gateway.test/v1/acct/isitlegit/custom-meta/v1/responses",
   },
   transcribe: {
     call: (ctx: MetaContext) =>
-      metaRaw("/asr/transcribe", { request: { model: "muse-voice-transcribe-1.0" }, audio: audio() }, ctx),
-    with: (ctx: MetaContext, model: string) => metaRaw("/asr/transcribe", { request: { model }, audio: audio() }, ctx),
+      metaRaw(
+        "/asr/transcribe",
+        { request: { model: "muse-voice-transcribe-1.0" }, audio: audio(), audioSeconds: 1 },
+        ctx,
+      ),
+    with: (ctx: MetaContext, model: string) =>
+      metaRaw("/asr/transcribe", { request: { model }, audio: audio(), audioSeconds: 1 }, ctx),
     ok: () => json(200, { transcript: "hello" }),
     url: "https://gateway.test/v1/acct/isitlegit/custom-meta/v1/asr/transcribe",
   },
@@ -74,7 +104,10 @@ async function failure(promise: Promise<unknown>): Promise<ModelError> {
 describe("metaResponses", () => {
   it("sends through the gateway with both tokens, metadata-only logging and store: false over the caller's", async () => {
     const { sent, ctx } = transport(() => json(200, answer));
-    const result = await metaResponses({ model: "muse-spark-1.3", input: "hello", store: true }, ctx);
+    const result = await metaResponses(
+      { model: "muse-spark-1.3", input: "hello", store: true, max_output_tokens: 16 },
+      ctx,
+    );
     // The SDK adds its conveniences (output_text) beside Meta's fields.
     expect(result.data).toMatchObject(answer);
     expect(result.logId).toBe("log-1");
@@ -91,11 +124,15 @@ describe("metaResponses", () => {
 
   it("takes a 200 that is not a response object as malformed", async () => {
     const { ctx } = transport(() => json(200, { hello: "world" }));
-    expect((await failure(metaResponses({ model: "muse-spark-1.3", input: "x" }, ctx))).kind).toBe("malformed");
+    expect(
+      (await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, ctx))).kind,
+    ).toBe("malformed");
     const text = transport(
       () => new Response("<html>oops</html>", { headers: { "content-type": "application/json" } }),
     );
-    expect((await failure(metaResponses({ model: "muse-spark-1.3", input: "x" }, text.ctx))).kind).toBe("malformed");
+    expect(
+      (await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, text.ctx))).kind,
+    ).toBe("malformed");
   });
 });
 
@@ -104,7 +141,12 @@ describe("metaRaw", () => {
     const { sent, ctx } = transport(() => json(200, { transcript: "hello" }));
     const result = await metaRaw(
       "/asr/transcribe",
-      { request: { model: "muse-voice-transcribe-1.0", audioEncoding: "WAV" }, audio: audio(), filename: "note.wav" },
+      {
+        request: { model: "muse-voice-transcribe-1.0", audioEncoding: "WAV" },
+        audio: audio(),
+        filename: "note.wav",
+        audioSeconds: 1,
+      },
       ctx,
     );
     expect(result).toEqual({ data: { transcript: "hello" }, logId: "log-1" });
@@ -401,5 +443,84 @@ describe.each(Object.entries(entries))("%s: every failure is a ModelError with a
     expect(error.details.param).toBeNull();
     expect(error.details.code).toBeNull();
     expect(`${error.message} ${JSON.stringify(error.details)}`).not.toContain("PRIVATE");
+  });
+});
+
+describe("the budget on every attempt (D03 T01 §2)", () => {
+  const ok = () => json(200, { ...answer, usage: { input_tokens: 1000, output_tokens: 100 } });
+
+  it("reserves before the send and settles at the reported cost", async () => {
+    const { sent, ctx, charges } = transport(ok);
+    await metaResponses({ model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 }, ctx);
+    expect(sent).toHaveLength(1);
+    expect(charges).toHaveLength(1);
+    expect(charges[0]).toMatchObject({ model: "muse-spark-1.3", attempt: 1, state: "settled" });
+    expect(charges[0]?.actual).toBeCloseTo((1000 * 1.25 + 100 * 4.25) / 1_000_000);
+    expect(charges[0]?.estimate).toBeGreaterThan(0);
+  });
+
+  it("reserves each retried attempt, settling an answered refusal at nothing", async () => {
+    const busy = () => json(503, envelope("server_error"));
+    const { sent, ctx, charges } = transport(busy, busy, busy);
+    await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, ctx));
+    expect(sent).toHaveLength(3);
+    expect(charges.map((c) => [c.attempt, c.state, c.actual])).toEqual([
+      [1, "settled", 0],
+      [2, "settled", 0],
+      [3, "settled", 0],
+    ]);
+  });
+
+  it("keeps an attempt whose answer was lost counted at its estimate", async () => {
+    const { ctx, charges } = transport(() => {
+      throw new TypeError("network connection lost");
+    });
+    await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, ctx));
+    expect(charges[0]?.state).toBe("uncertain");
+  });
+
+  it("sends nothing when a cap refuses, and never retries the refusal", async () => {
+    const { sent, ctx } = transport(ok);
+    const capped = ledger(() => new BudgetExceeded("day", "muse-spark-1.3"));
+    const error = await metaResponses(
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 16 },
+      { ...ctx, budget: capped.budget },
+    ).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BudgetExceeded);
+    expect((error as BudgetExceeded).cap).toBe("day");
+    expect(sent).toEqual([]);
+  });
+
+  it("sends nothing when the budget cannot be reached", async () => {
+    const { sent, ctx } = transport(ok);
+    const down = ledger(() => new Error("D1_ERROR: Network connection lost."));
+    const error = await metaRaw(
+      "/asr/transcribe",
+      { request: { model: "muse-voice-transcribe-1.0" }, audio: audio(), audioSeconds: 12 },
+      { ...ctx, budget: down.budget },
+    ).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BudgetUnavailable);
+    expect(sent).toEqual([]);
+  });
+
+  it("returns the answer when its settlement cannot be written, the reservation left counted", async () => {
+    const { ctx, charges } = transport(ok);
+    const budget: Budget = { ...ctx.budget, settle: async () => Promise.reject(new Error("write failed")) };
+    const result = await metaResponses(
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 16 },
+      { ...ctx, budget },
+    );
+    expect(result.data.id).toBe("resp_1");
+    expect(charges[0]?.state).toBe("reserved");
+  });
+
+  it("refuses a Responses call with no output limit, and a transcription with no length, before anything", async () => {
+    const { sent, ctx, charges } = transport(ok);
+    expect((await failure(metaResponses({ model: "muse-spark-1.3", input: "x" }, ctx))).kind).toBe("invalid-request");
+    const noLength = { request: { model: "muse-voice-transcribe-1.0" }, audio: audio() } as unknown as Parameters<
+      typeof metaRaw
+    >[1];
+    expect((await failure(metaRaw("/asr/transcribe", noLength as never, ctx))).kind).toBe("invalid-request");
+    expect([sent, charges]).toEqual([[], []]);
   });
 });

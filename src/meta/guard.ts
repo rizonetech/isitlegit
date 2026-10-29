@@ -1,0 +1,70 @@
+// The budget guard's contract with the Meta client (D03 T01 §2): every transport attempt is reserved before it is sent
+// and settled after, through a `Budget` the caller supplies (the Worker's D1, src/meta/budget.ts; a local script's, the
+// same D1 through wrangler, scripts/lib/meta-budget.ts). With extensions on its imports, so scripts can run the client.
+import type { ModelId } from "./models.ts";
+import { costUsd, type Usage } from "./pricing.ts";
+
+export type Cap = "day" | "total" | "reserve";
+
+// A call the caps cannot pay for; it never reaches Meta, and it is never retried. The Workflow ends the step partial with
+// `budget:<cap>:<model>`.
+export class BudgetExceeded extends Error {
+  readonly cap: Cap;
+  readonly model: string;
+  constructor(cap: Cap, model: string) {
+    super(`budget: the ${cap} cap refused a call to ${model}`);
+    this.name = "BudgetExceeded";
+    this.cap = cap;
+    this.model = model;
+  }
+}
+
+// The budget behind one caller: `reserve` throws BudgetExceeded when a cap refuses, and any other error when the budget
+// cannot be reached, in which case nothing is sent.
+export type Budget = {
+  reserve(model: ModelId, estimateUsd: number, attempt: number): Promise<string>;
+  settle(id: string, actualUsd: number): Promise<void>;
+  uncertain(id: string): Promise<void>;
+};
+
+// The budget could not be reached or written: the call is not sent.
+export class BudgetUnavailable extends Error {
+  constructor() {
+    super("budget: the spend could not be reserved; nothing was sent");
+    this.name = "BudgetUnavailable";
+  }
+}
+
+// One attempt, charged: reserved at the estimate first; settled at the reported cost (the estimate when the usage is
+// unreadable); an answered refusal (an HTTP error status) settled at nothing, since Meta bills no refused request; and
+// an attempt whose answer was lost, cut off or unreadable left counted at its estimate. A failed settlement leaves the
+// row counted at its estimate, never released.
+export async function charged<T>(
+  budget: Budget,
+  model: ModelId,
+  estimateUsd: number,
+  attempt: number,
+  send: () => Promise<T>,
+  usage: (answer: T) => Usage,
+): Promise<T> {
+  let id: string;
+  try {
+    id = await budget.reserve(model, estimateUsd, attempt);
+  } catch (error) {
+    if (error instanceof BudgetExceeded) throw error;
+    throw new BudgetUnavailable();
+  }
+  let answer: T;
+  try {
+    answer = await send();
+  } catch (error) {
+    const status =
+      (error as { status?: unknown; details?: { status?: unknown } }).status ??
+      (error as { details?: { status?: unknown } }).details?.status;
+    const refused = typeof status === "number" && status >= 400;
+    await (refused ? budget.settle(id, 0) : budget.uncertain(id)).catch(() => {});
+    throw error;
+  }
+  await budget.settle(id, costUsd(model, usage(answer)) ?? estimateUsd).catch(() => {});
+  return answer;
+}
