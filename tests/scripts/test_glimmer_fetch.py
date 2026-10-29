@@ -207,7 +207,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 server.dropped_segment = True
             if drop:
                 cut = len(chunk) // 2
-        if "segment-slow" in modes and segment:
+        if ("segment-slow" in modes and segment) or ("slow-first-range" in modes and segment and start == 0):
             try:
                 for at in range(0, cut, 1 << 16):
                     self.wfile.write(chunk[at:min(cut, at + (1 << 16))])
@@ -731,6 +731,40 @@ class Fetch(unittest.TestCase):
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
         self.assertEqual(open_saves["most"], 1)
+
+    def test_a_free_connection_takes_half_of_a_slow_range(self):
+        # The first range is paced, the other three are not: once they finish, their connections split the slow
+        # range's rest between them, so it is not left to one connection (aria2c's connections do the same).
+        self.server.modes = {"slow-first-range"}
+        with mock.patch.object(fetch, "MIN_SPLIT", 128 * 1024):
+            result = self.run_fetch(min_rate=0, **self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertGreater(self.server.segment_requests, 4)
+        # The slow connection stops at its new end: what it read past it is at most what was in flight.
+        self.assertLessEqual(sum(self.server.served) - SIZE, 4 * 128 * 1024)
+
+    def test_a_cut_after_bytes_arrived_is_tried_again_at_once(self):
+        waits = []
+        self.server.modes = {"drop-once"}
+        result = self.run_fetch(segments=1, sleep=waits.append)
+        self.assertEqual(result["status"], "fetched")
+        self.assertEqual(waits, [])  # counted against the budget, but no backoff: the host was answering
+        self.server.modes, self.server.requests = {"fail"}, 0
+        shutil.rmtree("src", ignore_errors=True)
+        with self.assertRaises(fetch.Refused):
+            self.run_fetch(segments=1, sleep=waits.append)
+        self.assertEqual(waits, [1.0, 2.0])  # a host that answers nothing still gets the backoff
+
+    def test_a_first_url_whose_head_fails_still_segments_from_the_mirror(self):
+        other, base = self.mirror()
+        self.server.modes = {"fail"}
+        result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[base + "/file"], timeout=2, sleep=lambda s: None, log=lambda line: None,
+                             segment_threshold=1 << 20, **ROOMY)
+        self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
+        self.assert_whole()
+        self.assertGreaterEqual(other.segment_requests, 4)
 
     def test_an_inconsistent_segment_state_starts_again(self):
         Path("src/.partial").mkdir(parents=True)
