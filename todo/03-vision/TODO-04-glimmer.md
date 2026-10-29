@@ -749,6 +749,8 @@ Filed 2026-10-29 from D03 T04 §21's completion review (items 9 to 12). §21 bea
 
 ## 24. A phishing-signals rubric from public guidance
 
+> **Started:** 2026-10-29T09:29Z
+
 Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phishing detection guides, docs, and articles?"). Guides and articles are not training data for Loupe: a LoRA learns from screened pages and their answers, and prose would add noise, while most articles are copyrighted and this run uses licence-checked sources only. They are worth having as a rubric: the cues that tell a lure from a real page, drawn from authoritative public guidance, cited and written in our own words, given to the screener and the Spark teacher as instructions, and turned into evaluation cases. Not a prerequisite of training: if this section stamps before §10 builds its set, Loupe 1.0 carries the rubric; otherwise Loupe 1.1 does.
 
 **Phase:** 7
