@@ -49,6 +49,7 @@ function transport(...script: (() => Response | Promise<Response>)[]) {
   const ctx: MetaContext = {
     env,
     budget: spend.budget,
+    owner: { kind: "case", caseId: "01HZTESTCASE0000000000000A", step: "checks" },
     fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
       sent.push(new Request(input, init));
       const next = script[Math.min(sent.length, script.length) - 1];
@@ -580,5 +581,36 @@ describe("round 1 (2026-10-29)", () => {
       ctx,
     );
     expect(charges[0]?.actual).toBeCloseTo((12 * 0.18) / 3600);
+  });
+});
+
+describe("final review (2026-10-29)", () => {
+  it("refuses before anything what the budget cannot bound: web search, a server-referenced file, a bad limit", async () => {
+    const { sent, ctx, charges } = transport(() => json(200, answer));
+    const refusals = [
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 16, tools: [{ type: "web_search" }] },
+      {
+        model: "muse-spark-1.3",
+        input: [{ role: "user", content: [{ type: "input_file", file_id: "file_1" }] }],
+        max_output_tokens: 16,
+      },
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: Number.NaN },
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 1.5 },
+    ];
+    for (const params of refusals)
+      expect((await failure(metaResponses(params as never, ctx))).kind, JSON.stringify(params)).toBe("invalid-request");
+    expect([sent, charges]).toEqual([[], []]);
+  });
+
+  it("reserves a transcription for at least what its clip could hold, whatever length it is given", async () => {
+    const { ctx, charges } = transport(() => json(200, { transcript: "x" }));
+    const clip = new Blob([new Uint8Array(300_000)], { type: "audio/ogg" });
+    await metaRaw(
+      "/asr/transcribe",
+      { request: { model: "muse-voice-transcribe-1.0" }, audio: clip, audioSeconds: 1 },
+      ctx,
+    );
+    // 300,000 bytes at 500 a second is 600 seconds.
+    expect(charges[0]?.estimate).toBeCloseTo((600 * 0.18) / 3600);
   });
 });

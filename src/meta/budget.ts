@@ -7,10 +7,13 @@ import type { Reservation, Statement } from "./budget-sql";
 import {
   inline as _inline,
   capEventStatement,
+  costStatement,
+  ownerColumns,
   reserveStatement,
   settleStatement,
   spentStatement,
   uncertainStatement,
+  unsettledStatement,
 } from "./budget-sql";
 import { capEvent, DAY_CAP_USD, refusingCap, totalLimitFor } from "./caps";
 
@@ -79,16 +82,18 @@ export function d1Budget(
   },
 ): Budget {
   return {
-    async reserve(model, estimateUsd, attempt, id) {
+    async reserve(model, estimateUsd, attempt, id, call) {
       const now = new Date();
+      const owned = ownerColumns(call);
       const reserved = await reserve(db, {
         ...(id ? { id } : {}),
+        ...owned,
         at: now.toISOString(),
         day: sastDay(now),
         source: "worker",
         caller: who.caller,
         model,
-        caseId: who.caseId ?? null,
+        caseId: owned.caseId ?? who.caseId ?? null,
         attempt,
         estimateUsd,
       });
@@ -96,7 +101,10 @@ export function d1Budget(
         const day = sastDay(now);
         // Recorded first, so the cron sends the alert even if this instance's own send never finishes; a record that
         // cannot be written still leaves this instance's own send below.
-        await recordCapEvent(db, reserved.cap, model, day, now.toISOString());
+        const recorded = await recordCapEvent(db, reserved.cap, model, day, now.toISOString());
+        // Neither recorded nor sent here: logged, so the lost alert shows in the Worker's logs (final review).
+        if (!recorded && !who.notify)
+          console.error(JSON.stringify({ event: "budget", outcome: "cap-event-unrecorded", cap: reserved.cap }));
         if (who.notify) {
           const notice = who.notify(reserved.cap, model, sastDay(now)).catch(() => {});
           who.waitUntil?.(notice);
@@ -105,11 +113,37 @@ export function d1Budget(
       }
       return reserved.id;
     },
-    settle: async (id, actualUsd) => {
-      await settle(db, id, actualUsd);
+    settle: async (id, actualUsd, record) => {
+      await run(db, settleStatement(id, actualUsd, new Date().toISOString(), record)).run();
     },
-    uncertain: async (id) => {
-      await markUncertain(db, id);
+    uncertain: async (id, record) => {
+      await run(db, uncertainStatement(id, record)).run();
     },
+  };
+}
+
+// The cron's sweep (D03 T01 §3): a reservation older than an hour whose settlement was never written is marked an
+// unsettled error, still counted at its estimate, so an incomplete record shows and is never lost.
+export async function markUnsettled(db: D1Database, now = new Date()): Promise<number> {
+  const before = new Date(now.getTime() - 60 * 60_000).toISOString();
+  return (await run(db, unsettledStatement(before)).run()).meta.changes ?? 0;
+}
+
+// A case's or a monitor run's model cost, its parts apart: the measured total, the estimated total (usage missing, an
+// answer lost, a settlement never written) and how many attempts that is; an estimate is never added into the measured.
+export type CaseCost = { measuredUsd: number; estimatedUsd: number; estimatedCalls: number; attempts: number };
+
+export async function caseCost(db: D1Database, owner: { caseId: string } | { monitorRun: string }): Promise<CaseCost> {
+  const row = await run(db, costStatement(owner)).first<{
+    measured_usd: number;
+    estimated_usd: number;
+    estimated_calls: number;
+    attempts: number;
+  }>();
+  return {
+    measuredUsd: row?.measured_usd ?? 0,
+    estimatedUsd: row?.estimated_usd ?? 0,
+    estimatedCalls: row?.estimated_calls ?? 0,
+    attempts: row?.attempts ?? 0,
   };
 }

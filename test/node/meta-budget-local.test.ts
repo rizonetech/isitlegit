@@ -10,7 +10,7 @@ import { BudgetExceeded } from "../../src/meta/guard.ts";
 // The local callers' budget (D03 T01 §2): the same statement the Worker runs, sent through `wrangler d1 execute`. Here
 // wrangler is a stand-in that runs each command on an in-memory SQLite holding the real migration, so the SQL itself is
 // what is tested, a Worker's reservation racing a local one on the same rows.
-const MIGRATION = ["0020_model_spend.sql", "0021_budget_events.sql"]
+const MIGRATION = ["0020_model_spend.sql", "0021_budget_events.sql", "0022_model_calls.sql"]
   .map((name) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8"))
   .join("\n");
 
@@ -172,5 +172,29 @@ describe("round 1: an event that cannot be recorded is said", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe("final review: imported rows name their real model and caller", () => {
+  it("maps the ledger's call names and runs", async () => {
+    const { modelOfCall, callerOf } = await import("../../scripts/meta-spend-import.ts");
+    expect(
+      ["Spark text", "Spark image", "Wonder", "SAM 3.1", "client Spark attempt 1", "muse-spark-1.3 compphish-1"].map(
+        modelOfCall,
+      ),
+    ).toEqual(["muse-spark-1.3", "muse-spark-1.3", "muse-wonder-1.0", "sam-3.1", "muse-spark-1.3", "muse-spark-1.3"]);
+    const entry = (run: string, call: string) => ({
+      date: "2026-10-28",
+      run,
+      call,
+      estimate: 0,
+      cost: 0,
+      state: "settled" as const,
+    });
+    expect([
+      callerOf(entry("2026-10-27T16:32:55.809Z", "Spark text")),
+      callerOf(entry("2026-10-28T16:43:00.242Z", "client Spark attempt 1")),
+      callerOf(entry("glimmer-teacher-1", "muse-spark-1.3 x")),
+    ]).toEqual(["meta-smoke", "meta-client-live", "glimmer-teacher"]);
   });
 });

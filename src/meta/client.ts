@@ -14,7 +14,7 @@ import OpenAI from "openai";
 import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
 // extensionless path.
-import { type Budget, BudgetExceeded, BudgetUnavailable, charged } from "./guard.ts";
+import { type Budget, BudgetExceeded, BudgetUnavailable, type Call, charged, type Owner } from "./guard.ts";
 import { ENDPOINTS, type Endpoint, isModelId, type ModelId } from "./models.ts";
 import { estimateUsd } from "./pricing.ts";
 
@@ -25,6 +25,9 @@ export const MAX_RETRY_AFTER_MS = 20_000;
 // The largest answer read: an image edit's base64 images fit with room to spare; a larger body is refused as it streams,
 // never buffered whole.
 export const MAX_ANSWER_BYTES = 32 * 1024 * 1024;
+// The lowest bitrate a speech recording is sent at (Opus at 4 kbps is 500 bytes a second): a clip's size divided by this
+// bounds its length from above.
+export const MIN_AUDIO_BYTES_PER_SECOND = 500;
 const BACKOFF_MS = 1_000;
 const RETRIED = new Set([429, 500, 502, 503]);
 // What an identifier field (Meta's type, code and param; the gateway's and Meta's ids) may hold to be kept: a name,
@@ -37,6 +40,9 @@ export type MetaContext = {
   // The caps (D03 T01 §2): every attempt is reserved here before it is sent and settled after. Required, so no call
   // can be made outside the budget.
   budget: Budget;
+  // Who the call is for (D03 T01 §3): every attempt's record and the gateway's metadata carry it. Required, so every
+  // cost is attributed.
+  owner: Owner;
   // The whole call, every attempt and every wait between them included.
   deadlineMs?: number;
   fetch?: typeof fetch;
@@ -93,17 +99,27 @@ export type ResponsesParams = Omit<ResponseCreateParamsNonStreaming, "model" | "
 export async function metaResponses(params: ResponsesParams, ctx: MetaContext): Promise<MetaAnswer<MetaResponse>> {
   const model = standard(params.model, "responses");
   // The output limit bounds what a call can cost (D03 T01 §2): a call without one cannot be reserved for.
-  if (typeof params.max_output_tokens !== "number" || params.max_output_tokens < 1)
+  if (!Number.isInteger(params.max_output_tokens) || (params.max_output_tokens as number) < 1)
     throw new ModelError(
       "invalid-request",
       "a Responses call must set max_output_tokens, which the budget reserves for",
+    );
+  // What the budget cannot bound before the call is refused before it (D03 T01 §2 final review): web search is billed
+  // per query with no per-request cap Meta documents (D03 T02 §4 budgets it), and a file the server fetches (a file id,
+  // a file URL, an input file such as a PDF) is billed by its content, which the request does not carry.
+  if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
+    throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+  if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+    throw new ModelError(
+      "invalid-request",
+      "a server-referenced file cannot be bounded before it is sent; send its content",
     );
   const { apiKey, token, base } = settings(ctx.env);
   const seen = observe(ctx.fetch ?? fetch);
   const client = new OpenAI({
     apiKey,
     baseURL: base,
-    defaultHeaders: gatewayHeaders(token),
+    defaultHeaders: { ...gatewayHeaders(token), ...(await metadataHeader(ctx.owner)) },
     fetch: seen.fetch,
     maxRetries: 0,
     timeout: ctx.deadlineMs ?? DEFAULT_DEADLINE_MS,
@@ -119,17 +135,20 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
   );
   const estimate = estimateUsd(model, {
     inputBytes: new TextEncoder().encode(text).byteLength,
-    maxOutputTokens: params.max_output_tokens,
+    maxOutputTokens: params.max_output_tokens as number,
     images,
   });
-  return withRetries(ctx, seen, (signal, n) =>
-    charged(
+  const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
+  return withRetries(ctx, seen, (signal, n) => {
+    let requestId: string | null = null;
+    return charged(
       ctx.budget,
       model,
       estimate,
       n,
       async () => {
         const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
+        requestId = response.headers.get("x-request-id");
         if (!isResponse(data))
           throw new ModelError("malformed", "Meta's answer is not a response object", {
             status: response.status,
@@ -137,15 +156,20 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
           });
         return { data, logId: response.headers.get("cf-aig-log-id") };
       },
-      ({ data }) => ({
-        inputTokens: data.usage?.input_tokens,
-        cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
-        outputTokens: data.usage?.output_tokens,
-        // SAM is billed per image sent, one at least.
-        images: Math.max(1, images),
+      ({ data, logId }) => ({
+        usage: {
+          inputTokens: data.usage?.input_tokens,
+          cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
+          outputTokens: data.usage?.output_tokens,
+          // SAM is billed per image sent, one at least.
+          images: Math.max(1, images),
+        },
+        logId,
+        requestId,
       }),
-    ),
-  );
+      call,
+    );
+  });
 }
 
 // The endpoints the SDK route does not cover, each with its own wire contract: transcription is multipart, a `request`
@@ -184,7 +208,9 @@ export async function metaRaw(
         "invalid-request",
         "a transcription must give its audio length, which the budget reserves for",
       );
-    estimate = estimateUsd(model, { audioSeconds });
+    // Never less than the recording could hold: a given length is checked against the clip's size at the lowest
+    // bitrate speech codecs use (D03 T01 §2 final review), so a short length cannot admit a long recording.
+    estimate = estimateUsd(model, { audioSeconds: Math.max(audioSeconds, audio.size / MIN_AUDIO_BYTES_PER_SECOND) });
     // Meta reports the recording's length as `audioDurationMs` (sources/meta-api/docs: the transcribe response); without
     // it, the length given is the length billed.
     usage = (data) => {
@@ -209,16 +235,33 @@ export async function metaRaw(
   }
   const { apiKey, token, base } = settings(ctx.env);
   const seen = observe(ctx.fetch ?? fetch);
-  return withRetries(ctx, seen, (signal, n) =>
-    charged(
+  const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
+  const headers = { ...gatewayHeaders(token), ...(await metadataHeader(ctx.owner)) };
+  return withRetries(ctx, seen, (signal, n) => {
+    let requestId: string | null = null;
+    return charged(
       ctx.budget,
       model,
       estimate,
       n,
-      () => rawAttempt(seen, base, path, apiKey, token, contentType, payload, signal),
-      ({ data }) => usage(data),
-    ),
-  );
+      async () => {
+        const { requestId: id, ...answer } = await rawAttempt(
+          seen,
+          base,
+          path,
+          apiKey,
+          headers,
+          contentType,
+          payload,
+          signal,
+        );
+        requestId = id;
+        return answer;
+      },
+      ({ data, logId }) => ({ usage: usage(data), logId, requestId }),
+      call,
+    );
+  });
 }
 
 async function rawAttempt(
@@ -226,18 +269,18 @@ async function rawAttempt(
   base: string,
   path: RawPath,
   apiKey: string,
-  token: string,
+  gateway: Record<string, string>,
   contentType: Record<string, string>,
   payload: BodyInit,
   signal: AbortSignal,
-): Promise<MetaAnswer<unknown>> {
+): Promise<MetaAnswer<unknown> & { requestId: string | null }> {
   const response = await seen.fetch(`${base}${path}`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${apiKey}`,
       accept: "application/json",
       ...contentType,
-      ...gatewayHeaders(token),
+      ...gateway,
     },
     body: payload,
     signal,
@@ -256,7 +299,7 @@ async function rawAttempt(
       status: response.status,
       ...traced(response.headers),
     });
-  return { data, logId: response.headers.get("cf-aig-log-id") };
+  return { data, logId: response.headers.get("cf-aig-log-id"), requestId: response.headers.get("x-request-id") };
 }
 
 // The images a Responses request sends: SAM is billed by them (one at least, ./pricing.ts), and a token-priced model
@@ -291,6 +334,24 @@ function settings(env: MetaEnv) {
 }
 
 // The gateway logs each call's metadata (it logs nothing by default, D00 T01 §6) and never its body.
+// The call's owner as the gateway's opaque metadata (D03 T01 §3), so its log filters by case or monitor run: ids and
+// the step only, the host as a hash, never a name, an address or content.
+async function metadataHeader(owner: Owner): Promise<Record<string, string>> {
+  const fields: Record<string, string> =
+    owner.kind === "case"
+      ? { case: owner.caseId, step: owner.step }
+      : owner.kind === "monitor"
+        ? { run: owner.run, host: await hostHash(owner.host), step: owner.step }
+        : { script: owner.name };
+  return { "cf-aig-metadata": JSON.stringify(fields) };
+}
+
+const hostHash = async (host: string) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(host.toLowerCase())))]
+    .slice(0, 8)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
 const gatewayHeaders = (token: string) => ({
   "cf-aig-authorization": `Bearer ${token}`,
   "cf-aig-collect-log": "true",

@@ -19,17 +19,87 @@ export type Reservation = {
   caseId: string | null;
   attempt: number;
   estimateUsd: number;
+  // The call it belongs to and who it is for (D03 T01 §3); absent for a row with no client call (an import).
+  callId?: string | null;
+  owner?: "case" | "monitor" | "script" | null;
+  monitorRun?: string | null;
+  host?: string | null;
+  step?: string | null;
 };
+
+// An attempt's record at its end (D03 T01 §3): counts, ids, the outcome and the cost's certainty, never content.
+export type Ended = {
+  ms: number;
+  inputTokens?: number | undefined;
+  cachedTokens?: number | undefined;
+  outputTokens?: number | undefined;
+  logId?: string | null | undefined;
+  requestId?: string | null | undefined;
+  outcome: "ok" | "error" | "refused";
+  errorClass?: string | undefined;
+  certainty: "measured" | "estimated" | "none";
+  source: "meta-usage" | "estimate";
+};
+
+const whole = (n: number | undefined) => (typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.round(n) : null);
+const endedParams = (e: Ended | undefined) => [
+  e ? Math.round(e.ms) : null,
+  whole(e?.inputTokens),
+  whole(e?.cachedTokens),
+  whole(e?.outputTokens),
+  e?.logId ?? null,
+  e?.requestId ?? null,
+  e?.outcome ?? null,
+  e?.errorClass ?? null,
+  e?.certainty ?? null,
+  e?.source ?? null,
+];
+const ENDED_SET =
+  "ms = coalesce(?4, ms), input_tokens = ?5, cached_tokens = ?6, output_tokens = ?7, log_id = ?8, request_id = ?9, outcome = ?10, error_class = ?11, cost_certainty = ?12, cost_source = ?13";
 
 export type Statement = { sql: string; params: (string | number | null)[] };
 
+// A call's owner as its row's columns (D03 T01 §3).
+export function ownerColumns(call: { callId: string; owner: OwnerLike } | undefined) {
+  const o = call?.owner;
+  return {
+    callId: call?.callId ?? null,
+    owner: o?.kind ?? null,
+    caseId: o?.kind === "case" ? o.caseId : null,
+    monitorRun: o?.kind === "monitor" ? o.run : null,
+    host: o?.kind === "monitor" ? o.host : null,
+    step: o && "step" in o ? o.step : null,
+  };
+}
+type OwnerLike =
+  | { kind: "case"; caseId: string; step: string }
+  | { kind: "monitor"; run: string; host: string; step: string }
+  | { kind: "script"; name: string };
+
 export function reserveStatement(r: Reservation, dayCap: number, totalLimit: number): Statement {
   return {
-    sql: `INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, state)
-SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'reserved'
+    sql: `INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, state, call_id, owner, monitor_run, host, step, cost_certainty, cost_source)
+SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'reserved', ?12, ?13, ?14, ?15, ?16, 'estimated', 'estimate'
 WHERE (SELECT coalesce(sum(${COUNTED}), 0) FROM model_spend WHERE day = ?3) + ?9 <= ?10
   AND (SELECT coalesce(sum(${COUNTED}), 0) FROM model_spend) + ?9 <= ?11`,
-    params: [r.id, r.at, r.day, r.source, r.caller, r.model, r.caseId, r.attempt, r.estimateUsd, dayCap, totalLimit],
+    params: [
+      r.id,
+      r.at,
+      r.day,
+      r.source,
+      r.caller,
+      r.model,
+      r.caseId,
+      r.attempt,
+      r.estimateUsd,
+      dayCap,
+      totalLimit,
+      r.callId ?? null,
+      r.owner ?? null,
+      r.monitorRun ?? null,
+      r.host ?? null,
+      r.step ?? null,
+    ],
   };
 }
 
@@ -42,17 +112,50 @@ export function spentStatement(day: string): Statement {
   };
 }
 
-// Settled once: a replayed settlement changes nothing.
-export function settleStatement(id: string, actualUsd: number, at: string): Statement {
-  return {
-    sql: "UPDATE model_spend SET actual_usd = ?2, state = 'settled', settled_at = ?3 WHERE id = ?1 AND state <> 'settled'",
-    params: [id, actualUsd, at],
-  };
+// Settled once, with the attempt's record when there is one: a replayed settlement changes nothing.
+export function settleStatement(id: string, actualUsd: number, at: string, ended?: Ended): Statement {
+  return ended
+    ? {
+        sql: `UPDATE model_spend SET actual_usd = ?2, state = 'settled', settled_at = ?3, ${ENDED_SET} WHERE id = ?1 AND state <> 'settled'`,
+        params: [id, actualUsd, at, ...endedParams(ended)],
+      }
+    : {
+        sql: "UPDATE model_spend SET actual_usd = ?2, state = 'settled', settled_at = ?3 WHERE id = ?1 AND state <> 'settled'",
+        params: [id, actualUsd, at],
+      };
 }
 
 // An attempt whose answer was lost: still counted at its estimate, marked so it is never mistaken for one in flight.
-export function uncertainStatement(id: string): Statement {
-  return { sql: "UPDATE model_spend SET state = 'uncertain' WHERE id = ?1 AND state = 'reserved'", params: [id] };
+export function uncertainStatement(id: string, ended?: Ended): Statement {
+  return ended
+    ? {
+        sql: `UPDATE model_spend SET state = 'uncertain', ${ENDED_SET.replace(/\?(\d+)/g, (_, n: string) => `?${Number(n) - 2}`)} WHERE id = ?1 AND state = 'reserved'`,
+        params: [id, ...endedParams(ended)],
+      }
+    : { sql: "UPDATE model_spend SET state = 'uncertain' WHERE id = ?1 AND state = 'reserved'", params: [id] };
+}
+
+// The cron's mark for a reservation whose settlement was never written (D03 T01 §3): still counted at its estimate,
+// shown as an unsettled error, so an incomplete record is visible and never lost.
+export function unsettledStatement(before: string): Statement {
+  return {
+    sql: "UPDATE model_spend SET state = 'uncertain', outcome = 'error', error_class = 'unsettled', cost_certainty = 'estimated', cost_source = 'estimate' WHERE state = 'reserved' AND at < ?1",
+    params: [before],
+  };
+}
+
+// A case's or a monitor run's cost, its three parts apart: measured, estimated, and attempts with no known cost.
+export function costStatement(owner: { caseId: string } | { monitorRun: string }): Statement {
+  const where = "caseId" in owner ? "case_id = ?1" : "monitor_run = ?1";
+  return {
+    sql: `SELECT
+  coalesce(sum(CASE WHEN cost_certainty = 'measured' THEN actual_usd END), 0) AS measured_usd,
+  coalesce(sum(CASE WHEN cost_certainty = 'estimated' THEN coalesce(actual_usd, estimate_usd) END), 0) AS estimated_usd,
+  count(CASE WHEN cost_certainty = 'estimated' THEN 1 END) AS estimated_calls,
+  count(*) AS attempts
+FROM model_spend WHERE ${where}`,
+    params: ["caseId" in owner ? owner.caseId : owner.monitorRun],
+  };
 }
 
 // A cap's refusal, recorded once per event (src/meta/caps.ts `capEvent`) for the operator's alert.

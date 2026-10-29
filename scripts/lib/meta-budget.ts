@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import {
   capEventStatement,
   inline,
+  ownerColumns,
   reserveStatement,
   type Statement,
   settleStatement,
@@ -40,16 +41,16 @@ export const ledgerId = (date: string, run: string, call: string) =>
 
 export function localBudget(caller: string, run: Runner = runCommand, now: () => Date = () => new Date()): Budget {
   return {
-    async reserve(model, estimateUsd, attempt, id) {
+    async reserve(model, estimateUsd, attempt, id, call) {
       const at = now();
       const row = {
+        ...ownerColumns(call),
         id: id ?? crypto.randomUUID(),
         at: at.toISOString(),
         day: sastDay(at),
         source: "local" as const,
         caller,
         model,
-        caseId: null,
         attempt,
         estimateUsd,
       };
@@ -76,11 +77,11 @@ export function localBudget(caller: string, run: Runner = runCommand, now: () =>
       if (!recorded) console.error(`meta-budget: the ${refused} cap's event could not be recorded; tell the operator`);
       throw new BudgetExceeded(refused, model);
     },
-    async settle(id, actualUsd) {
-      await execute(settleStatement(id, actualUsd, now().toISOString()), run);
+    async settle(id, actualUsd, record) {
+      await execute(settleStatement(id, actualUsd, now().toISOString(), record), run);
     },
-    async uncertain(id) {
-      await execute(uncertainStatement(id), run);
+    async uncertain(id, record) {
+      await execute(uncertainStatement(id, record), run);
     },
   };
 }

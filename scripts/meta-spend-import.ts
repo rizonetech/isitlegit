@@ -40,15 +40,39 @@ export type ImportRow = {
   state: Spend["state"];
 };
 
+// The ledger's call names (scripts/meta-smoke.ts's calls, the live check's attempts, the lane's "<model> <sample>") as
+// models, and its runs as callers, so the rows say what was really called by whom (D03 T01 §2 final review).
+const CALLS: [RegExp, string][] = [
+  [/^muse-[a-z0-9.-]+|^sam-[0-9.]+/, ""],
+  [/^Spark |^client Spark /, "muse-spark-1.3"],
+  [/^Wonder/, "muse-wonder-1.0"],
+  [/^SAM/, "sam-3.1"],
+  [/^Image|^Muse Image/, "muse-image-1.0"],
+  [/^Voice|^Transcri/, "muse-voice-transcribe-1.0"],
+];
+export function modelOfCall(call: string): string {
+  for (const [pattern, model] of CALLS) {
+    const found = pattern.exec(call);
+    if (found) return model || found[0];
+  }
+  return "unknown";
+}
+export const callerOf = (entry: Spend) =>
+  entry.run.startsWith("glimmer")
+    ? "glimmer-teacher"
+    : entry.call.startsWith("client ")
+      ? "meta-client-live"
+      : "meta-smoke";
+
 // A ledger entry as a row: its id from its own fields, its day the date it was recorded on (the ledger's dates are the
 // SAST days the smoke and the lane counted on), its cost when settled, its estimate counted otherwise.
 export function rowOf(entry: Spend): ImportRow {
   const id = ledgerId(entry.date, entry.run, entry.call);
-  const model = entry.call.split(" ")[0] ?? "unknown";
+  const model = modelOfCall(entry.call);
   return {
     id,
     day: entry.date,
-    caller: entry.run.slice(0, 120) || "ledger",
+    caller: callerOf(entry),
     model,
     estimate: entry.estimate,
     actual: entry.state === "settled" ? entry.cost : null,

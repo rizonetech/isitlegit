@@ -250,6 +250,7 @@ async function run(
         fetch: guarded,
         deadlineMs: 60_000,
         // The shared budget in the live D1 (D03 T01 §2), beside this script's own ledger record of each attempt.
+        owner: { kind: "script", name: "meta-client-live" },
         // Each attempt's row named for its ledger entry (`client Spark attempt <n>`), so an import of the ledger finds it
         // already counted.
         budget: {

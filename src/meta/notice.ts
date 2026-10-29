@@ -43,6 +43,11 @@ export async function sendCapNotice(env: NoticeEnv, cap: Cap, model: string, day
 // The cron's part (every 15 minutes, src/index.ts): each recorded cap event not yet notified is sent, and marked once
 // SMTP2GO confirmed it (or an earlier send of the same event did). A local script's refusal reaches the operator here.
 export async function sendPendingCapNotices(env: NoticeEnv): Promise<number> {
+  if (!env.OPERATOR_EMAIL) {
+    // Said each run rather than retried in silence: the events wait until the operator's address is set.
+    console.error(JSON.stringify({ event: "budget", outcome: "cap-notice-unsent", reason: "OPERATOR_EMAIL not set" }));
+    return 0;
+  }
   const pending = await env.DB.prepare(
     "SELECT event, cap, model, day FROM budget_events WHERE notified_at IS NULL ORDER BY at LIMIT 20",
   ).all<{ event: string; cap: Cap; model: string; day: string }>();

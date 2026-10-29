@@ -33,6 +33,7 @@ describe("the Worker's budget", () => {
       {
         env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" },
         budget: d1Budget(db, { caller: "checks", caseId: "case-1" }),
+        owner: { kind: "case", caseId: "case-1", step: "checks" },
         fetch: (async (input: RequestInfo | URL) => {
           sent.push(String(input));
           return new Response("{}");
