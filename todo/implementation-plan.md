@@ -79,7 +79,7 @@ Sections: 42 | Checklist items: 368
 | [x]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 8     |
 | [x]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 8     |
 | [x]    | D03 T01 §5  | Structured output helper with zod         | none                  | 10    |
-| [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 6     |
+| [x]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 6     |
 | [x]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 12    |
 | [x]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 8     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
@@ -312,6 +312,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 62/243 verified sections, 26 ready to run now.
+Progress: 63/243 verified sections, 25 ready to run now.
 
 Checklist: 635/1471 items completed (includes Commit items).

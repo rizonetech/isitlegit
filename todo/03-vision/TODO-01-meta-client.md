@@ -2,7 +2,7 @@
 schema_version: 1
 id: meta-client
 domain: 03-vision
-status: active
+status: done
 title: "TODO-01 -- Meta Model Client, Budget Guard and Untrusted Content"
 frozen: true
 track: day-1
@@ -41,7 +41,7 @@ track: day-1
 | 3 | §3 | Cost and latency events per model call | §1 | [x] |
 | 4 | §4 | Result cache by artefact hash | §1 | [x] |
 | 5 | §5 | Structured output helper with zod | §1 | [x] |
-| 6 | §6 | Untrusted content blocks | §5 | [ ] |
+| 6 | §6 | Untrusted content blocks | §5 | [x] |
 
 ## 1. Model client: store false, Standard IDs
 
@@ -256,6 +256,9 @@ Email, PDF, page and transcript text reach a model only inside clearly delimited
 - [x] Commit: `meta: untrusted content blocks` (landed as `84f7d83`, with the final review's fixes in `aca3069`)
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/untrusted.test.ts` passes and fails if the nonce is fixed.
+
+> **Verified:** 2026-10-29 | §6 | f09c088de3101d52e91ad8d25e3a7b788c529dfe
+> **Review:** `docs/reviews/d03-t01-s6.json`
 
 ## Verification
 
