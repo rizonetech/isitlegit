@@ -202,12 +202,7 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
   const listed = site(entry.url);
   const landed = site(capture.finalUrl);
   if (!landed || (landed !== listed && !entry.also.includes(landed))) return `cross-site redirect to ${landed}`;
-  if (
-    /just a moment|verify you are human|access denied|attention required|checking your browser|are you a robot/i.test(
-      `${capture.title}\n${capture.text.slice(0, 2000)}`,
-    )
-  )
-    return "a challenge page";
+  if (CHALLENGE.test(`${capture.title}\n${capture.text.slice(0, 2000)}`)) return "a challenge page";
   // Past a site's navigation, too: an error page's message often follows a long header.
   if (NOT_FOUND.test(`${capture.title}\n${capture.text.slice(0, 3000)}`)) return "an error page answered with 200";
   if (capture.captcha) return "a CAPTCHA frame";
@@ -221,6 +216,11 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
   if (entry.brand && !brandShown(entry.brand, capture)) return `the listed brand (${entry.brand}) is not on the page`;
   return null;
 }
+
+// What a bot wall shows instead of the site: Cloudflare's, Akamai's, and HUMAN's "Press & Hold" and Imperva's checkbox
+// (both found stored as benign pages, 2026-10-29).
+export const CHALLENGE =
+  /just a moment|verify you are human|access denied|attention required|checking your browser|are you a robot|are you a human|press (&|and) hold|additional security check is required|pass the security check/i;
 
 const NOT_FOUND =
   /page not found|404 not found|error 404|\b404\b.{0,20}(page|error)|(page|file) (you|you're) (were )?looking for|(doesn't|does not|could not|can't|cannot) be found|no longer (exists|available)/i;
@@ -746,6 +746,24 @@ const TRANSIENT =
 
 export type BatchResult = { stored: number; excluded: number; retry: number; skipped: number; recovered: number };
 
+// Takes out every stored benign page whose text a challenge check made after it was stored now refuses (its title is
+// not kept, so the text alone is read), and records each as excluded so no run stores it again. Returns the ids.
+export function recheckStored(store: ReturnType<typeof openStore>, journal: string): string[] {
+  const removed: string[] = [];
+  for (const page of store.manifest({ tolerant: true })) {
+    if (!page.source.startsWith("benign-")) continue;
+    if (!CHALLENGE.test(store.readPage(page.id).text.slice(0, 2000))) continue;
+    store.removePage(page.id);
+    appendJournal(journal, {
+      url: page.url ?? page.id,
+      event: "excluded",
+      reason: "a challenge page (found on a recheck)",
+    });
+    removed.push(page.id);
+  }
+  return removed;
+}
+
 // Reopens every page whose last outcome is an exclusion whose reason matches: the record stays, and a `reopened` line
 // after it names the reason, so the next run renders the page again from its first try. A stored page is never
 // reopened. Returns the URLs reopened.
@@ -979,9 +997,9 @@ export function parseCommand(
   const [given, only] = rest;
   // `--coverage` is the spelling §6's checkpoint names; `coverage` the subcommand's.
   const command = given === "--coverage" ? "coverage" : (given ?? "");
-  if (command === "coverage" && rest.length === 1) return { command, concurrency };
+  if ((command === "coverage" || command === "recheck") && rest.length === 1) return { command, concurrency };
   if (command !== "run" || rest.length > 2 || (only && only !== "majestic" && only !== "benign-sa"))
-    return "usage: node scripts/glimmer/render.ts run [majestic|benign-sa] [--concurrency N] | coverage | --coverage | reopen --matching <pattern>";
+    return "usage: node scripts/glimmer/render.ts run [majestic|benign-sa] [--concurrency N] | coverage | --coverage | recheck | reopen --matching <pattern>";
   return only ? { command, only, concurrency } : { command, concurrency };
 }
 
@@ -998,6 +1016,11 @@ if (import.meta.filename === process.argv[1]) {
     const coverage = benignCoverage(store);
     console.log(JSON.stringify({ ...coverage, problems: coverage.problems.slice(0, 20) }, null, 2));
     process.exit(coverage.met ? 0 : 1);
+  }
+  if (command === "recheck") {
+    const removed = recheckStored(store, join(dir, "raw/benign/progress.jsonl"));
+    console.log(`removed ${removed.length} stored pages a challenge check now refuses`);
+    process.exit(0);
   }
   if (command === "reopen" && matching) {
     const reopened = reopenExcluded(join(dir, "raw/benign/progress.jsonl"), matching);

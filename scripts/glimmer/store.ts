@@ -348,6 +348,19 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return removed;
   }
 
+  // Takes one page out, renamed out of view before it is deleted like `removeSource`'s: a page a later check refuses
+  // (a challenge `render.ts recheck` finds). Returns whether it was there.
+  function removePage(id: string): boolean {
+    if (!/^[a-z0-9][a-z0-9-]{0,40}-[0-9a-f]{16}$/.test(id)) throw new TypeError("not a page id");
+    const folder = join(pages, id);
+    if (!existsSync(folder)) return false;
+    const gone = join(pages, `.removing-${id}-${process.pid}`);
+    renameSync(folder, gone);
+    rmSync(gone, { recursive: true, force: true });
+    sync(pages);
+    return true;
+  }
+
   function counts() {
     const bySource: Record<string, number> = {};
     const byLabel = { lure: 0, benign: 0, unlabelled: 0 };
@@ -368,5 +381,5 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     };
   }
 
-  return { dir, putPage, setLabels, manifest, counts, readPage, verify, removeSource };
+  return { dir, putPage, setLabels, manifest, counts, readPage, verify, removeSource, removePage };
 }

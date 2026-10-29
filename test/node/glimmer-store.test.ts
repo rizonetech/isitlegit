@@ -325,6 +325,18 @@ describe("recovery, integrity and removal", () => {
     expect(readdirSync(join(dir, "pages"))).toEqual([]);
   });
 
+  it("removes one page and leaves the rest", async () => {
+    const store = openStore(dir);
+    const gone = await store.putPage("public", page({ text: "a" }));
+    await store.putPage("public", page({ text: "b" }));
+    expect(store.removePage(gone)).toBe(true);
+    expect(store.removePage(gone)).toBe(false);
+    expect(store.counts().bySource).toEqual({ public: 1 });
+    expect(readdirSync(join(dir, "pages")).filter((name) => name.startsWith("."))).toEqual([]);
+    for (const bad of ["../x", "public", ".removing-public-0123456789abcdef"])
+      expect(() => store.removePage(bad)).toThrow();
+  });
+
   it("removes one source whole and leaves a source that shares its prefix", async () => {
     const store = openStore(dir);
     await store.putPage("public", page({ text: "a" }));

@@ -22,6 +22,7 @@ import {
   RefusedAddress,
   RenderTimeout,
   readJournal,
+  recheckStored,
   reopenExcluded,
   runBatch,
   saList,
@@ -517,6 +518,12 @@ describe("usable", () => {
     expect(unusable(await live("/missing"), local)).toBe("HTTP 404");
     expect(unusable(await live("/shell"), local)).toMatch(/under 50 characters/);
     expect(unusable(await live("/challenge"), local)).toBe("a challenge page");
+    // HUMAN's and Imperva's walls, as South African retailers and journals served them.
+    for (const wall of [
+      "Are you a human? Press and hold the button below to confirm.",
+      "Additional security check is required. Just click the checkbox above to pass the security check.",
+    ])
+      expect(unusable(capture({ text: `${wall} ${words}` }), entry)).toBe("a challenge page");
     expect(unusable(await live("/consent"), local)).toBe("a cookie wall covering the page");
     expect(unusable(await live("/page"), local)).toBeNull();
     // A sign-in page drawn in a full-screen frame that links its cookie policy is a page, not a wall.
@@ -657,6 +664,35 @@ describe("the batch run", () => {
     expect(await runBatch({ list: list(["/a"]), store, journal, render: failing(503) })).toMatchObject({ retry: 1 });
     expect(await runBatch({ list: list(["/b"]), store, journal, render: failing(404) })).toMatchObject({ excluded: 1 });
     expect(readJournal(journal).at(-1)?.reason).toBe("HTTP 404");
+  });
+
+  it("takes out a stored page a later challenge check refuses, and records it excluded", async () => {
+    const store = openStore(join(dir, "store"));
+    const journal = join(dir, "progress.jsonl");
+    const page = await renderer.render(`${origin}/page`);
+    const wall = { ...page, text: `Are you a human? Press & Hold. ${words}` };
+    await runBatch({ list: list(["/wall"]), store, journal, render: async () => wall, concurrency: 1 });
+    // A run now refuses the wall; one stored before the check knew it is put in directly.
+    expect(store.manifest()).toHaveLength(0);
+    const id = await store.putPage("benign-test", {
+      screenshot: wall.screenshot,
+      text: wall.text,
+      origin: "benign",
+      licence: "test",
+      host: null,
+      template: null,
+      south_africa: false,
+      labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+      label_source: { lure: "ground-truth", lure_type: "ground-truth", has_login_form: "dom", has_payment_form: "dom" },
+      redacted: false,
+      url: `${origin}/old-wall`,
+      kind: "home",
+    });
+    await runBatch({ list: list(["/page"]), store, journal, render: renderer.render });
+    expect(recheckStored(store, journal)).toEqual([id]);
+    expect(store.manifest().map((p) => p.url)).toEqual([`${origin}/page`]);
+    expect(readJournal(journal).at(-1)).toMatchObject({ url: `${origin}/old-wall`, event: "excluded" });
+    expect(recheckStored(store, journal)).toEqual([]);
   });
 
   it("renders an exclusion a renderer fault made again once it is reopened, and nothing else", async () => {
