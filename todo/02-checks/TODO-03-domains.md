@@ -94,6 +94,10 @@ For every domain in the case, compare its registrable label with the organisatio
 
 The brands most impersonated in South African small-business mail (banks, Microsoft, Google, DocuSign, SARS, couriers, accounting platforms) and their real sending and web domains, curated from each brand's own website (spec 4.4). Facts only; no logos here (logos live in R2, D03 T04 §2).
 
+> **Started:** 2026-10-29T15:42Z
+
+**Corrected 2026-10-29** (at start, checked against the repository and the spec): (1) "the big five SA banks" are Standard Bank, FNB, Absa, Nedbank and Investec, with Capitec named separately, 26 brands in all; (2) the table is bundled with the Worker (`data/brands.json`, imported by `src/checks/brands.ts`) and KV holds a copy under `brands:v<n>`, `n` the table's own `version`, so it can be refreshed without a deploy: a KV copy that is missing, of another version or that fails the schema is not used, the bundled table is, and the fall back is logged; (3) `scripts/load-brands.ts` writes the key to local KV and, with `--remote`, to the production `CACHE` namespace, reading it back either way; (4) `brandForDomain` matches a host on the brand's registrable domains and their subdomains (`tldts`, the public suffix list: `secure.fnb.co.za` is FNB's, `fnb.co.za.example` is not), and `getBrand` matches display names without regard to case, spacing or punctuation; (5) every domain is sourced from the brand's own website or its official documentation (a page naming the domain, with the date it was read), never from memory, and a brand whose page names none is left out rather than guessed.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
