@@ -5,7 +5,7 @@
 // reopened and a repeated command can never fail a newer attempt. Runs against the live D1 database through Wrangler.
 //
 //   node scripts/mail-settle.ts <send key> sent|failed --claimed-at <the alert's claim time> [--resend]
-//   node scripts/mail-settle.ts <send key> status|cancel|requeue
+//   node scripts/mail-settle.ts <send key> status|cancel|requeue|resend
 //
 // `--resend` (with failed, for a reply only, D01 T02 §8) asks the Worker's cron to send the reply again from its case,
 // within 15 minutes; `status` reads where it stands, `cancel` stops it before the cron claims it, `requeue` asks again
@@ -44,6 +44,19 @@ export async function settle(
   return `mail-settle: ${sendKey} is now ${status}${resend ? "; the reply goes again within 15 minutes" : ""}`;
 }
 
+// What the operator may do next, from the send's status and its resend's state (completion review, G6).
+function nextStep(status: string, state: string | null, reply: boolean): string {
+  if (status === "uncertain" || status === "pending")
+    return "settle it from SMTP2GO's activity (sent, or failed with --resend for a reply)";
+  if (status === "sent" || status === "refused") return "nothing; the mail is final";
+  if (!reply) return "nothing; only a reply can be sent again";
+  if (state === null) return "resend, if SMTP2GO has no record of it";
+  if (state === "requested") return "wait for the cron (15 minutes), or cancel";
+  if (state === "sending") return "wait; the cron is sending it";
+  if (state === "exhausted" || state === "cancelled") return "requeue once SMTP2GO sends again";
+  return "nothing";
+}
+
 const wrangler = (sql: string) => [
   "exec",
   "wrangler",
@@ -62,21 +75,23 @@ export async function steer(run: Runner, sendKey: string, action: string, now = 
   if (action === "status") {
     const row = ((JSON.parse(await run("pnpm", wrangler(statusStatement(sendKey)))) as Answer[])[0]?.results ?? [])[0];
     if (!row) throw new Error(`mail-settle: no send ${sendKey}`);
-    return `mail-settle: ${sendKey}: ${row.status} (claimed ${row.claimed_at}); resend ${row.resend_state ?? "none"}${row.resend_state ? `, ${row.resend_runs} run(s), at ${row.resend_at}` : ""}`;
+    const state = (row.resend_state as string | null) ?? null;
+    const outcome = row.resend_outcome ? `; it ended ${row.resend_outcome}` : "";
+    return `mail-settle: ${sendKey}: ${row.status} (claimed ${row.claimed_at}); resend ${state ?? "none"}${state ? `, ${row.resend_runs} run(s), at ${row.resend_at}` : ""}${outcome}. Next: ${nextStep(String(row.status), state, row.kind === "reply")}`;
   }
   const sql =
     action === "cancel"
       ? cancelStatement(sendKey, now.toISOString())
-      : action === "requeue"
+      : action === "requeue" || action === "resend"
         ? requeueStatement(sendKey, now.toISOString())
         : null;
-  if (!sql) throw new Error("mail-settle: the action is sent, failed, status, cancel or requeue");
+  if (!sql) throw new Error("mail-settle: the action is sent, failed, status, cancel, requeue or resend");
   const changes = (JSON.parse(await run("pnpm", wrangler(sql))) as Answer[])[0]?.meta?.changes;
   if (changes !== 1)
     throw new Error(
       action === "cancel"
         ? `mail-settle: ${sendKey} was not cancelled: it has no requested resend (the cron may have claimed it; read its status)`
-        : `mail-settle: ${sendKey} was not requeued: it has no exhausted or cancelled resend`,
+        : `mail-settle: ${sendKey} was not requeued: it is not a reply settled failed with no resend, or an exhausted or cancelled one`,
     );
   return action === "cancel"
     ? `mail-settle: ${sendKey}: resend cancelled`
@@ -94,7 +109,7 @@ if (import.meta.filename === process.argv[1]) {
   try {
     const run: Runner = (command, args) => runCommand(command, args, "", Date.now() + 120_000);
     console.log(
-      ["status", "cancel", "requeue"].includes(status)
+      ["status", "cancel", "requeue", "resend"].includes(status)
         ? await steer(run, sendKey, status)
         : await settle(run, sendKey, status, values["claimed-at"] ?? "", new Date(), values.resend ?? false),
     );

@@ -37,7 +37,7 @@ export function settleStatement(
 // The operator's read of a send and its resend.
 export function statusStatement(sendKey: string): string {
   checkKey(sendKey);
-  return `SELECT send_key, kind, status, claimed_at, resend_state, resend_runs, resend_at FROM mail_sends WHERE send_key = '${sendKey}'`;
+  return `SELECT send_key, kind, status, claimed_at, resend_state, resend_runs, resend_at, resend_outcome, resend_alerted FROM mail_sends WHERE send_key = '${sendKey}'`;
 }
 
 // A cancel before the cron claimed it: one guarded update, so a confirmed cancel can never still send.
@@ -46,9 +46,10 @@ export function cancelStatement(sendKey: string, at: string): string {
   return `UPDATE mail_sends SET resend_state = 'cancelled', resend_at = '${at}' WHERE send_key = '${sendKey}' AND resend_state = 'requested'`;
 }
 
-// After a repair: an exhausted or cancelled resend asked for again, its runs reset.
+// A resend asked for (again): a reply settled failed without --resend (completion review, G1), or an exhausted or
+// cancelled one after a repair, its runs, outcome and alert reset.
 export function requeueStatement(sendKey: string, at: string): string {
   checkKey(sendKey);
   if (!isReply(sendKey)) throw new Error(`mail-settle: only a reply can be sent again (${sendKey})`);
-  return `UPDATE mail_sends SET resend_state = 'requested', resend_runs = 0, resend_at = '${at}' WHERE send_key = '${sendKey}' AND status = 'failed' AND resend_state IN ('exhausted', 'cancelled')`;
+  return `UPDATE mail_sends SET resend_state = 'requested', resend_runs = 0, resend_at = '${at}', resend_outcome = NULL, resend_alerted = 0 WHERE send_key = '${sendKey}' AND kind = 'reply' AND status = 'failed' AND (resend_state IS NULL OR resend_state IN ('exhausted', 'cancelled'))`;
 }

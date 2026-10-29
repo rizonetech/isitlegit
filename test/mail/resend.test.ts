@@ -171,3 +171,121 @@ describe("recordEvent", () => {
     ]);
   });
 });
+
+describe("completion review (2026-10-29)", () => {
+  const scheduled = async () => {
+    const { default: worker } = await import("../../src/index");
+    const waits: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+    await worker.scheduled({ scheduledTime: Date.now(), cron: "*/15 * * * *", noRetry: () => {} }, env, ctx as never);
+    await Promise.allSettled(waits);
+  };
+  const headlineSends = (requests: Sent[]) =>
+    requests.filter((r) => r.to[0] === FORWARDER && r.text_body.includes("Resent-9 headline"));
+
+  it("sends a requested reply through the Worker's own cron, and nothing once it was cancelled", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    await settledCase("done");
+    await scheduled();
+    expect(headlineSends(requests)).toHaveLength(1);
+    const cancelledId = await settledCase("done");
+    const { cancelStatement } = await import("../../src/mail/settle");
+    expect(
+      (await env.DB.prepare(cancelStatement(`reply:${cancelledId}`, new Date().toISOString())).run()).meta.changes,
+    ).toBe(1);
+    await scheduled();
+    expect(headlineSends(requests)).toHaveLength(1);
+    expect((await rowOf(cancelledId))?.resend_state).toBe("cancelled");
+  });
+
+  it("asks for a reply already settled failed without --resend (G1)", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    const id = await settledCase("done");
+    await env.DB.prepare("UPDATE mail_sends SET resend_state = NULL WHERE send_key = ?").bind(`reply:${id}`).run();
+    const { requeueStatement } = await import("../../src/mail/settle");
+    expect((await env.DB.prepare(requeueStatement(`reply:${id}`, new Date().toISOString())).run()).meta.changes).toBe(
+      1,
+    );
+    await resendRequested(env);
+    expect(headlineSends(requests)).toHaveLength(1);
+  });
+
+  it("recovers a claim a stopped run left: asked for again while unsent, the reconciler's once it may have gone (G2)", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    const unsent = await settledCase("done");
+    const maybe = await settledCase("done");
+    const old = new Date(Date.now() - 20 * 60_000).toISOString();
+    await env.DB.prepare("UPDATE mail_sends SET resend_state = 'sending', resend_at = ? WHERE send_key IN (?, ?)")
+      .bind(old, `reply:${unsent}`, `reply:${maybe}`)
+      .run();
+    await env.DB.prepare("UPDATE mail_sends SET status = 'uncertain' WHERE send_key = ?").bind(`reply:${maybe}`).run();
+    const report = await resendRequested(env);
+    expect(report.recovered).toBe(2);
+    expect(await rowOf(unsent)).toMatchObject({ status: "sent", resend_state: "done" });
+    expect(await rowOf(maybe)).toMatchObject({ status: "uncertain", resend_state: "done" });
+    expect(headlineSends(requests)).toHaveLength(1);
+  });
+
+  it("tries an exhaustion alert that did not go again on the next run, and sends it once (G3)", async () => {
+    mutedLogs();
+    let alertsDown = true;
+    const requests = stubSmtp2go((body) =>
+      body.to[0] === FORWARDER
+        ? "refused"
+        : alertsDown && body.subject.includes("could not be sent again")
+          ? "refused"
+          : "sent",
+    );
+    const id = await settledCase("done");
+    for (let run = 1; run <= RESEND_RUNS; run++) await resendRequested(env);
+    expect(
+      (
+        await env.DB.prepare("SELECT resend_alerted FROM mail_sends WHERE send_key = ?")
+          .bind(`reply:${id}`)
+          .first<{ resend_alerted: number }>()
+      )?.resend_alerted,
+    ).toBe(0);
+    alertsDown = false;
+    await resendRequested(env);
+    await resendRequested(env);
+    const delivered = requests.filter((r) => r.subject.includes(`reply:${id}`) && !r.to.includes(FORWARDER));
+    expect(delivered.length).toBeGreaterThanOrEqual(2);
+    expect(
+      (
+        await env.DB.prepare("SELECT resend_alerted FROM mail_sends WHERE send_key = ?")
+          .bind(`reply:${id}`)
+          .first<{ resend_alerted: number }>()
+      )?.resend_alerted,
+    ).toBe(1);
+    const sentAlerts = (
+      await env.DB.prepare("SELECT COUNT(*) AS n FROM mail_sends WHERE instr(send_key, ?) = 1 AND status = 'sent'")
+        .bind(`resend-exhausted:reply:${id}@`)
+        .first<{ n: number }>()
+    )?.n;
+    expect(sentAlerts).toBe(1);
+  });
+
+  it("sends every one of eleven requests in one run (G4)", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    await env.DB.prepare("UPDATE mail_sends SET resend_state = 'done' WHERE resend_state = 'requested'").run();
+    for (let i = 0; i < 11; i++) await settledCase("done");
+    await resendRequested(env);
+    expect(headlineSends(requests)).toHaveLength(11);
+  });
+
+  it("says what a resend ended in, and the next step, in its status (G6)", async () => {
+    mutedLogs();
+    stubSmtp2go();
+    const id = await settledCase("done", "stranger@nowhere.example");
+    await resendRequested(env);
+    const row = await env.DB.prepare("SELECT resend_outcome FROM mail_sends WHERE send_key = ?")
+      .bind(`reply:${id}`)
+      .first<{ resend_outcome: string }>();
+    expect(row?.resend_outcome).toMatch(/^refused \(/);
+    expect(row?.resend_outcome).not.toContain("stranger@");
+  });
+});

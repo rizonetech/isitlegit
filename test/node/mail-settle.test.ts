@@ -67,6 +67,7 @@ function live() {
     "CREATE TABLE mail_sends (id TEXT PRIMARY KEY, send_key TEXT UNIQUE, kind TEXT, status TEXT, error TEXT, search_cursor TEXT, updated_at TEXT, claimed_at TEXT);",
   );
   db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0031_mail_resend.sql"), "utf-8"));
+  db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0032_mail_resend_outcome.sql"), "utf-8"));
   const add = (key: string, kind: string, status = "uncertain") =>
     db
       .prepare(
@@ -142,6 +143,22 @@ describe("mail-settle --resend (D01 T02 §8)", () => {
     ]);
     expect(await steer(w.run, key, "requeue", AT)).toContain("requested again");
     expect(w.state(key)).toEqual({ status: "failed", resend_state: "requested", resend_runs: 0 });
-    await expect(steer(w.run, key, "requeue", AT)).rejects.toThrow(/no exhausted or cancelled resend/);
+    await expect(steer(w.run, key, "requeue", AT)).rejects.toThrow(/was not requeued/);
+  });
+});
+
+describe("mail-settle, completion review (2026-10-29)", () => {
+  it("asks for a reply settled failed without --resend, and says where each send stands and what to do next", async () => {
+    const w = live();
+    const key = "reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2J";
+    w.add(key, "reply");
+    await settle(w.run, key, "failed", CLAIM, AT);
+    expect(await steer(w.run, key, "status", AT)).toContain("Next: resend, if SMTP2GO has no record of it");
+    expect(await steer(w.run, key, "resend", AT)).toContain("requested again");
+    expect(w.state(key)).toEqual({ status: "failed", resend_state: "requested", resend_runs: 0 });
+    expect(await steer(w.run, key, "status", AT)).toContain("Next: wait for the cron (15 minutes), or cancel");
+    const other = "unresolved:reply:y@2026-10-24T19:20:11.000Z";
+    w.add(other, "alert", "failed");
+    expect(await steer(w.run, other, "status", AT)).toContain("Next: nothing; only a reply can be sent again");
   });
 });
