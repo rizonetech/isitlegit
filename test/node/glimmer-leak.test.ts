@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import PostalMime from "postal-mime";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -9,6 +10,8 @@ import {
   labelOf,
   leakCheck,
   leaks,
+  messageFiles,
+  messageParts,
   type Ocr,
   opaqueId,
   parseCsv,
@@ -167,7 +170,9 @@ function samplesDir(): string {
     ].join("\r\n"),
   );
   // A message that cannot be read.
-  mkdirSync(join(samples, "client", "9_HighConfPhish.eml"));
+  // (A message file with no read permission.)
+  put("9_HighConfPhish.eml", message(`<p>${words}</p>`));
+  chmodSync(join(samples, "client", "9_HighConfPhish.eml"), 0o000);
   return samples;
 }
 
@@ -222,6 +227,36 @@ describe("the sample importer's inputs", () => {
     expect(labelOf("client/x.eml", manifest)).toEqual({ excluded: "no label" });
   });
 
+  it("finds every message at any depth and in any case, and reads a manifest saved with a byte-order mark", () => {
+    mkdirSync(join(dir, "client", "archive"), { recursive: true });
+    for (const name of ["1.eml", "client/2.EML", "client/archive/3.eml", "client/.hidden.eml", "client/notes.txt"])
+      writeFileSync(join(dir, name), "x");
+    expect(messageFiles(dir)).toEqual(["1.eml", "client/2.EML", "client/archive/3.eml"]);
+    writeFileSync(join(dir, "manifest.csv"), "\uFEFFfile,label\n1.eml,attack\n");
+    expect(readManifest(dir, ["1.eml"]).get("1.eml")).toBe("attack");
+  });
+
+  it("decodes two attachments with one name each by its own MIME charset", async () => {
+    const parts = [
+      "--b",
+      "Content-Type: text/html; charset=windows-1251; name=invoice.html",
+      "Content-Disposition: attachment; filename=invoice.html",
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2]).toString("base64"),
+      "--b",
+      "Content-Type: text/html; charset=utf-8; name=invoice.html",
+      "Content-Disposition: attachment; filename=invoice.html",
+      "Content-Transfer-Encoding: base64",
+      "",
+      Buffer.from("Привет", "utf-8").toString("base64"),
+      "--b--",
+      "",
+    ].join("\r\n");
+    const raw = `Content-Type: multipart/mixed; boundary="b"\r\n\r\n${parts}`;
+    expect(messageParts(await PostalMime.parse(raw), raw).attachments).toEqual(["Привет", "Привет"]);
+  });
+
   it("matches a name as a whole word and an address or domain anywhere, and sees a joined-up detail", () => {
     expect(leaks([{ id: "p", text: "Announcement for everyone" }], ["Ann"])).toEqual([]);
     expect(leaks([{ id: "p", text: "Dear Ann," }], ["Ann"])).toHaveLength(1);
@@ -248,7 +283,7 @@ describe("the sample import, end to end", () => {
     expect(first.inventory).toMatchObject({ messages: 16 });
     expect(first.inventory.failed).toEqual(
       expect.arrayContaining([
-        { id: opaqueId("client/9_HighConfPhish.eml"), reason: "unreadable (EISDIR)" },
+        { id: opaqueId("client/9_HighConfPhish.eml"), reason: "unreadable (EACCES)" },
         { id: opaqueId("client/14_HighConfPhish.eml"), reason: "over 0.06 MB" },
       ]),
     );
@@ -349,6 +384,23 @@ describe("the sample import, end to end", () => {
     expect(again.some((html) => html.includes("SARS refund"))).toBe(true);
   }, 240_000);
 
+  it("makes every page again when a message's bytes change, and stops a parse at its deadline", async () => {
+    const samples = samplesDir();
+    for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
+      rmSync(join(samples, "client", name), { recursive: true });
+    const store = openStore(join(dir, "store"));
+    expect((await runImport({ samples, store, render })).code).toBe(0);
+    writeFileSync(join(samples, "client", "4_Spam.eml"), message(`<p>${words} Changed.</p>`));
+    const lines: string[] = [];
+    expect((await runImport({ samples, store, render, log: (l) => lines.push(l) })).code).toBe(0);
+    expect(lines.some((l) => /earlier pages removed/.test(l))).toBe(true);
+    // A deadline no parse can meet: every message is late, recorded, and the run is incomplete.
+    const late = await runImport({ samples, store, render, parseMs: 1 });
+    expect(late.code).toBe(1);
+    expect(late.inventory.failed.length).toBeGreaterThan(0);
+    expect(late.inventory.failed.every((f) => f.reason === "not parsed within 0.001 seconds")).toBe(true);
+  }, 240_000);
+
   it("stops the old pages counting before it removes any", async () => {
     const samples = samplesDir();
     for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
@@ -419,6 +471,25 @@ describe("the sample import, end to end", () => {
     writeFileSync(record, saved.replace('"status"', '"note": "client/1_HighConfPhish.eml", "status"'));
     expect((await leakCheck({ samples, store, ocr: noText })).hits).toBeGreaterThan(0);
     writeFileSync(record, saved);
+    // A stored screenshot replaced by another picture, and a page record that no longer reads.
+    const page = store.manifest().find((p) => p.origin === "samples") as { id: string };
+    const shotFile = join(store.dir, "pages", page.id, "screenshot.jpg");
+    const kept = readFileSync(shotFile);
+    writeFileSync(
+      shotFile,
+      await sharp({ create: { width: 64, height: 64, channels: 3, background: "#fff" } })
+        .jpeg()
+        .toBuffer(),
+    );
+    expect((await leakCheck({ samples, store, ocr: noText })).problems).toContain(
+      "1 pages' files no longer match their records",
+    );
+    writeFileSync(shotFile, kept);
+    const metaFile = join(store.dir, "pages", page.id, "meta.json");
+    const keptMeta = readFileSync(metaFile, "utf-8");
+    writeFileSync(metaFile, "{ broken");
+    expect((await leakCheck({ samples, store, ocr: noText })).problems).toContain("a page's record does not read");
+    writeFileSync(metaFile, keptMeta);
     // A planted page that keeps a name, and a page no part accounts for.
     const jpeg = new Uint8Array(
       await sharp({ create: { width: 64, height: 64, channels: 3, background: "#fff" } })

@@ -23,10 +23,20 @@
 // `raw/samples/REDACTION.json` only once both imports are complete, so an interrupted rebuild never stands as redacted.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import PostalMime, { type Email } from "postal-mime";
+import { Worker } from "node:worker_threads";
+import type { Email } from "postal-mime";
 import { type ImportResult, importSource, type SourceItem, writeImport } from "./import-source.ts";
 import { EMAIL, hasImages, LONG_NUMBER, namePieces, PHONE, redact, skeleton, stripImages } from "./redact.ts";
 import { decodeHtml, openTextReader } from "./source-pages.ts";
@@ -119,7 +129,8 @@ export function readManifest(samples: string, files: string[]): Map<string, stri
   const file = join(samples, "manifest.csv");
   const out = new Map<string, string>();
   if (!existsSync(file)) return out;
-  const [header, ...rows] = parseCsv(readFileSync(file, "utf-8"));
+  // A spreadsheet's UTF-8 byte-order mark is not part of the first header.
+  const [header, ...rows] = parseCsv(readFileSync(file, "utf-8").replace(/^\uFEFF/, ""));
   const columns = (header ?? []).map((c) => c.trim());
   const at = (name: string) => columns.indexOf(name);
   if (at("file") < 0 || at("label") < 0) throw new Error("refused: manifest.csv needs file and label columns");
@@ -139,17 +150,30 @@ export function readManifest(samples: string, files: string[]): Map<string, stri
 // Every message in every folder under samples/ (a client set's folder is named after the client, so the code names
 // none of them), as its path under samples/.
 export function messageFiles(samples: string): string[] {
-  return readdirSync(samples, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
-    .map((entry) => entry.name)
-    .filter((folder) => !folder.startsWith(".") && statSync(join(samples, folder)).isDirectory())
-    .sort()
-    .flatMap((folder) =>
-      readdirSync(join(samples, folder))
-        .filter((name) => name.endsWith(".eml"))
-        .sort()
-        .map((name) => `${folder}/${name}`),
-    );
+  // Every `.eml` (any case) at any depth under samples/, its folders followed once each: a quarantine export nests
+  // folders, and a message outside the expected shape would otherwise go uncounted. Hidden names are left out.
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const walk = (folder: string, prefix: string) => {
+    let real: string;
+    try {
+      real = realpathSync(folder);
+    } catch {
+      return;
+    }
+    if (seen.has(real)) return;
+    seen.add(real);
+    for (const entry of readdirSync(folder, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.name.startsWith(".")) continue;
+      const path = join(folder, entry.name);
+      const isDir =
+        entry.isDirectory() || (entry.isSymbolicLink() && statSync(path, { throwIfNoEntry: false })?.isDirectory());
+      if (isDir) walk(path, `${prefix}${entry.name}/`);
+      else if (/\.eml$/i.test(entry.name)) out.push(`${prefix}${entry.name}`);
+    }
+  };
+  walk(samples, "");
+  return out;
 }
 
 const HTML_NAME = /\.(s?html?)$/i;
@@ -159,14 +183,17 @@ const bytesOf = (content: ArrayBuffer | Uint8Array | string) =>
 
 // Each part's declared charset by its file name, read from the part headers in the raw message: the parser decodes
 // attachments as bytes and does not keep their `Content-Type` parameters.
-export function partCharsets(raw: string): Map<string, string> {
-  const out = new Map<string, string>();
+export function partCharsets(raw: string): Map<string, string[]> {
+  // Each name's charsets in the order its parts appear: two attachments may share a name, and the parser keeps parts
+  // in that same order, so the n-th part named `invoice.html` takes the n-th charset declared for that name.
+  const out = new Map<string, string[]>();
   for (const block of raw.split(/\r?\n\r?\n/)) {
     const headers = block.replace(/\r?\n[ \t]+/g, " ");
     if (!/^content-type:/im.test(headers)) continue;
-    const charset = /[;\s]charset\s*=\s*"?([\w.:-]+)/i.exec(headers)?.[1];
-    if (!charset) continue;
-    for (const name of partNames(headers)) out.set(name, charset);
+    const names = partNames(headers);
+    if (!names.length) continue;
+    const charset = /[;\s]charset\s*=\s*"?([\w.:-]+)/i.exec(headers)?.[1] ?? "";
+    for (const name of names) out.set(name, [...(out.get(name) ?? []), charset]);
   }
   return out;
 }
@@ -245,11 +272,16 @@ export function messageParts(
   const attachments: string[] = [];
   const unsupported: string[] = [];
   const charsets = partCharsets(raw);
+  const taken = new Map<string, number>();
   for (const part of email.attachments) {
     const html = part.mimeType === "text/html" || HTML_NAME.test(part.filename ?? "");
-    if (html && (part.disposition === "attachment" || HTML_NAME.test(part.filename ?? "")))
-      attachments.push(decodeHtml(bytesOf(part.content), charsets.get(part.filename ?? "")));
-    else if (!(part.related || part.contentId) || !part.mimeType.startsWith("image/")) unsupported.push(part.mimeType);
+    if (html && (part.disposition === "attachment" || HTML_NAME.test(part.filename ?? ""))) {
+      const name = part.filename ?? "";
+      const nth = taken.get(name) ?? 0;
+      taken.set(name, nth + 1);
+      attachments.push(decodeHtml(bytesOf(part.content), charsets.get(name)?.[nth] || undefined));
+    } else if (!(part.related || part.contentId) || !part.mimeType.startsWith("image/"))
+      unsupported.push(part.mimeType);
   }
   const body = email.html
     ? email.html
@@ -411,6 +443,28 @@ export type Inventory = {
   outcomes: Outcome[];
 };
 
+// A message parsed in its own worker thread, terminated at the deadline: the parse stops, not only the wait for it.
+function parseBounded(bytes: Uint8Array, ms: number): Promise<Email> {
+  return new Promise((done, fail) => {
+    const worker = new Worker(new URL("./parse-mail-worker.ts", import.meta.url));
+    const timer = setTimeout(() => {
+      void worker.terminate();
+      fail(Object.assign(new Error("late"), { late: true }));
+    }, ms);
+    worker.once("message", (answer: { email?: Email; error?: string }) => {
+      clearTimeout(timer);
+      void worker.terminate();
+      if (answer.email) done(answer.email);
+      else fail(new Error(answer.error ?? "unparsable"));
+    });
+    worker.once("error", (error) => {
+      clearTimeout(timer);
+      fail(error);
+    });
+    worker.postMessage(bytes);
+  });
+}
+
 // Each message read whole, bounded: a file over 25 MB, one that does not read, or one that does not parse within 30
 // seconds is a failure recorded by its opaque id, never an abort.
 async function readMessages(
@@ -431,13 +485,7 @@ async function readMessages(
         continue;
       }
       const bytes = readFileSync(path);
-      let timer: NodeJS.Timeout | undefined;
-      const email = await Promise.race([
-        PostalMime.parse(bytes),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(Object.assign(new Error("late"), { late: true })), parseMs);
-        }),
-      ]).finally(() => clearTimeout(timer));
+      const email = await parseBounded(bytes, parseMs);
       parsed.push({ id, file, raw: bytes.toString("latin1"), email });
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
@@ -701,6 +749,10 @@ export async function leakCheck(options: {
   } catch {
     problems.push("a page's record does not read");
   }
+  // Each page's files must still be the ones its record names: a replaced screenshot reads clean by OCR and is not
+  // the page that was checked.
+  const damaged = Object.values(SOURCES).reduce((sum, source) => sum + store.verify(source).damaged.length, 0);
+  if (damaged) problems.push(`${damaged} pages' files no longer match their records`);
   const records: { id: string; text: string }[] = [];
   const shots: string[] = [];
   let detail = 0;

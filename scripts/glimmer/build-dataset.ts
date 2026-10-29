@@ -322,7 +322,17 @@ export async function buildDataset(options: {
         existsSync(file) ? ((JSON.parse(readFileSync(file, "utf-8")) as { status?: string }).status ?? "none") : "none",
       );
     }
-    return importStatus.get(page.source) === "complete";
+    if (importStatus.get(page.source) !== "complete") return false;
+    // The pilot client's samples are one set: both imports are used only once the set's redaction key is recorded,
+    // which the importer writes last (§7), so a run stopped between its two records publishes neither.
+    if (page.origin === "samples") {
+      const file = join(store.dir, "raw", "samples", "REDACTION.json");
+      const state = existsSync(file)
+        ? (JSON.parse(readFileSync(file, "utf-8")) as { key?: string | null; building?: string | null })
+        : {};
+      if (!state.key || state.building) return false;
+    }
+    return true;
   };
   for (const page of store.manifest()) {
     if (!usable(page)) {

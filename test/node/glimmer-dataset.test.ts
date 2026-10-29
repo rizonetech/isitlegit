@@ -209,6 +209,9 @@ describe("buildDataset", () => {
       join(dir, "store", "review-queue.jsonl"),
       `${JSON.stringify({ id: queued, spark: { lure: false } })}\n`,
     );
+    // The sample set's redaction key is recorded, so its pages reach the redaction check.
+    mkdirSync(join(dir, "store", "raw", "samples"), { recursive: true });
+    writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: "k", building: null }));
     const built = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
     expect(built.dropped.unredacted).toBe(1);
     expect(built.dropped.unlabelled).toBe(1);
@@ -230,6 +233,13 @@ describe("buildDataset", () => {
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual(["1.0"]);
     const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
     expect(summary.train.lines + summary.evaluation.lines).toBe(built.train + built.evaluation);
+    // Without the set's key (a sample run stopped between its two records), no sample page is used at all.
+    writeFileSync(
+      join(dir, "store", "raw", "samples", "REDACTION.json"),
+      JSON.stringify({ key: null, building: "k2" }),
+    );
+    const unset = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
+    expect([unset.dropped.unredacted, unset.dropped.incomplete]).toEqual([0, 2]);
   });
 });
 

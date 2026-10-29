@@ -54,13 +54,13 @@ export function namePieces(display: string | undefined, address: string | undefi
 }
 
 export const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-// South African numbers (+27 or 0, then nine digits grouped by spaces, dashes or dots, the area code in brackets
+// South African numbers (+27 or 0, then nine digits grouped by spaces, dashes, dots or slashes, the area code in brackets
 // too) and other international numbers.
 export const PHONE =
-  /\(0\d{2}\)[\s.-]?\d{3}[\s.-]?\d{4}\b|(?:\+27|\b0)[\s.-]?\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b|\+\d{1,3}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,4}){2,4}\b/g;
-// Nine or more digits in a run (single spaces, non-breaking spaces, dots or dashes allowed between): South African account numbers (9 to 11
+  /\(0\d{2}\)[\s./-]?\d{3}[\s./-]?\d{4}\b|(?:\+27|\b0)[\s./-]?\d{2}[\s./-]?\d{3}[\s./-]?\d{4}\b|\+\d{1,3}[\s./-]?\(?\d{1,4}\)?(?:[\s./-]?\d{2,4}){2,4}\b/g;
+// Nine or more digits in a run (single spaces, non-breaking spaces, dots, slashes or dashes allowed between): South African account numbers (9 to 11
 // digits), ID numbers (13) and card numbers (13 to 19). Eight stops short, so a date like 2026-10-31 stays.
-export const LONG_NUMBER = /\b\d(?:[ \u00A0\u202F.-]?\d){8,}\b/g;
+export const LONG_NUMBER = /\b\d(?:[ \u00A0\u202F./-]?\d){8,}\b/g;
 const DATA_URI = /data:[^"')\s>]+/g;
 const URL = /\b(?:https?:\/\/|www\.)[^\s"'<>()]+/gi;
 // Characters that hide inside a word without showing: a soft hyphen or a zero-width space splits `Tha­ndi` for a

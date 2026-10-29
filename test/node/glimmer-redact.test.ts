@@ -56,6 +56,7 @@ describe("redact", () => {
 
   it("redacts a phone written with dots", () => {
     expect(redact("<p>Call 082.555.1234 or (011).555.1234</p>", [])).toBe("<p>Call [phone] or [phone]</p>");
+    expect(redact("<p>Call 082/555/1234 about your invoice</p>", [])).toBe("<p>Call [phone] about your invoice</p>");
   });
 
   it("redacts numbers grouped with non-breaking spaces, written or as references", () => {
