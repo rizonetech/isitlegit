@@ -30,8 +30,12 @@ export function settleStatement(
   if (resend && status !== "failed") throw new Error("mail-settle: --resend goes with failed, never with sent");
   if (resend && !isReply(sendKey))
     throw new Error(`mail-settle: only a reply can be sent again (${sendKey} keeps no content to rebuild it from)`);
-  const asked = resend ? `, resend_state = 'requested', resend_runs = 0, resend_at = '${at}'` : "";
-  return `UPDATE mail_sends SET status = '${status}', error = 'settled by the operator', search_cursor = NULL, updated_at = '${at}'${asked} WHERE send_key = '${sendKey}' AND claimed_at = '${claimedAt}' AND status IN ('uncertain', 'pending')`;
+  // A new request clears the last resend's ending and alert (final review), so status never shows a stale outcome.
+  const asked = resend
+    ? `, resend_state = 'requested', resend_runs = 0, resend_at = '${at}', resend_outcome = NULL, resend_alerted = 0, resend_alert_tried_at = NULL`
+    : "";
+  // Never under a resend the cron is sending (final review): its own outcome settles the row.
+  return `UPDATE mail_sends SET status = '${status}', error = 'settled by the operator', search_cursor = NULL, updated_at = '${at}'${asked} WHERE send_key = '${sendKey}' AND claimed_at = '${claimedAt}' AND status IN ('uncertain', 'pending') AND coalesce(resend_state, '') <> 'sending'`;
 }
 
 // The operator's read of a send and its resend.
@@ -52,5 +56,5 @@ export function cancelStatement(sendKey: string, at: string): string {
 export function requeueStatement(sendKey: string, at: string): string {
   checkKey(sendKey);
   if (!isReply(sendKey)) throw new Error(`mail-settle: only a reply can be sent again (${sendKey})`);
-  return `UPDATE mail_sends SET resend_state = 'requested', resend_runs = 0, resend_at = '${at}', resend_outcome = NULL, resend_alerted = 0 WHERE send_key = '${sendKey}' AND kind = 'reply' AND status = 'failed' AND (resend_state IS NULL OR resend_state IN ('done', 'exhausted', 'cancelled'))`;
+  return `UPDATE mail_sends SET resend_state = 'requested', resend_runs = 0, resend_at = '${at}', resend_outcome = NULL, resend_alerted = 0, resend_alert_tried_at = NULL WHERE send_key = '${sendKey}' AND kind = 'reply' AND status = 'failed' AND (resend_state IS NULL OR resend_state IN ('done', 'exhausted', 'cancelled'))`;
 }

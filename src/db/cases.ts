@@ -303,6 +303,24 @@ export async function setHeadersAvailable(db: D1Database, id: string, available:
   });
 }
 
+// A partial case whose analysis finished (its verdict stored) and failed only after it, delivering its reply or
+// finishing, completed once that verdict reached the member (D01 T02 §8 final review). The one move out of `partial`:
+// any failure before the verdict, or a case with no verdict, keeps it partial.
+export async function completeStored(db: D1Database, orgId: string, id: string): Promise<CaseResult<Case>> {
+  const ids = Ids.safeParse({ orgId, id });
+  if (!ids.success) return invalid(ids.error);
+  return guarded(async () => {
+    const row = await db
+      .prepare(
+        "UPDATE cases SET status = 'done', updated_at = ? WHERE id = ? AND org_id = ? AND status = 'partial' AND verdict IS NOT NULL AND NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish')) RETURNING *",
+      )
+      .bind(new Date().toISOString(), id, orgId, id)
+      .first<Row>();
+    if (row) return { ok: true, value: toCase(row) };
+    return fail("transition", `case ${id} is not a partial case that failed only after its verdict`);
+  });
+}
+
 export async function setVerdict(
   db: D1Database,
   orgId: string,

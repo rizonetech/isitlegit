@@ -119,6 +119,8 @@ describe("resendRequested", () => {
     const id = await settledCase("done");
     for (let run = 1; run <= RESEND_RUNS; run++) await resendRequested(env);
     expect(await rowOf(id)).toMatchObject({ resend_state: "exhausted", resend_runs: RESEND_RUNS });
+    // Its alert goes from the next run's alert pass.
+    await resendRequested(env);
     const alerts = requests.filter((r) => r.subject.includes(`reply:${id}`) && r.text_body.includes("requeue"));
     expect(alerts).toHaveLength(1);
     await resendRequested(env);
@@ -242,6 +244,8 @@ describe("completion review (2026-10-29)", () => {
     );
     const id = await settledCase("done");
     for (let run = 1; run <= RESEND_RUNS; run++) await resendRequested(env);
+    // The next run's alert pass tries the alert, refused while alerts are down.
+    await resendRequested(env);
     expect(
       (
         await env.DB.prepare("SELECT resend_alerted FROM mail_sends WHERE send_key = ?")
@@ -420,5 +424,107 @@ describe("round 3 (2026-10-29)", () => {
     expect(await rowOf(id)).toMatchObject({ status: "sent", resend_state: "done" });
     expect(requests.filter((r) => r.to[0] === FORWARDER && r.text_body.includes("Resent-9 headline"))).toHaveLength(1);
     expect(requests.filter((r) => r.subject.includes("could not be sent again"))).toEqual([]);
+  });
+});
+
+describe("final review (2026-10-29)", () => {
+  it("finishes a partial case whose verdict the resend delivered", async () => {
+    mutedLogs();
+    stubSmtp2go();
+    const made = await createCase(env.DB, {
+      orgId: ORG,
+      channel: "email",
+      headersAvailable: false,
+      forwardedBy: FORWARDER,
+      messageId: "<forward-101@fictional-recipient.example>",
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await setStatus(env.DB, ORG, id, "running");
+    await storeVerdict(env.DB, ORG, id, { ...STUB_VERDICT, headline: "Done-6 headline" });
+    await setStatus(env.DB, ORG, id, "partial");
+    await recordEvent(env.DB, id, "finish", "failed", { errorClass: "Error", once: true });
+    await env.DB.prepare(
+      "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at, claimed_at, resend_state, resend_at) VALUES (?, ?, ?, 'reply', ?, 'failed', 1, ?, ?, ?, 'requested', ?)",
+    )
+      .bind(crypto.randomUUID(), `reply:${id}`, id, "a".repeat(64), CLAIMED, CLAIMED, CLAIMED, CLAIMED)
+      .run();
+    await resendRequested(env);
+    expect(
+      (await env.DB.prepare("SELECT status FROM cases WHERE id = ?").bind(id).first<{ status: string }>())?.status,
+    ).toBe("done");
+  });
+
+  it("refuses to settle a row under a resend in flight", async () => {
+    const id = await settledCase("done");
+    await env.DB.prepare("UPDATE mail_sends SET status = 'pending', resend_state = 'sending' WHERE send_key = ?")
+      .bind(`reply:${id}`)
+      .run();
+    const settled = await env.DB.prepare(
+      settleStatement(`reply:${id}`, "failed", CLAIMED, new Date().toISOString(), true),
+    ).run();
+    expect(settled.meta.changes).toBe(0);
+  });
+
+  it("clears the last resend's ending when one is asked for again", async () => {
+    const id = await settledCase("done");
+    await env.DB.prepare(
+      "UPDATE mail_sends SET status = 'uncertain', resend_state = 'done', resend_outcome = 'uncertain, left to the reconciler', resend_alerted = 1 WHERE send_key = ?",
+    )
+      .bind(`reply:${id}`)
+      .run();
+    await env.DB.prepare(settleStatement(`reply:${id}`, "failed", CLAIMED, new Date().toISOString(), true)).run();
+    const row = await env.DB.prepare(
+      "SELECT resend_state, resend_outcome, resend_alerted FROM mail_sends WHERE send_key = ?",
+    )
+      .bind(`reply:${id}`)
+      .first();
+    expect(row).toEqual({ resend_state: "requested", resend_outcome: null, resend_alerted: 0 });
+  });
+
+  it("handles the rest of the queue when one request's claim fails", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    await env.DB.prepare("UPDATE mail_sends SET resend_state = 'done' WHERE resend_state = 'requested'").run();
+    const first = await settledCase("done");
+    await settledCase("done");
+    let failed = false;
+    const flaky = new Proxy(env.DB, {
+      get(target, name) {
+        if (name === "prepare")
+          return (sql: string) => {
+            if (!failed && sql.startsWith("UPDATE mail_sends SET resend_state = 'sending'")) {
+              failed = true;
+              throw new Error("D1 down");
+            }
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    await resendRequested({ ...env, DB: flaky });
+    // The other is sent, and the one whose claim failed is claimed again in the same run.
+    expect(requests.filter((r) => r.to[0] === FORWARDER && r.text_body.includes("Resent-9 headline"))).toHaveLength(2);
+    expect((await rowOf(first))?.resend_state).toBe("done");
+  });
+});
+
+describe("completeStored", () => {
+  it("never completes a partial case that failed before its verdict, or has none", async () => {
+    const { completeStored } = await import("../../src/db/cases");
+    const made = await createCase(env.DB, { orgId: ORG, channel: "upload", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await setStatus(env.DB, ORG, id, "running");
+    await setStatus(env.DB, ORG, id, "partial");
+    expect((await completeStored(env.DB, ORG, id)).ok).toBe(false);
+    const other = await createCase(env.DB, { orgId: ORG, channel: "upload", headersAvailable: false });
+    if (!other.ok) throw new Error(other.error.message);
+    await setStatus(env.DB, ORG, other.value.id, "running");
+    await storeVerdict(env.DB, ORG, other.value.id, STUB_VERDICT);
+    await setStatus(env.DB, ORG, other.value.id, "partial");
+    await recordEvent(env.DB, other.value.id, "checks", "failed", { errorClass: "Error", once: true });
+    expect((await completeStored(env.DB, ORG, other.value.id)).ok).toBe(false);
   });
 });

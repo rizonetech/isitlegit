@@ -4,7 +4,7 @@
 // the allowlist, threading and the send log apply as for the first send. Each request is handled on its own: one that
 // throws leaves the rest. Each run first recovers claims a stopped run left behind and retries exhaustion alerts that
 // did not go, then drains every request within its time budget.
-import { getCaseForPipeline } from "../db/cases";
+import { completeStored, getCaseForPipeline } from "../db/cases";
 import { getVerdict } from "../db/verdicts";
 import { type ReportState, reply } from "../pipeline/analysis-workflow";
 import { type MailDeps, sendMail } from "./smtp2go";
@@ -72,8 +72,14 @@ export async function resendRequested(env: Env, now = () => new Date()): Promise
   // Each request is tried once a run (round 1): one put back for the next run is stamped at or after this, so this run
   // does not select it again.
   const runStart = now().toISOString();
-  await recoverAbandoned(env.DB, now(), report);
-  await retryAlerts(env, report);
+  const inBudget = () => Date.now() - started < RUN_BUDGET_MS;
+  // Each pass on its own (final review): one that fails is logged and the next still runs.
+  await recoverAbandoned(env.DB, now(), report).catch((error: unknown) =>
+    report.errors.push(`recovering abandoned claims failed (${(error as Error).name})`),
+  );
+  await retryAlerts(env, report, inBudget).catch((error: unknown) =>
+    report.errors.push(`retrying exhaustion alerts failed (${(error as Error).name})`),
+  );
   // Every request in one run, a batch at a time within the run's budget (G4).
   while (Date.now() - started < RUN_BUDGET_MS) {
     const rows = await env.DB.prepare(
@@ -84,8 +90,13 @@ export async function resendRequested(env: Env, now = () => new Date()): Promise
     if (rows.results.length === 0) break;
     let claimedAny = false;
     for (const row of rows.results) {
-      if (Date.now() - started >= RUN_BUDGET_MS) break;
-      claimedAny = (await resendOne(env, row, now, report)) || claimedAny;
+      if (!inBudget()) break;
+      // One request's failure (its claim included) never ends the run for the rest (final review).
+      claimedAny =
+        (await resendOne(env, row, now, report).catch((error: unknown) => {
+          report.errors.push(`${row.send_key}: its resend could not be handled (${(error as Error).name})`);
+          return true;
+        })) || claimedAny;
     }
     if (!claimedAny) break;
   }
@@ -99,17 +110,19 @@ async function resendOne(
   report: ResendReport,
 ): Promise<boolean> {
   // Claimed in one guarded update, so two runs cannot both send it and a cancel after this is refused.
+  const claimAt = now().toISOString();
   const claimed = await env.DB.prepare(
     "UPDATE mail_sends SET resend_state = 'sending', resend_at = ? WHERE send_key = ? AND resend_state = 'requested' RETURNING send_key",
   )
-    .bind(now().toISOString(), row.send_key)
+    .bind(claimAt, row.send_key)
     .first();
   if (!claimed) return false;
+  // Fenced by this claim (final review): a run whose claim was recovered and taken by a later run never overwrites it.
   const finish = (state: "done" | "requested" | "exhausted", runs: number, outcome: string) =>
     env.DB.prepare(
-      "UPDATE mail_sends SET resend_state = ?, resend_runs = ?, resend_at = ?, resend_outcome = ? WHERE send_key = ?",
+      "UPDATE mail_sends SET resend_state = ?, resend_runs = ?, resend_at = ?, resend_outcome = ? WHERE send_key = ? AND resend_state = 'sending' AND resend_at = ?",
     )
-      .bind(state, runs, now().toISOString(), outcome, row.send_key)
+      .bind(state, runs, now().toISOString(), outcome, row.send_key, claimAt)
       .run();
   const runs = row.resend_runs + 1;
   // The delivery and the bookkeeping after it are apart (round 3): only a delivery that did not go counts against the
@@ -120,7 +133,15 @@ async function resendOne(
     if (!row.case_id) throw new ResendError("ResendNoCase");
     // Sent, refused (the allowlist), a duplicate, no forwarder, or uncertain: final here, an uncertain or pending send
     // settled by the reconciler and never sent again here. A failed send throws (ReplyNotSent) and is tried again.
-    const result = await reply(env, row.case_id, await rebuildState(env.DB, row.case_id));
+    const state = await rebuildState(env.DB, row.case_id);
+    const result = await reply(env, row.case_id, state);
+    // A partial case whose verdict has now reached the member is finished, as the workflow's own finish step would have
+    // done (final review); a failure here leaves it as it was and is logged.
+    const delivered =
+      result.mail !== "none" &&
+      (result.outcome.status === "sent" ||
+        (result.outcome.status === "duplicate" && result.outcome.previous === "sent"));
+    if (delivered && state.status === "ready") await finishCase(env.DB, row.case_id, report);
     outcome =
       result.mail === "none"
         ? "with no one to reply to (no forwarder)"
@@ -136,9 +157,9 @@ async function resendOne(
     report.errors.push(`${row.send_key}: resend run ${runs} did not send (${name})`);
     try {
       if (runs >= RESEND_RUNS) {
+        // Its alert goes from the next run's alert pass, within that run's budget (final review).
         await finish("exhausted", runs, `not sent after ${runs} runs (${name})`);
         report.exhausted += 1;
-        await retryAlerts(env, report);
       } else {
         await finish("requested", runs, `run ${runs} not sent (${name})`);
         report.retried += 1;
@@ -190,7 +211,7 @@ async function recoverAbandoned(db: D1Database, at: Date, report: ResendReport) 
 
 // Each exhausted resend's operator alert, until it has gone (G3): under one send key for that exhaustion, so a retry
 // never sends a second alert for it.
-async function retryAlerts(env: Env, report: ResendReport) {
+async function retryAlerts(env: Env, report: ResendReport, inBudget: () => boolean) {
   if (!env.OPERATOR_EMAIL) return;
   const deps: MailDeps = { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL };
   // The least recently tried first, each try stamped, so an alert left uncertain never holds the others back (round 1).
@@ -198,6 +219,7 @@ async function retryAlerts(env: Env, report: ResendReport) {
     `SELECT send_key, resend_at FROM mail_sends WHERE resend_state = 'exhausted' AND resend_alerted = 0 ORDER BY coalesce(resend_alert_tried_at, '') LIMIT ${BATCH}`,
   ).all<{ send_key: string; resend_at: string }>();
   for (const row of rows.results) {
+    if (!inBudget()) break;
     await env.DB.prepare("UPDATE mail_sends SET resend_alert_tried_at = ? WHERE send_key = ?")
       .bind(new Date().toISOString(), row.send_key)
       .run();
@@ -223,4 +245,12 @@ async function retryAlerts(env: Env, report: ResendReport) {
       report.alerted += 1;
     } else report.errors.push(`${row.send_key}: the exhausted resend's alert did not go; tried again next run`);
   }
+}
+
+// The workflow's finish step, done for a partial case whose verdict a resend delivered.
+async function finishCase(db: D1Database, caseId: string, report: ResendReport) {
+  const found = await getCaseForPipeline(db, caseId);
+  if (!found.ok || found.value.status !== "partial") return;
+  const set = await completeStored(db, found.value.orgId, caseId);
+  if (!set.ok) report.errors.push(`case ${caseId}: its verdict was resent but the case could not be finished`);
 }

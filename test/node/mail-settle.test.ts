@@ -30,7 +30,7 @@ describe("mail-settle", () => {
       "--json",
     ]);
     expect(calls[0]?.at(-1)).toBe(
-      "UPDATE mail_sends SET status = 'sent', error = 'settled by the operator', search_cursor = NULL, updated_at = '2026-10-27T20:00:00.000Z' WHERE send_key = 'reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N' AND claimed_at = '2026-10-24T19:20:11.000Z' AND status IN ('uncertain', 'pending')",
+      "UPDATE mail_sends SET status = 'sent', error = 'settled by the operator', search_cursor = NULL, updated_at = '2026-10-27T20:00:00.000Z' WHERE send_key = 'reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N' AND claimed_at = '2026-10-24T19:20:11.000Z' AND status IN ('uncertain', 'pending') AND coalesce(resend_state, '') <> 'sending'",
     );
   });
 
