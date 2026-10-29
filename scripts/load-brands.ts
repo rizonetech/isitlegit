@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { BRANDS_KEY, BRANDS_PREVIOUS_KEY, BrandTable } from "../src/checks/brand-schema.ts";
+import { BRANDS_KEY, BRANDS_PREVIOUS_KEY, BrandTable, covers } from "../src/checks/brand-schema.ts";
 
 // One Wrangler command, stopped after `timeoutMs` (a stopped command answers a null status).
 export type Run = (args: string[], timeoutMs: number) => { status: number | null; stdout: string; stderr: string };
@@ -22,6 +22,8 @@ export type LoadOptions = {
   run?: Run;
   sleep?: (ms: number) => Promise<void>;
   verifyMs?: number;
+  // The committed table a load must cover; the repository's own by default.
+  committed?: string;
 };
 
 export class LoadRefused extends Error {
@@ -73,6 +75,10 @@ export async function loadBrands(options: LoadOptions): Promise<{ revision: stri
     const parsed = BrandTable.safeParse(JSON.parse(value));
     if (!parsed.success)
       throw new LoadRefused(`the table is malformed: ${parsed.error.issues[0]?.message ?? "invalid"}`);
+    // Never fewer brands than the committed table names: the Worker would refuse such a copy anyway.
+    const committed = BrandTable.parse(JSON.parse(readFileSync(options.committed ?? "data/brands.json", "utf8")));
+    const dropped = covers(parsed.data, committed);
+    if (dropped.length > 0) throw new LoadRefused(`the table drops ${dropped.length} brand(s) the committed one names`);
     const text = JSON.stringify(parsed.data);
     // A load keeps the value it replaces as the rollback copy first, so a refused or interrupted write leaves the live
     // value where it was and a retry works. A restore never writes the copy: the revision it restores stays the rollback

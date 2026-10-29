@@ -11,6 +11,7 @@ const table = (revision: string) =>
   JSON.stringify({
     version: 1,
     revision,
+    community_labels: [],
     brands: [
       {
         name: "Fynbos Freight",
@@ -29,6 +30,13 @@ const table = (revision: string) =>
     ],
     excluded: [],
   });
+
+// The committed table each load must cover: the one-brand fixture's own.
+const COMMITTED = (() => {
+  const where = mkdtempSync(join(tmpdir(), "load-brands-committed-"));
+  writeFileSync(join(where, "brands.json"), table("2026-10-01"));
+  return join(where, "brands.json");
+})();
 
 let dir: string | undefined;
 afterEach(() => {
@@ -85,7 +93,13 @@ describe("loadBrands", () => {
   it("writes the table to the named target, keeping the value it replaces, and reads it back", async () => {
     for (const target of ["local", "remote"] as const) {
       const fake = fakeKv({ [BRANDS_KEY]: table("2026-10-01") });
-      const result = await loadBrands({ target, table: file(table("2026-10-29")), run: fake.run, sleep: noSleep });
+      const result = await loadBrands({
+        committed: COMMITTED,
+        target,
+        table: file(table("2026-10-29")),
+        run: fake.run,
+        sleep: noSleep,
+      });
       expect(result).toEqual({ revision: "2026-10-29", key: BRANDS_KEY });
       expect(
         fake.calls.every((c) => c.at(-1) === `--${target}` && c.includes("--binding") && c.includes("CACHE")),
@@ -100,6 +114,7 @@ describe("loadBrands", () => {
   it("reads a remote 404 as a missing key, and any other failed read as a failure", async () => {
     const first = fakeKv({}, { remote404: true });
     const done = await loadBrands({
+      committed: COMMITTED,
       target: "remote",
       table: file(table("2026-10-29")),
       run: first.run,
@@ -108,14 +123,15 @@ describe("loadBrands", () => {
     expect(done.revision).toBe("2026-10-29");
     expect(first.store.has(BRANDS_PREVIOUS_KEY)).toBe(false);
     const failing: Run = () => ({ status: 1, stdout: "", stderr: "✘ [ERROR] Authentication error [code: 10000]" });
-    await expect(loadBrands({ target: "remote", table: file(table("2026-10-29")), run: failing })).rejects.toThrow(
-      /reading brands:v1 failed/,
-    );
+    await expect(
+      loadBrands({ committed: COMMITTED, target: "remote", table: file(table("2026-10-29")), run: failing }),
+    ).rejects.toThrow(/reading brands:v1 failed/);
   });
 
   it("waits out KV's eventual consistency, then gives up on a read-back that never matches", async () => {
     const lagging = fakeKv({}, { stale: 3 });
     const done = await loadBrands({
+      committed: COMMITTED,
       target: "local",
       table: file(table("2026-10-29")),
       run: lagging.run,
@@ -124,7 +140,14 @@ describe("loadBrands", () => {
     expect(done.revision).toBe("2026-10-29");
     const never = fakeKv({}, { stale: 10_000 });
     await expect(
-      loadBrands({ target: "local", table: file(table("2026-10-29")), run: never.run, sleep: noSleep, verifyMs: 0 }),
+      loadBrands({
+        committed: COMMITTED,
+        target: "local",
+        table: file(table("2026-10-29")),
+        run: never.run,
+        sleep: noSleep,
+        verifyMs: 0,
+      }),
     ).rejects.toThrow(/did not read back/);
   });
 
@@ -132,6 +155,7 @@ describe("loadBrands", () => {
     const fake = fakeKv();
     await expect(
       loadBrands({
+        committed: COMMITTED,
         target: "local",
         table: file(JSON.stringify({ version: 1, revision: "x", brands: [] })),
         run: fake.run,
@@ -139,29 +163,32 @@ describe("loadBrands", () => {
     ).rejects.toThrow(LoadRefused);
     expect(fake.calls.some((c) => c[2] === "put")).toBe(false);
     const refusing = fakeKv({}, { refuse: true });
-    await expect(loadBrands({ target: "remote", table: file(table("2026-10-29")), run: refusing.run })).rejects.toThrow(
-      /writing brands:v1 failed/,
-    );
+    await expect(
+      loadBrands({ committed: COMMITTED, target: "remote", table: file(table("2026-10-29")), run: refusing.run }),
+    ).rejects.toThrow(/writing brands:v1 failed/);
   });
 
   it("restores the previous value and leaves it the rollback copy, so a retried restore restores the same revision", async () => {
     const fake = fakeKv({ [BRANDS_KEY]: table("2026-11-05"), [BRANDS_PREVIOUS_KEY]: table("2026-10-29") });
     for (let attempt = 0; attempt < 2; attempt++)
-      expect((await loadBrands({ target: "local", restore: true, run: fake.run, sleep: noSleep })).revision).toBe(
-        "2026-10-29",
-      );
+      expect(
+        (await loadBrands({ committed: COMMITTED, target: "local", restore: true, run: fake.run, sleep: noSleep }))
+          .revision,
+      ).toBe("2026-10-29");
     expect(JSON.parse(fake.store.get(BRANDS_KEY) as string).revision).toBe("2026-10-29");
     expect(JSON.parse(fake.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-10-29");
-    await expect(loadBrands({ target: "local", restore: true, run: fakeKv().run })).rejects.toThrow(
-      /no brands:v1:previous/,
-    );
+    await expect(
+      loadBrands({ committed: COMMITTED, target: "local", restore: true, run: fakeKv().run }),
+    ).rejects.toThrow(/no brands:v1:previous/);
   });
 
   it("keeps the revision being restored when the restore is refused partway, so a retry works", async () => {
     const start = { [BRANDS_KEY]: table("2026-11-05"), [BRANDS_PREVIOUS_KEY]: table("2026-10-29") };
     // The first write (the live key) refused: nothing changed.
     const refused = fakeKv(start, { puts: 0 });
-    await expect(loadBrands({ target: "local", restore: true, run: refused.run, sleep: noSleep })).rejects.toThrow();
+    await expect(
+      loadBrands({ committed: COMMITTED, target: "local", restore: true, run: refused.run, sleep: noSleep }),
+    ).rejects.toThrow();
     expect(JSON.parse(refused.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-10-29");
     // The write commits but its answer is lost: the run fails, and a retry restores the same revision.
     const lost = fakeKv(start);
@@ -174,14 +201,28 @@ describe("loadBrands", () => {
       }
       return done;
     };
-    await expect(loadBrands({ target: "local", restore: true, run: losing, sleep: noSleep })).rejects.toThrow();
-    const retried = await loadBrands({ target: "local", restore: true, run: losing, sleep: noSleep });
+    await expect(
+      loadBrands({ committed: COMMITTED, target: "local", restore: true, run: losing, sleep: noSleep }),
+    ).rejects.toThrow();
+    const retried = await loadBrands({
+      committed: COMMITTED,
+      target: "local",
+      restore: true,
+      run: losing,
+      sleep: noSleep,
+    });
     expect(retried.revision).toBe("2026-10-29");
     expect(JSON.parse(lost.store.get(BRANDS_PREVIOUS_KEY) as string).revision).toBe("2026-10-29");
     // A load refused partway keeps the live value live.
     const loading = fakeKv({ [BRANDS_KEY]: table("2026-10-29") }, { puts: 1 });
     await expect(
-      loadBrands({ target: "local", table: file(table("2026-11-05")), run: loading.run, sleep: noSleep }),
+      loadBrands({
+        committed: COMMITTED,
+        target: "local",
+        table: file(table("2026-11-05")),
+        run: loading.run,
+        sleep: noSleep,
+      }),
     ).rejects.toThrow();
     expect(JSON.parse(loading.store.get(BRANDS_KEY) as string).revision).toBe("2026-10-29");
   });
@@ -190,6 +231,7 @@ describe("loadBrands", () => {
     const stalled = fakeKv({}, { hang: true });
     await expect(
       loadBrands({
+        committed: COMMITTED,
         target: "remote",
         table: file(table("2026-10-29")),
         run: stalled.run,
@@ -200,6 +242,22 @@ describe("loadBrands", () => {
     expect(stalled.bounds.every((ms) => ms >= 1 && ms <= 30_000)).toBe(true);
     // Verification commands get no more than the time left in the window.
     expect(stalled.bounds.at(-1)).toBeLessThanOrEqual(5_000);
+  });
+
+  it("refuses a table that drops a brand the committed table names, and one with an undated source", async () => {
+    const fake = fakeKv();
+    const other = JSON.parse(table("2026-10-29"));
+    other.brands[0].name = "Other Freight";
+    other.brands[0].display_names = ["Other Freight"];
+    await expect(
+      loadBrands({ committed: COMMITTED, target: "local", table: file(JSON.stringify(other)), run: fake.run }),
+    ).rejects.toThrow(/drops 1 brand/);
+    const undated = JSON.parse(table("2026-10-29"));
+    undated.brands[0].sources[0].read = "yesterday";
+    await expect(
+      loadBrands({ committed: COMMITTED, target: "local", table: file(JSON.stringify(undated)), run: fake.run }),
+    ).rejects.toThrow(/malformed/);
+    expect(fake.calls.some((c) => c[2] === "put")).toBe(false);
   });
 
   it("validates the committed table", async () => {

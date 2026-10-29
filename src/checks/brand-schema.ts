@@ -56,8 +56,17 @@ const Brand = z
 export const BrandTable = z.strictObject({
   version: z.literal(BRANDS_SCHEMA),
   revision: z.iso.date(),
+  // A label below a brand's registrable domain that marks other people's content on any brand (`community`, `forums`).
+  community_labels: z.array(z.string().regex(/^[a-z0-9-]+$/)),
   brands: z.array(Brand).min(1),
   excluded: z.array(z.strictObject({ name: z.string().min(1), reason: z.string().min(1) })),
 });
 export type BrandTable = z.infer<typeof BrandTable>;
+
+// Whether a table names every brand another one does, as a brand or as excluded: a refresh may add and correct, never
+// drop one (final review: a wrong file loaded into KV would otherwise shrink the table in production).
+export function covers(table: BrandTable, required: BrandTable): string[] {
+  const named = new Set([...table.brands.map((b) => b.name), ...table.excluded.map((e) => e.name)]);
+  return [...required.brands.map((b) => b.name), ...required.excluded.map((e) => e.name)].filter((n) => !named.has(n));
+}
 export type Brand = z.infer<typeof Brand>;
