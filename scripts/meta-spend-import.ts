@@ -6,6 +6,7 @@
 //   node scripts/meta-spend-import.ts [--dry]
 import { parseArgs } from "node:util";
 import type { Statement } from "../src/meta/budget-sql.ts";
+import { isModelId, MODELS } from "../src/meta/models.ts";
 import { execute, ledgerId } from "./lib/meta-budget.ts";
 import { metaLedger, readLedger, type Spend } from "./meta-smoke.ts";
 import { installSignalCleanup, type Runner, runCommand } from "./smoke.ts";
@@ -80,11 +81,28 @@ export function rowOf(entry: Spend): ImportRow {
   };
 }
 
+export const measuredImport = (row: ImportRow) =>
+  row.state === "settled" && isModelId(row.model) && MODELS[row.model].unit === "token";
+
 export function importStatement(row: ImportRow): Statement {
   return {
-    sql: `INSERT OR IGNORE INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state)
-VALUES (?1, ?2, ?3, 'local', ?4, ?5, NULL, 1, ?6, ?7, ?8)`,
-    params: [row.id, `${row.day}T12:00:00.000Z`, row.day, row.caller, row.model, row.estimate, row.actual, row.state],
+    // Labelled here, so the history keeps its certainty: a settled entry for a token model was settled from Meta's
+    // reported usage (the smoke and the lane settle those only from it); one for a model billed per image or second was
+    // priced from the request (SAM's image sent), and any unsettled entry stands at its estimate.
+    sql: `INSERT OR IGNORE INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state, owner, cost_certainty, cost_source)
+VALUES (?1, ?2, ?3, 'local', ?4, ?5, NULL, 1, ?6, ?7, ?8, 'script', ?9, ?10)`,
+    params: [
+      row.id,
+      `${row.day}T12:00:00.000Z`,
+      row.day,
+      row.caller,
+      row.model,
+      row.estimate,
+      row.actual,
+      row.state,
+      measuredImport(row) ? "measured" : "estimated",
+      measuredImport(row) ? "meta-usage" : "estimate",
+    ],
   };
 }
 

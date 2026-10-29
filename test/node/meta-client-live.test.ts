@@ -46,7 +46,13 @@ function world(w: World = {}) {
   let secretsRead = 0;
   const options: LiveOptions = {
     // A shared budget that admits every attempt (D03 T01 §2; the real one is test/node/meta-budget-local.test.ts).
-    budget: { reserve: async () => "held", settle: async () => {}, uncertain: async () => {} },
+    budget: {
+      reserve: async () => "held",
+      settle: async () => {},
+      uncertain: async () => {},
+      refused: async () => {},
+      cached: async () => {},
+    },
     ledger: LEDGER,
     pending: PENDING,
     record: RECORD,
@@ -345,5 +351,28 @@ describe("meta-client-live", () => {
     expect(outcome.code).toBe(1);
     expect(outcome.lines.join("\n")).toContain("repair it rather than delete it");
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("round 1: the live check keeps each attempt's call record", () => {
+  it("forwards the client's call (its id and owner) with the ledger's row id", async () => {
+    const { options } = world();
+    const reserved: unknown[][] = [];
+    options.budget = {
+      reserve: async (...args: unknown[]) => {
+        reserved.push(args);
+        return "held";
+      },
+      settle: async () => {},
+      uncertain: async () => {},
+      refused: async () => {},
+      cached: async () => {},
+    } as LiveOptions["budget"];
+    expect((await runClientLive(options)).code).toBe(0);
+    expect(reserved[0]?.[3]).toMatch(/^ledger:/);
+    expect(reserved[0]?.[4]).toMatchObject({
+      callId: expect.any(String),
+      owner: { kind: "script", name: "meta-client-live" },
+    });
   });
 });

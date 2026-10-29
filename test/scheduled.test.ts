@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import worker, { scheduledReconcile } from "../src/index";
 import { ACTIVITY_URL, BOUNDS, HEADER } from "../src/mail/reconcile";
+import { markUnsettled } from "../src/meta/budget";
 
 // The Worker's scheduled entrypoint (D01 T02 §5): the cron trigger runs the reconciler over the live send log with
 // its band (claims older than 30 minutes, younger than 3 days), beside the HTTP routes, which still answer.
@@ -79,5 +80,34 @@ describe("the scheduled entrypoint", () => {
       props: {},
     } as unknown as ExecutionContext);
     expect(response.status).toBe(200);
+  });
+});
+
+describe("the unsettled-call sweep (D03 T01 §3)", () => {
+  it("says when it cannot run, and the next run recovers", async () => {
+    const errors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((line: string) => void errors.push(String(line)));
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const failing = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (sql.includes("error_class = 'unsettled'")) throw new Error("D1_ERROR: Network connection lost.");
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const waits: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+    await worker.scheduled(
+      { scheduledTime: Date.now(), cron: "*/15 * * * *", noRetry: () => {} },
+      { ...env, DB: failing },
+      ctx as unknown as ExecutionContext,
+    );
+    await Promise.all(waits);
+    expect(errors.some((line) => line.includes('"sweep-failed"'))).toBe(true);
+    expect(await markUnsettled(env.DB)).toBeGreaterThanOrEqual(0);
   });
 });

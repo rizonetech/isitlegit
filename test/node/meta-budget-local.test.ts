@@ -10,7 +10,14 @@ import { BudgetExceeded } from "../../src/meta/guard.ts";
 // The local callers' budget (D03 T01 §2): the same statement the Worker runs, sent through `wrangler d1 execute`. Here
 // wrangler is a stand-in that runs each command on an in-memory SQLite holding the real migration, so the SQL itself is
 // what is tested, a Worker's reservation racing a local one on the same rows.
-const MIGRATION = ["0020_model_spend.sql", "0021_budget_events.sql", "0022_model_calls.sql"]
+const MIGRATION = [
+  "0020_model_spend.sql",
+  "0021_budget_events.sql",
+  "0022_model_calls.sql",
+  "0023_call_units.sql",
+  "0024_request_priced_history.sql",
+  "0025_script_owner.sql",
+]
   .map((name) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8"))
   .join("\n");
 
@@ -196,5 +203,97 @@ describe("final review: imported rows name their real model and caller", () => {
       callerOf(entry("2026-10-28T16:43:00.242Z", "client Spark attempt 1")),
       callerOf(entry("glimmer-teacher-1", "muse-spark-1.3 x")),
     ]).toEqual(["meta-smoke", "meta-client-live", "glimmer-teacher"]);
+  });
+});
+
+describe("completion review: history keeps its certainty through 0022 and 0023", () => {
+  it("leaves a settled row written before the call record estimated, and an import measured", () => {
+    const read = (name: string) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8");
+    const db = new DatabaseSync(":memory:");
+    db.exec(read("0020_model_spend.sql"));
+    db.exec(read("0021_budget_events.sql"));
+    const insert = db.prepare(
+      "INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state) VALUES (?, '2026-10-29T08:00:00Z', '2026-10-29', 'worker', 'checks', 'muse-spark-1.3', NULL, 1, 0.01, 0.01, 'settled')",
+    );
+    insert.run("worker-row");
+    insert.run("import:meta-smoke:2026-10-27");
+    db.exec(read("0022_model_calls.sql"));
+    db.exec(read("0023_call_units.sql"));
+    expect(db.prepare("SELECT id, cost_certainty FROM model_spend ORDER BY id").all()).toEqual([
+      { id: "import:meta-smoke:2026-10-27", cost_certainty: "measured" },
+      { id: "worker-row", cost_certainty: "estimated" },
+    ]);
+  });
+});
+
+describe("round 1: history priced from the request is never measured", () => {
+  it("imports a settled SAM ledger entry estimated, and 0024 corrects one already imported", async () => {
+    const w = wrangler();
+    const sam = {
+      date: "2026-10-27",
+      run: "run-1",
+      call: "SAM 3.1",
+      estimate: 0.0025,
+      cost: 0.0025,
+      state: "settled" as const,
+    };
+    const spark = { ...sam, call: "Spark text", estimate: 0.005, cost: 0.004 };
+    await importSpend([sam, spark], w.run);
+    expect(
+      w.db.prepare("SELECT model, cost_certainty FROM model_spend WHERE id LIKE 'ledger:%' ORDER BY model").all(),
+    ).toEqual([
+      { model: "muse-spark-1.3", cost_certainty: "measured" },
+      { model: "sam-3.1", cost_certainty: "estimated" },
+    ]);
+    const read = (name: string) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8");
+    const db = new DatabaseSync(":memory:");
+    for (const name of ["0020_model_spend.sql", "0021_budget_events.sql"]) db.exec(read(name));
+    db.exec(
+      "INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state) VALUES ('ledger:x', '2026-10-27T12:00:00Z', '2026-10-27', 'local', 'meta-smoke', 'sam-3.1', NULL, 1, 0.0025, 0.0025, 'settled')",
+    );
+    for (const name of [
+      "0022_model_calls.sql",
+      "0023_call_units.sql",
+      "0024_request_priced_history.sql",
+      "0025_script_owner.sql",
+    ])
+      db.exec(read(name));
+    expect(db.prepare("SELECT cost_certainty, cost_source FROM model_spend").get()).toEqual({
+      cost_certainty: "estimated",
+      cost_source: "estimate",
+    });
+  });
+});
+
+describe("final review: a local refusal leaves its record", () => {
+  it("writes the refused attempt costing nothing, with its owner's name", async () => {
+    const w = wrangler();
+    const budget = localBudget("glimmer-teacher-label", w.run, at);
+    await budget.reserve("muse-spark-1.3", 15, 1);
+    const call = { callId: "call-1", owner: { kind: "script" as const, name: "glimmer-teacher-label" } };
+    await budget.reserve("muse-spark-1.3", 1, 1, undefined, call).catch(() => null);
+    await budget.refused("gpt-9", call, "refused-model");
+    expect(
+      w.db
+        .prepare(
+          "SELECT model, error_class, actual_usd, cost_certainty, script FROM model_spend WHERE outcome = 'refused' ORDER BY model",
+        )
+        .all(),
+    ).toEqual([
+      {
+        model: "gpt-9",
+        error_class: "refused-model",
+        actual_usd: 0,
+        cost_certainty: "none",
+        script: "glimmer-teacher-label",
+      },
+      {
+        model: "muse-spark-1.3",
+        error_class: "budget:day",
+        actual_usd: 0,
+        cost_certainty: "none",
+        script: "glimmer-teacher-label",
+      },
+    ]);
   });
 });

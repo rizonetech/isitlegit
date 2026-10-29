@@ -37,6 +37,8 @@ function ledger(refuse?: () => Error) {
     async uncertain(id) {
       find(id).state = "uncertain";
     },
+    async refused() {},
+    async cached() {},
   };
   return { budget, charges };
 }

@@ -46,7 +46,13 @@ export default {
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
     // A model call whose settlement was never written, marked so its record shows (D03 T01 §3).
-    ctx.waitUntil(markUnsettled(env.DB).catch(() => 0));
+    ctx.waitUntil(
+      markUnsettled(env.DB).catch((error: unknown) => {
+        // Said, so an abandoned reservation is never mistaken for one in flight (completion review, C5).
+        console.error(JSON.stringify({ event: "budget", outcome: "sweep-failed", error: (error as Error).name }));
+        return 0;
+      }),
+    );
   },
 } satisfies ExportedHandler<Env>;
 

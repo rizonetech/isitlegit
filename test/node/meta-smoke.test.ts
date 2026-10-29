@@ -22,6 +22,8 @@ const openBudget = () => ({
   reserve: async () => "held",
   settle: async () => {},
   uncertain: async () => {},
+  refused: async () => {},
+  cached: async () => {},
 });
 
 // scripts/meta-smoke.ts (D00 T01 §7) against a stubbed transport: the real dispatch path carries the gateway headers
@@ -772,5 +774,87 @@ describe("the shared budget (D03 T01 §2)", () => {
     expect(none.code).toBe(2);
     expect(none.lines.join("\n")).toMatch(/no Meta budget was given/);
     expect(sent).toEqual([]);
+  });
+});
+
+describe("the smoke test's call record (D03 T01 §3)", () => {
+  it("reserves with its call and owner, and settles each call with its record", async () => {
+    const reserved: unknown[] = [];
+    const settled: unknown[] = [];
+    const budget = {
+      reserve: async (...args: unknown[]) => {
+        reserved.push(args[4]);
+        return "held";
+      },
+      settle: async (_id: string, _usd: number, record?: unknown) => void settled.push(record),
+      uncertain: async (_id: string, record?: unknown) => void settled.push(record),
+      refused: async () => {},
+      cached: async () => {},
+    };
+    const { fetchStub } = world();
+    await live(fetchStub, { budget }).run;
+    expect(reserved.length).toBeGreaterThan(0);
+    expect(reserved[0]).toMatchObject({ owner: { kind: "script", name: "meta-smoke" } });
+    expect(settled.length).toBe(reserved.length);
+    for (const record of settled)
+      expect(record).toMatchObject({ outcome: expect.any(String), certainty: expect.any(String) });
+  });
+});
+
+describe("round 1: the smoke test's calls carry the record every caller writes", () => {
+  it("settles a refused call at nothing with its kind and ids, and tags every request with its owner", async () => {
+    const settled: { usd: number | null; record: Record<string, unknown> }[] = [];
+    const budget = {
+      reserve: async () => "held",
+      settle: async (_id: string, usd: number, record?: unknown) =>
+        void settled.push({ usd, record: record as Record<string, unknown> }),
+      uncertain: async (_id: string, record?: unknown) =>
+        void settled.push({ usd: null, record: record as Record<string, unknown> }),
+      refused: async () => {},
+      cached: async () => {},
+    };
+    const limited = () =>
+      new Response(JSON.stringify({ error: { type: "rate_limit_error", code: null, param: null, message: "slow" } }), {
+        status: 429,
+        headers: { "content-type": "application/json", "x-request-id": "req-limited" },
+      });
+    const { fetchStub, sent } = world({ answers: { "spark-text": limited } });
+    await live(fetchStub, { budget }).run;
+    expect(settled[0]).toEqual({
+      usd: 0,
+      record: expect.objectContaining({
+        outcome: "refused",
+        certainty: "none",
+        errorClass: "rate-limit",
+        logId: "log-1",
+        requestId: "req-limited",
+      }),
+    });
+    expect(settled.slice(1).every((s) => s.record.outcome === "ok")).toBe(true);
+    for (const request of sent)
+      expect(JSON.parse(request.headers.get("cf-aig-metadata") ?? "{}")).toEqual({ script: "meta-smoke" });
+  });
+});
+
+describe("round 2: an interrupted stream is a failed call", () => {
+  it("records a SAM stream cut off before completion as an error, apart from a content-check failure", async () => {
+    const records: Record<string, unknown>[] = [];
+    const budget = {
+      reserve: async () => "held",
+      settle: async (_id: string, _usd: number, record?: unknown) =>
+        void records.push(record as Record<string, unknown>),
+      uncertain: async (_id: string, record?: unknown) => void records.push(record as Record<string, unknown>),
+      refused: async () => {},
+      cached: async () => {},
+    };
+    const cut = () =>
+      new Response(samStream(samRecord(), false), {
+        headers: { "content-type": "text/event-stream" },
+      });
+    const { fetchStub } = world({ answers: { sam: cut } });
+    await live(fetchStub, { budget }).run;
+    const sam = records.find((r) => r.images === 1);
+    expect(sam).toMatchObject({ outcome: "error", certainty: "estimated" });
+    expect(String(sam?.errorClass)).toMatch(/^stream-|^timeout$/);
   });
 });

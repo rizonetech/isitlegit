@@ -43,8 +43,15 @@ describe("the Worker's budget", () => {
     expect(error).toBeInstanceOf(BudgetExceeded);
     expect([(error as BudgetExceeded).cap, (error as BudgetExceeded).model]).toEqual(["day", "muse-spark-1.3"]);
     expect(sent).toEqual([]);
-    const rows = await db.prepare("SELECT COUNT(*) AS n FROM model_spend").first<{ n: number }>();
-    expect(rows?.n).toBe(1);
+    // The earlier spend, and the refused attempt's own record costing nothing (D03 T01 §3 final review).
+    const rows = await db
+      .prepare(
+        "SELECT outcome, error_class, cost_certainty, actual_usd, case_id FROM model_spend WHERE outcome = 'refused'",
+      )
+      .all();
+    expect(rows.results).toEqual([
+      { outcome: "refused", error_class: "budget:day", cost_certainty: "none", actual_usd: 0, case_id: "case-1" },
+    ]);
   });
 });
 

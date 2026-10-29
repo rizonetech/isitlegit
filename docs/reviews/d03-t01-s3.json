@@ -1,0 +1,127 @@
+{
+  "ref": "D03 T01 \u00a73",
+  "title": "Cost and latency events per model call",
+  "implementation_sha": "bfdbca02d6bafba01b12687152e7496157b41254",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T01-s3.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T01-s3.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/meta -> 116 passed (events, budget, refusal, client)",
+    "pnpm exec vitest run --project node test/node/meta-budget-local.test.ts test/node/meta-smoke.test.ts test/node/meta-client-live.test.ts -> 63 passed",
+    "pnpm exec vitest run --maxWorkers=2 -> 1121 passed, 2 skipped",
+    "live: migrations 0022 to 0025 applied and read back (No migrations to apply); the 4 live rows keep their spend (US$0.031810) and certainty"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T01-s3.md",
+    "verdict": "filed",
+    "candidate": "f1f20e3c28a5da4a3afc496f6556264211e13610",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a75",
+      "D07 T05 \u00a72",
+      "D08 T02 \u00a71"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T01-s3.md",
+    "candidate": "72336f211aed561d2534598611d5ac9aa892e466",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T01-s3.md",
+    "verdict": "fixed",
+    "candidate": "4c67263c90b45e284a42e36c0bf121dd590bf751",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

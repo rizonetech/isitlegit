@@ -6,9 +6,11 @@
 import type { Reservation, Statement } from "./budget-sql";
 import {
   inline as _inline,
+  cachedStatement,
   capEventStatement,
   costStatement,
   ownerColumns,
+  refusedStatement,
   reserveStatement,
   settleStatement,
   spentStatement,
@@ -37,15 +39,20 @@ const ATTEMPTS = 3;
 export async function reserve(db: D1Database, r: Omit<Reservation, "id"> & { id?: string }): Promise<Reserved> {
   const row: Reservation = { ...r, id: r.id ?? crypto.randomUUID() };
   let cap: Cap | null = null;
-  for (let tries = 0; tries < ATTEMPTS; tries++) {
+  for (let tries = 0; tries < ATTEMPTS && !cap; tries++) {
     const inserted = await run(db, reserveStatement(row, DAY_CAP_USD, totalLimitFor(row.day))).run();
     if (inserted.meta.changes === 1) return { ok: true, id: row.id };
     const spent = await run(db, spentStatement(row.day)).first<{ day_usd: number; total_usd: number }>();
     cap = refusingCap(spent?.day_usd ?? 0, spent?.total_usd ?? 0, row.estimateUsd, row.day);
-    if (cap) return { ok: false, cap };
   }
   // Refused every time yet never by a named cap on a read: the spend moves under it; the day cap is the safe answer.
-  return { ok: false, cap: cap ?? "day" };
+  const refused = cap ?? "day";
+  // The refused attempt's own record, costing nothing (D03 T01 §3 final review); one that cannot be written is logged,
+  // never a reason to send the call.
+  await run(db, refusedStatement(row, `budget:${refused}`))
+    .run()
+    .catch(() => console.error(JSON.stringify({ event: "budget", outcome: "refusal-unrecorded", cap: refused })));
+  return { ok: false, cap: refused };
 }
 
 // The cap's event for the cron's alert, tried three times; whether it was written.
@@ -118,6 +125,50 @@ export function d1Budget(
     },
     uncertain: async (id, record) => {
       await run(db, uncertainStatement(id, record)).run();
+    },
+    refused: async (model, call, errorClass) => {
+      const now = new Date();
+      const owned = ownerColumns(call);
+      await run(
+        db,
+        refusedStatement(
+          {
+            ...owned,
+            id: crypto.randomUUID(),
+            at: now.toISOString(),
+            day: sastDay(now),
+            source: "worker",
+            caller: who.caller,
+            model,
+            caseId: owned.caseId ?? who.caseId ?? null,
+            attempt: 1,
+            estimateUsd: 0,
+          },
+          errorClass,
+        ),
+      ).run();
+    },
+    cached: async (model, call, ms) => {
+      const now = new Date();
+      const owned = ownerColumns(call);
+      await run(
+        db,
+        cachedStatement(
+          {
+            ...owned,
+            id: crypto.randomUUID(),
+            at: now.toISOString(),
+            day: sastDay(now),
+            source: "worker",
+            caller: who.caller,
+            model,
+            caseId: owned.caseId ?? who.caseId ?? null,
+            attempt: 1,
+            estimateUsd: 0,
+          },
+          ms,
+        ),
+      ).run();
     },
   };
 }
