@@ -6,6 +6,7 @@
 import type { Reservation, Statement } from "./budget-sql";
 import {
   inline as _inline,
+  cachedStatement,
   capEventStatement,
   costStatement,
   ownerColumns,
@@ -144,6 +145,28 @@ export function d1Budget(
             estimateUsd: 0,
           },
           errorClass,
+        ),
+      ).run();
+    },
+    cached: async (model, call, ms) => {
+      const now = new Date();
+      const owned = ownerColumns(call);
+      await run(
+        db,
+        cachedStatement(
+          {
+            ...owned,
+            id: crypto.randomUUID(),
+            at: now.toISOString(),
+            day: sastDay(now),
+            source: "worker",
+            caller: who.caller,
+            model,
+            caseId: owned.caseId ?? who.caseId ?? null,
+            attempt: 1,
+            estimateUsd: 0,
+          },
+          ms,
         ),
       ).run();
     },

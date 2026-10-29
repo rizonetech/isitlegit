@@ -55,6 +55,8 @@ export type Budget = {
   // A call the client refused before any reservation (a request it will not send): its record, costing nothing. A cap's
   // refusal is recorded by `reserve` itself (D03 T01 §3 final review).
   refused(model: string, call: Call, errorClass: string): Promise<void>;
+  // A call answered from the result cache (D03 T01 §4): its record, costing nothing, with the hit's latency.
+  cached(model: ModelId, call: Call, ms: number): Promise<void>;
   settle(id: string, actualUsd: number, record?: AttemptRecord): Promise<void>;
   uncertain(id: string, record?: AttemptRecord): Promise<void>;
 };

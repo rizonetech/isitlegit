@@ -23,6 +23,7 @@ const openBudget = () => ({
   settle: async () => {},
   uncertain: async () => {},
   refused: async () => {},
+  cached: async () => {},
 });
 
 // scripts/meta-smoke.ts (D00 T01 §7) against a stubbed transport: the real dispatch path carries the gateway headers
@@ -788,6 +789,7 @@ describe("the smoke test's call record (D03 T01 §3)", () => {
       settle: async (_id: string, _usd: number, record?: unknown) => void settled.push(record),
       uncertain: async (_id: string, record?: unknown) => void settled.push(record),
       refused: async () => {},
+      cached: async () => {},
     };
     const { fetchStub } = world();
     await live(fetchStub, { budget }).run;
@@ -809,6 +811,7 @@ describe("round 1: the smoke test's calls carry the record every caller writes",
       uncertain: async (_id: string, record?: unknown) =>
         void settled.push({ usd: null, record: record as Record<string, unknown> }),
       refused: async () => {},
+      cached: async () => {},
     };
     const limited = () =>
       new Response(JSON.stringify({ error: { type: "rate_limit_error", code: null, param: null, message: "slow" } }), {
@@ -842,6 +845,7 @@ describe("round 2: an interrupted stream is a failed call", () => {
         void records.push(record as Record<string, unknown>),
       uncertain: async (_id: string, record?: unknown) => void records.push(record as Record<string, unknown>),
       refused: async () => {},
+      cached: async () => {},
     };
     const cut = () =>
       new Response(samStream(samRecord(), false), {

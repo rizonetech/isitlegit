@@ -5,6 +5,7 @@
 // be reached, the reservation fails and nothing is sent to Meta.
 import { createHash } from "node:crypto";
 import {
+  cachedStatement,
   capEventStatement,
   inline,
   ownerColumns,
@@ -102,6 +103,21 @@ export function localBudget(caller: string, run: Runner = runCommand, now: () =>
         estimateUsd: 0,
       };
       await execute(refusedStatement(row, errorClass), run);
+    },
+    async cached(model, call, ms) {
+      const at = now();
+      const row = {
+        ...ownerColumns(call),
+        id: crypto.randomUUID(),
+        at: at.toISOString(),
+        day: sastDay(at),
+        source: "local" as const,
+        caller,
+        model,
+        attempt: 1,
+        estimateUsd: 0,
+      };
+      await execute(cachedStatement(row, ms), run);
     },
   };
 }

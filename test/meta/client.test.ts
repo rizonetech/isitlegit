@@ -38,6 +38,7 @@ function ledger(refuse?: () => Error) {
       find(id).state = "uncertain";
     },
     async refused() {},
+    async cached() {},
   };
   return { budget, charges };
 }
