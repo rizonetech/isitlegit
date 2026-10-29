@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import inputs as inputs_module
+from inputs import Limits, Receipt, verify
 from staging import remove_dead_staging
 
 
@@ -36,22 +38,34 @@ def main(parquet=None):
     if not shards:
         print(f"phreshphish-rows: no shards in {folder}", file=sys.stderr)
         return 2
+    try:
+        # Only shards bound in the manifest, unchanged since, are read.
+        _, inputs_digest = verify(folder, [shard.name for shard in shards])
+    except inputs_module.Refused as error:
+        print(f"phreshphish-rows: refused ({error})", file=sys.stderr)
+        return 1
     remove_dead_staging(folder)
     out = folder / "rows.jsonl"
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
-    count = 0
+    receipt, limits = Receipt(), Limits()
     try:
         with temporary.open("w", encoding="utf-8") as sink:
             for shard in shards:
                 for batch in parquet.ParquetFile(shard).iter_batches(batch_size=BATCH_ROWS, columns=COLUMNS):
                     for row in batch.to_pylist():
+                        limits.count_entry()
                         sink.write(json.dumps(row, ensure_ascii=False) + "\n")
-                        count += 1
+                        receipt.export()  # every row is exported; the importer accounts for what it stores
         os.replace(temporary, out)
+    except inputs_module.Refused as error:
+        temporary.unlink(missing_ok=True)
+        print(f"phreshphish-rows: refused ({error})", file=sys.stderr)
+        return 1
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    print(f"phreshphish-rows: {count} rows from {len(shards)} shards into {out}")
+    receipt.write(folder, out, Path(__file__), inputs_digest)
+    print(f"phreshphish-rows: {receipt.exported} rows from {len(shards)} shards into {out}")
     return 0
 
 

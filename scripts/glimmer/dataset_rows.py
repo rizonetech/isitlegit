@@ -20,6 +20,8 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import inputs as inputs_module
+from inputs import Limits, Receipt, verify
 from staging import remove_dead_staging
 
 MAX_ENTRY = 20 * 1024 * 1024
@@ -50,7 +52,9 @@ def read_entry(archive, info):
     return decode(archive.read(info))
 
 
-def compphish(folder):
+# Each reader yields the items it can export and reports every other entry it met to `receipt` with its reason; `limits`
+# bounds the archive entries and bytes it reads.
+def compphish(folder, receipt, limits):
     import openpyxl
 
     sheet = openpyxl.load_workbook(folder / "Mapping_File.xlsx", read_only=True).worksheets[0]
@@ -61,12 +65,17 @@ def compphish(folder):
     # Left open: its entries are read after the listing, when the rows are written.
     archive = zipfile.ZipFile(folder / "All_HTML.zip")
     for info in archive.infolist():
+        limits.count_entry(info.file_size)
         serial = Path(info.filename).stem
+        if info.is_dir():
+            continue
         if serial in labels:
             yield f"compphish-{serial}", labels[serial], lambda a=archive, i=info: read_entry(a, i)
+        else:
+            receipt.reject("no phishing or benign label in the mapping file")
 
 
-def ariyadasa(folder):
+def ariyadasa(folder, receipt, limits):
     rows = {}
     for match in SQL_ROW.finditer((folder / "index.sql").read_text(encoding="utf-8", errors="replace")):
         _, url, website, result, _ = match.groups()
@@ -74,29 +83,46 @@ def ariyadasa(folder):
     for part in sorted(folder.glob("dataset_part_*.zip")):
         archive = zipfile.ZipFile(part)
         for info in archive.infolist():
+            limits.count_entry(info.file_size)
+            if info.is_dir():
+                continue
             name = Path(info.filename).name
             if name in rows:
                 yield f"ariyadasa-{Path(name).stem}", rows[name], lambda a=archive, i=info: read_entry(a, i)
+            else:
+                receipt.reject("not in the dataset's index")
 
 
-def kempf(folder):
+def kempf(folder, receipt, limits):
     archive = zipfile.ZipFile(folder / "kempf-html.zip")
     for info in archive.infolist():
+        limits.count_entry(info.file_size)
+        if info.is_dir():
+            continue
         parts = Path(info.filename).parts
         if len(parts) == 3 and parts[1] in ("Phish", "NotPhish") and parts[2].endswith(".html"):
             label = "phish" if parts[1] == "Phish" else "benign"
             yield f"kempf-{parts[0]}-{Path(parts[2]).stem}", (None, label), lambda a=archive, i=info: read_entry(a, i)
+        else:
+            receipt.reject("not a labelled HTML page in the archive's layout")
 
 
-def mallory(folder):
+def mallory(folder, receipt, limits):
     import openpyxl
 
     archive = zipfile.ZipFile(folder / "look-for-mallory.zip")
-    pages = openpyxl.load_workbook(io.BytesIO(archive.read("html.xlsx")), read_only=True).worksheets[0]
-    urls = openpyxl.load_workbook(io.BytesIO(archive.read("urls.xlsx")), read_only=True).worksheets[0]
-    for number, ((category, html), (url_category, url)) in enumerate(
-            zip(pages.iter_rows(min_row=2, values_only=True), urls.iter_rows(min_row=2, values_only=True)), 1):
+    for name in ("html.xlsx", "urls.xlsx"):
+        limits.count_entry(archive.getinfo(name).file_size)
+    pages = list(openpyxl.load_workbook(io.BytesIO(archive.read("html.xlsx")), read_only=True).worksheets[0]
+                 .iter_rows(min_row=2, values_only=True))
+    urls = list(openpyxl.load_workbook(io.BytesIO(archive.read("urls.xlsx")), read_only=True).worksheets[0]
+                .iter_rows(min_row=2, values_only=True))
+    # The two sheets are paired row by row (they share no key): sheets of different lengths cannot be paired at all.
+    if len(pages) != len(urls):
+        raise inputs_module.Refused(f"html.xlsx has {len(pages)} rows and urls.xlsx {len(urls)}: they cannot be paired")
+    for number, ((category, html), (url_category, url)) in enumerate(zip(pages, urls), 1):
         if category not in ("spam", "ham") or not html:
+            receipt.reject("not a spam or ham row with a page")
             continue
         # A URL row is trusted only when its category matches the page's; otherwise the page has no host.
         same = url_category == category and isinstance(url, str)
@@ -105,6 +131,13 @@ def mallory(folder):
 
 
 READERS = {"compphish": compphish, "ariyadasa-2021": ariyadasa, "kempf-html": kempf, "look-for-mallory": mallory}
+# The files each source's reader reads, bound in its manifest.
+INPUT_FILES = {
+    "compphish": lambda folder: ["All_HTML.zip", "Mapping_File.xlsx"],
+    "ariyadasa-2021": lambda folder: ["index.sql", *sorted(p.name for p in folder.glob("dataset_part_*.zip"))],
+    "kempf-html": lambda folder: ["kempf-html.zip"],
+    "look-for-mallory": lambda folder: ["look-for-mallory.zip"],
+}
 
 
 def main(argv=None):
@@ -114,28 +147,39 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=20261028)
     args = parser.parse_args(argv)
     folder = store_dir() / "raw" / args.source
-    items = list(READERS[args.source](folder))
-    if len(items) > args.max:
-        items = random.Random(args.seed).sample(items, args.max)
-    remove_dead_staging(folder)
+    receipt, limits = Receipt(), Limits()
     out = folder / "rows.jsonl"
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
-    written = skipped = 0
     try:
+        # Only inputs bound in the manifest, unchanged since, are read.
+        _, inputs_digest = verify(folder, INPUT_FILES[args.source](folder))
+        items = list(READERS[args.source](folder, receipt, limits))
+        chosen = items
+        if len(items) > args.max:
+            chosen = random.Random(args.seed).sample(items, args.max)
+            for _ in range(len(items) - len(chosen)):
+                receipt.sample_out()
+        remove_dead_staging(folder)
         with temporary.open("w", encoding="utf-8") as sink:
-            for item_id, (url, label), read in items:
+            for item_id, (url, label), read in chosen:
                 html = read()
                 if html is None:
-                    skipped += 1
+                    receipt.reject(f"over {MAX_ENTRY} bytes")
                     continue
                 sink.write(json.dumps({"sha256": item_id, "url": url, "html": html, "label": label, "target": None},
                                       ensure_ascii=False) + "\n")
-                written += 1
+                receipt.export()
         os.replace(temporary, out)
+    except inputs_module.Refused as error:
+        temporary.unlink(missing_ok=True)
+        print(f"dataset-rows: {args.source}: refused ({error})", file=sys.stderr)
+        return 1
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    print(f"dataset-rows: {args.source}: {written} rows ({skipped} skipped) into {out}")
+    receipt.write(folder, out, Path(__file__), inputs_digest)
+    rejected = sum(receipt.rejected.values())
+    print(f"dataset-rows: {args.source}: {receipt.exported} rows ({rejected} rejected, {receipt.sampled_out} sampled out) into {out}")
     return 0
 
 

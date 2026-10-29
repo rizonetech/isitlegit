@@ -46,6 +46,10 @@ class SevenDays(unittest.TestCase):
             add(archive, "456-bad_host_/2024-05-01-10:00/status_code.txt", b"200")
             add(archive, "456-bad_host_/2024-05-01-10:00/screenshot.jpg", b"shot")
             add(archive, "456-bad_host_/2024-05-01-10:00/page.html", b"<p>x</p>")
+            # A URL whose only capture never answered: met, and rejected in the receipt.
+            add(archive, "789-dead_example_com/2024-05-01-10:00/status_code.txt", b"000")
+        self.folder = folder
+        rows.inputs_module.build(folder, [{"name": rows.ARCHIVE, "published": None, "pinned": "zenodo: 14885725"}], "CC BY 4.0")
 
     def test_one_row_a_url_from_its_earliest_live_capture(self):
         with mock.patch("sys.stdout"):
@@ -60,6 +64,33 @@ class SevenDays(unittest.TestCase):
         self.assertEqual(lure["url"], "https://graph.transparancymeta.my.id/")
         self.assertEqual(lure["label"], "phish")
         self.assertIsNone(by_id["7dl-456"]["url"])  # "bad.host." is not a host name
+        receipt = json.loads((self.folder / "EXPORT.json").read_text())
+        self.assertEqual((receipt["met"], receipt["exported"], receipt["sampled_out"]), (3, 2, 0))
+        self.assertEqual(receipt["rejected"], {"no capture answered 200 with a screenshot and HTML": 1})
+
+    def test_a_url_sampled_out_is_counted_as_such(self):
+        with mock.patch("sys.stdout"):
+            self.assertEqual(rows.main(["--max", "1"]), 0)
+        receipt = json.loads((self.folder / "EXPORT.json").read_text())
+        self.assertEqual((receipt["exported"], receipt["sampled_out"]), (1, 1))
+
+    def test_refuses_an_archive_not_bound_or_changed_and_keeps_the_earlier_rows(self):
+        (self.folder / "rows.jsonl").write_text("earlier\n")
+        (self.folder / "INPUTS.json").unlink()
+        with mock.patch("sys.stderr"):
+            self.assertEqual(rows.main([]), 1)
+        rows.inputs_module.build(self.folder, [{"name": rows.ARCHIVE, "published": None, "pinned": "zenodo"}], "CC BY 4.0")
+        with (self.folder / rows.ARCHIVE).open("ab") as handle:
+            handle.write(b"x")
+        with mock.patch("sys.stderr"):
+            self.assertEqual(rows.main([]), 1)
+        self.assertEqual((self.folder / "rows.jsonl").read_text(), "earlier\n")
+
+    def test_a_limit_stops_the_conversion_with_the_earlier_rows_whole(self):
+        (self.folder / "rows.jsonl").write_text("earlier\n")
+        with mock.patch.object(rows, "Limits", lambda: rows.inputs_module.Limits(entries=3)), mock.patch("sys.stderr"):
+            self.assertEqual(rows.main([]), 1)
+        self.assertEqual((self.folder / "rows.jsonl").read_text(), "earlier\n")
 
 
 if __name__ == "__main__":

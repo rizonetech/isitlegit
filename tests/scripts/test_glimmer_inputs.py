@@ -1,0 +1,112 @@
+"""scripts/glimmer/inputs.py (D03 T04 §18): a source's inputs are bound before conversion, a file without a published
+digest or a pin, or changed since, never reaches it, and an export accounts for every item it met."""
+import hashlib
+import importlib.util
+import json
+import shutil
+import tempfile
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "glimmer" / "inputs.py"
+spec = importlib.util.spec_from_file_location("inputs", SCRIPT)
+inputs = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(inputs)
+
+
+class Manifest(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="inputs-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        (self.dir / "a.zip").write_bytes(b"alpha")
+        (self.dir / "b.tar.gz").write_bytes(b"bravo")
+
+    def files(self, **over):
+        md5 = hashlib.md5(b"bravo").hexdigest()
+        files = [
+            {"name": "a.zip", "published": None, "pinned": "kaggle: owner/set, version 2"},
+            {"name": "b.tar.gz", "published": {"kind": "md5", "value": md5}, "pinned": None},
+        ]
+        for entry in files:
+            entry.update(over.get(entry["name"], {}))
+        return files
+
+    def test_binds_published_and_pinned_files_and_verifies_them(self):
+        manifest = inputs.build(self.dir, self.files(), "CC BY 4.0")
+        self.assertEqual([e["name"] for e in manifest["files"]], ["a.zip", "b.tar.gz"])
+        got, digest = inputs.verify(self.dir, ["a.zip"])
+        self.assertEqual(digest, inputs.digest_of(manifest))
+        self.assertEqual(got["licence"], "CC BY 4.0")
+
+    def test_refuses_a_file_with_neither_a_published_digest_nor_a_pin(self):
+        with self.assertRaisesRegex(inputs.Refused, "no published digest and no pinned version"):
+            inputs.build(self.dir, self.files(**{"a.zip": {"pinned": None}}), "CC0")
+
+    def test_refuses_a_mismatched_published_digest(self):
+        wrong = {"published": {"kind": "md5", "value": "0" * 32}}
+        with self.assertRaisesRegex(inputs.Refused, "does not match its published md5"):
+            inputs.build(self.dir, self.files(**{"b.tar.gz": wrong}), "CC0")
+
+    def test_refuses_a_changed_file_a_missing_one_and_an_unlisted_one(self):
+        inputs.build(self.dir, self.files(), "CC0")
+        (self.dir / "a.zip").write_bytes(b"alphX")
+        with self.assertRaisesRegex(inputs.Refused, "changed since"):
+            inputs.verify(self.dir, [])
+        (self.dir / "a.zip").write_bytes(b"alpha")
+        with self.assertRaisesRegex(inputs.Refused, "not in the manifest"):
+            inputs.verify(self.dir, ["c.zip"])
+        (self.dir / "b.tar.gz").unlink()
+        with self.assertRaisesRegex(inputs.Refused, "missing"):
+            inputs.verify(self.dir, [])
+
+    def test_refuses_without_a_manifest(self):
+        with self.assertRaisesRegex(inputs.Refused, "build the manifest first"):
+            inputs.verify(self.dir, ["a.zip"])
+
+
+class ReceiptAndLimits(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="receipt-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        (self.dir / "rows.jsonl").write_text('{"a": 1}\n')
+        (self.dir / "conv.py").write_text("# converter\n")
+
+    def test_accounts_for_every_item_by_outcome(self):
+        receipt = inputs.Receipt()
+        receipt.export()
+        receipt.export()
+        receipt.sample_out()
+        receipt.reject("no capture answered 200")
+        written = receipt.write(self.dir, self.dir / "rows.jsonl", self.dir / "conv.py", "d" * 64)
+        self.assertEqual((written["met"], written["exported"], written["sampled_out"]), (4, 2, 1))
+        self.assertEqual(written["rejected"], {"no capture answered 200": 1})
+        self.assertEqual(json.loads((self.dir / inputs.EXPORT).read_text())["inputs"], "d" * 64)
+
+    def test_refuses_an_export_that_does_not_reconcile(self):
+        receipt = inputs.Receipt()
+        receipt.export()
+        receipt.met += 1  # an item met and never given an outcome
+        with self.assertRaisesRegex(inputs.Refused, "accounts for 1 of 2"):
+            receipt.write(self.dir, self.dir / "rows.jsonl", self.dir / "conv.py", "d" * 64)
+        self.assertFalse((self.dir / inputs.EXPORT).exists())
+
+    def test_limits_stop_a_bomb_an_entry_flood_a_pending_flood_and_a_long_run(self):
+        with self.assertRaisesRegex(inputs.Refused, "bytes expanded"):
+            limits = inputs.Limits(expanded=100)
+            limits.count_entry(60)
+            limits.count_entry(60)
+        with self.assertRaisesRegex(inputs.Refused, "archive entries"):
+            limits = inputs.Limits(entries=2)
+            for _ in range(3):
+                limits.count_entry()
+        with self.assertRaisesRegex(inputs.Refused, "unmatched parts"):
+            inputs.Limits(pending=5).count_pending(6)
+        now = [0.0]
+        limits = inputs.Limits(seconds=10, clock=lambda: now[0])
+        now[0] = 11.0
+        with self.assertRaisesRegex(inputs.Refused, "passed 10 seconds"):
+            limits.count_entry()
+
+
+if __name__ == "__main__":
+    unittest.main()

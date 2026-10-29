@@ -21,6 +21,8 @@ import tarfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import inputs as inputs_module
+from inputs import Limits, Receipt, verify
 from staging import remove_dead_staging
 
 ARCHIVE = "phishing-alive-measurement_sample_zenodo.tar.gz"
@@ -50,15 +52,20 @@ def decode(data):
     return data.decode("utf-8-sig", errors="replace")
 
 
-def choose(path):
-    """Each URL's earliest capture that answered 200 and holds a screenshot and HTML: {url folder: capture time}."""
+def choose(path, limits=None, folders=None):
+    """Each URL's earliest capture that answered 200 and holds a screenshot and HTML: {url folder: capture time}.
+    `folders` collects every URL folder met, for the export receipt."""
+    limits = limits or Limits()
     status, files = {}, {}
     with tarfile.open(path, "r|gz") as archive:
         for member in archive:
+            limits.count_entry(member.size if member.isfile() else 0)
             match = CAPTURE.match(member.name)
             if not match or not member.isfile():
                 continue
             folder, _, stamp, name = match.groups()
+            if folders is not None:
+                folders.add(folder)
             key = (folder, stamp)
             if name == "status_code.txt" and member.size < 64:
                 status[key] = archive.extractfile(member).read().decode("ascii", "replace").strip()
@@ -72,13 +79,15 @@ def choose(path):
     return earliest
 
 
-def export(path, chosen, out):
-    """The chosen captures' rows, written as each capture's two files arrive."""
-    pending, written = {}, 0
+def export(path, chosen, out, limits=None):
+    """The chosen captures' rows, written as each capture's two files arrive. Returns the folders written."""
+    limits = limits or Limits()
+    pending, written = {}, set()
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     try:
         with tarfile.open(path, "r|gz") as archive, temporary.open("w", encoding="utf-8") as sink:
             for member in archive:
+                limits.count_entry(member.size if member.isfile() else 0)
                 match = CAPTURE.match(member.name)
                 if not match or not member.isfile():
                     continue
@@ -86,6 +95,7 @@ def export(path, chosen, out):
                 if chosen.get(folder) != stamp or name not in ("screenshot.jpg", "page.html"):
                     continue
                 parts = pending.setdefault(folder, {})
+                limits.count_pending(len(pending))
                 parts[name] = archive.extractfile(member).read()
                 if len(parts) == 2:
                     host = host_of(folder_host)
@@ -97,7 +107,7 @@ def export(path, chosen, out):
                         "label": "phish",
                         "target": None,
                     }, ensure_ascii=False) + "\n")
-                    written += 1
+                    written.add(folder)
                     del pending[folder]
         os.replace(temporary, out)
     except BaseException:
@@ -116,13 +126,33 @@ def main(argv=None):
     if not path.is_file():
         print(f"sevendays-rows: {path} is missing", file=sys.stderr)
         return 2
-    earliest = choose(path)
-    keys = sorted(earliest)
-    if len(keys) > args.max:
-        keys = sorted(random.Random(args.seed).sample(keys, args.max))
-    remove_dead_staging(folder)
-    written = export(path, {key: earliest[key] for key in keys}, folder / "rows.jsonl")
-    print(f"sevendays-rows: {written} rows from {len(earliest)} URLs with a live capture into {folder / 'rows.jsonl'}")
+    try:
+        # Nothing is read from an archive that is not the one bound in the manifest.
+        _, inputs_digest = verify(folder, [ARCHIVE])
+        met = set()
+        earliest = choose(path, Limits(), met)
+        keys = sorted(earliest)
+        if len(keys) > args.max:
+            keys = sorted(random.Random(args.seed).sample(keys, args.max))
+        remove_dead_staging(folder)
+        written = export(path, {key: earliest[key] for key in keys}, folder / "rows.jsonl", Limits())
+    except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
+        print(f"sevendays-rows: refused ({error})", file=sys.stderr)
+        return 1
+    # Every URL folder met, by outcome.
+    receipt = Receipt()
+    chosen = set(keys)
+    for key in sorted(met):
+        if key in written:
+            receipt.export()
+        elif key in chosen:
+            receipt.reject("its chosen capture's files did not both arrive")
+        elif key in earliest:
+            receipt.sample_out()
+        else:
+            receipt.reject("no capture answered 200 with a screenshot and HTML")
+    receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest)
+    print(f"sevendays-rows: {len(written)} rows from {len(earliest)} URLs with a live capture into {folder / 'rows.jsonl'}")
     return 0
 
 
