@@ -25,7 +25,7 @@ Sections: 26 | Checklist items: 340
 | [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
 | [x]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
 | [x]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
-| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
+| [x]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
 | [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 18    |
 | [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 9     |
@@ -320,6 +320,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 67/251 verified sections, 29 ready to run now.
+Progress: 68/251 verified sections, 31 ready to run now.
 
-Checklist: 754/1579 items completed (includes Commit items).
+Checklist: 755/1579 items completed (includes Commit items).

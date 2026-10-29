@@ -41,7 +41,7 @@ track: day-6
 | 3 | §4 | Astra as dataset collector | -- | [x] |
 | 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [x] |
 | 5 | §6 | Benign real pages rendered locally | §3 | [x] |
-| 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [ ] |
+| 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [x] |
 | 7 | §8 | Synthetic South African lures | §6, §7 | [ ] |
 | 8 | §9 | Spark teacher labels and human check | §5, §6, §7 | [ ] |
 | 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [ ] |
@@ -314,9 +314,12 @@ The 543 sample emails carry real South African lures: credential-harvest HTML at
 - [x] Make the redaction key cover the code that decodes, renders and stores (`source-pages.ts`, `import-source.ts`) and every message's bytes, so new or replaced mail makes every page again (`redactionKey()`) (completion review gap 8). Done when: the end-to-end test's change of messages rebuilds the pages. Cover the remaining boundaries with tests (completion review gap 11): an oversized message (`maxBytes`), an unsupported-only message with no body, a MIME-only charset, cross-source duplicates, a failing write after the import, a screenshot leak, a record leak naming a client or a client folder, and the consent refusal. Done when: `test/node/glimmer-leak.test.ts` passes with each.
 - [x] Make `leakCheck()` the one authoritative outcome: it fails while the stored pages were not all made under the current redaction or either import is not `complete`, when a page's record does not read, when a page or screenshot shows an address, phone or long number, and when any part has no outcome, names a page the store lacks, or a stored page is no part's (completion review gaps 10 and 16; each part's outcome is recorded in `raw/samples/INVENTORY.json`). Done when: the end-to-end test proves each failure and a clean pass on a complete store. Resume an interrupted rebuild instead of starting it again (`raw/samples/REDACTION.json` keeps `key` and `building`; a run under the key being built keeps its finished pages) (completion review gap 16). Done when: the end-to-end test's rebuild that fails on one page leaves `building` set, and the next run resumes it and records the key.
 - [x] Measure recall on synthetic mail with `scripts/glimmer/redaction-benchmark.ts`: 1,200 seeded details of seven kinds (name, address, phone, ID, card, account, client domain), each written eleven ways (plain, character references, soft hyphen, zero width, split by a tag, non-breaking spaces, input value, generated text, vector text, image alt, look-alike letters), run through the real path, survivors counted in the text and the OCR'd screenshot, refusals reported apart (completion review gaps 13 and 17). Done when: `docs/glimmer/redaction-benchmark.json` records 0 survived, and the benchmark test in `test/node/glimmer-leak.test.ts` (seven pages, every kind and way once) passes. Measured 2026-10-29 04:03 UTC at `8caa65b` (the final run, screenshots read by OCR): 1,200 seeded, 0 survived, 960 removed, 240 on the 24 pages the post-render check refused (pages holding a detail that only the render joined up). First measured 2026-10-29, before the look-alike way and the final review's fixes: 0 survived, 860 removed, 340 refused on 34 pages. The head-to-head against Microsoft Presidio needs its models and is §19's.
-- [ ] Commit: `glimmer: redacted sample mail converted to pages`
+- [x] Commit: `glimmer: redacted sample mail converted to pages`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-redact.test.ts test/node/glimmer-leak.test.ts` passes and fails if a client name, recipient address, phone or picture survives into a stored page, a message goes unaccounted for, or identical pages keep a weaker or disputed label; `node scripts/glimmer/import-samples.ts leak-check` reads clean on the real store.
+
+> **Verified:** 2026-10-29 | §7 | 7cea57c7185f8ab6e514d72d5c58ad1dcbfc1951
+> **Review:** `docs/reviews/d03-t04-s7.json`
 
 ## 8. Synthetic South African lures
 
