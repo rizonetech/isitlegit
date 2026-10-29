@@ -250,6 +250,16 @@ describe("buildDataset", () => {
       frozen: new Set(named.slice(1)),
     });
     expect(frozen.dropped.afterFreeze).toBe(1);
+    // A frozen page gone from the store refuses the build, never drops out of it unseen.
+    await expect(
+      buildDataset({
+        store,
+        version: "1.0",
+        mode: "image",
+        seed: 3,
+        frozen: new Set([...named, "set-ffffffffffffffff"]),
+      }),
+    ).rejects.toThrow(/1 frozen pages are no longer in the store \(first: set-ffffffffffffffff\)/);
     expect(unset.dropped.afterFreeze).toBe(0);
     // A page the label rules excluded (a parked capture, contradictory labels) never reaches either file (§18 G5).
     expect(unset.dropped.excluded).toBe(0);

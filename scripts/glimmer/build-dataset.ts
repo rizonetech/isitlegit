@@ -347,6 +347,16 @@ export async function buildDataset(options: {
           .map((line) => (JSON.parse(line) as { id: string }).id)
       : [],
   );
+  // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
+  // change to the redaction) would otherwise drop out of this version unseen.
+  if (options.frozen) {
+    const stored = new Set(store.manifest({ tolerant: true }).map((page) => page.id));
+    const gone = [...options.frozen].filter((id) => !stored.has(id));
+    if (gone.length)
+      throw new Error(
+        `${gone.length} frozen pages are no longer in the store (first: ${gone[0]}): freeze again or restore them`,
+      );
+  }
   const excluded = readExcluded(store.dir);
   const entries: Entry[] = [];
   // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
