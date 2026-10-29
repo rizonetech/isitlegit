@@ -167,7 +167,11 @@ The model trace on the report (D07 T03 §5), the cost-per-case dashboard and the
 
 ## 4. Result cache by artefact hash
 
-The same screenshot, PDF or URL seen twice must not cost twice (spec section 8, budget). Results are cached in KV by a hash of model, schema version, prompt version and artefact SHA-256; a cache hit still records an event with cost zero, so the trace stays honest.
+> **Started:** 2026-10-29T05:23Z
+
+The same screenshot, PDF or URL seen twice must not cost twice (spec section 8, budget). Results are cached in KV (`CACHE`) by a hash of model, schema version, prompt version and artefact SHA-256; a cache hit still leaves the call's record (D03 T01 §3: a `model_spend` row) costing nothing and marked a hit, so the trace and the case's cost stay honest.
+
+**Corrected 2026-10-29** (plan fact-check against the shipped §2 and §3): the call record is a `model_spend` row, not a `case_events` row with `cost_usd` and `detail_json`; a hit is written through the `Budget` every caller already holds, with a new `cache` column (migration `0026`), so no consumer reads two places. A cached value is a model output, so it passes its zod schema again when read (`AGENTS.md`: every model output is validated before use); one that does not is a miss and is replaced.
 
 **Phase:** 1
 **Needs:** none
@@ -178,9 +182,11 @@ The same screenshot, PDF or URL seen twice must not cost twice (spec section 8, 
 
 1. Write `src/meta/cache.ts`. Done when: a second identical call returns the cached result without a network call.
 
-- [ ] Write `cacheKey({ model, promptVersion, schemaVersion, artefactSha })` and `withCache(key, ttlSeconds, fn)` on `CACHE` (KV). Done when: `test/meta/cache.test.ts` shows one network call for two identical requests.
-- [ ] Never cache errors or partial results. Done when: a failing first call is retried for real the second time.
-- [ ] Record a cache hit as an event with `cost_usd = 0` and `detail_json.cache = "hit"`. Done when: the test finds it.
+- [ ] Write `cacheKey({ model, promptVersion, schemaVersion, artefactSha })` (a SHA-256 over a versioned, delimited join, so no two inputs collide) and `withCache(ctx, key, ttlSeconds, schema, fn)` on `CACHE` (KV). Done when: `test/meta/cache.test.ts` shows one network call for two identical requests, and a changed prompt or schema version misses.
+- [ ] Never cache errors or partial results: only a value `fn` returned that passes `schema`; a thrown call or a value the caller marks partial is not stored. Done when: a failing first call is retried for real the second time, and a partial value is not served.
+- [ ] Validate a cached value with `schema` on read; one that fails (an older shape, a corrupt entry) is a miss, and the fresh answer replaces it. Done when: a stored value of the wrong shape leads to a real call.
+- [ ] Record a cache hit through `Budget.cached(model, call)`: a `model_spend` row with `cache = 'hit'`, outcome `ok`, actual US$0 and certainty `none`, carrying the call's owner (migration `0026_cache_hits.sql`). Done when: the test finds the row, and `caseCost` counts it as an attempt costing nothing.
+- [ ] A KV read or write that fails never fails the call: a failed read is a miss, a failed write is logged. Done when: a KV stand-in that throws still returns the model's answer.
 - [ ] Commit: `meta: result cache by artefact hash`
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/cache.test.ts` passes and fails if an error result is cached.
