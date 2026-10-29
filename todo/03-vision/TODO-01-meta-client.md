@@ -37,7 +37,7 @@ track: day-1
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Model client: store false, Standard IDs | D00 T01 §6, D01 T01 §7 | [x] |
-| 2 | §2 | Budget guard with daily and total caps | §1 | [ ] |
+| 2 | §2 | Budget guard with daily and total caps | §1 | [x] |
 | 3 | §3 | Cost and latency events per model call | §1 | [ ] |
 | 4 | §4 | Result cache by artefact hash | §1 | [ ] |
 | 5 | §5 | Structured output helper with zod | §1 | [ ] |
@@ -123,9 +123,12 @@ The operator's caps are enforced in code (design spec section 11): Meta Model AP
 
 Handed to the Glimmer lane (2026-10-29): its teacher-label caller (D03 T04 §9, the lane's own file) reserves through `scripts/lib/meta-budget.ts` with `ledgerId` row names, so its spend competes with the Worker's in the same table; the lane adds that item and its pointer here.
 
-- [ ] Commit: `meta: budget guard with daily and total caps`
+- [x] Commit: `meta: budget guard with daily and total caps` (landed as `79d385f`, with the reviews' fixes in `aa6f032`, `d1aefb3`, `480c750` and the round-3 fix after it)
 
 **Test checkpoint:** `pnpm exec vitest run test/meta/budget.test.ts test/node/meta-budget-local.test.ts` passes and fails if the reserve can be spent before 2026-11-03, two callers can both spend the last of an allowance, a lost answer is released, or a call can be sent without a reservation.
+
+> **Verified:** 2026-10-29 | §2 | e79f99c6482c3a68e662879ea02793a724194f89
+> **Review:** `docs/reviews/d03-t01-s2.json`
 
 ## 3. Cost and latency events per model call
 
