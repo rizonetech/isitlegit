@@ -1198,8 +1198,8 @@ export function recheckStored(
       continue;
     }
     result.checked++;
-    // The evidence kept with the page; a page stored before it was kept is judged on its text and what the screenshot
-    // shows (`ocr`, when given), and is unassessed when neither can decide.
+    // The evidence kept with the page: a page with all of it is judged as admission judged it; one without (stored
+    // before it was kept) is refused when its text shows a wall, and otherwise left unassessed until rendered again.
     const kept = read.page.evidence;
     // Evidence is complete only with every structural reading admission takes; a record without them (one stored
     // before they were kept) is a legacy capture, which no reading of its text or picture can clear.

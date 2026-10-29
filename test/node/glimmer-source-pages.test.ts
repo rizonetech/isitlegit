@@ -235,6 +235,26 @@ describe("visibleText", () => {
     expect(out.text).toContain("Top");
   });
 
+  it("captures a page again once after Chromium fails to, and gives up after a second failure", async () => {
+    const capture = new Error("page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot");
+    let failures = 1;
+    const once = await openTextReader({ captureFault: () => (failures-- > 0 ? capture : null) });
+    try {
+      expect((await once.renderHtml("<p>A page whose first capture fails</p>")).text).toBe(
+        "A page whose first capture fails",
+      );
+      expect(failures).toBe(-1); // the fault raised once, the retry captured
+    } finally {
+      await once.close();
+    }
+    const always = await openTextReader({ captureFault: () => capture });
+    try {
+      await expect(always.renderHtml("<p>A page whose captures all fail</p>")).rejects.toThrow(/Unable to capture/);
+    } finally {
+      await always.close();
+    }
+  });
+
   it("tries a page once more when the capture failed, and only that fault", () => {
     expect(
       passingRenderFault(

@@ -320,7 +320,12 @@ export function passingRenderFault(error: unknown): boolean {
 }
 
 export async function openTextReader(
-  options: { pageMs?: number; closeBrowser?: (browser: Browser) => Promise<void> } = {},
+  options: {
+    pageMs?: number;
+    closeBrowser?: (browser: Browser) => Promise<void>;
+    // A fault to raise when a page is captured (tests make Chromium's capture fail); none otherwise.
+    captureFault?: () => Error | null;
+  } = {},
 ): Promise<{
   visibleText: (html: string) => Promise<string>;
   renderHtml: (html: string, options?: { pictures?: boolean }) => Promise<RenderedHtml>;
@@ -328,6 +333,7 @@ export async function openTextReader(
   dropBrowser: () => Promise<void>;
   close: () => Promise<void>;
 }> {
+  const captureFault = options.captureFault;
   const found = chromiumPath();
   if (!found) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
   const executablePath: string = found;
@@ -459,6 +465,8 @@ export async function openTextReader(
       });
       // Only the top 1280 by 2000 pixels are kept, so only they are captured: a full page tens of thousands of pixels
       // tall would outgrow the decoder's pixel limit and the browser's memory.
+      const fault = captureFault?.();
+      if (fault) throw fault;
       const shot = await page.screenshot({
         type: "png",
         clip: { x: 0, y: 0, width: 1280, height: MAX_HEIGHT },
