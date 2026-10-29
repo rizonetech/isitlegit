@@ -4,12 +4,15 @@
 // render, the post-render check). A page the check refuses counts as refused; on a page it accepts, each seeded detail
 // still in the rendered text, or in the screenshot as an OCR engine reads it, counts as survived. The bar is none.
 //
-//   node scripts/glimmer/redaction-benchmark.ts [pages]   # default 120 pages of 10 details: 1,200 details
+//   node scripts/glimmer/redaction-benchmark.ts [pages] [--presidio]   # default 120 pages of 10 details: 1,200 details;
+//                                                                     # --presidio runs Presidio on the same pages too
 //
 // Writes `docs/glimmer/redaction-benchmark.json` (every value synthetic) temp-then-rename, and prints the totals.
+import { spawn } from "node:child_process";
 import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { createInterface } from "node:readline";
 import { clientDomains, leaks, personalDetail, protectedTerms } from "./import-samples.ts";
 import { hasImages, namePieces, redact, skeleton, stripImages } from "./redact.ts";
 import { openTextReader } from "./source-pages.ts";
@@ -348,26 +351,83 @@ export async function runBenchmark(options: {
   };
 }
 
+// Microsoft Presidio as the redaction step (§19), through `presidio_redact.py` in its own venv: one process a run, so
+// its model loads once, and one JSON line a page with the same lists the dictionary is given as its deny list. A page
+// the process cannot answer is an execution failure, never a refusal. `ready` holds its versions and model digest.
+export async function presidioRedactor(python = join(homedir(), ".venvs", "presidio", "bin", "python")) {
+  const child = spawn(python, ["-I", join(import.meta.dirname, "presidio_redact.py")], {
+    stdio: ["pipe", "pipe", "ignore"],
+  });
+  const lines = createInterface({ input: child.stdout as NodeJS.ReadableStream });
+  const next = lines[Symbol.asyncIterator]();
+  const read = async (): Promise<Record<string, unknown>> => {
+    const line = await next.next();
+    if (line.done) throw new Error("presidio: the process ended");
+    return JSON.parse(line.value) as Record<string, unknown>;
+  };
+  const ready = await read();
+  if (ready.ready !== true) throw new Error("presidio: the process did not start");
+  // One page at a time: the answers come back in the order the pages went in.
+  let queue: Promise<unknown> = Promise.resolve();
+  const redactor: Redactor = (html, lists) => {
+    const answer = queue.then(async () => {
+      child.stdin?.write(`${JSON.stringify({ html, deny: [...lists.names, ...lists.terms, ...lists.domains] })}\n`);
+      const reply = await read();
+      if (typeof reply.html !== "string") throw new Error(`presidio: ${String(reply.error ?? "no answer")}`);
+      return reply.html;
+    });
+    queue = answer.catch(() => undefined);
+    return answer;
+  };
+  return { redactor, ready, close: () => child.stdin?.end() };
+}
+
 if (import.meta.filename === process.argv[1]) {
   const pages = Number(process.argv[2] ?? 120);
   const { systemOcr } = await import("./import-samples.ts");
   const reader = await openTextReader();
   const scratch = mkdtempSync(join(tmpdir(), "redaction-benchmark-"));
   try {
-    const result = await runBenchmark({
-      pages,
-      render: (html) => reader.renderHtml(html, { pictures: false }),
-      ocr: async (shots) => {
-        const files = shots.map((shot, i) => {
-          const file = join(scratch, `${i}.jpg`);
-          writeFileSync(file, shot);
-          return file;
-        });
-        return systemOcr(files);
-      },
-    });
+    const run = async (redactor: Redactor) => {
+      const began = performance.now();
+      const result = await runBenchmark({
+        pages,
+        redactor,
+        render: (html) => reader.renderHtml(html, { pictures: false }),
+        ocr: async (shots) => {
+          const files = shots.map((shot, i) => {
+            const file = join(scratch, `${i}.jpg`);
+            writeFileSync(file, shot);
+            return file;
+          });
+          return systemOcr(files);
+        },
+      });
+      return { ...result, seconds: Math.round((performance.now() - began) / 100) / 10 };
+    };
+    // The dictionary first, then Presidio from its own start (its model load counted in its seconds, once), on the same
+    // seeded pages through the same path; each pipeline's configuration recorded with its figures.
+    const result = await run(dictionary);
+    const head: Record<string, unknown> = {};
+    if (process.argv.includes("--presidio")) {
+      const began = performance.now();
+      const presidio = await presidioRedactor();
+      try {
+        const measured = await run(presidio.redactor);
+        head.presidio = {
+          configuration: presidio.ready,
+          ...measured,
+          seconds: Math.round((performance.now() - began) / 100) / 10,
+        };
+      } finally {
+        presidio.close();
+      }
+    }
     const out = join(ROOT, "docs", "glimmer", "redaction-benchmark.json");
-    writeFileSync(`${out}.tmp`, `${JSON.stringify({ measured: new Date().toISOString(), ...result }, null, 1)}\n`);
+    writeFileSync(
+      `${out}.tmp`,
+      `${JSON.stringify({ measured: new Date().toISOString(), configuration: "dictionary (redact.ts)", ...result, ...head }, null, 1)}\n`,
+    );
     renameSync(`${out}.tmp`, out);
     console.log(
       `redaction benchmark: ${JSON.stringify({ pages: result.pages, refusedPages: result.refusedPages, ...result.total })}`,

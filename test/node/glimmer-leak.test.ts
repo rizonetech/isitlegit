@@ -1,5 +1,5 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import PostalMime from "postal-mime";
 import sharp from "sharp";
@@ -30,6 +30,7 @@ import {
   DISCOVERY,
   dictionary,
   KINDS,
+  presidioRedactor,
   renderRedactedBy,
   runBenchmark,
   seedPages,
@@ -649,6 +650,30 @@ describe("the redaction benchmark", () => {
       );
     expect(refused).toBeGreaterThan(pages.length / 2);
   }, 120_000);
+
+  // Presidio's own venv is a local install of a 600 MB model, which no CI host carries.
+  it.skipIf(!existsSync(join(homedir(), ".venvs", "presidio", "bin", "python")))(
+    "runs Presidio as the redaction step on the same pages, its failures counted apart from refusals",
+    async () => {
+      const presidio = await presidioRedactor();
+      try {
+        expect(presidio.ready).toMatchObject({ ready: true, model_sha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
+        const result = await runBenchmark({ pages: 3, render, redactor: presidio.redactor });
+        expect(result.failedPages).toBe(0);
+        expect(result.total.seeded + Object.values(result.discovery).reduce((n, t) => n + t.seeded, 0)).toBe(36);
+        // A page the process cannot answer is a failure, never a refusal.
+        const broken = await runBenchmark({
+          pages: 1,
+          render,
+          redactor: async () => Promise.reject(new Error("presidio: ValueError")),
+        });
+        expect(broken).toMatchObject({ failedPages: 1, refusedPages: 0 });
+      } finally {
+        presidio.close();
+      }
+    },
+    180_000,
+  );
 
   it("counts a render that failed as a failure, never as a refusal", async () => {
     const result = await runBenchmark({ pages: 7, render: async () => Promise.reject(new Error("browser closed")) });
