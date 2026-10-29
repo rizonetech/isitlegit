@@ -2,8 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { d1Budget } from "../../src/meta/budget";
-import type { MetaContext } from "../../src/meta/client";
-import { ModelOutputError, structured } from "../../src/meta/structured";
+import { ModelOutputError, type StructuredContext, structured } from "../../src/meta/structured";
 
 // The structured output helper (D03 T01 §5): the real client through a stubbed transport and the migrated D1, so the
 // request Meta would receive and the record each attempt leaves are the real ones.
@@ -38,12 +37,13 @@ const GOOD = JSON.stringify({ verdict: "legit", reasons: ["known sender"], sende
 function model(...script: (() => Response)[]) {
   const bodies: Record<string, unknown>[] = [];
   let i = 0;
-  const ctx: MetaContext = {
+  const ctx: StructuredContext = {
     env: META,
     owner: { kind: "case", caseId: "01HZSTRUCTCASE000000000000", step: "verdict" },
     budget: d1Budget(db, { caller: "verdict" }),
     random: () => 0.5,
     sleep: async () => {},
+    waitUntil: () => {},
     fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)));
       const next = script[Math.min(i++, script.length - 1)];
@@ -53,7 +53,7 @@ function model(...script: (() => Response)[]) {
   };
   return { ctx, bodies };
 }
-const ask = (ctx: MetaContext, schema: z.ZodType = Verdict, name = "verdict") =>
+const ask = (ctx: StructuredContext, schema: z.ZodType = Verdict, name = "verdict") =>
   structured(schema, { name, model: "muse-spark-1.3", input: "Is this legit?", max_output_tokens: 256 }, ctx);
 const rows = async () =>
   (await db.prepare("SELECT outcome, error_class, actual_usd, cost_certainty FROM model_spend ORDER BY at").all())
@@ -312,5 +312,22 @@ describe("completion review (2026-10-29)", () => {
       { callId: expect.any(String), logId: "log-1" },
     ]);
     expect(error?.calls[0]?.callId).not.toBe(error?.calls[1]?.callId);
+  });
+});
+
+describe("round 1 (2026-10-29)", () => {
+  it("never returns a value zod's union parse stripped of what the reply said", async () => {
+    const Union = z.strictObject({
+      result: z.union([
+        z.object({ verdict: z.literal("suspicious") }),
+        z.object({ verdict: z.literal("suspicious"), evidenceIds: z.array(z.string()) }),
+      ]),
+    });
+    const whole = { result: { verdict: "suspicious", evidenceIds: ["E1"] } };
+    const m = model(() => text(JSON.stringify(whole)));
+    const error = await failure(ask(m.ctx, Union));
+    expect(error?.kind).toBe("invalid");
+    expect(m.bodies).toHaveLength(2);
+    expect((await rows()).map((r) => r.error_class)).toEqual(["output-invalid", "output-invalid"]);
   });
 });

@@ -95,6 +95,19 @@ function names(node: unknown, into = new Set<string>()): Set<string> {
   return into;
 }
 
+// Whether zod's parse dropped a property the reply carried, at any depth (round 1): a union's parse can pick a branch
+// other than the one the reply matched and strip the rest, so a value is used only if it kept everything the reply said.
+function stripped(raw: unknown, parsed: unknown): boolean {
+  if (Array.isArray(raw)) return Array.isArray(parsed) && raw.some((item, i) => stripped(item, parsed[i]));
+  if (raw && typeof raw === "object") {
+    if (!parsed || typeof parsed !== "object") return false;
+    return Object.entries(raw).some(
+      ([key, value]) => !Object.hasOwn(parsed, key) || stripped(value, (parsed as Record<string, unknown>)[key]),
+    );
+  }
+  return false;
+}
+
 // The JSON type of a parsed value, as a schema names it.
 const jsonType = (value: unknown) =>
   value === null ? "null" : Array.isArray(value) ? "array" : typeof value === "object" ? "object" : typeof value;
@@ -160,10 +173,13 @@ function said(issues: z.core.$ZodIssue[], known: Set<string>): string {
 
 export type StructuredRequest = Omit<ResponsesParams, "text"> & { name: string };
 
+// `waitUntil` is required here (round 1): a paid failure's record that outlives its grace must outlive the invocation.
+export type StructuredContext = MetaContext & { waitUntil: (promise: Promise<unknown>) => void };
+
 export async function structured<S extends z.ZodType>(
   schema: S,
   request: StructuredRequest,
-  ctx: MetaContext,
+  ctx: StructuredContext,
 ): Promise<{ value: z.infer<S>; logId: string | null; callId: string }> {
   const { name, ...params } = request;
   if (!NAME.test(name)) throw new ModelOutputError("schema", "a format's name is 1 to 64 of A-Z a-z 0-9 _ -");
@@ -188,7 +204,7 @@ export async function structured<S extends z.ZodType>(
       timer = setTimeout(() => resolve(false), RECORD_GRACE_MS);
     });
     if (!(await Promise.race([written, late]).finally(() => clearTimeout(timer)))) {
-      ctx.waitUntil?.(written);
+      ctx.waitUntil(written);
       console.error(JSON.stringify({ event: "meta", outcome: "output-failure-record-late", kind }));
     }
   };
@@ -231,8 +247,11 @@ export async function structured<S extends z.ZodType>(
     else if (unknownProperty(value, json)) problems = "the answer has a property the schema does not name";
     else {
       const parsed = schema.safeParse(value);
-      if (parsed.success) return { value: parsed.data, logId: answer.logId, callId: answer.callId };
-      problems = said(parsed.error.issues, known);
+      if (parsed.success && !stripped(value, parsed.data))
+        return { value: parsed.data, logId: answer.logId, callId: answer.callId };
+      problems = parsed.success
+        ? "the answer has a property the schema does not name"
+        : said(parsed.error.issues, known);
     }
     if (attempt === 2) return fail("invalid", `Meta's answer did not match the schema after one retry: ${problems}`);
     await mark(answer.callId, "invalid");
