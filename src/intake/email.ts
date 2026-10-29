@@ -50,7 +50,14 @@ export async function handleEmail(
   log: (line: string) => void = console.log,
 ): Promise<IntakeOutcome> {
   const detail: Record<string, unknown> = {};
-  const outcome = await intake(message, env, now, detail);
+  let outcome: IntakeOutcome;
+  try {
+    outcome = await intake(message, env, now, detail);
+  } catch (error) {
+    // Thrown for a retry (RetryDelivery, the admission undone): logged, then handed to Email Routing.
+    log(JSON.stringify({ event: "intake", outcome: "retry", error: (error as Error).name }));
+    throw error;
+  }
   const caseId = outcome.kind === "admitted" ? { caseId: outcome.caseId } : {};
   log(JSON.stringify({ event: "intake", outcome: outcome.kind, ...caseId, ...detail }));
   return outcome;
@@ -94,7 +101,12 @@ async function intake(
       headersAvailable: false,
       forwardedBy: from,
       messageId,
-      store: (caseId) => putRaw(store(env), caseId, raw).then(() => {}),
+      store: async (caseId) => {
+        // D01 T01 §9's live fault: the raw store fails for the one sender the deployed variable names, and no other.
+        if (env.INTAKE_FAULT_SENDER && from === env.INTAKE_FAULT_SENDER.trim().toLowerCase())
+          throw new Error("the raw store failed (INTAKE_FAULT_SENDER, D01 T01 §9)");
+        await putRaw(store(env), caseId, raw);
+      },
     },
     now,
   );

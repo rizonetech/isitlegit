@@ -48,7 +48,10 @@
     "APP_URL": "https://app.isitlegit.co.za",
     // The origin the reply's report links are made absolute with (D01 T02 §3): the app's own, and https only. Separate
     // from APP_URL because the tests serve the app at http://localhost and need an https origin here.
-    "PUBLIC_ORIGIN": "https://app.isitlegit.co.za"
+    "PUBLIC_ORIGIN": "https://app.isitlegit.co.za",
+    // Empty: no fault. D01 T01 §9's live check deploys it once (`--var INTAKE_FAULT_SENDER:<the test sender>`) to make
+    // the raw store fail for that one sender's forwards only, and redeploys without it after.
+    "INTAKE_FAULT_SENDER": ""
   },
   // Every 15 minutes: settle uncertain mail sends from SMTP2GO's record (D01 T02 §5, src/mail/reconcile.ts).
   "triggers": { "crons": ["*/15 * * * *"] }

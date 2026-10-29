@@ -215,3 +215,29 @@ describe("senderAuthenticated", () => {
     await expect(senderAuthenticated(tiny, "boss@member.co.za")).resolves.toBe(false);
   });
 });
+
+// The topmost Authentication-Results header Email Routing wrote on a live forward to check@ (D01 T01 §9, case
+// 01M62P0FCKTGQ4A6YY7XNXE933, 2026-10-29), verbatim: a Microsoft 365 mailbox forwarding an inline copy.
+const LIVE =
+  'Authentication-Results: mx.cloudflare.net; dkim=pass header.d=rizonetech.com header.s=selector2 header.b=M3ym6aCz; dmarc=pass header.from=rizonetech.com policy.dmarc=none; spf=pass (mx.cloudflare.net: domain of postmaster@AS8PR04CU009.outbound.protection.outlook.com designates 2a01:111:f403:c201::3 as permitted sender) smtp.helo=AS8PR04CU009.outbound.protection.outlook.com; spf=pass (mx.cloudflare.net: domain of derick@rizonetech.com designates 2a01:111:f403:c201::3 as permitted sender) smtp.mailfrom=derick@rizonetech.com; arc=pass smtp.remote-ip="2a01:111:f403:c201::3"';
+
+describe("the header Email Routing really writes", () => {
+  it("is parsed, and admits its sender as a verified address and as a verified domain", async () => {
+    const parsed = parseAuthenticationResults(LIVE.slice("Authentication-Results: ".length));
+    expect(parsed?.authservId).toBe(ID);
+    expect(parsed?.results.map((r) => `${r.method}=${r.result}`)).toEqual([
+      "dkim=pass",
+      "dmarc=pass",
+      "spf=pass",
+      "spf=pass",
+      "arc=pass",
+    ]);
+    const live = new TextEncoder().encode(
+      `${LIVE}\r\nFrom: Derick Payne <derick@rizonetech.com>\r\nSubject: FW: x\r\n\r\nbody\r\n`,
+    );
+    expect(await senderAuthenticated(live, "derick@rizonetech.com", "address")).toBe(true);
+    expect(await senderAuthenticated(live, "derick@rizonetech.com", "domain")).toBe(true);
+    // Another sender at the same domain is not that address.
+    expect(await senderAuthenticated(live, "someone@rizonetech.com", "address")).toBe(false);
+  });
+});
