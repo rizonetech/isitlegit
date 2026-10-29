@@ -108,3 +108,30 @@ describe("the arguments and the live query", () => {
     await expect(d1Query(async () => JSON.stringify([{ success: false }]))("SELECT 1")).rejects.toThrow(/no results/);
   });
 });
+
+describe("the deadline (completion review)", () => {
+  it("bounds each read by what is left, and refuses a success seen after the deadline", async () => {
+    const c = clock();
+    const budgets: (number | undefined)[] = [];
+    // Each read takes two seconds of a one-second budget.
+    const query = async (sql: string, timeoutMs?: number) => {
+      budgets.push(timeoutMs);
+      await c.sleep(2_000);
+      return sql.startsWith("SELECT id, status FROM cases") ? [{ id: "c9", status: "done" }] : [{ status: "sent" }];
+    };
+    const result = await waitForCase({ messageId: ID, waitSeconds: 1, query, ...c });
+    expect(result).toEqual({ ok: false, reason: "timed out after 1 s: case c9 finished late" });
+    expect(budgets[0]).toBeLessThanOrEqual(1_000);
+  });
+
+  it("gives wrangler no more time than the read was allowed", async () => {
+    let deadline = 0;
+    const run = async (_c: string, _a: string[], _i: string, until: number) => {
+      deadline = until;
+      return JSON.stringify([{ results: [], success: true }]);
+    };
+    const before = Date.now();
+    await d1Query(run, 60_000)("SELECT 1", 500);
+    expect(deadline - before).toBeLessThanOrEqual(600);
+  });
+});

@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 336
+Sections: 42 | Checklist items: 337
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -84,7 +84,7 @@ Sections: 42 | Checklist items: 336
 | [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
 | [x]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
-| [ ]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 11    |
+| [ ]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 12    |
 | [ ]    | D01 T01 §14 | Near-limit forward on the live Worker     | operator, live-mail   | 3     |
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
@@ -313,4 +313,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 54/242 verified sections, 28 ready to run now.
 
-Checklist: 568/1416 items completed (includes Commit items).
+Checklist: 569/1417 items completed (includes Commit items).
