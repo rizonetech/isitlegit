@@ -8,8 +8,18 @@ export const DEFAULT_RETURN = "/cases";
 // on this site once a URL parser resolves it, since dot segments can turn `/a/..//evil.example` into the
 // protocol-relative `//evil.example`, which a browser follows off the site (D07 T02 §10 round 3).
 const BASE = "https://same-site.invalid";
+// The longest return path kept: every stage that carries one (the link request, the mailed link, the confirm form)
+// holds this much, so a path accepted at the start is never cut at the end (D07 T02 §10 final review).
+export const MAX_RETURN_PATH = 2048;
+
 export function sameSitePath(value: unknown): value is string {
-  if (typeof value !== "string" || !/^\/(?!\/)/.test(value) || /[\\\s]/.test(value) || value.includes("://"))
+  if (
+    typeof value !== "string" ||
+    value.length > MAX_RETURN_PATH ||
+    !/^\/(?!\/)/.test(value) ||
+    /[\\\s]/.test(value) ||
+    value.includes("://")
+  )
     return false;
   const resolved = new URL(value, BASE);
   return resolved.origin === BASE && !resolved.pathname.startsWith("//");

@@ -18,10 +18,31 @@ import {
   InboxPage,
   LINK_PATH,
   LinkRequestPage,
+  MessagePage,
   pageResponse,
   returnPath,
 } from "./confirm-page";
-import { DEFAULT_RETURN } from "./paths";
+import { DEFAULT_RETURN, MAX_RETURN_PATH } from "./paths";
+
+// What Better Auth's verify answered, sorted into the confirm page's states (better-auth/dist/plugins/magic-link):
+// signed in (a session cookie); rate limited (its limiter's 429, before the token is touched, so the same link works a
+// minute later); used (an invalid or expired token: a new link); no account (an account it would not make or could not
+// find: a new link would be refused the same way); and failed (anything else, the token possibly spent: a new link).
+export type VerifyOutcome = "signed-in" | "rate-limited" | "used" | "no-account" | "failed";
+const LINK_ERRORS = new Set(["INVALID_TOKEN", "EXPIRED_TOKEN"]);
+
+export function classifyVerify(answer: Response, origin: string): VerifyOutcome {
+  const signedIn = answer.headers.getSetCookie().some((cookie) => /session_token=[^;]+/.test(cookie));
+  if (answer.status >= 300 && answer.status < 400 && signedIn) return "signed-in";
+  if (answer.status === 429) return "rate-limited";
+  // A failure is Better Auth's redirect to its failure path (`/signin?next=...&error=`), so an `error` parameter in the
+  // member's own destination is never taken for one (round 1).
+  const location = answer.headers.get("location");
+  const failure = location ? new URL(location, origin) : null;
+  const error = failure?.pathname === "/signin" ? failure.searchParams.get("error") : null;
+  if (!error || SERVICE_ERRORS.has(error)) return "failed";
+  return LINK_ERRORS.has(error) ? "used" : "no-account";
+}
 
 // The errors Better Auth's magic-link verify redirects with (better-auth/dist/plugins/magic-link): a used, expired or
 // unknown token, or an address that may not have an account, all of which need a new link (or none); and the two that
@@ -32,7 +53,7 @@ const SERVICE_ERRORS = new Set(["failed_to_create_session", "failed_to_create_us
 // refused before it is read, and each field is bounded before it is checked or drawn back into a page, so a large post
 // can neither fill the isolate's memory nor be echoed into a larger page (D07 T02 §10 round 1).
 const MAX_FORM_BYTES = 8 * 1024;
-const MAX_FIELD = { token: 512, callbackURL: 2048, email: 254 } as const;
+const MAX_FIELD = { token: 512, callbackURL: MAX_RETURN_PATH, email: 254 } as const;
 // Better Auth's own rule for the address (better-auth/dist/plugins/magic-link: `z.email()`), so an address it would
 // refuse is a field error here, not a send it then refuses.
 const EMAIL = z.email();
@@ -109,14 +130,9 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   } catch {
     answer = new Response(null, { status: 500 });
   }
-  // Success is a session cookie; a failure is Better Auth's redirect to its failure path (`/signin?next=...&error=`),
-  // so an `error` parameter in the member's own destination is never taken for one (round 1).
+  const outcome = classifyVerify(answer, verify.origin);
   const cookies = answer.headers.getSetCookie();
-  const signedIn = cookies.some((cookie) => /session_token=[^;]+/.test(cookie));
-  const location = answer.headers.get("location");
-  const failure = location ? new URL(location, verify) : null;
-  const error = failure?.pathname === "/signin" ? failure.searchParams.get("error") : null;
-  if (answer.status >= 300 && answer.status < 400 && signedIn) {
+  if (outcome === "signed-in") {
     log("signed-in");
     // Serialised as an absolute URL on the app's own origin: a header carries no raw non-ASCII (round 2), and a path
     // that resolves to `//host` can never become a protocol-relative redirect (round 3).
@@ -126,9 +142,25 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
     for (const cookie of cookies) out.headers.append("set-cookie", cookie);
     return out;
   }
-  if (error && !SERVICE_ERRORS.has(error)) {
+  if (outcome === "rate-limited") {
+    // The token is untouched: the same button works again in a minute.
+    log("rate-limited");
+    return pageResponse(<ConfirmPage token={token} callbackURL={callbackURL} limited />, 429);
+  }
+  if (outcome === "used") {
     log("used");
     return pageResponse(<LinkRequestPage callbackURL={callbackURL} />, 400);
+  }
+  if (outcome === "no-account") {
+    log("no-account");
+    return pageResponse(
+      <MessagePage
+        title="No account for this address"
+        heading="This address has no IsItLegit account"
+        text="Ask the owner of your organisation's IsItLegit account to invite you, then sign in from the invitation."
+      />,
+      403,
+    );
   }
   // The token may already be spent while the session was not stored: the member needs a new link, and the cause is
   // the service's, so it is logged apart from an expired link; the page asks for one at once, the return path kept.

@@ -46,11 +46,16 @@ function Frame(props: { title: string; children: unknown }) {
   );
 }
 
-export function ConfirmPage(props: { token: string; callbackURL: string }) {
+// The confirm step; `limited` is its rate-limited state (A1's): too many tries from here, the same link still good.
+export function ConfirmPage(props: { token: string; callbackURL: string; limited?: boolean }) {
   return (
     <Frame title="Sign in">
       <h1 class="font-display text-28 weight-display">Sign in to IsItLegit</h1>
-      <p class="text-16 text-muted">Press the button to finish signing in. The link works once.</p>
+      <p class="text-16 text-muted">
+        {props.limited
+          ? "Too many sign-in tries from here. Wait a minute, then press the button again; your link still works."
+          : "Press the button to finish signing in. The link works once."}
+      </p>
       <form method="post" action={CONFIRM_PATH} class="flex flex-col gap-16">
         <input type="hidden" name="token" value={props.token} />
         <input type="hidden" name="callbackURL" value={props.callbackURL} />
@@ -125,6 +130,16 @@ export function InboxPage(props: { email: string; callbackURL: string }) {
           Use a different email
         </Button>
       </form>
+    </Frame>
+  );
+}
+
+// A page that only says what happened and what to do, with no form.
+export function MessagePage(props: { title: string; heading: string; text: string }) {
+  return (
+    <Frame title={props.title}>
+      <h1 class="font-display text-28 weight-display">{props.heading}</h1>
+      <p class="text-16 text-muted">{props.text}</p>
     </Frame>
   );
 }

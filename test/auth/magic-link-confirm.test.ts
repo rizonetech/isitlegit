@@ -1,6 +1,8 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { classifyVerify } from "../../src/auth/confirm";
 import { mailedLink } from "../../src/auth/confirm-page";
+import { MAX_RETURN_PATH } from "../../src/auth/paths";
 import { SIGNIN_PER_ADDRESS } from "../../src/mail/smtp2go";
 import { authEnv, call, pathOf, redeem, requestLink, sessionCookie, stubSmtp2go, target } from "./helpers";
 
@@ -337,5 +339,42 @@ describe("round 3 (2026-10-29)", () => {
     expect(posted.status).toBe(303);
     const to = new URL(posted.headers.get("location") ?? "", "http://localhost");
     expect([to.origin, to.pathname]).toEqual(["http://localhost", "/cases"]);
+  });
+});
+
+describe("final review (2026-10-29)", () => {
+  const O = "https://app.isitlegit.co.za";
+  const redirect = (location: string, cookie?: string) => {
+    const headers = new Headers({ location });
+    if (cookie) headers.append("set-cookie", cookie);
+    return new Response(null, { status: 302, headers });
+  };
+
+  it("sorts every answer Better Auth's verify gives into the page's states", () => {
+    expect(classifyVerify(redirect(`${O}/cases`, "__Secure-better-auth.session_token=abc; Path=/"), O)).toBe(
+      "signed-in",
+    );
+    expect(classifyVerify(new Response(null, { status: 429 }), O)).toBe("rate-limited");
+    expect(classifyVerify(redirect(`${O}/signin?next=%2Fcases&error=INVALID_TOKEN`), O)).toBe("used");
+    expect(classifyVerify(redirect(`${O}/signin?next=%2Fcases&error=EXPIRED_TOKEN`), O)).toBe("used");
+    for (const code of ["new_user_signup_disabled", "user_not_found", "SOME_API_ERROR"])
+      expect(classifyVerify(redirect(`${O}/signin?next=%2Fcases&error=${code}`), O), code).toBe("no-account");
+    for (const code of ["failed_to_create_session", "failed_to_create_user"])
+      expect(classifyVerify(redirect(`${O}/signin?next=%2Fcases&error=${code}`), O), code).toBe("failed");
+    // An error in the member's own destination, with no session, is not a token failure; nor is a 500.
+    expect(classifyVerify(redirect(`${O}/cases?error=upload_failed`), O)).toBe("failed");
+    expect(classifyVerify(new Response(null, { status: 500 }), O)).toBe("failed");
+  });
+
+  it("keeps a return path of the full allowed length to the end, and refuses a longer one at the start", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const longest = `/cases?q=${"a".repeat(MAX_RETURN_PATH - 9)}`;
+    expect(longest).toHaveLength(MAX_RETURN_PATH);
+    await requestLink("long@demo.isitlegit.co.za", longest);
+    expect(target(await redeem(smtp.sends.at(-1)?.link ?? ""))).toBe(longest);
+    expect((await requestLink("long@demo.isitlegit.co.za", `${longest}a`)).status).toBe(400);
+    const shown = await call(`/signin/confirm?token=t&callbackURL=${encodeURIComponent(`${longest}a`)}`);
+    expect(await shown.text()).toContain('name="callbackURL" value="/cases"');
   });
 });

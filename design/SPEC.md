@@ -478,6 +478,8 @@ Confirm step (D07 T02 §10, 2026-10-29; built from A1's controls, not drawn): th
 - link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
 - check your inbox: A1's state, with Send another link (the same address) and Use a different email (the form with that address to correct).
 - did not finish: Sign-in did not finish (the service's failure after the link was used), with the new-link form and the return path kept.
+- rate limited: A1's state on the confirm step: too many tries from here; the same button and link work again a minute later.
+- no account: This address has no IsItLegit account; ask the organisation's owner for an invitation (a new link would be refused the same way).
 - link could not be sent: The recovery's send failed, with the form and the address kept, so the retry is one press.
 - loading: Deferred to D07 T02 §7, as A1's own: no script runs on this page yet (D07 T01 §9).
 

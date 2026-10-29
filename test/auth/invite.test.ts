@@ -426,8 +426,10 @@ describe("making an account any other way", () => {
     expect(link).not.toBe("");
     const redeemed = await redeem(link);
     expect(sessionCookie(redeemed)).toBe("");
-    // No account and no session: the "link expired or used" page, which offers a new link and tells nothing more.
-    expect(redeemed.status).toBe(400);
+    // No account and no session: the page says the address has no account and to ask for an invitation (a new link
+    // would be refused the same way). The mail went to this address, so it tells its reader nothing new.
+    expect(redeemed.status).toBe(403);
+    expect(await redeemed.text()).toContain("This address has no IsItLegit account");
     expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE email = 'stranger@example.org'`)).toBe(0);
   });
 });
