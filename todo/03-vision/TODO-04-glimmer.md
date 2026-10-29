@@ -662,6 +662,8 @@ Loupe 1.0 trains on as much good data as the time allows (operator, 2026-10-28 2
 
 ## 19. Sample redaction beyond the dictionary
 
+> **Started:** 2026-10-29T18:12Z
+
 Filed 2026-10-29 from D03 T04 §7's completion review (gaps 14, 15 and 17): the sample redaction (`scripts/glimmer/redact.ts`, `scripts/glimmer/import-samples.ts`) finds the client's people only through the recipient headers and `samples/client-names.txt`, replaces every picture with a blank box, and is measured only against itself (`scripts/glimmer/redaction-benchmark.ts`). A named-entity pass would find people and addresses no header lists; a visual pass could keep a lure's logo while removing a signature; and a head-to-head run against Microsoft Presidio on the same synthetic inputs would show whether the dictionary approach beats the standard tool.
 
 **Phase:** 7
