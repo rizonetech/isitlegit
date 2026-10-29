@@ -476,8 +476,9 @@ Confirm step (D07 T02 §10, 2026-10-29; built from A1's controls, not drawn): th
 
 - signed in: The member lands on the page the link named.
 - link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
-- did not finish: Sign-in did not finish (the service's failure after the link was used); ask for a new link and try again.
-- link could not be sent: The recovery's send failed; try again in a moment.
+- check your inbox: A1's state, with Send another link (the same address) and Use a different email (the form with that address to correct).
+- did not finish: Sign-in did not finish (the service's failure after the link was used), with the new-link form and the return path kept.
+- link could not be sent: The recovery's send failed, with the form and the address kept, so the retry is one press.
 - loading: Deferred to D07 T02 §7, as A1's own: no script runs on this page yet (D07 T01 §9).
 
 Checked at 375 px with no sideways scroll, and by keyboard (the button and the Email field reachable and labelled). D07 T02 §7 draws these on A1's frame.

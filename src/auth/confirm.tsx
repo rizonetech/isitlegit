@@ -14,11 +14,11 @@ import {
   CONFIRM_PATH,
   ConfirmPage,
   confirmUrl,
+  InboxPage,
   LINK_PATH,
-  MessagePage,
+  LinkRequestPage,
   pageResponse,
   returnPath,
-  UsedPage,
 } from "./confirm-page";
 
 // The errors Better Auth's magic-link verify redirects with (better-auth/dist/plugins/magic-link): a used, expired or
@@ -27,6 +27,17 @@ import {
 const SERVICE_ERRORS = new Set(["failed_to_create_session", "failed_to_create_user"]);
 
 const sameOrigin = (env: Env, request: Request) => request.headers.get("origin") === new URL(env.APP_URL).origin;
+
+// The headers an internal call to Better Auth carries: the app's origin, and the member's own address, so its limiter
+// and the session it stores see the member, not one shared "no address" bucket for everyone (D07 T02 §10, G1).
+function forwarded(env: Env, request: Request, extra: Record<string, string> = {}): Headers {
+  const headers = new Headers({ origin: new URL(env.APP_URL).origin, ...extra });
+  for (const name of ["cf-connecting-ip", "x-forwarded-for", "user-agent"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return headers;
+}
 
 const log = (step: string) => console.log(JSON.stringify({ event: "signin-confirm", step }));
 
@@ -37,7 +48,7 @@ confirmRoutes.get(CONFIRM_PATH, (c) => {
   const callbackURL = returnPath(c.req.query("callbackURL"));
   // Logged with no token or address, so a scanner's fetch before the member's click shows in the Worker's logs.
   log("shown");
-  if (!token) return pageResponse(<UsedPage callbackURL={callbackURL} />, 400);
+  if (!token) return pageResponse(<LinkRequestPage callbackURL={callbackURL} />, 400);
   return pageResponse(<ConfirmPage token={token} callbackURL={callbackURL} />);
 });
 
@@ -46,15 +57,13 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   const form = await c.req.formData().catch(() => null);
   const token = String(form?.get("token") ?? "");
   const callbackURL = returnPath(form?.get("callbackURL"));
-  if (!token) return pageResponse(<UsedPage callbackURL={callbackURL} />, 400);
+  if (!token) return pageResponse(<LinkRequestPage callbackURL={callbackURL} />, 400);
   const verify = new URL("/api/auth/magic-link/verify", new URL(c.env.APP_URL).origin);
   verify.searchParams.set("token", token);
   verify.searchParams.set("callbackURL", callbackURL);
   let answer: Response;
   try {
-    answer = await createAuth(c.env).handler(
-      new Request(verify, { headers: { origin: new URL(c.env.APP_URL).origin } }),
-    );
+    answer = await createAuth(c.env).handler(new Request(verify, { headers: forwarded(c.env, c.req.raw) }));
   } catch {
     answer = new Response(null, { status: 500 });
   }
@@ -74,20 +83,34 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   }
   if (error && !SERVICE_ERRORS.has(error)) {
     log("used");
-    return pageResponse(<UsedPage callbackURL={callbackURL} />, 400);
+    return pageResponse(<LinkRequestPage callbackURL={callbackURL} />, 400);
   }
   // The token may already be spent while the session was not stored: the member needs a new link, and the cause is
-  // the service's, so it is logged apart from an expired link.
+  // the service's, so it is logged apart from an expired link; the page asks for one at once, the return path kept.
   log("failed");
   return pageResponse(
-    <MessagePage
+    <LinkRequestPage
+      callbackURL={callbackURL}
       title="Sign-in did not finish"
       heading="Sign-in did not finish"
-      text="Something went wrong on our side. Ask for a new sign-in link and try again in a moment."
+      text="Something went wrong on our side. Enter your email for a new link and try again."
     />,
     503,
   );
 });
+
+// "Use a different email" from the inbox state: the request form with the address to correct.
+confirmRoutes.get(LINK_PATH, (c) =>
+  pageResponse(
+    <LinkRequestPage
+      callbackURL={returnPath(c.req.query("callbackURL"))}
+      email={(c.req.query("email") ?? "").slice(0, 254)}
+      title="Get a sign-in link"
+      heading="Get a sign-in link"
+      text="Enter the email you sign in with. We will send a link that works once, for 15 minutes."
+    />,
+  ),
+);
 
 confirmRoutes.post(LINK_PATH, async (c) => {
   if (!sameOrigin(c.env, c.req.raw)) return new Response("Forbidden", { status: 403 });
@@ -96,31 +119,31 @@ confirmRoutes.post(LINK_PATH, async (c) => {
   const callbackURL = returnPath(form?.get("callbackURL"));
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
     return pageResponse(
-      <UsedPage callbackURL={callbackURL} email={email} error="Enter the email you sign in with." />,
+      <LinkRequestPage callbackURL={callbackURL} email={email} error="Enter the email you sign in with." />,
       400,
     );
-  const asked = await createAuth(c.env).handler(
-    new Request(new URL("/api/auth/sign-in/magic-link", new URL(c.env.APP_URL).origin), {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: new URL(c.env.APP_URL).origin },
-      body: JSON.stringify({ email, callbackURL }),
-    }),
-  );
-  // A sent, refused or rate-limited address answers alike, so the page never tells a stranger who can sign in; only a
-  // failed send (the service's) says to try again.
-  if (asked.ok || asked.status === 429)
-    return pageResponse(
-      <MessagePage
-        title="Check your inbox"
-        heading="Check your inbox"
-        text="If that address can sign in, a new link is on its way. It works once, for 15 minutes."
-      />,
+  let asked: Response;
+  try {
+    asked = await createAuth(c.env).handler(
+      new Request(new URL("/api/auth/sign-in/magic-link", new URL(c.env.APP_URL).origin), {
+        method: "POST",
+        headers: forwarded(c.env, c.req.raw, { "content-type": "application/json" }),
+        body: JSON.stringify({ email, callbackURL }),
+      }),
     );
+  } catch {
+    asked = new Response(null, { status: 500 });
+  }
+  // A sent, refused or rate-limited address answers alike, so the page never tells a stranger who can sign in; only a
+  // failed send (the service's) says to try again, with the address and return path kept for the retry.
+  if (asked.ok || asked.status === 429) return pageResponse(<InboxPage email={email} callbackURL={callbackURL} />);
   return pageResponse(
-    <MessagePage
+    <LinkRequestPage
+      callbackURL={callbackURL}
+      email={email}
       title="The link could not be sent"
       heading="The link could not be sent"
-      text="We could not send the link just now. Go back and try again in a moment."
+      text="We could not send the link just now. Try again in a moment."
     />,
     503,
   );

@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mailedLink } from "../../src/auth/confirm-page";
+import { SIGNIN_PER_ADDRESS } from "../../src/mail/smtp2go";
 import { authEnv, call, pathOf, redeem, requestLink, sessionCookie, stubSmtp2go, target } from "./helpers";
 
 // Sign-in links that survive link scanners (D07 T02 §10): the mailed link only shows a page, its form's POST signs in,
@@ -168,5 +169,106 @@ describe("the mailed link", () => {
       "/cases",
     );
     expect(authEnv.APP_URL).toBeTruthy();
+  });
+});
+
+// The value of a form field on a rendered page.
+const field = (html: string, name: string) =>
+  (new RegExp(`<input[^>]*name="${name}"[^>]*value="([^"]*)"`).exec(html)?.[1] ?? "").replace(/&amp;/g, "&");
+
+describe("recovery and identity (completion review, 2026-10-29)", () => {
+  it("stores each member's own address on the session, not one shared bucket (G1)", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    for (const [email, ip] of [
+      ["ip-one@demo.isitlegit.co.za", "203.0.113.7"],
+      ["ip-two@demo.isitlegit.co.za", "198.51.100.9"],
+    ] as const) {
+      await requestLink(email);
+      const token = new URL(smtp.sends.at(-1)?.link ?? "").searchParams.get("token") ?? "";
+      const signed = await call("/signin/confirm", {
+        method: "POST",
+        body: new URLSearchParams({ token, callbackURL: "/cases" }),
+        headers: { "cf-connecting-ip": ip },
+      });
+      expect(sessionCookie(signed), email).toMatch(/session_token=/);
+      const row = await db
+        .prepare(`SELECT s.ipAddress AS ip FROM "session" s JOIN "user" u ON u.id = s.userId WHERE lower(u.email) = ?`)
+        .bind(email)
+        .first<{ ip: string }>();
+      expect(row?.ip, email).toBe(ip);
+    }
+  });
+
+  it("offers a new link on the did-not-finish page that signs in at the same page (G2)", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    await requestLink("unfinished@demo.isitlegit.co.za", "/cases/3");
+    const token = new URL(smtp.sends[0]?.link ?? "").searchParams.get("token") ?? "";
+    const prepare = db.prepare.bind(db);
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/insert into "session"/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const failed = await post("/signin/confirm", { token, callbackURL: "/cases/3" });
+    expect(failed.status).toBe(503);
+    const html = await failed.text();
+    expect(html).toContain('<form method="post" action="/signin/link"');
+    expect(field(html, "callbackURL")).toBe("/cases/3");
+    spy.mockRestore();
+    const asked = await post("/signin/link", {
+      email: "unfinished@demo.isitlegit.co.za",
+      callbackURL: field(html, "callbackURL"),
+    });
+    expect(asked.status).toBe(200);
+    const signedIn = await redeem(smtp.sends.at(-1)?.link ?? "");
+    expect([signedIn.status, target(signedIn)]).toEqual([303, "/cases/3"]);
+  });
+
+  it("keeps the address on a failed send so the retry is one press, and the retry sends (G2)", async () => {
+    let answer: "sent" | "refused" = "refused";
+    const smtp = stubSmtp2go(() => answer);
+    restore = smtp.restore;
+    const failed = await post("/signin/link", { email: "retry@demo.isitlegit.co.za", callbackURL: "/cases/8" });
+    expect(failed.status).toBe(503);
+    const html = await failed.text();
+    expect(field(html, "email")).toBe("retry@demo.isitlegit.co.za");
+    expect(field(html, "callbackURL")).toBe("/cases/8");
+    answer = "sent";
+    const retried = await post("/signin/link", {
+      email: field(html, "email"),
+      callbackURL: field(html, "callbackURL"),
+    });
+    expect(retried.status).toBe(200);
+    expect(await redeem(smtp.sends.at(-1)?.link ?? "").then(target)).toBe("/cases/8");
+  });
+
+  it("sends another link from the inbox state, and opens the form to change the address (G3)", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const inbox = await post("/signin/link", { email: "inbox@demo.isitlegit.co.za", callbackURL: "/cases/4" });
+    const html = await inbox.text();
+    expect(html).toContain("Send another link");
+    expect(html).toContain("Use a different email");
+    expect(field(html, "email")).toBe("inbox@demo.isitlegit.co.za");
+    await post("/signin/link", { email: field(html, "email"), callbackURL: field(html, "callbackURL") });
+    expect(smtp.sends).toHaveLength(2);
+    const change = await call("/signin/link?email=inbox%40demo.isitlegit.co.za&callbackURL=%2Fcases%2F4");
+    expect(change.status).toBe(200);
+    const form = await change.text();
+    expect(form).toMatch(/<input[^>]*name="email"[^>]*value="inbox@demo.isitlegit.co.za"/);
+    expect(field(form, "callbackURL")).toBe("/cases/4");
+  });
+
+  it("answers the address's link limit through the form with the same neutral page, and sends nothing more (G5)", async () => {
+    const smtp = stubSmtp2go();
+    restore = smtp.restore;
+    const answers: string[] = [];
+    for (let i = 0; i <= SIGNIN_PER_ADDRESS; i++) {
+      const asked = await post("/signin/link", { email: "limited@demo.isitlegit.co.za", callbackURL: "/cases" });
+      answers.push(`${asked.status} ${(await asked.text()).includes("If that address can sign in")}`);
+    }
+    expect(new Set(answers)).toEqual(new Set(["200 true"]));
+    expect(smtp.sends).toHaveLength(SIGNIN_PER_ADDRESS);
   });
 });

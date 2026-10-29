@@ -123,6 +123,9 @@ export function authOptions(
     basePath: "/api/auth",
     trustedOrigins: [new URL(env.APP_URL).origin],
     advanced: {
+      // Cloudflare sets the client's address in CF-Connecting-IP and a client cannot; X-Forwarded-For (Better Auth's
+      // default) a client can write, so the limiter and the stored sessions read the one Cloudflare set (D07 T02 §10).
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
       useSecureCookies: true,
       defaultCookieAttributes: { httpOnly: true, secure: true, sameSite: "lax" as const },
     },

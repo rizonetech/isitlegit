@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 41 | Checklist items: 328
+Sections: 41 | Checklist items: 329
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -82,13 +82,13 @@ Sections: 41 | Checklist items: 328
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
 | [ ]    | D07 T02 §6  | Sign-in rate limits and auth audit trail  | none                  | 5     |
 | [ ]    | D07 T02 §8  | Plans, trial and feature flags            | none                  | 4     |
-| [ ]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 9     |
+| [ ]    | D07 T02 §10 | Scanner-safe sign-in links                | none                  | 10    |
 | [x]    | D07 T06 §9  | Serve the app on app.isitlegit.co.za      | cloudflare            | 6     |
 | [ ]    | D01 T01 §9  | check@ routing and live smoke             | cloudflare, live-mail | 11    |
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 34 | Checklist items: 188
+Sections: 35 | Checklist items: 191
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -116,6 +116,7 @@ Sections: 34 | Checklist items: 188
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 8     |
+| [ ]    | D07 T02 §11 | Sign-in code for another device                       | operator | 3     |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -309,6 +310,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 53/240 verified sections, 28 ready to run now.
+Progress: 53/241 verified sections, 28 ready to run now.
 
-Checklist: 550/1405 items completed (includes Commit items).
+Checklist: 551/1409 items completed (includes Commit items).
