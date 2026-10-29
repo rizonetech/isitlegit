@@ -271,6 +271,15 @@ afterAll(async () => {
   await new Promise((done) => frameServer?.close(done));
 });
 
+describe("start-up", () => {
+  it("pays a fresh browser's first context at launch, outside every render's deadline", () => {
+    // beforeAll's first render started the browser: its first context was made and closed while it started.
+    expect(renderer.launches()).toBe(1);
+    expect(renderer.warmups()).toBe(1);
+    expect(renderer.openContexts()).toBe(0);
+  });
+});
+
 describe("addresses", () => {
   it("checks a name's addresses at every connection, so a name that turns private is refused", async () => {
     const answers = [[{ address: "93.184.216.34", family: 4 }], [{ address: "127.0.0.1", family: 4 }]];

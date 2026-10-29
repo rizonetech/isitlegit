@@ -444,6 +444,7 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
   const checkedLookup = publicLookup(options.resolve);
   let session: Promise<Browser> | null = null;
   let launched = 0;
+  let warmed = 0;
   const contexts = new Set<BrowserContext>();
   const current = () => {
     if (!session) {
@@ -459,11 +460,37 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
           ],
           timeout: BROWSER_START_MS,
         })
-        .then((browser) => {
+        .then(async (browser) => {
           launched++;
           browser.on("disconnected", () => {
             if (session === starting) session = null;
           });
+          // A fresh Chromium's first context and page cost its start-up, not a page's: on a busy CI runner they took
+          // nearly all of a render's 8 seconds (2026-10-29). One is made and closed here, under the start-up bound.
+          let timer: NodeJS.Timeout | undefined;
+          const warm = (async () => {
+            const context = await browser.newContext();
+            await (await context.newPage()).close();
+            await context.close();
+          })();
+          try {
+            await Promise.race([
+              warm,
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(
+                  () => reject(new Error("the browser did not open a page while starting")),
+                  BROWSER_START_MS,
+                );
+              }),
+            ]);
+          } catch (error) {
+            warm.catch(() => undefined);
+            void bounded(browser.close());
+            throw error;
+          } finally {
+            clearTimeout(timer);
+          }
+          warmed++;
           return browser;
         });
       // A start that failed is forgotten, so the next page starts the browser again.
@@ -649,6 +676,7 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
     render,
     openContexts: () => contexts.size,
     launches: () => launched,
+    warmups: () => warmed,
     close: async () => {
       const open = session;
       session = null;
