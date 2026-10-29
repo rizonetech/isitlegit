@@ -19,7 +19,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { type ImportResult, writeImport } from "./import-source.ts";
+import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -263,13 +263,12 @@ if (import.meta.filename === process.argv[1]) {
     }
     const record = JSON.parse(readFileSync(importFile, "utf-8")) as ImportResult & { inputs?: string; rows?: string };
     const rowsFile = join(folder, "rows.jsonl");
-    const sha = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
     if (RECEIPTED.includes(name) && !record.rows) {
       if (!existsSync(rowsFile) || statSync(rowsFile).mtimeMs > Date.parse(record.started)) {
         console.error(`sources: ${name}'s rows file is not the one its import read (it is newer than the import)`);
         process.exit(1);
       }
-      record.rows = sha(rowsFile);
+      record.rows = fileSha256(rowsFile);
       writeImport(importFile, record);
       console.log(`sources: ${name}: the rows its import read are recorded`);
     }

@@ -7,7 +7,7 @@
 // or a stop on a write failure,
 // reads `incomplete`; the source is not used until a rerun completes it.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { HOST } from "../../src/vision/page-screen.ts";
 import type { Labels, openStore, PageInput } from "./store.ts";
@@ -62,6 +62,19 @@ export type ImportResult = {
   rows?: string;
 };
 
+// A file's SHA-256, read in blocks: rows files pass the 2 GiB a single read can hold (PhreshPhish's is 26 GB).
+export function fileSha256(path: string): string {
+  const hash = createHash("sha256");
+  const fd = openSync(path, "r");
+  try {
+    const block = Buffer.alloc(4 << 20);
+    for (let read = readSync(fd, block); read > 0; read = readSync(fd, block)) hash.update(block.subarray(0, read));
+  } finally {
+    closeSync(fd);
+  }
+  return hash.digest("hex");
+}
+
 // A converter's export receipt beside its rows: the binding an import records, once the rows file is the one it names.
 // Refuses rows without a receipt, or rows that changed since it was written.
 export function exportBinding(rowsFile: string): { inputs: string; rows: string } {
@@ -69,7 +82,7 @@ export function exportBinding(rowsFile: string): { inputs: string; rows: string 
   if (!existsSync(receiptFile)) throw new Error(`${receiptFile} is missing: run the converter, which writes it`);
   const receipt = JSON.parse(readFileSync(receiptFile, "utf-8")) as { inputs?: string; rows_sha256?: string };
   if (!receipt.inputs || !receipt.rows_sha256) throw new Error(`${receiptFile} does not name its inputs and rows`);
-  const rows = createHash("sha256").update(readFileSync(rowsFile)).digest("hex");
+  const rows = fileSha256(rowsFile);
   if (rows !== receipt.rows_sha256) throw new Error(`${rowsFile} changed since its export receipt was written`);
   return { inputs: receipt.inputs, rows };
 }
