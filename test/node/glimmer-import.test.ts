@@ -411,12 +411,14 @@ describe("the import run", () => {
         ...Array.from({ length: 25 }, (_, i) => item(`ok${i}`, `#${(i * 13 + 32).toString(16).padStart(3, "0")}`)),
       ],
       store: openStore(join(dir, "store")),
-      itemMs: 300,
+      // Room for a normal item's load on a busy runner (0.3 seconds excluded one in CI, 2026-10-29); the stuck one
+      // still meets the deadline, since it never settles at all.
+      itemMs: 3000,
       concurrency: 2,
     });
-    expect(result.excluded).toEqual([{ item: "stuck", reason: "the item did not load within 0.3 seconds" }]);
+    expect(result.excluded).toEqual([{ item: "stuck", reason: "the item did not load within 3 seconds" }]);
     expect(result).toMatchObject({ status: "complete", imported: 25 });
-  });
+  }, 20_000);
 
   it("says running before the first page, so a killed run never leaves an earlier complete standing", async () => {
     const storeDir = join(dir, "store");

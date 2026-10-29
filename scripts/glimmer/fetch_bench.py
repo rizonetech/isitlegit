@@ -3,13 +3,17 @@
     python3 scripts/glimmer/fetch_bench.py [--size-mib 96] [--cap-mib 8] [--runs 5] [--out docs/glimmer/fetch-bench.json]
 
 A local server serves a seeded payload (its SHA-256 recorded) with range support, at most `--cap-mib` MiB a second on
-each connection (as a dataset host caps one connection), and drops each run's first transfer at half its length. Each
-tool fetches it `--runs` times under one recorded configuration: `fetch.py` (one stream, as built in §16), aria2c with
-one connection, and aria2c with four (`-x4 -s4 -k1M`), all three with 3 tries, a 1-second retry wait, 30-second
-connect and read timeouts, a 16 KiB/s rate floor and the published SHA-256. The medians of time, the bytes the server
-sent past the first drop (refetched), whether the run recovered (exit 0) and whether the file's digest matched are
-written temp-then-rename to `--out`, with each tool's exact command and version. aria2c is `~/.local/aria2` (Ubuntu's
-signed packages unpacked there) or `aria2c` on PATH; without it, only `fetch.py` is measured and the file says so.
+each connection (as a dataset host caps one connection). Two scenarios: `drop`, where each run's first transfer is cut
+at half of what it asked for, and `mirror`, where the first URL answers every request `503` and a second URL (the same
+file, cut the same way) has to serve it. Each tool fetches it `--runs` times per scenario under one recorded
+configuration: `fetch.py` on one stream and on four segments, aria2c on one connection and on four (`-x4 -s4 -k1M`),
+all with 3 tries, a 1-second retry wait, 30-second connect and read timeouts, a 16 KiB/s rate floor and the published
+SHA-256 (in the mirror scenario `fetch.py` takes `--mirror` and aria2c both URLs, with `--max-tries=6` on both, since
+aria2c spends its tries per URL). The medians of time and of bytes sent beyond one copy of the file (refetched),
+whether the run recovered (exit 0) and whether the file's digest matched are written temp-then-rename to `--out`,
+with each tool's exact command and version and the acceptance line (D03 T04 §20): `fetch.py` on four segments no more
+than 10 percent slower than aria2c on four connections, refetching no more, and intact in every run. aria2c is
+`~/.local/aria2` (Ubuntu's signed packages unpacked there) or `aria2c` on PATH; without it only `fetch.py` is measured.
 """
 
 import argparse
@@ -44,10 +48,11 @@ def payload(size: int) -> bytes:
 class Bench(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, body: bytes, cap: int):
+    def __init__(self, body: bytes, cap: int, failing: bool = False):
         super().__init__(("127.0.0.1", 0), Handler)
         self.body = body
         self.cap = cap
+        self.failing = failing
         self.dropped = False
         self.sent = 0
         self.lock = threading.Lock()
@@ -59,8 +64,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def refuse(self) -> bool:
+        if not self.server.failing:
+            return False
+        self.send_response(503)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
+    # `do_HEAD` is the name BaseHTTPRequestHandler dispatches a HEAD to.
+    def do_HEAD(self):  # noqa: N802
+        if self.refuse():
+            return
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(self.server.body)))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("ETag", '"bench"')
+        self.end_headers()
+
     # `do_GET` is the name BaseHTTPRequestHandler dispatches a GET to.
     def do_GET(self):  # noqa: N802
+        if self.refuse():
+            return
         server, body = self.server, self.server.body
         start, end = 0, len(body) - 1
         ranged = self.headers.get("Range")
@@ -82,7 +107,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(end - start + 1))
         self.end_headers()
         with server.lock:
-            drop_at = None if server.dropped else len(body) // 2
+            drop_at = None if server.dropped else start + (end - start + 1) // 2  # half of what this transfer asked
             server.dropped = True
         at, began = start, time.monotonic()
         try:
@@ -115,20 +140,26 @@ def aria2c() -> list[str] | None:
     return [found] if found else None
 
 
-def tools(url: str, sha: str, dest: Path) -> dict[str, list[str]]:
+def tools(urls: list[str], sha: str, dest: Path) -> dict[str, list[str]]:
+    """Each tool's command for the URLs (the first, then mirrors), under the one configuration."""
+    tries = "3" if len(urls) == 1 else "6"
+    fetch = [sys.executable, "-I", str(FETCH), "--url", urls[0], "--dest", "src/data.bin", "--sha256", sha,
+             "--allow-loopback", "--min-free", "0", "--source-limit", str(10**12), "--attempts", tries, "--timeout", "30",
+             "--min-rate", str(16 * 1024)]
+    for mirror in urls[1:]:
+        fetch += ["--mirror", mirror]
     out = {
-        "fetch.py (one stream)": [sys.executable, "-I", str(FETCH), "--url", url, "--dest", "src/data.bin", "--sha256", sha,
-                                  "--allow-loopback", "--min-free", "0", "--source-limit", str(10**12), "--attempts", "3",
-                                  "--timeout", "30", "--min-rate", str(16 * 1024)],
+        "fetch.py (one stream)": [*fetch, "--segments", "1"],
+        "fetch.py (four segments)": [*fetch, "--segments", "4", "--segment-threshold", str(1 << 20)],
     }
     binary = aria2c()
     if binary:
-        common = [f"--checksum=sha-256={sha}", "--max-tries=3", "--retry-wait=1", "--lowest-speed-limit=16K",
+        common = [f"--checksum=sha-256={sha}", f"--max-tries={tries}", "--retry-wait=1", "--lowest-speed-limit=16K",
                   "--connect-timeout=30", "--timeout=30", "--allow-overwrite=true", "--auto-file-renaming=false",
                   "--file-allocation=none", "--console-log-level=error", "--summary-interval=0", "-d", str(dest / "src"),
                   "-o", "data.bin"]
-        out["aria2c (one connection)"] = [*binary, "-x1", "-s1", *common, url]
-        out["aria2c (four connections)"] = [*binary, "-x4", "-s4", "-k1M", *common, url]
+        out["aria2c (one connection)"] = [*binary, "-x1", "-s1", *common, *urls]
+        out["aria2c (four connections)"] = [*binary, "-x4", "-s4", "-k1M", *common, *urls]
     return out
 
 
@@ -142,39 +173,66 @@ def portable(part: str, url: str, work: Path) -> str:
 def measure(size: int, cap: int, runs: int) -> dict:
     body = payload(size)
     sha = hashlib.sha256(body).hexdigest()
-    results = {}
+    scenarios = {}
     commands = {}
-    for name in tools("URL", sha, Path("DIR")):
-        rows = []
-        for _ in range(runs):
-            server = Bench(body, cap)
-            threading.Thread(target=server.serve_forever, daemon=True).start()
-            url = f"http://127.0.0.1:{server.server_address[1]}/payload.bin"
-            work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
-            (work / "src").mkdir()
-            command = tools(url, sha, work)[name]
-            commands[name] = [portable(part, url, work) for part in command]
-            began = time.monotonic()
-            done = subprocess.run(command, cwd=work, capture_output=True, text=True, check=False)
-            seconds = time.monotonic() - began
-            got = work / "src" / "data.bin"
-            intact = got.exists() and hashlib.sha256(got.read_bytes()).hexdigest() == sha
-            rows.append({"seconds": seconds, "refetched": max(0, server.sent - size // 2), "recovered": done.returncode == 0,
-                         "intact": intact})
-            server.shutdown()
-            server.server_close()
-            shutil.rmtree(work, ignore_errors=True)
-        results[name] = {
-            "median_seconds": round(statistics.median(r["seconds"] for r in rows), 2),
-            "median_refetched_bytes": int(statistics.median(r["refetched"] for r in rows)),
-            "recovered": sum(r["recovered"] for r in rows),
-            "intact": sum(r["intact"] for r in rows),
-            "runs": runs,
-        }
+    for scenario in ("drop", "mirror"):
+        results = {}
+        for name in tools(["URL"], sha, Path("DIR")):
+            rows = []
+            for _ in range(runs):
+                servers = [Bench(body, cap)] if scenario == "drop" else [Bench(body, cap, failing=True), Bench(body, cap)]
+                for server in servers:
+                    threading.Thread(target=server.serve_forever, daemon=True).start()
+                urls = [f"http://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
+                work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
+                (work / "src").mkdir()
+                command = tools(urls, sha, work)[name]
+                shown = command
+                for index, address in enumerate(urls):
+                    shown = [part.replace(address, "<url>" if index == 0 else f"<mirror {index}>") for part in shown]
+                commands.setdefault(scenario, {})[name] = [portable(part, "<url>", work) for part in shown]
+                began = time.monotonic()
+                done = subprocess.run(command, cwd=work, capture_output=True, text=True, check=False)
+                seconds = time.monotonic() - began
+                got = work / "src" / "data.bin"
+                intact = got.exists() and hashlib.sha256(got.read_bytes()).hexdigest() == sha
+                sent = sum(server.sent for server in servers)
+                rows.append({"seconds": seconds, "refetched": max(0, sent - size), "recovered": done.returncode == 0,
+                             "intact": intact})
+                for server in servers:
+                    server.shutdown()
+                    server.server_close()
+                shutil.rmtree(work, ignore_errors=True)
+            results[name] = {
+                "median_seconds": round(statistics.median(r["seconds"] for r in rows), 2),
+                "median_refetched_bytes": int(statistics.median(r["refetched"] for r in rows)),
+                "recovered": sum(r["recovered"] for r in rows),
+                "intact": sum(r["intact"] for r in rows),
+                "runs": runs,
+            }
+        scenarios[scenario] = results
     binary = aria2c()
     version = subprocess.run([*binary, "--version"], capture_output=True, text=True).stdout.splitlines()[0] if binary else None
-    return {"payload_bytes": size, "payload_sha256": sha, "cap_bytes_per_connection": cap, "drop_at_bytes": size // 2,
-            "aria2c": version or "not installed: only fetch.py was measured", "commands": commands, "results": results}
+    return {"payload_bytes": size, "payload_sha256": sha, "cap_bytes_per_connection": cap,
+            "aria2c": version or "not installed: only fetch.py was measured", "commands": commands,
+            "scenarios": scenarios, "acceptance": acceptance(scenarios)}
+
+
+def acceptance(scenarios: dict) -> dict:
+    """The bar D03 T04 §20 set, judged per scenario: fetch.py on four segments against aria2c on four connections."""
+    verdicts = {}
+    for scenario, results in scenarios.items():
+        ours, theirs = results.get("fetch.py (four segments)"), results.get("aria2c (four connections)")
+        if ours is None or theirs is None:
+            verdicts[scenario] = {"met": None, "reason": "aria2c was not measured"}
+            continue
+        ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
+        met = (ratio <= 1.10 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"]
+               and ours["intact"] == ours["runs"])
+        verdicts[scenario] = {"met": met, "time_ratio": round(ratio, 3),
+                              "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
+                              "intact": [ours["intact"], ours["runs"]]}
+    return verdicts
 
 
 def main(argv=None) -> int:
@@ -193,7 +251,7 @@ def main(argv=None) -> int:
     temporary = out.with_name(f"{out.name}.{os.getpid()}.tmp")
     temporary.write_text(json.dumps(figures, indent=1) + "\n", encoding="utf-8")
     os.replace(temporary, out)
-    print(json.dumps(figures["results"]))
+    print(json.dumps({"scenarios": figures["scenarios"], "acceptance": figures["acceptance"]}))
     return 0
 
 

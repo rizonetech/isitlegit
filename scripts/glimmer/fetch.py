@@ -487,12 +487,17 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             counted = {"since": 0, "run": 0}
             fd = os.open(partial, os.O_RDWR)
 
+            saving = threading.Lock()
+
             def save():
-                # The progress is read before the flush, so the state never claims a byte the flush did not cover.
-                with guard:
-                    claimed = {**state, "segments": [list(item) for item in state["segments"]]}
-                os.fsync(fd)
-                _write_json(state_file, claimed)
+                # One save at a time, each whole: two at once would share the temporary file and could land an older
+                # snapshot over a newer one. The progress is read before the flush, so the state never claims a byte
+                # the flush did not cover.
+                with saving:
+                    with guard:
+                        claimed = {**state, "segments": [list(item) for item in state["segments"]]}
+                    os.fsync(fd)
+                    _write_json(state_file, claimed)
 
             def failed(reason: str, retry_after: float | None = None):
                 with guard:

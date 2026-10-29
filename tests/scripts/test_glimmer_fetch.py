@@ -708,6 +708,30 @@ class Fetch(unittest.TestCase):
         self.assertEqual(sum(self.server.served), 0)
         self.assert_whole()
 
+    def test_segments_saving_at_once_never_collide(self):
+        # Every range saves its progress often and each write is slowed, so saves from four ranges would overlap
+        # (CI did, 2026-10-29: one save's rename found its temporary file already moved by another).
+        real = fetch._write_json
+        open_saves = {"now": 0, "most": 0}
+        lock = threading.Lock()
+
+        def slow(path, value):
+            with lock:
+                open_saves["now"] += 1
+                open_saves["most"] = max(open_saves["most"], open_saves["now"])
+            time.sleep(0.01)
+            try:
+                return real(path, value)
+            finally:
+                with lock:
+                    open_saves["now"] -= 1
+
+        with mock.patch.object(fetch, "STATE_EVERY", 64 * 1024), mock.patch.object(fetch, "_write_json", slow):
+            result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertEqual(open_saves["most"], 1)
+
     def test_an_inconsistent_segment_state_starts_again(self):
         Path("src/.partial").mkdir(parents=True)
         Path("src/.partial/data.bin").write_bytes(b"x" * 100)
