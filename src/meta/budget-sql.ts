@@ -138,7 +138,8 @@ VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, 'settled', ?2, ?10, ?11, ?12, ?13
 }
 
 // A call answered from the result cache (D03 T01 §4): its record, settled at nothing and never reserved, so a hit is
-// served when a cap is exhausted; `ms` is the cache read and the validation, timed.
+// served when a cap is exhausted; `ms` is the cache read and the validation, timed. `cost_source` stays empty: nothing was priced,
+// neither from Meta's usage nor from an estimate (final review).
 export function cachedStatement(r: Reservation, ms: number): Statement {
   return {
     sql: `INSERT OR IGNORE INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state, settled_at, call_id, owner, monitor_run, host, step, script, ms, outcome, cost_certainty, cache)
