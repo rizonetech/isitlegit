@@ -127,6 +127,19 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
   // A page that never holds still (§26, plan review gap 5).
   "/title-ticker": (res) =>
     html(res, `<p>${words}</p><script>let n = 0; setInterval(() => { document.title = 'Shop ' + n++ }, 20)</script>`),
+  // The same trick on the prototypes and globals every reader uses (§26, plan review gap 1).
+  "/masked-proto": (res) =>
+    html(
+      res,
+      `<p>${words}</p><form><input type=password></form><div style="opacity:0">unseen</div><div style="position:fixed;bottom:0;left:0;width:300px;height:60px">Are you a human?</div><script>
+        for (const proto of [Element.prototype, Node.prototype]) for (const name of ['getBoundingClientRect', 'checkVisibility', 'contains']) if (name in proto) Object.defineProperty(proto, name, { value: () => undefined });
+        Document.prototype.querySelectorAll = () => [];
+        Element.prototype.querySelectorAll = () => [];
+        Object.defineProperty(HTMLElement.prototype, 'innerText', { get: () => '' });
+        Array.prototype.some = () => false;
+        window.getComputedStyle = () => undefined;
+      </script>`,
+    ),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
@@ -413,6 +426,15 @@ describe("renderPage", () => {
     expect(shot.text).toContain("Welcome to the example service");
     expect(shot.text).not.toContain("unseen");
     expect([shot.has_login_form, shot.consentWall, shot.captcha]).toEqual([true, false, false]);
+  });
+
+  it("reads every page through methods the page cannot replace, its prototypes and globals included", async () => {
+    // Its text, its form, and the wall drawn over it are all read, whatever the page did to the built-ins.
+    const shot = await renderer.render(`${origin}/masked-proto`);
+    expect(shot.text).toContain("Welcome to the example service");
+    expect(shot.text).not.toContain("unseen");
+    expect(shot.has_login_form).toBe(true);
+    expect(shot.overlays).toContain("Are you a human?");
   });
 
   it("reads a page with no root element left as a short page, not a failed capture", async () => {
@@ -804,7 +826,7 @@ describe("the batch run", () => {
   it("refuses a capture whose shown frame could not be read, never reading it as an empty frame", async () => {
     const faulty = await openRenderer({
       allowOrigins: [origin, frameOrigin],
-      readFault: (frame) => (frame.parentFrame() ? new Error("Execution context was destroyed") : null),
+      readFault: (frame) => (frame.main ? null : new Error("Execution context was destroyed")),
     });
     try {
       const store = openStore(join(dir, "store"));

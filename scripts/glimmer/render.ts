@@ -27,7 +27,7 @@ import {
 import { createServer, request as httpRequest } from "node:http";
 import { type AddressInfo, isIP, connect as netConnect, type Socket } from "node:net";
 import { join, resolve } from "node:path";
-import { type Browser, type BrowserContext, chromium, type Frame } from "playwright-core";
+import { type Browser, type BrowserContext, chromium } from "playwright-core";
 import { getDomain } from "tldts";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { chromiumPath } from "../lib/chromium.ts";
@@ -226,6 +226,15 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     challengeCover: cover && vendor,
   };
 }
+
+// Whether a frame's owner element is seen, run on that element (`this`) in its document's isolated world: a box with
+// a size, on the captured page (not moved off it, nor past the 1280 by 2000 pixels the screenshot keeps), and not
+// hidden by itself or an ancestor.
+const OWNER_SHOWN = `function (height) {
+  const box = this.getBoundingClientRect();
+  const onPage = box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < height;
+  return box.width > 0 && box.height > 0 && onPage && this.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+}`;
 
 // Why a capture cannot be stored as a benign page of the listed site, or null when it can.
 export function unusable(capture: Capture, entry: ListEntry): string | null {
@@ -494,7 +503,7 @@ export async function openRenderer(
     // How a browser is started (tests slow it or break it); Chromium's own launch otherwise.
     launch?: (launchOptions: Parameters<typeof chromium.launch>[0]) => Promise<Browser>;
     // A fault to raise when a frame is read (tests make a shown frame unreadable); none otherwise.
-    readFault?: (frame: Frame) => Error | null;
+    readFault?: (frame: { url: string; main: boolean }) => Error | null;
   } = {},
 ) {
   const found = chromiumPath();
@@ -620,72 +629,130 @@ export async function openRenderer(
       has_payment_form: boolean;
       walls: ReturnType<typeof readWalls>;
       unreadable: number;
+      height: number;
     };
+    // Every reader runs in an isolated world (§26, plan review gap 1): the page's DOM, but none of its script, so no
+    // method or getter the page replaced, on an element, a prototype or a global, changes what is read. Chromium's
+    // `Page.createIsolatedWorld` gives one per frame through the page's own CDP session (Playwright's Chromium keeps
+    // every frame, cross-origin ones too, in that session).
     const readAll = async (): Promise<Reading> => {
       let unreadable = 0;
-      const readFrame = async <T>(frame: Frame, fn: () => T, fallback: T): Promise<T> => {
-        try {
-          const fault = options.readFault?.(frame);
+      const cdp = await context.newCDPSession(page);
+      try {
+        type FrameNode = { id: string; parent: string | null; url: string };
+        type Tree = { frame: { id: string; url: string }; childFrames?: Tree[] };
+        const frames = async (): Promise<FrameNode[]> => {
+          const { frameTree } = (await cdp.send("Page.getFrameTree")) as { frameTree: Tree };
+          const out: FrameNode[] = [];
+          const walk = (node: Tree, parent: string | null) => {
+            out.push({ id: node.frame.id, parent, url: node.frame.url });
+            for (const child of node.childFrames ?? []) walk(child, node.frame.id);
+          };
+          walk(frameTree, null);
+          return out;
+        };
+        const nodes = await frames();
+        const byId = new Map(nodes.map((node) => [node.id, node]));
+        // Whether a frame whose reading failed is still on the page: a frame that went away is gone, not unread.
+        const stillThere = async (id: string) => (await frames().catch(() => [])).some((node) => node.id === id);
+        const worlds = new Map<string, number>();
+        const world = async (id: string) => {
+          let made = worlds.get(id);
+          if (made === undefined) {
+            ({ executionContextId: made } = await cdp.send("Page.createIsolatedWorld", {
+              frameId: id,
+              worldName: "glimmer-reader",
+            }));
+            worlds.set(id, made);
+          }
+          return made;
+        };
+        const evaluate = async <T>(node: FrameNode, fn: () => T): Promise<T> => {
+          const fault = options.readFault?.({ url: node.url, main: node.parent === null });
           if (fault) throw fault;
-          return await frame.evaluate(fn);
-        } catch {
-          if (!frame.isDetached()) unreadable++;
-          return fallback;
+          const { result, exceptionDetails } = await cdp.send("Runtime.evaluate", {
+            expression: `(${fn.toString()})()`,
+            contextId: await world(node.id),
+            returnByValue: true,
+          });
+          if (exceptionDetails) throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text);
+          return result.value as T;
+        };
+        const readFrame = async <T>(node: FrameNode, fn: () => T, fallback: T): Promise<T> => {
+          try {
+            return await evaluate(node, fn);
+          } catch {
+            if (await stillThere(node.id)) unreadable++;
+            return fallback;
+          }
+        };
+        // Whether every frame element above this frame is shown, read on each owner element in its parent's isolated
+        // world; null when one could not be read.
+        const frameShown = async (node: FrameNode): Promise<boolean | null> => {
+          for (let at: FrameNode | undefined = node; at?.parent; at = byId.get(at.parent)) {
+            try {
+              const { backendNodeId } = await cdp.send("DOM.getFrameOwner", { frameId: at.id });
+              const { object } = await cdp.send("DOM.resolveNode", {
+                backendNodeId,
+                executionContextId: await world(at.parent),
+              });
+              const { result, exceptionDetails } = await cdp.send("Runtime.callFunctionOn", {
+                objectId: object.objectId as string,
+                functionDeclaration: OWNER_SHOWN,
+                arguments: [{ value: MAX_HEIGHT }],
+                returnByValue: true,
+              });
+              if (exceptionDetails) throw new Error(exceptionDetails.text);
+              if (!result.value) return false;
+            } catch {
+              return (await stillThere(at.id)) ? null : false;
+            }
+          }
+          return true;
+        };
+        const main = nodes[0] as FrameNode;
+        // The main frame's own reading failing is the render's failure, as it always was.
+        let text = await evaluate(main, shownText);
+        let has_login_form = false;
+        let has_payment_form = false;
+        const walls = await evaluate(main, readWalls);
+        for (const node of nodes) {
+          if (node !== main) {
+            const shown = await frameShown(node);
+            if (shown === null) unreadable++;
+            if (!shown) continue;
+          }
+          const flags = await readFrame(node, readFormFlags, { has_login_form: false, has_payment_form: false });
+          has_login_form ||= flags.has_login_form;
+          has_payment_form ||= flags.has_payment_form;
+          if (node === main) continue;
+          text += `\n${await readFrame(node, shownText, "")}`;
+          // The walls of every frame a viewer sees: a CAPTCHA or a wall can sit in a nested frame.
+          const inner = await readFrame(node, readWalls, {
+            captcha: false,
+            consentWall: false,
+            overlays: "",
+            challengeCover: false,
+          });
+          walls.captcha ||= inner.captcha;
+          walls.challengeCover ||= inner.challengeCover;
+          if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 8000);
         }
-      };
-      // Whether every frame element above this frame is shown; null when one could not be read.
-      const frameShown = async (frame: Frame): Promise<boolean | null> => {
-        for (let at: Frame | null = frame; at && at !== page.mainFrame(); at = at.parentFrame()) {
-          const element = await at.frameElement().catch(() => null);
-          if (!element) return at.isDetached() ? false : null;
-          const shown = await element
-            .evaluate((node, height) => {
-              const el = node as Element;
-              // The browser's own methods, never ones the page left on the frame element (see `readFormFlags`).
-              const box = Element.prototype.getBoundingClientRect.call(el);
-              // On the captured page, too: a frame moved off it (a negative offset, or past the 1280 by 2000 pixels
-              // the screenshot keeps) is not seen.
-              const onPage = box.right > 0 && box.bottom > 0 && box.left < innerWidth && box.top < height;
-              return (
-                box.width > 0 &&
-                box.height > 0 &&
-                onPage &&
-                Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true })
-              );
-            }, MAX_HEIGHT)
-            .catch(() => (at?.isDetached() ? false : null));
-          if (shown === null) return null;
-          if (!shown) return false;
-        }
-        return true;
-      };
-      let text = await page.evaluate(shownText);
-      let has_login_form = false;
-      let has_payment_form = false;
-      const walls = await page.evaluate(readWalls);
-      for (const frame of page.frames()) {
-        if (frame !== page.mainFrame()) {
-          const shown = await frameShown(frame);
-          if (shown === null) unreadable++;
-          if (!shown) continue;
-        }
-        const flags = await readFrame(frame, readFormFlags, { has_login_form: false, has_payment_form: false });
-        has_login_form ||= flags.has_login_form;
-        has_payment_form ||= flags.has_payment_form;
-        if (frame === page.mainFrame()) continue;
-        text += `\n${await readFrame(frame, shownText, "")}`;
-        // The walls of every frame a viewer sees: a CAPTCHA or a wall can sit in a nested frame.
-        const inner = await readFrame(frame, readWalls, {
-          captcha: false,
-          consentWall: false,
-          overlays: "",
-          challengeCover: false,
-        });
-        walls.captcha ||= inner.captcha;
-        walls.challengeCover ||= inner.challengeCover;
-        if (inner.overlays) walls.overlays = `${walls.overlays}\n${inner.overlays}`.slice(0, 8000);
+        // A page may remove its own root element; then nothing is drawn below the top.
+        const height = await evaluate(main, () => document.documentElement?.scrollHeight ?? 0);
+        return {
+          url: page.url(),
+          title: await evaluate(main, () => document.title),
+          text,
+          has_login_form,
+          has_payment_form,
+          walls,
+          unreadable,
+          height,
+        };
+      } finally {
+        await cdp.detach().catch(() => undefined);
       }
-      return { url: page.url(), title: await page.title(), text, has_login_form, has_payment_form, walls, unreadable };
     };
     // Two readings agree when nothing a label rests on moved between them: the address, the title, the form flags, the
     // walls and whether the text shows one. Ordinary moving content (a ticker, a carousel) is not compared.
@@ -698,9 +765,7 @@ export async function openRenderer(
       a.walls.consentWall === b.walls.consentWall &&
       a.walls.challengeCover === b.walls.challengeCover &&
       wallShown({ ...a, overlays: a.walls.overlays }) === wallShown({ ...b, overlays: b.walls.overlays });
-    const screenshot = async () => {
-      // A page may remove its own root element; then nothing is drawn below the top.
-      const height = await page.evaluate(() => document.documentElement?.scrollHeight ?? 0);
+    const screenshot = async (height: number) => {
       // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
       return page.screenshot({
         type: "png",
@@ -713,11 +778,11 @@ export async function openRenderer(
     // The capture as one moment: read, take the picture, read again. A page that moved between the readings (a
     // navigation, a wall appearing) or left a frame unread is tried once more, then refused as such.
     let reading = await readAll();
-    let shot = await screenshot();
+    let shot = await screenshot(reading.height);
     let check = await readAll();
     if (!settled(reading, check) || reading.unreadable || check.unreadable) {
       reading = check;
-      shot = await screenshot();
+      shot = await screenshot(reading.height);
       check = await readAll();
       if (reading.unreadable || check.unreadable) throw new Unsettled("a frame on the page could not be read");
       if (!settled(reading, check)) throw new Unsettled("the page kept changing while it was captured");
