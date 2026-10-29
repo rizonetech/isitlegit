@@ -101,10 +101,27 @@ class Bench(http.server.ThreadingHTTPServer):
         self.sent = 0  # bytes written to clients
         self.reserved = 0  # bytes promised to a write under way, so all connections together stop at the kill byte
         self.lock = threading.Lock()
+        # Connections open now, and a condition signalled as each one ends: the second run starts once the first's
+        # connections have all ended on this side, never after a guessed pause (D00 T01 §14).
+        self.open = 0
+        self.closed = threading.Condition(self.lock)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+
+    def setup(self):
+        with self.server.lock:
+            self.server.open += 1
+        super().setup()
+
+    def finish(self):
+        try:
+            super().finish()
+        finally:
+            with self.server.lock:
+                self.server.open -= 1
+                self.server.closed.notify_all()
 
     def log_message(self, *args):
         pass
@@ -316,6 +333,24 @@ def file_sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
+def tool_saved(cwd: Path, since: float, at_kill: int) -> bool:
+    """Whether a tool held at the kill byte has saved its progress, so killing it now tests its resume rather than the
+    race with its next save (D00 T01 §14): aria2c rewrites its control file every second it runs, so one written since
+    the hold holds all it had; fetch.py saves its ranges after each MiB, so its state must cover all but
+    `RESUME_SLACK` of what it was sent."""
+    source = cwd / "src"
+    control = list(source.glob("*.aria2"))
+    if control:
+        return any(path.stat().st_mtime >= since for path in control)
+    for state in (source / ".partial").glob("*.state.json"):
+        try:
+            segments = json.loads(state.read_text())["segments"]
+            return sum(int(segment[2]) for segment in segments) >= at_kill - RESUME_SLACK
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            return False  # caught mid-replace or unreadable: not yet known to be saved
+    return False
+
+
 def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: int, deadline: float) -> dict:
     """The first process killed (SIGKILL, its whole group) with the server holding every connection at exactly
     `kill_at` bytes sent, so both tools die at the same byte; then a second process started on the same folder. Time and
@@ -326,14 +361,24 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     began = time.monotonic()
     first = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
+    saved = False
     try:
         signalled = server.reached.wait(deadline) and first.poll() is None
         at_kill = server.sent
+        # Held at the byte, the tool is killed only once it has saved what it had: polled, within the run's deadline.
+        held = time.time()
+        while signalled and first.poll() is None and time.monotonic() - began < deadline:
+            if tool_saved(cwd, held, at_kill):
+                saved = True
+                break
+            time.sleep(0.05)
     finally:
         end_group(first)  # whatever ended the wait (the signal, the deadline, Ctrl-C), the first process is gone
         server.release.set()
     killed = signalled and at_kill == kill_at
-    time.sleep(0.5)  # the dead process's connections end on the server side
+    # The dead process's connections end on this side before the second run starts.
+    with server.lock:
+        server.closed.wait_for(lambda: server.open == 0, timeout=max(1.0, deadline - (time.monotonic() - began)))
     before = server.sent
     with server.lock:
         server.kill_at = None
@@ -342,7 +387,8 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     after = server.sent - before
     again = max(0, before + after - len(server.body))
     requests = [(start, sent) for phase, start, sent in server.log if phase == 2]
-    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "at_signal": at_kill, "at_kill": at_kill,
+    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "saved": saved, "at_signal": at_kill,
+            "at_kill": at_kill,
             "second_bytes": after, "fetched_twice": again, "second_requests": sorted(requests)[:16],
             "resumed": killed and code == 0 and again <= RESUME_SLACK}
 
