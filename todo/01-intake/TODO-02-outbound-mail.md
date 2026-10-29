@@ -42,7 +42,7 @@ track: day-1
 | 5 | §5 | Reconcile uncertain sends | §1 | [x] |
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [x] |
-| 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [ ] |
+| 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -303,6 +303,9 @@ When the operator settles an uncertain send `failed` (§5, `scripts/mail-settle.
 - [x] Commit: `mail: re-deliver a reply the operator settled failed` (landed as `800b474`, with the reviews' fixes in `1222bda`, `6a646cc`, `215a157`, `e039bfa`, `e7fa1e9`, `e9d9e12` and the round-5 cleanup after it)
 
 **Test checkpoint:** `pnpm exec vitest run test/node/mail-settle.test.ts test/mail/resend.test.ts test/mail/reconcile.test.ts` passes, and fails if `--resend` sends a non-reply kind, sends twice, sends without settling, or sends after a confirmed cancel.
+
+> **Verified:** 2026-10-29 | §8 | 04ef8f271bd5d91b741dfbd587ee0f06c6cd89b2
+> **Review:** `docs/reviews/d01-t02-s8.json`
 
 ## Verification
 

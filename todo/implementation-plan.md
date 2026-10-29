@@ -72,7 +72,7 @@ Sections: 42 | Checklist items: 366
 | [x]    | D01 T01 §6  | Outlook .msg parsing                      | none                  | 6     |
 | [x]    | D01 T01 §7  | AnalysisWorkflow skeleton, partials       | none                  | 12    |
 | [x]    | D01 T02 §3  | Threaded reply with a signed report link  | none                  | 12    |
-| [ ]    | D01 T02 §8  | Re-deliver a reply settled failed         | none                  | 11    |
+| [x]    | D01 T02 §8  | Re-deliver a reply settled failed         | none                  | 11    |
 | [x]    | D01 T03 §1  | Upload API for mail, documents and audio  | none                  | 9     |
 | [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
@@ -312,6 +312,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 61/243 verified sections, 27 ready to run now.
+Progress: 62/243 verified sections, 26 ready to run now.
 
 Checklist: 629/1468 items completed (includes Commit items).
