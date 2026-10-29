@@ -58,6 +58,7 @@ Mail from a non-member is accepted only when it carries a forwarded original tha
 - [ ] Extend `handleEmail` so a non-member message proceeds only if its original's display name or From domain matches `findIdentityByClaim`, creating a case with `channel = "counterparty"` and `org_id` of the protected business. Done when: `test/trust/counterparty-intake.test.ts` covers claim, no claim and member mail.
 - [ ] Limit counterparty cases to 5 per sender address per day and 50 per protected identity per day with KV counters, dropping silently past the limit. Done when: the limit tests pass.
 - [ ] Mark counterparty cases so their reply goes to the forwarding counterparty (the recipient allowlist admits the address of a counterparty case's sender for that one reply). Done when: the allowlist test admits it once and refuses a second unrelated send.
+- [ ] Let staff inbox checks lapse with the plan: a forward from a member of an organisation without `staff-inbox` (an expired trial, free) is answered as a free per-sender check, not filed to the organisation (`hasFeature`, D07 T02 §8). Done when: an expired organisation's staff forward gets a free check within the per-sender limit and no organisation case, and an entitled one's is filed. Source: D07 T02 §8 plan review.
 - [ ] Commit: `trust: counterparty intake path with rate limits`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/counterparty-intake.test.ts` passes and fails if non-member mail without a claim is processed.
@@ -117,6 +118,7 @@ When a counterparty case finds impersonation, the protected business is told wit
 - [ ] Build the alert in `src/trust/alert.ts`: subject "Someone is impersonating <business>", the claim routes, the top evidence summaries, and a signed link to the case for the protected business. Done when: `test/trust/alert.test.ts` snapshots it.
 - [ ] Send with `sendMail({ kind: "alert" })` to the identity's registered alert address, once per counterparty case. Done when: a retried step sends once.
 - [ ] Never include the counterparty's address in the alert, only their organisation domain if they are a member. Done when: the test asserts it.
+- [ ] Send an impersonation alert only while the protected organisation has `impersonation-alerts` (`hasFeature`, D07 T02 §8). Done when: an expired organisation's impersonation sends no alert, an entitled one's does, and removing the check fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `trust: impersonation alerts`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/alert.test.ts` passes and fails if the alert is sent twice for one case.
@@ -160,6 +162,7 @@ The public page a signature badge links to (design spec 2a, Verifiable signature
 - [ ] Build `GET /v/:slug` in `src/web/pages/verify.tsx` on the marketing host with the seal, the business name, its verified sending domains, the verified date, and the forward-as-attachment steps for Outlook and Gmail. Done when: `test/web/verify-page.test.ts` finds each element. Cheaper substitute: a static "this business is verified" image page.
 - [ ] Show "This business is not protected by IsItLegit" with status 404 for an unknown, unprotected or lapsed identity, and never echo the requested slug as a business name. Done when: the test covers unknown and lapsed.
 - [ ] Prove no private field reaches the page (bank details, addresses, finance contact) with a test that renders a fully populated identity. Done when: the leak test passes and fails on a planted field.
+- [ ] Show a business as verified only while its plan includes `identity` (`hasFeature` on the protected organisation, D07 T02 §8), not from a stored switch. Done when: a lapsed organisation's verify page answers "Not verified" while its identity is still stored, and an entitled one's answers verified. Source: D07 T02 §8 plan review.
 - [ ] Commit: `trust: verify-this-email page for protected businesses`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/verify-page.test.ts` passes and fails if the finance contact appears on the page.
@@ -185,6 +188,7 @@ The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a 
 - [ ] Serve `GET /b/:slug.png` and `.svg` choosing the Protected or Not verified badge from the identity's current state, with `Cache-Control: public, max-age=3600`. Done when: `test/web/badge.test.ts` sees each variant and the header. Cheaper substitute: a static image the business hosts itself, which cannot lapse.
 - [ ] Record each badge request's referring context only as a count per slug per day (no IPs, no message data). Done when: the test sees the counter rise and no address stored.
 - [ ] Add the signature snippet to the identity page (D05 T01 §3): preview, copy button, and steps for Outlook (desktop and web) and Gmail. Done when: the page test copies HTML whose image source and link point to the slug.
+- [ ] Serve the live badge as "Not verified" once the protected organisation's plan lapses (`hasFeature`, D07 T02 §8). Done when: the badge of a lapsed organisation reads "Not verified" and an entitled one's reads verified. Source: D07 T02 §8 plan review.
 - [ ] Commit: `trust: live signature badge and snippet`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/badge.test.ts` passes and fails if a lapsed identity still gets the Protected badge.

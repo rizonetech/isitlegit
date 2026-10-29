@@ -100,6 +100,7 @@ Owners and admins manage the identity: display names, verified domains and addre
 - [ ] Confirm removal of a bank account with a second step and log it. Done when: the test removes an account through the confirmation.
 - [ ] Show the privacy statement "We never show your account number to anyone checking a payment. They only see whether it matches." beside the bank fields. Done when: the test finds the text.
 - [ ] Refuse edits for the member role on the server and hide the controls. Done when: both assertions pass.
+- [ ] Gate the identity page with `requireFeature("identity")` (D07 T02 §8). Done when: a free and an expired organisation get the plan refusal and no change is made, a trial or Protect organisation edits its identity, and removing the gate fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `web: protected identity console page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/identity-page.test.ts` passes and fails if a member can post an edit.
