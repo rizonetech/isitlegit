@@ -77,6 +77,22 @@ class Rows(unittest.TestCase):
         self.assertEqual(got["ariyadasa-100"]["label"], "phish")
         self.assertIn("Привет", got["ariyadasa-200"]["html"])
 
+    def test_ariyadasa_reads_only_the_parts_its_verified_manifest_lists(self):
+        folder = self.folder("ariyadasa-2021")
+        (folder / "index.sql").write_text(
+            "INSERT INTO `index` (`rec_id`, `url`, `website`, `result`, `created_date`) VALUES\n"
+            "(1, 'https://a.example/', '100.html', 1, '2021-01-01'),\n"
+            "(2, 'https://b.example/', '200.html', 0, '2021-01-01');\n")
+        with zipfile.ZipFile(folder / "dataset_part_1.zip", "w") as archive:
+            archive.writestr("dataset-part-1/100.html", "<p>Verify</p>")
+        self.bind("ariyadasa-2021")
+        manifest = json.loads((folder / "INPUTS.json").read_text())
+        # A part copied in after verification (a download still finishing) is not in the manifest, so not read.
+        with zipfile.ZipFile(folder / "dataset_part_2.zip", "w") as archive:
+            archive.writestr("dataset-part-2/200.html", "<p>Late</p>")
+        items = list(rows.ariyadasa(folder, rows.Receipt(), rows.Limits(), manifest))
+        self.assertEqual([item[0] for item in items], ["ariyadasa-100"])
+
     def test_a_large_source_is_sampled_with_its_seed(self):
         folder = self.folder("kempf-html")
         with zipfile.ZipFile(folder / "kempf-html.zip", "w") as archive:

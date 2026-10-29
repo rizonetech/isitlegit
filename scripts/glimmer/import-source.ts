@@ -184,6 +184,13 @@ export async function importSource(options: {
         // the stored record takes the new mapping (the DOM's form flags stay as they were read).
         const labels = { ...stored.labels, ...item.labels };
         const label_source = { ...stored.label_source, ...item.label_source };
+        // A field the mapping set and now no longer gives (a brand withdrawn, a category that settles no type) is
+        // withdrawn with it; what the DOM, the rules or the teacher set stays (§18 final review).
+        for (const field of ["brand", "lure_type"] as const)
+          if (item.labels[field] === undefined && stored.label_source[field] === "ground-truth") {
+            delete labels[field];
+            delete label_source[field];
+          }
         // A false flag read off an inert copy beside the dataset's live capture is untrusted, found as on a first import.
         if (item.inertFlags)
           for (const field of ["has_login_form", "has_payment_form"] as const)

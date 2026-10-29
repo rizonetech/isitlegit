@@ -68,6 +68,21 @@ class SevenDays(unittest.TestCase):
         self.assertEqual((receipt["met"], receipt["exported"], receipt["sampled_out"]), (3, 2, 0))
         self.assertEqual(receipt["rejected"], {"no capture answered 200 with a screenshot and HTML": 1})
 
+    def test_a_capture_whose_parts_repeat_is_written_once(self):
+        archive_path = self.folder / rows.ARCHIVE
+        with tarfile.open(archive_path, "w:gz") as archive:
+            base = "123-graph_transparancymeta_my_id/2024-05-14-21:17"
+            add(archive, f"{base}/status_code.txt", b"200")
+            for html in (b"<p>first</p>", b"<p>second</p>"):
+                add(archive, f"{base}/screenshot.jpg", b"shot")
+                add(archive, f"{base}/page.html", html)
+        rows.inputs_module.build(self.folder, [{"name": rows.ARCHIVE, "published": None, "pinned": "zenodo: 14885725"}], "CC BY 4.0")
+        with mock.patch("sys.stdout"):
+            self.assertEqual(rows.main([]), 0)
+        written = (self.folder / "rows.jsonl").read_text().splitlines()
+        self.assertEqual([json.loads(line)["sha256"] for line in written], ["7dl-123"])
+        self.assertEqual(json.loads((self.folder / "EXPORT.json").read_text())["exported"], 1)
+
     def test_a_url_sampled_out_is_counted_as_such(self):
         with mock.patch("sys.stdout"):
             self.assertEqual(rows.main(["--max", "1"]), 0)

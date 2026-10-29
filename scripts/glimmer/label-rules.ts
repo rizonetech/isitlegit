@@ -307,7 +307,10 @@ const PARKED =
 // Little text alone is no sign: a lure can be a logo and two fields, its screenshot carrying it.
 // The render's title and overlays, when it kept them, go to the wall rule with the text, as the renderer reads them.
 export function captureProblem(text: string, evidence?: { title: string; overlays: string }): string | null {
-  if (PARKED.test(text.slice(0, 3000))) return "a parked, suspended or taken-down page";
+  // The whole text for the site's own notices, which name the site and nothing a lure says: one padded below ordinary
+  // copy is still the page's (§18 final review). The error rule reads the page's head only, as the renderer does: its
+  // phrases ("cannot be found", "no longer available") are also what a delivery or offer lure says further down.
+  if (PARKED.test(text)) return "a parked, suspended or taken-down page";
   if (NOT_FOUND.test(text.slice(0, 3000))) return "an error page";
   if (wallShown({ title: evidence?.title ?? "", text, overlays: evidence?.overlays ?? "" })) return "a bot challenge";
   return null;

@@ -19,7 +19,7 @@
 //   node scripts/glimmer/sources.ts bind <source>   # record, in IMPORT.json, the rows and inputs an import came from
 //   node scripts/glimmer/sources.ts freeze          # Loupe 1.0's collection freeze: raw/FROZEN.json, once reconciled
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
 import { assessCapture, majesticList, renderReceipt, saList } from "./render.ts";
@@ -309,6 +309,117 @@ export function storeProblems(
   return { problems, imports, pages, sourcesMd };
 }
 
+export type Frozen = {
+  at: string;
+  sources: Record<string, { inputs: string | null; rows: string | null; stored: number; import_sha256: string }>;
+  renders: Record<string, { list_sha256: string; urls: number; stored: number; excluded: number }>;
+  // Benign pages in the store that neither list's receipt names as its stored capture (a URL dropped from a list, an
+  // earlier capture superseded): left out of the version, never judged by it.
+  left_out: number;
+  pages: string[];
+};
+
+// Loupe's collection freeze (§18): refused unless the sources reconcile (rows hashed against their receipts) and both
+// benign lists' renders are finished as they stand now, each receipt computed afresh from the current list, the
+// journal and the store. The frozen pages are every public and sample page plus exactly the benign pages a receipt names
+// as stored, each judged as `render.ts recheck` judges it, so nothing frozen went unjudged (§18 final review).
+export function freezeCollection(dir: string, root = ROOT, at = new Date()): { problems: string[]; frozen?: Frozen } {
+  const { problems, imports, pages, sourcesMd } = storeProblems(dir, root, { hashRows: true });
+  const renders: Frozen["renders"] = {};
+  const journal = join(dir, "raw", "benign", "progress.jsonl");
+  const store = openStore(dir);
+  const named = new Set<string>();
+  for (const [name, file] of [
+    ["majestic", join(dir, "raw", "majestic", "top.csv")],
+    ["benign-sa", join(root, "eval", "glimmer", "benign-sa-urls.txt")],
+  ] as const) {
+    if (!existsSync(file) || !existsSync(journal)) {
+      problems.push(`${name}: no list or no render journal to freeze its render from`);
+      continue;
+    }
+    const text = readFileSync(file, "utf-8");
+    const receipt = renderReceipt(name === "majestic" ? majesticList(text) : saList(text), journal, store);
+    if (receipt.unfinished.length || receipt.missing_pages.length)
+      problems.push(
+        `${name}: its render is not finished (${receipt.unfinished.length} unfinished, ${receipt.missing_pages.length} missing)`,
+      );
+    const judged = { unassessed: 0, wall: 0 };
+    for (const outcome of Object.values(receipt.outcomes)) {
+      if (!("stored" in outcome)) continue;
+      named.add(outcome.stored);
+      const read = store.readVerifiedPage(outcome.stored);
+      const verdict = read ? assessCapture(read.page, read.text) : "unassessed";
+      if (verdict !== "clear") judged[verdict]++;
+    }
+    if (judged.unassessed || judged.wall)
+      problems.push(
+        `${name}: ${judged.unassessed} stored pages unassessed and ${judged.wall} showing a wall: run render.ts recheck --rerender-legacy and render again`,
+      );
+    renders[name] = {
+      list_sha256: receipt.list_sha256,
+      urls: receipt.urls,
+      stored: receipt.stored,
+      excluded: Object.values(receipt.excluded).reduce((sum, n) => sum + n, 0),
+    };
+  }
+  if (problems.length) return { problems };
+  const accepted = new Set(
+    parseSources(sourcesMd)
+      .rows.filter((r) => r.decision === "accepted")
+      .map((r) => r.source),
+  );
+  const benign = (page: StoredPage) => page.origin === "benign";
+  return {
+    problems,
+    frozen: {
+      at: at.toISOString(),
+      sources: Object.fromEntries(
+        Object.entries(imports)
+          .filter(([source]) => accepted.has(source))
+          .map(([source, record]) => [
+            source,
+            {
+              inputs: record.inputs ?? null,
+              rows: record.rows ?? null,
+              stored: record.stored ?? 0,
+              // The import record as it stood, which the build checks is still the one there.
+              import_sha256: createHash("sha256")
+                .update(readFileSync(join(dir, "raw", source, "IMPORT.json")))
+                .digest("hex"),
+            },
+          ]),
+      ),
+      renders,
+      left_out: pages.filter((page) => benign(page) && !named.has(page.id)).length,
+      pages: pages
+        .filter((page) => !benign(page) || named.has(page.id))
+        .map((page) => page.id)
+        .sort(),
+    },
+  };
+}
+
+// Writes the freeze once: the file is claimed by an exclusive link, so two freezes started together can never both
+// land (the second finds it there), and it is read back whole.
+export function writeFreeze(dir: string, frozen: Frozen): void {
+  const file = join(dir, "raw", "FROZEN.json");
+  const written = `${JSON.stringify(frozen)}\n`;
+  const temporary = `${file}.${process.pid}.tmp`;
+  writeFileSync(temporary, written);
+  try {
+    linkSync(temporary, file); // fails when a freeze is already there
+  } catch (error) {
+    throw new Error(
+      (error as NodeJS.ErrnoException).code === "EEXIST"
+        ? "raw/FROZEN.json already exists: a freeze is never replaced"
+        : (error as Error).message,
+    );
+  } finally {
+    rmSync(temporary, { force: true });
+  }
+  if (readFileSync(file, "utf-8") !== written) throw new Error("the freeze did not read back as written");
+}
+
 if (import.meta.filename === process.argv[1]) {
   const [command, name] = process.argv.slice(2);
   const dir = storeDir();
@@ -388,96 +499,27 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(0);
   }
   if (command === "freeze") {
-    // The collection as it stands (§18): every source's binding and every page in the store, written whole. The
-    // builder reads only pages it names, so nothing stored later can enter this version. Refused unless the sources
-    // reconcile, so a freeze never holds an unbound or incomplete import.
-    // Once only (completion review G13): a freeze is the version's input, never replaced by a later run.
-    const file = join(dir, "raw", "FROZEN.json");
-    if (existsSync(file)) {
+    // The collection as it stands, once (§18): see freezeCollection() and writeFreeze().
+    if (existsSync(join(dir, "raw", "FROZEN.json"))) {
       console.error(
         "sources: raw/FROZEN.json already exists: a freeze is never replaced (move it aside by hand to redo)",
       );
       process.exit(1);
     }
-    const { problems, imports, pages, sourcesMd } = storeProblems(dir, ROOT, { hashRows: true });
-    // The benign lists' renders finished whole, as they stand now (§18 round 1): each receipt computed afresh from the
-    // current list, the journal and the store, never trusted from a file an earlier run wrote. Every URL has its
-    // outcome and every stored page verifies.
-    const renders: Record<string, { list_sha256: string; urls: number; stored: number; excluded: number }> = {};
-    const journal = join(dir, "raw", "benign", "progress.jsonl");
-    const store = openStore(dir);
-    for (const [name, file] of [
-      ["majestic", join(dir, "raw", "majestic", "top.csv")],
-      ["benign-sa", join(ROOT, "eval", "glimmer", "benign-sa-urls.txt")],
-    ] as const) {
-      if (!existsSync(file) || !existsSync(journal)) {
-        problems.push(`${name}: no list or no render journal to freeze its render from`);
-        continue;
-      }
-      const text = readFileSync(file, "utf-8");
-      const receipt = renderReceipt(name === "majestic" ? majesticList(text) : saList(text), journal, store);
-      if (receipt.unfinished.length || receipt.missing_pages.length)
-        problems.push(
-          `${name}: its render is not finished (${receipt.unfinished.length} unfinished, ${receipt.missing_pages.length} missing)`,
-        );
-      // Each stored page judged as `render.ts recheck` judges it (§18 round 2): a legacy capture not yet rendered again,
-      // or one whose kept evidence shows a wall, is not frozen.
-      const judged = { unassessed: 0, wall: 0 };
-      for (const outcome of Object.values(receipt.outcomes)) {
-        if (!("stored" in outcome)) continue;
-        const read = store.readVerifiedPage(outcome.stored);
-        const verdict = read ? assessCapture(read.page, read.text) : "unassessed";
-        if (verdict !== "clear") judged[verdict]++;
-      }
-      if (judged.unassessed || judged.wall)
-        problems.push(
-          `${name}: ${judged.unassessed} stored pages unassessed and ${judged.wall} showing a wall: run render.ts recheck --rerender-legacy and render again`,
-        );
-      renders[name] = {
-        list_sha256: receipt.list_sha256,
-        urls: receipt.urls,
-        stored: receipt.stored,
-        excluded: Object.values(receipt.excluded).reduce((sum, n) => sum + n, 0),
-      };
-    }
-    if (problems.length) {
+    const { problems, frozen } = freezeCollection(dir);
+    if (!frozen) {
       for (const problem of problems) console.log(`sources: ${problem}`);
       console.error(`sources: not frozen: ${problems.length} problems`);
       process.exit(1);
     }
-    const frozen = {
-      at: new Date().toISOString(),
-      sources: Object.fromEntries(
-        Object.entries(imports)
-          .filter(([source]) =>
-            parseSources(sourcesMd).rows.some((r) => r.source === source && r.decision === "accepted"),
-          )
-          .map(([source, record]) => [
-            source,
-            {
-              inputs: record.inputs ?? null,
-              rows: record.rows ?? null,
-              stored: record.stored ?? 0,
-              // The import record as it stood, which the build checks is still the one there.
-              import_sha256: createHash("sha256")
-                .update(readFileSync(join(dir, "raw", source, "IMPORT.json")))
-                .digest("hex"),
-            },
-          ]),
-      ),
-      renders,
-      pages: pages.map((page) => page.id).sort(),
-    };
-    const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(frozen)}\n`);
-    renameSync(temporary, file);
-    // Read back whole: another writer's freeze of the same size between the rename and this read is caught too.
-    if (readFileSync(file, "utf-8") !== `${JSON.stringify(frozen)}\n`) {
-      console.error("sources: the freeze did not read back as written");
+    try {
+      writeFreeze(dir, frozen);
+    } catch (error) {
+      console.error(`sources: ${(error as Error).message}`);
       process.exit(1);
     }
     console.log(
-      `sources: frozen at ${frozen.at}: ${frozen.pages.length} pages, ${Object.keys(frozen.sources).length} sources`,
+      `sources: frozen at ${frozen.at}: ${frozen.pages.length} pages, ${Object.keys(frozen.sources).length} sources, ${frozen.left_out} benign pages outside both lists left out`,
     );
     process.exit(0);
   }

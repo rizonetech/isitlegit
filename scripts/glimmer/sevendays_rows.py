@@ -94,6 +94,10 @@ def export(path, chosen, out, limits=None):
                 folder, folder_host, stamp, name = match.groups()
                 if chosen.get(folder) != stamp or name not in ("screenshot.jpg", "page.html"):
                     continue
+                # One row a URL folder: a capture whose parts appear again in the archive is not written twice (§18 final
+                # review), so the rows and the receipt count it once alike.
+                if folder in written:
+                    continue
                 parts = pending.setdefault(folder, {})
                 limits.count_pending(len(pending))
                 parts[name] = archive.extractfile(member).read()

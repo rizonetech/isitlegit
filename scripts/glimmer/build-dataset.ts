@@ -288,6 +288,32 @@ export type Built = {
   sha256: { train: string; evaluation: string };
 };
 
+// The pages a version is built from: those `sources.ts freeze` named, once each frozen source's import record is still
+// the one it recorded (an import run since would put other pages or labels behind the same ids) and both benign lists
+// were rendered. Throws with the reason otherwise.
+export function readFreeze(dir: string): Set<string> {
+  const file = join(dir, "raw", "FROZEN.json");
+  if (!existsSync(file))
+    throw new Error("no raw/FROZEN.json: freeze the collection first (node scripts/glimmer/sources.ts freeze)");
+  const record = JSON.parse(readFileSync(file, "utf-8")) as {
+    pages?: string[];
+    sources?: Record<string, { import_sha256?: string }>;
+    renders?: Record<string, unknown>;
+  };
+  if (!Array.isArray(record.pages) || !record.sources || !record.renders?.majestic || !record.renders["benign-sa"])
+    throw new Error("raw/FROZEN.json is not a whole freeze (its pages, sources or both renders are missing)");
+  const drifted = Object.entries(record.sources).filter(([source, frozenSource]) => {
+    const importFile = join(dir, "raw", source, "IMPORT.json");
+    return (
+      !existsSync(importFile) ||
+      createHash("sha256").update(readFileSync(importFile)).digest("hex") !== frozenSource.import_sha256
+    );
+  });
+  if (drifted.length)
+    throw new Error(`imported again since the freeze: ${drifted.map(([source]) => source).join(", ")}`);
+  return new Set(record.pages);
+}
+
 export async function buildDataset(options: {
   store: ReturnType<typeof openStore>;
   version: string;
@@ -474,30 +500,13 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(2);
   }
   const store = openStore(storeDir());
-  const frozenFile = join(store.dir, "raw", "FROZEN.json");
-  if (!existsSync(frozenFile)) {
-    console.error(
-      "build-dataset: no raw/FROZEN.json: freeze the collection first (node scripts/glimmer/sources.ts freeze)",
-    );
+  let frozen: Set<string>;
+  try {
+    frozen = readFreeze(store.dir);
+  } catch (error) {
+    console.error(`build-dataset: ${(error as Error).message}`);
     process.exit(2);
   }
-  const record = JSON.parse(readFileSync(frozenFile, "utf-8")) as {
-    pages: string[];
-    sources: Record<string, { import_sha256?: string }>;
-  };
-  // Each frozen source's import still the one the freeze recorded (completion review G13): an import run since would
-  // put other pages, or other labels, behind the same ids.
-  const drifted = Object.entries(record.sources).filter(([source, frozenSource]) => {
-    const file = join(store.dir, "raw", source, "IMPORT.json");
-    return (
-      !existsSync(file) || createHash("sha256").update(readFileSync(file)).digest("hex") !== frozenSource.import_sha256
-    );
-  });
-  if (drifted.length) {
-    console.error(`build-dataset: imported again since the freeze: ${drifted.map(([source]) => source).join(", ")}`);
-    process.exit(2);
-  }
-  const frozen = new Set(record.pages);
   const built = await buildDataset({
     store,
     version,

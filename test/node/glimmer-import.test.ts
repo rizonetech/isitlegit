@@ -130,6 +130,32 @@ describe("ScamFerret", () => {
       .manifest()
       .find((p) => p.host === "cheap-shoes.example");
     expect(after?.label_source.has_login_form).toBe("unverified");
+    // A mapping that no longer gives a field it once set withdraws it on resume; what the DOM set stays.
+    const withBrand = scamferretItems(dataset, reader).map((item) =>
+      item.labels.lure_type === "fake_shop"
+        ? {
+            ...item,
+            labels: { ...item.labels, brand: "Shoes" },
+            label_source: { ...item.label_source, brand: "ground-truth" as const },
+          }
+        : item,
+    );
+    const branded = openStore(join(dir, "store3"));
+    await importSource({ source: "scamferret", licence: "GPL-3.0", items: withBrand, store: branded });
+    expect(branded.manifest().find((p) => p.host === "cheap-shoes.example")?.labels.brand).toBe("Shoes");
+    const corrected = await importSource({
+      source: "scamferret",
+      licence: "GPL-3.0",
+      items: scamferretItems(dataset, reader),
+      store: branded,
+    });
+    expect(corrected.relabelled).toBeGreaterThan(0);
+    const withdrawn = openStore(join(dir, "store3"))
+      .manifest()
+      .find((p) => p.host === "cheap-shoes.example");
+    expect(withdrawn?.labels).not.toHaveProperty("brand");
+    expect(withdrawn?.label_source).not.toHaveProperty("brand");
+    expect(withdrawn?.labels.has_login_form).toBe(false);
     const shot = openStore(join(dir, "store")).readPage(scam?.id ?? "");
     expect(jpegSize(shot.screenshot)).toEqual({ width: 1280, height: 2000 });
     expect(shot.text).toBe("Designer shoes 90% off today only");

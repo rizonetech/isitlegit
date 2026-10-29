@@ -54,7 +54,7 @@ def read_entry(archive, info):
 
 # Each reader yields the items it can export and reports every other entry it met to `receipt` with its reason; `limits`
 # bounds the archive entries and bytes it reads.
-def compphish(folder, receipt, limits):
+def compphish(folder, receipt, limits, manifest=None):
     import openpyxl
 
     sheet = openpyxl.load_workbook(folder / "Mapping_File.xlsx", read_only=True).worksheets[0]
@@ -75,12 +75,15 @@ def compphish(folder, receipt, limits):
             receipt.reject("no phishing or benign label in the mapping file")
 
 
-def ariyadasa(folder, receipt, limits):
+def ariyadasa(folder, receipt, limits, manifest=None):
     rows = {}
     for match in SQL_ROW.finditer((folder / "index.sql").read_text(encoding="utf-8", errors="replace")):
         _, url, website, result, _ = match.groups()
         rows[website.replace("\\'", "'")] = (url.replace("\\'", "'"), "phish" if result == "1" else "benign")
-    for part in sorted(folder.glob("dataset_part_*.zip")):
+    # The parts the verified manifest lists, never a fresh look at the folder: a part copied in after verification
+    # (a download still finishing) is not read (§18 final review).
+    names = [entry["name"] for entry in (manifest or {}).get("files", []) if entry["name"].startswith("dataset_part_")]
+    for part in sorted(folder / name for name in names):
         archive = zipfile.ZipFile(part)
         for info in archive.infolist():
             limits.count_entry(info.file_size)
@@ -93,7 +96,7 @@ def ariyadasa(folder, receipt, limits):
                 receipt.reject("not in the dataset's index")
 
 
-def kempf(folder, receipt, limits):
+def kempf(folder, receipt, limits, manifest=None):
     archive = zipfile.ZipFile(folder / "kempf-html.zip")
     for info in archive.infolist():
         limits.count_entry(info.file_size)
@@ -107,7 +110,7 @@ def kempf(folder, receipt, limits):
             receipt.reject("not a labelled HTML page in the archive's layout")
 
 
-def mallory(folder, receipt, limits):
+def mallory(folder, receipt, limits, manifest=None):
     import openpyxl
 
     archive = zipfile.ZipFile(folder / "look-for-mallory.zip")
@@ -152,8 +155,8 @@ def main(argv=None):
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     try:
         # Only inputs bound in the manifest, unchanged since, are read.
-        _, inputs_digest = verify(folder, INPUT_FILES[args.source](folder))
-        items = list(READERS[args.source](folder, receipt, limits))
+        manifest, inputs_digest = verify(folder, INPUT_FILES[args.source](folder))
+        items = list(READERS[args.source](folder, receipt, limits, manifest))
         chosen = items
         if len(items) > args.max:
             chosen = random.Random(args.seed).sample(items, args.max)

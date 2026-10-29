@@ -4,12 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+import { readFreeze } from "../../scripts/glimmer/build-dataset.ts";
 import {
+  type Frozen,
+  freezeCollection,
   manifestDigest,
   parseSources,
   reconcile,
   storeProblems,
   syntheticLeftovers,
+  writeFreeze,
 } from "../../scripts/glimmer/sources.ts";
 import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
 
@@ -265,7 +269,11 @@ describe("reconcile", () => {
       writeFileSync(join(store, "raw", "set", "IMPORT.json"), "{}");
       writeFileSync(
         join(store, "raw", "FROZEN.json"),
-        JSON.stringify({ pages: [], sources: { set: { import_sha256: "0".repeat(64) } } }),
+        JSON.stringify({
+          pages: [],
+          sources: { set: { import_sha256: "0".repeat(64) } },
+          renders: { majestic: {}, "benign-sa": {} },
+        }),
       );
       const again = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
       expect(again.status).toBe(1);
@@ -274,6 +282,110 @@ describe("reconcile", () => {
       expect(build.status).toBe(2);
       expect(build.stderr).toContain("imported again since the freeze: set");
     } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("freezes a reconciled store end to end, leaving out benign pages no list names, and the build reads it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "glimmer-fz-root-"));
+    const store = mkdtempSync(join(tmpdir(), "glimmer-fz-store-"));
+    try {
+      mkdirSync(join(root, "docs", "glimmer"), { recursive: true });
+      mkdirSync(join(root, "eval", "glimmer"), { recursive: true });
+      writeFileSync(join(root, "docs", "glimmer", "sources.md"), [header, row("set-a", "accepted")].join("\n"));
+      writeFileSync(join(root, "NOTICE.md"), base.notice);
+      writeFileSync(join(root, "eval", "glimmer", "benign-sa-urls.txt"), "home\thttps://bank.example/\tBank\n");
+      const shot = async (colour: string) =>
+        new Uint8Array(
+          await sharp({ create: { width: 16, height: 16, channels: 3, background: colour } })
+            .jpeg()
+            .toBuffer(),
+        );
+      const pages = openStore(store);
+      const evidence = {
+        title: "Home",
+        overlays: "",
+        captcha: false,
+        consentWall: false,
+        challengeCover: false,
+        wall: false,
+      };
+      const benign = (host: string, colour: string) => async () =>
+        pages.putPage(host === "bank.example" ? "benign-sa" : "benign-majestic", {
+          screenshot: await shot(colour),
+          text: `Welcome to ${host}`,
+          origin: "benign",
+          licence: "CC BY 3.0",
+          host,
+          template: null,
+          south_africa: host === "bank.example",
+          labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+          label_source: {
+            lure: "construction",
+            lure_type: "construction",
+            has_login_form: "dom",
+            has_payment_form: "dom",
+          },
+          redacted: false,
+          url: `https://${host}/`,
+          evidence,
+        } as Parameters<typeof pages.putPage>[1]);
+      const listed = await benign("example.org", "#eee")();
+      const sa = await benign("bank.example", "#ddd")();
+      const outside = await benign("dropped.example", "#ccc")(); // a URL no list names any more
+      const lure = await pages.putPage("set-a", {
+        screenshot: await shot("#c33"),
+        text: "Sign in to your bank",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+      } as Parameters<typeof pages.putPage>[1]);
+      const manifest = { files: [{ name: "set-a.zip" }] };
+      mkdirSync(join(store, "raw", "set-a"), { recursive: true });
+      writeFileSync(join(store, "raw", "set-a", "INPUTS.json"), JSON.stringify(manifest));
+      writeFileSync(
+        join(store, "raw", "set-a", "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 1,
+          imported: 1,
+          duplicates: 0,
+          excluded: [],
+          stored: 1,
+          inputs: manifestDigest(manifest),
+        }),
+      );
+      mkdirSync(join(store, "raw", "majestic"), { recursive: true });
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,example.org\n");
+      mkdirSync(join(store, "raw", "benign"), { recursive: true });
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        [
+          { url: "https://example.org/", event: "stored", id: listed, at: "2026-10-29T08:00:00.000Z" },
+          { url: "https://bank.example/", event: "stored", id: sa, at: "2026-10-29T08:00:01.000Z" },
+          { url: "https://dropped.example/", event: "stored", id: outside, at: "2026-10-29T08:00:02.000Z" },
+        ]
+          .map((event) => `${JSON.stringify(event)}\n`)
+          .join(""),
+      );
+      const { problems, frozen } = freezeCollection(store, root, new Date("2026-10-31T00:00:00Z"));
+      expect(problems).toEqual([]);
+      expect(frozen?.pages).toEqual([listed, sa, lure].sort());
+      expect(frozen?.left_out).toBe(1);
+      writeFreeze(store, frozen as Frozen);
+      // Once only: a second freeze finds it there.
+      expect(() => writeFreeze(store, frozen as Frozen)).toThrow(/never replaced/);
+      // The build reads exactly the frozen pages, and refuses once an import changed.
+      expect([...readFreeze(store)].sort()).toEqual([listed, sa, lure].sort());
+      writeFileSync(join(store, "raw", "set-a", "IMPORT.json"), "{}");
+      expect(() => readFreeze(store)).toThrow(/imported again since the freeze: set-a/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
       rmSync(store, { recursive: true, force: true });
     }
   });
