@@ -66,8 +66,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass  # the rate check cut it, as it must
             self.close_connection = True
             return
-        if "fail" in modes or "no-head" in modes:
-            self.send_response(503 if "fail" in modes else 405)
+        if "fail" in modes or "no-head" in modes or "head-501" in modes:
+            self.send_response(503 if "fail" in modes else 501 if "head-501" in modes else 405)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -142,7 +142,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with server.lock:
             server.requests += 1
             n = server.requests
-        if "fail" in modes or ({"429-once", "429-date", "429-asctime"} & modes and n == 1):
+        if "fail" in modes or ("fail-after-first" in modes and n > 1) or ({"429-once", "429-date", "429-asctime"} & modes and n == 1):
             self.send_response(503 if "fail" in modes else 429)
             if "429-once" in modes:
                 self.send_header("Retry-After", "1")
@@ -225,6 +225,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         cut = len(chunk)
         if "drop-once" in modes and n == 1:
             cut = int(len(chunk) * 0.9)
+        if "corrupt-drop-once" in modes and n == 1:
+            # Wrong bytes for the first half, then the connection drops: a host serving a damaged copy.
+            chunk = bytes(len(chunk))
+            cut = len(chunk) // 2
         segment = honour and bool(ranged.split("=")[1].split("-")[1])
         if "segment-drop-once" in modes and segment and start > 0:
             with server.lock:
@@ -930,6 +934,64 @@ class Fetch(unittest.TestCase):
             result = self.run_fetch(**self.SEGMENTED)
         self.assertEqual((result["status"], result["sha256"]), ("fetched", SHA))
         self.assert_whole()
+
+    # Round 1 findings (D03 T04 §20).
+    def test_a_corrupt_first_url_does_not_get_the_healthy_mirror_ruled_out(self):
+        other, base = self.mirror()
+        self.server.modes = {"corrupt-drop-once", "fail-after-first"}
+        result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[base + "/file"], timeout=2, sleep=lambda s: None, log=lambda line: None,
+                             segments=1, attempts=5, **ROOMY)
+        self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
+        self.assert_whole()
+
+    def test_one_stream_asked_for_resumes_saved_ranges(self):
+        self.server.modes = {"segment-drop-once"}
+        with self.assertRaises(fetch.Refused):
+            self.run_fetch(attempts=1, **self.SEGMENTED)
+        saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+        missing = sum(last - first + 1 - done for first, last, done in saved["segments"])
+        deadline = time.monotonic() + 10
+        while self.server.active and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.server.modes = set()
+        self.server.served.clear()
+        result = self.run_fetch(segments=1, **self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertEqual(sum(self.server.served), missing)
+
+    def test_a_short_write_is_finished_not_counted_as_whole(self):
+        real = fetch.os.pwrite
+
+        def half(fd, data, offset):
+            return real(fd, bytes(data[: max(1, len(data) // 2)]), offset)
+
+        with mock.patch.object(fetch.os, "pwrite", half):
+            result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+
+    def test_a_server_without_head_is_fetched_by_its_get(self):
+        self.server.modes = {"head-501"}
+        result = self.run_fetch(attempts=1, **self.SEGMENTED)  # no attempt spent on the HEAD
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+
+    def test_a_failed_folder_flush_after_the_move_still_reports_the_file_in_place(self):
+        logged = []
+        real = fetch._sync_dir
+
+        def failing_source(path):
+            if Path(path) == Path("src"):  # only the source folder's flush after the move; the state's still works
+                raise OSError(errno.EIO, "I/O error")
+            return real(path)
+
+        with mock.patch.object(fetch, "_sync_dir", failing_source):
+            result = self.run_fetch(log=logged.append)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertTrue(any("folder could not be flushed" in line for line in logged))
 
     def test_an_inconsistent_segment_state_starts_again(self):
         Path("src/.partial").mkdir(parents=True)

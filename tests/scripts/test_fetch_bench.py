@@ -41,8 +41,9 @@ class Harness(unittest.TestCase):
         self.assertIn("<repo>/scripts/glimmer/fetch.py", recorded)
 
     def test_the_acceptance_line_judges_time_refetch_and_integrity(self):
-        def row(seconds, refetched, intact, cut=5):
-            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "intact": intact, "cut": cut, "runs": 5}
+        def row(seconds, refetched, intact, cut=5, recovered=5):
+            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "intact": intact, "cut": cut,
+                    "recovered": recovered, "runs": 5}
 
         judged = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.5, 0, 5), "aria2c (four connections)": row(3.31, 65536, 5)},
                                    "mirror": {"fetch.py (four segments)": row(4.0, 0, 5), "aria2c (four connections)": row(3.31, 0, 5)}})
@@ -51,6 +52,10 @@ class Harness(unittest.TestCase):
         uncut = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.0, 0, 5, cut=0),
                                            "aria2c (four connections)": row(3.31, 0, 5)}})
         self.assertFalse(uncut["drop"]["met"])  # never interrupted: no recovery was measured
+        for ours, theirs in ((0, 5), (5, 0)):
+            failed = bench.acceptance({"drop": {"fetch.py (four segments)": row(3.0, 0, 5, recovered=ours),
+                                                "aria2c (four connections)": row(3.31, 0, 5, recovered=theirs)}})
+            self.assertFalse(failed["drop"]["met"])  # a run that did not exit 0 is no recovery, whoever's it was
 
     def test_the_cut_happens_on_a_piece_boundary(self):
         # A cut point exactly where a 64 KiB piece ends was never cut before (completion review G9): an eighth of

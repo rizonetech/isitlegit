@@ -473,7 +473,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             that does not qualify, or a one-stream partial from an earlier run); "again" asks the loop to come back (a
             segment answer that did not fit, so the rest of this run goes one stream, or a URL ruled out)."""
             nonlocal state, fetched, resumed, one_stream
-            if one_stream or (state and "segments" not in state):
+            if state.get("segments") and consistent(state):
+                pass  # saved ranges are resumed whatever this run asks (on one connection under --segments 1)
+            elif one_stream or (state and "segments" not in state):
                 return "one-stream"
             if state.get("segments") and not consistent(state):
                 partial.unlink(missing_ok=True)
@@ -503,6 +505,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     return "again"
                 finally:
                     head_watch.__exit__()
+                if status == 501:
+                    one_stream = True  # this server does not do HEAD (RFC 9110 15.6.2): its GET still may
+                    return "one-stream"
                 if status == 429 or status >= 500:
                     spend(f"HTTP {status} to the HEAD", wait_asked)
                     return "again"
@@ -522,7 +527,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 except OSError as error:
                     raise Refused(f"incomplete: the partial file could not be made ({error.strerror})") from error
                 state = {"url": url, "expected": [kind, want], "validator": validator, "encoding": "identity",
-                         "total": total, "segments": [[a, min(a + size, total) - 1, 0] for a in range(0, total, size)]}
+                         "total": total, "segments": [[a, min(a + size, total) - 1, 0] for a in range(0, total, size)],
+                         "sources": []}
                 _write_json(state_file, state)
             else:
                 room(0)  # the partial already holds its full length: the source and disk must still allow it now
@@ -604,7 +610,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                         # sparse, so each write takes space, and no two ranges can pass one check.
                                         if shutil.disk_usage(partial_dir).free - len(block) < min_free:
                                             raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
-                                        os.pwrite(fd, block, at)
+                                        view = memoryview(block)
+                                        while view:  # pwrite may write less than asked (a nearly full disk)
+                                            view = view[os.pwrite(fd, view, at + len(block) - len(view)):]
+                                        if source not in state["sources"]:
+                                            state["sources"].append(source)
                                         at += len(block)
                                         item[2] = at - first
                                         counted["since"] += len(block)
@@ -835,6 +845,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             continue
                         body = span[1] - span[0] + 1
                         state["total"] = span[2]
+                        if here() not in state.setdefault("sources", []):
+                            state["sources"].append(here())  # the file now holds this URL's bytes too
+                            _write_json(state_file, state)
                         mode = "ab"
                         resumed = True
                     else:
@@ -845,7 +858,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         with partial.open("wb") as handle:
                             os.fsync(handle.fileno())
                         state = {"url": url, "expected": [kind, want], "validator": _validator(response.headers),
-                                 "encoding": encoding, "total": body, "final_url": final_url}
+                                 "encoding": encoding, "total": body, "final_url": final_url, "sources": [here()]}
                         _write_json(state_file, state)
                         have = 0
                         mode = "ab"
@@ -916,10 +929,18 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if found != want:
                 partial.unlink(missing_ok=True)
                 state_file.unlink(missing_ok=True)
-                # A URL that served other bytes is ruled out; the next one starts the file again.
-                drop(Refused(f"refused: the {kind} does not match the published one; the partial file is removed"))
+                mismatch = Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
+                sources = state.get("sources") or []
                 state = {}
                 one_stream = segments == 1
+                if len(live) == 1 or len(sources) == 1:
+                    # The file was one URL's bytes alone (or there is only one URL): it serves other bytes, and is
+                    # ruled out; with no other URL left, that is the answer.
+                    drop(mismatch, sources[0] if len(sources) == 1 else None)
+                else:
+                    # Bytes from several URLs (or from a run that did not record them): no one URL can be blamed, so
+                    # the file starts again whole from the URL in use, which the next mismatch can then rule out.
+                    spend(f"the {kind} does not match and the bytes came from {len(sources) or 'unrecorded'} URLs", stay=True)
                 continue
             break
         sha256 = found if kind == "sha256" else _digest(partial, "sha256")
@@ -927,9 +948,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             with partial.open("rb") as handle:
                 os.fsync(handle.fileno())
             os.replace(partial, target)
-            _sync_dir(source)
         except OSError as error:
             raise Refused(f"incomplete: the verified file could not be moved into place ({error.strerror}); a rerun moves it") from error
+        try:
+            _sync_dir(source)
+        except OSError as error:
+            # The verified file is in place under its name; only the folder's record of the move is not yet flushed.
+            log(f"fetch: the folder could not be flushed after the move ({error.strerror}); the file is in place")
         try:
             state_file.unlink(missing_ok=True)
         except OSError:

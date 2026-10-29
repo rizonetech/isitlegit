@@ -235,11 +235,14 @@ def acceptance(scenarios: dict) -> dict:
             continue
         ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
         # Every run of both tools must have been cut: a run the server never interrupted proves no recovery.
+        # Every compared run must have recovered (exit 0) and been cut, for both tools, and ours left the file intact.
+        whole = all(row.get("recovered") == row["runs"] and row.get("cut") == row["runs"] for row in (ours, theirs))
         met = (ratio <= 1.10 and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"]
-               and ours["intact"] == ours["runs"] and ours.get("cut") == ours["runs"] and theirs.get("cut") == theirs["runs"])
+               and ours["intact"] == ours["runs"] and whole)
         verdicts[scenario] = {"met": met, "time_ratio": round(ratio, 3),
                               "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
-                              "intact": [ours["intact"], ours["runs"]], "cut": [ours.get("cut"), theirs.get("cut")]}
+                              "intact": [ours["intact"], ours["runs"]], "cut": [ours.get("cut"), theirs.get("cut")],
+                              "recovered": [ours.get("recovered"), theirs.get("recovered")]}
     return verdicts
 
 
