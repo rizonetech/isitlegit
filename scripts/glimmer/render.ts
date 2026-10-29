@@ -928,20 +928,40 @@ function pageFault(store: Pick<ReturnType<typeof openStore>, "readPage">, page: 
   return null;
 }
 
-if (import.meta.filename === process.argv[1]) {
-  const [given, only] = process.argv.slice(2);
+// The command line: `run [majestic|benign-sa] [--concurrency N]` (N pages rendered at once, 1 to 16, 4 by default),
+// `coverage` or `--coverage`. A string is the usage error.
+export function parseCommand(args: string[]): { command: string; only?: string; concurrency: number } | string {
+  const rest = [...args];
+  let concurrency = 4;
+  const at = rest.indexOf("--concurrency");
+  if (at >= 0) {
+    const value = rest[at + 1] ?? "";
+    concurrency = /^\d{1,2}$/.test(value) ? Number(value) : Number.NaN;
+    if (!(concurrency >= 1 && concurrency <= 16)) return "--concurrency takes a whole number from 1 to 16";
+    rest.splice(at, 2);
+  }
+  const [given, only] = rest;
   // `--coverage` is the spelling §6's checkpoint names; `coverage` the subcommand's.
-  const command = given === "--coverage" ? "coverage" : given;
+  const command = given === "--coverage" ? "coverage" : (given ?? "");
+  if (command === "coverage" && rest.length === 1) return { command, concurrency };
+  if (command !== "run" || rest.length > 2 || (only && only !== "majestic" && only !== "benign-sa"))
+    return "usage: node scripts/glimmer/render.ts run [majestic|benign-sa] [--concurrency N] | coverage | --coverage";
+  return only ? { command, only, concurrency } : { command, concurrency };
+}
+
+if (import.meta.filename === process.argv[1]) {
+  const parsed = parseCommand(process.argv.slice(2));
+  if (typeof parsed === "string") {
+    console.error(parsed);
+    process.exit(2);
+  }
+  const { command, only, concurrency } = parsed;
   const dir = storeDir();
   const store = openStore(dir);
   if (command === "coverage") {
     const coverage = benignCoverage(store);
     console.log(JSON.stringify({ ...coverage, problems: coverage.problems.slice(0, 20) }, null, 2));
     process.exit(coverage.met ? 0 : 1);
-  }
-  if (command !== "run" || (only && only !== "majestic" && only !== "benign-sa")) {
-    console.error("usage: node scripts/glimmer/render.ts run [majestic|benign-sa] | coverage | --coverage");
-    process.exit(2);
   }
   const lists: UrlList[] = [];
   if (!only || only === "benign-sa")
@@ -959,6 +979,7 @@ if (import.meta.filename === process.argv[1]) {
           journal: join(dir, "raw/benign/progress.jsonl"),
           render: renderer.render,
           log: (line) => console.log(line),
+          concurrency,
         });
         console.log(`${list.name}: ${JSON.stringify(result)}`);
         if (result.retry === 0) break;

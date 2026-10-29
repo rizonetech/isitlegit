@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDomain } from "tldts";
 import { describe, expect, it } from "vitest";
-import { saList } from "../../scripts/glimmer/render.ts";
+import { parseCommand, saList } from "../../scripts/glimmer/render.ts";
 
 // eval/glimmer/benign-sa-urls.txt (D03 T04 §6): the South African pages lures copy, by kind, each https and listed once.
 const list = saList(readFileSync(join(import.meta.dirname, "../../eval/glimmer/benign-sa-urls.txt"), "utf-8"));
@@ -45,5 +45,28 @@ describe("the South African benign URL list", () => {
       expect(entry.url, entry.url).toMatch(/^https:\/\//);
       expect(entry.brand, entry.url).toBeTruthy();
     }
+  });
+});
+
+describe("the render command line", () => {
+  it("takes --concurrency from 1 to 16, 4 by default, and refuses anything else", () => {
+    expect(parseCommand(["run"])).toEqual({ command: "run", concurrency: 4 });
+    expect(parseCommand(["run", "majestic", "--concurrency", "8"])).toEqual({
+      command: "run",
+      only: "majestic",
+      concurrency: 8,
+    });
+    expect(parseCommand(["--concurrency", "2", "run"])).toEqual({ command: "run", concurrency: 2 });
+    expect(parseCommand(["--coverage"])).toEqual({ command: "coverage", concurrency: 4 });
+    for (const bad of [
+      ["run", "--concurrency", "0"],
+      ["run", "--concurrency", "17"],
+      ["run", "--concurrency", "x"],
+      ["run", "--concurrency"],
+      ["run", "elsewhere"],
+      ["run", "majestic", "extra"],
+      ["nothing"],
+    ])
+      expect(typeof parseCommand(bad)).toBe("string");
   });
 });
