@@ -129,3 +129,10 @@ describe("the cap a refusal names (completion review)", () => {
     expect(refusingCap(15, 40, 1, "2026-11-01")).toBe("day");
   });
 });
+
+describe("round 1: a refusal names only a cap that refuses it", () => {
+  it("names none when a settlement moved the spend under every cap, so the reservation is tried again", async () => {
+    const { refusingCap } = await import("../../src/meta/caps");
+    expect(refusingCap(14.9, 14.9, 0.01, "2026-11-01")).toBeNull();
+  });
+});

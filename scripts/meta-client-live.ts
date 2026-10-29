@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { ModelError, metaResponses } from "../src/meta/client.ts";
 import { sastDay } from "../src/meta/day.ts";
-import type { Budget } from "../src/meta/guard.ts";
+import { type Budget, NotSent } from "../src/meta/guard.ts";
 import { ledgerId, localBudget } from "./lib/meta-budget.ts";
 import {
   adoptLegacyLedger,
@@ -216,7 +216,8 @@ async function run(
           });
       if ("refused" in reserved) {
         stopped = reserved.refused;
-        throw new Error("spend refused");
+        // Stopped before the request left: the shared reservation is released, never kept as a charge (D03 T01 §2).
+        throw new NotSent("spend refused");
       }
       attempts.push(reserved.entry);
     }

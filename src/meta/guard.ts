@@ -28,6 +28,22 @@ export type Budget = {
   uncertain(id: string): Promise<void>;
 };
 
+// Thrown by a caller's transport when it stopped before the request left (a local record that could not be written):
+// the attempt's reservation is released at nothing, never kept as a charge (round 1).
+export class NotSent extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotSent";
+  }
+}
+
+// Whether an error, or anything it wraps (an SDK wraps its transport's error as its cause), says nothing was sent.
+const neverSent = (error: unknown): boolean => {
+  for (let e = error, depth = 0; e && depth < 5; e = (e as { cause?: unknown }).cause, depth++)
+    if (e instanceof NotSent) return true;
+  return false;
+};
+
 // The budget could not be reached or written: the call is not sent.
 export class BudgetUnavailable extends Error {
   constructor() {
@@ -64,7 +80,7 @@ export async function charged<T>(
       (error as { status?: unknown; details?: { status?: unknown } }).status ??
       (error as { details?: { status?: unknown } }).details?.status;
     const refused = typeof status === "number" && status >= 400 && status < 500 && status !== 408;
-    await (refused ? budget.settle(id, 0) : budget.uncertain(id)).catch(() => {});
+    await (refused || neverSent(error) ? budget.settle(id, 0) : budget.uncertain(id)).catch(() => {});
     throw error;
   }
   await budget.settle(id, costUsd(model, usage(answer)) ?? estimateUsd).catch(() => {});

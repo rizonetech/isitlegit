@@ -112,8 +112,11 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
   const body: ResponseCreateParamsNonStreaming = { ...params, model, stream: false, store: false };
   const json = JSON.stringify(body);
   const images = imagesIn(json);
-  // An image's data is priced as an image (IMAGE_TOKEN_BOUND), not as the characters that carry it.
-  const text = json.replace(/"data:[^"]*"/g, '""');
+  // An image's data is priced as an image (IMAGE_TOKEN_BOUND), not as the characters that carry it: only an
+  // `image_url` value is left out, never text that happens to start "data:" (round 1).
+  const text = JSON.stringify(body, (key, value) =>
+    key === "image_url" && typeof value === "string" && value.startsWith("data:") ? "" : value,
+  );
   const estimate = estimateUsd(model, {
     inputBytes: new TextEncoder().encode(text).byteLength,
     maxOutputTokens: params.max_output_tokens,
@@ -182,8 +185,12 @@ export async function metaRaw(
         "a transcription must give its audio length, which the budget reserves for",
       );
     estimate = estimateUsd(model, { audioSeconds });
-    // Meta reports the recording's duration when it can; otherwise the length given is the length billed.
-    usage = (data) => ({ audioSeconds: numberAt(data, "duration") ?? audioSeconds });
+    // Meta reports the recording's length as `audioDurationMs` (sources/meta-api/docs: the transcribe response); without
+    // it, the length given is the length billed.
+    usage = (data) => {
+      const ms = numberAt(data, "audioDurationMs");
+      return { audioSeconds: ms === undefined ? audioSeconds : ms / 1000 };
+    };
     const form = new FormData();
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
     form.append("audio", audio, filename ?? "audio");

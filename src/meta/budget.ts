@@ -27,12 +27,36 @@ export type Reserved = { ok: true; id: string } | { ok: false; cap: Cap };
 
 // Reserves one attempt, or says which cap refused it: the day cap, the reserve (a total within the cap but into the
 // held-back US$30 on another day), or the total cap itself.
+// A refusal is named from a second read; when a settlement landed in between and no cap refuses it any more, the
+// reservation is tried again (a few times), so a cap is never named that did not refuse it (round 1).
+const ATTEMPTS = 3;
+
 export async function reserve(db: D1Database, r: Omit<Reservation, "id"> & { id?: string }): Promise<Reserved> {
   const row: Reservation = { ...r, id: r.id ?? crypto.randomUUID() };
-  const inserted = await run(db, reserveStatement(row, DAY_CAP_USD, totalLimitFor(row.day))).run();
-  if (inserted.meta.changes === 1) return { ok: true, id: row.id };
-  const spent = await run(db, spentStatement(row.day)).first<{ day_usd: number; total_usd: number }>();
-  return { ok: false, cap: refusingCap(spent?.day_usd ?? 0, spent?.total_usd ?? 0, row.estimateUsd, row.day) };
+  let cap: Cap | null = null;
+  for (let tries = 0; tries < ATTEMPTS; tries++) {
+    const inserted = await run(db, reserveStatement(row, DAY_CAP_USD, totalLimitFor(row.day))).run();
+    if (inserted.meta.changes === 1) return { ok: true, id: row.id };
+    const spent = await run(db, spentStatement(row.day)).first<{ day_usd: number; total_usd: number }>();
+    cap = refusingCap(spent?.day_usd ?? 0, spent?.total_usd ?? 0, row.estimateUsd, row.day);
+    if (cap) return { ok: false, cap };
+  }
+  // Refused every time yet never by a named cap on a read: the spend moves under it; the day cap is the safe answer.
+  return { ok: false, cap: cap ?? "day" };
+}
+
+// The cap's event for the cron's alert, tried three times; whether it was written.
+export async function recordCapEvent(db: D1Database, cap: Cap, model: string, day: string, at: string) {
+  for (let tries = 0; tries < 3; tries++) {
+    const written = await run(db, capEventStatement(capEvent(cap, day), cap, model, day, at))
+      .run()
+      .then(
+        () => true,
+        () => false,
+      );
+    if (written) return true;
+  }
+  return false;
 }
 
 export const settle = (db: D1Database, id: string, actualUsd: number, at = new Date().toISOString()) =>
@@ -70,10 +94,9 @@ export function d1Budget(
       });
       if (!reserved.ok) {
         const day = sastDay(now);
-        // Recorded first, so the cron sends the alert even if this instance's own send never finishes.
-        await run(db, capEventStatement(capEvent(reserved.cap, day), reserved.cap, model, day, now.toISOString()))
-          .run()
-          .catch(() => {});
+        // Recorded first, so the cron sends the alert even if this instance's own send never finishes; a record that
+        // cannot be written still leaves this instance's own send below.
+        await recordCapEvent(db, reserved.cap, model, day, now.toISOString());
         if (who.notify) {
           const notice = who.notify(reserved.cap, model, sastDay(now)).catch(() => {});
           who.waitUntil?.(notice);

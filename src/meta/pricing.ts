@@ -61,8 +61,9 @@ export function costUsd(model: ModelId, usage: Usage): number | null {
       return images === undefined ? null : images * price.perImage;
     }
     case "audio-second": {
+      // Billed in whole seconds, rounded down (https://dev.meta.ai/docs/pricing-rate-limits); the estimate rounds up.
       const seconds = count(usage.audioSeconds);
-      return seconds === undefined ? null : Math.ceil(seconds) * price.perSecond;
+      return seconds === undefined ? null : Math.floor(seconds) * price.perSecond;
     }
   }
 }

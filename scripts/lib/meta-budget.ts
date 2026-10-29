@@ -53,13 +53,28 @@ export function localBudget(caller: string, run: Runner = runCommand, now: () =>
         attempt,
         estimateUsd,
       };
-      const inserted = await execute(reserveStatement(row, DAY_CAP_USD, totalLimitFor(row.day)), run);
-      if (inserted.meta?.changes === 1) return row.id;
-      const spent = (await execute(spentStatement(row.day), run)).results?.[0] ?? {};
-      const cap = refusingCap(Number(spent.day_usd ?? 0), Number(spent.total_usd ?? 0), estimateUsd, row.day);
-      // The cap's event, for the Worker's cron to alert the operator (a local script cannot send it).
-      await execute(capEventStatement(capEvent(cap, row.day), cap, model, row.day, row.at), run).catch(() => {});
-      throw new BudgetExceeded(cap, model);
+      // A refusal named from a second read, tried again when no cap refuses on that read (src/meta/budget.ts).
+      let cap: ReturnType<typeof refusingCap> = null;
+      for (let tries = 0; tries < 3 && !cap; tries++) {
+        const inserted = await execute(reserveStatement(row, DAY_CAP_USD, totalLimitFor(row.day)), run);
+        if (inserted.meta?.changes === 1) return row.id;
+        const spent = (await execute(spentStatement(row.day), run)).results?.[0] ?? {};
+        cap = refusingCap(Number(spent.day_usd ?? 0), Number(spent.total_usd ?? 0), estimateUsd, row.day);
+      }
+      const refused = cap ?? "day";
+      // The cap's event, for the Worker's cron to alert the operator (a local script cannot send it), tried three times;
+      // one that cannot be written is said, so the person running the script alerts the operator themselves.
+      let recorded = false;
+      for (let tries = 0; tries < 3 && !recorded; tries++)
+        recorded = await execute(
+          capEventStatement(capEvent(refused, row.day), refused, model, row.day, row.at),
+          run,
+        ).then(
+          () => true,
+          () => false,
+        );
+      if (!recorded) console.error(`meta-budget: the ${refused} cap's event could not be recorded; tell the operator`);
+      throw new BudgetExceeded(refused, model);
     },
     async settle(id, actualUsd) {
       await execute(settleStatement(id, actualUsd, now().toISOString()), run);

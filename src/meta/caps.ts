@@ -15,11 +15,13 @@ export const totalLimitFor = (day: string) =>
 // Which cap refused a reservation, from the day's and the total's counted spend before it, the longer-lived first, so
 // the member is never told to come back tomorrow when tomorrow is refused too: the total cap; the reserve (a total within
 // the cap but into the held-back US$30 on another day); then the day cap (D03 T01 §2 completion review).
+// Null when no cap refuses it on this read: a settlement landed between the refused reservation and the read, and the
+// caller tries the reservation again rather than name a cap that did not refuse it (round 1).
 export function refusingCap(daySpentUsd: number, totalSpentUsd: number, estimateUsd: number, day: string) {
   const total = totalSpentUsd + estimateUsd;
   if (total > TOTAL_CAP_USD) return "total" as const;
   if (!RESERVE_DAYS.includes(day) && total > TOTAL_CAP_USD - RESERVE_USD) return "reserve" as const;
-  return daySpentUsd + estimateUsd > DAY_CAP_USD ? ("day" as const) : ("total" as const);
+  return daySpentUsd + estimateUsd > DAY_CAP_USD ? ("day" as const) : null;
 }
 
 // A cap's event, the operator alert's identity: the day for the day cap (a new day is a new event), and the cap's own

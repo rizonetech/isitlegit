@@ -1,7 +1,7 @@
 // The Meta client (D03 T01 §1), at the transport: what reaches the gateway, how often, and what every failure becomes.
 import { describe, expect, it } from "vitest";
 import { type MetaContext, ModelError, metaRaw, metaResponses } from "../../src/meta/client";
-import { type Budget, BudgetExceeded, BudgetUnavailable } from "../../src/meta/guard";
+import { type Budget, BudgetExceeded, BudgetUnavailable, NotSent } from "../../src/meta/guard";
 
 const KEY = "LLM_test_key_0123456789";
 const TOKEN = "aig-run-token-0123456789";
@@ -544,5 +544,41 @@ describe("the budget on every attempt (D03 T01 §2)", () => {
     >[1];
     expect((await failure(metaRaw("/asr/transcribe", noLength as never, ctx))).kind).toBe("invalid-request");
     expect([sent, charges]).toEqual([[], []]);
+  });
+});
+
+describe("round 1 (2026-10-29)", () => {
+  const ok = () => json(200, { ...answer, usage: { input_tokens: 10, output_tokens: 1 } });
+
+  it("prices text that starts with data: as text, leaving out only an image's data URL", async () => {
+    const { ctx, charges } = transport(ok);
+    const text = `data:${"1 2 3 4 ".repeat(10_000)}`;
+    await metaResponses(
+      {
+        model: "muse-spark-1.3",
+        input: [{ role: "user", content: [{ type: "input_text", text }] }] as never,
+        max_output_tokens: 16,
+      },
+      ctx,
+    );
+    expect(charges[0]?.estimate).toBeGreaterThanOrEqual((80_000 * 1.25) / 1_000_000);
+  });
+
+  it("releases an attempt the transport stopped before sending, never keeping it as a charge", async () => {
+    const { ctx, charges } = transport(() => {
+      throw new NotSent("the local record could not be written");
+    });
+    await metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, ctx).catch(() => null);
+    expect(charges.map((c) => [c.state, c.actual])).toEqual([["settled", 0]]);
+  });
+
+  it("settles a transcription at Meta's reported length, whole seconds rounded down", async () => {
+    const { ctx, charges } = transport(() => json(200, { transcript: "hi", audioDurationMs: 12_040 }));
+    await metaRaw(
+      "/asr/transcribe",
+      { request: { model: "muse-voice-transcribe-1.0" }, audio: audio(), audioSeconds: 13 },
+      ctx,
+    );
+    expect(charges[0]?.actual).toBeCloseTo((12 * 0.18) / 3600);
   });
 });

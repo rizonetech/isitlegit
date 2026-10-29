@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { execute, ledgerId, localBudget } from "../../scripts/lib/meta-budget.ts";
 import { BEFORE_LEDGER, importSpend } from "../../scripts/meta-spend-import.ts";
 import type { Runner } from "../../scripts/smoke.ts";
@@ -151,5 +151,26 @@ describe("completion review (2026-10-29)", () => {
       )
       .get() as { n: number; usd: number };
     expect(counted).toEqual({ n: 1, usd: 0.005 });
+  });
+});
+
+describe("round 1: an event that cannot be recorded is said", () => {
+  it("tells the person running the script to alert the operator", async () => {
+    const w = wrangler();
+    const failing: Runner = async (command, args, input, deadline) => {
+      if ((args[args.indexOf("--command") + 1] ?? "").includes("budget_events")) throw new Error("connection lost");
+      return w.run(command, args, input, deadline);
+    };
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((line: string) => void errors.push(String(line)));
+    try {
+      const budget = localBudget("meta-smoke", failing, at);
+      await budget.reserve("muse-spark-1.3", 15, 1);
+      const refused = await budget.reserve("muse-spark-1.3", 1, 1).catch((e: unknown) => e);
+      expect(refused).toBeInstanceOf(BudgetExceeded);
+      expect(errors.join("\n")).toMatch(/the day cap's event could not be recorded; tell the operator/);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
