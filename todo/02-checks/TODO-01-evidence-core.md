@@ -34,7 +34,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [ ] |
+| 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
 | 2 | §2 | Check runner step with failure isolation | §1 | [ ] |
 
 ## 1. Evidence type, IDs and registry
@@ -63,6 +63,9 @@ One zod schema defines Evidence; every check registers in one list with a name, 
 - [x] Commit: `checks: evidence type, IDs and registry` Done 2026-10-29: f88f338, then the review fixes.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/evidence.test.ts` passes and fails if a summary over 200 characters is accepted.
+
+> **Verified:** 2026-10-29 | §1 | 5b97b90684ad0f337e93b8e357b035b5334eb892
+> **Review:** `docs/reviews/d02-t01-s1.json`
 
 ## 2. Check runner step with failure isolation
 
