@@ -13,11 +13,11 @@ A source is accepted only when it is current (published or reviewed within five 
 | S1 | Shopping and paying safely online | UK National Cyber Security Centre | https://www.ncsc.gov.uk/guidance/shopping-online-securely | 2019-01-17, reviewed 2024-07-15 | accepted | Current; its signs are about scam shops and payment pages; Crown copyright under the Open Government Licence v3.0, which allows reuse with acknowledgement (https://www.ncsc.gov.uk/section/about-this-website/terms-and-conditions). |
 | S2 | How to spot a scam email, text message or call | UK National Cyber Security Centre | https://www.ncsc.gov.uk/collection/phishing-scams/spot-scams | 2021-11-26, reviewed 2022-09-05 | accepted | Current; its five persuasion signs (authority, urgency, emotion, scarcity, current events) apply to a page's wording as to a message's; Open Government Licence v3.0. |
 | S3 | How To Recognize and Avoid Phishing Scams | US Federal Trade Commission | https://consumer.ftc.gov/articles/how-recognize-and-avoid-phishing-scams | 2022-09 | accepted | Current; its signs about requests to confirm or update personal or payment details ("legitimate companies won't email or text with a link to update your payment information"), refund bait and logos that prove nothing apply to the pages such messages lead to; a work of the US federal government, not subject to copyright (17 U.S.C. 105). |
-| S4 | Scams and Phishing | South African Revenue Service | https://www.sars.gov.za/targeting-tax-crime/scams-and-phishing/ | updated 2026-08-04 | rejected | Current and applicable, but SARS's terms (https://www.sars.gov.za/terms-and-conditions/) grant only viewing, downloading and printing, not reuse in a commercial product; the same statements are taken from S8, whose publisher permits use with credit. |
+| S4 | Scams and Phishing | South African Revenue Service | https://www.sars.gov.za/targeting-tax-crime/scams-and-phishing/ | updated 2026-08-04 | rejected | Current and applicable, but SARS's terms (https://www.sars.gov.za/terms-and-conditions/) grant only viewing, downloading and printing, not reuse in a commercial product. |
 | S5 | How to Stay Safe | South African Banking Risk Information Centre (SABRIC) | https://www.sabric.co.za/how-to-stay-safe/ | 2024-10-05, modified 2026-08-24 | rejected | SABRIC's terms (https://www.sabric.co.za/terms-and-conditions/) forbid copying, reproducing or making commercial use of the site's material without prior written permission. |
 | S6 | Recognize and Report Phishing | US Cybersecurity and Infrastructure Security Agency | https://www.cisa.gov/secure-our-world/recognize-and-report-phishing | none shown | rejected | The page is marked "Archived Content", so it is not current advice; its signs (lookalike addresses, urgency, requests for information) are covered by S1 to S3. |
 | S7 | How to Avoid Phishing Scams | Anti-Phishing Working Group | https://education.apwg.org/resources/overview/avoid-phishing-scams | not verified | rejected | The page itself could not be read and verified on 2026-10-29; its advice as reported is covered by S1 to S3. |
-| S8 | SARS warns public against new scam | South African Government News Agency (SAnews) | https://www.sanews.gov.za/south-africa/sars-warns-public-against-new-scam | 2026-07-30 | accepted | Current; reports SARS's statement that it never asks for passwords, one-time PINs, banking PINs, eFiling credentials or card details by email, SMS, social media or telephone, and sends no links to other sites; SAnews states its stories may be used at no cost, provided SAnews is credited. |
+| S8 | SARS warns public against new scam | South African Government News Agency (SAnews) | https://www.sanews.gov.za/south-africa/sars-warns-public-against-new-scam | 2026-07-30 | rejected | Current and applicable, but SAnews's user policy (https://www.sanews.gov.za/content/user-policy) grants attributed reuse to media; use in a commercial product is not shown to be covered. |
 | S9 | Digital fraud | First National Bank (FNB) | https://www.fnb.co.za/security-centre/digital-fraud.html | none shown | rejected | No date is shown, and no reuse terms permitting use in a commercial product were found; what it says FNB never asks for (login details, one-time PINs) is covered by S3. |
 | S10 | Security guidance | Standard Bank | https://www.standardbank.co.za/southafrica/personal/about-us/legal/conditions-of-access | not read | rejected | Standard Bank's conditions of access keep all copyright in its website content and require its consent to reproduce it. |
 | S11 | Security guidance | Absa | https://www.absa.co.za/ | not read | rejected | Absa's guidance and its website terms could not be read and verified on 2026-10-29. |
@@ -54,7 +54,7 @@ The screener receives a host (or none), a screenshot (or none, in a text-only re
 
 ### C3. Credentials, card details or one-time PINs asked for where the brand would not ask
 
-- Sources: S3, S8
+- Sources: S3
 - Evidence: the form fields the screenshot and text show (username, password, card number, CVV, PIN, one-time PIN), together with C1 or C2, or with wording that ties the form to a message ("confirm your details to keep your account").
 - Unavailable: how the visitor reached the page (a link in an email or SMS) and whether they asked to sign in. A sign-in form on its own is never a lure: that is every genuine sign-in page.
 - False-positive risk: the brand's own sign-in and payment pages, including a genuine one-time PIN step during a real payment.
@@ -63,14 +63,14 @@ The screener receives a host (or none), a screenshot (or none, in a text-only re
 - Genuine case (plain form): an unbranded form on an unfamiliar host collects a name and email address for a school's newsletter, and nothing more.
 - Lure case (plain form): an unbranded page on an unfamiliar host asks for an email address and that address's password "to view a shared document".
 
-### C4. Something asked for that the organisation says it never asks for that way
+### C4. Account or payment details to "confirm" or "update" off the organisation's own site
 
-- Sources: S3, S8
-- Evidence: the host and the text and form fields: a page that is not the organisation's own (C1 or C2) asking for what the organisation says it never asks for outside its own channels: for the revenue service, passwords, one-time PINs, banking PINs, eFiling credentials or card details (S8); for a company, a link-led page to "update" payment information (S3).
-- Unavailable: whether the page is the organisation's own when the host cannot be placed, and the organisation's policy where no accepted source states it. On the organisation's own site, these requests are its normal sign-in and registration steps, not this cue.
-- False-positive risk: the organisation's own pages where it does ask: the revenue service's own eFiling sign-in and registration (which sends a one-time PIN to the registered phone and asks for it), a bank's own sign-in, a payment step at a genuine checkout.
-- Genuine case: the national revenue service's own eFiling registration page sends a one-time PIN to the taxpayer's registered phone and asks for it to finish registering.
-- Lure case: a page with the revenue service's branding on an unrelated host says a refund is waiting and asks for the taxpayer's bank card number, banking PIN and one-time PIN to "release" it.
+- Sources: S3
+- Evidence: the host and the text and form fields: a page that is not the organisation's own (C1 or C2) asking the visitor to confirm, update or verify account, card or payment details, or one-time PINs, for an organisation it names (S3: legitimate companies do not send a link to update payment information).
+- Unavailable: whether the page is the organisation's own when the host cannot be placed, and how the visitor reached it. On the organisation's own site, these requests are its normal sign-in, registration and payment steps, not this cue.
+- False-positive risk: the organisation's own pages where it does ask: a revenue service's own eFiling registration (which sends a one-time PIN to the registered phone and asks for it), a bank's own sign-in, a payment step at a genuine checkout, an account settings page.
+- Genuine case: a national revenue service's own eFiling registration page sends a one-time PIN to the taxpayer's registered phone and asks for it to finish registering.
+- Lure case: a page with a national revenue service's branding on an unrelated host says a refund is waiting and asks for the taxpayer's bank card number, banking PIN and one-time PIN to "release" it.
 
 ### C5. Pressure: urgency, threats, fines or suspension
 
@@ -101,11 +101,11 @@ The screener receives a host (or none), a screenshot (or none, in a text-only re
 
 ### C8. Refund, prize or government payment bait
 
-- Sources: S3, S8
+- Sources: S3
 - Evidence: the text: an unexpected refund, grant, prize or "unclaimed funds" to be released once the visitor enters personal, banking or card details.
 - Unavailable: whether the visitor is due a payment. A page about refunds is not a lure on that alone.
 - False-positive risk: the revenue service's own pages explaining refunds, a social grant agency's own application pages, a genuine competition's claim page on the brand's domain.
-- Genuine case: the national revenue service's own page explains how refunds are paid into the bank account the taxpayer registered, with no form asking for card details.
+- Genuine case: a social grant agency's own application page on its own domain asks for the applicant's ID number and bank account details, so the grant can be paid into that account.
 - Lure case: a page with the revenue service's branding on an unrelated host says a refund is waiting and asks for card details and a one-time PIN to pay it.
 
 ### C9. Poor spelling, grammar or design (weak)
@@ -122,6 +122,7 @@ The screener receives a host (or none), a screenshot (or none, in a text-only re
 Cues the guidance gives that need what the screener never receives; the screener must not infer them, and their absence is not evidence:
 
 - How the visitor reached the page (a link in an email, SMS, WhatsApp or QR code; S2, S3).
+- An organisation's own statements of what it never asks for (S4, S8 and S9 state them for SARS and FNB), until a source whose terms allow our use states them.
 - The sender of a message and its address (S2, S3).
 - A domain's age, registrant or ownership.
 - The browser's padlock and certificate details (the screenshot holds the page, not the browser).

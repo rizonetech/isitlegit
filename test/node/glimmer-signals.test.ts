@@ -34,6 +34,17 @@ function parseRubric(text: string): Rubric {
   return { sources, cues };
 }
 
+// What `buildScreenRequest` never carries: evidence naming one of these is out of the screener's reach.
+const OUT_OF_REACH = [
+  /WHOIS/i,
+  /registration date/i,
+  /domain'?s? age/i,
+  /registrant/i,
+  /\bsender\b/i,
+  /certificate/i,
+  /padlock/i,
+];
+
 // Each cue's problems; none for a cue the rubric may keep.
 function cueProblems(rubric: Rubric): string[] {
   const problems: string[] = [];
@@ -55,6 +66,9 @@ function cueProblems(rubric: Rubric): string[] {
       problems.push(`${cue.id}: its evidence names none of the screener's inputs`);
     if (/\bIP address/i.test(evidence))
       problems.push(`${cue.id}: its evidence needs an IP-address host the request never carries`);
+    // Nor anything else the request never carries, even beside an input it does.
+    const unseen = OUT_OF_REACH.find((pattern) => pattern.test(evidence));
+    if (unseen) problems.push(`${cue.id}: its evidence needs ${unseen.source}, which the screener never receives`);
   }
   return problems;
 }
@@ -112,5 +126,15 @@ describe("the signals rubric", () => {
     expect(problems).toContain("C1: no Genuine case");
     expect(problems).toContain("C2: its evidence names none of the screener's inputs");
     expect(problems).toContain("C5: its evidence needs an IP-address host the request never carries");
+    // Unavailable evidence beside an allowed input is still out of reach.
+    const whois = cueProblems(
+      parseRubric(
+        text.replace(
+          "- Evidence: the host alone:",
+          "- Evidence: the host registration date from WHOIS and the host alone:",
+        ),
+      ),
+    );
+    expect(whois.some((p) => p.startsWith("C2: its evidence needs"))).toBe(true);
   });
 });
