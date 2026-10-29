@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 25 | Checklist items: 315
+Sections: 25 | Checklist items: 316
 
 | Status | Reference   | Deliverable                              | Needs                | Items |
 | ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
@@ -27,7 +27,7 @@ Sections: 25 | Checklist items: 315
 | [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
 | [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
-| [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 9     |
+| [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 10    |
 | [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 9     |
 | [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 11    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe        | none                 | 11    |
@@ -314,4 +314,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 55/243 verified sections, 28 ready to run now.
 
-Checklist: 647/1457 items completed (includes Commit items).
+Checklist: 647/1458 items completed (includes Commit items).
