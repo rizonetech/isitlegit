@@ -324,6 +324,8 @@ The 543 sample emails carry real South African lures: credential-harvest HTML at
 
 ## 8. Synthetic South African lures
 
+> **Started:** 2026-10-29T15:21Z
+
 Public sets are mostly foreign brands. Synthetic pages fill the South African gap, seeded by the lure patterns the sample mail shows (brand, lure type, call to action), with labels known by construction. Every page is inert: no script, no form action, no external resource, no copied logo file.
 
 **Removed 2026-10-28 (operator, 21:41 SAST, accepting the recommendation):** Claude will not generate realistic lure pages that impersonate real South African brands, so no synthetic lure is made. The redacted pilot-client pages (§7) are the South African lures instead: Microsoft's high-confidence phishing verdict counts as ground truth (155 pages after duplicates), a plain phishing verdict stays `unverified` (105), and with the South African benign renders (§6) they give evaluation its South African slice.
@@ -345,7 +347,9 @@ Public sets are mostly foreign brands. Synthetic pages fill the South African ga
 - [x] Reserve each Spark call's estimate before it is sent and settle it after in the one Meta spend ledger every checkout shares, `~/isitlegit-data/ledgers/meta-spend.json` (`metaLedger()`, `reserveSpend()`, `settleSpend()` and the ledger's run lock in `scripts/meta-smoke.ts`), calling Spark through `metaResponses` as built on main (D03 T01 §1, merged into this lane and in review there, so no dependency edge: it sits in Phase 1), with `run` set to `glimmer-synth-<run id>` or `glimmer-teacher-<run id>`, so the Meta caps (design spec section 11) hold across both lanes; hold §8 and §9 together to US$20 as a check over that ledger's `glimmer-` entries (cost, else estimate, as `spentOn()` counts) before each call. **Removed 2026-10-28 (operator, 21:41 SAST, accepting the recommendation):** see above.
 - [x] Commit: nothing to commit; the section was removed.
 
-**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-synth.test.ts` passes and fails if `inert()` leaves a script, a form action or an external URL.
+**Corrected 2026-10-29:** the checkpoint named `test/node/glimmer-synth.test.ts`, the test of the generator the operator removed with this section; nothing was built, so the checkpoint proves the removal instead.
+
+**Test checkpoint:** `git ls-files scripts/glimmer/synth.ts scripts/glimmer/templates test/node/glimmer-synth.test.ts` prints nothing, and `node scripts/glimmer/sources.ts status` lists no synthetic source (no stored page has `origin: synthetic`).
 
 ## 9. Spark teacher labels and human check
 
