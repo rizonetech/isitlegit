@@ -774,3 +774,25 @@ describe("the shared budget (D03 T01 §2)", () => {
     expect(sent).toEqual([]);
   });
 });
+
+describe("the smoke test's call record (D03 T01 §3)", () => {
+  it("reserves with its call and owner, and settles each call with its record", async () => {
+    const reserved: unknown[] = [];
+    const settled: unknown[] = [];
+    const budget = {
+      reserve: async (...args: unknown[]) => {
+        reserved.push(args[4]);
+        return "held";
+      },
+      settle: async (_id: string, _usd: number, record?: unknown) => void settled.push(record),
+      uncertain: async (_id: string, record?: unknown) => void settled.push(record),
+    };
+    const { fetchStub } = world();
+    await live(fetchStub, { budget }).run;
+    expect(reserved.length).toBeGreaterThan(0);
+    expect(reserved[0]).toMatchObject({ owner: { kind: "script", name: "meta-smoke" } });
+    expect(settled.length).toBe(reserved.length);
+    for (const record of settled)
+      expect(record).toMatchObject({ outcome: expect.any(String), certainty: expect.any(String) });
+  });
+});

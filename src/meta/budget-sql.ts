@@ -33,6 +33,8 @@ export type Ended = {
   inputTokens?: number | undefined;
   cachedTokens?: number | undefined;
   outputTokens?: number | undefined;
+  images?: number | undefined;
+  audioSeconds?: number | undefined;
   logId?: string | null | undefined;
   requestId?: string | null | undefined;
   outcome: "ok" | "error" | "refused";
@@ -53,9 +55,11 @@ const endedParams = (e: Ended | undefined) => [
   e?.errorClass ?? null,
   e?.certainty ?? null,
   e?.source ?? null,
+  whole(e?.images),
+  typeof e?.audioSeconds === "number" && Number.isFinite(e.audioSeconds) && e.audioSeconds >= 0 ? e.audioSeconds : null,
 ];
 const ENDED_SET =
-  "ms = coalesce(?4, ms), input_tokens = ?5, cached_tokens = ?6, output_tokens = ?7, log_id = ?8, request_id = ?9, outcome = ?10, error_class = ?11, cost_certainty = ?12, cost_source = ?13";
+  "ms = coalesce(?4, ms), input_tokens = ?5, cached_tokens = ?6, output_tokens = ?7, log_id = ?8, request_id = ?9, outcome = ?10, error_class = ?11, cost_certainty = ?12, cost_source = ?13, images = ?14, audio_seconds = ?15";
 
 export type Statement = { sql: string; params: (string | number | null)[] };
 

@@ -82,8 +82,10 @@ export function rowOf(entry: Spend): ImportRow {
 
 export function importStatement(row: ImportRow): Statement {
   return {
-    sql: `INSERT OR IGNORE INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state)
-VALUES (?1, ?2, ?3, 'local', ?4, ?5, NULL, 1, ?6, ?7, ?8)`,
+    // A settled ledger entry's cost was Meta's reported usage (the smoke and the lane settle only from it); any other
+    // entry stands at its estimate. Labelled here, so the history keeps its certainty.
+    sql: `INSERT OR IGNORE INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state, owner, cost_certainty, cost_source)
+VALUES (?1, ?2, ?3, 'local', ?4, ?5, NULL, 1, ?6, ?7, ?8, 'script', CASE ?8 WHEN 'settled' THEN 'measured' ELSE 'estimated' END, CASE ?8 WHEN 'settled' THEN 'meta-usage' ELSE 'estimate' END)`,
     params: [row.id, `${row.day}T12:00:00.000Z`, row.day, row.caller, row.model, row.estimate, row.actual, row.state],
   };
 }

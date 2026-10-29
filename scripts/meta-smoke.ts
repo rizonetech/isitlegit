@@ -754,7 +754,11 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     let held: string;
     try {
       // Named for its ledger entry, so an import of the ledger finds it already counted.
-      held = await budget.reserve(call.model as ModelId, call.estimate, 1, ledgerId(today, runId, call.name));
+      // Named for its ledger entry, and carrying the call record every caller writes (D03 T01 §3).
+      held = await budget.reserve(call.model as ModelId, call.estimate, 1, ledgerId(today, runId, call.name), {
+        callId: crypto.randomUUID(),
+        owner: { kind: "script", name: "meta-smoke" },
+      });
     } catch (error) {
       say(
         `meta-smoke: stopped before ${call.name}: ${error instanceof BudgetExceeded ? `the ${error.cap} cap refused it` : "the shared budget could not be reached"}`,
@@ -769,7 +773,9 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     });
     if ("refused" in reserved) {
       // Never sent: the shared reservation is released, so a failed local record cannot use up the allowance.
-      await budget.settle(held, 0).catch(() => {});
+      await budget
+        .settle(held, 0, { ms: 0, outcome: "refused", errorClass: "NotSent", certainty: "none", source: "estimate" })
+        .catch(() => {});
       say(`meta-smoke: stopped before ${call.name}: ${reserved.refused}`);
       return { code: 1, lines };
     }
@@ -847,7 +853,21 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     rows.push({ call, passed, detail: check.detail, excerpt: check.excerpt, ms, usage, log: logCheck, cost });
     say(`${passed ? "passed" : "failed"}: ${call.name} (${check.detail}; log: ${logCheck.detail})`);
     // Settled at Meta's reported cost; without it, the call stays counted at its estimate.
-    await (cost === null ? budget.uncertain(held) : budget.settle(held, cost)).catch(() =>
+    // The attempt's record: SAM's per-image cost is the price of the image sent, labelled estimated; a token model's is
+    // Meta's reported usage, measured.
+    const record = {
+      ms,
+      inputTokens: usage?.input,
+      cachedTokens: usage?.cached,
+      outputTokens: usage?.output,
+      ...(call.model === "sam-3.1" ? { images: 1 } : {}),
+      logId,
+      outcome: check.ok ? ("ok" as const) : ("error" as const),
+      ...(check.ok ? {} : { errorClass: "SmokeCheckFailed" }),
+      certainty: cost !== null && call.model !== "sam-3.1" ? ("measured" as const) : ("estimated" as const),
+      source: cost !== null && call.model !== "sam-3.1" ? ("meta-usage" as const) : ("estimate" as const),
+    };
+    await (cost === null ? budget.uncertain(held, record) : budget.settle(held, cost, record)).catch(() =>
       say(`meta-smoke: the shared budget's record of ${call.name} could not be updated; it stands at its estimate`),
     );
     const unsettled = settleSpend(ledgerFile, ledger, entry, cost);

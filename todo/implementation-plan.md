@@ -40,7 +40,7 @@ Sections: 25 | Checklist items: 288
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 337
+Sections: 42 | Checklist items: 338
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -76,7 +76,7 @@ Sections: 42 | Checklist items: 337
 | [x]    | D01 T03 §1  | Upload API for mail, documents and audio  | none                  | 9     |
 | [x]    | D03 T01 §1  | Model client: store false, Standard IDs   | none                  | 10    |
 | [x]    | D03 T01 §2  | Budget guard with daily and total caps    | none                  | 11    |
-| [ ]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 7     |
+| [ ]    | D03 T01 §3  | Cost and latency events per model call    | none                  | 8     |
 | [ ]    | D03 T01 §4  | Result cache by artefact hash             | none                  | 4     |
 | [ ]    | D03 T01 §5  | Structured output helper with zod         | none                  | 5     |
 | [ ]    | D03 T01 §6  | Untrusted content blocks                  | none                  | 4     |
@@ -313,4 +313,4 @@ Sections: 15 | Checklist items: 60
 
 Progress: 56/242 verified sections, 28 ready to run now.
 
-Checklist: 578/1417 items completed (includes Commit items).
+Checklist: 579/1418 items completed (includes Commit items).

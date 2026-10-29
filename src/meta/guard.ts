@@ -39,6 +39,9 @@ export type AttemptRecord = {
   inputTokens?: number | undefined;
   cachedTokens?: number | undefined;
   outputTokens?: number | undefined;
+  // The non-token billable quantity, so a charge can be reproduced from the row (completion review, E2).
+  images?: number | undefined;
+  audioSeconds?: number | undefined;
   logId?: string | null | undefined;
   requestId?: string | null | undefined;
   outcome: "ok" | "error" | "refused";
@@ -102,7 +105,18 @@ const classOf = (error: unknown) => {
 const unrecorded = (error: unknown) =>
   console.error(JSON.stringify({ event: "budget", outcome: "unsettled", error: classOf(error) }));
 
-export type Answered = { usage: Usage; logId: string | null; requestId: string | null };
+// What an answer reports: its usage, and whether that usage is Meta's own (`reported`), or derived from the request
+// (SAM's images sent, an image edit's count asked for), which is then labelled estimated, never measured.
+export type Answered = { usage: Usage; logId: string | null; requestId: string | null; reported?: boolean };
+
+// How the client describes an error it will hand on: its kind, its status and the ids it carries, read through the
+// client's own classification, so a failed attempt's record keeps them (completion review, C1).
+export type Described = {
+  errorClass: string;
+  status?: number | undefined;
+  logId: string | null;
+  requestId: string | null;
+};
 
 // One attempt, charged and recorded: reserved at the estimate first (with its call's identity and owner); settled at
 // the reported cost (`measured`) or, when the usage is unreadable, at the estimate (`estimated`); a request Meta refused
@@ -119,6 +133,7 @@ export async function charged<T>(
   answered: (answer: T) => Answered,
   call?: Call,
   now: () => number = () => Date.now(),
+  describe?: (error: unknown) => Described,
 ): Promise<T> {
   let id: string;
   try {
@@ -133,11 +148,18 @@ export async function charged<T>(
     answer = await send();
   } catch (error) {
     const ms = Math.max(0, now() - started);
+    const described = describe?.(error);
     const status =
+      described?.status ??
       (error as { status?: unknown; details?: { status?: unknown } }).status ??
       (error as { details?: { status?: unknown } }).details?.status;
     const refused = (typeof status === "number" && status >= 400 && status < 500 && status !== 408) || neverSent(error);
-    const ended = { ms, ...traceOf(error), errorClass: classOf(error), source: "estimate" as const };
+    const ended = {
+      ms,
+      ...(described ? { logId: described.logId, requestId: described.requestId } : traceOf(error)),
+      errorClass: neverSent(error) ? "NotSent" : (described?.errorClass ?? classOf(error)),
+      source: "estimate" as const,
+    };
     await (refused
       ? budget.settle(id, 0, { ...ended, outcome: "refused", certainty: "none" })
       : budget.uncertain(id, { ...ended, outcome: "error", certainty: "estimated" })
@@ -145,19 +167,24 @@ export async function charged<T>(
     throw error;
   }
   const ms = Math.max(0, now() - started);
-  const { usage, logId, requestId } = answered(answer);
-  const cost = costUsd(model, usage);
+  const { usage, logId, requestId, reported = true } = answered(answer);
+  const priced = costUsd(model, usage);
+  // Derived from the request rather than reported by Meta: the same price, labelled estimated.
+  const cost = priced;
+  const measured = priced !== null && reported;
   await budget
     .settle(id, cost ?? estimateUsd, {
       ms,
       inputTokens: usage.inputTokens,
       cachedTokens: usage.cachedTokens,
       outputTokens: usage.outputTokens,
+      images: usage.images,
+      audioSeconds: usage.audioSeconds,
       logId,
       requestId,
       outcome: "ok",
-      certainty: cost === null ? "estimated" : "measured",
-      source: cost === null ? "estimate" : "meta-usage",
+      certainty: measured ? "measured" : "estimated",
+      source: measured ? "meta-usage" : "estimate",
     })
     .catch(unrecorded);
   return answer;

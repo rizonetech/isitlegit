@@ -10,7 +10,7 @@ import { BudgetExceeded } from "../../src/meta/guard.ts";
 // The local callers' budget (D03 T01 §2): the same statement the Worker runs, sent through `wrangler d1 execute`. Here
 // wrangler is a stand-in that runs each command on an in-memory SQLite holding the real migration, so the SQL itself is
 // what is tested, a Worker's reservation racing a local one on the same rows.
-const MIGRATION = ["0020_model_spend.sql", "0021_budget_events.sql", "0022_model_calls.sql"]
+const MIGRATION = ["0020_model_spend.sql", "0021_budget_events.sql", "0022_model_calls.sql", "0023_call_units.sql"]
   .map((name) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8"))
   .join("\n");
 
@@ -196,5 +196,25 @@ describe("final review: imported rows name their real model and caller", () => {
       callerOf(entry("2026-10-28T16:43:00.242Z", "client Spark attempt 1")),
       callerOf(entry("glimmer-teacher-1", "muse-spark-1.3 x")),
     ]).toEqual(["meta-smoke", "meta-client-live", "glimmer-teacher"]);
+  });
+});
+
+describe("completion review: history keeps its certainty through 0022 and 0023", () => {
+  it("leaves a settled row written before the call record estimated, and an import measured", () => {
+    const read = (name: string) => readFileSync(new URL(`../../src/db/migrations/${name}`, import.meta.url), "utf-8");
+    const db = new DatabaseSync(":memory:");
+    db.exec(read("0020_model_spend.sql"));
+    db.exec(read("0021_budget_events.sql"));
+    const insert = db.prepare(
+      "INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state) VALUES (?, '2026-10-29T08:00:00Z', '2026-10-29', 'worker', 'checks', 'muse-spark-1.3', NULL, 1, 0.01, 0.01, 'settled')",
+    );
+    insert.run("worker-row");
+    insert.run("import:meta-smoke:2026-10-27");
+    db.exec(read("0022_model_calls.sql"));
+    db.exec(read("0023_call_units.sql"));
+    expect(db.prepare("SELECT id, cost_certainty FROM model_spend ORDER BY id").all()).toEqual([
+      { id: "import:meta-smoke:2026-10-27", cost_certainty: "measured" },
+      { id: "worker-row", cost_certainty: "estimated" },
+    ]);
   });
 });

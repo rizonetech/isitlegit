@@ -14,8 +14,16 @@ import OpenAI from "openai";
 import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
 // extensionless path.
-import { type Budget, BudgetExceeded, BudgetUnavailable, type Call, charged, type Owner } from "./guard.ts";
-import { ENDPOINTS, type Endpoint, isModelId, type ModelId } from "./models.ts";
+import {
+  type Budget,
+  BudgetExceeded,
+  BudgetUnavailable,
+  type Call,
+  charged,
+  type Described,
+  type Owner,
+} from "./guard.ts";
+import { ENDPOINTS, type Endpoint, isModelId, MODELS, type ModelId } from "./models.ts";
 import { estimateUsd } from "./pricing.ts";
 
 export const DEFAULT_DEADLINE_MS = 60_000;
@@ -166,8 +174,12 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
         },
         logId,
         requestId,
+        // A token model's usage is Meta's when the answer carries it; SAM's images are counted from the request.
+        reported: MODELS[model].unit === "token" && data.usage !== undefined,
       }),
       call,
+      undefined,
+      (error) => describeFailure(error, seen),
     );
   });
 }
@@ -199,7 +211,7 @@ export async function metaRaw(
   let contentType: Record<string, string> = {};
   let model: ModelId;
   let estimate: number;
-  let usage: (data: unknown) => { audioSeconds?: number | undefined; images?: number };
+  let usage: (data: unknown) => { audioSeconds?: number | undefined; images?: number; reported: boolean };
   if (path === "/asr/transcribe") {
     const { request, audio, filename, audioSeconds } = body as TranscribeBody;
     model = standard(request.model, "/asr/transcribe");
@@ -216,7 +228,7 @@ export async function metaRaw(
     // length the caller gave (round 3).
     usage = (data) => {
       const ms = numberAt(data, "audioDurationMs");
-      return { audioSeconds: ms === undefined ? undefined : ms / 1000 };
+      return { audioSeconds: ms === undefined ? undefined : ms / 1000, reported: ms !== undefined };
     };
     const form = new FormData();
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
@@ -227,9 +239,10 @@ export async function metaRaw(
     const asked = (body as ImageEditBody).n;
     const count = typeof asked === "number" && asked >= 1 ? asked : 1;
     estimate = estimateUsd(model, { images: count });
+    // The images returned are Meta's count; without them, the count asked for is used and labelled estimated.
     usage = (data) => {
       const made = (data as { data?: unknown } | null)?.data;
-      return { images: Array.isArray(made) ? made.length : count };
+      return Array.isArray(made) ? { images: made.length, reported: true } : { images: count, reported: false };
     };
     payload = JSON.stringify(body);
     contentType = { "content-type": "application/json" };
@@ -259,8 +272,13 @@ export async function metaRaw(
         requestId = id;
         return answer;
       },
-      ({ data, logId }) => ({ usage: usage(data), logId, requestId }),
+      ({ data, logId }) => {
+        const { reported, ...units } = usage(data);
+        return { usage: units, logId, requestId, reported };
+      },
       call,
+      undefined,
+      (error) => describeFailure(error, seen),
     );
   });
 }
@@ -396,6 +414,18 @@ function observe(send: typeof fetch): Observed {
 
 // A failure, completed from what its attempt's response showed before the body failed: an error status whose body
 // could not be read is still that status (so a cut-off 503 is retried), and the trace ids are kept either way.
+// A failed attempt as its record keeps it (D03 T01 §3, completion review C1): the client's own kind for it, its status
+// and the gateway's and Meta's ids, read before the attempt's record is written.
+function describeFailure(error: unknown, seen: Observed): Described {
+  const failure = completed(classify(error), seen.last);
+  return {
+    errorClass: failure.kind,
+    status: failure.details.status,
+    logId: failure.details.logId ?? null,
+    requestId: failure.details.requestId ?? null,
+  };
+}
+
 function completed(failure: ModelError, seen: Seen | null): ModelError {
   if (!seen) return failure;
   if (failure.details.status === undefined && seen.status >= 400 && failure.kind !== "timeout")

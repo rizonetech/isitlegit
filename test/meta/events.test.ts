@@ -181,3 +181,52 @@ describe("caseCost", () => {
     expect((await caseCost(db, { monitorRun: "run-2" })).attempts).toBe(1);
   });
 });
+
+describe("completion review (2026-10-29)", () => {
+  it("keeps a failed attempt's kind and the gateway's and Meta's ids, on every retry", async () => {
+    const busy = () =>
+      json(
+        503,
+        { error: { type: "server_error", code: null, param: null, message: "busy" } },
+        { "cf-aig-log-id": "log-9" },
+      );
+    await metaResponses(
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 16 },
+      context(CASE, busy, busy, busy),
+    ).catch(() => null);
+    await metaResponses(
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 16 },
+      context(CASE, () =>
+        json(400, { error: { type: "invalid_request_error", code: null, param: null, message: "no" } }),
+      ),
+    ).catch(() => null);
+    const got = (await rows()).map((r) => [r.outcome, r.error_class, r.log_id, r.request_id]);
+    expect(got.filter((r) => r[0] === "error")).toEqual([
+      ["error", "server", "log-9", "req-1"],
+      ["error", "server", "log-9", "req-1"],
+      ["error", "server", "log-9", "req-1"],
+    ]);
+    expect(got.filter((r) => r[0] === "refused")).toEqual([["refused", "invalid-request", "log-1", "req-1"]]);
+  });
+
+  it("labels a cost derived from the request estimated, never measured, and keeps its units", async () => {
+    await metaResponses(
+      { model: "sam-3.1", input: "x", max_output_tokens: 16 },
+      context(CASE, () => json(200, { id: "r", object: "response", output: [] })),
+    );
+    await metaRaw(
+      "/images/edits",
+      { model: "muse-image-1.0", prompt: "x" },
+      context(CASE, () => json(200, {})),
+    );
+    await metaRaw(
+      "/asr/transcribe",
+      { request: { model: "muse-voice-transcribe-1.0" }, audio: new Blob([new Uint8Array(100)]), audioSeconds: 2 },
+      context(CASE, () => json(200, { transcript: "x", audioDurationMs: 2_400 })),
+    );
+    const byModel = Object.fromEntries((await rows()).map((r) => [r.model, r]));
+    expect(byModel["sam-3.1"]).toMatchObject({ cost_certainty: "estimated", images: 1 });
+    expect(byModel["muse-image-1.0"]).toMatchObject({ cost_certainty: "estimated", images: 1 });
+    expect(byModel["muse-voice-transcribe-1.0"]).toMatchObject({ cost_certainty: "measured", audio_seconds: 2.4 });
+  });
+});
