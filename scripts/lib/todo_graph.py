@@ -172,17 +172,32 @@ GUARDED_WORDS = ("auth", "mail", "meta", "secret", "credential", "redact", "leak
 ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py|sql|sh|md|txt|css|html|lock)$")
 
 
+# The product's own places, anywhere in a section's text, prose included: a section that mentions one is never light,
+# however its paths are written (round 1: `.dev.vars` and `src/db/migrations/<next number>_x.sql` escaped a reading
+# of whole backtick spans).
+PRODUCT_PLACES = re.compile(r"(?<![\w-])(?:src/|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|tsconfig|"
+                            r"migrations?\b|worker-configuration)", re.IGNORECASE)
+
+
 def light_paths(body):
-    """The paths a section names in backticks: a token with a slash and no space (not a web address), or a root file
-    named by itself; a leading `./` dropped, a leading dot (`.claude/`) kept."""
-    return sorted({token.removeprefix("./") for token in re.findall(r"`([^`\s]+)`", body)
-                   if ("/" in token and "://" not in token) or ROOT_FILE.match(token)})
+    """Every path a section names in backticks: each word of each span (a command's arguments too), taken as a path
+    when it has a slash (not a web address), starts with a dot, or is a root file; a leading `./` dropped, a leading
+    dot (`.claude/`) kept, surrounding punctuation ignored."""
+    found = set()
+    for span in re.findall(r"`([^`]+)`", body):
+        for word in span.split():
+            word = word.strip("<>()[]{},;:'\"").removeprefix("./")
+            if word and "://" not in word and ("/" in word or word.startswith(".") or ROOT_FILE.match(word)):
+                found.add(word)
+    return sorted(found)
 
 
 def light_path(path):
+    if any(word in path.lower() for word in GUARDED_WORDS):
+        return False
     if "/" not in path:
-        return path.endswith(".md") and not any(word in path.lower() for word in GUARDED_WORDS)
-    return path.startswith(LIGHT_PREFIXES) and not any(word in path.lower() for word in GUARDED_WORDS)
+        return path.endswith(".md") and not path.startswith(".")
+    return path.startswith(LIGHT_PREFIXES)
 
 
 def field(body, name, required=True):
@@ -899,7 +914,8 @@ def graph(root=ROOT):
             require(risk in {"full", "light"}, f"Risk must be full/light: {ref}")
             if risk == "light":
                 named = light_paths(section_body)
-                require(bool(named) and all(light_path(p) for p in named),
+                require(bool(named) and all(light_path(p) for p in named)
+                        and not PRODUCT_PLACES.search(section_body),
                         f"Risk light needs every path the section names to be tooling, tests or docs "
                         f"({', '.join(LIGHT_PREFIXES)}), and none to touch a guarded area: {ref}")
             if surface == "yes":

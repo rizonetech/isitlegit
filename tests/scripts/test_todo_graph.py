@@ -448,7 +448,8 @@ class Risk(Tree):
         for risk, work in ((None, "- [ ] Work."), ("full", "- [ ] Work on `src/auth/auth.ts`."),
                            ("light", "- [ ] Work on `scripts/tool.py` and `tests/scripts/test_tool.py`."),
                            ("light", "- [ ] Work on `.claude/skills/x/SKILL.md` and `.github/workflows/ci.yml`."),
-                           ("light", "- [ ] Work on `./scripts/tool.py` and `AGENTS.md`.")):
+                           ("light", "- [ ] Work on `./scripts/tool.py` and `AGENTS.md`."),
+                           ("light", "- [ ] Run `python3 -m pytest tests/scripts/test_tool.py` on `scripts/tool.py`.")):
             with self.subTest(risk=risk):
                 self.with_risk(risk, work)
                 tg.graph(self.root)
@@ -458,7 +459,11 @@ class Risk(Tree):
                      "- [ ] Work on `scripts/tool.py` and `src/db/migrations/0040_x.sql`.",
                      "- [ ] Work on `scripts/redact-samples.py`.", "- [ ] Work on `scripts/glimmer/leak-check.ts`.",
                      "- [ ] Work on `scripts/tool.py` and `wrangler.jsonc`.",
-                     "- [ ] Work on `scripts/tool.py` and `package.json`.", "- [ ] Work."):
+                     "- [ ] Work on `scripts/tool.py` and `package.json`.",
+                     "- [ ] Work on `scripts/tool.py`, then change `.dev.vars`.",
+                     "- [ ] Work on `scripts/tool.py`, then add `src/db/migrations/<next number>_domains.sql`.",
+                     "- [ ] Work on `scripts/tool.py`; its Worker change goes in src/web/app.ts.",
+                     "- [ ] Run `pnpm exec wrangler deploy` after `scripts/tool.py`.", "- [ ] Work."):
             with self.subTest(work=work):
                 self.with_risk("light", work)
                 self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
