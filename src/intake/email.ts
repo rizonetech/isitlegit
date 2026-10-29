@@ -17,13 +17,22 @@ import { putRaw, type Store } from "./store";
 
 export { CLAIM_LEASE_MS, DUPLICATE_WINDOW_MS, RetryDelivery, sweepIntake } from "./admit";
 
+import { RetryDelivery } from "./admit";
+
 // Email Routing's inbound limit (stack doc); a larger message is refused before it is read.
 export const MAX_MESSAGE_BYTES = 25 * 1024 * 1024;
 export const NOTICE_FROM = "IsItLegit <check@isitlegit.co.za>";
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 
+// What the sender's mail system tells them when a forward could not be taken (a step failed and was undone).
+export const FAILED_REJECT =
+  "IsItLegit could not accept this message just now. Please forward it again in a few minutes.";
+
 export type IntakeOutcome =
   | { kind: "too-large" }
+  // A step failed and was undone, the delivery refused so its sender is told; or another copy of it is in progress.
+  | { kind: "rejected" }
+  | { kind: "busy" }
   | { kind: "dropped" }
   // A message a machine sent on its own (an auto-reply, an out-of-office): RFC 3834's Auto-Submitted, any value but
   // "no". It is never a member's forward, and answering it is how two responders loop (D01 T02 §3, round 1).
@@ -54,9 +63,14 @@ export async function handleEmail(
   try {
     outcome = await intake(message, env, now, detail);
   } catch (error) {
-    // Thrown for a retry (RetryDelivery, the admission undone): logged, then handed to Email Routing.
-    log(JSON.stringify({ event: "intake", outcome: "retry", error: (error as Error).name }));
-    throw error;
+    // Email Routing neither retries a delivery whose handler threw nor tells its sender (seen live, D01 T01 §9: a
+    // forward whose raw store failed vanished, no retry and no bounce in 11 minutes). So a failure that was undone is
+    // refused, which bounces it to the sender with what to do; another copy of the same message in progress carries
+    // on, so this one ends quietly.
+    const busy = error instanceof RetryDelivery && error.busy;
+    if (!busy) message.setReject(FAILED_REJECT);
+    log(JSON.stringify({ event: "intake", outcome: busy ? "busy" : "rejected", error: (error as Error).name }));
+    return { kind: busy ? "busy" : "rejected" };
   }
   const caseId = outcome.kind === "admitted" ? { caseId: outcome.caseId } : {};
   log(JSON.stringify({ event: "intake", outcome: outcome.kind, ...caseId, ...detail }));

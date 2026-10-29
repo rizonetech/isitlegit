@@ -23,11 +23,14 @@ export class RetryDelivery extends Error {
   override name = "RetryDelivery";
   // When the same delivery is held by another under its lease, how long until the lease runs out: retrying sooner is
   // refused again, so a client should wait this long (an upload's Retry-After).
-  constructor(
-    message: string,
-    readonly retryAfterMs = 5_000,
-  ) {
+  readonly retryAfterMs: number;
+  // True when another delivery of the same message holds it: that one carries on, so this one needs no answer. False
+  // when a step failed and was undone: the message was not taken, and the sender must be told (D01 T01 §9).
+  readonly busy: boolean;
+  constructor(message: string, retryAfterMs = 5_000, busy = false) {
     super(message);
+    this.retryAfterMs = retryAfterMs;
+    this.busy = busy;
   }
 }
 
@@ -106,7 +109,8 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
   // A delivery stalled past the lease may have been taken over meanwhile, its case removed: it starts no Workflow then.
   // A create call that itself stalls past the lease can still start one for a case removed meanwhile; that instance
   // ends at its admit step, which skips a case that does not exist, so it does nothing.
-  if (!(await stillHolds(env.DB, claim))) throw new RetryDelivery("the delivery stalled and another took it over");
+  if (!(await stillHolds(env.DB, claim)))
+    throw new RetryDelivery("the delivery stalled and another took it over", 5_000, true);
   try {
     await env.ANALYSIS.create({ id: caseId, params: { caseId } });
   } catch (error) {
@@ -123,7 +127,8 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
   // The case is in the pipeline. A claim this delivery no longer holds was taken over (the taker settles it by its
   // Workflow); one it could not mark is marked done by the sweep, which finds the Workflow.
   const marked = await markDone(env.DB, claim).catch(() => null);
-  if (marked && marked.meta.changes !== 1) throw new RetryDelivery("the delivery stalled and another took it over");
+  if (marked && marked.meta.changes !== 1)
+    throw new RetryDelivery("the delivery stalled and another took it over", 5_000, true);
   return { kind: "admitted", caseId };
 }
 
@@ -150,18 +155,20 @@ async function claimDelivery(
   )
     .bind(orgId, key)
     .first<{ state: string; case_id: string | null; claimed_at: string }>();
-  if (!held) throw new RetryDelivery("the delivery's claim changed while it was read");
+  if (!held) throw new RetryDelivery("the delivery's claim changed while it was read", 5_000, true);
   if (held.state === "done") return { duplicate: held.case_id };
   if (held.claimed_at > new Date(now.getTime() - CLAIM_LEASE_MS).toISOString())
     throw new RetryDelivery(
       "the same delivery is being processed by another",
       Math.max(1_000, Date.parse(held.claimed_at) + CLAIM_LEASE_MS - now.getTime()),
+      true,
     );
   const taken = await takeOver(env.DB, { orgId, key, claimedAt: held.claimed_at }, at);
-  if (!taken) throw new RetryDelivery("another delivery took over the same one");
+  if (!taken) throw new RetryDelivery("another delivery took over the same one", 5_000, true);
   const settled = await settleStale(env, taken, held.case_id);
   if (settled === "done") return { duplicate: held.case_id };
-  if (settled === "unknown") throw new RetryDelivery("an earlier delivery of the same one may still be starting");
+  if (settled === "unknown")
+    throw new RetryDelivery("an earlier delivery of the same one may still be starting", 5_000, true);
   return taken;
 }
 
