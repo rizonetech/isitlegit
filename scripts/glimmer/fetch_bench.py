@@ -1,20 +1,26 @@
-"""fetch.py against aria2c, measured the same way (D03 T04 §20).
+"""fetch.py against aria2c, measured the same way (D03 T04 §20, §21).
 
-    python3 scripts/glimmer/fetch_bench.py [--size-mib 96] [--cap-mib 8] [--runs 5] [--out docs/glimmer/fetch-bench.json]
+    python3 scripts/glimmer/fetch_bench.py [--size-mib 96] [--cap-mib 8] [--runs 5] [--latency-ms 20]
+        [--gigabyte-mib 1024] [--deadline 900] [--out docs/glimmer/fetch-bench.json]
 
-A local server serves a seeded payload (its SHA-256 recorded) with range support, at most `--cap-mib` MiB a second on
-each connection (as a dataset host caps one connection). Two scenarios: `drop`, where each run's first transfer is cut
-once it has sent an eighth of the file (12 MiB of 96: inside the first range of every tool, since aria2c's first
-connection reads only its quarter of the file and a cut at half of what it asked for never reached it), and `mirror`, where the first URL answers every request `503` and a second URL (the same
-file, cut the same way) has to serve it. Each tool fetches it `--runs` times per scenario under one recorded
-configuration: `fetch.py` on one stream and on four segments, aria2c on one connection and on four (`-x4 -s4 -k1M`),
-all with 3 tries, a 1-second retry wait, 30-second connect and read timeouts, a 16 KiB/s rate floor and the published
-SHA-256 (in the mirror scenario `fetch.py` takes `--mirror` and aria2c both URLs, with `--max-tries=6` on both, since
-aria2c spends its tries per URL). The medians of time and of bytes sent beyond one copy of the file (refetched),
-whether the run recovered (exit 0) and whether the file's digest matched are written temp-then-rename to `--out`,
-with each tool's exact command and version and the acceptance line (D03 T04 §20): `fetch.py` on four segments no more
-than 10 percent slower than aria2c on four connections, refetching no more, and intact in every run. aria2c is
-`~/.local/aria2` (Ubuntu's signed packages unpacked there) or `aria2c` on PATH; without it only `fetch.py` is measured.
+A local HTTPS server (a certificate for 127.0.0.1 made per run with this host's openssl, trusted through each tool's
+own option, never by turning verification off) serves a seeded payload with range support, at most `--cap-mib` MiB a
+second on each connection, with `--latency-ms` added before every answer (each request's delay measured, by kind).
+Three scenarios: `drop`, the first transfer cut once an eighth of the file has been sent; `mirror`, the first URL
+answering every request 503 and a second serving the file; `gigabyte` (`--gigabyte-mib`), each tool's first process
+killed with the server holding every connection at exactly an eighth of the file written, and a second process
+finishing it, which may fetch again no more than `RESUME_SLACK`. Tools: fetch.py on one stream and on four segments,
+aria2c 1.37.0 on one connection and on four (`-x4 -s4 -k1M`, its control file saved every second), all with the same
+tries, waits, timeouts, rate floor and published SHA-256; the gigabyte scenario runs the four-connection tools only.
+
+The acceptance line (`acceptance()`, D03 T04 §21) compares fetch.py on four segments with aria2c on four connections
+per scenario, at full precision: at least five runs of each, every run recovered, cut, intact and paying the latency
+(and in the gigabyte scenario resumed), no more bytes refetched than aria2c, and a median time ratio with each tool's
+own start-up (measured in the same run) taken off under its bar (`BARS`: the gigabyte file and the failing first URL
+strictly under 1.00; §20's 96 MiB cut scenario within 1.10, as a regression guard). The raw ratio is kept beside it.
+Figures go temp-then-rename to `--out` with every command (folders as placeholders), version, estimate and wall time;
+every tool run and helper has a deadline, and its process group, servers and folders are always ended. The exit is 0
+only when the bar is met. aria2c is `~/.local/aria2` (Ubuntu's signed packages unpacked there) or `aria2c` on PATH.
 """
 
 import argparse
@@ -281,7 +287,10 @@ def startup_seconds(tool: str) -> float:
     return statistics.median(times)
 
 
-RUN_DEADLINE = 900.0  # seconds a tool run may take before it is ended with its process group
+RUN_DEADLINE = 900.0
+# A resume may fetch again at most this much: a save interval's worth (fetch.py saves every MiB, aria2c every second and
+# by 1 MiB pieces) plus the bytes in flight when the first process died. More is a restart, not a resume.
+RESUME_SLACK = 4 * 1024 * 1024  # seconds a tool run may take before it is ended with its process group
 
 
 def run_bounded(command: list[str], cwd: Path, deadline: float = RUN_DEADLINE) -> int | None:
@@ -311,8 +320,8 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     """The first process killed (SIGKILL, its whole group) with the server holding every connection at exactly
     `kill_at` bytes sent, so both tools die at the same byte; then a second process started on the same folder. Time and
     bytes count across both. Recorded: the bytes at the kill (which must equal `kill_at`, or the run does not count as
-    cut), the second process's bytes, and each of its requests' first byte and bytes. `resumed`: the second process
-    fetched again less than half of what the first had been sent (what it saved, kept)."""
+    cut), the second process's bytes, the bytes fetched twice, and each of its requests' first byte and bytes.
+    `resumed`: the second process fetched again no more than `RESUME_SLACK` (what the first saved, kept)."""
     server.kill_at = kill_at
     began = time.monotonic()
     first = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -334,8 +343,8 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     again = max(0, before + after - len(server.body))
     requests = [(start, sent) for phase, start, sent in server.log if phase == 2]
     return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "at_signal": at_kill, "at_kill": at_kill,
-            "second_bytes": after, "second_requests": sorted(requests)[:16],
-            "resumed": killed and code == 0 and again < before / 2}
+            "second_bytes": after, "fetched_twice": again, "second_requests": sorted(requests)[:16],
+            "resumed": killed and code == 0 and again <= RESUME_SLACK}
 
 
 def end_group(process: subprocess.Popen) -> None:

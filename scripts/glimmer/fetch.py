@@ -42,6 +42,7 @@ where the file came from.
 
 import argparse
 import email.utils
+import functools
 import errno
 import fcntl
 import hashlib
@@ -64,6 +65,7 @@ CHUNK = 64 * 1024
 SEGMENT_THRESHOLD = 64 * 1024 * 1024
 MIN_SPLIT = 2 * 1024 * 1024  # the least a range's rest must hold for a free connection to take half of it
 MAX_RANGES = 64
+SHORT_ANSWER = 64 * 1024  # a range answer under this, when at least twice it was asked, spends an attempt (one-byte answers)
 IDLE_WAIT = 0.25  # the longest an idle connection waits before looking for work again, when nothing rings it
 HASH_WAIT = 0.05  # the longest the hasher waits before reading on, when nothing rings it
 SPLIT_AFTER = 1.0  # a range is split only when its own pace says at least this many seconds of it are left
@@ -108,9 +110,11 @@ def _vetted(host: str, port: int, allow_loopback: bool) -> str:
     return addresses[0]
 
 
+@functools.lru_cache(maxsize=8)
 def _tls_context(ca_file: str | None) -> ssl.SSLContext:
     """The system's authorities, with `--ca-file`'s added (never in their place): a test host's own authority, and a
-    publicly trusted mirror or redirect target, both verify. Verification is always on."""
+    publicly trusted mirror or redirect target, both verify. Verification is always on. Made once per file and kept,
+    so a file removed or replaced after the run's check cannot fail a later connection."""
     context = ssl.create_default_context()
     if ca_file is not None:
         context.load_verify_locations(cafile=ca_file)
@@ -672,6 +676,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 # A valid shorter answer is progress; one that stopped early is a failure.
                                 failed("slower than the rate floor" if watch.tripped else "a segment ended early",
                                        progressed=progressed and not watch.tripped, source=source)
+                            elif span[1] - span[0] + 1 < SHORT_ANSWER and last - span[0] + 1 >= 2 * SHORT_ANSWER:
+                                # Valid, but tiny when more was asked: progress a hostile host could stretch forever.
+                                failed(f"a range answer of {span[1] - span[0] + 1} bytes when more was asked",
+                                       progressed=True, source=source)
                         finally:
                             connection.close()
                     except (Refused, _Misfit) as error:
@@ -786,6 +794,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 # A state that cannot be written ends the run as such: the partial is kept for a rerun.
                 try:
                     save()
+                except Refused as error:  # _write_json's own refusal (a failed temporary write or rename)
+                    errors.append(error)
+                    stop.set()
+                    wake()
                 except OSError as error:
                     errors.append(Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept"))
                     stop.set()
@@ -997,7 +1009,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     if state.get("total") is None:
                         state["total"] = have + got  # no length given: whatever arrived whole is what the digest will judge
                         _write_json(state_file, state)
-                    # A valid shorter range is progress, not a failure: the loop asks for the next one.
+                    # A valid shorter range is progress, not a failure: the loop asks for the next one. A tiny one when
+                    # more was asked spends an attempt, so a host answering a byte at a time cannot go on forever.
+                    if (code == 206 and body is not None and body < SHORT_ANSWER
+                            and (state.get("total") or 0) - have >= 2 * SHORT_ANSWER):
+                        spend(f"a range answer of {body} bytes when more was asked", progressed=True)
                 finally:
                     watch.__exit__()
                     connection.close()

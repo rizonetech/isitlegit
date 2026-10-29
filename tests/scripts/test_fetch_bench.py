@@ -54,6 +54,7 @@ class Harness(unittest.TestCase):
         self.assertTrue(carried)
         self.assertGreater(min(carried), 0)
         self.assertLess(kill["second_bytes"], giga["payload_bytes"])
+        self.assertLessEqual(kill["second_bytes"], giga["payload_bytes"] - kill["at_kill"] + bench.RESUME_SLACK)
         # Every kind of request paid the measured latency: the HEAD, the ranges, and the failing URL's refusals.
         self.assertIn("HEAD", figures["scenarios"]["drop"]["fetch.py (four segments)"]["waits"])
         self.assertIn("GET range", figures["scenarios"]["drop"]["fetch.py (four segments)"]["waits"])
@@ -117,6 +118,9 @@ class Harness(unittest.TestCase):
         self.assertEqual(run["at_kill"], len(body) // 4)
         self.assertEqual(run["code"], 0)
         self.assertTrue(run["resumed"])
+        # aria2c's second process too asked for little more than what the first had not received.
+        self.assertLessEqual(run["fetched_twice"], bench.RESUME_SLACK)
+        self.assertLessEqual(run["second_bytes"], len(body) - run["at_kill"] + bench.RESUME_SLACK)
 
     def test_a_tool_past_its_deadline_is_ended_with_its_process_group(self):
         started = time.monotonic()

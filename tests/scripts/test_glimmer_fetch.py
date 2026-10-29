@@ -180,6 +180,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             segment = bool(asked)
             if "segment-short" in modes and segment:
                 end = start + (end - start) // 2
+            if "one-byte-ranges" in modes and segment:
+                end = start
             if "short-ranges" in modes:
                 end = min(end, start + SIZE // 4 - 1)
             if "segment-503-then-private" in modes and segment:
@@ -1043,6 +1045,39 @@ class Fetch(unittest.TestCase):
                                "--sha256", SHA, "--ca-file", "not-pem.pem"], capture_output=True, text=True, check=False)
         self.assertNotIn("Traceback", done.stderr)
         self.assertIn("--ca-file", json.loads(done.stdout)["reason"])
+
+    # Final review findings (D03 T04 §21).
+    def test_a_refused_state_write_ends_the_run_instead_of_silently_stopping_saves(self):
+        real = fetch._write_json
+        calls = {"n": 0}
+
+        def failing_after_the_first(path, value):
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise fetch.Refused("incomplete: the download state could not be written (I/O error)")
+            return real(path, value)
+
+        with mock.patch.object(fetch, "_write_json", failing_after_the_first), \
+                mock.patch.object(fetch, "STATE_EVERY", 256 * 1024), \
+                self.assertRaisesRegex(fetch.Refused, "state could not be written"):
+            self.run_fetch(**self.SEGMENTED)
+        self.assertFalse(Path("src/data.bin").exists())
+        self.assertTrue(Path("src/.partial/data.bin").exists())
+
+    def test_one_byte_range_answers_spend_the_attempts(self):
+        self.server.modes = {"one-byte-ranges"}
+        started = time.monotonic()
+        with self.assertRaisesRegex(fetch.Refused, "attempts failed"):
+            self.run_fetch(**self.SEGMENTED)
+        self.assertLess(time.monotonic() - started, 10)
+
+    def test_the_ca_file_is_read_once(self):
+        folder = Path(tempfile.mkdtemp(prefix="ca-"))
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(folder / "k.pem"),
+                        "-out", str(folder / "c.pem"), "-days", "1", "-subj", "/CN=test"], check=True, capture_output=True)
+        first = fetch._tls_context(str(folder / "c.pem"))
+        (folder / "c.pem").unlink()  # removed after the run's check: later connections still verify
+        self.assertIs(fetch._tls_context(str(folder / "c.pem")), first)
 
     def test_a_ca_file_adds_to_the_system_authorities(self):
         folder = Path(tempfile.mkdtemp(prefix="ca-"))
