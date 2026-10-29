@@ -1,0 +1,49 @@
+// The check registry (D02 T01 §1): every check registers once, by name, with the parts of the case it reads and its time
+// budget, and the runner (D02 T01 §2) runs them in registration order. A check is pure: it gets the case view and
+// returns its evidence, never reaching the store.
+import type { CaseView } from "./case-view";
+import type { EvidenceDraft } from "./evidence";
+
+// A check's name: lowercase words joined by dots, `intake.forward`, `not_checked`.
+export const CHECK_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/;
+// Names the runner itself writes (D02 T01 §2), which no check may register: a check that threw or ran out of time is
+// one `not_checked` item naming it, never a silence and never a guess.
+export const SYSTEM_CHECKS = ["not_checked"] as const;
+
+export type CheckInput = Exclude<keyof CaseView, "tenant">;
+
+export type Check = {
+  name: string;
+  needs: CheckInput[];
+  timeoutMs: number;
+  run: (view: CaseView) => EvidenceDraft[] | Promise<EvidenceDraft[]>;
+};
+
+export class CheckRegistry {
+  readonly #checks = new Map<string, Check>();
+
+  register(check: Check): Check {
+    if (!CHECK_NAME.test(check.name))
+      throw new TypeError(`a check's name is lowercase words joined by dots: ${check.name}`);
+    if ((SYSTEM_CHECKS as readonly string[]).includes(check.name))
+      throw new TypeError(`${check.name} is written by the runner and cannot be registered`);
+    if (this.#checks.has(check.name)) throw new TypeError(`a check named ${check.name} is already registered`);
+    if (!Number.isInteger(check.timeoutMs) || check.timeoutMs < 1)
+      throw new RangeError(`${check.name}'s time budget is a whole number of milliseconds`);
+    this.#checks.set(check.name, check);
+    return check;
+  }
+
+  all(): Check[] {
+    return [...this.#checks.values()];
+  }
+
+  names(): string[] {
+    return [...this.#checks.keys()];
+  }
+}
+
+// The one registry the pipeline runs: `src/checks/index.ts` registers every check into it, the intake checks first.
+export const checks = new CheckRegistry();
+export const registerCheck = (check: Check) => checks.register(check);
+export const allChecks = () => checks.all();
