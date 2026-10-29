@@ -40,7 +40,7 @@ track: day-1
 | 3 | §3 | Organisations, roles, invites and removal | §1 | [x] |
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [x] |
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [x] |
-| 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [ ] |
+| 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [x] |
 | 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [ ] |
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
@@ -251,9 +251,12 @@ Sign-in routes are rate-limited per address and per IP (stack doc), and every si
 - [x] Close the completion review's in-scope gaps (2026-10-29): a passkey sign-in's challenge and proof are bounded like a link (G1); the throttled confirm page no longer promises the link outlives the wait and offers a new one (G2); an invitation resend names its caller and says resent (G3); date filters are normalised, so equivalent times filter alike (G4); the history pages by an `at`, `id` cursor (G5); a role change records the role it replaced (E1); the tests add DNS, expired, locked and address verifications, a no-account link, racing verifications, ordering and the scheduled sweep (G6). Done when: the "completion review" blocks in `test/auth/ratelimit.test.ts` and `test/auth/audit.test.ts` cover each.
 - [x] Close round 1 (2026-10-29): a role change holds its member while it runs (`member_locks`, migration `0028_member_locks.sql`), so a second at once answers 409 and each row names the role it replaced; a member leaving (`/organization/leave`) is a `leave-organization` row in the team history; every IP is normalised as Better Auth's limiter keys it (`normalizeIp`: IPv6 by its /64), so a refusal's hash matches the client's other rows. Done when: `test/auth/audit.test.ts` "round 1" covers each.
 - [x] Close rounds 2 and 3 and the final review (2026-10-29): the hold is taken only for a change Better Auth would allow (its `updateMemberRole` rule mirrored), named by its holder (migration `0029_member_lock_holder.sql`), held 10 s, and released around the handler too, past an error Better Auth rethrows; a removal ends the member's sessions before its row, which says whether they ended; one refusal row per window; a mapped IPv4 in hex hashes as its dotted form; history rows of one millisecond keep insertion order (`rowid`); the invite-code signup has its own per-IP limit (10 per 10 minutes). Done when: the "round 2", "round 3" and "final review" blocks in `test/auth/audit.test.ts` and `test/auth/ratelimit.test.ts` cover each.
-- [ ] Commit: `auth: sign-in rate limits and the audit trail`
+- [x] Commit: `auth: sign-in rate limits and the audit trail` (landed as `f946261`, with the reviews' fixes in `0aea7b3`, `e73da9e`, `ffb689a`, `8a55503`, `48371e1` and `dd46911`)
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/ratelimit.test.ts test/auth/audit.test.ts` passes, and fails if the per-IP limit, the per-address limit or an audit caller is removed.
+
+> **Verified:** 2026-10-29 | §6 | dd469114955fb7dae155301555200df12e7cb030
+> **Review:** `docs/reviews/d07-t02-s6.json`
 
 ## 7. Sign-in, signup, invite and domain verification pages
 
