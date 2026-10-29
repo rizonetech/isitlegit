@@ -829,3 +829,24 @@ describe("round 1: the smoke test's calls carry the record every caller writes",
       expect(JSON.parse(request.headers.get("cf-aig-metadata") ?? "{}")).toEqual({ script: "meta-smoke" });
   });
 });
+
+describe("round 2: an interrupted stream is a failed call", () => {
+  it("records a SAM stream cut off before completion as an error, apart from a content-check failure", async () => {
+    const records: Record<string, unknown>[] = [];
+    const budget = {
+      reserve: async () => "held",
+      settle: async (_id: string, _usd: number, record?: unknown) =>
+        void records.push(record as Record<string, unknown>),
+      uncertain: async (_id: string, record?: unknown) => void records.push(record as Record<string, unknown>),
+    };
+    const cut = () =>
+      new Response(samStream(samRecord(), false), {
+        headers: { "content-type": "text/event-stream" },
+      });
+    const { fetchStub } = world({ answers: { sam: cut } });
+    await live(fetchStub, { budget }).run;
+    const sam = records.find((r) => r.images === 1);
+    expect(sam).toMatchObject({ outcome: "error", certainty: "estimated" });
+    expect(String(sam?.errorClass)).toMatch(/^stream-|^timeout$/);
+  });
+});

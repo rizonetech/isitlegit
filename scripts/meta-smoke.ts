@@ -91,7 +91,9 @@ export function loadFixtures(dir = join(ROOT, "test/fixtures/meta-smoke")): Fixt
   };
 }
 
-type Check = { ok: boolean; detail: string; excerpt?: string | undefined };
+// `interrupted` names how an answer failed to arrive whole (a stream cut off, unreadable or past its deadline), as the
+// attempt's error class: a failure of the call, apart from a whole answer that fails the content check (round 2).
+type Check = { ok: boolean; detail: string; excerpt?: string | undefined; interrupted?: string };
 export type Planned = {
   name: string;
   model: (typeof MODELS)[number];
@@ -239,7 +241,11 @@ export async function judgeSegmentation(events: AsyncIterable<{ type: string }>,
     const result = await parsed.finalResult;
     const outcome = result.outcome;
     if (outcome.status !== "completed")
-      return { ok: false, detail: `the stream ended ${outcome.status} (${outcome.reason}), not completed` };
+      return {
+        ok: false,
+        detail: `the stream ended ${outcome.status} (${outcome.reason}), not completed`,
+        interrupted: "stream-incomplete",
+      };
     // An error diagnostic means the parser dropped malformed data, which completion alone does not show.
     const errors = result.diagnostics.filter((d) => d.severity === "error");
     if (errors.length > 0)
@@ -253,12 +259,13 @@ export async function judgeSegmentation(events: AsyncIterable<{ type: string }>,
       : { ok: false, detail: `${boxes.length} box(es), none over the logo (best overlap ${best.toFixed(2)})` };
   } catch (error) {
     const e = error as Error;
+    const late = e.name === "AbortError" || e.name === "TimeoutError" || /abort/i.test(e.message);
     return {
       ok: false,
-      detail:
-        e.name === "AbortError" || e.name === "TimeoutError" || /abort/i.test(e.message)
-          ? "the segmentation stream did not finish before the deadline"
-          : `the segmentation stream could not be read: ${e.name}`,
+      detail: late
+        ? "the segmentation stream did not finish before the deadline"
+        : `the segmentation stream could not be read: ${e.name}`,
+      interrupted: late ? "timeout" : "stream-unreadable",
     };
   }
 }
@@ -845,7 +852,10 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
       };
     }
     // The SDK ends an aborted stream as if it had finished, so the deadline is named here, where it is known.
-    if (deadline.aborted && !check.ok) check = { ok: false, detail: `no complete answer within ${timeoutMs / 1000} s` };
+    if (deadline.aborted && !check.ok)
+      check = { ok: false, detail: `no complete answer within ${timeoutMs / 1000} s`, interrupted: "timeout" };
+    // An answer that never arrived whole is a failed call, whatever the transport said.
+    if (!failure && check.interrupted) failure = { errorClass: check.interrupted, logId, requestId };
     const ms = Date.now() - started;
     const logCheck: LogCheck = logId
       ? await checkLog(getLog, logId, call, usage, options.logWaitMs ?? 30_000)
