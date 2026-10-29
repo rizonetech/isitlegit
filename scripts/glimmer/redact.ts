@@ -23,11 +23,11 @@ const ROLE_WORDS = new Set(
   ),
 );
 
-// Words a display name carries that name no one: articles and joining words, titles, company forms and surname
-// particles (`van der Merwe` is redacted by `Merwe`; `van` alone is every delivery van). Taken for names, they would
-// refuse almost every page.
+// Words a display name carries that name no one: articles, joining and other common English words, titles, company
+// forms and surname particles (`van der Merwe` is redacted by `Merwe`; `van` alone is every delivery van). Taken for
+// names, they would refuse almost every page. A name that is also a common word (`May`) is left to the surname with it.
 const NOT_NAMES = new Set(
-  "the and for from with our your his her its of to at on in by an a or mr mrs ms miss dr prof sir madam pty ltd inc llc plc cc sa co corp company group holdings van der den de du le la von da di dos das el al bin ibn".split(
+  "the and for from with our your his her its of to at on in by an a or mr mrs ms miss dr prof sir madam pty ltd inc llc plc cc sa co corp company group holdings van der den de du le la von da di dos das el al bin ibn all any are but can did does get got has had have how let may new not now off one out own see she they this that than then them there these those too two was way were what when where which who why will yet you also back been best both came come each even ever every free here into just keep last like live long look made make many more most much must need next only open over part plus said same seen send show some soon such sure take tell thank thanks very want well went work year com net org gov edu www http https html htm mail gmail googlemail outlook hotmail yahoo icloud za uk".split(
     " ",
   ),
 );
@@ -36,7 +36,13 @@ const NOT_NAMES = new Set(
 // address's local part split at dots, dashes and underscores (three letters or more), mailbox roles left out.
 export function namePieces(display: string | undefined, address: string | undefined): string[] {
   const local = (address ?? "").split("@")[0] ?? "";
-  const shown = (display ?? "").split(/[\s,."'()]+/).filter((piece) => /^(\p{L}{3,}|\p{Lu}\p{Ll})$/u.test(piece));
+  // A display name that is itself an address or a domain names no one: its words are web words (`com`, `www`), and the
+  // address's own rules cover it. A hyphenated name counts whole and by its parts (`Anne-Marie`, `Anne`, `Marie`).
+  const named = /@|^\S+\.[a-z]{2,}$|https?:|www\./i.test((display ?? "").trim()) ? "" : (display ?? "");
+  const words = named
+    .split(/[\s,."'()]+/)
+    .flatMap((word) => (word.includes("-") ? [word, ...word.split("-")] : [word]));
+  const shown = words.filter((piece) => /^(\p{L}{3,}(-\p{L}+)*|\p{Lu}\p{Ll})$/u.test(piece));
   const parts = local.split(/[._\-+0-9]+/).filter((piece) => /^\p{L}{3,}$/u.test(piece));
   return [...shown, ...parts].filter(
     (piece) => !ROLE_WORDS.has(piece.toLowerCase()) && !NOT_NAMES.has(piece.toLowerCase()),
@@ -48,9 +54,9 @@ export const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // international numbers.
 export const PHONE =
   /\(0\d{2}\)[\s-]?\d{3}[\s-]?\d{4}\b|(?:\+27|\b0)[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{4}\b|\+\d{1,3}[\s-]?\(?\d{1,4}\)?(?:[\s-]?\d{2,4}){2,4}\b/g;
-// Nine or more digits in a run (single spaces or dashes allowed between): South African account numbers (9 to 11
+// Nine or more digits in a run (single spaces, non-breaking spaces or dashes allowed between): South African account numbers (9 to 11
 // digits), ID numbers (13) and card numbers (13 to 19). Eight stops short, so a date like 2026-10-31 stays.
-export const LONG_NUMBER = /\b\d(?:[ -]?\d){8,}\b/g;
+export const LONG_NUMBER = /\b\d(?:[ \u00A0\u202F-]?\d){8,}\b/g;
 const DATA_URI = /data:[^"')\s>]+/g;
 const URL = /\b(?:https?:\/\/|www\.)[^\s"'<>()]+/gi;
 // Characters that hide inside a word without showing: a soft hyphen or a zero-width space splits `Tha­ndi` for a
@@ -91,6 +97,7 @@ export function decodeTextEntities(html: string): string {
       return /[<>&"']/.test(char) ? whole : char;
     })
     .replace(/&([a-z]+);/gi, (whole, name: string) => {
+      if (name.toLowerCase() === "nbsp") return "\u00A0";
       const lower = LETTER_ENTITIES[name.toLowerCase()];
       if (!lower) return whole;
       return name[0] === name[0]?.toUpperCase() ? lower.toUpperCase() : lower;
@@ -103,23 +110,34 @@ const IMAGE_TAG = /<(?:img|image|object|embed|picture|source|video|audio|input\s
 // Every picture out of the HTML before it is rendered: an `<img>` becomes a grey box of its size (so the layout a lure
 // draws stays), other embedded media go, and CSS images and `background` attributes are dropped.
 export function stripImages(html: string): string {
-  return html
-    .replace(IMAGE_TAG, (tag) => {
-      if (!/^<img\b/i.test(tag)) return "";
-      const size = (name: string, fallback: number, most: number) => {
-        const value = new RegExp(`\\b${name}\\s*=\\s*["']?(\\d+)`, "i").exec(tag)?.[1];
-        return Math.min(most, Math.max(1, value ? Number(value) : fallback));
-      };
-      return `<span style="display:inline-block;width:${size("width", 120, 1280)}px;height:${size("height", 40, 600)}px;background:#d0d0d0;vertical-align:middle"></span>`;
-    })
-    .replace(/url\(\s*(["']?)[^)]*\1\s*\)/gi, "none")
-    .replace(/\s(?:background|poster|srcset)\s*=\s*(["'])[^"']*\1/gi, "");
+  return (
+    html
+      // Vector artwork (a signature drawn as paths) goes whole, its own text with it.
+      .replace(
+        /<svg\b[\s\S]*?<\/svg\s*>/gi,
+        '<span style="display:inline-block;width:120px;height:40px;background:#d0d0d0"></span>',
+      )
+      // CSS-generated text is drawn but never in the page's text, out of the post-render check's reach.
+      .replace(/content\s*:\s*(?:"[^"]*"|'[^']*')/gi, "content:none")
+      .replace(IMAGE_TAG, (tag) => {
+        if (!/^<img\b/i.test(tag)) return "";
+        const size = (name: string, fallback: number, most: number) => {
+          const value = new RegExp(`\\b${name}\\s*=\\s*["']?(\\d+)`, "i").exec(tag)?.[1];
+          return Math.min(most, Math.max(1, value ? Number(value) : fallback));
+        };
+        return `<span style="display:inline-block;width:${size("width", 120, 1280)}px;height:${size("height", 40, 600)}px;background:#d0d0d0;vertical-align:middle"></span>`;
+      })
+      .replace(/url\(\s*(["']?)[^)]*\1\s*\)/gi, "none")
+      .replace(/\s(?:background|poster|srcset)\s*=\s*(["'])[^"']*\1/gi, "")
+  );
 }
 
 // Whether any picture is left for a render to draw: checked before every render, so a rule `stripImages` missed is a
 // refusal, never a stored screenshot.
 export function hasImages(html: string): boolean {
-  return /<(?:img|image|object|embed|picture|source|video|audio)\b|url\(\s*["']?\s*(?:data:|cid:|https?:)/i.test(html);
+  return /<(?:img|image|svg|object|embed|picture|source|video|audio)\b|url\(\s*["']?\s*(?:data:|cid:|https?:)|content\s*:\s*["']/i.test(
+    html,
+  );
 }
 
 // `text` with every address, client domain, name, phone and long number replaced. Names are left alone inside a URL

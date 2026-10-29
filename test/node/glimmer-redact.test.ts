@@ -43,6 +43,19 @@ describe("redact", () => {
     expect(out).not.toMatch(/thandi|merwe|th&#97;ndi/i);
   });
 
+  it("redacts numbers grouped with non-breaking spaces, written or as references", () => {
+    const out = redact("<p>card 4111\u00A01111\u00A01111\u00A01111, ID 800101&nbsp;5009&nbsp;087</p>", []);
+    expect(out).toBe("<p>card [number], ID [number]</p>");
+  });
+
+  it("takes a hyphenated name whole and by its parts, and no common word", () => {
+    expect(namePieces("Anne-Marie Dlamini", "billing@x.co.za")).toEqual(["Anne-Marie", "Anne", "Marie", "Dlamini"]);
+    expect(namePieces("The New Team", "info@x.co.za")).toEqual([]);
+    // A display name written as an address or a domain gives no web words for names.
+    expect(namePieces("accounts@acme.com", "accounts@acme.com")).toEqual([]);
+    expect(namePieces("acme.co.za", "thandi@acme.co.za")).toEqual(["thandi"]);
+  });
+
   it("takes a capitalised two-letter name, and no mailbox role, from the recipients", () => {
     expect(namePieces("Jo M. Dlamini", "jo.dlamini@x.co.za")).toEqual(["Jo", "Dlamini", "dlamini"]);
     expect(namePieces("Accounts Payable", "accounts_payable@x.co.za")).toEqual([]);
@@ -82,6 +95,13 @@ describe("stripImages", () => {
     expect(out).toContain("width:200px;height:50px");
     expect(out).toContain("width:120px;height:40px");
     expect(out).not.toMatch(/AAAA|BBBB|CCCC|sig\.png|x\.pdf|a\.png/);
+    // Vector artwork and CSS-generated text go too: neither is in the page text a post-render check reads.
+    const drawn = stripImages(
+      `<svg><path d="M0 0L9 9"/><text>Thandi</text></svg><style>.a::after{content:"Thandi 082 555 1234"}</style>`,
+    );
+    expect(drawn).not.toMatch(/path|Thandi|082/);
+    expect(hasImages(drawn)).toBe(false);
+    expect(hasImages('<style>.a::after{content:"x"}</style>')).toBe(true);
   });
 });
 

@@ -21,14 +21,16 @@
 // failure (unreadable, over 25 MB, unparsable). A change to the redaction (this file, `redact.ts`, the client names or
 // the manifest) removes every earlier sample page before the import, and the run records its key in
 // `raw/samples/REDACTION.json` only once both imports are complete, so an interrupted rebuild never stands as redacted.
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import PostalMime, { type Email } from "postal-mime";
-import { type ImportResult, importSource, type SourceItem } from "./import-source.ts";
+import { type ImportResult, importSource, type SourceItem, writeImport } from "./import-source.ts";
 import { EMAIL, hasImages, LONG_NUMBER, namePieces, PHONE, redact, stripImages } from "./redact.ts";
 import { decodeHtml, openTextReader } from "./source-pages.ts";
-import { openStore, storeDir } from "./store.ts";
+import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const CONSENT_HEADING = "Extension: Fireworks training (2026-10-28 15:16 SAST)";
@@ -80,22 +82,55 @@ export function labelOf(file: string, manifest: Map<string, string>): Label {
   return { excluded: "no label" };
 }
 
-// `manifest.csv`, checked: a `file` and a `label` column, every label `attack` or `genuine`, every file a message.
+// RFC 4180 rows: commas inside double quotes are part of a field, and a doubled quote is a quote.
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i] as string;
+    if (quoted) {
+      if (char === '"' && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else if (char === '"') quoted = false;
+      else field += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\n" || char === "\r") {
+      if (char === "\r" && text[i + 1] === "\n") i++;
+      row.push(field);
+      if (row.some((cell) => cell.trim())) rows.push(row);
+      row = [];
+      field = "";
+    } else field += char;
+  }
+  row.push(field);
+  if (row.some((cell) => cell.trim())) rows.push(row);
+  return rows;
+}
+
+// `manifest.csv`, checked: a `file` and a `label` column, every label `attack` or `genuine`, every file a message,
+// and no message listed twice with different labels.
 export function readManifest(samples: string, files: string[]): Map<string, string> {
   const file = join(samples, "manifest.csv");
   const out = new Map<string, string>();
   if (!existsSync(file)) return out;
-  const [header, ...rows] = readFileSync(file, "utf-8").split(/\r?\n/).filter(Boolean);
-  const columns = (header ?? "").split(",").map((c) => c.trim());
+  const [header, ...rows] = parseCsv(readFileSync(file, "utf-8"));
+  const columns = (header ?? []).map((c) => c.trim());
   const at = (name: string) => columns.indexOf(name);
   if (at("file") < 0 || at("label") < 0) throw new Error("refused: manifest.csv needs file and label columns");
   const known = new Set(files);
-  rows.forEach((row, index) => {
-    const cells = row.split(",").map((c) => c.trim());
-    const [name, label] = [cells[at("file")] ?? "", cells[at("label")] ?? ""];
+  rows.forEach((cells, index) => {
+    const [name, label] = [(cells[at("file")] ?? "").trim(), (cells[at("label")] ?? "").trim()];
     if (label !== "attack" && label !== "genuine")
       throw new Error(`refused: manifest.csv row ${index + 2} has label "${label}", not attack or genuine`);
     if (!known.has(name)) throw new Error(`refused: manifest.csv row ${index + 2} names no message under samples/`);
+    if (out.has(name) && out.get(name) !== label)
+      throw new Error(`refused: manifest.csv row ${index + 2} labels a message already labelled ${out.get(name)}`);
     out.set(name, label);
   });
   return out;
@@ -122,20 +157,38 @@ const HTML_NAME = /\.(s?html?)$/i;
 const bytesOf = (content: ArrayBuffer | Uint8Array | string) =>
   typeof content === "string" ? new TextEncoder().encode(content) : new Uint8Array(content);
 
+// Each part's declared charset by its file name, read from the part headers in the raw message: the parser decodes
+// attachments as bytes and does not keep their `Content-Type` parameters.
+export function partCharsets(raw: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const block of raw.split(/\r?\n\r?\n/)) {
+    const headers = block.replace(/\r?\n[ \t]+/g, " ");
+    if (!/^content-type:/im.test(headers)) continue;
+    const charset = /charset\s*=\s*"?([\w.:-]+)/i.exec(headers)?.[1];
+    const name = /(?:file)?name\*?\s*=\s*"?([^";\r\n]+)/i.exec(headers)?.[1]?.trim();
+    if (charset && name) out.set(name, charset);
+  }
+  return out;
+}
+
 // A message's parts: each HTML attachment (decoded by its own charset), its body (the HTML one, else the plain text
 // laid out as a page), and every other part by its type, for the inventory. Inline images are not parts: the body's
 // images are replaced by blank boxes before it is rendered.
-export function messageParts(email: Email): {
+export function messageParts(
+  email: Email,
+  raw = "",
+): {
   attachments: string[];
   body: string | null;
   unsupported: string[];
 } {
   const attachments: string[] = [];
   const unsupported: string[] = [];
+  const charsets = partCharsets(raw);
   for (const part of email.attachments) {
     const html = part.mimeType === "text/html" || HTML_NAME.test(part.filename ?? "");
     if (html && (part.disposition === "attachment" || HTML_NAME.test(part.filename ?? "")))
-      attachments.push(decodeHtml(bytesOf(part.content)));
+      attachments.push(decodeHtml(bytesOf(part.content), charsets.get(part.filename ?? "")));
     else if (!(part.related || part.contentId) || !part.mimeType.startsWith("image/")) unsupported.push(part.mimeType);
   }
   const body = email.html
@@ -233,17 +286,40 @@ export function leaks(pages: { id: string; text: string }[], terms: string[]): {
   });
 }
 
-// The redaction's identity: the rules and the lists they read. Pages made under another key are made again.
-export function redactionKey(samples: string): string {
+// The redaction's identity: the rules, the code that decodes, renders and stores, the lists they read and every
+// message's bytes (a new message brings new recipients to guard on every page). Pages made under another key are made
+// again.
+export function redactionKey(samples: string, files: string[] = messageFiles(samples)): string {
   const hash = createHash("sha256");
   for (const file of [
     join(import.meta.dirname, "redact.ts"),
     import.meta.filename,
+    join(import.meta.dirname, "source-pages.ts"),
+    join(import.meta.dirname, "import-source.ts"),
     join(samples, "client-names.txt"),
     join(samples, "manifest.csv"),
   ])
     hash.update(existsSync(file) ? readFileSync(file) : "-").update("\0");
+  for (const file of files) {
+    hash.update(file).update("\0");
+    try {
+      hash.update(readFileSync(join(samples, file)));
+    } catch {
+      hash.update("unreadable");
+    }
+    hash.update("\0");
+  }
   return hash.digest("hex");
+}
+
+// `raw/samples/REDACTION.json`: `key`, the redaction the stored pages were all made under (null while none is whole),
+// and `building`, the one a rebuild under way is making them under. An interrupted rebuild keeps its finished pages.
+type RedactionState = { key: string | null; building: string | null; at?: string };
+export function redactionState(store: ReturnType<typeof openStore>): RedactionState {
+  const file = join(store.dir, "raw", "samples", "REDACTION.json");
+  if (!existsSync(file)) return { key: null, building: null };
+  const state = JSON.parse(readFileSync(file, "utf-8")) as Partial<RedactionState>;
+  return { key: state.key ?? null, building: state.building ?? null };
 }
 
 function writeJson(file: string, value: unknown): void {
@@ -254,7 +330,15 @@ function writeJson(file: string, value: unknown): void {
 }
 
 type Parsed = { id: string; file: string; raw: string; email: Email };
-type Outcome = { id: string; label: string; parts: string[] };
+export type Part = {
+  item?: string;
+  page?: string;
+  excluded?: string;
+  filtered?: string;
+  unsupported?: string;
+  none?: true;
+};
+type Outcome = { id: string; label: string; parts: Part[] };
 export type Inventory = {
   messages: number;
   failed: { id: string; reason: string }[];
@@ -266,14 +350,21 @@ export type Inventory = {
 
 // Each message read whole, bounded: a file over 25 MB, one that does not read, or one that does not parse within 30
 // seconds is a failure recorded by its opaque id, never an abort.
-async function readMessages(samples: string, files: string[], failed: Inventory["failed"]): Promise<Parsed[]> {
+async function readMessages(
+  samples: string,
+  files: string[],
+  failed: Inventory["failed"],
+  limits: { maxBytes?: number; parseMs?: number } = {},
+): Promise<Parsed[]> {
+  const maxBytes = limits.maxBytes ?? MAX_MESSAGE_BYTES;
+  const parseMs = limits.parseMs ?? PARSE_DEADLINE_MS;
   const parsed: Parsed[] = [];
   for (const file of files) {
     const id = opaqueId(file);
     try {
       const path = join(samples, file);
-      if (statSync(path).size > MAX_MESSAGE_BYTES) {
-        failed.push({ id, reason: `over ${MAX_MESSAGE_BYTES / 1024 / 1024} MB` });
+      if (statSync(path).size > maxBytes) {
+        failed.push({ id, reason: `over ${Math.round((maxBytes / 1024 / 1024) * 100) / 100} MB` });
         continue;
       }
       const bytes = readFileSync(path);
@@ -281,27 +372,33 @@ async function readMessages(samples: string, files: string[], failed: Inventory[
       const email = await Promise.race([
         PostalMime.parse(bytes),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error("did not parse in time")), PARSE_DEADLINE_MS);
+          timer = setTimeout(() => reject(Object.assign(new Error("late"), { late: true })), parseMs);
         }),
       ]).finally(() => clearTimeout(timer));
       parsed.push({ id, file, raw: bytes.toString("latin1"), email });
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
-      failed.push({ id, reason: code ? `unreadable (${code})` : "unparsable" });
+      const late = (error as { late?: boolean }).late;
+      failed.push({
+        id,
+        reason: late ? `not parsed within ${parseMs / 1000} seconds` : code ? `unreadable (${code})` : "unparsable",
+      });
     }
   }
   return parsed;
 }
 
-// The import, end to end: the consent and lists checked, every message read and accounted for, earlier pages made
-// under another redaction removed, both kinds imported, identical pages' labels reconciled, the inventory written,
-// and the redaction key recorded only when every message is accounted for and both imports are complete. Exit 0 when
-// complete, 1 when not.
+// The import, end to end: the consent and lists checked; every message read, bounded, and accounted for; earlier
+// pages made under another redaction removed (a rebuild under way keeps its finished pages); both kinds imported but
+// not yet published; identical pages' labels reconciled across both kinds; every part's outcome written to the
+// inventory; and only then each import published `complete` and the redaction key recorded. Exit 0 when complete.
 export async function runImport(options: {
   samples: string;
   store: ReturnType<typeof openStore>;
   render: (html: string) => Promise<{ screenshot: Uint8Array; text: string }>;
   log?: (line: string) => void;
+  maxBytes?: number;
+  parseMs?: number;
 }): Promise<{ code: 0 | 1; inventory: Inventory; results: Record<string, ImportResult> }> {
   const { samples, store } = options;
   const log = options.log ?? (() => undefined);
@@ -317,54 +414,53 @@ export async function runImport(options: {
     unsupported: 0,
     outcomes: [],
   };
-  const parsed = await readMessages(samples, files, inventory.failed);
+  const parsed = await readMessages(samples, files, inventory.failed, options);
 
-  const key = redactionKey(samples);
+  const key = redactionKey(samples, files);
   const keyFile = join(store.dir, "raw", "samples", "REDACTION.json");
-  const recorded = existsSync(keyFile) ? (JSON.parse(readFileSync(keyFile, "utf-8")) as { key?: string }).key : null;
-  if (recorded !== key) {
+  const state = redactionState(store);
+  if (state.key !== key && state.building !== key) {
     const removed = Object.values(SOURCES).reduce((sum, source) => sum + store.removeSource(source), 0);
+    writeJson(keyFile, { key: null, building: key, at: new Date().toISOString() });
     if (removed) log(`samples: the redaction changed; ${removed} earlier pages removed before the import`);
-  }
+  } else if (state.key !== key) log("samples: resuming the rebuild under the current redaction");
 
-  const { terms, domains, distinct, own } = termsOf(clientNames, parsed);
-  const itemsBy: Record<
-    keyof typeof SOURCES,
-    (SourceItem & { rank: number; label: { lure: boolean; source: string } })[]
-  > = { attachment: [], body: [] };
-  // The page each loaded item became, to reconcile identical pages' labels after the import.
+  const { terms, domains, pieces } = termsOf(clientNames, parsed);
+  type Item = SourceItem & { rank: number; label: { lure: boolean; source: string }; kind: keyof typeof SOURCES };
+  const itemsBy: Record<keyof typeof SOURCES, Item[]> = { attachment: [], body: [] };
+  // The page each loaded item became, to reconcile identical pages' labels and record each part's outcome.
   const pageOf = new Map<string, string>();
+  const partsOf = new Map<string, Part[]>();
   for (const { id, file, raw, email } of parsed) {
     const label = labelOf(file, manifest);
-    const parts = messageParts(email);
+    const parts = messageParts(email, raw);
     const outcome: Outcome = {
       id,
-      label: "excluded" in label ? "excluded" : `${label.lure ? "lure" : "benign"}`,
+      label: "excluded" in label ? "excluded" : label.lure ? "lure" : "benign",
       parts: [],
     };
     inventory.outcomes.push(outcome);
     inventory.unsupported += parts.unsupported.length;
-    outcome.parts.push(...parts.unsupported.map((type) => `unsupported ${type}`));
+    outcome.parts.push(...parts.unsupported.map((type) => ({ unsupported: type })));
+    partsOf.set(id, outcome.parts);
     if ("excluded" in label) {
       inventory.excluded.push({ id, reason: label.excluded });
       continue;
     }
-    if (!parts.body && !parts.attachments.length) outcome.parts.push("no body");
-    // This message's own recipients in full, everyone's distinctive pieces too.
-    const names = [...recipientNames(email, raw, clientNames), ...distinct];
-    const pageTerms = [...terms, ...(own.get(id) ?? [])];
+    if (!parts.body && !parts.attachments.length) outcome.parts.push({ none: true });
+    const names = [...recipientNames(email, raw, clientNames), ...pieces];
     const add = (kind: keyof typeof SOURCES, html: string, index: number) => {
       const itemId = `${id}#${kind}${index}`;
-      outcome.parts.push(itemId);
       itemsBy[kind].push({
         id: itemId,
+        kind,
         url: null,
         rank: label.rank,
         label,
         labels: { lure: label.lure },
         label_source: { lure: label.source === "ground-truth" ? "ground-truth" : "unverified" },
         load: async () => {
-          const page = await renderRedacted(options.render, html, names, pageTerms, domains);
+          const page = await renderRedacted(options.render, html, names, terms, domains);
           const digest = createHash("sha256").update(page.screenshot).update("\0").update(page.text).digest("hex");
           pageOf.set(itemId, `${SOURCES[kind]}-${digest.slice(0, 16)}`);
           return page;
@@ -380,7 +476,7 @@ export async function runImport(options: {
     // Strongest label first, then by id: whichever message an identical page is first stored from, the order is fixed.
     const items = itemsBy[kind].sort((a, b) => b.rank - a.rank || a.id.localeCompare(b.id));
     inventory.items += items.length;
-    const result = await importSource({
+    results[kind] = await importSource({
       source: SOURCES[kind],
       licence: LICENCE,
       items,
@@ -389,116 +485,194 @@ export async function runImport(options: {
       redacted: true,
       southAfrica: true,
       concurrency: 1,
+      publish: false,
       log,
     });
-    results[kind] = result;
-    reconcile(store, SOURCES[kind], items, pageOf);
-    log(
-      `samples ${kind}: ${JSON.stringify({ ...result, excluded: result.excluded.length, filtered: result.filtered.length })}`,
-    );
+  }
+  const allItems = [...itemsBy.attachment, ...itemsBy.body];
+  const stored = new Map(
+    store
+      .manifest({ tolerant: true })
+      .flatMap((p) => ((Object.values(SOURCES) as string[]).includes(p.source) ? [[p.id, p] as const] : [])),
+  );
+  const storedFrom = new Map([...stored.values()].flatMap((p) => (p.item ? [[p.item, p.id] as const] : [])));
+  const pageFor = (item: string) => {
+    const page = pageOf.get(item) ?? storedFrom.get(item);
+    return page && stored.has(page) ? page : undefined;
+  };
+  reconcile(store, stored, allItems, pageFor);
+  // Each part's outcome: the page it is (stored from it, or the same as another's), or why it is not one.
+  const why = new Map<string, Part>();
+  for (const result of Object.values(results)) {
+    for (const e of result.excluded) why.set(e.item, { item: e.item, excluded: e.reason });
+    for (const f of result.filtered) why.set(f.item, { item: f.item, filtered: f.reason });
+  }
+  for (const item of allItems) {
+    const page = pageFor(item.id);
+    partsOf
+      .get(item.id.split("#")[0] as string)
+      ?.push(page ? { item: item.id, page } : (why.get(item.id) ?? { item: item.id }));
   }
   writeJson(join(store.dir, "raw", "samples", "INVENTORY.json"), inventory);
   const complete = inventory.failed.length === 0 && Object.values(results).every((r) => r.status === "complete");
-  if (complete) writeJson(keyFile, { key, at: new Date().toISOString() });
+  // Published last, and `complete` only when the whole sample run is: the dataset builder reads an import once its
+  // record says so, and a sample set with a message missing is not one to train on.
+  for (const kind of ["attachment", "body"] as const) {
+    const result = results[kind] as ImportResult;
+    const whole = complete
+      ? result
+      : {
+          ...result,
+          status: "incomplete" as const,
+          reason: result.reason ?? `the sample run is incomplete: ${inventory.failed.length} messages failed`,
+        };
+    writeImport(join(store.dir, "raw", SOURCES[kind], "IMPORT.json"), whole);
+  }
+  if (complete) writeJson(keyFile, { key, building: null, at: new Date().toISOString() });
   return { code: complete ? 0 : 1, inventory, results };
 }
 
-// Identical pages from several messages: the page keeps the strongest label its messages agree on (ground truth over
-// unverified), and keeps no `lure` label when they disagree, whatever order they were stored in.
+// Identical pages from several messages, across attachments and bodies alike (the same content is the same page by
+// its screenshot and text): each keeps the strongest label its messages agree on (ground truth over unverified), and
+// no `lure` label when they disagree, whatever order they were stored in.
 function reconcile(
   store: ReturnType<typeof openStore>,
-  source: string,
+  stored: Map<string, StoredPage>,
   items: { id: string; label: { lure: boolean; source: string } }[],
-  pageOf: Map<string, string>,
+  pageFor: (item: string) => string | undefined,
 ): void {
-  const stored = new Map(
-    store.manifest({ tolerant: true }).flatMap((p) => (p.source === source ? [[p.id, p] as const] : [])),
-  );
-  const storedFrom = new Map([...stored.values()].flatMap((p) => (p.item ? [[p.item, p.id] as const] : [])));
-  // Each item's page: the one it rendered to in this run, or the one stored from it before (a resumed run skips it).
-  const groups = new Map<string, { lure: boolean; source: string }[]>();
+  const contentOf = (page: StoredPage) => `${page.sha256.screenshot}:${page.sha256.text}`;
+  const labels = new Map<string, { lure: boolean; source: string }[]>();
+  const pages = new Map<string, Set<string>>();
   for (const item of items) {
-    const page = pageOf.get(item.id) ?? storedFrom.get(item.id);
-    if (!page || !stored.has(page)) continue;
-    groups.set(page, [...(groups.get(page) ?? []), item.label]);
+    const id = pageFor(item.id);
+    const page = id ? stored.get(id) : undefined;
+    if (!page) continue;
+    const content = contentOf(page);
+    labels.set(content, [...(labels.get(content) ?? []), item.label]);
+    pages.set(content, (pages.get(content) ?? new Set()).add(page.id));
   }
-  for (const [id, labels] of groups) {
-    const page = stored.get(id);
-    if (!page || labels.length < 2) continue;
-    const { lure: _lure, ...rest } = page.labels;
-    const { lure: _source, ...restSource } = page.label_source;
-    if (new Set(labels.map((l) => l.lure)).size > 1) {
-      if (page.labels.lure !== undefined) store.setLabels(id, rest, restSource);
-      continue;
+  for (const [content, found] of labels) {
+    const agreed = new Set(found.map((l) => l.lure)).size === 1;
+    const lure = found[0]?.lure as boolean;
+    const strongest = found.some((l) => l.source === "ground-truth") ? "ground-truth" : "unverified";
+    for (const id of pages.get(content) ?? []) {
+      const page = stored.get(id) as StoredPage;
+      const { lure: _lure, ...rest } = page.labels;
+      const { lure: _source, ...restSource } = page.label_source;
+      if (!agreed) {
+        if (page.labels.lure !== undefined) store.setLabels(id, rest, restSource);
+      } else if (page.labels.lure !== lure || page.label_source.lure !== strongest)
+        store.setLabels(id, { ...rest, lure }, { ...restSource, lure: strongest });
     }
-    const lure = labels[0]?.lure as boolean;
-    const strongest = labels.some((l) => l.source === "ground-truth") ? "ground-truth" : "unverified";
-    if (page.labels.lure !== lure || page.label_source.lure !== strongest)
-      store.setLabels(id, { ...rest, lure }, { ...restSource, lure: strongest });
   }
 }
 
 // The terms nothing from the samples may hold, derived as the import derives them: client names, every recipient's
 // name pieces and address, and the client's domains.
-function termsOf(
-  clientNames: string[],
-  parsed: Parsed[],
-): { terms: string[]; domains: string[]; distinct: string[]; own: Map<string, string[]> } {
+function termsOf(clientNames: string[], parsed: Parsed[]): { terms: string[]; domains: string[]; pieces: string[] } {
   const everyAddress = parsed.flatMap(({ email, raw }) => addresses(email, raw));
-  // A recipient's name pieces of four letters or more are guarded on every page; shorter ones (`Jo`, `Sam`) only on
-  // their own message's pages, where they name the reader. Guarded everywhere, a short name that is also a common word
-  // refused nearly every page (measured 2026-10-29: one such piece in 125 of 199 bodies).
-  const own = new Map(
-    parsed.map(({ id, email, raw }) => [id, people(email, raw).flatMap((p) => namePieces(p.name, p.address))]),
-  );
-  const distinct = [...new Set([...own.values()].flat().filter((piece) => piece.length >= 4))];
-  return {
-    terms: protectedTerms(clientNames, everyAddress, distinct),
-    domains: clientDomains(everyAddress),
-    distinct,
-    own,
-  };
+  // Every recipient's name pieces, of any length, are redacted and guarded on every page: a name from one message can
+  // stand in another's quoted or forwarded text. (Guarding them everywhere while redacting each page by its own
+  // recipients alone refused 134 of 540 real bodies, 2026-10-29; redacting them everywhere removes those hits.)
+  const pieces = [
+    ...new Set(parsed.flatMap(({ email, raw }) => people(email, raw).flatMap((p) => namePieces(p.name, p.address)))),
+  ];
+  return { terms: protectedTerms(clientNames, everyAddress, pieces), domains: clientDomains(everyAddress), pieces };
 }
 
-// Every stored sample page's text and record, and every record the import wrote, scanned for client terms and for
-// paths under samples/; and the inventory checked to account for every message. Exit 0 when clean and whole.
-export async function leakCheck(options: { samples: string; store: ReturnType<typeof openStore> }): Promise<{
-  code: 0 | 1;
-  pages: number;
-  hits: number;
-  unaccounted: number;
-}> {
+export type Ocr = (screenshots: string[]) => Promise<string[]>;
+
+// The text an OCR engine reads off each stored screenshot (`scripts/glimmer/ocr_text.py`, RapidOCR in its own venv,
+// `GLIMMER_OCR_PYTHON` or `~/.venvs/ocr/bin/python`): what a viewer of the picture reads, checked as the page text is.
+export const systemOcr: Ocr = async (screenshots) => {
+  const python = process.env.GLIMMER_OCR_PYTHON ?? join(homedir(), ".venvs", "ocr", "bin", "python");
+  if (!existsSync(python)) throw new Error("no OCR engine: install rapidocr-onnxruntime in ~/.venvs/ocr");
+  const out = execFileSync(python, ["-I", join(import.meta.dirname, "ocr_text.py")], {
+    input: JSON.stringify(screenshots),
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  return JSON.parse(out.toString("utf-8")) as string[];
+};
+
+// The proof the store's samples are whole and clean: the consent holds; the stored pages were all made under the
+// current redaction and both imports are complete; every page's record reads; no page's text, record or screenshot
+// (read by OCR) holds a client term or an address, phone or long number; no import record or the inventory holds a
+// term or a path under samples/; and every message and part is accounted for by a page that exists or a reason.
+export async function leakCheck(options: {
+  samples: string;
+  store: ReturnType<typeof openStore>;
+  ocr?: Ocr;
+}): Promise<{ code: 0 | 1; pages: number; hits: number; unaccounted: number; problems: string[] }> {
   const { samples, store } = options;
+  assertConsent(samples);
   const clientNames = readClientNames(samples);
   const files = messageFiles(samples);
-  const { terms, own } = termsOf(clientNames, await readMessages(samples, files, []));
-  const records: { id: string; text: string }[] = [];
-  const found: { id: string; term: string }[] = [];
-  const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
-  for (const page of pages) {
-    // A page is checked against every guarded term and its own message's recipients (its item names the message).
-    const message = page.item?.split("#")[0] ?? "";
-    const pageRecords = [
-      { id: page.id, text: store.readPage(page.id).text },
-      { id: `${page.id}/meta`, text: readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8") },
-    ];
-    found.push(...leaks(pageRecords, own.get(message) ?? []));
-    records.push(...pageRecords);
+  const { terms } = termsOf(clientNames, await readMessages(samples, files, []));
+  const problems: string[] = [];
+  const state = redactionState(store);
+  if (state.key !== redactionKey(samples, files) || state.building)
+    problems.push("the stored pages were not all made under the current redaction");
+  for (const source of Object.values(SOURCES)) {
+    const file = join(store.dir, "raw", source, "IMPORT.json");
+    const status = existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as ImportResult).status : "missing";
+    if (status !== "complete") problems.push(`${source}: its import is ${status}`);
   }
+  let pages: StoredPage[] = [];
+  try {
+    pages = store.manifest().filter((p) => p.origin === "samples");
+  } catch {
+    problems.push("a page's record does not read");
+  }
+  const records: { id: string; text: string }[] = [];
+  const shots: string[] = [];
+  let detail = 0;
+  for (const page of pages) {
+    const text = store.readPage(page.id).text;
+    if (personalDetail(text)) detail++;
+    records.push(
+      { id: page.id, text },
+      { id: `${page.id}/meta`, text: readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8") },
+    );
+    shots.push(join(store.dir, "pages", page.id, "screenshot.jpg"));
+  }
+  try {
+    const read = await (options.ocr ?? systemOcr)(shots);
+    read.forEach((text, index) => {
+      records.push({ id: `${pages[index]?.id}/screenshot`, text });
+      if (personalDetail(text)) detail++;
+    });
+  } catch (error) {
+    problems.push(`the screenshots were not read: ${(error as Error).message.split("\n")[0]}`);
+  }
+  const imports: { id: string; text: string }[] = [];
   for (const source of [...Object.values(SOURCES), "samples"])
-    for (const name of ["IMPORT.json", "INVENTORY.json"]) {
+    for (const name of ["IMPORT.json", "INVENTORY.json", "REDACTION.json"]) {
       const file = join(store.dir, "raw", source, name);
-      if (existsSync(file)) records.push({ id: `${source}/${name}`, text: readFileSync(file, "utf-8") });
+      if (existsSync(file)) imports.push({ id: `${source}/${name}`, text: readFileSync(file, "utf-8") });
     }
-  found.push(...leaks(records, terms), ...leaks(records, files));
+  const found = [...leaks([...records, ...imports], terms), ...leaks(imports, files)];
+  if (detail) problems.push(`${detail} pages or screenshots show an address, phone or long number`);
+  // Every message and every part accounted for, every part's page in the store, every stored page some part's.
   const inventoryFile = join(store.dir, "raw", "samples", "INVENTORY.json");
   const inventory = existsSync(inventoryFile) ? (JSON.parse(readFileSync(inventoryFile, "utf-8")) as Inventory) : null;
+  if (!inventory) problems.push("no inventory");
   const accounted = new Set([
     ...(inventory?.outcomes ?? []).map((o) => o.id),
     ...(inventory?.failed ?? []).map((f) => f.id),
   ]);
   const unaccounted = files.filter((file) => !accounted.has(opaqueId(file))).length;
-  return { code: found.length || unaccounted ? 1 : 0, pages: pages.length, hits: found.length, unaccounted };
+  const ids = new Set(pages.map((p) => p.id));
+  const parts = (inventory?.outcomes ?? []).flatMap((o) => o.parts);
+  const open = parts.filter((p) => p.item && !p.page && !p.excluded && !p.filtered).length;
+  const missing = parts.filter((p) => p.page && !ids.has(p.page)).length;
+  const orphans = [...ids].filter((id) => !parts.some((p) => p.page === id)).length;
+  if (open) problems.push(`${open} parts have no outcome`);
+  if (missing) problems.push(`${missing} parts name a page the store does not hold`);
+  if (orphans) problems.push(`${orphans} stored pages are no part's`);
+  if (found.length) problems.push(`${found.length} client terms found`);
+  const code = problems.length || unaccounted ? 1 : 0;
+  return { code, pages: pages.length, hits: found.length, unaccounted, problems };
 }
 
 async function main(command: string | undefined): Promise<number> {
@@ -508,8 +682,8 @@ async function main(command: string | undefined): Promise<number> {
     const result = await leakCheck({ samples, store });
     console.log(
       result.code === 0
-        ? `leak-check: clean (${result.pages} pages, every message accounted for)`
-        : `leak-check: ${result.hits} hits, ${result.unaccounted} messages unaccounted for`,
+        ? `leak-check: clean (${result.pages} pages, their screenshots read; every message and part accounted for)`
+        : `leak-check: failed (${[...result.problems, `${result.unaccounted} messages unaccounted for`].join("; ")})`,
     );
     return result.code;
   }
@@ -529,8 +703,8 @@ async function main(command: string | undefined): Promise<number> {
       unsupported: 0,
     };
     const labels: Record<string, number> = {};
-    for (const { file, email } of parsed) {
-      const parts = messageParts(email);
+    for (const { file, raw, email } of parsed) {
+      const parts = messageParts(email, raw);
       counts.attachments += parts.attachments.length;
       if (email.html) counts.bodies++;
       else if (parts.body) counts.textBodies++;

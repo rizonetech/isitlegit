@@ -96,6 +96,9 @@ export async function importSource(options: {
   log?: (line: string) => void;
   // Public datasets by default; the pilot client's redacted samples say so (§7).
   origin?: "public" | "samples";
+  // False: the record stays `running` when the run ends, and the caller publishes the result itself once its own
+  // steps after the import have succeeded (the samples reconcile labels and write their inventory first, §7).
+  publish?: boolean;
   redacted?: boolean;
   southAfrica?: boolean;
 }): Promise<ImportResult> {
@@ -245,6 +248,6 @@ export async function importSource(options: {
     pages_per_minute: Math.round(((imported + duplicates) * 60_000) / Math.max(1, Date.now() - started.getTime())),
     concurrency,
   };
-  writeImport(importJson, result);
+  writeImport(importJson, options.publish === false ? { ...result, status: "running" } : result);
   return result;
 }

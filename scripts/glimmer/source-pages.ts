@@ -27,13 +27,21 @@ export async function normaliseScreenshot(bytes: Uint8Array): Promise<Uint8Array
   return new Uint8Array(await image.flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer());
 }
 
-// A dataset's HTML bytes as text, in the encoding the page declares, as a browser's prescan reads it: a byte order mark
-// first, then a `<meta charset>` or `http-equiv` content type in the first 1,024 bytes, else UTF-8. A Shift_JIS or
+// A dataset's HTML bytes as text, in the encoding the page declares, as a browser reads it: a byte order mark first,
+// then the charset its transport declared (a mail part's `Content-Type`), then a `<meta charset>` or `http-equiv`
+// content type in the first 1,024 bytes, else UTF-8 when the bytes are UTF-8, else Windows-1252. A Shift_JIS or
 // windows-1251 page decoded as UTF-8 would train Loupe on mojibake.
-export function decodeHtml(bytes: Uint8Array): string {
+export function decodeHtml(bytes: Uint8Array, declaredByTransport?: string): string {
   if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder("utf-8").decode(bytes);
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes);
   if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes);
+  if (declaredByTransport) {
+    try {
+      return new TextDecoder(declaredByTransport).decode(bytes);
+    } catch {
+      // a label the decoder does not know: the page's own declaration or the bytes decide
+    }
+  }
   const head = new TextDecoder("latin1").decode(bytes.subarray(0, 1024));
   const declared = /<meta[^>]+charset\s*=\s*["']?\s*([\w.:-]+)/i.exec(head)?.[1];
   if (declared) {

@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 25 | Checklist items: 305
+Sections: 25 | Checklist items: 315
 
 | Status | Reference   | Deliverable                              | Needs                | Items |
 | ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
@@ -25,14 +25,14 @@ Sections: 25 | Checklist items: 305
 | [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
 | [ ]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
 | [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
-| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 20    |
+| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
 | [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 9     |
 | [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 9     |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 10    |
+| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 11    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe        | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero   | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 11    |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 12    |
 | [ ]    | D03 T04 §17 | Loupe model card per version             | none                 | 9     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                        | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                          | meta-api, cloudflare | 10    |
@@ -266,7 +266,7 @@ Sections: 59 | Checklist items: 238
 
 ### Phase 7: After the event
 
-Sections: 13 | Checklist items: 58
+Sections: 14 | Checklist items: 62
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -276,6 +276,7 @@ Sections: 13 | Checklist items: 58
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
 | [ ]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 4     |
+| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -303,6 +304,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 46/234 verified sections, 31 ready to run now.
+Progress: 46/235 verified sections, 31 ready to run now.
 
-Checklist: 600/1393 items completed (includes Commit items).
+Checklist: 608/1407 items completed (includes Commit items).
