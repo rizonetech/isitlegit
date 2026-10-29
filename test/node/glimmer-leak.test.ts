@@ -32,10 +32,10 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 const RECIPIENT = "To: Thandi van der Merwe <thandi.vdmerwe@acme.co.za>\r\nDelivered-To: accounts@acme.co.za";
 const words = "Your FNB account is on hold until you verify it with FNB online banking today.";
-function message(body: string, extra = ""): string {
+function message(body: string, extra = "", recipient = RECIPIENT): string {
   return [
     "From: FNB Online <alerts@fnb-verify.example.com>",
-    RECIPIENT,
+    recipient,
     "Subject: Your account is on hold",
     'Content-Type: multipart/related; boundary="b1"',
     "",
@@ -99,6 +99,9 @@ function samplesDir(): string {
   const disputed = message(`<p>${words} The same page, labelled two ways.</p>`);
   put("7_genuine.eml", disputed);
   put("8_HighConfPhish.eml", disputed);
+  // A short name guards its own message's page; the same word on another message's page refuses nothing.
+  put("10_HighConfPhish.eml", message(`<p>Dear Sam, ${words}</p>`, "", "To: Sam Ndlovu <sam.ndlovu@acme.co.za>"));
+  put("11_HighConfPhish.eml", message(`<p>${words} Sam from FNB will help.</p>`));
   // A message that cannot be read.
   mkdirSync(join(samples, "client", "9_HighConfPhish.eml"));
   return samples;
@@ -162,7 +165,7 @@ describe("the sample import, end to end", () => {
     const first = await runImport({ samples, store, render });
     // The unreadable message keeps the run incomplete, so the redaction is not recorded as done.
     expect(first.code).toBe(1);
-    expect(first.inventory).toMatchObject({ messages: 9, items: 8 });
+    expect(first.inventory).toMatchObject({ messages: 11, items: 10 });
     expect(first.inventory.failed).toEqual([
       { id: opaqueId("client/9_HighConfPhish.eml"), reason: "unreadable (EISDIR)" },
     ]);
@@ -178,7 +181,7 @@ describe("the sample import, end to end", () => {
     for (const page of pages) {
       const { screenshot, text } = store.readPage(page.id);
       expect(screenshot.length).toBeGreaterThan(0);
-      expect(text).not.toMatch(/thandi|merwe|vdmerwe|acme/i);
+      expect(text).not.toMatch(/thandi|merwe|vdmerwe|ndlovu|acme/i);
       expect(page.redacted).toBe(true);
       expect(page.item).toMatch(/^m-[0-9a-f]{16}#(attachment|body)\d$/);
     }
@@ -196,6 +199,8 @@ describe("the sample import, end to end", () => {
     expect(bodies.excluded).toEqual([
       { item: `${opaqueId("client/6_HighConfPhish.eml")}#body0`, reason: "refused: a phone number survived redaction" },
     ]);
+    expect(byText("Dear [name], Your FNB")).toBeDefined();
+    expect(byText("Sam from FNB will help")).toBeDefined();
     // The leak check finds nothing in the pages or the records, and every message accounted for.
     expect(await leakCheck({ samples, store })).toMatchObject({ code: 0, hits: 0, unaccounted: 0 });
   }, 120_000);

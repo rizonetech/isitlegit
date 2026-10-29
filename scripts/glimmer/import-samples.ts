@@ -327,7 +327,7 @@ export async function runImport(options: {
     if (removed) log(`samples: the redaction changed; ${removed} earlier pages removed before the import`);
   }
 
-  const { terms, domains } = termsOf(clientNames, parsed);
+  const { terms, domains, distinct, own } = termsOf(clientNames, parsed);
   const itemsBy: Record<
     keyof typeof SOURCES,
     (SourceItem & { rank: number; label: { lure: boolean; source: string } })[]
@@ -350,7 +350,9 @@ export async function runImport(options: {
       continue;
     }
     if (!parts.body && !parts.attachments.length) outcome.parts.push("no body");
-    const names = recipientNames(email, raw, clientNames);
+    // This message's own recipients in full, everyone's distinctive pieces too.
+    const names = [...recipientNames(email, raw, clientNames), ...distinct];
+    const pageTerms = [...terms, ...(own.get(id) ?? [])];
     const add = (kind: keyof typeof SOURCES, html: string, index: number) => {
       const itemId = `${id}#${kind}${index}`;
       outcome.parts.push(itemId);
@@ -362,7 +364,7 @@ export async function runImport(options: {
         labels: { lure: label.lure },
         label_source: { lure: label.source === "ground-truth" ? "ground-truth" : "unverified" },
         load: async () => {
-          const page = await renderRedacted(options.render, html, names, terms, domains);
+          const page = await renderRedacted(options.render, html, names, pageTerms, domains);
           const digest = createHash("sha256").update(page.screenshot).update("\0").update(page.text).digest("hex");
           pageOf.set(itemId, `${SOURCES[kind]}-${digest.slice(0, 16)}`);
           return page;
@@ -438,12 +440,24 @@ function reconcile(
 
 // The terms nothing from the samples may hold, derived as the import derives them: client names, every recipient's
 // name pieces and address, and the client's domains.
-function termsOf(clientNames: string[], parsed: Parsed[]): { terms: string[]; domains: string[] } {
+function termsOf(
+  clientNames: string[],
+  parsed: Parsed[],
+): { terms: string[]; domains: string[]; distinct: string[]; own: Map<string, string[]> } {
   const everyAddress = parsed.flatMap(({ email, raw }) => addresses(email, raw));
-  const everyPiece = parsed.flatMap(({ email, raw }) =>
-    people(email, raw).flatMap((p) => namePieces(p.name, p.address)),
+  // A recipient's name pieces of four letters or more are guarded on every page; shorter ones (`Jo`, `Sam`) only on
+  // their own message's pages, where they name the reader. Guarded everywhere, a short name that is also a common word
+  // refused nearly every page (measured 2026-10-29: one such piece in 125 of 199 bodies).
+  const own = new Map(
+    parsed.map(({ id, email, raw }) => [id, people(email, raw).flatMap((p) => namePieces(p.name, p.address))]),
   );
-  return { terms: protectedTerms(clientNames, everyAddress, everyPiece), domains: clientDomains(everyAddress) };
+  const distinct = [...new Set([...own.values()].flat().filter((piece) => piece.length >= 4))];
+  return {
+    terms: protectedTerms(clientNames, everyAddress, distinct),
+    domains: clientDomains(everyAddress),
+    distinct,
+    own,
+  };
 }
 
 // Every stored sample page's text and record, and every record the import wrote, scanned for client terms and for
@@ -457,22 +471,26 @@ export async function leakCheck(options: { samples: string; store: ReturnType<ty
   const { samples, store } = options;
   const clientNames = readClientNames(samples);
   const files = messageFiles(samples);
-  const { terms } = termsOf(clientNames, await readMessages(samples, files, []));
+  const { terms, own } = termsOf(clientNames, await readMessages(samples, files, []));
   const records: { id: string; text: string }[] = [];
+  const found: { id: string; term: string }[] = [];
   const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
   for (const page of pages) {
-    records.push({ id: page.id, text: store.readPage(page.id).text });
-    records.push({
-      id: `${page.id}/meta`,
-      text: readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8"),
-    });
+    // A page is checked against every guarded term and its own message's recipients (its item names the message).
+    const message = page.item?.split("#")[0] ?? "";
+    const pageRecords = [
+      { id: page.id, text: store.readPage(page.id).text },
+      { id: `${page.id}/meta`, text: readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8") },
+    ];
+    found.push(...leaks(pageRecords, own.get(message) ?? []));
+    records.push(...pageRecords);
   }
   for (const source of [...Object.values(SOURCES), "samples"])
     for (const name of ["IMPORT.json", "INVENTORY.json"]) {
       const file = join(store.dir, "raw", source, name);
       if (existsSync(file)) records.push({ id: `${source}/${name}`, text: readFileSync(file, "utf-8") });
     }
-  const found = [...leaks(records, terms), ...leaks(records, files)];
+  found.push(...leaks(records, terms), ...leaks(records, files));
   const inventoryFile = join(store.dir, "raw", "samples", "INVENTORY.json");
   const inventory = existsSync(inventoryFile) ? (JSON.parse(readFileSync(inventoryFile, "utf-8")) as Inventory) : null;
   const accounted = new Set([

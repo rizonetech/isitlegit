@@ -23,13 +23,24 @@ const ROLE_WORDS = new Set(
   ),
 );
 
+// Words a display name carries that name no one: articles and joining words, titles, company forms and surname
+// particles (`van der Merwe` is redacted by `Merwe`; `van` alone is every delivery van). Taken for names, they would
+// refuse almost every page.
+const NOT_NAMES = new Set(
+  "the and for from with our your his her its of to at on in by an a or mr mrs ms miss dr prof sir madam pty ltd inc llc plc cc sa co corp company group holdings van der den de du le la von da di dos das el al bin ibn".split(
+    " ",
+  ),
+);
+
 // A recipient's name pieces: the display name's words (a capitalised two-letter name such as `Jo` included) and the
 // address's local part split at dots, dashes and underscores (three letters or more), mailbox roles left out.
 export function namePieces(display: string | undefined, address: string | undefined): string[] {
   const local = (address ?? "").split("@")[0] ?? "";
   const shown = (display ?? "").split(/[\s,."'()]+/).filter((piece) => /^(\p{L}{3,}|\p{Lu}\p{Ll})$/u.test(piece));
   const parts = local.split(/[._\-+0-9]+/).filter((piece) => /^\p{L}{3,}$/u.test(piece));
-  return [...shown, ...parts].filter((piece) => !ROLE_WORDS.has(piece.toLowerCase()));
+  return [...shown, ...parts].filter(
+    (piece) => !ROLE_WORDS.has(piece.toLowerCase()) && !NOT_NAMES.has(piece.toLowerCase()),
+  );
 }
 
 export const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
