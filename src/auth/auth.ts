@@ -174,29 +174,44 @@ export function authOptions(
           // held while the change runs (migration 0028), so a second change at once is refused, not recorded against a
           // role it did not replace (round 1).
           const memberId = (ctx.body as { memberId?: unknown } | undefined)?.memberId;
-          // Only an owner or admin of the member's own organisation takes the hold (round 2): anyone else is refused by
-          // Better Auth after this, and must not hold a member an owner is changing.
+          // The hold is taken only for a change Better Auth would allow (rounds 2 and 3), mirroring its own rule
+          // (better-auth/dist/plugins/organization/routes/crud-members.mjs, updateMemberRole): the member is in the
+          // caller's active organisation, the caller is an owner or an admin there, and only an owner changes an owner or
+          // makes one. Anyone else is refused by Better Auth after this, and must not hold a member another is changing.
           const caller = await getSessionFromCtx(ctx);
+          const body = (ctx.body ?? {}) as { organizationId?: unknown; role?: unknown };
+          const orgId =
+            typeof body.organizationId === "string"
+              ? body.organizationId
+              : ((caller?.session as { activeOrganizationId?: string | null } | undefined)?.activeOrganizationId ??
+                null);
           const target =
             typeof memberId === "string"
-              ? await ctx.context.adapter.findOne<{ organizationId: string }>({
+              ? await ctx.context.adapter.findOne<{ organizationId: string; role: string }>({
                   model: "member",
                   where: [{ field: "id", value: memberId }],
                 })
               : null;
           const callerMember =
-            caller && target
+            caller && target && orgId && target.organizationId === orgId
               ? await ctx.context.adapter.findOne<{ role: string }>({
                   model: "member",
                   where: [
                     { field: "userId", value: caller.user.id },
-                    { field: "organizationId", value: target.organizationId },
+                    { field: "organizationId", value: orgId },
                   ],
                 })
               : null;
-          const mayChange = callerMember
-            ? callerMember.role.split(",").some((r) => r === "owner" || r === "admin")
-            : false;
+          const roles = (value: string) => value.split(",").map((r) => r.trim());
+          const asked = (Array.isArray(body.role) ? body.role : [body.role])
+            .filter((r): r is string => typeof r === "string")
+            .flatMap(roles);
+          const callerRoles = callerMember ? roles(callerMember.role) : [];
+          const callerIsOwner = callerRoles.includes("owner");
+          const mayChange =
+            target !== null &&
+            (callerIsOwner ||
+              (callerRoles.includes("admin") && !roles(target.role).includes("owner") && !asked.includes("owner")));
           if (typeof memberId === "string" && mayChange) {
             const now = Math.floor(Date.now() / 1000);
             const held = await mail()

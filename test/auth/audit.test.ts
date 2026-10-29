@@ -543,3 +543,56 @@ describe("round 2 (2026-10-29)", () => {
     }
   });
 });
+
+describe("round 3 (2026-10-29)", () => {
+  it("never lets an admin hold an owner, or a member it would make an owner, that Better Auth will not let it change", async () => {
+    const { cookie } = await owner(`owners-${unique()}@example.org`);
+    const secondOwner = `second-${unique()}@example.org`;
+    await joiner(cookie, secondOwner, "member");
+    const secondId =
+      (
+        await db
+          .prepare(`SELECT m.id FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE u.email = ?`)
+          .bind(secondOwner)
+          .first<{ id: string }>()
+      )?.id ?? "";
+    expect(
+      (await api("/api/auth/organization/update-member-role", cookie, { memberId: secondId, role: "owner" })).status,
+    ).toBe(200);
+    const { cookie: adminCookie } = await joiner(cookie, `adm-${unique()}@example.org`, "admin");
+    const plainEmail = `pl-${unique()}@example.org`;
+    await joiner(cookie, plainEmail, "member");
+    const plainId =
+      (
+        await db
+          .prepare(`SELECT m.id FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE u.email = ?`)
+          .bind(plainEmail)
+          .first<{ id: string }>()
+      )?.id ?? "";
+    await db.batch([
+      db.prepare("CREATE TABLE IF NOT EXISTS lock_log (member_id TEXT)"),
+      db.prepare("DELETE FROM lock_log"),
+      db.prepare(
+        "CREATE TRIGGER IF NOT EXISTS lock_logged AFTER INSERT ON member_locks BEGIN INSERT INTO lock_log VALUES (NEW.member_id); END",
+      ),
+    ]);
+    try {
+      expect(
+        (await api("/api/auth/organization/update-member-role", adminCookie, { memberId: secondId, role: "member" }))
+          .status,
+      ).toBe(403);
+      expect(
+        (await api("/api/auth/organization/update-member-role", adminCookie, { memberId: plainId, role: "owner" }))
+          .status,
+      ).toBe(403);
+      expect((await db.prepare("SELECT COUNT(*) AS n FROM lock_log").first<{ n: number }>())?.n).toBe(0);
+      expect(
+        (await api("/api/auth/organization/update-member-role", adminCookie, { memberId: plainId, role: "admin" }))
+          .status,
+      ).toBe(200);
+      expect((await db.prepare("SELECT COUNT(*) AS n FROM lock_log").first<{ n: number }>())?.n).toBe(1);
+    } finally {
+      await db.batch([db.prepare("DROP TRIGGER IF EXISTS lock_logged"), db.prepare("DROP TABLE IF EXISTS lock_log")]);
+    }
+  });
+});
