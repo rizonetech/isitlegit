@@ -5,6 +5,7 @@ import {
   namePieces,
   PLACEHOLDER,
   redact,
+  skeleton,
   stripImages,
 } from "../../scripts/glimmer/redact.ts";
 import { decodeHtml } from "../../scripts/glimmer/source-pages.ts";
@@ -41,6 +42,16 @@ describe("redact", () => {
     expect(decodeTextEntities("Th&#97;ndi &#x4D;erwe Caf&eacute; &lt;b&gt;")).toBe("Thandi Merwe Café &lt;b&gt;");
     const out = redact("<p>Dear Th&#97;ndi, Mer­we and Th​andi</p>", names);
     expect(out).not.toMatch(/thandi|merwe|th&#97;ndi/i);
+  });
+
+  it("finds a name or number written in look-alike letters or full-width digits, and keeps the letters elsewhere", () => {
+    // A Cyrillic а in the name, full-width digits in the phone; a brand spelled with a Cyrillic і stays as written.
+    const out = redact(
+      "<p>Dear Th\u0430ndi, call \uff10\uff18\uff12 \uff15\uff15\uff15 \uff11\uff12\uff13\uff14. M\u0456crosoft</p>",
+      names,
+    );
+    expect(out).toBe("<p>Dear [name], call [phone]. M\u0456crosoft</p>");
+    expect(skeleton("Th\u0430ndi \uff10\uff18")).toBe("Thandi 08");
   });
 
   it("redacts a phone written with dots", () => {

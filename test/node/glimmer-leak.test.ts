@@ -224,6 +224,8 @@ describe("the sample importer's inputs", () => {
   it("matches a name as a whole word and an address or domain anywhere, and sees a joined-up detail", () => {
     expect(leaks([{ id: "p", text: "Announcement for everyone" }], ["Ann"])).toEqual([]);
     expect(leaks([{ id: "p", text: "Dear Ann," }], ["Ann"])).toHaveLength(1);
+    // A name written with a look-alike letter is the same name on the screen.
+    expect(leaks([{ id: "p", text: "Dear \u0410nn," }], ["Ann"])).toHaveLength(1);
     expect(leaks([{ id: "p", text: "see www.acme.co.za/x" }], ["acme.co.za"])).toHaveLength(1);
     expect(personalDetail("Call 082 555 1234 now")).toBe("a phone number");
     expect(personalDetail("Pay R 4 210.00 by 2026-10-31")).toBeNull();
@@ -431,9 +433,9 @@ describe("the sample import, end to end", () => {
 
 describe("the redaction benchmark", () => {
   it("leaves no seeded detail of any kind, written any way, on a page it accepts", async () => {
-    // Seven pages of ten: every kind meets every way once.
-    const result = await runBenchmark({ pages: 7, render });
-    expect(result.total.seeded).toBe(70);
+    // Eight pages of ten: every one of the seven kinds meets each of the eleven ways at least once.
+    const result = await runBenchmark({ pages: 8, render });
+    expect(result.total.seeded).toBe(80);
     expect(Object.keys(result.byKindAndWay)).toHaveLength(KINDS.length * WAYS.length);
     expect(result.total.survived).toBe(0);
     expect(result.total.removed).toBeGreaterThan(0);

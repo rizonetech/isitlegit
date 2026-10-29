@@ -86,6 +86,43 @@ const LETTER_ENTITIES: Record<string, string> = {
   ntilde: "ñ",
 };
 
+// Letters from other scripts that look like Latin ones, and full-width forms: a name written `Thаndi` with a Cyrillic
+// `а` reads as Thandi on the screen and to an OCR engine, but no Latin rule matches it.
+const LOOKALIKE: Record<string, string> = Object.fromEntries(
+  [
+    ...("аaеeоoрpсcуyхxіiјjѕsԁdһhӏlոnԛqԝwАAВBЕEЅSІIЈJКKМMНHОOРPСCТTХXУYΑAΒBΕEΖZΗHΙIΚKΜMΝNΟOΡPΤTΥYΧXοoαaρpνvτtιiκkυuχx".match(
+      /../gu,
+    ) ?? []),
+  ].map((pair) => [...pair] as [string, string]),
+);
+
+// `text` with every look-alike letter and full-width form folded to its Latin or ASCII twin, one character for one
+// character, so a match found in it is the same span of `text`.
+export function skeleton(text: string): string {
+  let out = "";
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    const folded = LOOKALIKE[char] ?? (code >= 0xff01 && code <= 0xff5e ? String.fromCodePoint(code - 0xfee0) : char);
+    // Only a fold that keeps the length (one UTF-16 unit for one) keeps spans aligned.
+    out += folded.length === char.length ? folded : char;
+  }
+  return out;
+}
+
+// Every match of `rule` in the folded text replaced, in the original, by `placeholder`.
+function replaceFolded(text: string, rule: RegExp, placeholder: string): string {
+  const folded = skeleton(text);
+  let out = "";
+  let from = 0;
+  for (const match of folded.matchAll(
+    new RegExp(rule.source, rule.flags.includes("g") ? rule.flags : `${rule.flags}g`),
+  )) {
+    out += text.slice(from, match.index) + placeholder;
+    from = (match.index ?? 0) + match[0].length;
+  }
+  return out + text.slice(from);
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -174,18 +211,19 @@ export function redact(text: string, names: Iterable<string>, domains: Iterable<
   return pieces.join("");
 
   function clean(part: string): string {
-    let out = part.replace(EMAIL, PLACEHOLDER.email);
-    if (domainRule) out = out.replace(domainRule, PLACEHOLDER.domain);
+    // Matched on the folded text, replaced in the original: look-alike letters hide nothing, and keep their own cue.
+    let out = replaceFolded(part, EMAIL, PLACEHOLDER.email);
+    if (domainRule) out = replaceFolded(out, domainRule, PLACEHOLDER.domain);
     if (nameRule) {
       const rule = nameRule;
       let named = "";
       let from = 0;
       for (const url of out.matchAll(URL)) {
-        named += out.slice(from, url.index).replace(rule, PLACEHOLDER.name) + url[0];
+        named += replaceFolded(out.slice(from, url.index), rule, PLACEHOLDER.name) + url[0];
         from = (url.index ?? 0) + url[0].length;
       }
-      out = named + out.slice(from).replace(rule, PLACEHOLDER.name);
+      out = named + replaceFolded(out.slice(from), rule, PLACEHOLDER.name);
     }
-    return out.replace(PHONE, PLACEHOLDER.phone).replace(LONG_NUMBER, PLACEHOLDER.number);
+    return replaceFolded(replaceFolded(out, PHONE, PLACEHOLDER.phone), LONG_NUMBER, PLACEHOLDER.number);
   }
 }

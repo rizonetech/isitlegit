@@ -27,6 +27,7 @@ export const WAYS = [
   "generated text",
   "vector text",
   "image alt",
+  "look-alike letters",
 ] as const;
 type Kind = (typeof KINDS)[number];
 type Way = (typeof WAYS)[number];
@@ -97,6 +98,13 @@ function written(value: string, way: Way): string {
       return `<svg width=300 height=30><text x=0 y=20>${value}</text></svg>`;
     case "image alt":
       return `<img alt="${value}" width=200 height=30>`;
+    case "look-alike letters":
+      // Cyrillic а, е, о and full-width digits, as a lure writes a name to slip past a filter.
+      return value
+        .replace(/a/g, "\u0430")
+        .replace(/e/g, "\u0435")
+        .replace(/o/g, "\u043e")
+        .replace(/[0-9]/g, (d) => String.fromCodePoint(0xff10 + Number(d)));
   }
 }
 

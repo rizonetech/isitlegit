@@ -28,7 +28,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import PostalMime, { type Email } from "postal-mime";
 import { type ImportResult, importSource, type SourceItem, writeImport } from "./import-source.ts";
-import { EMAIL, hasImages, LONG_NUMBER, namePieces, PHONE, redact, stripImages } from "./redact.ts";
+import { EMAIL, hasImages, LONG_NUMBER, namePieces, PHONE, redact, skeleton, stripImages } from "./redact.ts";
 import { decodeHtml, openTextReader } from "./source-pages.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
@@ -303,8 +303,7 @@ export function personalDetail(text: string): string | null {
     ["a phone number", PHONE],
     ["a long number", LONG_NUMBER],
   ] as const) {
-    rule.lastIndex = 0;
-    if (new RegExp(rule.source).test(text)) return kind;
+    if (new RegExp(rule.source).test(skeleton(text))) return kind;
   }
   return null;
 }
@@ -339,9 +338,11 @@ export function leaks(pages: { id: string; text: string }[], terms: string[]): {
       : new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu"),
   }));
   return pages.flatMap((page) => {
-    const text = page.text.toLowerCase();
+    // Read as the screen shows it: look-alike letters and full-width forms folded to Latin.
+    const shown = skeleton(page.text);
+    const text = shown.toLowerCase();
     return rules
-      .filter(({ term, rule }) => (rule ? rule.test(page.text) : text.includes(term)))
+      .filter(({ term, rule }) => (rule ? rule.test(shown) : text.includes(term)))
       .map(({ term }) => ({ id: page.id, term }));
   });
 }
