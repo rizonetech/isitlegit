@@ -88,12 +88,28 @@ export function brandForUrl(table: BrandTable, url: string): BrandMatch | null {
   return brandAt(table, parsed.hostname, parsed.pathname);
 }
 
+// Hosts that are other people's content on any brand, by their first label: a community, a forum, a discussion or
+// answers site, wherever a brand runs one (round 2: listing them one by one never ends, `community.fabric.microsoft.com`).
+const COMMUNITY_LABELS = new Set([
+  "community",
+  "communityhub",
+  "forum",
+  "forums",
+  "discussions",
+  "answers",
+  "techcommunity",
+  "groups",
+]);
+
 function brandAt(table: BrandTable, host: string, path: string | null): BrandMatch | null {
   const lower = host.toLowerCase().replace(/\.$/, "");
   const domain = registrable(lower);
   if (!domain) return null;
   const brand = table.brands.find((b) => b.domains.includes(domain));
   if (!brand) return null;
+  // Any label left of the registrable domain counts: `community.fabric.microsoft.com` as much as `community.x.com`.
+  const below = lower === domain ? [] : lower.slice(0, -domain.length - 1).split(".");
+  if (below.some((label) => COMMUNITY_LABELS.has(label))) return { brand, official: false };
   const hosted = brand.user_content.some((entry) => {
     const slash = entry.indexOf("/");
     const spec = slash < 0 ? entry : entry.slice(0, slash);
@@ -110,7 +126,18 @@ function brandAt(table: BrandTable, host: string, path: string | null): BrandMat
 // Whether a path lies under a prefix whose `*` segments match any one segment.
 function pathUnder(path: string, prefix: string): boolean {
   const want = prefix.split("/").slice(1, -1);
-  const have = path.split("/").slice(1);
+  // Each segment decoded and case-folded, so `%61nswers` and `Answers` are `answers` (round 2); a segment that does not
+  // decode is compared as written.
+  const have = path
+    .split("/")
+    .slice(1)
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment).toLowerCase();
+      } catch {
+        return segment.toLowerCase();
+      }
+    });
   if (have.length <= want.length) return false;
   return want.every((segment, i) => segment === "*" || segment === have[i]);
 }

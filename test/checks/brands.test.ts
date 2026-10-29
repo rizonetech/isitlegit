@@ -229,6 +229,30 @@ describe("round 1 (2026-10-29)", () => {
   });
 });
 
+describe("round 2 (2026-10-29)", () => {
+  it("matches a path however it is encoded or cased", () => {
+    for (const path of [
+      "/en-us/%61nswers/questions/1",
+      "/en-us/Answers/questions/1",
+      "/EN-US/ANSWERS/x",
+      "/en-us/answer%73/q",
+    ])
+      expect(brandForUrl(bundled, `https://learn.microsoft.com${path}`), path).toMatchObject({ official: false });
+    expect(brandForUrl(bundled, "https://learn.microsoft.com/en-us/%zz/answers")).toMatchObject({ official: true });
+  });
+
+  it("treats a community, forum, discussion or answers host as other people's content on any brand", () => {
+    for (const host of [
+      "community.fabric.microsoft.com",
+      "community.adobe.com",
+      "forums.docusign.com",
+      "answers.netflix.com",
+    ])
+      expect(brandForDomain(bundled, host), host).toMatchObject({ official: false });
+    expect(brandForDomain(bundled, "communications.fnb.co.za")).toMatchObject({ official: true });
+  });
+});
+
 describe("getBrand and brandForDomain", () => {
   it("finds a brand by any of its names, without regard to case, spacing or punctuation", () => {
     expect(getBrand(bundled, "fnb")?.name).toBe("FNB");
