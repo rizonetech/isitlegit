@@ -58,6 +58,7 @@ track: day-6
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [ ] |
 | 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
+| 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -679,9 +680,11 @@ Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brough
 - [x] Find where `fetch.py` spends the time aria2c does not after a cut (start-up, the `HEAD`, the range saves, the digest's tail), measured per phase on the corrected bench, and record the breakdown in `docs/glimmer/importing.md` (completion review E1). Done when: the breakdown is recorded with its figures.
 - [x] Remove the largest costs the breakdown names, each with its regression test (completion review E1). Done when: the median time ratio is strictly under 1.00 in every scenario under the new acceptance line, nothing more refetched, every run intact. Measured 2026-10-29T06:55:44Z at `8a25f18`: with start-up taken off, cut once 0.998, mirror 0.703, gigabyte 0.992 (raw 1.031, 0.718, 0.996); refetched 0 and 0, 0 and 0, 786,432 and 1,556,480; every run of both tools recovered, cut, intact; `acceptance.all.met` true. Changes: `d9383a6` (rung, not polled), `6c9086b` (saves every MiB off the connections).
 - [x] Record the figures, their conditions (host load, latency, certificate, payloads) and limits in `docs/glimmer/importing.md`. Done when: the guide states each scenario's ratio, refetched bytes and conditions.
+- [x] Close the completion review's gaps 1 to 8 in `scripts/glimmer/fetch_bench.py` and `scripts/glimmer/fetch.py` (five runs and each scenario's evidence required, full precision, `--ca-file` adding to the system's authorities, bad CA files refused, measured latency per request kind, the kill at the server's byte with the second process's requests recorded, bounded helpers and guaranteed cleanup, a test at the production save interval). Done when: `tests/scripts/test_fetch_bench.py` and `tests/scripts/test_glimmer_fetch.py` prove each, and the figures are regenerated with the new evidence.
 - [ ] Commit: `glimmer: downloads that beat aria2c outright`
 
 > **Deferred:** several healthy mirrors at once (completion review E2; plan review gaps 4 to 7 and 9) -> XREF: D03 T04 §22
+> **Deferred:** a win with start-up included, a repeatable win over paired runs, one-stream recovery, real hosts (this section's completion review items 9 to 12) -> XREF: D03 T04 §23
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes, and `docs/glimmer/fetch-bench.json` records a median time ratio strictly under 1.00 in every scenario under the acceptance line, with every run of both tools cut, recovered and intact.
 
@@ -707,6 +710,28 @@ Filed 2026-10-29, split out of D03 T04 §21 by its plan review (completion revie
 - [ ] Commit: `glimmer: several healthy mirrors at once`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes with the concurrent-source cases, and `docs/glimmer/fetch-bench.json` records the `two-sources` scenario with a median ratio strictly under 1.00 and both tools drawing on both hosts.
+
+## 23. A start-up-inclusive, repeatable win over aria2c
+
+Filed 2026-10-29 from D03 T04 §21's completion review (items 9 to 12). §21 beat aria2c 1.37.0 with each tool's own start-up taken off its time (cut 0.998, mirror 0.70, gigabyte 0.99), a choice recorded in §21 with its reversal cost. The review's point stands: a user pays the start-up, and a Python interpreter's start (about 0.12 seconds: imports, argument checks) against a C program's (about 0.01) leaves `fetch.py` about 3 percent slower raw on the 96 MiB cut scenario; §21's breakdown shows no more than 0.02 seconds of that can be cut inside the script. A narrow median win is also not a repeatable one: the gigabyte runs' times overlap.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Take the start-up out of each download rather than out of the measurement. Done when: the raw ratio is under 1.00 in the cut scenario.
+2. Prove the win holds over paired runs. Done when: the 95 percent interval's upper bound is under 1.00 in every scenario.
+
+- [ ] Measure the start-up options for the collector's many downloads: one `fetch.py` process fetching every file of a source in turn (`--manifest`), so the interpreter starts once per source; and a lean import path (deferred `email.utils`, no `argparse` on the fetch path). Record each option's saved seconds in `docs/glimmer/importing.md`. Done when: the figures are recorded, each with its measurement.
+- [ ] Build the option the figures favour, with the collection briefs updated to call it, each change with its regression test (completion review item 9). Done when: the bench's cut scenario, run as the collector runs it, has a raw median ratio under 1.00 against aria2c given the same files, nothing more refetched, every run whole.
+- [ ] Run the tools in paired, alternating order, 20 pairs per scenario, keeping every timing and the host's load at each run; report each scenario's ratio with a 95 percent interval (completion review item 10). Done when: `scripts/glimmer/fetch_bench.py` records the pairs and the interval, and the acceptance line requires the upper bound under 1.00.
+- [ ] Make one-stream recovery after a cut no slower than aria2c's one connection (completion review item 11: 12.28 against 12.19 seconds). Done when: the one-stream raw median ratio is under 1.00 with nothing more refetched.
+- [ ] Measure both tools against reproducible WAN profiles (added delay with jitter, a throughput cap that varies, packet loss, from a traffic shaper this host can run without root, or two real public dataset hosts with published digests), cut and resumed (completion review item 12). Done when: the figures hold both profiles, with raw ratios, refetched bytes and conditions.
+- [ ] Commit: `glimmer: a start-up-inclusive, repeatable win over aria2c`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes, and `docs/glimmer/fetch-bench.json` records raw ratios with 95 percent intervals whose upper bounds are under 1.00 in every scenario.
 
 ## Verification
 

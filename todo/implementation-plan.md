@@ -271,7 +271,7 @@ Sections: 59 | Checklist items: 238
 
 ### Phase 7: After the event
 
-Sections: 17 | Checklist items: 98
+Sections: 18 | Checklist items: 105
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -283,8 +283,9 @@ Sections: 17 | Checklist items: 98
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 4     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
-| [ ]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 8     |
+| [ ]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 9     |
 | [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none     | 7     |
+| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 6     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -315,6 +316,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 59/246 verified sections, 27 ready to run now.
+Progress: 59/247 verified sections, 27 ready to run now.
 
-Checklist: 699/1489 items completed (includes Commit items).
+Checklist: 700/1496 items completed (includes Commit items).
