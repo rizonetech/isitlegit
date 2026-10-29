@@ -60,6 +60,7 @@ track: day-6
 | 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
 | 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [ ] |
+| 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -753,23 +754,49 @@ Filed 2026-10-29 from D03 T04 §21's completion review (items 9 to 12). §21 bea
 
 Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phishing detection guides, docs, and articles?"). Guides and articles are not training data for Loupe: a LoRA learns from screened pages and their answers, and prose would add noise, while most articles are copyrighted and this run uses licence-checked sources only. They are worth having as a rubric: the cues that tell a lure from a real page, drawn from authoritative public guidance, cited and written in our own words, given to the screener and the Spark teacher as instructions, and turned into evaluation cases. Not a prerequisite of training: if this section stamps before §10 builds its set, Loupe 1.0 carries the rubric; otherwise Loupe 1.1 does.
 
+**Corrected 2026-10-29 (plan review):** split. This section writes the rubric; putting it into the screener's and the teacher's prompts and measuring it (versioned prompts and data, a frozen paired experiment on held-out pages, a guidance slice, accepted, rejected and inconclusive outcomes, verified results) is §25's, after §13's evaluation runner exists. Loupe 1.0 does not wait on either.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
 
 **Build order:**
 
-1. Write the rubric from cited public guidance. Done when: `docs/glimmer/signals.md` lists each cue with its sources.
-2. Give it to the screener and the teacher, and measure. Done when: the held-out set's scores with and without it are recorded.
+1. Accept the sources. Done when: each source in `docs/glimmer/signals.md` carries its acceptance decision.
+2. Write the rubric within what the screener sees. Done when: each cue names its evidence, its unavailable state, its false-positive risk and a paired genuine and lure case.
 
-- [ ] Gather the public guidance on recognising phishing pages from authoritative sources (CISA, the UK NCSC, SABRIC and the South African Banking Risk Information Centre's consumer advice, APWG, the major banks' and SARS's own "how to spot a fake" pages), each with its URL, publisher, date and licence or terms, in `docs/glimmer/signals.md`. Done when: every source has those four facts and no text is copied beyond short quotes.
-- [ ] Write the rubric in our own words in `docs/glimmer/signals.md`: each cue (a credential or card form on a host that is not the brand's, a brand shown on an unrelated domain, urgency or threat wording, a payment or "verification" fee, a mismatched sender or support channel, a look-alike or freshly made domain, a page that is only a form) with what it looks like on a page, what a genuine page does instead, and the sources it rests on. Done when: each cue names at least one source and one South African example.
-- [ ] Put the rubric's cues into the screener's instructions and the teacher's prompt, through their owners (`SCREENER_SYSTEM_PROMPT` in `src/vision/page-screen.ts`, the teacher in `scripts/glimmer/teacher-label.ts`), with a test that each cue is present. Done when: both prompts carry the cues and their tests pass.
-- [ ] Turn the guidance's own examples into evaluation cases (described pages, synthetic and brand-neutral, never a working lure), added to the held-out set's report as their own slice. Done when: `metrics.json` reports the slice.
-- [ ] Measure the screener on the held-out set with and without the rubric (false alarms on the benign South African pages, detections on lures), and record both in `docs/glimmer/signals.md`. Done when: both runs' figures are recorded, and the rubric stays only if detections rise or false alarms fall without the other getting worse.
+- [ ] Gather the public guidance on recognising phishing pages from authoritative sources (CISA, the UK NCSC, SABRIC, APWG, the major South African banks' and SARS's own "how to spot a fake" pages) in `docs/glimmer/signals.md`, each with its URL, publisher, the date it was published or last updated, and an acceptance decision: current (updated within five years, or still served as current advice), applicable to judging a web page (not only email or calls), and its terms allowing it to be cited and paraphrased with attribution; a source failing any of these is listed as rejected with the reason (plan review gap 1). Done when: every source has its decision and reason, and no accepted source's text is copied beyond short attributed quotes.
+- [ ] Write the rubric in our own words in `docs/glimmer/signals.md`: each cue states the evidence it needs from what the screener receives (the page's host, its screenshot and its visible text, `buildScreenRequest` in `src/vision/page-screen.ts`), and its unavailable state, where that evidence is not on the page (a domain's age, a sender, who owns a domain); a cue whose evidence the screener never receives is listed as out of reach, and missing evidence is never evidence of fraud (plan review gap 2). Done when: each cue names its evidence and its unavailable state, and the out-of-reach cues are listed apart.
+- [ ] Give each cue its false-positive risk and a paired genuine and lure South African case, described in words, synthetic and brand-neutral, never a working page: a genuine third-party sign-in or payment host, a genuine urgent notice, a new business, a plain form page; and keep the screener's meanings unchanged (the four lure types, the two form flags, confidence) (plan review gap 3). Done when: every cue has its risk and both cases, and the rubric changes no answer field's meaning.
+- [ ] Write `test/node/glimmer-signals.test.ts` reading `docs/glimmer/signals.md`: every accepted source has its decision and date, every cue cites an accepted source, names its evidence from the screener's inputs and its unavailable state, and has its false-positive risk and both cases; no cue rests on a rejected source. Done when: the test passes and fails on a cue with no evidence, no unavailable state, no counterexample or a rejected source.
 - [ ] Commit: `glimmer: a phishing-signals rubric from public guidance`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-signals.test.ts` passes (every cue sourced, both prompts carrying the cues), and `docs/glimmer/signals.md` records the held-out figures with and without the rubric.
+> **Deferred:** the rubric in the screener's and the teacher's prompts, measured on held-out pages (plan review gaps 4 to 10) -> XREF: D03 T04 §25
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-signals.test.ts` passes: every source has its acceptance decision, and every cue is sourced, within the screener's inputs, with its unavailable state, its false-positive risk and a paired genuine and lure case.
+
+## 25. The signals rubric in the prompts, measured
+
+Filed 2026-10-29, split out of D03 T04 §24 by its plan review (gaps 4 to 10): §24 writes the phishing-signals rubric; this section puts it into the screener's instructions and the Spark teacher's prompt and keeps it only if it measurably helps, on held-out pages, without the measurement being able to flatter it.
+
+**Phase:** 7
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Version the prompts and the data they made. Done when: every teacher check, dataset build and served model names its prompt version.
+2. Measure the rubric fairly. Done when: a frozen paired experiment's verified results decide accept, reject or inconclusive.
+
+- [ ] Version `SCREENER_SYSTEM_PROMPT` in `src/vision/page-screen.ts` and the teacher's prompt (a version id and the prompt's SHA-256), record the version in each teacher check (`raw/teacher/checked.jsonl`), each dataset build's manifest and each model card, with a defined policy for pages checked under an earlier version (re-checked only on request) and a versioned dataset rebuild; inference uses the prompt its model was trained with (plan review gap 5). Done when: tests prove the Loupe 1.0 path keeps its prompt and a later version's path uses its own.
+- [ ] Freeze the comparison set before the experiment: page identities, independently established labels and split membership, with the SHA-256 of every input, so neither arm (current prompt, prompt with the rubric) can change them; a page newly disputed by the teacher stays in both arms' scoring (plan review gap 6). Done when: a test proves a page the rubric's teacher disputes still counts in both arms.
+- [ ] Turn §24's paired cases into an evaluation-only guidance slice: inert fixtures (host, screenshot, text), expected labels, provenance and a slice field the dataset builder keeps out of training, scored separately from the comparison set (plan review gap 7). Done when: tests prove every case reaches scoring and none enters training.
+- [ ] Run the paired experiment on both consumers (Spark as the teacher, and Glimmer with the trained Loupe adapter when it exists, through §13's runner): fixed page identities, at least 300 benign and 300 lure pages overall and 100 of each South African, named model and checkpoint ids and inference settings, the current prompt as the baseline; record confusion counts overall and for South Africa, latency, and estimated and actual spend through the Meta budget (plan review gaps 4 and 8). Done when: both consumers' paired results are recorded.
+- [ ] Decide by a written rule: accept when detections rise or false alarms fall with neither worse, overall and for South Africa, for both consumers; reject when either gets worse; inconclusive otherwise. Keep the current prompt in use until accepted; on rejection keep the research and the results, and restore the prompt and the versioned data (plan review gap 9). Done when: tests prove each branch, including a gain that hides a South African regression and one consumer improving while the other worsens.
+- [ ] Generate the results file by machine, tied to the verified SHA-256 of every input, validated before scoring, written temp-then-rename and read back (plan review gap 10). Done when: tests fail on an altered or truncated input, a missing prediction, an invalid model answer, a wrong denominator, an interrupted write, and a detection gain bought with more false alarms.
+- [ ] Commit: `glimmer: the signals rubric in the prompts, measured`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-signals-experiment.test.ts` passes, and the results file records the frozen experiment's verified figures and its decision.
 
 ## Verification
 
