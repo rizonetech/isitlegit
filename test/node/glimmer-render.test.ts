@@ -21,8 +21,10 @@ import {
   majesticList,
   openRenderer,
   publicLookup,
+  type Reading,
   RefusedAddress,
   RenderTimeout,
+  readingsAgree,
   readJournal,
   recheckStored,
   reopenExcluded,
@@ -178,6 +180,23 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<p>${words}</p><div style="position:fixed;inset:0;background-image:url(data:image/gif;base64,R0lGODlhAQABAAAAACw=)"></div><script src="https://client.px-cdn.net/main.min.js"></script>`,
     ),
+  // §26 round 1: a shadow root's own text, a pseudo-element cover, overflow clipping, and a field below the crop.
+  "/wall-shadow-text": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div id=h style="position:fixed;top:0;left:0;width:400px;height:100px;background:#fff"></div><script>h.attachShadow({ mode: 'open' }).textContent = 'Press & Hold'</script>`,
+    ),
+  "/wall-pseudo": (res) =>
+    html(
+      res,
+      `<style>.c::before { content: ""; position: fixed; inset: 0; background-image: url(data:image/gif;base64,R0lGODlhAQABAAAAACw=) }</style><p>${words}</p><div class=c></div><script src="https://client.px-cdn.net/main.min.js"></script>`,
+    ),
+  "/frame-overflow": (res) =>
+    html(
+      res,
+      `<p>${words}</p><div style="height:0;overflow:hidden"><iframe src="/frame-login" width=400 height=300></iframe><input type=password></div>`,
+    ),
+  "/form-below": (res) => html(res, `<p>${words}</p><div style="height:2500px"></div><input type=password>`),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
@@ -911,6 +930,8 @@ describe("the batch run", () => {
       "/consent-frame",
       "/wall-img",
       "/wall-css",
+      "/wall-shadow-text",
+      "/wall-pseudo",
     ];
     const result = await runBatch({ list: list(walls), store, journal, render: renderer.render, concurrency: 1 });
     expect(result).toMatchObject({ stored: 0, excluded: walls.length });
@@ -949,6 +970,23 @@ describe("the batch run", () => {
     expect(audit.removed).toHaveLength(walls.length);
   }, 60_000);
 
+  it("pairs no reading with a picture when what admission reads off it changed, digits included", () => {
+    const reading = (text: string): Reading => ({
+      url: "https://x.example/",
+      title: "Shop",
+      text,
+      has_login_form: false,
+      has_payment_form: false,
+      walls: { captcha: false, consentWall: false, overlays: "", challengeCover: false },
+      unreadable: 0,
+      height: 900,
+    });
+    // A clock may move; an error page appearing may not.
+    expect(readingsAgree(reading(`${words} 10:41`), reading(`${words} 10:42`))).toBe(true);
+    expect(readingsAgree(reading(`Error 0 ${words}`), reading(`Error 404 ${words}`))).toBe(false);
+    expect(readingsAgree(reading(words), reading("short"))).toBe(false);
+  });
+
   it("refuses a capture whose text changed between its readings though its title held", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "progress.jsonl");
@@ -958,8 +996,8 @@ describe("the batch run", () => {
   });
 
   it("counts a frame's fields only where the screenshot shows them, and reads shadow roots", async () => {
-    const clipped = await renderer.render(`${origin}/frame-clipped`);
-    expect(clipped.has_login_form).toBe(false);
+    for (const path of ["/frame-clipped", "/frame-overflow", "/form-below"])
+      expect((await renderer.render(`${origin}${path}`)).has_login_form, path).toBe(false);
     const shadow = await renderer.render(`${origin}/shadow-form`);
     expect(shadow.has_login_form).toBe(true);
     expect(shadow.text).toContain("Shadow sign-in words");
@@ -979,7 +1017,7 @@ describe("the batch run", () => {
     expect(readJournal(journal).filter((e) => e.event === "excluded")).toHaveLength(1);
   });
 
-  it("leaves a legacy page unassessed when OCR read nothing, and renders a legacy page again when asked", async () => {
+  it("leaves a legacy page unassessed, and renders it again when asked", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "progress.jsonl");
     const shot = await renderer.render(`${origin}/page`);
@@ -996,8 +1034,8 @@ describe("the batch run", () => {
       redacted: false,
       url: `${origin}/page`,
     });
-    expect(recheckStored(store, journal, new Map([[legacy, "  "]])).unassessed).toEqual([legacy]);
-    const again = recheckStored(store, journal, new Map(), { rerenderLegacy: true });
+    expect(recheckStored(store, journal).unassessed).toEqual([legacy]);
+    const again = recheckStored(store, journal, { rerenderLegacy: true });
     expect(again.rerendered).toEqual([legacy]);
     expect(readJournal(journal).map((e) => e.event)).toEqual(["excluded", "reopened"]);
     // The next run renders it again, now with its evidence.
@@ -1006,11 +1044,12 @@ describe("the batch run", () => {
     expect(store.manifest()[0]?.evidence).toBeDefined();
   });
 
-  it("audits a stored page by its kept evidence, and a legacy page by OCR, unassessed when OCR cannot read it", async () => {
+  it("audits a stored page by its complete evidence, and leaves a legacy or partial record unassessed", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "progress.jsonl");
     const shot = await renderer.render(`${origin}/page`);
-    const put = (text: string, evidence?: { title: string; overlays: string }) =>
+    const full = { captcha: false, consentWall: false, challengeCover: false, wall: false };
+    const put = (text: string, evidence?: Record<string, unknown>) =>
       store.putPage("benign-test", {
         screenshot: shot.screenshot,
         text,
@@ -1028,15 +1067,17 @@ describe("the batch run", () => {
         },
         redacted: false,
         url: `${origin}/${text.length}`,
-        ...(evidence ? { evidence } : {}),
+        ...(evidence ? { evidence: evidence as never } : {}),
       });
-    const overlaid = await put(`${words} one`, { title: "Shop", overlays: "Access denied" });
-    const clean = await put(`${words} two`, { title: "Shop", overlays: "" });
-    const legacyWall = await put(`${words} three`);
-    const legacyUnread = await put(`${words} four`);
-    const audit = recheckStored(store, journal, new Map([[legacyWall, "Press & Hold"]]));
-    expect(audit.removed.sort()).toEqual([overlaid, legacyWall].sort());
-    expect(audit.unassessed).toEqual([legacyUnread]);
+    const overlaid = await put(`${words} one`, { title: "Shop", overlays: "Access denied", ...full });
+    const consent = await put(`${words} two`, { title: "Shop", overlays: "", ...full, consentWall: true });
+    const clean = await put(`${words} three`, { title: "Shop", overlays: "", ...full });
+    const legacyWall = await put(`${words} Press & Hold`);
+    const legacy = await put(`${words} four`);
+    const partial = await put(`${words} five`, { title: "Shop", overlays: "" });
+    const audit = recheckStored(store, journal);
+    expect(audit.removed.sort()).toEqual([overlaid, consent, legacyWall].sort());
+    expect(audit.unassessed.sort()).toEqual([legacy, partial].sort());
     expect(store.manifest().map((p) => p.id)).toContain(clean);
   });
 

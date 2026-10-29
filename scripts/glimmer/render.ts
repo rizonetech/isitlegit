@@ -199,8 +199,17 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     const style = getComputedStyle(el);
     if (style.position !== "fixed" && style.position !== "absolute") continue;
     if (!shown(el)) continue;
+    // What the overlay shows: its rendered text, and its open shadow root's own text, which `innerText` leaves out.
+    const rootText = el.shadowRoot
+      ? [...el.shadowRoot.childNodes]
+          // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
+          .map((node) =>
+            node.nodeType === Node.TEXT_NODE ? (node.nodeValue ?? "") : (node as HTMLElement).innerText || "",
+          )
+          .join("\n")
+      : "";
     // biome-ignore lint/performance/useDomNodeTextContent: what the overlay shows is the point
-    const text = (el as HTMLElement).innerText || "";
+    const text = `${(el as HTMLElement).innerText || ""}\n${rootText}`.trim();
     const big = area(el) >= 0.5 * width * height;
     // A consent wall asks for consent; a page wrapped whole in a positioned frame (Microsoft's sign-in) only links
     // its "Privacy & cookies" policy in a footer.
@@ -221,6 +230,21 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     )
       cover = true;
   }
+  // A cover drawn by a pseudo-element of any element: a fixed or absolute ::before or ::after with an image (its
+  // background or its content) spanning most of the view. Its box cannot be measured, so its computed size or its
+  // insets decide.
+  const spans = (size: string, start: string, end: string, view: number) =>
+    Number.parseFloat(size) >= 0.5 * view || (start === "0px" && end === "0px");
+  for (const el of all) {
+    for (const part of ["::before", "::after"]) {
+      const style = getComputedStyle(el, part);
+      if (style.content === "none" || style.content === "normal") continue;
+      if (style.position !== "fixed" && style.position !== "absolute") continue;
+      if (style.backgroundImage === "none" && !/url\(/.test(style.content)) continue;
+      if (spans(style.width, style.left, style.right, width) && spans(style.height, style.top, style.bottom, height))
+        cover = true;
+    }
+  }
   // A bot-wall vendor's script on the page: HUMAN (PerimeterX), DataDome, Imperva (Incapsula), Akamai, hCaptcha.
   const vendor = [...document.scripts].some((script) =>
     /perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs/i.test(
@@ -240,14 +264,61 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
 // whether it is shown (a size, and not hidden by itself or an ancestor), and where its content box sits.
 const OWNER_BOX = `function () {
   const box = this.getBoundingClientRect();
+  const left = box.left + this.clientLeft;
+  const top = box.top + this.clientTop;
+  // The ancestors that clip their overflow cut what of the frame can show (checkVisibility does not see clipping).
+  let clip = { left, top, right: left + this.clientWidth, bottom: top + this.clientHeight };
+  for (let at = this.parentElement; at; at = at.parentElement) {
+    const style = getComputedStyle(at);
+    if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+    const outer = at.getBoundingClientRect();
+    if (style.overflowX !== "visible") clip = { ...clip, left: Math.max(clip.left, outer.left), right: Math.min(clip.right, outer.right) };
+    if (style.overflowY !== "visible") clip = { ...clip, top: Math.max(clip.top, outer.top), bottom: Math.min(clip.bottom, outer.bottom) };
+  }
   return {
     shown: box.width > 0 && box.height > 0 && this.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
-    left: box.left + this.clientLeft,
-    top: box.top + this.clientTop,
+    left,
+    top,
     width: this.clientWidth,
     height: this.clientHeight,
+    clip,
   };
 }`;
+
+// One reading of a page: its text, form flags and walls from the page and every frame a viewer sees, and how many shown
+// frames could not be read.
+export type Reading = {
+  url: string;
+  title: string;
+  text: string;
+  has_login_form: boolean;
+  has_payment_form: boolean;
+  walls: ReturnType<typeof readWalls>;
+  unreadable: number;
+  height: number;
+};
+
+const steady = (text: string) => text.replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
+
+// Two readings agree when nothing a label rests on moved between them: the address, the title, the form flags, the
+// walls, whether the text shows one, the text and overlays themselves with digits set aside (a clock may move), and
+// what admission reads off the text with its digits ("Error 0" becoming "Error 404" is a different page).
+export function readingsAgree(a: Reading, b: Reading): boolean {
+  return (
+    a.url === b.url &&
+    a.title === b.title &&
+    a.has_login_form === b.has_login_form &&
+    a.has_payment_form === b.has_payment_form &&
+    a.walls.captcha === b.walls.captcha &&
+    a.walls.consentWall === b.walls.consentWall &&
+    a.walls.challengeCover === b.walls.challengeCover &&
+    wallShown({ ...a, overlays: a.walls.overlays }) === wallShown({ ...b, overlays: b.walls.overlays }) &&
+    steady(a.text) === steady(b.text) &&
+    steady(a.walls.overlays) === steady(b.walls.overlays) &&
+    NOT_FOUND.test(`${a.title}\n${a.text.slice(0, 3000)}`) === NOT_FOUND.test(`${b.title}\n${b.text.slice(0, 3000)}`) &&
+    a.text.trim().length < MIN_TEXT === b.text.trim().length < MIN_TEXT
+  );
+}
 
 // The readings a stored benign page keeps beside its text, so `recheckStored` applies the refusals admission applied.
 export function evidenceOf(capture: Capture): NonNullable<PageInput["evidence"]> {
@@ -650,16 +721,6 @@ export async function openRenderer(
     // above it is shown (display, visibility, opacity 0 and a zero size all hide it).
     // A frame whose reading failed while it is still attached could not be read: it is counted, never taken for an
     // empty or hidden frame (a sign-in form in it would otherwise read as none). A frame that went away is gone.
-    type Reading = {
-      url: string;
-      title: string;
-      text: string;
-      has_login_form: boolean;
-      has_payment_form: boolean;
-      walls: ReturnType<typeof readWalls>;
-      unreadable: number;
-      height: number;
-    };
     // Every reader runs in an isolated world (§26, plan review gap 1): the page's DOM, but none of its script, so no
     // method or getter the page replaced, on an element, a prototype or a global, changes what is read. Chromium's
     // `Page.createIsolatedWorld` gives one per frame through the page's own CDP session (Playwright's Chromium keeps
@@ -746,15 +807,21 @@ export async function openRenderer(
               returnByValue: true,
             });
             if (exceptionDetails) throw new Error(exceptionDetails.text);
-            const box = result.value as { shown: boolean; left: number; top: number; width: number; height: number };
+            const box = result.value as {
+              shown: boolean;
+              left: number;
+              top: number;
+              clip: { left: number; top: number; right: number; bottom: number };
+            };
             if (!box.shown) return false;
             const offsetX = parent.offsetX + box.left;
             const offsetY = parent.offsetY + box.top;
+            // The frame's clipped box, in the screenshot's coordinates, within its parent's visible area.
             const region = {
-              left: Math.max(parent.region.left, offsetX),
-              top: Math.max(parent.region.top, offsetY),
-              right: Math.min(parent.region.right, offsetX + box.width),
-              bottom: Math.min(parent.region.bottom, offsetY + box.height),
+              left: Math.max(parent.region.left, parent.offsetX + box.clip.left),
+              top: Math.max(parent.region.top, parent.offsetY + box.clip.top),
+              right: Math.min(parent.region.right, parent.offsetX + box.clip.right),
+              bottom: Math.min(parent.region.bottom, parent.offsetY + box.clip.bottom),
             };
             if (region.right <= region.left || region.bottom <= region.top) return false;
             return { offsetX, offsetY, region };
@@ -777,15 +844,12 @@ export async function openRenderer(
           if (where === null) unreadable++;
           if (!where) continue;
           // Only the fields the screenshot shows: a frame's area in its own coordinates.
-          const region =
-            node === main
-              ? undefined
-              : {
-                  left: where.region.left - where.offsetX,
-                  top: where.region.top - where.offsetY,
-                  right: where.region.right - where.offsetX,
-                  bottom: where.region.bottom - where.offsetY,
-                };
+          const region = {
+            left: where.region.left - where.offsetX,
+            top: where.region.top - where.offsetY,
+            right: where.region.right - where.offsetX,
+            bottom: where.region.bottom - where.offsetY,
+          };
           const flags = await readFrame(
             node,
             readFormFlags,
@@ -824,22 +888,6 @@ export async function openRenderer(
         await cdp.detach().catch(() => undefined);
       }
     };
-    const steady = (text: string) => text.replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
-    // Two readings agree when nothing a label rests on moved between them: the address, the title, the form flags, the
-    // walls, whether the text shows one, and the text and overlays themselves with digits set aside.
-    const settled = (a: Reading, b: Reading) =>
-      a.url === b.url &&
-      a.title === b.title &&
-      a.has_login_form === b.has_login_form &&
-      a.has_payment_form === b.has_payment_form &&
-      a.walls.captcha === b.walls.captcha &&
-      a.walls.consentWall === b.walls.consentWall &&
-      a.walls.challengeCover === b.walls.challengeCover &&
-      wallShown({ ...a, overlays: a.walls.overlays }) === wallShown({ ...b, overlays: b.walls.overlays }) &&
-      // The text and what is drawn over it, the words alike: a clock or a counter (digits) may move, but text that
-      // changed between the readings (an account page falling back to other content) cannot be paired with the picture.
-      steady(a.text) === steady(b.text) &&
-      steady(a.walls.overlays) === steady(b.walls.overlays);
     const screenshot = async (height: number) => {
       // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
       return page.screenshot({
@@ -855,12 +903,12 @@ export async function openRenderer(
     let reading = await readAll();
     let shot = await screenshot(reading.height);
     let check = await readAll();
-    if (!settled(reading, check) || reading.unreadable || check.unreadable) {
+    if (!readingsAgree(reading, check) || reading.unreadable || check.unreadable) {
       reading = check;
       shot = await screenshot(reading.height);
       check = await readAll();
       if (reading.unreadable || check.unreadable) throw new Unsettled("a frame on the page could not be read");
-      if (!settled(reading, check)) throw new Unsettled("the page kept changing while it was captured");
+      if (!readingsAgree(reading, check)) throw new Unsettled("the page kept changing while it was captured");
     }
     const { title, text, has_login_form, has_payment_form, walls } = reading;
     const written = (await Promise.all(downloads)).filter((path) => path !== null).length;
@@ -1070,7 +1118,6 @@ function finishRemoval(store: ReturnType<typeof openStore>, journal: string, rem
 export function recheckStored(
   store: ReturnType<typeof openStore>,
   journal: string,
-  ocrText: Map<string, string> = new Map(),
   options: { rerenderLegacy?: boolean } = {},
 ): Recheck {
   if (existsSync(intentFile(journal)))
@@ -1088,9 +1135,19 @@ export function recheckStored(
     result.checked++;
     // The evidence kept with the page; a page stored before it was kept is judged on its text and what the screenshot
     // shows (`ocr`, when given), and is unassessed when neither can decide.
-    const evidence = read.page.evidence;
-    // A capture stored before its evidence was kept is rendered again under the current rules, when asked: the page
-    // goes, and the next run renders its URL afresh.
+    const kept = read.page.evidence;
+    // Evidence is complete only with every structural reading admission takes; a record without them (one stored
+    // before they were kept) is a legacy capture, which no reading of its text or picture can clear.
+    const evidence =
+      kept &&
+      typeof kept.captcha === "boolean" &&
+      typeof kept.consentWall === "boolean" &&
+      typeof kept.challengeCover === "boolean" &&
+      typeof kept.wall === "boolean"
+        ? kept
+        : undefined;
+    // A legacy capture is rendered again under the current rules, when asked: the page goes, and the next run
+    // renders its URL afresh.
     if (!evidence && options.rerenderLegacy && read.page.url) {
       removeAndRecord(store, journal, {
         id: page.id,
@@ -1102,17 +1159,14 @@ export function recheckStored(
       continue;
     }
     // The refusals admission applies, from the readings kept with the page.
-    let wall =
+    const wall =
       Boolean(evidence?.captcha || evidence?.consentWall || evidence?.challengeCover || evidence?.wall) ||
-      wallShown({ title: evidence?.title ?? "", text: read.text, overlays: evidence?.overlays ?? "" });
+      wallShown({ title: kept?.title ?? "", text: read.text, overlays: kept?.overlays ?? "" });
+    // A legacy capture whose text shows no wall is still not cleared: a CAPTCHA, a consent wall or an image cover
+    // leaves no words. It stays unassessed until it is rendered again.
     if (!wall && !evidence) {
-      // Nothing OCR could read (no result, or an empty one) cannot clear a page.
-      const seen = ocrText.get(page.id);
-      if (!seen?.trim()) {
-        result.unassessed.push(page.id);
-        continue;
-      }
-      wall = wallShown({ title: "", text: read.text, overlays: seen });
+      result.unassessed.push(page.id);
+      continue;
     }
     if (!wall) continue;
     removeAndRecord(store, journal, {
@@ -1390,27 +1444,7 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(coverage.met ? 0 : 1);
   }
   if (command === "recheck") {
-    // A page stored before its evidence was kept is judged on its text and on what its screenshot shows, read by OCR
-    // (§7's engine) in batches; one OCR cannot read is left unassessed.
-    const legacy = rerenderLegacy
-      ? []
-      : store.manifest({ tolerant: true }).filter((page) => page.source.startsWith("benign-") && !page.evidence);
-    const ocrText = new Map<string, string>();
-    const { systemOcr } = await import("./import-samples.ts");
-    for (let at = 0; at < legacy.length; at += 25) {
-      const batch = legacy.slice(at, at + 25);
-      try {
-        const texts = await systemOcr(batch.map((page) => join(dir, "pages", page.id, "screenshot.jpg")));
-        for (const [i, page] of batch.entries()) {
-          const seen = texts[i];
-          if (typeof seen === "string") ocrText.set(page.id, seen);
-        }
-      } catch (error) {
-        console.error(`recheck: OCR failed for ${batch.length} pages (${(error as Error).message})`);
-      }
-      if (at % 500 === 0) console.error(`recheck: OCR ${Math.min(at + 25, legacy.length)} of ${legacy.length}`);
-    }
-    const result = recheckStored(store, join(dir, "raw/benign/progress.jsonl"), ocrText, {
+    const result = recheckStored(store, join(dir, "raw/benign/progress.jsonl"), {
       rerenderLegacy: rerenderLegacy === true,
     });
     console.log(

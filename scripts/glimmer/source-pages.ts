@@ -101,9 +101,23 @@ export function readFormFlags(
   // The browser's own reading of an element, not a method the page left on it: a bot-detection script gives a hidden
   // frame its own `getBoundingClientRect` and `checkVisibility` that return nothing (Game, Makro, Nexstar, 2026-10-29).
   const rect = (el: Element) => Element.prototype.getBoundingClientRect.call(el);
+  // What of an element's box its ancestors let show: each ancestor that clips its overflow (`height: 0; overflow:
+  // hidden` hides a whole form) cuts the box to its own; `checkVisibility` does not see that clipping.
+  const clipped = (el: Element) => {
+    const box = rect(el);
+    let { left, top, right, bottom } = box;
+    for (let at = el.parentElement; at && left < right && top < bottom; at = at.parentElement) {
+      const style = getComputedStyle(at);
+      if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+      const outer = rect(at);
+      if (style.overflowX !== "visible") (left = Math.max(left, outer.left)), (right = Math.min(right, outer.right));
+      if (style.overflowY !== "visible") (top = Math.max(top, outer.top)), (bottom = Math.min(bottom, outer.bottom));
+    }
+    return { left, top, right, bottom, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+  };
   // Seen by a viewer: a box, on the page, and not hidden by itself or an ancestor (display, visibility or opacity 0).
   const visible = (el: Element) => {
-    const box = rect(el);
+    const box = clipped(el);
     // Off the page to the left, above it, or to the right of the 1280-pixel viewport no viewer scrolls across.
     if (box.width <= 0 || box.height <= 0 || box.right <= 0 || box.bottom <= 0 || box.left >= innerWidth) return false;
     if (
@@ -196,9 +210,12 @@ export function shownText(): string {
     const shadows = (root: ParentNode) => {
       for (const el of root.querySelectorAll("*")) {
         if (!el.shadowRoot || !seen(el)) continue;
-        // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
-        for (const child of el.shadowRoot.children)
-          if (child instanceof HTMLElement && seen(child) && child.innerText.trim()) parts.push(child.innerText);
+        // A root's own text nodes ("Press & Hold" set as its text) and each shown element's rendered text.
+        for (const node of el.shadowRoot.childNodes) {
+          if (node.nodeType === Node.TEXT_NODE && node.nodeValue?.trim()) parts.push(node.nodeValue);
+          // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
+          else if (node instanceof HTMLElement && seen(node) && node.innerText.trim()) parts.push(node.innerText);
+        }
         shadows(el.shadowRoot);
       }
     };
@@ -415,7 +432,10 @@ export async function openTextReader(
       }
       // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
       const text = tidy(await page.evaluate(shownText));
-      const flags = await page.evaluate(readFormFlags as () => FormFlags);
+      // Only the fields in the 1280 by 2000 pixels the screenshot keeps (§26).
+      const flags = await page.evaluate(readFormFlags, {
+        region: { left: 0, top: 0, right: 1280, bottom: MAX_HEIGHT },
+      });
       // Only the top 1280 by 2000 pixels are kept, so only they are captured: a full page tens of thousands of pixels
       // tall would outgrow the decoder's pixel limit and the browser's memory.
       const shot = await page.screenshot({
