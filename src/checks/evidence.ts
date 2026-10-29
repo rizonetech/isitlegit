@@ -3,13 +3,17 @@
 // can read them. The id and the `seq` column are the same number (migration 0002): a case's evidence is read by `seq`,
 // never by the text id, which sorts E10 before E2.
 import { z } from "zod";
-import { CHECK_NAME, type CheckRegistry, checks, SYSTEM_CHECKS } from "./registry";
+// The pipeline's registry through `./index`, so its checks are registered whenever evidence is checked against it.
+import { checks } from "./index";
+import { CHECK_NAME, type CheckRegistry, SYSTEM_CHECKS } from "./registry";
 
 export { CHECK_NAME, SYSTEM_CHECKS };
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
 export const MAX_SUMMARY_CHARACTERS = 200;
 
-export const Evidence = z.strictObject({
+// An item as stored: its `check` was a registered producer's when it was written, so a read checks the name's form only
+// (a check renamed later still reads back).
+export const StoredEvidence = z.strictObject({
   id: z.string().regex(/^E[1-9][0-9]*$/),
   check: z.string().regex(CHECK_NAME),
   severity: z.enum(SEVERITIES),
@@ -23,7 +27,18 @@ export const Evidence = z.strictObject({
   // R2 keys of the artefacts the item rests on.
   artefacts: z.array(z.string().min(1)),
 });
-export type Evidence = z.infer<typeof Evidence>;
+export type Evidence = z.infer<typeof StoredEvidence>;
+
+// An item as a check makes it: its `check` is a producer in the registry, or one of the runner's own names.
+export function evidenceIn(registry: CheckRegistry) {
+  return StoredEvidence.extend({
+    check: StoredEvidence.shape.check.refine(
+      (name) => (SYSTEM_CHECKS as readonly string[]).includes(name) || registry.names().includes(name),
+      "names no registered check",
+    ),
+  });
+}
+export const Evidence = evidenceIn(checks);
 
 // A control character (a line break among them) or markup.
 function unplain(character: string): boolean {
@@ -39,13 +54,11 @@ export class EvidenceRefused extends TypeError {
 
 // Numbers the list and checks every item, all before anything is written: a list with one bad item stores nothing.
 export function numbered(items: EvidenceDraft[], registry: CheckRegistry = checks): Evidence[] {
-  const known = new Set<string>([...registry.names(), ...SYSTEM_CHECKS]);
+  const schema = registry === checks ? Evidence : evidenceIn(registry);
   return items.map((item, i) => {
-    const parsed = Evidence.safeParse({ ...item, id: `E${i + 1}` });
+    const parsed = schema.safeParse({ ...item, id: `E${i + 1}` });
     if (!parsed.success)
       throw new EvidenceRefused(`evidence item ${i + 1} is malformed: ${z.prettifyError(parsed.error)}`);
-    if (!known.has(parsed.data.check))
-      throw new EvidenceRefused(`evidence item ${i + 1} names no registered check (${parsed.data.check})`);
     return parsed.data;
   });
 }
@@ -103,7 +116,7 @@ export async function readEvidence(db: D1Database, caseId: string): Promise<Evid
     .bind(caseId)
     .all<EvidenceRow>();
   return rows.results.map((row) =>
-    Evidence.parse({
+    StoredEvidence.parse({
       id: row.id,
       check: row.check,
       severity: row.severity,

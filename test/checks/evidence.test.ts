@@ -5,7 +5,9 @@ import {
   Evidence,
   type EvidenceDraft,
   EvidenceRefused,
+  evidenceIn,
   readEvidence,
+  StoredEvidence,
   SYSTEM_CHECKS,
   saveEvidence,
 } from "../../src/checks/evidence";
@@ -71,11 +73,22 @@ const registry = () => {
 };
 
 describe("Evidence", () => {
-  const good = { id: "E1", ...item(1) };
+  const good = { id: "E1", ...item(1), check: "intake.forward" };
 
-  it("accepts an item, and a not_checked item the runner writes", () => {
+  it("accepts a registered producer's item, and a not_checked item the runner writes", () => {
     expect(Evidence.parse(good)).toEqual(good);
     expect(Evidence.safeParse({ ...good, check: SYSTEM_CHECKS[0] }).success).toBe(true);
+  });
+
+  it("refuses, in the schema itself, a well-spelt name no check registered", () => {
+    const parsed = Evidence.safeParse({ ...good, check: "unknown.producer" });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]?.message).toBe("names no registered check");
+    // Against another registry, its own producers.
+    expect(evidenceIn(registry()).safeParse({ ...good, check: "test.one" }).success).toBe(true);
+    expect(evidenceIn(registry()).safeParse(good).success).toBe(false);
+    // A stored item reads back by its name's form, whatever is registered now.
+    expect(StoredEvidence.safeParse({ ...good, check: "renamed.later" }).success).toBe(true);
   });
 
   it("refuses an unknown severity, an over-long or unplain summary, a bad id and a non-object detail", () => {
@@ -218,11 +231,56 @@ describe("caseViewOf", () => {
     expect(part?.key).toMatch(/^raw\//);
   });
 
-  it("loads an attached forward with its headers, bodies and attachments", async () => {
+  it("keeps the headers, both bodies and every attachment's metadata exactly as stored", async () => {
+    const message = enc(
+      [
+        "From: Fictional Supplier <billing@fictional-supplier.example>",
+        "Subject: Invoice 42",
+        'Content-Type: multipart/mixed; boundary="m"',
+        "",
+        "--m",
+        'Content-Type: multipart/alternative; boundary="a"',
+        "",
+        "--a",
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        "Please pay invoice 42.",
+        "--a",
+        "Content-Type: text/html; charset=utf-8",
+        "",
+        "<p>Please pay <b>invoice 42</b>.</p>",
+        "--a--",
+        "--m",
+        'Content-Type: application/pdf; name="invoice.pdf"',
+        'Content-Disposition: attachment; filename="invoice.pdf"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64(enc("%PDF-1.4\n% fictional invoice\n%%EOF\n")),
+        "--m--",
+        "",
+      ].join("\r\n"),
+    );
+    const caseId = await newCase("upload");
+    const forward = await extractOriginal(message);
+    await storeParsed(store, caseId, await parseMessage(forward.original), forward);
+    const summary = (await summaryOf(caseId)) as Record<string, unknown>;
+    const view = caseViewOf(summary, { orgId: "org-evidence", channel: "upload" });
+    expect(view.headers).toEqual(summary.headers);
+    expect(view.text).toBe(summary.text);
+    expect(view.html).toBe(summary.html);
+    expect(view.text).toContain("Please pay invoice 42.");
+    expect(view.html).toContain("<b>invoice 42</b>");
+    expect(view.attachments).toEqual(summary.attachments);
+    expect(view.attachments).toEqual([
+      expect.objectContaining({ filename: "invoice.pdf", mediaType: "application/pdf", disposition: "attachment" }),
+    ]);
+    expect(view.attachments[0]?.bytes).toBeGreaterThan(0);
+  });
+
+  it("loads an attached forward's path and headers", async () => {
     const view = await forwardView(forwards["attached-rfc822"]);
     expect(view.source).toEqual({ kind: "message", path: "rfc822", otherOriginals: 0 });
     expect(view.headers.some((h) => h.name.toLowerCase() === "from")).toBe(true);
-    expect(view.text ?? view.html).toBeTruthy();
   });
 
   it("loads an uploaded file's summary as parse writes it", async () => {
