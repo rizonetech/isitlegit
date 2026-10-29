@@ -276,6 +276,8 @@ export type Built = {
     unredacted: number;
     capped: number;
     balanced: number;
+    // Pages the collection freeze does not name (stored after it, §18).
+    afterFreeze: number;
   };
   shortfalls: string[];
   sha256: { train: string; evaluation: string };
