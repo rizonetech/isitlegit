@@ -141,6 +141,33 @@ describe("reconcile", () => {
     }
   });
 
+  it("names an unreadable record, a set-aside synthetic copy and a leftover under the root it is given", () => {
+    const repo = join(import.meta.dirname, "../..");
+    const root = mkdtempSync(join(tmpdir(), "glimmer-s8-root-"));
+    const store = mkdtempSync(join(tmpdir(), "glimmer-s8-store-"));
+    try {
+      mkdirSync(join(root, "docs/glimmer"), { recursive: true });
+      writeFileSync(join(root, "docs/glimmer/sources.md"), readFileSync(join(repo, "docs/glimmer/sources.md")));
+      writeFileSync(join(root, "NOTICE.md"), readFileSync(join(repo, "NOTICE.md")));
+      mkdirSync(join(root, "scripts/glimmer"), { recursive: true });
+      writeFileSync(join(root, "scripts/glimmer/synth.ts"), "");
+      mkdirSync(join(store, "raw", "phreshphish"), { recursive: true });
+      writeFileSync(join(store, "raw", "phreshphish", "IMPORT.json"), "{ torn");
+      const aside = join(store, "pages", ".damaged-made-0123456789abcdef-1");
+      mkdirSync(aside, { recursive: true });
+      writeFileSync(join(aside, "meta.json"), JSON.stringify({ origin: "synthetic" }));
+      const { problems } = storeProblems(store, root);
+      expect(problems).toContain("scripts/glimmer/synth.ts exists, yet §8 was removed");
+      expect(problems).toContain("raw/phreshphish/IMPORT.json: does not read as JSON");
+      expect(problems).toContain(
+        "pages/.damaged-made-0123456789abcdef-1 is a set-aside synthetic page, yet §8 was removed",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
   it("fails when no source is accepted, an empty table included", () => {
     const none = { ...base, sources: [header, row("set-b", "rejected")].join("\n"), imports: {}, pages: [] };
     expect(reconcile(none)).toContain("no source was accepted");

@@ -20,7 +20,7 @@
 //   node scripts/glimmer/sources.ts freeze          # Loupe 1.0's collection freeze: raw/FROZEN.json, once reconciled
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
@@ -231,42 +231,63 @@ export function storeProblems(
   dir: string,
   root = ROOT,
 ): { problems: string[]; imports: Record<string, ImportRecord>; pages: StoredPage[]; sourcesMd: string } {
+  const problems: string[] = [];
+  // A record that does not read (a disk fault, a torn write) is a named problem, never a thrown stack trace.
+  const readJson = <T>(file: string): T | undefined => {
+    if (!existsSync(file)) return undefined;
+    try {
+      return JSON.parse(readFileSync(file, "utf-8")) as T;
+    } catch {
+      problems.push(`${relative(dir, file)}: does not read as JSON`);
+      return undefined;
+    }
+  };
   const store = openStore(dir);
   const pages = store.manifest({ tolerant: true }); // an unreadable record is reported by verify() below
-  const imports: Record<string, ImportRecord> = {};
-  for (const source of new Set(pages.map((p) => p.source))) {
-    const file = join(dir, "raw", source, "IMPORT.json");
-    if (existsSync(file)) imports[source] = JSON.parse(readFileSync(file, "utf-8"));
-  }
   const sourcesMd = readFileSync(join(root, "docs/glimmer/sources.md"), "utf-8");
-  for (const row of parseSources(sourcesMd).rows) {
-    const file = join(dir, "raw", row.source, "IMPORT.json");
-    if (!imports[row.source] && existsSync(file)) imports[row.source] = JSON.parse(readFileSync(file, "utf-8"));
+  const imports: Record<string, ImportRecord> = {};
+  for (const source of new Set([...pages.map((p) => p.source), ...parseSources(sourcesMd).rows.map((r) => r.source)])) {
+    const record = readJson<ImportRecord>(join(dir, "raw", source, "IMPORT.json"));
+    if (record) imports[source] = record;
   }
   // Damaged pages of an accepted source fail the check: a count can match while a page no longer reads whole.
   const damagedBy: Record<string, number> = {};
-  for (const id of store.verify().damaged) {
+  const { damaged, setAside } = store.verify();
+  for (const id of damaged) {
     const source = /^(.+)-[0-9a-f]{16}$/.exec(id)?.[1] ?? id;
     damagedBy[source] = (damagedBy[source] ?? 0) + 1;
   }
   const bindings: Record<string, { manifest?: string; export?: ExportReceipt }> = {};
   for (const row of parseSources(sourcesMd).rows) {
     const folder = join(dir, "raw", row.source);
-    const inputsFile = join(folder, "INPUTS.json");
-    const exportFile = join(folder, "EXPORT.json");
+    const manifest = readJson<unknown>(join(folder, "INPUTS.json"));
+    const receipt = readJson<ExportReceipt>(join(folder, "EXPORT.json"));
     bindings[row.source] = {
-      ...(existsSync(inputsFile) ? { manifest: manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8"))) } : {}),
-      ...(existsSync(exportFile) ? { export: JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt } : {}),
+      ...(manifest !== undefined ? { manifest: manifestDigest(manifest) } : {}),
+      ...(receipt ? { export: receipt } : {}),
     };
   }
-  const problems = reconcile({
-    sources: sourcesMd,
-    imports,
-    pages,
-    notice: readFileSync(join(root, "NOTICE.md"), "utf-8"),
-    bindings,
-  });
+  problems.push(
+    ...reconcile({
+      sources: sourcesMd,
+      imports,
+      pages,
+      notice: readFileSync(join(root, "NOTICE.md"), "utf-8"),
+      bindings,
+    }),
+  );
   for (const path of syntheticLeftovers(root, dir)) problems.push(`${path} exists, yet §8 was removed`);
+  // A damaged copy a repair set aside still holds its page: one from the generator is a leftover too.
+  for (const name of setAside) {
+    let origin: unknown;
+    try {
+      origin = (JSON.parse(readFileSync(join(dir, "pages", name, "meta.json"), "utf-8")) as { origin?: unknown })
+        .origin;
+    } catch {
+      origin = undefined; // a copy whose record does not read is counted by verify(), not read here
+    }
+    if (origin === "synthetic") problems.push(`pages/${name} is a set-aside synthetic page, yet §8 was removed`);
+  }
   for (const [source, count] of Object.entries(damagedBy))
     problems.push(`${source}: ${count} damaged pages in the store`);
   return { problems, imports, pages, sourcesMd };
@@ -378,8 +399,11 @@ if (import.meta.filename === process.argv[1]) {
     const temporary = `${file}.${process.pid}.tmp`;
     writeFileSync(temporary, `${JSON.stringify(frozen)}\n`);
     renameSync(temporary, file);
-    const back = JSON.parse(readFileSync(file, "utf-8")) as typeof frozen;
-    if (back.pages.length !== frozen.pages.length) throw new Error("the freeze did not read back as written");
+    // Read back whole: another writer's freeze of the same size between the rename and this read is caught too.
+    if (readFileSync(file, "utf-8") !== `${JSON.stringify(frozen)}\n`) {
+      console.error("sources: the freeze did not read back as written");
+      process.exit(1);
+    }
     console.log(
       `sources: frozen at ${frozen.at}: ${frozen.pages.length} pages, ${Object.keys(frozen.sources).length} sources`,
     );
