@@ -112,12 +112,16 @@ async function resendOne(
       .bind(state, runs, now().toISOString(), outcome, row.send_key)
       .run();
   const runs = row.resend_runs + 1;
+  // The delivery and the bookkeeping after it are apart (round 3): only a delivery that did not go counts against the
+  // request. A bookkeeping write that fails is logged and leaves the claim in `sending`, which the next runs' recovery
+  // settles by the send's own status (sent or refused: done; failed: asked for again), never as a failed delivery.
+  let outcome: string;
   try {
     if (!row.case_id) throw new ResendError("ResendNoCase");
     // Sent, refused (the allowlist), a duplicate, no forwarder, or uncertain: final here, an uncertain or pending send
     // settled by the reconciler and never sent again here. A failed send throws (ReplyNotSent) and is tried again.
     const result = await reply(env, row.case_id, await rebuildState(env.DB, row.case_id));
-    const outcome =
+    outcome =
       result.mail === "none"
         ? "with no one to reply to (no forwarder)"
         : result.outcome.status === "refused"
@@ -127,19 +131,28 @@ async function resendOne(
             : result.outcome.status === "duplicate"
               ? `a duplicate of an earlier ${result.outcome.previous} send`
               : "sent";
-    await finish("done", runs, outcome);
-    report.done += 1;
   } catch (error) {
     const name = (error as Error).message === "ReplyNotSent" ? "ReplyNotSent" : (error as Error).name;
-    if (runs >= RESEND_RUNS) {
-      await finish("exhausted", runs, `not sent after ${runs} runs (${name})`);
-      report.exhausted += 1;
-      await retryAlerts(env, report);
-    } else {
-      await finish("requested", runs, `run ${runs} not sent (${name})`);
-      report.retried += 1;
-    }
     report.errors.push(`${row.send_key}: resend run ${runs} did not send (${name})`);
+    try {
+      if (runs >= RESEND_RUNS) {
+        await finish("exhausted", runs, `not sent after ${runs} runs (${name})`);
+        report.exhausted += 1;
+        await retryAlerts(env, report);
+      } else {
+        await finish("requested", runs, `run ${runs} not sent (${name})`);
+        report.retried += 1;
+      }
+    } catch {
+      report.errors.push(`${row.send_key}: its resend state could not be written; recovered by a later run`);
+    }
+    return true;
+  }
+  try {
+    await finish("done", runs, outcome);
+    report.done += 1;
+  } catch {
+    report.errors.push(`${row.send_key}: sent, but its resend state could not be written; recovered by a later run`);
   }
   return true;
 }

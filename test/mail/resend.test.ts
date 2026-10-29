@@ -391,3 +391,34 @@ describe("round 2 (2026-10-29)", () => {
     expect(requests.find((r) => r.to[0] === FORWARDER && r.text_body.includes("Finish-5 headline"))).toBeTruthy();
   });
 });
+
+describe("round 3 (2026-10-29)", () => {
+  it("never takes a failed bookkeeping write after a delivery for a failed delivery", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    const id = await settledCase("done");
+    let failed = false;
+    const flaky = new Proxy(env.DB, {
+      get(target, name) {
+        if (name === "prepare")
+          return (sql: string) => {
+            if (!failed && sql.startsWith("UPDATE mail_sends SET resend_state = ?, resend_runs = ?")) {
+              failed = true;
+              throw new Error("D1 down");
+            }
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const report = await resendRequested({ ...env, DB: flaky });
+    expect(report.retried + report.exhausted).toBe(0);
+    expect(await rowOf(id)).toMatchObject({ status: "sent", resend_state: "sending", resend_runs: 0 });
+    // A later run, past the claim's age, settles it by the send's own status: done, sent once, no alert.
+    await resendRequested(env, () => new Date(Date.now() + 20 * 60_000));
+    expect(await rowOf(id)).toMatchObject({ status: "sent", resend_state: "done" });
+    expect(requests.filter((r) => r.to[0] === FORWARDER && r.text_body.includes("Resent-9 headline"))).toHaveLength(1);
+    expect(requests.filter((r) => r.subject.includes("could not be sent again"))).toEqual([]);
+  });
+});
