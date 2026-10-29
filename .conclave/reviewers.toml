@@ -80,9 +80,10 @@ lenses = ["adversarial"]
 # mode switches it: "required" (the stamp needs it), "optional" (it runs when asked; a reviewer that returns no review
 # is a warning, and the stamp may go without it) or "off" (it never runs; the stamp takes none). The mode at a
 # section's stamped commit is the one its receipt is held to. Off from 2026-10-27, back on as optional from 2026-10-28
-# 01:44 (operator: Muse Wonder at high effort, soft fail kept).
+# 01:44 (operator: Muse Wonder at high effort, soft fail kept). Off again from 2026-10-29 20:36 SAST, for both lanes,
+# while the weekly Muse usage limit is reached (operator); set it back to "optional" when the limit resets.
 [schedule.final]
 reviewer = "wonder"
 effort = "high"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
-mode = "optional"
+mode = "off"
