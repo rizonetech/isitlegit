@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { settle } from "../../scripts/mail-settle.ts";
+import { settle, steer } from "../../scripts/mail-settle.ts";
 import { settleStatement } from "../../src/mail/settle.ts";
 
 // scripts/mail-settle.ts (D01 T02 §5): the operator's way to settle a send the reconciler could not, which never
@@ -56,5 +57,91 @@ describe("wrangler.jsonc", () => {
     const config = JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"));
     expect(config.triggers).toEqual({ crons: ["*/15 * * * *"] });
     expect(config.vars.OPERATOR_EMAIL).toBe("hostmaster@rizonetech.com");
+  });
+});
+
+// D01 T02 §8: --resend, status, cancel and requeue, on an in-memory SQLite with the resend migration.
+function live() {
+  const db = new DatabaseSync(":memory:");
+  db.exec(
+    "CREATE TABLE mail_sends (id TEXT PRIMARY KEY, send_key TEXT UNIQUE, kind TEXT, status TEXT, error TEXT, search_cursor TEXT, updated_at TEXT, claimed_at TEXT);",
+  );
+  db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0031_mail_resend.sql"), "utf-8"));
+  const add = (key: string, kind: string, status = "uncertain") =>
+    db
+      .prepare(
+        "INSERT INTO mail_sends (id, send_key, kind, status, claimed_at) VALUES (?, ?, ?, ?, '2026-10-24T19:20:11.000Z')",
+      )
+      .run(key, key, kind, status);
+  const run = async (_command: string, args: string[]) => {
+    const sql = args.at(-1) as string;
+    if (/^\s*select/i.test(sql)) return JSON.stringify([{ results: db.prepare(sql).all(), meta: {} }]);
+    return JSON.stringify([{ results: [], meta: { changes: Number(db.prepare(sql).run().changes) } }]);
+  };
+  const state = (key: string) =>
+    db.prepare("SELECT status, resend_state, resend_runs FROM mail_sends WHERE send_key = ?").get(key) as Record<
+      string,
+      unknown
+    >;
+  return { add, run, state };
+}
+const CLAIM = "2026-10-24T19:20:11.000Z";
+
+describe("mail-settle --resend (D01 T02 §8)", () => {
+  it("asks for a reply's resend in the statement that settles it failed", async () => {
+    const w = live();
+    w.add("reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N", "reply");
+    expect(await settle(w.run, "reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N", "failed", CLAIM, AT, true)).toContain(
+      "goes again within 15 minutes",
+    );
+    expect(w.state("reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2N")).toEqual({
+      status: "failed",
+      resend_state: "requested",
+      resend_runs: 0,
+    });
+  });
+
+  it("refuses --resend for another kind or with sent, writing nothing, and asks nothing when the row was not settled", async () => {
+    const w = live();
+    w.add("unresolved:reply:x@2026-10-24T19:20:11.000Z", "alert");
+    w.add("reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2M", "reply");
+    w.add("reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2L", "reply", "sent");
+    await expect(
+      settle(w.run, "unresolved:reply:x@2026-10-24T19:20:11.000Z", "failed", CLAIM, AT, true),
+    ).rejects.toThrow(/only a reply can be sent again/);
+    await expect(settle(w.run, "reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2M", "sent", CLAIM, AT, true)).rejects.toThrow(
+      /never with sent/,
+    );
+    expect(w.state("reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2M")).toEqual({
+      status: "uncertain",
+      resend_state: null,
+      resend_runs: 0,
+    });
+    await expect(settle(w.run, "reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2L", "failed", CLAIM, AT, true)).rejects.toThrow(
+      /was not changed/,
+    );
+    expect(w.state("reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2L")).toEqual({ status: "sent", resend_state: null, resend_runs: 0 });
+  });
+
+  it("reads a resend's state, cancels it before the cron claims it and not after, and requeues an exhausted one", async () => {
+    const w = live();
+    const key = "reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2K";
+    w.add(key, "reply");
+    await settle(w.run, key, "failed", CLAIM, AT, true);
+    expect(await steer(w.run, key, "status", AT)).toContain("resend requested, 0 run(s)");
+    expect(await steer(w.run, key, "cancel", AT)).toContain("resend cancelled");
+    expect(w.state(key).resend_state).toBe("cancelled");
+    expect(await steer(w.run, key, "requeue", AT)).toContain("requested again");
+    // The cron claims it: a cancel now is refused, so a confirmed cancel can never still send.
+    await w.run("pnpm", [
+      "UPDATE mail_sends SET resend_state = 'sending' WHERE send_key = 'reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2K'",
+    ]);
+    await expect(steer(w.run, key, "cancel", AT)).rejects.toThrow(/the cron may have claimed it/);
+    await w.run("pnpm", [
+      "UPDATE mail_sends SET resend_state = 'exhausted', resend_runs = 3 WHERE send_key = 'reply:01JB2Z3Y4X5W6V7T8S9R0Q1P2K'",
+    ]);
+    expect(await steer(w.run, key, "requeue", AT)).toContain("requested again");
+    expect(w.state(key)).toEqual({ status: "failed", resend_state: "requested", resend_runs: 0 });
+    await expect(steer(w.run, key, "requeue", AT)).rejects.toThrow(/no exhausted or cancelled resend/);
   });
 });

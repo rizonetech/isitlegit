@@ -236,7 +236,14 @@ async function handOver(deps: ReconcileDeps, row: Row, report: ReconcileReport):
       `IsItLegit could not tell whether SMTP2GO took the ${row.kind} mail with send key ${row.send_key}${row.case_id ? ` (case ${row.case_id})` : ""}, claimed at ${row.claimed_at}.`,
       "Look the send key up in SMTP2GO's activity (the X-IsItLegit-Send header), then settle that attempt:",
       `  node scripts/mail-settle.ts ${row.send_key} sent --claimed-at ${row.claimed_at}    (SMTP2GO has it)`,
-      `  node scripts/mail-settle.ts ${row.send_key} failed --claimed-at ${row.claimed_at}  (SMTP2GO has no record; the caller may send again)`,
+      ...(row.kind === "reply"
+        ? [
+            `  node scripts/mail-settle.ts ${row.send_key} failed --claimed-at ${row.claimed_at} --resend  (SMTP2GO has no record; the reply goes again within 15 minutes)`,
+            "Resend only when SMTP2GO has no record of it: if the original arrives late, the member receives it twice.",
+          ]
+        : [
+            `  node scripts/mail-settle.ts ${row.send_key} failed --claimed-at ${row.claimed_at}  (SMTP2GO has no record; the caller may send again)`,
+          ]),
       "docs/operations.md has the steps.",
     ].join("\n"),
   };

@@ -166,6 +166,15 @@ node scripts/mail-settle.ts <send key> sent --claimed-at <claim time from the al
 node scripts/mail-settle.ts <send key> failed --claimed-at <claim time from the alert>   # SMTP2GO has no record; it may be sent again
 ```
 
-The script changes only a row that is still uncertain or pending and still the attempt the alert named, so it never reopens a sent message and a repeated command never touches a newer attempt; it refuses anything that is not a send key or a claim time. Use `failed` only when SMTP2GO has no record, since it lets the message be sent again. SMTP2GO states no maximum delay before a send appears in its activity, so after `failed` a late original can still arrive and a second send would reach the recipient twice; that is the accepted cost of keeping SMTP2GO (D01 T02 §7). Settling `failed` sends nothing itself: re-delivering a lost reply is D01 T02 §8.
+The script changes only a row that is still uncertain or pending and still the attempt the alert named, so it never reopens a sent message and a repeated command never touches a newer attempt; it refuses anything that is not a send key or a claim time. Use `failed` only when SMTP2GO has no record, since it lets the message be sent again. SMTP2GO states no maximum delay before a send appears in its activity, so after `failed` a late original can still arrive and a second send would reach the recipient twice; that is the accepted cost of keeping SMTP2GO (D01 T02 §7). Settling `failed` sends nothing itself. For a verdict reply (`reply:<case id>`), add `--resend` and the Worker's cron rebuilds the reply from its case and sends it again within 15 minutes, under the same send key (D01 T02 §8). Resend only when SMTP2GO shows no record of the original: if it arrives late, the member receives it twice. Other kinds keep no content to rebuild and cannot be resent.
+
+```bash
+node scripts/mail-settle.ts reply:<case id> failed --claimed-at <claim time> --resend   # settle it failed and send it again
+node scripts/mail-settle.ts reply:<case id> status                                     # requested, sending, done, exhausted or cancelled
+node scripts/mail-settle.ts reply:<case id> cancel                                     # before the cron claims it; refused once sending
+node scripts/mail-settle.ts reply:<case id> requeue                                    # after an exhausted (or cancelled) resend
+```
+
+A resend that fails three cron runs is `exhausted` and comes to the operator as one alert; once SMTP2GO sends again (`python3 scripts/check-smtp2go.py`), `requeue` asks for it once more. A resend that SMTP2GO accepted but whose outcome could not be written is left to the reconciler above, never sent again.
 
 Each cron run logs one line, `{"event":"mail-reconcile","state":...}`, in Workers Logs: `disabled` when the SMTP2GO key is not set, `degraded` when a search failed (such as SMTP2GO refusing the activity search, HTTP 401 or 403) or a send could not be handed over, `ok` otherwise, with how many sends were settled, left unresolved and handed over. An alert that itself could not be confirmed sent is reconciled like any send, and its send counts as unresolved until it is.

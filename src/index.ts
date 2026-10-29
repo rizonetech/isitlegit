@@ -9,6 +9,7 @@ import { teamHistoryRoutes } from "./auth/team-history";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
+import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { smoke } from "./smoke";
@@ -48,6 +49,17 @@ export default {
     ctx.waitUntil(scheduledIntakeSweep(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // Replies the operator settled failed and asked to send again (D01 T02 §8).
+    ctx.waitUntil(
+      resendRequested(env).then(
+        (report) => {
+          if (report.done || report.retried || report.exhausted || report.errors.length)
+            console.log(JSON.stringify({ event: "mail-resend", ...report }));
+        },
+        (error: unknown) =>
+          console.error(JSON.stringify({ event: "mail-resend", outcome: "run-failed", error: (error as Error).name })),
+      ),
+    );
     // Expired rate-limit buckets and audit rows past their 12 months (D07 T02 §6).
     ctx.waitUntil(
       sweepAuthTables(env.DB).catch((error: unknown) => {
