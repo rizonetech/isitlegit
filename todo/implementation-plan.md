@@ -23,7 +23,7 @@ Sections: 25 | Checklist items: 316
 | [x]    | D03 T04 §2  | Fireworks account check and image probe  | none                 | 22    |
 | [x]    | D03 T04 §3  | PageScreen contract and training store   | none                 | 15    |
 | [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
-| [ ]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
+| [x]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
 | [ ]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
 | [ ]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
@@ -317,6 +317,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 59/248 verified sections, 28 ready to run now.
+Progress: 60/248 verified sections, 27 ready to run now.
 
-Checklist: 702/1503 items completed (includes Commit items).
+Checklist: 703/1503 items completed (includes Commit items).

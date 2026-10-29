@@ -39,7 +39,7 @@ track: day-6
 | 1 | §2 | Fireworks account check and image probe | -- | [x] |
 | 2 | §3 | PageScreen contract and training store | -- | [x] |
 | 3 | §4 | Astra as dataset collector | -- | [x] |
-| 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [ ] |
+| 4 | §5 | Public phishing-page datasets by licence | §3, §4 | [x] |
 | 5 | §6 | Benign real pages rendered locally | §3 | [ ] |
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [ ] |
 | 7 | §8 | Synthetic South African lures | §6, §7 | [ ] |
@@ -232,9 +232,12 @@ Astra researches and downloads public phishing-page datasets under the brief (§
 - [x] Spot-check 50 random pages per source by viewing their screenshots against their labels. Done when: the label error rate per source is recorded in `docs/glimmer/training.md` under `Dataset`. Measured 2026-10-28: ScamFerret 4 percent at most, PhreshPhish 6 percent; neither is above the line.
 - [x] Mark a source with more than 10 percent label errors as unverified: its pages' `lure` and `lure_type` `label_source` become `unverified` (a value added to the store's `LABEL_SOURCES`), which keeps them out of evaluation (§10 takes only ground truth, Claude's decision or Astra and Claude's agreement) and sends each to §9's independent adjudication by Astra and Claude, whose agreement replaces the label and whose disagreement marks the page `ambiguous`. Done when: `test/node/glimmer-store.test.ts` stores and reads back `unverified`, and `test/node/glimmer-sources.test.ts` fails when a source recorded above 10 percent errors still has a page whose `lure` reads `ground-truth`. **Corrected 2026-10-28 (plan review finding 1):** was relabelling by §9's teacher, which §9 forbids to set `lure`.
 - [x] If no source is acceptable, record that in `docs/glimmer/sources.md` and raise §8's synthetic lure target and its `Done when:` count from 1,500 to 3,000. Done when: either imports exist, or the decision is recorded and `test/node/glimmer-sources.test.ts` fails while §8 still reads 1,500 in either place. **Corrected 2026-10-28 (plan review finding 6):** a recorded decision alone left §8 unchanged.
-- [ ] Commit: `glimmer: public phishing-page datasets chosen by licence`
+- [x] Commit: `glimmer: public phishing-page datasets chosen by licence`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts test/node/glimmer-source-pages.test.ts`, `python3 -m unittest tests.scripts.test_extract_archive` and each converter's test pass, and `node scripts/glimmer/sources.ts check` prints `sources: reconciled` against the real store; `glimmer-sources.test.ts` reconciles both ways, failing when an accepted source in `docs/glimmer/sources.md` has no complete `IMPORT.json` or a stored count that differs from it, when a rejected source has any page in the store, when a store source has no row, or when the manifest is empty while a source is accepted.
+
+> **Verified:** 2026-10-29 | §5 | 3de5f54371a6a26f5d2fc04cc8bb35cecea3d572
+> **Review:** `docs/reviews/d03-t04-s5.json`
 
 ## 6. Benign real pages rendered locally
 

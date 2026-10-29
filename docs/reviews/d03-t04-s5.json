@@ -1,0 +1,135 @@
+{
+  "ref": "D03 T04 \u00a75",
+  "title": "Public phishing-page datasets by licence",
+  "implementation_sha": "3de5f54371a6a26f5d2fc04cc8bb35cecea3d572",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/03-vision/D03-T04-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-sources.test.ts test/node/glimmer-source-pages.test.ts -> 2 files, 28 passed",
+    "python3 -m unittest tests.scripts.test_extract_archive tests.scripts.test_dataset_rows tests.scripts.test_phreshphish_rows tests.scripts.test_sevendays_rows -> OK",
+    "node scripts/glimmer/sources.ts check -> sources: reconciled (121,135 pages, every import complete)"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s5.md",
+    "verdict": "filed",
+    "candidate": "92211a46d24f5810bf0ef5202a1ebdcb205d9504",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a718",
+      "D03 T04 \u00a716"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s5.md",
+    "candidate": "137f5ab17a47b1d668e0febddb5d9eea941798ab",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s5.md",
+    "verdict": "fixed",
+    "candidate": "493a821f2f7216a890a0d34f6f03160aa40c2f7c",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
