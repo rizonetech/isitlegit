@@ -251,6 +251,20 @@ describe("buildDataset", () => {
     });
     expect(frozen.dropped.afterFreeze).toBe(1);
     expect(unset.dropped.afterFreeze).toBe(0);
+    // A page the label rules excluded (a parked capture, contradictory labels) never reaches either file (§18 G5).
+    expect(unset.dropped.excluded).toBe(0);
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: named[0], reason: "the capture is a parked, suspended or taken-down page" })}\n`,
+    );
+    const ruled = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
+    expect(ruled.dropped.excluded).toBe(1);
+    const ids = [
+      ...readFileSync(join(ruled.dir, "train.meta.jsonl"), "utf-8").split("\n"),
+      ...readFileSync(join(ruled.dir, "eval.meta.jsonl"), "utf-8").split("\n"),
+    ].filter((line) => line.includes(named[0] as string));
+    expect(ids).toEqual([]);
   });
 });
 

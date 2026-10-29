@@ -20,6 +20,7 @@ import {
   type PageAnswer,
   type ScreenMode,
 } from "../../src/vision/page-screen.ts";
+import { readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -279,6 +280,9 @@ export type Built = {
     balanced: number;
     // Pages the collection freeze does not name (stored after it, §18).
     afterFreeze: number;
+    // Pages the label rules excluded (`raw/labels/excluded.jsonl`): a capture of something else, contradictory or
+    // incomplete labels, a lost teacher answer (§9, §18).
+    excluded: number;
   };
   shortfalls: string[];
   sha256: { train: string; evaluation: string };
@@ -305,6 +309,7 @@ export async function buildDataset(options: {
     capped: 0,
     balanced: 0,
     afterFreeze: 0,
+    excluded: 0,
   };
   // A page whose `lure` the teacher disputed waits in the review queue and is left out of both files (§9).
   const queue = join(store.dir, "review-queue.jsonl");
@@ -316,6 +321,7 @@ export async function buildDataset(options: {
           .map((line) => (JSON.parse(line) as { id: string }).id)
       : [],
   );
+  const excluded = readExcluded(store.dir);
   const entries: Entry[] = [];
   // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
   // is not trained on or evaluated, whatever pages it already stored.
@@ -345,6 +351,10 @@ export async function buildDataset(options: {
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
       dropped.afterFreeze++;
+      continue;
+    }
+    if (excluded.has(page.id)) {
+      dropped.excluded++;
       continue;
     }
     if (!usable(page)) {

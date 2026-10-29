@@ -73,6 +73,12 @@ describe("ScamFerret", () => {
       .png()
       .toBuffer();
     writeFileSync(join(shop, "sample_screenshot", "cheap-shoes.example.png"), big);
+    const crypto = join(dataset, "scam_websites", "cryptocurrency", "toppage_html");
+    mkdirSync(crypto, { recursive: true });
+    writeFileSync(
+      join(crypto, "coin-yield.example.html.gz"),
+      gzipSync("<h1>Guaranteed daily returns on your coins</h1>"),
+    );
     const legit = join(dataset, "legitimate_websites", "investment", "toppage_html");
     mkdirSync(legit, { recursive: true });
     writeFileSync(
@@ -87,16 +93,43 @@ describe("ScamFerret", () => {
       items: scamferretItems(dataset, reader),
       store,
     });
-    expect(result).toMatchObject({ status: "complete", expected: 2, imported: 2, duplicates: 0, stored: 2 });
+    expect(result).toMatchObject({ status: "complete", expected: 3, imported: 3, duplicates: 0, stored: 3 });
     const pages = openStore(join(dir, "store")).manifest();
     const scam = pages.find((p) => p.host === "cheap-shoes.example");
     const benign = pages.find((p) => p.host === "bank.example");
     expect(scam).toMatchObject({
       origin: "public",
       labels: { lure: true, lure_type: "fake_shop", has_login_form: false, has_payment_form: false },
-      label_source: { lure: "ground-truth", lure_type: "ground-truth", has_login_form: "dom" },
+      // Its screenshot is the dataset's live capture, its flags the inert HTML's: a false flag is untrusted (§18 G8).
+      label_source: { lure: "ground-truth", lure_type: "ground-truth", has_login_form: "unverified" },
+    });
+    // A scam tag that settles no lure type does not establish the page's lure (§18 G7); its own render's flags stand.
+    expect(pages.find((p) => p.host === "coin-yield.example")).toMatchObject({
+      labels: { lure: true },
+      label_source: { lure: "unverified", has_login_form: "dom" },
     });
     expect(benign).toMatchObject({ labels: { lure: false, lure_type: "none", has_login_form: true } });
+    // A page stored before the mapping changed takes it on resume, without rendering again: its false flag untrusted.
+    const old = scamferretItems(dataset, reader).map(({ inertFlags: _, ...item }) => item);
+    const fresh = openStore(join(dir, "store2"));
+    await importSource({ source: "scamferret", licence: "GPL-3.0", items: old, store: fresh });
+    const before = fresh.manifest().find((p) => p.host === "cheap-shoes.example");
+    expect(before?.label_source.has_login_form).toBe("dom");
+    let rendered = 0;
+    const again = scamferretItems(dataset, reader).map((item) => ({
+      ...item,
+      load: async () => {
+        rendered++;
+        return item.load();
+      },
+    }));
+    const resumed = await importSource({ source: "scamferret", licence: "GPL-3.0", items: again, store: fresh });
+    expect(rendered).toBe(0);
+    expect(resumed.relabelled).toBeGreaterThan(0);
+    const after = openStore(join(dir, "store2"))
+      .manifest()
+      .find((p) => p.host === "cheap-shoes.example");
+    expect(after?.label_source.has_login_form).toBe("unverified");
     const shot = openStore(join(dir, "store")).readPage(scam?.id ?? "");
     expect(jpegSize(shot.screenshot)).toEqual({ width: 1280, height: 2000 });
     expect(shot.text).toBe("Designer shoes 90% off today only");

@@ -181,6 +181,10 @@ export async function importSource(options: {
         // the stored record takes the new mapping (the DOM's form flags stay as they were read).
         const labels = { ...stored.labels, ...item.labels };
         const label_source = { ...stored.label_source, ...item.label_source };
+        // A false flag read off an inert copy beside the dataset's live capture is untrusted, found as on a first import.
+        if (item.inertFlags)
+          for (const field of ["has_login_form", "has_payment_form"] as const)
+            if (labels[field] === false && label_source[field] === "dom") label_source[field] = "unverified";
         const changed =
           stored.licence !== options.licence ||
           JSON.stringify(labels) !== JSON.stringify(stored.labels) ||

@@ -46,7 +46,14 @@ export function scamferretItems(datasetDir: string, reader: Awaited<ReturnType<t
           id: `${folder}/${category}/${file}`,
           url: `https://${host}/`,
           labels: { lure: scam, ...(lureType ? { lure_type: lureType } : {}) },
-          label_source: { lure: "ground-truth", ...(lureType ? { lure_type: "ground-truth" } : {}) },
+          // A scam tag whose category settles no lure type (cryptocurrency, investment) does not establish what the
+          // page itself does: its lure is unverified, trained at 0.7 and never evaluated (§18, admission rule).
+          label_source: {
+            lure: scam && !lureType ? "unverified" : "ground-truth",
+            ...(lureType ? { lure_type: "ground-truth" } : {}),
+          },
+          // The dataset's screenshot is a live capture; the text and form flags come from the inert HTML (§18 gap 8).
+          ...(existsSync(png) ? { inertFlags: true } : {}),
           load: async () => {
             // Bounded before the HTML is allocated: a crafted .html.gz could otherwise expand without limit.
             const html = decodeHtml(gunzipSync(readFileSync(join(htmlDir, file)), { maxOutputLength: MAX_HTML_BYTES }));
