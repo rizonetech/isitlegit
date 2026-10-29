@@ -168,13 +168,20 @@ GUARDED_WORDS = ("auth", "mail", "meta", "secret", "credential", "redact", "leak
                  "bank", "payment")
 
 
+# A root file named without a folder (`wrangler.jsonc`, `package.json`, `AGENTS.md`): only root documents may be light.
+ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py|sql|sh|md|txt|css|html|lock)$")
+
+
 def light_paths(body):
-    """The paths a section names in backticks: a token with a slash and no space, not a web address."""
-    return sorted({token.lstrip("./") for token in re.findall(r"`([^`\s]+)`", body)
-                   if "/" in token and "://" not in token})
+    """The paths a section names in backticks: a token with a slash and no space (not a web address), or a root file
+    named by itself; a leading `./` dropped, a leading dot (`.claude/`) kept."""
+    return sorted({token.removeprefix("./") for token in re.findall(r"`([^`\s]+)`", body)
+                   if ("/" in token and "://" not in token) or ROOT_FILE.match(token)})
 
 
 def light_path(path):
+    if "/" not in path:
+        return path.endswith(".md") and not any(word in path.lower() for word in GUARDED_WORDS)
     return path.startswith(LIGHT_PREFIXES) and not any(word in path.lower() for word in GUARDED_WORDS)
 
 

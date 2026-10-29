@@ -54,6 +54,8 @@ track: day-0
 | 13 | §13 | Type check before every push | §4 | [ ] |
 | 14 | §14 | Timing-free render, import and fetch tests | §4 | [ ] |
 | 15 | §15 | Review schedule by section risk | §4 | [ ] |
+| 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
+| 17 | §17 | Light against full review, measured | §15 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -591,6 +593,46 @@ Filed 2026-10-30 at the operator's request, to go quicker without lowering the b
 - [ ] Commit: `tools: a lighter review schedule for low-risk sections`
 
 **Test checkpoint:** `python3 -m pytest scripts/tests/test_review_dispatch.py tests/scripts/test_todo_graph.py` passes, including a light section stamped after one round and a full one refused.
+
+## 16. A returned review kept when its record fails
+
+Filed 2026-10-30 from D00 T01 §15's completion review (gap 11, missing out of scope): a reviewer's returned review is lost when `scripts/review-dispatch.py` cannot write the findings file after it (a full disk, a permission error, a lock), since the record branch catches only `Unrecorded`: the review was paid for and the operator sees an exception with no output. The existing findings survive, since the write is atomic.
+
+**Phase:** 7
+**Needs:** none
+**Risk:** light
+**Surface:** no
+
+**Build order:**
+
+1. Keep the review when the record cannot be written. Done when: a failed write prints the review and the record's path and exits non-zero.
+2. Prove it. Done when: tests cover a full disk, a refused permission and a held lock.
+
+- [ ] Catch an `OSError` from writing the findings file in `scripts/review-dispatch.py`, printing the returned review whole to stderr with the record path that could not be written and the command to record it again, and exiting with the unrecorded code. Done when: the review's text, the path and the exit code are in the output with the findings file unchanged.
+- [ ] Add the tests to `scripts/tests/test_review_dispatch.py`, the write made to fail with `ENOSPC`, `EACCES` and a held lock. Done when: each case keeps the review in the output and fails if the catch is removed.
+- [ ] Commit: `tools: a review whose record fails is printed, not lost`
+
+**Test checkpoint:** `python3 -m pytest scripts/tests/test_review_dispatch.py` passes, including the three failed-write cases.
+
+## 17. Light against full review, measured
+
+Filed 2026-10-30 from D00 T01 §15's completion review (Part 2, item 2): the light schedule rests on what this session observed (rounds after the first rarely found anything on tooling, test and documentation sections), not on a measurement. This compares the two on the same candidates.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Gather the candidates. Done when: a set of past tooling, test and documentation sections with their known P1 and P2 findings is listed.
+2. Measure both schedules. Done when: the record names time, usage and missed known findings for each.
+
+- [ ] List at least eight stamped sections that would be light today, with each one's commit before its rounds and the P1 and P2 findings its rounds found, in `docs/evals/review-schedules.md`. Done when: the list is committed with the commits and findings named.
+- [ ] Replay both schedules on each candidate through `scripts/review-dispatch.py` into scratch findings files, recording wall time, reviewer usage and which known findings each found. Done when: `docs/evals/review-schedules.md` has the table, and says whether light missed any known P1 or P2.
+- [ ] If light missed a known P1 or P2, narrow `LIGHT_PREFIXES` or `[schedule.light]` in `.conclave/reviewers.toml` until it does not, and record why. Done when: the record names the change, or that none was needed.
+- [ ] Commit: `docs: light against full review, measured`
+
+**Test checkpoint:** `docs/evals/review-schedules.md` holds the table with time, usage and missed findings for both schedules.
 
 ## Verification
 

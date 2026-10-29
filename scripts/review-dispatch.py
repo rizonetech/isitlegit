@@ -301,15 +301,19 @@ def round_schedule(entry):
 
 def section_risk(record, root=ROOT):
     """The risk of the section a findings file belongs to (`docs/reviews/<domain>/DNN-TNN-sN.md` names it): its
-    `**Risk:**` line, or `full` when it has none, says something else, or the file names no section."""
+    `**Risk:**` line (quoted or not, as the TODO validator reads a field), or `full` when it has none or the file names
+    no section. A duplicate or unknown risk is refused before any reviewer runs, as the validator refuses it."""
     name = RECORD_NAME.match(Path(record).name)
     if not name:
         return "full"
     for todo in sorted((Path(root) / "todo").glob(f"{name[1]}-*/TODO-{name[2]}-*.md")):
         body = re.search(rf"^## {int(name[3])}\. .*?(?=^## |\Z)", todo.read_text(encoding="utf-8"), re.M | re.S)
         if body:
-            risk = re.search(r"^\*\*Risk:\*\*[ \t]*(\S+)[ \t]*$", body.group(0), re.M)
-            return risk.group(1) if risk and risk.group(1) in SCHEDULES else "full"
+            values = re.findall(r"^(?:> )?\*\*Risk:\*\*[ \t]*(.*?)[ \t]*$", body.group(0), re.M)
+            if len(values) > 1 or (values and values[0] not in SCHEDULES):
+                raise Refused(f"{todo.name} §{int(name[3])} has a malformed Risk line ({', '.join(values) or 'empty'}); "
+                              f"it is one line, full or light: fix it before the review")
+            return values[0] if values else "full"
     return "full"
 
 

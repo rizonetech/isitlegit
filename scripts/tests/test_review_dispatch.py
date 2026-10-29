@@ -959,12 +959,29 @@ class Schedule(Harness):
         rounds = self.module().read_rounds(self.findings.read_text(encoding="utf-8"))
         self.assertEqual([(r["number"], r["schedule"]) for r in rounds], [(1, "light"), (2, None)])
 
-    def test_a_section_with_no_risk_or_another_name_is_full(self):
+    def test_a_section_with_no_risk_is_full_and_a_malformed_one_is_refused_before_a_review(self):
         module = self.module()
-        for risk in (None, "medium"):
-            with self.subTest(risk=risk):
-                self.light_section(risk)
-                self.assertEqual(module.section_risk(self.findings, self.repo), "full")
+        self.light_section(None)
+        self.assertEqual(module.section_risk(self.findings, self.repo), "full")
+        for line in ("**Risk:** medium", "**Risk:** light\n**Risk:** full", "**Risk:**"):
+            with self.subTest(line=line):
+                self.light_section(None)
+                todo = self.repo / "todo/00-workspace/TODO-01-a.md"
+                todo.write_text(todo.read_text(encoding="utf-8").replace("**Surface:** no", f"{line}\n**Surface:** no", 1),
+                                encoding="utf-8")
+                with self.assertRaises(module.Refused):
+                    module.section_risk(self.findings, self.repo)
+                self.log.unlink(missing_ok=True)
+                result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--record",
+                                          str(self.findings), codex="say", say="OVERALL: approve")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.calls(), [], "no reviewer ran")
+        # A quoted field reads as the validator reads it.
+        self.light_section(None)
+        todo = self.repo / "todo/00-workspace/TODO-01-a.md"
+        todo.write_text(todo.read_text(encoding="utf-8").replace("**Surface:** no", "> **Risk:** light\n**Surface:** no", 1),
+                        encoding="utf-8")
+        self.assertEqual(module.section_risk(self.findings, self.repo), "light")
         self.assertEqual(module.section_risk(self.repo / "notes.md", self.repo), "full")
         self.light_section()
         self.assertEqual(module.section_risk(self.findings, self.repo), "light")
