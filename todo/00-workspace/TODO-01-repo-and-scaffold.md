@@ -51,6 +51,8 @@ track: day-0
 | 10 | §10 | Deploy rollback and re-verification | §5 | [x] |
 | 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [x] |
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
+| 13 | §13 | Type check before every push | §4 | [ ] |
+| 14 | §14 | Timing-free render, import and fetch tests | §4 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -517,6 +519,46 @@ Evidence 2026-10-27 14:05 SAST, after the final review's fixes (commit `a7a3aee`
 
 > **Verified:** 2026-10-27 | §12 | 8d3c602062e5419d41286396cd0800c926ea08f6
 > **Review:** `docs/reviews/d00-t01-s12.json`
+
+## 13. Type check before every push
+
+Filed 2026-10-29 at the operator's request, after CI's Worker gates failed in 30 to 36 seconds on three `glimmer-screener` commits pushed with a type error in a test (`6d1c736`, `902ae19`, `8d979c8`, 17:12 to 17:22 SAST: `test/node/glimmer-dataset.test.ts` named an `afterFreeze` field the code did not have yet). The pre-commit hook checks the plan, client names and private paths, but nothing local runs the type checker, so a lane that skips it finds out from CI. A pre-push hook beside the pre-commit one makes the check mechanical for both lanes, which share `core.hooksPath = scripts/hooks`.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the hook. Done when: a push with a type error is refused locally with the first error shown, and a clean push goes through.
+2. Prove it. Done when: tests cover a refused push, a clean push and the documented escape.
+
+- [ ] Write `scripts/hooks/pre-push` running `pnpm typecheck` (and `pnpm lint`), refusing the push on a failure with the first errors printed and the command to rerun. Done when: in a scratch clone with `core.hooksPath` set, a push with a type error exits non-zero before anything leaves, and a clean push succeeds.
+- [ ] Keep the hook bounded and honest: a missing `pnpm` or `node_modules` is a refusal naming what to install, never a silent pass, and the escape is git's own `--no-verify`, documented, not a variable the hook reads. Done when: `tests/scripts/test_pre_push_hook.py` covers each case with a stubbed `pnpm` on `PATH`.
+- [ ] Add the tests to `tests/scripts/test_pre_push_hook.py` and name the hook in `AGENTS.md` beside the pre-commit hook. Done when: each case fails if its branch in the hook is removed, and `AGENTS.md` names both hooks.
+- [ ] Commit: `tools: a pre-push hook runs the type check and lint`
+
+**Test checkpoint:** `python3 -m pytest tests/scripts/test_pre_push_hook.py` passes and fails if a push with a type error is let through.
+
+## 14. Timing-free render, import and fetch tests
+
+Filed 2026-10-29 at the operator's request: most of the red CI runs that are not a real defect come from tests that wait on a fixed time and lose the race on a slow runner. The Glimmer lane owns the code (D03 T04), so its runner takes this row (Phase 0). The runs: `test/node/glimmer-render.test.ts` "renderPage > renders a page with its screenshot, text and form flags" timed out at 15 s on `main` (runs 40797268504, 40798611883) and "the batch run" cases failed on the lane (40899049673, 40881446236); `test/node/glimmer-import.test.ts` "turns a load that never settles into an exclusion" (40812786684); `tests/scripts/test_fetch_bench.py` "test_aria2c_too_is_killed_at_the_byte_and_resumes" (40927700660, the most recent red) and "test_a_small_run_records_fetch_py_recovering_intact" (40832290146).
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find what each test waits on. Done when: each named test's fixed delay or deadline is listed with the event it stands in for.
+2. Wait on the event instead. Done when: each test passes repeatedly under load and still fails when the behaviour it checks is removed.
+
+- [ ] Replace each fixed sleep or wall-clock deadline in the named tests (`test/node/glimmer-render.test.ts`, `test/node/glimmer-import.test.ts`, `tests/scripts/test_fetch_bench.py`) with the event it waits for: a promise, a file or byte count observed, a fake clock, or a process exit read with a bounded retry. Done when: no named test asserts on elapsed real time except as a generous upper bound.
+- [ ] Run each named test 20 times under CPU load (`stress-ng --cpu` or parallel copies) and record the results. Done when: the section records 20 of 20 passes for each, with the command used.
+- [ ] Prove each still catches its defect. Done when: removing the behaviour each test checks makes it fail, recorded per test.
+- [ ] Commit: `glimmer: render, import and fetch tests wait on events, not time`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-import.test.ts` and `python3 -m pytest tests/scripts/test_fetch_bench.py` pass 20 times in a row under load.
 
 ## Verification
 
