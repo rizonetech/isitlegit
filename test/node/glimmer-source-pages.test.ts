@@ -153,7 +153,9 @@ describe("visibleText", () => {
   }, 90_000);
 
   it("retries pages caught in a browser crash on one replacement browser", async () => {
-    const own = await openTextReader();
+    // A long page deadline: on a loaded machine the three slow pages could pass the default 30 seconds, and a page
+    // past its deadline replaces the browser too, which is another path than the crash this test is about.
+    const own = await openTextReader({ pageMs: 120_000 });
     await own.renderHtml("<p>warm the first browser up</p>");
     const slow = (n: number) => `<p>page ${n}</p><div>${"<span>word </span>".repeat(150_000)}</div>`;
     const pages = [1, 2, 3].map((n) => own.renderHtml(slow(n)));
