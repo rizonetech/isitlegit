@@ -125,6 +125,15 @@ class CheckPublication(unittest.TestCase):
         self.assertIn("private path: docs/notes.md:1", result.stdout)
         self.assertNotIn("/home/someone", result.stdout)
 
+    def test_a_home_folder_is_found_wherever_a_path_starts_but_a_web_address_is_not(self):
+        for line in ('cd /home/someone/x\n', 'path="/home/someone"\n', '`/home/someone`\n', '(/home/someone)\n',
+                     "file:/home/someone/a\n"):
+            with self.subTest(line):
+                self.stage("docs/notes.md", line)
+                self.assertEqual(self.check().returncode, 1, line)
+        self.stage("docs/notes.md", "See https://personal.bank.example/home/fraud-awareness/cybercrime.html\n")
+        self.assertEqual(self.check().returncode, 0)
+
     def test_no_diagnostic_prints_a_client_bearing_path(self):
         self.stage("samples/Acme Holdings.eml", b"From: nobody\r\n")
         self.stage("sources/Acme Holdings/mail.md", "capture\n")

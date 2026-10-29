@@ -44,7 +44,7 @@ fi
 # Private machine paths (a home folder, a Windows or WSL-mounted user folder) never enter the public repository either:
 # the pattern scripts/check-publication.py uses, over the whole index, so a reviewer's quoted path in a findings file is
 # caught before it is committed, not after a push. Test fixtures may hold examples.
-git grep --cached -q -E -e '/home/[a-z]|[A-Z]:\\(GitHub|Users)\\[A-Za-z]|/mnt/[a-z]/(GitHub|Users)/[A-Za-z]' -- . ':!tests/' ':!scripts/tests/'
+git grep --cached -q -E -e '(^|[^A-Za-z0-9._~%-])/home/[a-z]|[A-Z]:\\(GitHub|Users)\\[A-Za-z]|/mnt/[a-z]/(GitHub|Users)/[A-Za-z]' -- . ':!tests/' ':!scripts/tests/'
 private=$?
 if [ "$private" -eq 0 ]; then
     echo "pre-commit: the staged tree contains a private path (a home or user folder); write it with ~ or a placeholder (python3 scripts/check-publication.py names the line)" >&2

@@ -29,7 +29,9 @@ NAMES = ROOT / "samples/client-names.txt"
 # name matches them by chance. Their paths are still checked; mail fixtures and PDFs are still read as text.
 NOT_TEXT = [f":(exclude,glob)**/*.{ext}" for ext in ("ttf", "otf", "woff", "woff2", "png", "jpg", "jpeg", "gif", "webp",
                                                       "ico")]
-PRIVATE_PATH = r"/home/[a-z]|[A-Z]:\\(GitHub|Users)\\[A-Za-z]|/mnt/[a-z]/(GitHub|Users)/[A-Za-z]"
+# A home folder starts a path; a web address's `/home/` follows its host or another path segment (a bank's
+# `https://personal.example.co.za/home/fraud-awareness`), so `/home/` after a host or path character is not one.
+PRIVATE_PATH = r"(^|[^A-Za-z0-9._~%-])/home/[a-z]|[A-Z]:\\(GitHub|Users)\\[A-Za-z]|/mnt/[a-z]/(GitHub|Users)/[A-Za-z]"
 SAMPLES_ALLOWED = ["samples/.gitignore", "samples/README.md"]
 NEVER_TRACKED = ("sources/", "competitors/", ".remember/")
 

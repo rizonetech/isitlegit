@@ -256,3 +256,15 @@ class HookFile(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrivatePathPattern(unittest.TestCase):
+    def test_the_hook_uses_check_publications_own_pattern(self):
+        # The hook greps with a copy (it runs before Python is set up); the two must stay equal.
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("check_publication", REPO / "scripts/check-publication.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        hook = (REPO / HOOK).read_text(encoding="utf-8")
+        self.assertIn(f"-e '{module.PRIVATE_PATH}'", hook)
