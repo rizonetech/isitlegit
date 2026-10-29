@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 26 | Checklist items: 340
+Sections: 26 | Checklist items: 349
 
 | Status | Reference   | Deliverable                              | Needs                | Items |
 | ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
@@ -28,13 +28,13 @@ Sections: 26 | Checklist items: 340
 | [x]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
 | [ ]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 7     |
 | [ ]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 18    |
-| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 9     |
+| [ ]    | D03 T04 §26 | Benign render hardening                  | none                 | 13    |
+| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 18    |
 | [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 12    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe        | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero   | none                 | 7     |
 | [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 14    |
 | [ ]    | D03 T04 §17 | Loupe model card per version             | none                 | 9     |
-| [ ]    | D03 T04 §26 | Benign render hardening                  | none                 | 13    |
 | [x]    | D99 T01 §8  | AI Gateway tokens                        | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                          | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §11 | AI Gateway config snapshot and restore   | cloudflare           | 6     |
@@ -272,7 +272,7 @@ Sections: 59 | Checklist items: 248
 
 ### Phase 7: After the event
 
-Sections: 21 | Checklist items: 123
+Sections: 22 | Checklist items: 127
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -289,6 +289,7 @@ Sections: 21 | Checklist items: 123
 | [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 7     |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none     | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api | 7     |
+| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none     | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -320,6 +321,6 @@ Sections: 15 | Checklist items: 60
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 70/251 verified sections, 29 ready to run now.
+Progress: 70/252 verified sections, 28 ready to run now.
 
-Checklist: 766/1583 items completed (includes Commit items).
+Checklist: 769/1596 items completed (includes Commit items).

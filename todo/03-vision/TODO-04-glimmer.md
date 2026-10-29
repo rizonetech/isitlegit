@@ -53,7 +53,7 @@ track: day-6
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
-| 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6 | [ ] |
+| 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6, §26 | [ ] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [ ] |
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [x] |
@@ -62,6 +62,7 @@ track: day-6
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [ ] |
+| 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -608,6 +609,8 @@ Each Loupe version gets a model card the judges and the operator can read, gener
 
 Loupe 1.0 trains on as much good data as the time allows (operator, 2026-10-28 20:50 SAST: "lift the cap until 30 November ... Then add many more sources"; §11 lifts the cap while training is free). Lures are the scarce side: benign pages already outnumber them and §10 holds lures to 40 to 60 percent of each split, so every new source is chosen first for its lures. **Corrected 2026-10-28:** was "Loupe 1.1 on a larger set, if time allows", after 1.0; the operator moved the larger set into 1.0.
 
+**Corrected 2026-10-29 (plan review, `docs/reviews/03-vision/D03-T04-s18.md`):** collection had no freeze before the 2026-11-01 12:00 SAST training cutoff (gap 10): it now freezes at 2026-10-31 00:00 SAST, and the second Astra sweep with its converters moves to Loupe 1.1 (D03 T04 §27), since a sweep, its licence re-reads and new converters cannot be finished safely before the freeze (decision, unattended; reversal: run §27 before the freeze if time shows). The shards and the 7 Days Later source are bound to an input manifest and an export receipt (gaps 1 to 4), their labels and provenance carried through conversion (gaps 5 to 7), and the widened render waits for §26's hardening and ends in a receipt (gaps 8 and 9).
+
 **Phase:** 0
 **Needs:** none
 **Surface:** no
@@ -618,17 +621,26 @@ Loupe 1.0 trains on as much good data as the time allows (operator, 2026-10-28 2
 2. Bring in the larger sets. Done when: each accepted source's `IMPORT.json` reads `complete` and `node scripts/glimmer/sources.ts check` prints `sources: reconciled`.
 3. Widen the benign homepages. Done when: `benignCoverage()` reports the wider Majestic slice.
 
-- [ ] Write `docs/glimmer/astra-collection-brief-2.md` for a second Astra sweep aimed at lures (fake shops, social and corporate impersonation, tech-support, investment and delivery scams, phishing kits rendered to pages), with the same licence rule, size limit and refusals as the first brief, and listing the 15 sources already decided so none is researched twice. Done when: the brief exists and `python3 scripts/astra-collect.py --brief docs/glimmer/astra-collection-brief-2.md` accepts it. Cheaper substitute: searching only the sources already known.
-- [ ] Run the second sweep in the background and read its report, re-reading each accepted licence at its source and checking every file's SHA-256 as §5 did. Done when: every new candidate has a row in `docs/glimmer/sources.md` with its decision and licence link.
-- [ ] Fetch ten more PhreshPhish train shards (`train-002` to `train-011`) to a temporary name, each checked against the dataset's published SHA-256 before it is renamed into place (§16's resumable downloader is Phase 7), export them with `scripts/glimmer/phreshphish_rows.py` and import them with `scripts/glimmer/import-phreshphish.ts`. Done when: `raw/phreshphish/IMPORT.json` reads `complete` with the new rows counted, and `sources.md` names the shards.
+- [x] Write `docs/glimmer/astra-collection-brief-2.md` for a second Astra sweep aimed at lures. **Moved 2026-10-29 to D03 T04 §27** (Loupe 1.1; the collection freeze, plan review gap 10).
+- [x] Run the second sweep in the background and read its report. **Moved 2026-10-29 to D03 T04 §27** (Loupe 1.1; plan review gap 10).
+- [ ] Bind the twelve PhreshPhish train shards (`train-000` to `train-011`, already on disk) to an input manifest, `raw/phreshphish/INPUTS.json` (temp-then-replace): the release revision, each file with the SHA-256 the dataset publishes for it (its LFS object id) and ours, the licence evidence and the converter's identity (its file's SHA-256); `phreshphish_rows.py` refuses a shard missing from it or not matching it, and `IMPORT.json` names the manifest's digest, so `sources.ts check` refuses an import made from other inputs (plan review gaps 1 and 2). Done when: tests refuse a missing shard, a changed file and an `IMPORT.json` for another manifest, and the real `IMPORT.json` names the current manifest.
 - [x] Re-read the 7 Days Later dataset's licence at https://zenodo.org/records/14885725 and, if it is still CC BY 4.0 with its public sample open, raise the 5 GB source limit for this one source in `docs/glimmer/sources.md` with the reason, download the sample with its published checksum checked, and write `scripts/glimmer/import-7dayslater.ts` with a two-item fixture test as §5's converters have. Done when: the source's row reads `accepted` with its import counts, or `rejected` with the reason found. Cheaper substitute: skipping the source and recording why. **Corrected 2026-10-29:** built as `scripts/glimmer/sevendays_rows.py` (rows of each URL's live capture, its test `tests/scripts/test_sevendays_rows.py`) feeding the shared `scripts/glimmer/import-rows.ts`, as the other row sources are, instead of an `import-7dayslater.ts` of its own. Re-read 2026-10-29: CC BY 4.0, open; the sample's MD5 c7ec2fd9f59510aeba745e1b85329fdf matched; the row reads `accepted` with its counts.
-- [ ] Write a converter, with its two-item fixture test, for each source the second sweep accepts. Done when: each one's `IMPORT.json` reads `complete`.
+- [x] Write a converter for each source the second sweep accepts. **Moved 2026-10-29 to D03 T04 §27** (Loupe 1.1; plan review gap 10).
 - [x] Spot-check 50 random pages of each new source. **Removed 2026-10-28 (operator, 21:32 SAST: "please drop the human checks to save time").** The new sources' labels are taken as their publishers give them.
 - [ ] Widen §6's benign homepages from the Majestic Million's top 5,000 to its top 20,000 in `raw/majestic/top.csv` (the 600 `.za` domains kept), and render the new domains with `node scripts/glimmer/render.ts run majestic` in the background; the journal skips what is done. Done when: `raw/benign/progress.jsonl` has an outcome for every new domain and `benignCoverage()` reports the new total. Widened 2026-10-29: `top.csv` holds 20,576 domains (the top 20,000 and the 576 highest-ranked `.za` not among them), before any render ran, so the one queued render covers them; the item ticks when `progress.jsonl` has every outcome.
 - [ ] Record the widened render's throughput (pages an hour, from the first and last stamps in `raw/benign/progress.jsonl`) and its stored, excluded and retried counts in the run file and under the Majestic paragraph of `docs/glimmer/sources.md`, and raise `runBatch`'s concurrency from 4 only if free memory stays above 3,000 MB at the raised setting (filed from §6's completion review, gap 14). Done when: both carry the measured figures and the concurrency used.
+- [ ] Record the digest rule for every source in `docs/glimmer/sources.md`: a file is admitted only against the digest its publisher gives (SHA-256, or MD5 where that is all the publisher gives, as Zenodo gives for 7 Days Later), fetched over HTTPS, with our SHA-256 of the verified file kept in the manifest; a file with no published digest, or one that does not match, never reaches conversion (plan review gap 1). Done when: tests refuse a file without a published digest and a mismatched one before conversion.
+- [ ] Account for every source row from input to page in an export receipt, `raw/<source>/EXPORT.json`: each original item selected, sampled out, rejected (with its reason: unmatched label, oversized, malformed) or exported, by stable item id, its totals reconciling with the input; the 7 Days Later converter pairs its sheets by key, never by position, and refuses unequal or unmatched inputs (plan review gap 3). Done when: fixtures with a missing mapping, unequal sheets and an unexplained omission each fail, and the real receipts reconcile.
+- [ ] Bound every converter's resources: expanded bytes, archive entries, pending unmatched parts in memory and run time, each with its limit in the converter; a converter stopped by one leaves the previous output whole and never publishes a complete import (plan review gap 4). Done when: tests with a decompression bomb, too many entries and an unmatched-part flood each refuse with the earlier rows untouched.
+- [ ] Admit a page's publisher label only on a usable capture: a parked page, a takedown or error notice, a bot challenge or an empty capture is excluded with its reason (the render's `unusable` rules and §26's wall check, applied to imported pages), a row whose labels conflict across sources is excluded, and a label whose page-level meaning the publisher does not establish (a generic scam tag) is stored `unverified` (trained at 0.7, never evaluated); each mapping is written in `docs/glimmer/sources.md` (plan review gap 5). Done when: tests cover a parked page, a takedown notice, a challenge and a conflicting row, and none is stored as a trusted lure.
+- [ ] Keep each page's provenance through conversion: the upstream dataset, its original item id, its host, and any campaign, kit or template id the source gives (`template` set from it, not left null), so §10 groups related variants across sources into one split, and contradictory labels on one page's duplicates are settled (the stronger label, or excluded when they conflict) before deduplication (plan review gap 6). Done when: cross-source fixtures put two variants of one kit in the same split and settle a contradictory duplicate.
+- [ ] Keep a page's form flags consistent with its screenshot: when the screenshot is a live capture and the text and flags come from an inert render of saved HTML (7 Days Later), a flag the inert render cannot see (a form a script builds) is stored with label source `unverified` rather than as a trusted `false`, and evaluation never trusts it (plan review gap 7). Done when: a fixture whose login form is built by a script keeps `has_login_form` untrusted.
+- [ ] Hand §10 the widened benign pages only after D03 T04 §26 is stamped and `render.ts recheck` exits 0 on the real store (plan review gap 8). Done when: §18's checkpoint runs the recheck and §26 is stamped.
+- [ ] Write the widened render's receipt, `raw/majestic/RENDER.json` (temp-then-replace, read back): the URL list's SHA-256, one latest terminal outcome per listed URL (stored with its verified page, or excluded with its reason; a URL still at `retry` is unfinished), the concurrency, and the elapsed time from the first `started` to the last outcome of this list's runs, pauses left out; `render.ts receipt majestic` exits 1 while any URL is unfinished (plan review gap 9). Done when: tests cover a missing URL, an unresolved retry, a restart and a journal mixing lists, and the real receipt reads complete.
+- [ ] Freeze collection at 2026-10-31 00:00 SAST: `node scripts/glimmer/sources.ts freeze` writes `raw/FROZEN.json` (temp-then-replace) naming every source's manifest digest, import receipt and page count, and §10's builder refuses a page not in it, so a late or unfinished input cannot enter Loupe 1.0; any source unfinished then is recorded as deferred to 1.1 in `docs/glimmer/sources.md` (plan review gap 10). Done when: a test stores a page after the freeze and the builder leaves it out, and the real freeze is written by the deadline.
 - [ ] Commit: `glimmer: many more public sources for Loupe 1.0`
 
-**Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`; each new converter's test passes; `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes.
+**Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, binding every import to its manifest and export receipt; `pnpm exec vitest run test/node/glimmer-sources.test.ts` and each converter's test pass; `node scripts/glimmer/render.ts receipt majestic` and `node scripts/glimmer/render.ts recheck` exit 0; `raw/FROZEN.json` exists, written by 2026-10-31 00:00 SAST.
 
 
 ## 19. Sample redaction beyond the dictionary
@@ -863,6 +875,26 @@ Filed 2026-10-29 by main's decision on §6's stamp: work added to `scripts/glimm
 - [ ] Commit: `glimmer: benign render hardening after §6's final review`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-source-pages.test.ts test/node/glimmer-store.test.ts test/node/benign-urls.test.ts` passes, and `node scripts/glimmer/render.ts recheck` on the real store exits 0: every page verified, none refused, none unassessed or damaged.
+
+## 27. A second source sweep for Loupe 1.1
+
+Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a second Astra sweep for lures (fake shops, social and corporate impersonation, tech-support, investment and delivery scams, phishing kits rendered to pages), its licence re-reads and a converter for each accepted source cannot be finished safely before Loupe 1.0's collection freeze (2026-10-31 00:00 SAST), so they feed Loupe 1.1. Every rule §18 sets for a source holds here: an input manifest, an export receipt, resource limits, capture-level label admission, provenance and a frozen handoff.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Widen the search. Done when: a second Astra sweep has recorded every new candidate in `docs/glimmer/sources.md`.
+2. Bring in what it accepts. Done when: each accepted source's import is bound to its manifest and receipt and `sources.ts check` reconciles.
+
+- [ ] Write `docs/glimmer/astra-collection-brief-2.md` for the second sweep, with the first brief's licence rule, size limit and refusals, listing every source already decided so none is researched twice. Done when: the brief exists and the collector accepts it.
+- [ ] Run the sweep in the background and read its report, re-reading each accepted licence at its source and checking every file against its publisher's digest. Done when: every new candidate has a row in `docs/glimmer/sources.md` with its decision and licence link.
+- [ ] Write a converter for each accepted source under §18's rules (input manifest, export receipt, resource limits, capture-level labels, provenance), each with its fixture test. Done when: each import's `IMPORT.json` reads `complete` and names its manifest.
+- [ ] Commit: `glimmer: a second source sweep for Loupe 1.1`
+
+**Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, and each new converter's test passes.
 
 ## Verification
 
