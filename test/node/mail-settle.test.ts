@@ -161,5 +161,8 @@ describe("mail-settle, completion review (2026-10-29)", () => {
     const other = "unresolved:reply:y@2026-10-24T19:20:11.000Z";
     w.add(other, "alert", "failed");
     expect(await steer(w.run, other, "status", AT)).toContain("Next: nothing; only a reply can be sent again");
+    // A resend that ended, its row then settled failed: resend is the next step (round 4).
+    await w.run("pnpm", [`UPDATE mail_sends SET resend_state = 'done' WHERE send_key = '${key}'`]);
+    expect(await steer(w.run, key, "status", AT)).toContain("Next: resend, if SMTP2GO has no record of it");
   });
 });
