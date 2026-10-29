@@ -2,6 +2,8 @@
 // page's visible text. Each is done by the tool that owns the format: sharp decodes and re-encodes the image, and
 // Chromium (inert: no JavaScript, no network) lays the HTML out and reads `innerText`, which already leaves out
 // scripts, styles, comments and everything CSS or `hidden` keeps off the screen.
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright-core";
 import sharp, { type Sharp } from "sharp";
 import { chromiumPath } from "../lib/chromium.ts";
@@ -231,7 +233,9 @@ export function picturesLeft(properties: string[]): number {
 // closed and replaced, since a renderer that stopped answering may not close a page either.
 export const PAGE_DEADLINE_MS = 30_000;
 
-export async function openTextReader(options: { pageMs?: number } = {}): Promise<{
+export async function openTextReader(
+  options: { pageMs?: number; closeBrowser?: (browser: Browser) => Promise<void> } = {},
+): Promise<{
   visibleText: (html: string) => Promise<string>;
   renderHtml: (html: string, options?: { pictures?: boolean }) => Promise<RenderedHtml>;
   launches: () => number;
@@ -242,14 +246,17 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
   if (!found) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
   const executablePath: string = found;
   // A crashed browser (a huge page can take Chromium down) is replaced, not left to fail every page after it.
-  let session: Promise<{ browser: Browser; context: BrowserContext }> | null = null;
+  type Session = { browser: Browser; context: BrowserContext; marker: string };
+  let session: Promise<Session> | null = null;
   let launched = 0;
-  async function launch(): Promise<{ browser: Browser; context: BrowserContext }> {
+  async function launch(): Promise<Session> {
     launched++;
+    // A switch Chromium ignores, naming this one browser, so a browser that will not close can still be ended.
+    const marker = `--glimmer-reader=${randomUUID()}`;
     const browser = await chromium.launch({
       executablePath,
       chromiumSandbox: true,
-      args: ["--proxy-server=127.0.0.1:9", "--no-first-run"],
+      args: ["--proxy-server=127.0.0.1:9", "--no-first-run", marker],
     });
     const context = await browser.newContext({
       javaScriptEnabled: false,
@@ -265,7 +272,7 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
     browser.on("disconnected", () => {
       session = null;
     });
-    return { browser, context };
+    return { browser, context, marker };
   }
   const current = () => {
     session ??= launch();
@@ -276,9 +283,20 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
       .replace(/[ \t\f\v\r]+/g, " ")
       .replace(/ *\n[\n ]*/g, "\n")
       .trim();
+  // A browser closed within 5 seconds, or ended by its marker: one that will not close must not hold the process open
+  // (an import finished its work and then waited on such a browser for four hours, 2026-10-29).
+  async function end(entry: Session): Promise<void> {
+    if (await bounded((options.closeBrowser ?? ((browser) => browser.close()))(entry.browser))) return;
+    try {
+      execFileSync("pkill", ["-KILL", "-f", "--", entry.marker]);
+    } catch {
+      // pkill exits 1 when no process matched: the browser had ended by itself after all
+    }
+  }
   async function withPage<T>(html: string, read: (page: Page) => Promise<T>, retried = false): Promise<T> {
     const mine = current();
-    const { browser, context } = await mine;
+    const entry = await mine;
+    const { browser, context } = entry;
     // A browser that died under several workers is replaced once: each clears the shared session only while it still
     // holds the session that died, so a later worker never drops a replacement an earlier one already launched.
     const forget = () => {
@@ -305,7 +323,7 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
         // The renderer stopped answering: this browser is dropped (its pages with it) and the next page gets a new one.
         forget();
         page = undefined;
-        await bounded(browser.close());
+        await end(entry);
         throw error;
       }
       // The browser went away under this page: start a fresh one and try the page once more. A page can fail with the
@@ -325,7 +343,7 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
       // Bounded: a renderer that stopped answering may never close its page; then its browser is dropped instead.
       if (page && !(await bounded(page.close()))) {
         forget();
-        void bounded(browser.close());
+        void end(entry);
       }
     }
   }
@@ -374,7 +392,7 @@ export async function openTextReader(options: { pageMs?: number } = {}): Promise
     close: async () => {
       const open = session;
       session = null;
-      if (open) await (await open).browser.close();
+      if (open) await end(await open);
     },
   };
 }

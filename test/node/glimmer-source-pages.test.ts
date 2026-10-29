@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import sharp from "sharp";
@@ -151,6 +152,30 @@ describe("visibleText", () => {
     expect(quick.launches()).toBe(2);
     await quick.close();
   }, 90_000);
+
+  it("ends a browser that will not close, so the importer behind it can exit", async () => {
+    // The marked browsers alive now; other readers on the host may start their own, so only these are followed.
+    const marked = () => {
+      try {
+        return new Set(
+          execFileSync("pgrep", ["-f", "--", "--glimmer-reader="]).toString().trim().split("\n").filter(Boolean),
+        );
+      } catch {
+        return new Set<string>(); // pgrep exits 1 when nothing matched
+      }
+    };
+    const before = marked();
+    const own = await openTextReader({ closeBrowser: () => new Promise(() => undefined) });
+    await own.renderHtml("<p>start this reader's browser</p>");
+    const mine = [...marked()].filter((pid) => !before.has(pid));
+    expect(mine.length).toBeGreaterThan(0);
+    const started = Date.now();
+    await own.close();
+    expect(Date.now() - started).toBeLessThan(8_000);
+    await new Promise((done) => setTimeout(done, 500));
+    const after = marked();
+    expect(mine.filter((pid) => after.has(pid))).toEqual([]);
+  }, 30_000);
 
   it("retries pages caught in a browser crash on one replacement browser", async () => {
     // A long page deadline: on a loaded machine the three slow pages could pass the default 30 seconds, and a page

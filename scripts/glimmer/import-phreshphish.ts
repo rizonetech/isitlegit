@@ -202,4 +202,6 @@ if (import.meta.filename === process.argv[1]) {
   } finally {
     await reader.close();
   }
+  // The import ends when its work ends: a handle nothing waits on must not keep the next queued import waiting.
+  process.exit(process.exitCode ?? 0);
 }
