@@ -364,3 +364,30 @@ describe("round 1 (2026-10-29)", () => {
     expect(requests.find((r) => r.to[0] === FORWARDER && r.text_body.includes("Kept-4 headline"))).toBeTruthy();
   });
 });
+
+describe("round 2 (2026-10-29)", () => {
+  it("resends the stored verdict of a case that failed only after it, finishing the case", async () => {
+    mutedLogs();
+    const requests = stubSmtp2go();
+    const made = await createCase(env.DB, {
+      orgId: ORG,
+      channel: "email",
+      headersAvailable: false,
+      forwardedBy: FORWARDER,
+      messageId: "<forward-100@fictional-recipient.example>",
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await setStatus(env.DB, ORG, id, "running");
+    await storeVerdict(env.DB, ORG, id, { ...STUB_VERDICT, headline: "Finish-5 headline" });
+    await setStatus(env.DB, ORG, id, "partial");
+    await recordEvent(env.DB, id, "finish", "failed", { errorClass: "Error", once: true });
+    await env.DB.prepare(
+      "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at, claimed_at, resend_state, resend_at) VALUES (?, ?, ?, 'reply', ?, 'failed', 1, ?, ?, ?, 'requested', ?)",
+    )
+      .bind(crypto.randomUUID(), `reply:${id}`, id, "a".repeat(64), CLAIMED, CLAIMED, CLAIMED, CLAIMED)
+      .run();
+    await resendRequested(env);
+    expect(requests.find((r) => r.to[0] === FORWARDER && r.text_body.includes("Finish-5 headline"))).toBeTruthy();
+  });
+});

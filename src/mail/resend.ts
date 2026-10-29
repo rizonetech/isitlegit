@@ -28,19 +28,18 @@ export async function rebuildState(db: D1Database, caseId: string): Promise<Repo
     return { status: "ready", verdict: stored.value.verdict };
   }
   if (found.value.status === "partial") {
-    // The analysis's own failure, never the reply step's: a case whose only failure was delivering its reply kept its
-    // verdict, and that is what it resends (round 1).
+    // A stored verdict means the analysis finished: whatever failed after it (delivering the reply, finishing the
+    // case), the reply is that verdict (rounds 1 and 2). Without one, the earliest failure before it is the report's
+    // cause, as the workflow keeps it, never the reply step's own.
+    const stored = await getVerdict(db, caseId);
+    if (stored?.ok) return { status: "ready", verdict: stored.value.verdict };
     const failure = await db
       .prepare(
-        "SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' AND step <> 'reply' ORDER BY id LIMIT 1",
+        "SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish') ORDER BY id LIMIT 1",
       )
       .bind(caseId)
       .first<{ step: string; error: string | null }>();
-    if (!failure) {
-      const stored = await getVerdict(db, caseId);
-      if (stored?.ok) return { status: "ready", verdict: stored.value.verdict };
-      throw new ResendError("ResendFailureUnknown");
-    }
+    if (!failure) throw new ResendError("ResendFailureUnknown");
     return {
       status: "partial",
       failedStep: failure.step as Extract<ReportState, { status: "partial" }>["failedStep"],
