@@ -74,6 +74,10 @@ export function numbered(items: EvidenceDraft[], registry: CheckRegistry = check
 
 // Replaces the case's evidence with this list, in one batch: its delete and its inserts commit together, so a retried
 // step stores the same list once and a failure leaves the previous list whole.
+// Rows to an insert: D1 binds at most 100 parameters to a statement (https://developers.cloudflare.com/d1/platform/limits/),
+// nine a row, so eleven rows a statement keep a long list to a few statements.
+const ROWS_PER_INSERT = 11;
+
 export async function saveEvidence(
   db: D1Database,
   caseId: string,
@@ -83,27 +87,31 @@ export async function saveEvidence(
 ): Promise<Evidence[]> {
   const list = numbered(items, registry);
   const at = now().toISOString();
-  await db.batch([
-    db.prepare("DELETE FROM evidence WHERE case_id = ?").bind(caseId),
-    ...list.map((e, i) =>
+  const inserts: D1PreparedStatement[] = [];
+  for (let start = 0; start < list.length; start += ROWS_PER_INSERT) {
+    const rows = list.slice(start, start + ROWS_PER_INSERT);
+    inserts.push(
       db
         .prepare(
           `INSERT INTO evidence (case_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES ${rows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
         )
         .bind(
-          caseId,
-          e.id,
-          i + 1,
-          e.check,
-          e.severity,
-          e.summary,
-          JSON.stringify(e.detail),
-          JSON.stringify(e.artefacts),
-          at,
+          ...rows.flatMap((e, i) => [
+            caseId,
+            e.id,
+            start + i + 1,
+            e.check,
+            e.severity,
+            e.summary,
+            JSON.stringify(e.detail),
+            JSON.stringify(e.artefacts),
+            at,
+          ]),
         ),
-    ),
-  ]);
+    );
+  }
+  await db.batch([db.prepare("DELETE FROM evidence WHERE case_id = ?").bind(caseId), ...inserts]);
   return list;
 }
 

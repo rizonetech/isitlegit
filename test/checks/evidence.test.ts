@@ -145,7 +145,7 @@ describe("the registry", () => {
   it("stores two registered checks' evidence as E1 and E2", async () => {
     const r = registry();
     const caseId = await newCase();
-    const items = (await Promise.all(r.all().map((c) => c.run({} as CaseView)))).flat();
+    const items = (await Promise.all(r.all().map((c) => c.run({} as CaseView, new AbortController().signal)))).flat();
     await saveEvidence(db, caseId, items, r);
     expect((await readEvidence(db, caseId)).map((e) => [e.id, e.check])).toEqual([
       ["E1", "test.one"],
@@ -329,7 +329,7 @@ describe("the intake items", () => {
     ] as const) {
       const caseId = await newCase();
       const view = await forwardView(forwards[fixture]);
-      const items = (await Promise.all(allChecks().map((c) => c.run(view)))).flat();
+      const items = (await Promise.all(allChecks().map((c) => c.run(view, new AbortController().signal)))).flat();
       const [first] = await saveEvidence(db, caseId, items);
       expect(first).toMatchObject({ id: "E1", check: "intake.forward", severity: "info", detail: { path } });
     }
@@ -347,7 +347,7 @@ describe("the intake items", () => {
     await putAttachment(store, caseId, "photo.png", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2]), "image/png");
     await parse(store, caseId, { channel: "upload", sourceKind: "image", headersAvailable: false });
     const view = caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel: "upload" });
-    const items = (await Promise.all(allChecks().map((c) => c.run(view)))).flat();
+    const items = (await Promise.all(allChecks().map((c) => c.run(view, new AbortController().signal)))).flat();
     const [first, ...rest] = await saveEvidence(db, caseId, items);
     expect(first).toMatchObject({
       id: "E1",

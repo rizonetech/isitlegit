@@ -7,7 +7,7 @@
 import type { CaseView } from "./case-view";
 import { type EvidenceDraft, EvidenceRefused, evidenceIn } from "./evidence";
 import { checks } from "./index";
-import type { Check, CheckInput, CheckRegistry } from "./registry";
+import { type Check, type CheckInput, type CheckRegistry, MAX_ITEMS_PER_CHECK } from "./registry";
 
 export class Timeout extends Error {
   override name = "Timeout";
@@ -43,21 +43,33 @@ function notChecked(check: string, error: unknown): EvidenceDraft {
   };
 }
 
-async function runOne(check: Check, view: CaseView, registry: CheckRegistry): Promise<EvidenceDraft[]> {
+async function runOne(check: Check, view: Readonly<CaseView>, registry: CheckRegistry): Promise<EvidenceDraft[]> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new AbortController();
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Timeout()), check.timeoutMs);
+    timer = setTimeout(() => {
+      // The check's own I/O stops with it, not only the wait for it (final review).
+      budget.abort(new Timeout());
+      reject(new Timeout());
+    }, check.timeoutMs);
   });
   try {
     // A check that throws before its first await is caught here like one that rejects.
-    const items = await Promise.race([Promise.resolve().then(() => check.run(view)), deadline]);
+    const items: unknown = await Promise.race([Promise.resolve().then(() => check.run(view, budget.signal)), deadline]);
+    if (!Array.isArray(items) || items.length > MAX_ITEMS_PER_CHECK)
+      throw new EvidenceRefused(`${check.name} returned no list, or more than ${MAX_ITEMS_PER_CHECK} items`);
     const schema = evidenceIn(registry);
     for (const item of items) {
       // Each item is the check's own, under its own name, in the shape the store takes.
-      if (item.check !== check.name || !schema.safeParse({ ...item, id: "E1" }).success)
+      if (
+        typeof item !== "object" ||
+        item === null ||
+        item.check !== check.name ||
+        !schema.safeParse({ ...item, id: "E1" }).success
+      )
         throw new EvidenceRefused(`${check.name} returned malformed evidence`);
     }
-    return items;
+    return items as EvidenceDraft[];
   } catch (error) {
     return [notChecked(check.name, error)];
   } finally {
@@ -65,7 +77,18 @@ async function runOne(check: Check, view: CaseView, registry: CheckRegistry): Pr
   }
 }
 
-export async function runChecks(view: CaseView, registry: CheckRegistry = checks): Promise<EvidenceDraft[]> {
+// A deep copy no check can change: every check reads the same case, so none may rewrite what its peers see (final
+// review). Writing to it throws, in the writing check, which then reports not_checked.
+function frozen<T>(value: T): T {
+  if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const inner of Object.values(value)) frozen(inner);
+  }
+  return value;
+}
+
+export async function runChecks(input: CaseView, registry: CheckRegistry = checks): Promise<EvidenceDraft[]> {
+  const view = frozen(structuredClone(input));
   // Each slot is one check's items, or one missing input's item at the first check it held back.
   type Skip = { missing: CheckInput; held: string[] };
   const slots: ({ name: string; items: Promise<EvidenceDraft[]> } | Skip)[] = [];

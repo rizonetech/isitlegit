@@ -2,7 +2,14 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { type CaseView, caseViewOf } from "../../src/checks/case-view";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
-import { type Check, type CheckInput, CheckRegistry, MAX_CHECK_MS } from "../../src/checks/registry";
+import {
+  type Check,
+  type CheckInput,
+  CheckRegistry,
+  MAX_CHECK_MS,
+  MAX_CHECKS,
+  MAX_ITEMS_PER_CHECK,
+} from "../../src/checks/registry";
 import { available, runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { extractOriginal } from "../../src/intake/forward";
@@ -79,7 +86,16 @@ describe("runChecks", () => {
     gates.c.open();
     gates.a.open();
     gates.b.open();
-    expect((await running).map((e) => e.check)).toEqual(["test.a", "test.b", "test.c"]);
+    const items = await running;
+    expect(items.map((e) => e.check)).toEqual(["test.a", "test.b", "test.c"]);
+    // And stored in that order.
+    const caseId = await newCase();
+    await saveEvidence(db, caseId, items, registryOf(slow("a"), slow("b"), slow("c")));
+    expect((await readEvidence(db, caseId)).map((e) => [e.id, e.check])).toEqual([
+      ["E1", "test.a"],
+      ["E2", "test.b"],
+      ["E3", "test.c"],
+    ]);
   });
 
   it("times one check out while a longer-budget check still running finishes and stores", async () => {
@@ -194,6 +210,90 @@ describe("round 1 (2026-10-29): evidence too large to store", () => {
     const caseId = await newCase();
     const saved = await saveEvidence(db, caseId, await runChecks(view));
     expect(saved.map((e) => e.check)).toEqual(["intake.forward", "intake.truncated"]);
+  });
+});
+
+describe("the final review (2026-10-29)", () => {
+  it("aborts a timed-out check's signal, so its own I/O stops with it", async () => {
+    const { attached } = await views();
+    let seen: AbortSignal | undefined;
+    const r = registryOf(
+      check(
+        "test.fetcher",
+        (_view, signal) => {
+          seen = signal;
+          return new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+        },
+        [],
+        20,
+      ),
+    );
+    const [item] = await runChecks(attached, r);
+    expect(item?.detail).toEqual({ check: "test.fetcher", errorClass: "Timeout" });
+    expect(seen?.aborted).toBe(true);
+    expect(seen?.reason).toBeInstanceOf(Error);
+  });
+
+  it("hands every check a frozen copy: one that writes to it fails alone and its peers read the case", async () => {
+    const { attached } = await views();
+    const original = attached.text;
+    const poisoned = gate<void>();
+    const r = registryOf(
+      check("test.poison", async (view) => {
+        try {
+          (view as { text: string | null }).text = "pay the new account";
+          (view.headers as { name: string; value: string }[]).push({ name: "From", value: "forged@example.test" });
+        } finally {
+          poisoned.open();
+        }
+        return [];
+      }),
+      check("test.reader", async (view) => {
+        await poisoned.shut;
+        return [{ ...said("test.reader"), detail: { text: view.text, headers: view.headers.length } }];
+      }),
+    );
+    const items = await runChecks(attached, r);
+    expect(items[0]?.detail).toEqual({ check: "test.poison", errorClass: "TypeError" });
+    expect(items[1]?.detail).toEqual({ text: original, headers: attached.headers.length });
+    // The caller's view is untouched and still writable.
+    expect(Object.isFrozen(attached)).toBe(false);
+  });
+
+  it("names a non-list, a null item and too many items as malformed evidence", async () => {
+    const { attached } = await views();
+    const r = registryOf(
+      check("test.null", () => null as unknown as EvidenceDraft[]),
+      check("test.holey", () => [null] as unknown as EvidenceDraft[]),
+      check("test.string", () => "evidence" as unknown as EvidenceDraft[]),
+      check("test.many", () => Array.from({ length: MAX_ITEMS_PER_CHECK + 1 }, (_, i) => said("test.many", i))),
+      check("test.most", () => Array.from({ length: MAX_ITEMS_PER_CHECK }, (_, i) => said("test.most", i))),
+    );
+    const items = await runChecks(attached, r);
+    expect(items.slice(0, 4).map((e) => e.detail)).toEqual(
+      ["test.null", "test.holey", "test.string", "test.many"].map((name) => ({
+        check: name,
+        errorClass: "EvidenceRefused",
+      })),
+    );
+    expect(items.slice(4)).toHaveLength(MAX_ITEMS_PER_CHECK);
+    // Fifty-four items store in their order through several inserts.
+    const caseId = await newCase();
+    await saveEvidence(db, caseId, items, r);
+    const read = await readEvidence(db, caseId);
+    expect(read).toHaveLength(54);
+    expect(read.map((e) => e.id)).toEqual(Array.from({ length: 54 }, (_, i) => `E${i + 1}`));
+    expect(read[53]?.detail).toEqual({ n: MAX_ITEMS_PER_CHECK - 1 });
+  });
+
+  it("refuses a registration with no run function, needs that are not inputs, or past the most checks", () => {
+    const bad = (fields: Partial<Check>) => () => registryOf({ ...check("test.bad", () => []), ...fields } as Check);
+    expect(bad({ run: undefined as unknown as Check["run"] })).toThrow(/run function/);
+    expect(bad({ needs: undefined as unknown as CheckInput[] })).toThrow(/needs/);
+    expect(bad({ needs: ["header" as CheckInput] })).toThrow(/needs/);
+    const r = new CheckRegistry();
+    for (let i = 0; i < MAX_CHECKS; i++) r.register(check(`test.c${i}`, () => []));
+    expect(() => r.register(check("test.one_more", () => []))).toThrow(RangeError);
   });
 });
 
