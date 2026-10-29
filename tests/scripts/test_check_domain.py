@@ -206,7 +206,7 @@ class Recovery(unittest.TestCase):
         self.assertLess(a.index("Move the nameservers"), a.index("Sign the zone"))
         self.assertIn("Roll back", a)
         e = section[section.index("### (e)"):]
-        self.assertLess(e.index("revoke it first"), e.index("Create a new key"))
+        self.assertLess(e.index("revoke it now"), e.index("Create a new key"))
         self.assertLess(e.index("in the vault"), e.index("secret put"))
         self.assertLess(e.index("secret put"), e.index("serving Worker"))
         # Reversal by the step reached: the old DS restored, and a new provider's DS pulled before the old delegation.
@@ -216,8 +216,10 @@ class Recovery(unittest.TestCase):
         # before the old DS.
         self.assertLess(a.index("wait twice the DS TTL"), a.index("set the old nameservers back"))
         self.assertLess(a.index("wait twice the NS TTL"), a.index("only then publish the old DS again"))
-        # Records first, needing no key; the key's permissions include what the checker reads first.
-        self.assertLess(e.index("Sender-domain records removed"), e.index("revoke it first"))
+        # A compromised key revoked before anything else (round 3), then the records, which need no key, then the
+        # replacement; the key's permissions include what the checker reads first.
+        self.assertLess(e.index("revoke it now"), e.index("Sender-domain records removed:"))
+        self.assertLess(e.index("Sender-domain records removed:"), e.index("Create a new key"))
         self.assertIn("/stats/email_summary", e)
         # A records-only fault changes no credential.
         self.assertIn("changes no credential", e)
