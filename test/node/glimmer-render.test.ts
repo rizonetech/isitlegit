@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
+import { chromium } from "playwright-core";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -123,14 +124,9 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<p>${words}</p><div style="position:fixed;inset:0;background:#fff"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width=200 height=200></div><script src="https://client.px-cdn.net/main.min.js"></script>`,
     ),
-  // A page that never holds still (§26, plan review gap 5), and one whose frame keeps navigating (gap 2).
+  // A page that never holds still (§26, plan review gap 5).
   "/title-ticker": (res) =>
     html(res, `<p>${words}</p><script>let n = 0; setInterval(() => { document.title = 'Shop ' + n++ }, 20)</script>`),
-  "/frame-churn": (res) =>
-    html(
-      res,
-      `<p>${words}</p><iframe id=f width=400 height=300></iframe><script>let n = 0; setInterval(() => { f.src = '/frame-login?' + n++ }, 5)</script>`,
-    ),
   // A page that removes its own root element.
   "/no-root": (res) => html(res, `<p>${words}</p><script>document.documentElement.remove()</script>`),
   // A server that drops the connection before it answers.
@@ -313,6 +309,26 @@ afterAll(async () => {
 });
 
 describe("start-up", () => {
+  it("starts a slow browser outside the page's deadline and warms the browser that replaces it", async () => {
+    // A start longer than the page's whole deadline: the page still meets its own.
+    const slow = await openRenderer({
+      allowOrigins: [origin],
+      limitMs: 3_000,
+      launch: async (launchOptions) => {
+        await new Promise((done) => setTimeout(done, 3_500));
+        return chromium.launch(launchOptions);
+      },
+    });
+    try {
+      expect((await slow.render(`${origin}/page`)).status).toBe(200);
+      await slow.close();
+      expect((await slow.render(`${origin}/page`)).status).toBe(200);
+      expect([slow.launches(), slow.warmups()]).toEqual([2, 2]);
+    } finally {
+      await slow.close();
+    }
+  }, 40_000);
+
   it("pays a fresh browser's first context at launch, outside every render's deadline", () => {
     // beforeAll's first render started the browser: its first context was made and closed while it started.
     expect(renderer.launches()).toBe(1);
@@ -632,6 +648,56 @@ describe("the batch run", () => {
     entries: paths.map((path) => ({ url: `${origin}${path}`, kind: "login", brand: "Example Bank", also: [] })),
   });
 
+  it("retries a page whose browser could not start, never excluding it for the browser's fault", async () => {
+    const broken = await openRenderer({
+      launch: async () =>
+        ({
+          newContext: async () => {
+            throw new Error("no context");
+          },
+          close: async () => undefined,
+          on: () => undefined,
+          isConnected: () => true,
+        }) as never,
+    });
+    try {
+      const store = openStore(join(dir, "store"));
+      const journal = join(dir, "progress.jsonl");
+      const result = await runBatch({ list: list(["/page"]), store, journal, render: broken.render });
+      expect(result).toMatchObject({ retry: 1, excluded: 0, stored: 0 });
+      expect(readJournal(journal).at(-1)?.reason).toMatch(/browser did not start/);
+    } finally {
+      await broken.close();
+    }
+  });
+
+  it("runs as many renders at once as asked, 4 by default, and finishes every URL", async () => {
+    const page = await renderer.render(`${origin}/page`);
+    for (const width of [undefined, 2]) {
+      const store = openStore(join(dir, `store-${width ?? "default"}`));
+      const journal = join(dir, `progress-${width ?? "default"}.jsonl`);
+      let inFlight = 0;
+      let most = 0;
+      const paths = Array.from({ length: 10 }, (_, n) => `/n${n}`);
+      const result = await runBatch({
+        list: list(paths),
+        store,
+        journal,
+        ...(width ? { concurrency: width } : {}),
+        render: async (url) => {
+          inFlight++;
+          most = Math.max(most, inFlight);
+          await new Promise((done) => setTimeout(done, 30));
+          inFlight--;
+          // Each a different page, so none is the same page as another.
+          return { ...page, listed: url, text: `${page.text} ${url}` };
+        },
+      });
+      expect(most, String(width)).toBe(width ?? 4);
+      expect(result.stored + result.excluded, String(width)).toBe(paths.length);
+    }
+  });
+
   it("stores the usable pages, excludes the rest, and a rerun stores nothing twice", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "store/raw/benign/progress.jsonl");
@@ -736,11 +802,19 @@ describe("the batch run", () => {
   });
 
   it("refuses a capture whose shown frame could not be read, never reading it as an empty frame", async () => {
-    const store = openStore(join(dir, "store"));
-    const journal = join(dir, "progress.jsonl");
-    const result = await runBatch({ list: list(["/frame-churn"]), store, journal, render: renderer.render });
-    expect(result.stored).toBe(0);
-    expect(readJournal(journal).at(-1)?.reason).toMatch(/could not be read|kept changing/);
+    const faulty = await openRenderer({
+      allowOrigins: [origin, frameOrigin],
+      readFault: (frame) => (frame.parentFrame() ? new Error("Execution context was destroyed") : null),
+    });
+    try {
+      const store = openStore(join(dir, "store"));
+      const journal = join(dir, "progress.jsonl");
+      const result = await runBatch({ list: list(["/xframe-login"]), store, journal, render: faulty.render });
+      expect(result).toMatchObject({ stored: 0, excluded: 1 });
+      expect(readJournal(journal).at(-1)?.reason).toBe("a frame on the page could not be read");
+    } finally {
+      await faulty.close();
+    }
   });
 
   it("stores no bot wall, however it is drawn", async () => {

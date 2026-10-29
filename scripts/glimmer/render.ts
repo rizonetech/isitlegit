@@ -132,6 +132,9 @@ export type Capture = {
 export class RenderTimeout extends Error {}
 // A capture that did not hold still, or kept a frame unread, through two tries: excluded with its reason.
 export class Unsettled extends Error {}
+// The browser failed to start or to open its first page: the renderer's fault, never the listed page's, so the batch
+// tries the page again on a later run instead of excluding it (§26, plan review gap 10).
+export class BrowserFault extends Error {}
 // The page's own server answered with an error status that Chromium turned into a failed navigation (an empty 4xx or
 // 5xx body is `net::ERR_HTTP_RESPONSE_CODE_FAILURE` in some Chromium builds): the status, not the browser's error.
 export class HttpStatus extends Error {
@@ -483,7 +486,17 @@ function openEgress(allowOrigins: Set<string>, checked: ReturnType<typeof public
 // The browser's start has its own bound: one cold start on a loaded machine is not a page's render time.
 export const BROWSER_START_MS = 60_000;
 
-export async function openRenderer(options: { allowOrigins?: string[]; limitMs?: number; resolve?: Resolve } = {}) {
+export async function openRenderer(
+  options: {
+    allowOrigins?: string[];
+    limitMs?: number;
+    resolve?: Resolve;
+    // How a browser is started (tests slow it or break it); Chromium's own launch otherwise.
+    launch?: (launchOptions: Parameters<typeof chromium.launch>[0]) => Promise<Browser>;
+    // A fault to raise when a frame is read (tests make a shown frame unreadable); none otherwise.
+    readFault?: (frame: Frame) => Error | null;
+  } = {},
+) {
   const found = chromiumPath();
   if (!found) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
   const executablePath: string = found;
@@ -496,18 +509,18 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
   const contexts = new Set<BrowserContext>();
   const current = () => {
     if (!session) {
-      const starting = chromium
-        .launch({
-          executablePath,
-          chromiumSandbox: true,
-          // WebRTC sends UDP of its own, outside any proxy: only proxied traffic may leave, so it has none.
-          args: [
-            "--no-first-run",
-            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-            "--webrtc-ip-handling-policy=disable_non_proxied_udp",
-          ],
-          timeout: BROWSER_START_MS,
-        })
+      const launch = options.launch ?? ((launchOptions) => chromium.launch(launchOptions));
+      const starting = launch({
+        executablePath,
+        chromiumSandbox: true,
+        // WebRTC sends UDP of its own, outside any proxy: only proxied traffic may leave, so it has none.
+        args: [
+          "--no-first-run",
+          "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+          "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+        ],
+        timeout: BROWSER_START_MS,
+      })
         .then(async (browser) => {
           launched++;
           browser.on("disconnected", () => {
@@ -540,6 +553,9 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
           }
           warmed++;
           return browser;
+        })
+        .catch((error: Error) => {
+          throw error instanceof BrowserFault ? error : new BrowserFault(`the browser did not start: ${error.message}`);
         });
       // A start that failed is forgotten, so the next page starts the browser again.
       starting.catch(() => {
@@ -609,6 +625,8 @@ export async function openRenderer(options: { allowOrigins?: string[]; limitMs?:
       let unreadable = 0;
       const readFrame = async <T>(frame: Frame, fn: () => T, fallback: T): Promise<T> => {
         try {
+          const fault = options.readFault?.(frame);
+          if (fault) throw fault;
           return await frame.evaluate(fn);
         } catch {
           if (!frame.isDetached()) unreadable++;
@@ -1000,6 +1018,7 @@ export async function runBatch(options: {
       const reason = (error as Error).message.split("\n")[0] ?? "render failed";
       if (
         error instanceof RenderTimeout ||
+        error instanceof BrowserFault ||
         (error instanceof HttpStatus && (error.status >= 500 || error.status === 429)) ||
         TRANSIENT.test(reason)
       )
