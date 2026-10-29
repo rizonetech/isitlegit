@@ -654,7 +654,7 @@ Filed 2026-10-29 from D03 T04 §16's completion review (E1, E5, E6): `scripts/gl
 - [x] Close the completion review's gaps G1 to G9 in `scripts/glimmer/fetch.py` and `scripts/glimmer/fetch_bench.py` (a range's length checked against its range, bounded header numbers and a failing range ending the run, the `HEAD` under the rate watchdog, a resumed state held to the limits, the floor counting the pending write under the write lock, a restart staying on the URL that answered, failures blamed on the URL that gave them, the checks proven through the CLI with failed flushes, and a bench whose cut really happens and is recorded per run). Done when: `tests/scripts/test_glimmer_fetch.py` and `tests/scripts/test_fetch_bench.py` prove each, and `docs/glimmer/fetch-bench.json` is regenerated with every run cut.
 - [x] Commit: `glimmer: faster and mirrored dataset downloads`
 
-> **Deferred:** beating aria2c outright (strictly faster after a cut, several healthy mirrors at once, a gigabyte file over HTTPS) -> XREF: D03 T04 §21
+> **Resolved:** beating aria2c outright (strictly faster after a cut, several healthy mirrors at once, a gigabyte file over HTTPS) -> XREF: D03 T04 §21. Resolved 2026-10-29 by D03 T04 §21 in `aa3d18d`: a gigabyte file over HTTPS and a failing first URL beaten under its recorded per-scenario bars, the cut held within 10 percent; several healthy mirrors at once moved on to D03 T04 §22, and a start-up-inclusive win to D03 T04 §23.
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes with the segment and mirror cases, and `docs/glimmer/fetch-bench.json` records the post-build comparison with its acceptance line.
 
