@@ -1,6 +1,21 @@
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { parseSources, reconcile } from "../../scripts/glimmer/sources.ts";
-import type { StoredPage } from "../../scripts/glimmer/store.ts";
+import { readFreeze } from "../../scripts/glimmer/build-dataset.ts";
+import {
+  type Frozen,
+  freezeCollection,
+  manifestDigest,
+  parseSources,
+  reconcile,
+  storeProblems,
+  syntheticLeftovers,
+  writeFreeze,
+} from "../../scripts/glimmer/sources.ts";
+import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
 
 // scripts/glimmer/sources.ts (D03 T04 §5): the record of public page datasets is reconciled both ways with what was
 // imported, so neither an import nor a decision can quietly go missing.
@@ -28,8 +43,7 @@ const base = {
     "set-a": { status: "complete" as const, expected: 2, imported: 2, duplicates: 0, excluded: [], stored: 2 },
   },
   pages: [page("set-a"), page("set-a")],
-  notice: "| set-a | CC BY 4.0 |",
-  synthetic: "Generate at least 1,500 lures",
+  notice: "| `set-a`: Set A (https://example.org) | CC BY 4.0 | credit |",
 };
 
 describe("parseSources", () => {
@@ -81,11 +95,429 @@ describe("reconcile", () => {
 
   it("fails an accepted source missing from NOTICE.md", () => {
     expect(reconcile({ ...base, notice: "" })).toContain("set-a: accepted, but missing from NOTICE.md");
+    // The name in prose, or inside a longer name, is not its attribution row.
+    expect(reconcile({ ...base, notice: "We thank set-a.\n| `set-ab`: Other | CC0 | x |" })).toContain(
+      "set-a: accepted, but missing from NOTICE.md",
+    );
   });
 
-  it("fails the no-source fallback until §8 asks for 3,000 lures", () => {
+  it("fails any synthetic page, and each generator file or raw folder, whatever the TODO text says", () => {
+    const page = { ...base.pages[0], origin: "synthetic" } as (typeof base.pages)[number];
+    expect(reconcile(base)).toEqual([]);
+    expect(reconcile({ ...base, pages: [...base.pages, page] })).toContain(
+      "1 stored pages have origin synthetic, yet §8 was removed",
+    );
+    const root = mkdtempSync(join(tmpdir(), "glimmer-s8-"));
+    try {
+      const store = join(root, "store");
+      expect(syntheticLeftovers(root, store)).toEqual([]);
+      // Each path on its own, untracked: the check reads the disk, not git.
+      const leftovers: [string, () => void][] = [
+        ["scripts/glimmer/synth.ts", () => writeFileSync(join(root, "scripts/glimmer/synth.ts"), "")],
+        ["scripts/glimmer/templates", () => mkdirSync(join(root, "scripts/glimmer/templates"))],
+        ["test/node/glimmer-synth.test.ts", () => writeFileSync(join(root, "test/node/glimmer-synth.test.ts"), "")],
+        ["raw/synthetic", () => mkdirSync(join(store, "raw", "synthetic"), { recursive: true })],
+      ];
+      mkdirSync(join(root, "scripts/glimmer"), { recursive: true });
+      mkdirSync(join(root, "test/node"), { recursive: true });
+      for (const [path, make] of leftovers) {
+        make();
+        expect(syntheticLeftovers(root, store)).toContain(path);
+      }
+      expect(syntheticLeftovers(root, store)).toHaveLength(4);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("finds none of the generator's files in this repository", () => {
+    expect(syntheticLeftovers(join(import.meta.dirname, "../.."), join(tmpdir(), "glimmer-no-store"))).toEqual([]);
+  });
+
+  it("refuses a leftover through the problems check and freeze both read", () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-s8-store-"));
+    try {
+      const root = join(import.meta.dirname, "../..");
+      expect(storeProblems(store, root).problems).not.toContain("raw/synthetic exists, yet §8 was removed");
+      mkdirSync(join(store, "raw", "synthetic"), { recursive: true });
+      expect(storeProblems(store, root).problems).toContain("raw/synthetic exists, yet §8 was removed");
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("names an unreadable record, a set-aside synthetic copy and a leftover under the root it is given", () => {
+    const repo = join(import.meta.dirname, "../..");
+    const root = mkdtempSync(join(tmpdir(), "glimmer-s8-root-"));
+    const store = mkdtempSync(join(tmpdir(), "glimmer-s8-store-"));
+    try {
+      mkdirSync(join(root, "docs/glimmer"), { recursive: true });
+      writeFileSync(join(root, "docs/glimmer/sources.md"), readFileSync(join(repo, "docs/glimmer/sources.md")));
+      writeFileSync(join(root, "NOTICE.md"), readFileSync(join(repo, "NOTICE.md")));
+      mkdirSync(join(root, "scripts/glimmer"), { recursive: true });
+      writeFileSync(join(root, "scripts/glimmer/synth.ts"), "");
+      mkdirSync(join(store, "raw", "phreshphish"), { recursive: true });
+      writeFileSync(join(store, "raw", "phreshphish", "IMPORT.json"), "{ torn");
+      const aside = join(store, "pages", ".damaged-made-0123456789abcdef-1");
+      mkdirSync(aside, { recursive: true });
+      writeFileSync(join(aside, "meta.json"), JSON.stringify({ origin: "synthetic" }));
+      const { problems } = storeProblems(store, root);
+      expect(problems).toContain("scripts/glimmer/synth.ts exists, yet §8 was removed");
+      expect(problems).toContain("raw/phreshphish/IMPORT.json: does not read as JSON");
+      expect(problems).toContain(
+        "pages/.damaged-made-0123456789abcdef-1 is a set-aside synthetic page, yet §8 was removed",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("names rows written after their receipt, and on freeze rows that are not the ones it names", () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-g12-"));
+    try {
+      const repo = join(import.meta.dirname, "../..");
+      const folder = join(store, "raw", "phreshphish");
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(join(folder, "rows.jsonl"), "{}\n");
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 1,
+          exported: 1,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: "0".repeat(64),
+          converter_sha256: "",
+          inputs: "",
+        }),
+      );
+      const old = new Date("2026-10-29T10:00:00Z");
+      utimesSync(join(folder, "EXPORT.json"), old, old);
+      expect(storeProblems(store, repo).problems).toContain(
+        "phreshphish: rows.jsonl was written after its EXPORT.json, which does not name it",
+      );
+      utimesSync(join(folder, "rows.jsonl"), old, old);
+      expect(storeProblems(store, repo).problems.join()).not.toContain("phreshphish: rows.jsonl");
+      expect(storeProblems(store, repo, { hashRows: true }).problems).toContain(
+        "phreshphish: rows.jsonl is not the rows its EXPORT.json names",
+      );
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to freeze twice or before the benign renders finish, and the build refuses a changed import", async () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-g13-"));
+    const env = { ...process.env, GLIMMER_DATA_DIR: store };
+    const script = (name: string) => join(import.meta.dirname, "../../scripts/glimmer", name);
+    try {
+      const fresh = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(fresh.status).toBe(1);
+      expect(fresh.stdout).toContain("majestic: no list or no render journal");
+      // A list rendered in part, as it stands now: an old receipt file claiming it finished is not read at all.
+      mkdirSync(join(store, "raw", "majestic"), { recursive: true });
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,example.com\n2,example.org\n");
+      writeFileSync(
+        join(store, "raw", "majestic", "RENDER.json"),
+        JSON.stringify({ unfinished: [], missing_pages: [] }),
+      );
+      mkdirSync(join(store, "raw", "benign"), { recursive: true });
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        `${JSON.stringify({ url: "https://example.com/", event: "excluded", reason: "HTTP 404", at: "2026-10-29T08:00:00.000Z" })}\n`,
+      );
+      const partial = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(partial.status).toBe(1);
+      expect(partial.stdout).toContain("majestic: its render is not finished (1 unfinished, 0 missing)");
+      // Every URL with an outcome, but one stored page a legacy capture recheck cannot clear: still not frozen.
+      const legacy = await openStore(store).putPage("benign-majestic", {
+        screenshot: new Uint8Array(
+          await sharp({ create: { width: 16, height: 16, channels: 3, background: "#fff" } })
+            .jpeg()
+            .toBuffer(),
+        ),
+        text: "Example Domain. This domain is for use in illustrative examples.",
+        origin: "benign",
+        licence: "CC BY 3.0",
+        host: "example.org",
+        template: null,
+        south_africa: false,
+        labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+        label_source: {
+          lure: "construction",
+          lure_type: "construction",
+          has_login_form: "dom",
+          has_payment_form: "dom",
+        },
+        redacted: false,
+        url: "https://example.org/",
+      } as Parameters<ReturnType<typeof openStore>["putPage"]>[1]);
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        [
+          { url: "https://example.com/", event: "excluded", reason: "HTTP 404", at: "2026-10-29T08:00:00.000Z" },
+          { url: "https://example.org/", event: "stored", id: legacy, at: "2026-10-29T08:00:05.000Z" },
+        ]
+          .map((event) => `${JSON.stringify(event)}\n`)
+          .join(""),
+      );
+      const unassessed = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(unassessed.status).toBe(1);
+      expect(unassessed.stdout).toContain("majestic: 1 stored pages unassessed and 0 showing a wall");
+      mkdirSync(join(store, "raw", "set"), { recursive: true });
+      writeFileSync(join(store, "raw", "set", "IMPORT.json"), "{}");
+      writeFileSync(
+        join(store, "raw", "FROZEN.json"),
+        JSON.stringify({
+          pages: [],
+          sources: { set: { import_sha256: "0".repeat(64) } },
+          renders: { majestic: {}, "benign-sa": {} },
+        }),
+      );
+      const again = spawnSync(process.execPath, [script("sources.ts"), "freeze"], { env, encoding: "utf-8" });
+      expect(again.status).toBe(1);
+      expect(again.stderr).toContain("a freeze is never replaced");
+      const build = spawnSync(process.execPath, [script("build-dataset.ts"), "1.0"], { env, encoding: "utf-8" });
+      expect(build.status).toBe(2);
+      expect(build.stderr).toContain("imported again since the freeze: set");
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("freezes a reconciled store end to end, leaving out benign pages no list names, and the build reads it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "glimmer-fz-root-"));
+    const store = mkdtempSync(join(tmpdir(), "glimmer-fz-store-"));
+    try {
+      mkdirSync(join(root, "docs", "glimmer"), { recursive: true });
+      mkdirSync(join(root, "eval", "glimmer"), { recursive: true });
+      writeFileSync(join(root, "docs", "glimmer", "sources.md"), [header, row("set-a", "accepted")].join("\n"));
+      writeFileSync(join(root, "NOTICE.md"), base.notice);
+      writeFileSync(join(root, "eval", "glimmer", "benign-sa-urls.txt"), "home\thttps://bank.example/\tBank\n");
+      const shot = async (colour: string) =>
+        new Uint8Array(
+          await sharp({ create: { width: 16, height: 16, channels: 3, background: colour } })
+            .jpeg()
+            .toBuffer(),
+        );
+      const pages = openStore(store);
+      const evidence = {
+        title: "Home",
+        overlays: "",
+        captcha: false,
+        consentWall: false,
+        challengeCover: false,
+        wall: false,
+      };
+      const benign = (host: string, colour: string) => async () =>
+        pages.putPage(host === "bank.example" ? "benign-sa" : "benign-majestic", {
+          screenshot: await shot(colour),
+          text: `Welcome to ${host}`,
+          origin: "benign",
+          licence: "CC BY 3.0",
+          host,
+          template: null,
+          south_africa: host === "bank.example",
+          labels: { lure: false, lure_type: "none", has_login_form: false, has_payment_form: false },
+          label_source: {
+            lure: "construction",
+            lure_type: "construction",
+            has_login_form: "dom",
+            has_payment_form: "dom",
+          },
+          redacted: false,
+          url: `https://${host}/`,
+          evidence,
+        } as Parameters<typeof pages.putPage>[1]);
+      const listed = await benign("example.org", "#eee")();
+      const sa = await benign("bank.example", "#ddd")();
+      const outside = await benign("dropped.example", "#ccc")(); // a URL no list names any more
+      const lure = await pages.putPage("set-a", {
+        screenshot: await shot("#c33"),
+        text: "Sign in to your bank",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+      } as Parameters<typeof pages.putPage>[1]);
+      const manifest = { files: [{ name: "set-a.zip" }] };
+      mkdirSync(join(store, "raw", "set-a"), { recursive: true });
+      writeFileSync(join(store, "raw", "set-a", "INPUTS.json"), JSON.stringify(manifest));
+      writeFileSync(
+        join(store, "raw", "set-a", "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 1,
+          imported: 1,
+          duplicates: 0,
+          excluded: [],
+          stored: 1,
+          inputs: manifestDigest(manifest),
+        }),
+      );
+      mkdirSync(join(store, "raw", "majestic"), { recursive: true });
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,example.org\n");
+      mkdirSync(join(store, "raw", "benign"), { recursive: true });
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        [
+          { url: "https://example.org/", event: "stored", id: listed, at: "2026-10-29T08:00:00.000Z" },
+          { url: "https://bank.example/", event: "stored", id: sa, at: "2026-10-29T08:00:01.000Z" },
+          { url: "https://dropped.example/", event: "stored", id: outside, at: "2026-10-29T08:00:02.000Z" },
+        ]
+          .map((event) => `${JSON.stringify(event)}\n`)
+          .join(""),
+      );
+      const { problems, frozen } = freezeCollection(store, root, new Date("2026-10-31T00:00:00Z"));
+      expect(problems).toEqual([]);
+      expect(frozen?.pages).toEqual([listed, sa, lure].sort());
+      expect(frozen?.left_out).toBe(1);
+      writeFreeze(store, frozen as Frozen);
+      // Once only: a second freeze finds it there.
+      expect(() => writeFreeze(store, frozen as Frozen)).toThrow(/never replaced/);
+      // The build reads exactly the frozen pages, and refuses once an import changed.
+      expect([...readFreeze(store)].sort()).toEqual([listed, sa, lure].sort());
+      writeFileSync(join(store, "raw", "set-a", "IMPORT.json"), "{}");
+      expect(() => readFreeze(store)).toThrow(/imported again since the freeze: set-a/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("fails when no source is accepted, an empty table included", () => {
     const none = { ...base, sources: [header, row("set-b", "rejected")].join("\n"), imports: {}, pages: [] };
-    expect(reconcile(none).join()).toContain("§8 still asks for 1,500");
-    expect(reconcile({ ...none, synthetic: "Generate at least 3,000 lures ... shows 3,000 lures" })).toEqual([]);
+    expect(reconcile(none)).toContain("no source was accepted");
+    expect(reconcile({ sources: "", imports: {}, pages: [], notice: "" })).toContain("no source was accepted");
+    expect(reconcile({ ...none, sources: header })).toContain("no source was accepted");
+  });
+
+  it("exits 1 from check and freeze on a leftover, and freeze writes nothing", () => {
+    const store = mkdtempSync(join(tmpdir(), "glimmer-s8-cli-"));
+    try {
+      mkdirSync(join(store, "raw", "synthetic"), { recursive: true });
+      const run = (command: string) =>
+        spawnSync(process.execPath, [join(import.meta.dirname, "../../scripts/glimmer/sources.ts"), command], {
+          env: { ...process.env, GLIMMER_DATA_DIR: store },
+          encoding: "utf-8",
+        });
+      for (const command of ["check", "freeze"]) {
+        const result = run(command);
+        expect(result.status).toBe(1);
+        expect(result.stdout).toContain("raw/synthetic exists, yet §8 was removed");
+      }
+      expect(existsSync(join(store, "raw", "FROZEN.json"))).toBe(false);
+    } finally {
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("import accounting (D03 T04 §5)", () => {
+  it("fails a complete import that stored nothing or does not account for every item", () => {
+    const sources = [
+      "| Source | Dataset | Licence | Licence link | Decision | Reason | Label errors |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| `set` | https://example.org/set | CC0 | https://example.org/licence | accepted | test | - |",
+    ].join("\n");
+    const page = { id: "set-1", source: "set", origin: "public", label_source: {} } as unknown as StoredPage;
+    const check = (record: Record<string, unknown>, pages: StoredPage[]) =>
+      reconcile({
+        sources,
+        imports: { set: record as never },
+        pages,
+        notice: "| `set`: Set | CC0 | x |",
+      });
+    expect(check({ status: "complete", expected: 0, imported: 0, stored: 0 }, [])).toContain(
+      "set: accepted, but the import stored no page",
+    );
+    expect(check({ status: "complete", expected: 100, imported: 1, duplicates: 0, stored: 1 }, [page])).toContain(
+      "set: IMPORT.json accounts for 1 of 100 items",
+    );
+    expect(check({ status: "running", expected: 3, stored: 1 }, [page])).toContain("set: the import is running");
+    expect(
+      check({ status: "complete", expected: 3, imported: 1, skipped: 1, filtered: [{}], excluded: [], stored: 1 }, [
+        page,
+      ]),
+    ).toEqual([]);
+  });
+});
+
+describe("the benign render lists (D03 T04 §6)", () => {
+  it("credits the Majestic Million with its licence in NOTICE.md and docs/glimmer/sources.md", () => {
+    const root = join(import.meta.dirname, "../..");
+    for (const file of ["NOTICE.md", "docs/glimmer/sources.md"]) {
+      const text = readFileSync(join(root, file), "utf-8");
+      expect(text, file).toMatch(/Majestic Million/);
+      expect(text, file).toMatch(/CC BY 3\.0/);
+    }
+  });
+});
+
+describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
+  it("digests a manifest exactly as scripts/glimmer/inputs.py does, past ASCII too", () => {
+    const manifest = {
+      files: [
+        { name: "a.zip", sha256: "ab", bytes: 5, published: null, pinned: "kaggle: owner/set, version 2" },
+        { name: "b.tar.gz", sha256: "cd", bytes: 5, published: { kind: "md5", value: "ef" }, pinned: null },
+      ],
+      licence: "CC BY 4.0 \u2014 Z\u00fcrich",
+    };
+    // inputs.digest_of on the same value, in Python.
+    expect(manifestDigest(manifest)).toBe("12e9362bc402fec37e7749613d6bf4a42d0a8998e6a82a183a6588d573ae1fce");
+  });
+
+  it("refuses an import not bound to its manifest, or made from other rows than the export wrote", () => {
+    const receipt = {
+      met: 3,
+      exported: 2,
+      sampled_out: 0,
+      rejected: { "not a page": 1 },
+      rows_sha256: "r1",
+      converter_sha256: "c1",
+      inputs: "m1",
+    };
+    const bound = {
+      ...base,
+      sources: [header, row("phreshphish", "accepted")].join("\n"),
+      pages: [page("phreshphish"), page("phreshphish")],
+    };
+    const record = { status: "complete" as const, expected: 2, imported: 2, duplicates: 0, excluded: [], stored: 2 };
+    const notice = "| `phreshphish`: PhreshPhish | CC BY 4.0 | credit |";
+    const check = (imports: Record<string, unknown>, bindings: Record<string, unknown>) =>
+      reconcile({ ...bound, notice, imports: imports as never, bindings: bindings as never });
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m1", rows: "r1" } },
+        { phreshphish: { manifest: "m1", export: receipt } },
+      ),
+    ).toEqual([]);
+    expect(check({ phreshphish: record }, { phreshphish: {} }).join()).toMatch(/no INPUTS.json/);
+    expect(
+      check({ phreshphish: { ...record, inputs: "m1", rows: "r1" } }, { phreshphish: { manifest: "m1" } }).join(),
+    ).toMatch(/no EXPORT.json/);
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m1", rows: "r2" } },
+        { phreshphish: { manifest: "m1", export: receipt } },
+      ).join(),
+    ).toMatch(/other rows/);
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m0", rows: "r1" } },
+        { phreshphish: { manifest: "m1", export: receipt } },
+      ).join(),
+    ).toMatch(/not bound to its INPUTS/);
+    expect(
+      check(
+        { phreshphish: { ...record, inputs: "m1", rows: "r1" } },
+        { phreshphish: { manifest: "m1", export: { ...receipt, met: 4 } } },
+      ).join(),
+    ).toMatch(/accounts for 3 of 4/);
   });
 });

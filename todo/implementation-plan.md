@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 26 | Checklist items: 292
+Sections: 27 | Checklist items: 359
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -24,16 +24,17 @@ Sections: 26 | Checklist items: 292
 | [x]    | D03 T04 §2  | Fireworks account check and image probe    | none                 | 22    |
 | [x]    | D03 T04 §3  | PageScreen contract and training store     | none                 | 15    |
 | [x]    | D03 T04 §4  | Astra as dataset collector                 | none                 | 17    |
-| [ ]    | D03 T04 §5  | Public phishing-page datasets by licence   | none                 | 12    |
-| [ ]    | D03 T04 §6  | Benign real pages rendered locally         | none                 | 8     |
-| [ ]    | D03 T04 §7  | Redacted sample mail converted to pages    | none                 | 8     |
-| [ ]    | D03 T04 §8  | Synthetic South African lures              | meta-api             | 7     |
-| [ ]    | D03 T04 §9  | Spark teacher labels and human check       | meta-api             | 8     |
-| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 8     |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 9     |
+| [x]    | D03 T04 §5  | Public phishing-page datasets by licence   | none                 | 12    |
+| [x]    | D03 T04 §6  | Benign real pages rendered locally         | none                 | 8     |
+| [x]    | D03 T04 §7  | Redacted sample mail converted to pages    | none                 | 28    |
+| [x]    | D03 T04 §8  | Synthetic South African lures              | meta-api             | 10    |
+| [x]    | D03 T04 §9  | Spark teacher labels and human check       | meta-api             | 18    |
+| [ ]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
+| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
+| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 13    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 9     |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 16    |
 | [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
@@ -275,7 +276,7 @@ Sections: 61 | Checklist items: 257
 
 ### Phase 7: After the event
 
-Sections: 15 | Checklist items: 70
+Sections: 24 | Checklist items: 144
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -285,7 +286,16 @@ Sections: 15 | Checklist items: 70
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator | 7     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
-| [ ]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 4     |
+| [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
+| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 7     |
+| [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
+| [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 9     |
+| [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none     | 7     |
+| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 7     |
+| [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none     | 5     |
+| [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api | 7     |
+| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none     | 4     |
+| [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none     | 7     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -317,6 +327,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 68/248 verified sections, 38 ready to run now.
+Progress: 77/258 verified sections, 39 ready to run now.
 
-Checklist: 662/1496 items completed (includes Commit items).
+Checklist: 824/1637 items completed (includes Commit items).

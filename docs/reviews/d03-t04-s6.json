@@ -1,0 +1,129 @@
+{
+  "ref": "D03 T04 \u00a76",
+  "title": "Benign real pages rendered locally",
+  "implementation_sha": "cded1bf40f5b0db19d135ec99aef128d492a24d6",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s6.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-render.test.ts test/node/benign-urls.test.ts -> 2 files, 40 passed",
+    "node scripts/glimmer/render.ts --coverage -> exit 0: total 3492, southAfrica 443, signIn 121, shop 42, company 40, social 36, met true, short [], problems 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s6.md",
+    "verdict": "filed",
+    "candidate": "004065bc1407b160f57bd885eccf1bf857ff990c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a718",
+      "D03 T04 \u00a713"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s6.md",
+    "candidate": "8b00fce2baff0c6978340f706ae54fd8713065fc",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s6.md",
+    "verdict": "fixed",
+    "candidate": "b6ca84f5ffb9a37300dd703ef592a20f0ddcb697",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

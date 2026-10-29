@@ -160,12 +160,27 @@ describe("buildScreenRequest", () => {
     const fixpoint = (text: string) => {
       let current = text;
       for (;;) {
-        const next = current.replaceAll("<<UNTRUSTED", "").replaceAll("<<END", "");
+        // Delimiters in any ASCII case (D03 T01 §6's shared stripper, final review).
+        const next = current.replace(/<<UNTRUSTED/gi, "").replace(/<<END/gi, "");
         if (next === current) return current;
         current = next;
       }
     };
-    const pieces = ["<", "<<", "END", "<<END", "UNTRUSTED", "<<UNTRUSTED", "x", "E", "N", "D"];
+    const pieces = [
+      "<",
+      "<<",
+      "END",
+      "<<END",
+      "UNTRUSTED",
+      "<<UNTRUSTED",
+      "x",
+      "E",
+      "N",
+      "D",
+      "end",
+      "<<untrusted",
+      "En",
+    ];
     let seed = 7;
     const seen = new Set<number>();
     for (let i = 0; i < 500; i++) {

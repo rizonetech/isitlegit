@@ -1,0 +1,114 @@
+{
+  "ref": "D03 T04 \u00a78",
+  "title": "Synthetic South African lures",
+  "implementation_sha": "5cbba253de00af29064242fdb9301753cafff132",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-sources.test.ts -> Tests 15 passed (15)",
+    "node scripts/glimmer/sources.ts check -> sources: reconciled"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s8.md",
+    "verdict": "filed",
+    "candidate": "8d352d2b34fd41dadfa597f62559a4e1095d0d23",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a710",
+      "D03 T04 \u00a713"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s8.md",
+    "candidate": "8d979c88e525c19cd46bc67d3c375b1f8bc38f13",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s8.md",
+    "verdict": "clean",
+    "candidate": "5cbba253de00af29064242fdb9301753cafff132",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

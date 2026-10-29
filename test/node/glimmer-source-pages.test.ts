@@ -1,6 +1,16 @@
+import { execFileSync } from "node:child_process";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { decodeHtml, normaliseScreenshot, openTextReader } from "../../scripts/glimmer/source-pages.ts";
+import {
+  bounded,
+  decodeHtml,
+  normaliseScreenshot,
+  openTextReader,
+  PageTimeout,
+  passingRenderFault,
+} from "../../scripts/glimmer/source-pages.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/source-pages.ts (D03 T04 §5): a dataset's image becomes a JPEG the store accepts, and its HTML gives
@@ -19,6 +29,16 @@ describe("decodeHtml", () => {
     expect(decodeHtml(Uint8Array.from([...equiv, ...cyr]))).toContain("Привет");
     expect(decodeHtml(new TextEncoder().encode("<p>café</p>"))).toBe("<p>café</p>");
     expect(decodeHtml(new TextEncoder().encode('<meta charset="no-such"><p>é'))).toBe('<meta charset="no-such"><p>é');
+  });
+});
+
+describe("bounded", () => {
+  it("gives up on a browser call that never answers, and reports one that finishes or fails", async () => {
+    const started = Date.now();
+    expect(await bounded(new Promise(() => undefined), 200)).toBe(false);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(await bounded(Promise.resolve(1))).toBe(true);
+    expect(await bounded(Promise.reject(new Error("closed")))).toBe(false);
   });
 });
 
@@ -109,6 +129,99 @@ describe("visibleText", () => {
     expect(await flags("<p>Just text</p>")).toEqual([false, false]);
   });
 
+  it("fails a page that never finishes within its deadline, and renders the next page on a fresh browser", async () => {
+    const quick = await openTextReader({ pageMs: 1_500 });
+    // Ten million layout boxes: the renderer is still laying them out when the deadline passes.
+    const huge = `<div>${"<span>word </span>".repeat(2_000_000)}</div>`;
+    const started = Date.now();
+    await expect(quick.renderHtml(huge)).rejects.toBeInstanceOf(PageTimeout);
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect((await quick.renderHtml("<p>The next page renders on a new browser</p>")).text).toBe(
+      "The next page renders on a new browser",
+    );
+    await quick.close();
+  }, 60_000);
+
+  it("replaces a browser that died under several pages once, not once a page", async () => {
+    const quick = await openTextReader({ pageMs: 1_500 });
+    const huge = `<div>${"<span>word </span>".repeat(2_000_000)}</div>`;
+    const results = await Promise.allSettled([quick.renderHtml(huge), quick.renderHtml(huge), quick.renderHtml(huge)]);
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+    expect((await quick.renderHtml("<p>After the timeouts one new browser renders</p>")).text).toBe(
+      "After the timeouts one new browser renders",
+    );
+    expect(quick.launches()).toBe(2);
+    await quick.close();
+  }, 90_000);
+
+  it("ends a browser that will not close, so the importer behind it can exit", async () => {
+    // The marked browsers alive now; other readers on the host may start their own, so only these are followed.
+    const marked = () => {
+      try {
+        return new Set(
+          execFileSync("pgrep", ["-f", "--", "--glimmer-reader="]).toString().trim().split("\n").filter(Boolean),
+        );
+      } catch {
+        return new Set<string>(); // pgrep exits 1 when nothing matched
+      }
+    };
+    const before = marked();
+    const own = await openTextReader({ closeBrowser: () => new Promise(() => undefined) });
+    await own.renderHtml("<p>start this reader's browser</p>");
+    const mine = [...marked()].filter((pid) => !before.has(pid));
+    expect(mine.length).toBeGreaterThan(0);
+    const started = Date.now();
+    await own.close();
+    expect(Date.now() - started).toBeLessThan(8_000);
+    await new Promise((done) => setTimeout(done, 500));
+    const after = marked();
+    expect(mine.filter((pid) => after.has(pid))).toEqual([]);
+  }, 30_000);
+
+  it("retries pages caught in a browser crash on one replacement browser", async () => {
+    // A long page deadline: on a loaded machine the three slow pages could pass the default 30 seconds, and a page
+    // past its deadline replaces the browser too, which is another path than the crash this test is about.
+    const own = await openTextReader({ pageMs: 120_000 });
+    await own.renderHtml("<p>warm the first browser up</p>");
+    const slow = (n: number) => `<p>page ${n}</p><div>${"<span>word </span>".repeat(150_000)}</div>`;
+    const pages = [1, 2, 3].map((n) => own.renderHtml(slow(n)));
+    await new Promise((done) => setTimeout(done, 300));
+    await own.dropBrowser();
+    const results = await Promise.all(pages);
+    expect(results.map((r) => r.text.split("\n")[0])).toEqual(["page 1", "page 2", "page 3"]);
+    expect(own.launches()).toBe(2);
+    await own.close();
+  }, 90_000);
+
+  it("shows no text for a page whose body or root is hidden", async () => {
+    expect(
+      (await reader.renderHtml('<body style="display:none"><p>Hidden phishing content long enough</p></body>')).text,
+    ).toBe("");
+    expect(
+      (await reader.renderHtml('<html style="visibility:hidden"><body><p>Also hidden text here</p></body></html>'))
+        .text,
+    ).toBe("");
+  });
+
+  it("leaves out text and fields an ancestor hides with opacity 0 or puts off the page", async () => {
+    const out = await reader.renderHtml(
+      "<p>The page a viewer actually sees here</p>" +
+        '<div style="opacity:0"><p>hidden credential text over twenty characters</p><input type="password"></div>' +
+        '<div style="position:absolute;left:-9999px;top:-9999px"><p>off the page entirely, never seen</p><input name="card_number"></div>',
+    );
+    expect(out.text).toBe("The page a viewer actually sees here");
+    expect(out.has_login_form).toBe(false);
+    expect(out.has_payment_form).toBe(false);
+  });
+
+  it("counts a card field named as one, without an autocomplete hint", async () => {
+    const flags = async (html: string) => (await reader.renderHtml(html)).has_payment_form;
+    expect(await flags('<label>Card number <input name="card_number"></label>')).toBe(true);
+    expect(await flags('<input name="cvv" placeholder="CVV">')).toBe(true);
+    expect(await flags('<input placeholder="MM / YY">')).toBe(true);
+    expect(await flags('<input name="username"><input type="hidden" name="card_number">')).toBe(false);
+  });
+
   it("stays on a page whose meta refresh points elsewhere", async () => {
     const out = await reader.renderHtml(
       '<meta http-equiv="refresh" content="0;url=https://elsewhere.example/"><p>Your parcel is waiting for collection</p>',
@@ -122,13 +235,69 @@ describe("visibleText", () => {
     expect(out.text).toContain("Top");
   });
 
+  it("captures a page again once after Chromium fails to, and gives up after a second failure", async () => {
+    const capture = new Error("page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot");
+    let failures = 1;
+    const once = await openTextReader({ captureFault: () => (failures-- > 0 ? capture : null) });
+    try {
+      expect((await once.renderHtml("<p>A page whose first capture fails</p>")).text).toBe(
+        "A page whose first capture fails",
+      );
+      expect(failures).toBe(-1); // the fault raised once, the retry captured
+    } finally {
+      await once.close();
+    }
+    const always = await openTextReader({ captureFault: () => capture });
+    try {
+      await expect(always.renderHtml("<p>A page whose captures all fail</p>")).rejects.toThrow(/Unable to capture/);
+    } finally {
+      await always.close();
+    }
+  });
+
+  it("tries a page once more when the capture failed, and only that fault", () => {
+    expect(
+      passingRenderFault(
+        new Error("page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot"),
+      ),
+    ).toBe(true);
+    expect(passingRenderFault(new Error("page.setContent: Timeout 10000ms exceeded"))).toBe(false);
+    expect(passingRenderFault(undefined)).toBe(false);
+  });
+
   it("opens a new browser when the one it had is gone", async () => {
     const own = await openTextReader();
+    // The browser starts lazily, so a page is rendered first: the close then has a browser to close.
+    expect((await own.renderHtml("<p>Before the restart the reader renders</p>")).text).toBe(
+      "Before the restart the reader renders",
+    );
     await own.close();
     expect((await own.renderHtml("<p>After a restart the reader still renders</p>")).text).toBe(
       "After a restart the reader still renders",
     );
+    expect(own.launches()).toBe(2);
     await own.close();
+  });
+
+  it("sends no request for anything a page names, even to a server that would answer", async () => {
+    let requests = 0;
+    const server = createServer((_req, res) => {
+      requests++;
+      res.end("x");
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      const out = await reader.renderHtml(
+        `<link rel=stylesheet href="${origin}/a.css"><img src="${origin}/b.png"><iframe src="${origin}/c"></iframe>` +
+          `<video src="${origin}/d.mp4"></video><p style="background:url(${origin}/e.png)">Inert page text here</p>`,
+      );
+      expect(out.text).toContain("Inert page text here");
+      expect(requests).toBe(0);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((done) => server.close(done));
+    }
   });
 
   it("fetches nothing a page names", async () => {

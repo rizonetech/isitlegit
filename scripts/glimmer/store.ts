@@ -53,6 +53,9 @@ export const LABEL_SOURCES = [
   "astra+claude",
   "claude",
   "unverified",
+  // A value derived by a fixed rule from the page's other labels (D03 T04 §9: a lure's type from its form flags). It
+  // trains, but evaluation never trusts it.
+  "rule",
 ] as const;
 
 // What is known of a page's PageAnswer fields; a field not yet decided is absent (D03 T04 §9 fills them).
@@ -86,6 +89,23 @@ export const PageMeta = z
     // The listed URL a benign page was rendered from, and its list's kind (§6); other origins leave them out.
     url: z.string().url().optional(),
     kind: z.enum(PAGE_KINDS).optional(),
+    // The dataset item a public or sample page came from (its file, row or member id), so every stored page traces
+    // back to its source row and a resumed import skips what it already stored (§5).
+    item: z.string().min(1).max(500).optional(),
+    // What a benign render saw beside the text (its title and what was drawn over the page), so a later wall check can
+    // judge a stored page as it judged the capture (§26).
+    // The structural readings are kept too, so the same refusals apply to a stored page (a record from before they were
+    // kept lacks them).
+    evidence: z
+      .strictObject({
+        title: z.string().max(2000),
+        overlays: z.string().max(8000),
+        captcha: z.boolean().optional(),
+        consentWall: z.boolean().optional(),
+        challengeCover: z.boolean().optional(),
+        wall: z.boolean().optional(),
+      })
+      .optional(),
   })
   .refine((meta) => Object.keys(meta.label_source).every((k) => k in meta.labels), {
     message: "every label_source names a label the page has",
@@ -166,7 +186,11 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     for (const name of readdirSync(pages)) {
       const writer = /^\.(?:tmp-.+-(\d+)-[0-9a-f]{8}|removing-.+-(\d+))$/.exec(name);
       const pid = writer ? Number(writer[1] ?? writer[2]) : 0;
-      if (writer && !processAlive(pid)) rmSync(join(pages, name), { recursive: true, force: true });
+      if (!writer || processAlive(pid)) continue;
+      // A removal a stop left: its rename is made durable before anything is deleted (a temporary folder was never
+      // published, so it has no rename to keep).
+      if (name.startsWith(".removing-")) sync(pages);
+      rmSync(join(pages, name), { recursive: true, force: true });
     }
 
   // Folders whose entry in their parent is not yet known to be on disk: the parents still to flush. A folder's entry
@@ -273,20 +297,52 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return id;
   }
 
-  function manifest(): StoredPage[] {
+  // One page's labels and their sources replaced, validated against the page record and written whole (temp then
+  // rename, flushed), so a stopped write leaves the old meta.json, never half of one.
+  function setLabels(id: string, labels: Labels, label_source: PageMeta["label_source"], licence?: string): StoredPage {
+    const folder = join(pages, id);
+    const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+    const meta = PageMeta.parse({ ...current, labels, label_source, ...(licence ? { licence } : {}) });
+    const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
+    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    sync(temporary);
+    renameSync(temporary, join(folder, "meta.json"));
+    sync(folder);
+    return { id, ...meta };
+  }
+
+  // Every page's record. A `meta.json` that does not read throws, unless `tolerant`: then that page is left out, for a
+  // caller (a resumed import) that finds and repairs damaged pages through `verify()` and `putPage()`.
+  function manifest(options: { tolerant?: boolean } = {}): StoredPage[] {
     if (!existsSync(pages)) return [];
     return readdirSync(pages)
       .filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory())
       .sort()
-      .map((id) => ({ id, ...PageMeta.parse(JSON.parse(readFileSync(join(pages, id, "meta.json"), "utf-8"))) }));
+      .flatMap((id) => {
+        try {
+          return [{ id, ...PageMeta.parse(JSON.parse(readFileSync(join(pages, id, "meta.json"), "utf-8"))) }];
+        } catch (error) {
+          if (options.tolerant) return [];
+          throw error;
+        }
+      });
   }
 
-  // Every stored page whose files no longer match their hashes, or whose meta.json does not read.
-  function verify(): { intact: number; damaged: string[] } {
-    if (!existsSync(pages)) return { intact: 0, damaged: [] };
-    const ids = readdirSync(pages).filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory());
+  // Every stored page whose files no longer match their hashes, or whose meta.json does not read; with `source`, only
+  // that source's pages (`<source>-<16 hex>`), so a resumed import checks its own pages, not the whole store.
+  function verify(source?: string): { intact: number; damaged: string[]; setAside: string[] } {
+    if (!existsSync(pages)) return { intact: 0, damaged: [], setAside: [] };
+    const own = source ? new RegExp(`^${source.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}-[0-9a-f]{16}$`) : null;
+    const ids = readdirSync(pages).filter(
+      (name) => !name.startsWith(".") && (!own || own.test(name)) && statSync(join(pages, name)).isDirectory(),
+    );
     const damaged = ids.filter((id) => !intact(id)).sort();
-    return { intact: ids.length - damaged.length, damaged };
+    // Damaged copies a repair set aside (`.damaged-<id>-<ms>`): kept for inspection, counted so they never pile up
+    // unseen; `removeSource` clears them with their source.
+    const setAside = readdirSync(pages)
+      .filter((name) => name.startsWith(".damaged-") && (!own || own.test(name.replace(/^\.damaged-|-\d+$/g, ""))))
+      .sort();
+    return { intact: ids.length - damaged.length, damaged, setAside };
   }
 
   // Takes every page of one source out of the store, each folder renamed out of view before it is deleted, so a page
@@ -310,6 +366,20 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return removed;
   }
 
+  // Takes one page out (a page a later check refuses, `render.ts recheck`): renamed out of view, the rename made durable,
+  // then deleted. A stop or a failed flush after the rename leaves the `.removing-` folder, out of the manifest, for the
+  // next open to finish; the page is never half deleted while it still shows. Returns whether it was there.
+  function removePage(id: string): boolean {
+    if (!/^[a-z0-9][a-z0-9-]{0,40}-[0-9a-f]{16}$/.test(id)) throw new TypeError("not a page id");
+    const folder = join(pages, id);
+    if (!existsSync(folder)) return false;
+    const gone = join(pages, `.removing-${id}-${process.pid}`);
+    renameSync(folder, gone);
+    sync(pages);
+    rmSync(gone, { recursive: true, force: true });
+    return true;
+  }
+
   function counts() {
     const bySource: Record<string, number> = {};
     const byLabel = { lure: 0, benign: 0, unlabelled: 0 };
@@ -330,5 +400,31 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     };
   }
 
-  return { dir, putPage, manifest, counts, readPage, verify, removeSource };
+  // A page's files, refused unless both match the SHA-256 its record holds (D03 T04 §9): a rule or the teacher never
+  // reads a damaged page as a whole one. Null for a page whose record or files do not read or do not match.
+  function readVerifiedPage(id: string): { page: StoredPage; screenshot: Uint8Array; text: string } | null {
+    try {
+      const folder = join(pages, id);
+      const meta = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+      const screenshot = new Uint8Array(readFileSync(join(folder, "screenshot.jpg")));
+      const raw = readFileSync(join(folder, "text.txt"));
+      if (sha256(screenshot) !== meta.sha256.screenshot || sha256(raw) !== meta.sha256.text) return null;
+      return { page: { id, ...meta }, screenshot, text: raw.toString("utf-8") };
+    } catch {
+      return null;
+    }
+  }
+
+  return {
+    dir,
+    putPage,
+    setLabels,
+    manifest,
+    counts,
+    readPage,
+    readVerifiedPage,
+    verify,
+    removeSource,
+    removePage,
+  };
 }

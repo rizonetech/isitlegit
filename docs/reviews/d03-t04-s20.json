@@ -1,0 +1,123 @@
+{
+  "ref": "D03 T04 \u00a720",
+  "title": "Faster and mirrored dataset downloads",
+  "implementation_sha": "2588f6e5badd1976b5cec019d3b36c1f19965326",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s20.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s20.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s20.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s20.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench -> 79 OK",
+    "python3 scripts/glimmer/fetch_bench.py -> acceptance met in both scenarios: cut once 1.083, failing first URL 0.84, refetched 0 and 0, every run of both tools cut, recovered and intact"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s20.md",
+    "verdict": "filed",
+    "candidate": "68da492c9fb566693d1c8f454fdcbdebea4aea37",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a721"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s20.md",
+    "candidate": "540fe8227492641674ad1d17b06860f328c3fd75",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s20.md",
+    "verdict": "fixed",
+    "candidate": "50581f795965dacf1ff99a0d1b7195c86234f13c",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

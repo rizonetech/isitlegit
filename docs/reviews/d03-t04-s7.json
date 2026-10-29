@@ -1,0 +1,135 @@
+{
+  "ref": "D03 T04 \u00a77",
+  "title": "Redacted sample mail converted to pages",
+  "implementation_sha": "7cea57c7185f8ab6e514d72d5c58ad1dcbfc1951",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/03-vision/D03-T04-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-redact.test.ts test/node/glimmer-leak.test.ts -> 2 files, 29 passed",
+    "node scripts/glimmer/import-samples.ts leak-check -> leak-check: clean (293 pages, their screenshots read; every message and part accounted for), exit 0, after the sample pages were rebuilt under the current redaction (543 messages, 559 items, 0 failed)"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s7.md",
+    "verdict": "filed",
+    "candidate": "9863e854fc82cfd9a32409abc3ba5cfdecb5a469",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a710",
+      "D03 T04 \u00a719",
+      "D03 T04 \u00a713"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s7.md",
+    "candidate": "c15f60678b011329e85196682a11aa283605420d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s7.md",
+    "verdict": "fixed",
+    "candidate": "b883c85846696dd55e6d51aa322b6056e851058c",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

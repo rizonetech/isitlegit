@@ -1,10 +1,19 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { openStore, type PageInput, storeDir } from "../../scripts/glimmer/store.ts";
+import { openStore, type PageInput, type StoredPage, storeDir } from "../../scripts/glimmer/store.ts";
 import { buildScreenRequest, buildTrainingLine, jpegSize } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
@@ -239,12 +248,17 @@ describe("recovery, integrity and removal", () => {
   it("names a damaged page, and storing it again replaces it instead of reporting it stored", async () => {
     const store = openStore(dir);
     const id = await store.putPage("s", page());
-    expect(store.verify()).toEqual({ intact: 1, damaged: [] });
+    expect(store.verify()).toEqual({ intact: 1, damaged: [], setAside: [] });
     writeFileSync(join(dir, "pages", id, "screenshot.jpg"), fakeJpeg(10, 10));
-    expect(store.verify()).toEqual({ intact: 0, damaged: [id] });
+    expect(store.verify()).toEqual({ intact: 0, damaged: [id], setAside: [] });
     expect(await store.putPage("s", page())).toBe(id);
-    expect(store.verify()).toEqual({ intact: 1, damaged: [] });
-    expect(readdirSync(join(dir, "pages")).some((name) => name.startsWith(`.damaged-${id}-`))).toBe(true);
+    // The damaged copy is set aside, and counted, so repairs never pile copies up unseen.
+    const after = store.verify();
+    expect(after).toMatchObject({ intact: 1, damaged: [] });
+    expect(after.setAside).toHaveLength(1);
+    expect(after.setAside[0]?.startsWith(`.damaged-${id}-`)).toBe(true);
+    expect(store.verify("s").setAside).toHaveLength(1);
+    expect(store.verify("other").setAside).toHaveLength(0);
   });
 
   it("refuses a huge screenshot from its header, before decoding a pixel", async () => {
@@ -320,6 +334,78 @@ describe("recovery, integrity and removal", () => {
     expect(readdirSync(join(dir, "pages"))).toEqual([]);
   });
 
+  it("reads a page only when both its files match their hashes", async () => {
+    const store = openStore(dir);
+    const whole = await store.putPage("public", page({ text: "whole" }));
+    const altered = await store.putPage("public", page({ text: "to alter" }));
+    const swapped = await store.putPage("public", page({ text: "to swap" }));
+    const malformed = await store.putPage("public", page({ text: "to break" }));
+    expect(store.readVerifiedPage(whole)?.text).toBe("whole");
+    writeFileSync(join(dir, "pages", altered, "text.txt"), "altered");
+    // A valid JPEG, but not the one recorded.
+    writeFileSync(join(dir, "pages", swapped, "screenshot.jpg"), fakeJpeg(12, 12));
+    writeFileSync(join(dir, "pages", malformed, "meta.json"), "{ not json");
+    for (const id of [altered, swapped, malformed, "public-0000000000000000"])
+      expect(store.readVerifiedPage(id), id).toBeNull();
+  });
+
+  it("removes one page and leaves the rest", async () => {
+    const store = openStore(dir);
+    const gone = await store.putPage("public", page({ text: "a" }));
+    await store.putPage("public", page({ text: "b" }));
+    expect(store.removePage(gone)).toBe(true);
+    expect(store.removePage(gone)).toBe(false);
+    expect(store.counts().bySource).toEqual({ public: 1 });
+    expect(readdirSync(join(dir, "pages")).filter((name) => name.startsWith("."))).toEqual([]);
+    for (const bad of ["../x", "public", ".removing-public-0123456789abcdef"])
+      expect(() => store.removePage(bad)).toThrow();
+  });
+
+  it("makes a page's removal durable before deleting it, and finishes a stopped removal on the next open", async () => {
+    let failing = false;
+    const seen: boolean[] = [];
+    const store = openStore(dir, {
+      sync: (path) => {
+        if (path !== join(dir, "pages")) return;
+        // At the parent's flush the renamed folder is still there: the delete comes after it.
+        seen.push(readdirSync(path).some((name) => name.startsWith(".removing-")));
+        if (failing) throw Object.assign(new Error("EIO"), { code: "EIO" });
+      },
+    });
+    const kept = await store.putPage("public", page({ text: "kept" }));
+    const first = await store.putPage("public", page({ text: "first" }));
+    seen.length = 0;
+    expect(store.removePage(first)).toBe(true);
+    expect(seen).toEqual([true]);
+    // A failed flush: the page is out of view, renamed, never half deleted; the other page is whole.
+    const second = await store.putPage("public", page({ text: "second" }));
+    failing = true;
+    expect(() => store.removePage(second)).toThrow("EIO");
+    failing = false;
+    expect(store.manifest().map((p) => p.id)).toEqual([kept]);
+    const left = readdirSync(join(dir, "pages")).filter((name) => name.startsWith(".removing-"));
+    expect(left).toEqual([`.removing-${second}-${process.pid}`]);
+    // Its process gone (a stop), the next open finishes the removal.
+    renameSync(join(dir, "pages", left[0] as string), join(dir, "pages", `.removing-${second}-999999999`));
+    const reopened = openStore(dir);
+    expect(readdirSync(join(dir, "pages"))).toEqual([kept]);
+    expect(reopened.verify().damaged).toEqual([]);
+  });
+
+  it("makes a stopped removal's rename durable before an open deletes it", async () => {
+    const id = await openStore(dir).putPage("public", page({ text: "going" }));
+    renameSync(join(dir, "pages", id), join(dir, "pages", `.removing-${id}-999999999`));
+    const order: string[] = [];
+    openStore(dir, {
+      sync: (path) => {
+        order.push(`sync ${path}`);
+        order.push(`present ${readdirSync(join(dir, "pages")).some((name) => name.startsWith(".removing-"))}`);
+      },
+    });
+    expect(order.slice(0, 2)).toEqual([`sync ${join(dir, "pages")}`, "present true"]);
+    expect(readdirSync(join(dir, "pages"))).toEqual([]);
+  });
+
   it("removes one source whole and leaves a source that shares its prefix", async () => {
     const store = openStore(dir);
     await store.putPage("public", page({ text: "a" }));
@@ -329,5 +415,301 @@ describe("recovery, integrity and removal", () => {
     expect(store.counts().bySource).toEqual({ "public-a": 1 });
     expect(readdirSync(join(dir, "pages")).filter((name) => name.startsWith("."))).toEqual([]);
     expect(() => store.removeSource("../x")).toThrow();
+  });
+});
+
+describe("setLabels and the lure-type rule (D03 T04 §9)", () => {
+  it("replaces one page's labels whole, refuses an invalid record, and derives a lure's type from its forms", async () => {
+    const { applyRules, derivedLureType } = await import("../../scripts/glimmer/label-rules.ts");
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-labels-"));
+    try {
+      const store = openStore(dir);
+      const shot = new Uint8Array(
+        await sharp({ create: { width: 32, height: 32, channels: 3, background: "#fff" } })
+          .jpeg()
+          .toBuffer(),
+      );
+      const base = {
+        origin: "public" as const,
+        licence: "CC0",
+        host: null,
+        template: null,
+        south_africa: false,
+        redacted: false,
+      };
+      const put = (text: string, labels: Record<string, unknown>) =>
+        store.putPage("set", {
+          ...base,
+          screenshot: shot,
+          text,
+          labels,
+          label_source: Object.fromEntries(
+            Object.keys(labels).map((k) => [k, k.startsWith("has_") ? "dom" : "ground-truth"]),
+          ),
+        } as Parameters<typeof store.putPage>[1]);
+      const login = await put("login lure", { lure: true, has_login_form: true, has_payment_form: false });
+      const card = await put("card lure", { lure: true, has_login_form: true, has_payment_form: true });
+      const plain = await put("lookalike", { lure: true, has_login_form: false, has_payment_form: false });
+      const shop = await put("shop", {
+        lure: true,
+        lure_type: "fake_shop",
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      const benign = await put("benign", {
+        lure: false,
+        lure_type: "none",
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      const counts = applyRules(store);
+      expect(counts).toMatchObject({ credential: 1, payment: 1, impersonation: 1 });
+      const byId = new Map(
+        openStore(dir)
+          .manifest()
+          .map((p) => [p.id, p]),
+      );
+      expect(byId.get(login)?.labels.lure_type).toBe("credential");
+      expect(byId.get(login)?.label_source.lure_type).toBe("rule");
+      expect(byId.get(card)?.labels.lure_type).toBe("payment");
+      expect(byId.get(plain)?.labels.lure_type).toBe("impersonation");
+      expect(byId.get(shop)?.label_source.lure_type).toBe("ground-truth");
+      expect(derivedLureType(byId.get(benign) as never)).toBeNull();
+      // A benign page without a type is completed as none.
+      expect(derivedLureType({ labels: { lure: false } } as never)).toBe("none");
+      expect(() => store.setLabels(login, { lure: true }, { lure: "ground-truth", lure_type: "rule" })).toThrow();
+      expect(openStore(dir).verify().damaged).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the brand rule (D03 T04 §9)", () => {
+  it("names a lure's brand from its text, a real page's from its host, and none otherwise", async () => {
+    const { derivedBrand } = await import("../../scripts/glimmer/label-rules.ts");
+    const page = (labels: Record<string, unknown>, host: string | null = null) =>
+      ({ id: "x", host, labels, label_source: {} }) as never;
+    expect(derivedBrand(page({ lure: true }), "Sign in to your Microsoft 365 account")).toBe("Microsoft 365");
+    expect(derivedBrand(page({ lure: true }), "Verify your FNB online banking")).toBe("FNB");
+    expect(derivedBrand(page({ lure: true }), "Designer shoes 90% off today")).toBeNull();
+    expect(derivedBrand(page({ lure: true }), "Welcome to Metamorphosis")).toBeNull();
+    expect(derivedBrand(page({ lure: false }, "en.wikipedia.org"), "")).toBe("wikipedia");
+    expect(derivedBrand(page({ lure: true, brand: "PayPal" }), "Amazon")).toBeUndefined();
+  });
+
+  it("gives one brand one name across spellings and hosts, and skips sign-in buttons and everyday words", async () => {
+    const { canonicalBrand, derivedBrand } = await import("../../scripts/glimmer/label-rules.ts");
+    const page = (labels: Record<string, unknown>, host: string | null = null) =>
+      ({ id: "x", host, labels, label_source: {} }) as never;
+    // A real page's host and a lure's text meet on one name.
+    expect(derivedBrand(page({ lure: false }, "www.standardbank.co.za"), "")).toBe("Standard Bank");
+    expect(derivedBrand(page({ lure: true }), "Standard Bank Internet Banking: verify now")).toBe("Standard Bank");
+    for (const alias of ["standardbank", "Standard Bank Group", "STANDARD BANK"])
+      expect(canonicalBrand(alias)).toBe("Standard Bank");
+    expect(canonicalBrand("First National Bank")).toBe("FNB");
+    // A South African brand our list names, outside KNOWN_BRANDS, is found in a lure's text.
+    expect(derivedBrand(page({ lure: true }), "Your Capitec app needs updating")).toBe("Capitec");
+    // Another service's sign-in button is not the page's brand; the brand beside it is.
+    expect(derivedBrand(page({ lure: true }), "Sign in with Google to view the invoice")).toBeNull();
+    expect(derivedBrand(page({ lure: true }), "Continue with Apple. Takealot order 4411 on hold")).toBe("Takealot");
+    // An everyday word that is also a listed brand does not make a brand.
+    expect(derivedBrand(page({ lure: true }), "Game over: Clicks and Rain")).toBeNull();
+    // A brand named by its domain meets its host's stem.
+    expect(derivedBrand(page({ lure: false }, "www.booking.com"), "")).toBe("Booking.com");
+    expect(canonicalBrand("booking")).toBe(canonicalBrand("Booking.com"));
+    // An unknown name stays as given.
+    expect(canonicalBrand("  Metamorphosis ")).toBe("Metamorphosis");
+    // Any case of a several-word name or long form, and a one-word name in capitals.
+    for (const text of ["STANDARD BANK online", "your standard bank card", "Standard Bank Group plc"])
+      expect(derivedBrand(page({ lure: true }), text), text).toBe("Standard Bank");
+    expect(derivedBrand(page({ lure: true }), "First National Bank: verify")).toBe("FNB");
+    expect(derivedBrand(page({ lure: true }), "ABSA secure login")).toBe("Absa");
+    // A one-word brand in lower case is a word ("a travel visa").
+    expect(derivedBrand(page({ lure: true }), "apply for a travel visa today")).toBeNull();
+    // A brand a rule set earlier is set again as the rule now reads it; a source's own brand is never touched.
+    const ruled = {
+      id: "x",
+      host: null,
+      labels: { lure: true, brand: null },
+      label_source: { brand: "rule" },
+    } as never;
+    expect(derivedBrand(ruled, "STANDARD BANK")).toBe("Standard Bank");
+    const sourced = {
+      id: "x",
+      host: null,
+      labels: { lure: true, brand: "Std" },
+      label_source: { brand: "ground-truth" },
+    };
+    expect(derivedBrand(sourced as never, "STANDARD BANK")).toBeUndefined();
+    const same = {
+      id: "x",
+      host: null,
+      labels: { lure: true, brand: "Absa" },
+      label_source: { brand: "rule" },
+    } as never;
+    expect(derivedBrand(same, "ABSA login")).toBeUndefined();
+  });
+});
+
+describe("every page's terminal outcome (D03 T04 §9)", () => {
+  it("leaves every page complete or excluded with its reason, damaged and malformed pages included", async () => {
+    const { applyRules, readExcluded } = await import("../../scripts/glimmer/label-rules.ts");
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-outcome-"));
+    try {
+      const store = openStore(dir);
+      const shot = (n: number) =>
+        sharp({ create: { width: 16 + n, height: 16, channels: 3, background: "#fff" } })
+          .jpeg()
+          .toBuffer()
+          .then((b) => new Uint8Array(b));
+      const put = async (n: number, labels: Record<string, unknown>) =>
+        store.putPage("set", {
+          origin: "public",
+          licence: "CC0",
+          host: null,
+          template: null,
+          south_africa: false,
+          redacted: false,
+          screenshot: await shot(n),
+          text: `page ${n}`,
+          labels,
+          label_source: Object.fromEntries(Object.keys(labels).map((k) => [k, "ground-truth"])),
+        } as Parameters<typeof store.putPage>[1]);
+      const benign = await put(1, { lure: false, has_login_form: false, has_payment_form: false });
+      const nolure = await put(2, { has_login_form: false, has_payment_form: false });
+      const contradict = await put(3, {
+        lure: true,
+        lure_type: "none",
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      const noforms = await put(4, { lure: true });
+      const damaged = await put(5, { lure: false, has_login_form: false, has_payment_form: false });
+      const malformed = await put(6, { lure: false, has_login_form: false, has_payment_form: false });
+      writeFileSync(join(dir, "pages", damaged, "text.txt"), "altered");
+      writeFileSync(join(dir, "pages", malformed, "meta.json"), "{");
+      applyRules(store);
+      const excluded = readExcluded(dir);
+      expect([...excluded.keys()].sort()).toEqual([nolure, contradict, noforms, damaged, malformed].sort());
+      expect(excluded.get(contradict)).toMatch(/contradict/);
+      expect(excluded.get(noforms)).toMatch(/missing has_login_form, has_payment_form/);
+      const after = openStore(dir).readVerifiedPage(benign)?.page;
+      expect(after?.labels).toMatchObject({ lure: false, lure_type: "none", brand: null });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a publisher's label on its capture (D03 T04 §18)", () => {
+  it("excludes a capture of something else, a text two sources label oppositely, and distrusts an inert copy's false flags", async () => {
+    const { applyRules, readExcluded } = await import("../../scripts/glimmer/label-rules.ts");
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-capture-"));
+    try {
+      const store = openStore(dir);
+      let n = 0;
+      const put = async (source: string, text: string, labels: Record<string, unknown>) =>
+        store.putPage(source, {
+          origin: "public",
+          licence: "CC0",
+          host: null,
+          template: null,
+          south_africa: false,
+          redacted: false,
+          screenshot: new Uint8Array(
+            await sharp({ create: { width: 16 + n++, height: 16, channels: 3, background: "#fff" } })
+              .jpeg()
+              .toBuffer(),
+          ),
+          text,
+          labels,
+          label_source: Object.fromEntries(
+            Object.keys(labels).map((k) => [k, k.startsWith("has_") ? "dom" : "ground-truth"]),
+          ),
+        } as Parameters<typeof store.putPage>[1]);
+      const lure = { lure: true, has_login_form: true, has_payment_form: false };
+      const parked = await put("set", "This domain is for sale. Buy this domain today.", lure);
+      const takedown = await put("set", "This phishing site has been taken down by the host.", lure);
+      const missing = await put("set", "404 Not Found: the page you were looking for", lure);
+      const wall = await put("set", "Are you a human? Press & Hold", lure);
+      const fine = await put("set", "Sign in to your bank", lure);
+      // One text, two sources, opposite labels.
+      const a = await put("set-a", "Welcome back to Example", lure);
+      const b = await put("set-b", "Welcome back to Example", {
+        lure: false,
+        has_login_form: true,
+        has_payment_form: false,
+      });
+      // An inert copy beside a live screenshot: a false flag is untrusted, a true one stands.
+      const live = await put("7-days-later", "Verify your account", {
+        lure: true,
+        has_login_form: false,
+        has_payment_form: true,
+      });
+      applyRules(store);
+      const excluded = readExcluded(dir);
+      expect(excluded.get(parked)).toMatch(/parked, suspended or taken-down/);
+      expect(excluded.get(takedown)).toMatch(/parked, suspended or taken-down/);
+      expect(excluded.get(missing)).toMatch(/an error page/);
+      expect(excluded.get(wall)).toMatch(/a bot challenge/);
+      // A wall named only in the render's title is a wall too, as the renderer reads it.
+      const { captureProblem } = await import("../../scripts/glimmer/label-rules.ts");
+      expect(captureProblem("Welcome", { title: "Just a moment...", overlays: "" })).toBe("a bot challenge");
+      // A lure tells the visitor their account is suspended or disabled: that is the lure, not a host's takedown.
+      for (const lure of [
+        "Your account has been suspended. Sign in with your email and password to restore access.",
+        "Your mailbox has been disabled due to suspicious activity. Verify now.",
+      ])
+        expect(captureProblem(lure)).toBeNull();
+      for (const gone of [
+        "This Account has been suspended. Contact your hosting provider for more information.",
+        "This website has been disabled by the host.",
+        "This site has been reported as phishing.",
+      ])
+        expect(captureProblem(gone)).toBe("a parked, suspended or taken-down page");
+      // A site's own notice padded below ordinary copy is still the page's.
+      expect(captureProblem(`${"Fresh deals every day. ".repeat(200)}This domain is for sale.`)).toBe(
+        "a parked, suspended or taken-down page",
+      );
+      expect(excluded.has(fine)).toBe(false);
+      for (const id of [a, b]) expect(excluded.get(id)).toMatch(/labelled a lure by one source and not by another/);
+      const sources = openStore(dir).readVerifiedPage(live)?.page.label_source;
+      expect(sources).toMatchObject({ has_login_form: "unverified", has_payment_form: "dom" });
+      // Both flags false off the inert copy: the derived type rests on them, so it is no better than unverified, and
+      // a type an earlier run derived as `rule` is marked so too (§9 final review).
+      const bare = await put("7-days-later", "Account notice", {
+        lure: true,
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      const earlier = await put("7-days-later", "Older notice", {
+        lure: true,
+        lure_type: "impersonation",
+        has_login_form: false,
+        has_payment_form: false,
+      });
+      store.setLabels(
+        earlier,
+        { lure: true, lure_type: "impersonation", has_login_form: false, has_payment_form: false },
+        {
+          lure: "ground-truth",
+          lure_type: "rule",
+          has_login_form: "dom",
+          has_payment_form: "dom",
+        },
+      );
+      applyRules(store);
+      for (const id of [bare, earlier])
+        expect(openStore(dir).readVerifiedPage(id)?.page).toMatchObject({
+          labels: { lure_type: "impersonation" },
+          label_source: { lure_type: "unverified" },
+        });
+      const { answerOf } = await import("../../scripts/glimmer/build-dataset.ts");
+      const page = openStore(dir).readVerifiedPage(bare)?.page as StoredPage;
+      expect(answerOf({ ...page, labels: { ...page.labels, brand: null } })?.confidence).toBe(0.7);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

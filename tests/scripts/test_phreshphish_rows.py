@@ -42,7 +42,12 @@ class Rows(unittest.TestCase):
         self.folder = self.dir / "raw" / "phreshphish"
         self.folder.mkdir(parents=True)
         for name in ("train-000.parquet", "train-001.parquet"):
-            (self.folder / name).write_bytes(b"")
+            (self.folder / name).write_bytes(name.encode())
+        rows.inputs_module.build(
+            self.folder,
+            [{"name": n, "published": None, "pinned": "huggingface: phreshphish/phreshphish"} for n in ("train-000.parquet", "train-001.parquet")],
+            "CC BY 4.0",
+        )
         patcher = mock.patch.dict(os.environ, {"GLIMMER_DATA_DIR": str(self.dir)})
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -64,7 +69,21 @@ class Rows(unittest.TestCase):
         parquet, _ = fake_parquet(data, fail_after=200)
         with self.assertRaises(MemoryError):
             rows.main(parquet)
-        self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ["train-000.parquet", "train-001.parquet"])
+        # Only the shards and their manifest: no temporary file, no rows file, no receipt.
+        self.assertEqual(
+            sorted(p.name for p in self.folder.iterdir()), ["INPUTS.json", "train-000.parquet", "train-001.parquet"]
+        )
+
+    def test_writes_a_receipt_and_refuses_a_shard_not_bound(self):
+        data = {"train-000.parquet": [{"sha256": "a"}], "train-001.parquet": [{"sha256": "b"}]}
+        parquet, _ = fake_parquet(data)
+        with mock.patch("sys.stdout"):
+            self.assertEqual(rows.main(parquet), 0)
+        receipt = json.loads((self.folder / "EXPORT.json").read_text())
+        self.assertEqual((receipt["met"], receipt["exported"]), (2, 2))
+        (self.folder / "train-002.parquet").write_bytes(b"new")
+        with mock.patch("sys.stderr"):
+            self.assertEqual(rows.main(fake_parquet({**data, "train-002.parquet": []})[0]), 1)
 
 
 if __name__ == "__main__":

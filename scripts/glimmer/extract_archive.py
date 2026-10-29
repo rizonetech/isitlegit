@@ -18,8 +18,12 @@ import shutil
 import sys
 import tarfile
 import zipfile
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from staging import remove_dead_staging
 
 LIMIT_BYTES = 5 * 1024**3
 CHUNK = 1024 * 1024
@@ -92,6 +96,7 @@ def extract(archive, destination, limit=LIMIT_BYTES, only=()):
         raise Refused(f"{destination} exists already; remove it or choose another")
     plan(archive, limit, only)
     destination.parent.mkdir(parents=True, exist_ok=True)
+    remove_dead_staging(destination.parent)
     temporary = destination.parent / f".{destination.name}.extracting-{os.getpid()}"
     shutil.rmtree(temporary, ignore_errors=True)
     temporary.mkdir()
@@ -138,7 +143,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         written = extract(args.archive, args.destination, only=tuple(args.only))
-    except (Refused, OSError, zipfile.BadZipFile, tarfile.TarError, EOFError) as error:
+    # A corrupt deflate stream (zlib.error) or an encrypted zip entry (RuntimeError) is a damaged download too: it ends as
+    # an incomplete import with its reason, never as a traceback that leaves an earlier record standing.
+    except (Refused, OSError, zipfile.BadZipFile, tarfile.TarError, EOFError, zlib.error, RuntimeError) as error:
         reason = str(error) if isinstance(error, Refused) else f"{type(error).__name__}: {error}"
         if args.import_json:
             record_incomplete(args.import_json, args.archive, reason)

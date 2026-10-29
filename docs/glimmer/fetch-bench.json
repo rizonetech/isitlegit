@@ -1,0 +1,888 @@
+{
+ "cap_bytes_per_connection": 8388608,
+ "transport": "HTTPS, a certificate for 127.0.0.1 made per run by OpenSSL 3.5.5 27 Jan 2026 (Library: OpenSSL 3.5.5 27 Jan 2026), trusted through each tool's own option",
+ "latency_ms": 20,
+ "estimate_seconds": 512,
+ "wall_seconds": 762,
+ "aria2c": "aria2 version 1.37.0",
+ "commands": {
+  "drop": {
+   "fetch.py (one stream)": [
+    "/usr/bin/python3",
+    "-I",
+    "<repo>/scripts/glimmer/fetch.py",
+    "--url",
+    "<url>",
+    "--dest",
+    "src/data.bin",
+    "--sha256",
+    "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--allow-loopback",
+    "--min-free",
+    "0",
+    "--source-limit",
+    "1000000000000",
+    "--attempts",
+    "3",
+    "--timeout",
+    "30",
+    "--min-rate",
+    "16384",
+    "--ca-file",
+    "<certificate>",
+    "--segments",
+    "1"
+   ],
+   "fetch.py (four segments)": [
+    "/usr/bin/python3",
+    "-I",
+    "<repo>/scripts/glimmer/fetch.py",
+    "--url",
+    "<url>",
+    "--dest",
+    "src/data.bin",
+    "--sha256",
+    "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--allow-loopback",
+    "--min-free",
+    "0",
+    "--source-limit",
+    "1000000000000",
+    "--attempts",
+    "3",
+    "--timeout",
+    "30",
+    "--min-rate",
+    "16384",
+    "--ca-file",
+    "<certificate>",
+    "--segments",
+    "4",
+    "--segment-threshold",
+    "1048576"
+   ],
+   "aria2c (one connection)": [
+    "env",
+    "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+    "~/.local/aria2/root/usr/bin/aria2c",
+    "-x1",
+    "-s1",
+    "--checksum=sha-256=246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--max-tries=3",
+    "--retry-wait=1",
+    "--lowest-speed-limit=16K",
+    "--connect-timeout=30",
+    "--timeout=30",
+    "--allow-overwrite=true",
+    "--auto-file-renaming=false",
+    "--file-allocation=none",
+    "--console-log-level=error",
+    "--summary-interval=0",
+    "-d",
+    "<dir>/src",
+    "-o",
+    "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
+    "<url>"
+   ],
+   "aria2c (four connections)": [
+    "env",
+    "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+    "~/.local/aria2/root/usr/bin/aria2c",
+    "-x4",
+    "-s4",
+    "-k1M",
+    "--checksum=sha-256=246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--max-tries=3",
+    "--retry-wait=1",
+    "--lowest-speed-limit=16K",
+    "--connect-timeout=30",
+    "--timeout=30",
+    "--allow-overwrite=true",
+    "--auto-file-renaming=false",
+    "--file-allocation=none",
+    "--console-log-level=error",
+    "--summary-interval=0",
+    "-d",
+    "<dir>/src",
+    "-o",
+    "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
+    "<url>"
+   ]
+  },
+  "mirror": {
+   "fetch.py (one stream)": [
+    "/usr/bin/python3",
+    "-I",
+    "<repo>/scripts/glimmer/fetch.py",
+    "--url",
+    "<url>",
+    "--dest",
+    "src/data.bin",
+    "--sha256",
+    "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--allow-loopback",
+    "--min-free",
+    "0",
+    "--source-limit",
+    "1000000000000",
+    "--attempts",
+    "6",
+    "--timeout",
+    "30",
+    "--min-rate",
+    "16384",
+    "--ca-file",
+    "<certificate>",
+    "--mirror",
+    "<mirror 1>",
+    "--segments",
+    "1"
+   ],
+   "fetch.py (four segments)": [
+    "/usr/bin/python3",
+    "-I",
+    "<repo>/scripts/glimmer/fetch.py",
+    "--url",
+    "<url>",
+    "--dest",
+    "src/data.bin",
+    "--sha256",
+    "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--allow-loopback",
+    "--min-free",
+    "0",
+    "--source-limit",
+    "1000000000000",
+    "--attempts",
+    "6",
+    "--timeout",
+    "30",
+    "--min-rate",
+    "16384",
+    "--ca-file",
+    "<certificate>",
+    "--mirror",
+    "<mirror 1>",
+    "--segments",
+    "4",
+    "--segment-threshold",
+    "1048576"
+   ],
+   "aria2c (one connection)": [
+    "env",
+    "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+    "~/.local/aria2/root/usr/bin/aria2c",
+    "-x1",
+    "-s1",
+    "--checksum=sha-256=246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--max-tries=6",
+    "--retry-wait=1",
+    "--lowest-speed-limit=16K",
+    "--connect-timeout=30",
+    "--timeout=30",
+    "--allow-overwrite=true",
+    "--auto-file-renaming=false",
+    "--file-allocation=none",
+    "--console-log-level=error",
+    "--summary-interval=0",
+    "-d",
+    "<dir>/src",
+    "-o",
+    "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
+    "<url>",
+    "<mirror 1>"
+   ],
+   "aria2c (four connections)": [
+    "env",
+    "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+    "~/.local/aria2/root/usr/bin/aria2c",
+    "-x4",
+    "-s4",
+    "-k1M",
+    "--checksum=sha-256=246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+    "--max-tries=6",
+    "--retry-wait=1",
+    "--lowest-speed-limit=16K",
+    "--connect-timeout=30",
+    "--timeout=30",
+    "--allow-overwrite=true",
+    "--auto-file-renaming=false",
+    "--file-allocation=none",
+    "--console-log-level=error",
+    "--summary-interval=0",
+    "-d",
+    "<dir>/src",
+    "-o",
+    "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
+    "<url>",
+    "<mirror 1>"
+   ]
+  },
+  "gigabyte": {
+   "fetch.py (four segments)": [
+    "/usr/bin/python3",
+    "-I",
+    "<repo>/scripts/glimmer/fetch.py",
+    "--url",
+    "<url>",
+    "--dest",
+    "src/data.bin",
+    "--sha256",
+    "4560776f760919c25401d12dfbb022a0117ef5a91a01d2c9f0736c3b83d67904",
+    "--allow-loopback",
+    "--min-free",
+    "0",
+    "--source-limit",
+    "1000000000000",
+    "--attempts",
+    "3",
+    "--timeout",
+    "30",
+    "--min-rate",
+    "16384",
+    "--ca-file",
+    "<certificate>",
+    "--segments",
+    "4",
+    "--segment-threshold",
+    "1048576"
+   ],
+   "aria2c (four connections)": [
+    "env",
+    "LD_LIBRARY_PATH=~/.local/aria2/root/usr/lib/x86_64-linux-gnu",
+    "~/.local/aria2/root/usr/bin/aria2c",
+    "-x4",
+    "-s4",
+    "-k1M",
+    "--checksum=sha-256=4560776f760919c25401d12dfbb022a0117ef5a91a01d2c9f0736c3b83d67904",
+    "--max-tries=3",
+    "--retry-wait=1",
+    "--lowest-speed-limit=16K",
+    "--connect-timeout=30",
+    "--timeout=30",
+    "--allow-overwrite=true",
+    "--auto-file-renaming=false",
+    "--file-allocation=none",
+    "--console-log-level=error",
+    "--summary-interval=0",
+    "-d",
+    "<dir>/src",
+    "-o",
+    "data.bin",
+    "--continue=true",
+    "--auto-save-interval=1",
+    "--ca-certificate=<certificate>",
+    "--check-certificate=true",
+    "<url>"
+   ]
+  }
+ },
+ "scenarios": {
+  "drop": {
+   "payload_bytes": 100663296,
+   "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+   "fetch.py (one stream)": {
+    "median_seconds": 12.316525524998724,
+    "startup_seconds": 0.12737878400366753,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     12.30149302299833,
+     12.424014415002603,
+     12.316525524998724,
+     12.3345790079984,
+     12.30032177499379
+    ],
+    "waits": [
+     "GET",
+     "GET range"
+    ]
+   },
+   "fetch.py (four segments)": {
+    "median_seconds": 3.456491093005752,
+    "startup_seconds": 0.2344268149972777,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     3.401366194993898,
+     3.7002907290006988,
+     3.40659746700112,
+     3.456491093005752,
+     3.5040444109981763
+    ],
+    "waits": [
+     "GET range",
+     "HEAD"
+    ]
+   },
+   "aria2c (one connection)": {
+    "median_seconds": 12.255605678998108,
+    "startup_seconds": 0.00896395200106781,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     12.310572960996069,
+     12.225567668996518,
+     12.34905349699693,
+     12.255605678998108,
+     12.24830095100333
+    ],
+    "waits": [
+     "GET",
+     "GET range"
+    ]
+   },
+   "aria2c (four connections)": {
+    "median_seconds": 3.252561721004895,
+    "startup_seconds": 0.011212892000912689,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     3.2799361619981937,
+     3.256164001999423,
+     3.252561721004895,
+     3.2478681670036167,
+     3.2451887899951544
+    ],
+    "waits": [
+     "GET",
+     "GET range"
+    ]
+   }
+  },
+  "mirror": {
+   "payload_bytes": 100663296,
+   "payload_sha256": "246bf0fa1cc1cf030a61b93e6d0c6384a3d168ca795c1bceec2b316bfbc0563e",
+   "fetch.py (one stream)": {
+    "median_seconds": 15.445544927999435,
+    "startup_seconds": 0.10762324200186413,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     15.479755022999598,
+     15.445544927999435,
+     15.555088505003368,
+     15.38962991900189,
+     15.336187057000643
+    ],
+    "waits": [
+     "GET",
+     "GET range",
+     "GET range refused",
+     "GET refused"
+    ]
+   },
+   "fetch.py (four segments)": {
+    "median_seconds": 5.324080913997022,
+    "startup_seconds": 0.12813077600003453,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     5.324080913997022,
+     5.2888315499949385,
+     5.258632231001684,
+     5.405051945002924,
+     5.344307523002499
+    ],
+    "waits": [
+     "GET range",
+     "GET range refused",
+     "HEAD",
+     "HEAD refused"
+    ]
+   },
+   "aria2c (one connection)": {
+    "median_seconds": 17.347886452997045,
+    "startup_seconds": 0.0057183790049748495,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     17.323093865001283,
+     17.39688991499861,
+     17.319266227001208,
+     17.347886452997045,
+     17.38486548000219
+    ],
+    "waits": [
+     "GET",
+     "GET range",
+     "GET refused"
+    ]
+   },
+   "aria2c (four connections)": {
+    "median_seconds": 7.4363562270009425,
+    "startup_seconds": 0.006388865003827959,
+    "median_refetched_bytes": 0,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "runs": 5,
+    "seconds": [
+     7.4363562270009425,
+     7.441962634002266,
+     7.391986622998957,
+     7.436064281995641,
+     7.4377050760012935
+    ],
+    "waits": [
+     "GET",
+     "GET range",
+     "GET range refused",
+     "GET refused"
+    ]
+   }
+  },
+  "gigabyte": {
+   "payload_bytes": 1073741824,
+   "payload_sha256": "4560776f760919c25401d12dfbb022a0117ef5a91a01d2c9f0736c3b83d67904",
+   "fetch.py (four segments)": {
+    "median_seconds": 33.7372222250051,
+    "startup_seconds": 0.16454784899542574,
+    "median_refetched_bytes": 638976,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "resumed": 5,
+    "runs": 5,
+    "seconds": [
+     33.8022770259995,
+     33.72709143599786,
+     33.680303329994786,
+     33.956764795999334,
+     33.7372222250051
+    ],
+    "waits": [
+     "GET range",
+     "HEAD"
+    ],
+    "kills": [
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940572672,
+      "second_requests": [
+       [
+        33292288,
+        235143168
+       ],
+       [
+        301727744,
+        235143168
+       ],
+       [
+        570163200,
+        235143168
+       ],
+       [
+        838598656,
+        235143168
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940507136,
+      "second_requests": [
+       [
+        33357824,
+        235077632
+       ],
+       [
+        301727744,
+        235143168
+       ],
+       [
+        570163200,
+        235143168
+       ],
+       [
+        838598656,
+        235143168
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940146688,
+      "second_requests": [
+       [
+        33423360,
+        235012096
+       ],
+       [
+        301809664,
+        235061248
+       ],
+       [
+        570294272,
+        235012096
+       ],
+       [
+        838680576,
+        235061248
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 939819008,
+      "second_requests": [
+       [
+        33439744,
+        234995712
+       ],
+       [
+        301989888,
+        234881024
+       ],
+       [
+        570376192,
+        234930176
+       ],
+       [
+        838729728,
+        235012096
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940163072,
+      "second_requests": [
+       [
+        33406976,
+        235028480
+       ],
+       [
+        301809664,
+        235061248
+       ],
+       [
+        570245120,
+        235061248
+       ],
+       [
+        838729728,
+        235012096
+       ]
+      ]
+     }
+    ]
+   },
+   "aria2c (four connections)": {
+    "median_seconds": 33.874539493001066,
+    "startup_seconds": 0.013729391997912899,
+    "median_refetched_bytes": 1294336,
+    "recovered": 5,
+    "intact": 5,
+    "cut": 5,
+    "latency": 5,
+    "resumed": 5,
+    "runs": 5,
+    "seconds": [
+     33.874539493001066,
+     34.4573307630053,
+     33.722554745996604,
+     33.74874231799913,
+     33.9085476439941
+    ],
+    "waits": [
+     "GET",
+     "GET range"
+    ],
+    "kills": [
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940818432,
+      "second_requests": [
+       [
+        0,
+        65536
+       ],
+       [
+        33423360,
+        235012096
+       ],
+       [
+        301613056,
+        235257856
+       ],
+       [
+        570097664,
+        235208704
+       ],
+       [
+        838467584,
+        235274240
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940933120,
+      "second_requests": [
+       [
+        0,
+        65536
+       ],
+       [
+        33374208,
+        235061248
+       ],
+       [
+        301613056,
+        235257856
+       ],
+       [
+        570048512,
+        235257856
+       ],
+       [
+        838451200,
+        235290624
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 941064192,
+      "second_requests": [
+       [
+        0,
+        65536
+       ],
+       [
+        33357824,
+        235077632
+       ],
+       [
+        301580288,
+        235290624
+       ],
+       [
+        569982976,
+        235323392
+       ],
+       [
+        838434816,
+        235307008
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940703744,
+      "second_requests": [
+       [
+        0,
+        65536
+       ],
+       [
+        33439744,
+        234995712
+       ],
+       [
+        301629440,
+        235241472
+       ],
+       [
+        570163200,
+        235143168
+       ],
+       [
+        838483968,
+        235257856
+       ]
+      ]
+     },
+     {
+      "at_signal": 134217728,
+      "at_kill": 134217728,
+      "second_bytes": 940769280,
+      "second_requests": [
+       [
+        0,
+        65536
+       ],
+       [
+        33374208,
+        235061248
+       ],
+       [
+        301629440,
+        235241472
+       ],
+       [
+        570114048,
+        235192320
+       ],
+       [
+        838533120,
+        235208704
+       ]
+      ]
+     }
+    ]
+   }
+  }
+ },
+ "acceptance": {
+  "drop": {
+   "met": true,
+   "bar": 1.1,
+   "net_ratio": 0.9940504549146494,
+   "time_ratio": 1.0626980790814486,
+   "startup": [
+    0.2344268149972777,
+    0.011212892000912689
+   ],
+   "refetched": [
+    0,
+    0
+   ],
+   "recovered": [
+    5,
+    5
+   ],
+   "cut": [
+    5,
+    5
+   ],
+   "intact": [
+    5,
+    5
+   ],
+   "latency": [
+    5,
+    5
+   ]
+  },
+  "gigabyte": {
+   "met": true,
+   "bar": 1.0,
+   "net_ratio": 0.9914905838302746,
+   "time_ratio": 0.9959462986050529,
+   "startup": [
+    0.16454784899542574,
+    0.013729391997912899
+   ],
+   "refetched": [
+    638976,
+    1294336
+   ],
+   "recovered": [
+    5,
+    5
+   ],
+   "cut": [
+    5,
+    5
+   ],
+   "intact": [
+    5,
+    5
+   ],
+   "latency": [
+    5,
+    5
+   ],
+   "resumed": [
+    5,
+    5
+   ]
+  },
+  "mirror": {
+   "met": true,
+   "bar": 1.0,
+   "net_ratio": 0.6993234135284759,
+   "time_ratio": 0.7159529145020809,
+   "startup": [
+    0.12813077600003453,
+    0.006388865003827959
+   ],
+   "refetched": [
+    0,
+    0
+   ],
+   "recovered": [
+    5,
+    5
+   ],
+   "cut": [
+    5,
+    5
+   ],
+   "intact": [
+    5,
+    5
+   ],
+   "latency": [
+    5,
+    5
+   ]
+  },
+  "all": {
+   "met": true,
+   "required": [
+    "drop",
+    "mirror",
+    "gigabyte"
+   ]
+  }
+ },
+ "measured": "2026-10-29T09:00:51Z"
+}

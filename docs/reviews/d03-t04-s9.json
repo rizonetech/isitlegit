@@ -1,0 +1,129 @@
+{
+  "ref": "D03 T04 \u00a79",
+  "title": "Spark teacher labels and human check",
+  "implementation_sha": "7d27690ca55ad2fb735f43b13944eb945942e7a6",
+  "date": "2026-10-29",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s9.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-teacher.test.ts test/node/glimmer-store.test.ts -> 74 passed with glimmer-dataset (each final-review test failing before its fix)",
+    "node scripts/glimmer/teacher-label.ts check -> teacher-label check: clean (real store, 575 checked, US$6.91)"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s9.md",
+    "verdict": "filed",
+    "candidate": "ac2ceb6bb36c576a8c5689d3e9beeb526b54b3c5",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a710",
+      "D03 T04 \u00a713"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s9.md",
+    "candidate": "c6b182c6068a4b6d31018c6ebca2ea695aad517e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s9.md",
+    "verdict": "fixed",
+    "candidate": "d5a9bec6f7434113321925d9edbd1f47bef21db2",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

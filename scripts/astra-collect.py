@@ -39,6 +39,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BRIEF = ROOT / "docs" / "glimmer" / "astra-collection-brief.md"
+FETCH = ROOT / "scripts" / "glimmer" / "fetch.py"
 MODEL = "gpt-6-astra"
 # The operator's Codex config defaults to `max`; research at `high` is this section's choice, changed here alone.
 EFFORT = "high"
@@ -302,6 +303,15 @@ def collect(args, raw: Path, run: list[str], lock, brief: Path = BRIEF) -> int:
             print(f"astra-collect: the earlier report is now {aside.name}")
     except OSError as error:
         return refuse(f"cannot move the earlier report aside: {error.strerror or error}")
+
+    # The brief's downloader, placed where Astra starts (it writes nothing outside that folder), so every download
+    # resumes and is verified by the same code (D03 T04 §16).
+    try:
+        placed = raw / f".fetch.py.{os.getpid()}.tmp"
+        placed.write_bytes(FETCH.read_bytes())
+        os.replace(placed, raw / ".fetch.py")
+    except OSError as error:
+        return refuse(f"cannot place the downloader: {error.strerror or error}")
 
     status = {"started": utc(), "outcome": "running", "pid": os.getpid(), "deadline_seconds": args.deadline_seconds}
     try:

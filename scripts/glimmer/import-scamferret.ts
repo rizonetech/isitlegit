@@ -11,7 +11,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { importSource, type SourceItem } from "./import-source.ts";
+import { concurrencyArg, importSource, type SourceItem } from "./import-source.ts";
 import { decodeHtml, normaliseScreenshot, openTextReader } from "./source-pages.ts";
 import { openStore, storeDir } from "./store.ts";
 
@@ -46,9 +46,17 @@ export function scamferretItems(datasetDir: string, reader: Awaited<ReturnType<t
           id: `${folder}/${category}/${file}`,
           url: `https://${host}/`,
           labels: { lure: scam, ...(lureType ? { lure_type: lureType } : {}) },
-          label_source: { lure: "ground-truth", ...(lureType ? { lure_type: "ground-truth" } : {}) },
+          // A scam tag whose category settles no lure type (cryptocurrency, investment) does not establish what the
+          // page itself does: its lure is unverified, trained at 0.7 and never evaluated (§18, admission rule).
+          label_source: {
+            lure: scam && !lureType ? "unverified" : "ground-truth",
+            ...(lureType ? { lure_type: "ground-truth" } : {}),
+          },
+          // The dataset's screenshot is a live capture; the text and form flags come from the inert HTML (§18 gap 8).
+          ...(existsSync(png) ? { inertFlags: true } : {}),
           load: async () => {
-            const html = decodeHtml(gunzipSync(readFileSync(join(htmlDir, file))));
+            // Bounded before the HTML is allocated: a crafted .html.gz could otherwise expand without limit.
+            const html = decodeHtml(gunzipSync(readFileSync(join(htmlDir, file)), { maxOutputLength: MAX_HTML_BYTES }));
             const rendered = await reader.renderHtml(html);
             if (!existsSync(png)) return rendered;
             return { ...rendered, screenshot: await normaliseScreenshot(new Uint8Array(readFileSync(png))) };
@@ -59,6 +67,8 @@ export function scamferretItems(datasetDir: string, reader: Awaited<ReturnType<t
   }
   return items;
 }
+
+export const MAX_HTML_BYTES = 20 * 1024 * 1024;
 
 if (import.meta.filename === process.argv[1]) {
   const dir = storeDir();
@@ -75,10 +85,13 @@ if (import.meta.filename === process.argv[1]) {
       items: scamferretItems(dataset, reader),
       store: openStore(dir),
       log: (line) => console.log(line),
+      concurrency: concurrencyArg(),
     });
     console.log(JSON.stringify({ ...result, excluded: result.excluded.length }));
     process.exitCode = result.status === "complete" ? 0 : 1;
   } finally {
     await reader.close();
   }
+  // The import ends when its work ends: a handle nothing waits on must not keep the next queued import waiting.
+  process.exit(process.exitCode ?? 0);
 }

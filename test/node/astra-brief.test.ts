@@ -33,10 +33,14 @@ const RULES: Record<string, string[]> = {
   "Recovery rules": [
     "`<source>/.partial/`",
     "only after its SHA-256 has been computed",
+    "`python3 .fetch.py --url <url> --dest <source>/<name> --sha256",
+    "its published digest matches",
+    "A rerun keeps `.partial/`",
+    "resumes an unfinished file",
+    "make no retries of your own",
     "`COLLECTED.md` is written last, through a temporary file and a rename",
     "only when every file it lists is in place",
     "skips a source whose `COLLECTED.md` hashes still match",
-    "deletes `.partial/` and redoes any source without a `COLLECTED.md`",
     "renames it to `COLLECTED.invalid-<UTC stamp>.md`",
     "other sources are left as they are",
   ],
@@ -90,6 +94,33 @@ describe("Astra's collection brief", () => {
         const copy = BRIEF.split(phrase).join("");
         expect(missing(copy), `${heading}: ${phrase}`).toContain(`${heading}: ${phrase}`);
       }
+    }
+  });
+});
+
+// docs/glimmer/astra-collection-brief-2.md (D03 T04 §18) downloads the same way (D03 T04 §16): its recovery rules are
+// the first brief's, and it resumes only its own sweep's folders.
+const BRIEF_2 = readFileSync(join(import.meta.dirname, "../../docs/glimmer/astra-collection-brief-2.md"), "utf-8");
+
+describe("the downloads both briefs make", () => {
+  it("resume through .fetch.py and never delete a partial download", () => {
+    for (const brief of [BRIEF, BRIEF_2]) {
+      expect(missing(brief).filter((gap) => gap.startsWith("Recovery rules"))).toEqual([]);
+      expect(brief).not.toContain("deletes `.partial/`");
+    }
+    expect(BRIEF_2).toContain("This sweep resumes only the folders it made itself, those holding `.sweep-2`");
+    expect(BRIEF_2).toContain("put an empty `<source>/.sweep-2` in it before its first download");
+    expect(BRIEF_2).toContain("except a folder this sweep made itself, which holds `.sweep-2`");
+    // A recollection after an invalid manifest keeps the mark, so an interrupted one can still be resumed.
+    expect(BRIEF_2).toContain("deletes that source's other files except `.sweep-2`");
+    // No file is accepted unverified: a dataset with no published digest is recorded, never fetched.
+    for (const [brief, floor, rejected] of [
+      [BRIEF, "10000000000", "`REJECTED.md`"],
+      [BRIEF_2, "20000000000", "`REJECTED-2.md`"],
+    ] as const) {
+      expect(brief).not.toContain("--unpublished");
+      expect(brief).toContain(`record it in ${rejected} with the reason \`no published digest\``);
+      expect(brief).toContain(`\`--min-free ${floor}\``);
     }
   });
 });
