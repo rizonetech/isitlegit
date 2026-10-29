@@ -8,10 +8,19 @@ import { readTeamHistory, TEAM_ACTIONS } from "./audit";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
 
+// A date in any ISO 8601 form, normalised to the stored form (`.000Z`, UTC), so equivalent times filter alike (G4).
+const When = z.iso
+  .datetime({ offset: true })
+  .transform((value) => new Date(value).toISOString())
+  .optional();
 const Filter = z.strictObject({
   action: z.enum(TEAM_ACTIONS).optional(),
-  from: z.iso.datetime().optional(),
-  to: z.iso.datetime().optional(),
+  from: When,
+  to: When,
+  after: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\|[0-9a-f-]{36}$/)
+    .optional(),
 });
 
 export const teamHistoryRoutes = new Hono<OrgEnv>();
@@ -25,10 +34,14 @@ teamHistoryRoutes.get("/history", async (c) => {
     return Response.json({ error: "only an owner reads the team history" }, { status: 403 });
   const filter = Filter.safeParse(c.req.query());
   if (!filter.success)
-    return Response.json({ error: "filter by action and by dates in ISO 8601 (from, to)" }, { status: 400 });
-  const rows = await readTeamHistory(c.env.DB, c.get("org").id, filter.data);
+    return Response.json(
+      { error: "filter by action and by dates in ISO 8601 (from, to); page with the cursor a page gave (after)" },
+      { status: 400 },
+    );
+  const { changes, next } = await readTeamHistory(c.env.DB, c.get("org").id, filter.data);
   return c.json({
-    changes: rows.map((row) => ({
+    next,
+    changes: changes.map((row) => ({
       at: row.at,
       action: row.kind,
       outcome: row.outcome,

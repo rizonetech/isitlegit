@@ -93,21 +93,43 @@ export type TeamChange = {
   detail_json: string | null;
 };
 
-// One organisation's team history, newest first, by action and date (D07 T04 §3 reads it through its owner-only route).
+// One organisation's team history, newest first, by action and date (D07 T04 §3 reads it through its owner-only route),
+// a page at a time: each page ends with the cursor of its last row, `at` then `id` (completion review, G5), so rows
+// sharing a time are never skipped or repeated. Dates are compared as the stored ISO timestamps (G4: the route
+// normalises them first).
+export const HISTORY_PAGE = 100;
 export async function readTeamHistory(
   db: D1Database,
   orgId: string,
-  filter: { action?: string | undefined; from?: string | undefined; to?: string | undefined; limit?: number } = {},
-): Promise<TeamChange[]> {
+  filter: {
+    action?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+    after?: string | undefined;
+  } = {},
+): Promise<{ changes: TeamChange[]; next: string | null }> {
   const actions =
     filter.action && (TEAM_ACTIONS as readonly string[]).includes(filter.action) ? [filter.action] : [...TEAM_ACTIONS];
+  const [afterAt, afterId] = filter.after ? filter.after.split("|") : [null, null];
   const rows = await db
     .prepare(
-      `SELECT id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? ORDER BY at DESC LIMIT ?`,
+      `SELECT id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? AND (? IS NULL OR at < ? OR (at = ? AND id < ?)) ORDER BY at DESC, id DESC LIMIT ?`,
     )
-    .bind(orgId, ...actions, filter.from ?? "", filter.to ?? "9999", Math.min(Math.max(filter.limit ?? 100, 1), 500))
+    .bind(
+      orgId,
+      ...actions,
+      filter.from ?? "",
+      filter.to ?? "9999",
+      afterAt ?? null,
+      afterAt ?? null,
+      afterAt ?? null,
+      afterId ?? null,
+      HISTORY_PAGE + 1,
+    )
     .all<TeamChange>();
-  return rows.results;
+  const changes = rows.results.slice(0, HISTORY_PAGE);
+  const last = changes.at(-1);
+  return { changes, next: rows.results.length > HISTORY_PAGE && last ? `${last.at}|${last.id}` : null };
 }
 
 // The cron's sweep (D07 T02 §6): expired limiter buckets, and audit rows past their retention, each in a bounded batch.

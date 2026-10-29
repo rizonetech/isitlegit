@@ -302,3 +302,118 @@ describe("retention", () => {
     expect(ids).toEqual([{ id: "new-row" }]);
   });
 });
+
+describe("completion review (2026-10-29)", () => {
+  it("attributes a resend to the admin who resent it, and records a role change's from and to", async () => {
+    const ownerEmail = `resend-${unique()}@example.org`;
+    const { cookie, orgId } = await owner(ownerEmail);
+    const adminEmail = `resender-${unique()}@example.org`;
+    const { cookie: adminCookie } = await joiner(cookie, adminEmail, "admin");
+    const invitee = `invitee-${unique()}@example.org`;
+    await api("/api/auth/organization/invite-member", cookie, { email: invitee, role: "member" });
+    await api("/api/auth/organization/invite-member", adminCookie, { email: invitee, role: "member", resend: true });
+    const invites = await events("invite", "org_id = ?", orgId);
+    expect(invites.at(-1)).toMatchObject({ actor_id: await userIdOf(adminEmail), outcome: "resent" });
+    const memberEmail = `roles-${unique()}@example.org`;
+    await joiner(cookie, memberEmail, "member");
+    const memberRow = await db
+      .prepare(`SELECT m.id FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE u.email = ?`)
+      .bind(memberEmail)
+      .first<{ id: string }>();
+    await api("/api/auth/organization/update-member-role", cookie, { memberId: memberRow?.id, role: "admin" });
+    await api("/api/auth/organization/update-member-role", cookie, { memberId: memberRow?.id, role: "member" });
+    await api("/api/auth/organization/remove-member", cookie, { memberIdOrEmail: memberEmail });
+    const changes = (await events("update-member-role", "org_id = ?", orgId)).map((e) =>
+      JSON.parse(e.detail_json ?? "{}"),
+    );
+    expect(changes).toEqual([
+      { from: "member", to: "admin" },
+      { from: "admin", to: "member" },
+    ]);
+  });
+
+  it("pages the history by a stable cursor, newest first, and filters equivalent dates alike", async () => {
+    const { cookie, orgId } = await owner(`pages-${unique()}@example.org`);
+    const at = "2026-10-29T07:00:00.000Z";
+    const insert = db.prepare(
+      "INSERT INTO auth_events (id, at, kind, outcome, org_id) VALUES (?, ?, 'remove-member', 'removed', ?)",
+    );
+    await db.batch(
+      Array.from({ length: 101 }, (_, i) =>
+        insert.bind(
+          crypto.randomUUID(),
+          i < 3 ? at : `2026-10-29T06:${String(i % 60).padStart(2, "0")}:00.500Z`,
+          orgId,
+        ),
+      ),
+    );
+    const read = (query: string) => call(`/api/team/history${query}`, { headers: { cookie } });
+    const first = (await (await read("")).json()) as { changes: { at: string }[]; next: string | null };
+    expect(first.changes).toHaveLength(100);
+    expect(first.next).not.toBeNull();
+    const ats = first.changes.map((c) => c.at);
+    expect([...ats].sort().reverse()).toEqual(ats);
+    const second = (await (await read(`?after=${encodeURIComponent(first.next ?? "")}`)).json()) as {
+      changes: unknown[];
+      next: string | null;
+    };
+    expect(second.changes).toHaveLength(1);
+    expect(second.next).toBeNull();
+    const plain = (await (await read("?from=2026-10-29T07:00:00Z")).json()) as { changes: unknown[] };
+    const millis = (await (await read("?from=2026-10-29T07:00:00.000Z")).json()) as { changes: unknown[] };
+    const offset = (await (await read(`?from=${encodeURIComponent("2026-10-29T09:00:00+02:00")}`)).json()) as {
+      changes: unknown[];
+    };
+    expect([plain.changes.length, millis.changes.length, offset.changes.length]).toEqual([3, 3, 3]);
+  });
+
+  it("records a verification by DNS, an expired and a locked code, and a verified address", async () => {
+    const { cookie, orgId } = await owner(`more-${unique()}@example.org`);
+    const domain = `d${unique()}.co.za`;
+    const claimed = (await (await api("/api/org/domains", cookie, { domain })).json()) as { token?: string };
+    const token =
+      claimed.token ??
+      (await db.prepare("SELECT token FROM org_domains WHERE domain = ?").bind(domain).first<{ token: string }>())
+        ?.token;
+    world.doh = () => Response.json({ Status: 0, Answer: [{ type: 16, data: `"isitlegit-verify=${token}"` }] });
+    await api(`/api/org/domains/${domain}/check`, cookie);
+    const other = `e${unique()}.co.za`;
+    await api("/api/org/domains", cookie, { domain: other });
+    await api(`/api/org/domains/${other}/code`, cookie, { local: "admin" });
+    await db
+      .prepare("UPDATE verification_codes SET expires_at = ?")
+      .bind(new Date(Date.now() - 60_000).toISOString())
+      .run();
+    await api(`/api/org/domains/${other}/verify`, cookie, { code: "123456" });
+    const third = `f${unique()}.co.za`;
+    await api("/api/org/domains", cookie, { domain: third });
+    await api(`/api/org/domains/${third}/code`, cookie, { local: "admin" });
+    for (let i = 0; i < 6; i++) await api(`/api/org/domains/${third}/verify`, cookie, { code: "000000" });
+    const outcomes = (await events("verify-domain", "org_id = ?", orgId)).map((e) => e.outcome);
+    expect(outcomes).toEqual(expect.arrayContaining(["verified-dns", "expired", "locked"]));
+    const address = `ok-${unique()}@gmail.com`;
+    await api("/api/org/addresses", cookie, { address });
+    const code = /\b(\d{6})\b/.exec(world.sends.at(-1)?.text ?? "")?.[1] ?? "";
+    await api("/api/org/addresses/verify", cookie, { address, code });
+    expect((await events("verify-address", "org_id = ?", orgId)).map((e) => e.outcome)).toEqual(["verified-code"]);
+  });
+
+  it("records a link that finds no account to sign in to", async () => {
+    const { cookie } = await owner(`noacct-${unique()}@example.org`);
+    const invitee = `gone-${unique()}@example.org`;
+    const invited = await api("/api/auth/organization/invite-member", cookie, { email: invitee, role: "member" });
+    const invitationId = ((await invited.json()) as { id: string }).id;
+    await call("/api/auth/sign-in/magic-link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: invitee }),
+    });
+    const link = lastLink();
+    await api("/api/auth/organization/cancel-invitation", cookie, { invitationId });
+    const before = (await events("sign-in-failed")).length;
+    await redeem(link);
+    const failed = await events("sign-in-failed");
+    expect(failed.length).toBe(before + 1);
+    expect(failed.at(-1)?.outcome).not.toBe("invalid_token");
+  });
+});

@@ -167,3 +167,60 @@ it("keeps no client address in rate_limits", async () => {
   expect(rows.some((r) => r.key.includes(ip))).toBe(false);
   expect(pathOf("http://localhost/x")).toBe("/x");
 });
+
+describe("completion review (2026-10-29)", () => {
+  it("bounds a passkey sign-in's challenge and its proof per IP, and admits again after the window", async () => {
+    const ip = freshIp();
+    const challenge = () =>
+      call("/api/auth/passkey/generate-authenticate-options", { headers: { "cf-connecting-ip": ip } });
+    const proof = () =>
+      call("/api/auth/passkey/verify-authentication", {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+        body: JSON.stringify({ response: { id: "x" } }),
+      });
+    for (let i = 0; i < LINK_MAX; i++) expect((await challenge()).status).not.toBe(429);
+    expect((await challenge()).status).toBe(429);
+    for (let i = 0; i < LINK_MAX; i++) expect((await proof()).status).not.toBe(429);
+    expect((await proof()).status).toBe(429);
+    await expireWindows();
+    expect((await challenge()).status).not.toBe(429);
+  });
+
+  it("admits exactly twenty verifications when twenty-five race from one IP", async () => {
+    restore = stubSmtp2go().restore;
+    const ip = freshIp();
+    const raced = await Promise.all(Array.from({ length: 25 }, (_, i) => confirm(ip, `racing-${i}`)));
+    expect(raced.filter((r) => r.status === 429)).toHaveLength(5);
+  });
+
+  it("tells a throttled member how to get a new link if theirs runs out while they wait", async () => {
+    restore = stubSmtp2go().restore;
+    const ip = freshIp();
+    for (let i = 0; i < LINK_MAX; i++) await confirm(ip, `spent-${i}`);
+    const html = await (await confirm(ip, "whatever")).text();
+    expect(html).toContain("if yours has run out by then, ask for a new one below");
+    expect(html).toContain('href="/signin/link?callbackURL=%2Fcases"');
+    expect(html).not.toContain("your link still works");
+  });
+
+  it("sweeps expired buckets from the Worker's own scheduled run", async () => {
+    const { default: worker } = await import("../../src/index");
+    const now = Math.floor(Date.now() / 1000);
+    await db
+      .prepare("INSERT OR REPLACE INTO rate_limits (key, count, window_start) VALUES ('stale', 9, ?)")
+      .bind(now - 7_200)
+      .run();
+    const waits: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await worker.scheduled(
+      { scheduledTime: Date.now(), cron: "*/15 * * * *", noRetry: () => {} },
+      authEnv,
+      ctx as unknown as ExecutionContext,
+    );
+    await Promise.allSettled(waits);
+    expect(await db.prepare("SELECT 1 FROM rate_limits WHERE key = 'stale'").first()).toBeNull();
+  });
+});

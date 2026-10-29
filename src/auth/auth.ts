@@ -158,6 +158,18 @@ export function authOptions(
         // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
         if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
+        if (ctx.path === "/organization/update-member-role" && ctx.request) {
+          // The role being replaced, read before the change, for its audit row (completion review, E1).
+          const memberId = (ctx.body as { memberId?: unknown } | undefined)?.memberId;
+          if (typeof memberId === "string") {
+            const member = await ctx.context.adapter.findOne<{ role: string }>({
+              model: "member",
+              where: [{ field: "id", value: memberId }],
+            });
+            if (member) previousRoles.set(ctx.request, member.role);
+          }
+          return;
+        }
         if (ctx.path === "/organization/set-active") {
           // Better Auth clears the active organisation before refusing a switch to one the user does not belong to,
           // leaving them in none; the switch is refused here first, the session as it was.
@@ -298,11 +310,13 @@ export function authOptions(
             role?: string;
           } | null;
           if (!invitation || typeof invitation.id !== "string" || isAPIError(invitation)) return;
+          // The caller is the actor, not the invitation's first inviter: a resend by another admin is theirs (G3).
+          const resent = (ctx.body as { resend?: unknown } | undefined)?.resend === true;
           await audit({
             kind: "invite",
-            outcome: "made",
+            outcome: resent ? "resent" : "made",
             orgId: invitation.organizationId ?? null,
-            actorId: invitation.inviterId ?? null,
+            actorId: (await getSessionFromCtx(ctx))?.user.id ?? invitation.inviterId ?? null,
             targetId: invitation.id,
             ip: clientIp(ctx.request?.headers),
             detail: { role: invitation.role ?? null },
@@ -330,6 +344,7 @@ export function authOptions(
           } | null;
           if (!returned || isAPIError(returned) || !returned.organizationId) return;
           const role = ctx.path === "/organization/update-member-role";
+          const before = ctx.request ? previousRoles.get(ctx.request) : undefined;
           await audit({
             kind: role ? "update-member-role" : "cancel-invitation",
             outcome: role ? "changed" : "revoked",
@@ -337,7 +352,8 @@ export function authOptions(
             actorId: (await getSessionFromCtx(ctx))?.user.id ?? null,
             targetId: (role ? returned.userId : returned.id) ?? null,
             ip: clientIp(ctx.request?.headers),
-            ...(role ? { detail: { role: returned.role ?? null } } : {}),
+            // A role change says what it replaced (E1), read before the change was made.
+            ...(role ? { detail: { from: before ?? null, to: returned.role ?? null } } : {}),
           });
           return;
         }
@@ -396,6 +412,9 @@ export function authOptions(
     },
   } satisfies BetterAuthOptions;
 }
+
+// A role change's previous role, from its before hook to its after hook, by request (dropped with the request).
+const previousRoles = new WeakMap<Request, string>();
 
 // The way a session was made, as the audit trail names it.
 function methodOf(path: string | undefined): string {

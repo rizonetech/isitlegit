@@ -5,13 +5,16 @@
 import type { BetterAuthOptions } from "better-auth";
 import { type AuthEvent, bucketKey } from "./audit";
 
-// 20 link requests and 20 link verifications per IP per 10 minutes, each counted apart (Better Auth keys a bucket by IP
-// and path). The per-address limit on sign-in mail is sendMail's own (D01 T02 §2).
+// 20 link requests, 20 link verifications, 20 passkey challenges and 20 passkey proofs per IP per 10 minutes, each
+// counted apart (Better Auth keys a bucket by IP and path). The per-address limit on sign-in mail is sendMail's own (D01 T02 §2).
 export const LINK_WINDOW_SECONDS = 600;
 export const LINK_MAX = 20;
 export const RATE_RULES = {
   "/sign-in/magic-link": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
   "/magic-link/verify": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
+  // A passkey sign-in is a challenge then its proof, each bounded the same (completion review, G1).
+  "/passkey/generate-authenticate-options": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
+  "/passkey/verify-authentication": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
 } as const;
 
 // The paths counted are the ones with a rule here; every other path passes without a write, as it did when Better Auth's
