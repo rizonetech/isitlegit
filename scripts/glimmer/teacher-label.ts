@@ -36,7 +36,7 @@ import {
   takeLock,
   tokenCost,
 } from "../meta-smoke.ts";
-import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
+import { applyRules, canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
@@ -168,12 +168,27 @@ export type TeacherStatus = PageOutcome["status"] | "unchecked" | "stale";
 const stateFile = (dir: string) => join(dir, "raw", "teacher", "state.json");
 const queueFile = (dir: string) => join(dir, "review-queue.jsonl");
 
+// Every byte of `data` written, however few each write takes (a nearly full disk writes less than asked), or the error
+// that stopped it: a file is never published or appended to half written.
+export function writeAll(
+  fd: number,
+  data: string,
+  write: (fd: number, buffer: Uint8Array, offset: number, length: number) => number = writeSync,
+): void {
+  const bytes = Buffer.from(data, "utf-8");
+  for (let at = 0; at < bytes.length; ) {
+    const written = write(fd, bytes, at, bytes.length - at);
+    if (written <= 0) throw new Error(`a write took no bytes at ${at} of ${bytes.length}`);
+    at += written;
+  }
+}
+
 function writeDurably(path: string, text: string): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
   const fd = openSync(temporary, "w");
   try {
-    writeSync(fd, text);
+    writeAll(fd, text);
     fsyncSync(fd);
   } finally {
     closeSync(fd);
@@ -243,9 +258,12 @@ export function readQueue(dir: string): { id: string; source: { lure: boolean };
 
 function appendQueue(dir: string, entry: { id: string; source: { lure: boolean }; spark: PageAnswer }): void {
   if (readQueue(dir).some((queued) => queued.id === entry.id)) return; // a resumed apply writes it once
-  const fd = openSync(queueFile(dir), "a");
+  const file = queueFile(dir);
+  // A stop can leave a whole last entry without its newline: the separator goes back before anything is added.
+  const text = existsSync(file) ? readFileSync(file, "utf-8") : "";
+  const fd = openSync(file, "a");
   try {
-    writeSync(fd, `${JSON.stringify(entry)}\n`);
+    writeAll(fd, `${text && !text.endsWith("\n") ? "\n" : ""}${JSON.stringify(entry)}\n`);
     fsyncSync(fd);
   } finally {
     closeSync(fd);
@@ -334,6 +352,8 @@ export async function teach(options: {
   const { store, ask, ledgerFile, run } = options;
   const now = options.now ?? (() => new Date());
   const state = readTeacherState(store.dir);
+  // An earlier version's record read in is kept in the new form at once, so the rules see its quarantines.
+  if (state.size && !existsSync(stateFile(store.dir))) saveTeacherState(store.dir, state);
   const result: TeacherResult = {
     checked: 0,
     agreed: 0,
@@ -449,7 +469,14 @@ export async function teach(options: {
         outcome = sent
           ? { status: "failed", reason: `a retry was refused: ${stop}` }
           : { status: "refused", reason: stop };
-      } else outcome = { status: "failed", reason: `no answer (${(error as Error).name})` };
+      }
+      // The request may have reached Meta and its answer been lost on the way back (a cut connection, a settlement
+      // that timed out after the answer arrived): what Spark said cannot be known, so the page is quarantined.
+      else
+        outcome = {
+          status: "quarantined",
+          reason: `no answer reached the teacher (${(error as Error).name}); it may have disagreed`,
+        };
     }
     state.set(page.id, outcome);
     saveTeacherState(store.dir, state);
@@ -458,7 +485,7 @@ export async function teach(options: {
       break;
     }
     result.checked++;
-    if (outcome.status === "failed") result.failed++;
+    if (outcome.status === "failed" || outcome.status === "quarantined") result.failed++;
     else if (outcome.status === "disputed") result.queued++;
     else result.agreed++;
     apply(store, state, page, result);
@@ -604,6 +631,11 @@ export function checkLabels(store: ReturnType<typeof openStore>): string[] {
     problems.push(`${loose.length} pages have neither a complete label nor an exclusion (first: ${loose[0]?.id})`);
   const damaged = store.verify().damaged.filter((id) => !excluded.has(id));
   if (damaged.length) problems.push(`${damaged.length} damaged pages are not excluded (first: ${damaged[0]})`);
+  const held = [...readTeacherState(store.dir)].filter(([id, o]) => o.status === "quarantined" && !excluded.has(id));
+  if (held.length)
+    problems.push(
+      `${held.length} quarantined pages are not excluded: run label-rules.ts again (first: ${held[0]?.[0]})`,
+    );
   const file = receiptFile(store.dir);
   if (!existsSync(file)) problems.push("no receipt: run the teacher");
   else {
@@ -647,6 +679,8 @@ if (import.meta.filename === process.argv[1] && process.argv[2] !== "check") {
       now: clock.teacher,
     });
     console.log(JSON.stringify(result));
+    // The rules again, so every page this run quarantined is excluded before the receipt is written.
+    applyRules(store);
     console.log(JSON.stringify(writeReceipt(store, readLedger(ledgerFile))));
   } finally {
     release();

@@ -501,6 +501,9 @@ describe("the brand rule (D03 T04 §9)", () => {
     expect(derivedBrand(page({ lure: true }), "Continue with Apple. Takealot order 4411 on hold")).toBe("Takealot");
     // An everyday word that is also a listed brand does not make a brand.
     expect(derivedBrand(page({ lure: true }), "Game over: Clicks and Rain")).toBeNull();
+    // A brand named by its domain meets its host's stem.
+    expect(derivedBrand(page({ lure: false }, "www.booking.com"), "")).toBe("Booking.com");
+    expect(canonicalBrand("booking")).toBe(canonicalBrand("Booking.com"));
     // An unknown name stays as given.
     expect(canonicalBrand("  Metamorphosis ")).toBe("Metamorphosis");
     // Any case of a several-word name or long form, and a one-word name in capitals.

@@ -19,6 +19,7 @@ import {
   TEACHER_MAX_OUTPUT_TOKENS,
   teach,
   teacherState,
+  writeAll,
   writeReceipt,
 } from "../../scripts/glimmer/teacher-label.ts";
 import { ledgerId } from "../../scripts/lib/meta-budget.ts";
@@ -645,5 +646,91 @@ describe("the teacher's accounting and coverage", () => {
     expect(receipt.fields.has_login_form?.dom).toEqual({ agree: 1, disagree: 1 });
     expect(receipt.agreed).toMatchObject({ lures: 1, benign: 0, byType: { credential: 1 }, bySource: { set: 1 } });
     expect(receipt.teacher).toEqual({ agreed: 1, disputed: 1 });
+  });
+});
+
+describe("the teacher's records through a stop or a short write (round 1)", () => {
+  it("writes every byte however few each write takes, and refuses a write that takes none", () => {
+    const taken: number[] = [];
+    const written: number[] = [];
+    writeAll(7, "x".repeat(279), (_fd, buffer, offset, length) => {
+      const n = Math.min(length, 139);
+      taken.push(n);
+      written.push(...buffer.subarray(offset, offset + n));
+      return n;
+    });
+    expect(taken).toEqual([139, 139, 1]);
+    expect(written).toHaveLength(279);
+    expect(() => writeAll(7, "abc", () => 0)).toThrow(/took no bytes/);
+  });
+
+  it("puts the separator back after a whole last queue entry that lost its newline", async () => {
+    const first = await stored(2, false);
+    const second = await stored(4, false);
+    mkdirSync(join(dir, "store", "raw", "teacher"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "teacher", "state.json"),
+      JSON.stringify({
+        pages: {
+          [first]: { status: "disputed", answer: JSON.parse(answer(true)), applied: true },
+          [second]: { status: "disputed", answer: JSON.parse(answer(true)), applied: false },
+        },
+      }),
+    );
+    // The stop came right after the first entry's closing brace.
+    writeFileSync(
+      join(dir, "store", "review-queue.jsonl"),
+      JSON.stringify({ id: first, source: { lure: false }, spark: JSON.parse(answer(true)) }),
+    );
+    await teach({
+      store: openStore(join(dir, "store")),
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: answering(() => answer(true)),
+    });
+    expect(readQueue(join(dir, "store")).map((e) => e.id)).toEqual([first, second]);
+  });
+
+  it("quarantines a page whose answer was lost after sending, and the rules exclude it", async () => {
+    const { applyRules, readExcluded } = await import("../../scripts/glimmer/label-rules.ts");
+    const id = await stored(2, false);
+    const store = openStore(join(dir, "store"));
+    await teach({
+      store,
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "glimmer-teacher-test",
+      max: 10,
+      now: NOW,
+      ask: async (_input, _instructions, attempts) => {
+        attempts.reserve(1, ESTIMATE_USD);
+        throw new Error("settlement timed out after the answer arrived");
+      },
+    });
+    expect(statusOf(id)).toBe("quarantined");
+    // Before the rules run again, the check refuses the receipt; after, the page is excluded.
+    writeReceipt(store, []);
+    expect(checkLabels(store).join()).toMatch(/quarantined pages are not excluded/);
+    applyRules(store);
+    expect(readExcluded(join(dir, "store")).get(id)).toMatch(/teacher's answer was lost/);
+  });
+
+  it("keeps an earlier version's record in the new form at once, so its quarantine reaches the rules", async () => {
+    const { applyRules, readExcluded } = await import("../../scripts/glimmer/label-rules.ts");
+    const id = await stored(1, true);
+    mkdirSync(join(dir, "store", "raw", "teacher"), { recursive: true });
+    writeFileSync(join(dir, "store", "raw", "teacher", "checked.jsonl"), `${JSON.stringify({ id, answered: true })}\n`);
+    const store = openStore(join(dir, "store"));
+    await teach({
+      store,
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "glimmer-teacher-test",
+      max: 0,
+      now: NOW,
+      ask: answering(() => answer(true)),
+    });
+    applyRules(store);
+    expect(readExcluded(join(dir, "store")).get(id)).toMatch(/teacher's answer was lost/);
   });
 });

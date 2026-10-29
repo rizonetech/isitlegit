@@ -214,6 +214,12 @@ const LONG_FORMS: [string, string][] = [
   ["SARS eFiling", "SARS"],
 ];
 for (const [form, name] of LONG_FORMS) CANONICAL.set(brandKey(form), name);
+// A brand named by its domain ("Booking.com", "Domains.co.za") also answers to its host's stem, as a real page's host
+// gives it (`www.booking.com` is `booking`).
+for (const name of [...KNOWN_BRANDS, ...LISTED]) {
+  const stem = /^([\p{L}\p{N}-]+)\.[\p{L}.]+$/u.exec(name)?.[1];
+  if (stem && !CANONICAL.has(brandKey(stem))) CANONICAL.set(brandKey(stem), name);
+}
 
 // The one name a brand goes by (a known spelling, or the name as given when it is not one we know).
 export function canonicalBrand(name: string): string {
@@ -316,7 +322,12 @@ function writeExcluded(dir: string, excluded: Map<string, string>): void {
   const temporary = `${file}.${process.pid}.tmp`;
   const fd = openSync(temporary, "w");
   try {
-    writeSync(fd, [...excluded].map(([id, reason]) => `${JSON.stringify({ id, reason })}\n`).join(""));
+    const data = Buffer.from([...excluded].map(([id, reason]) => `${JSON.stringify({ id, reason })}\n`).join(""));
+    for (let at = 0; at < data.length; ) {
+      const written = writeSync(fd, data, at, data.length - at); // a nearly full disk may write less than asked
+      if (written <= 0) throw new Error(`a write took no bytes at ${at} of ${data.length}`);
+      at += written;
+    }
     fsyncSync(fd);
   } finally {
     closeSync(fd);
