@@ -23,7 +23,8 @@ tests' local server), at most 5 redirects, `https` (or `http` on the same host).
 is cut to 60, so a run stays bounded, and the log says so) and other waits double from 1 second; a transfer slower than `--min-rate` over 60 seconds is cut and counted as a failure. Before and
 during a transfer the source folder (every file in it, partials included) stays under `--source-limit` and the disk
 keeps `--min-free` free. Progress goes to standard error; one JSON line goes to standard output (`status`, `bytes`,
-`fetched`, `sha256`, `resumed`, `reason`). The exit is 0 only for a file in place.
+`fetched`, `sha256`, `resumed`, `url`, `reason`; `url` is the URL the file came from, null when it was already in
+place or the run failed). The exit is 0 only for a file in place.
 
 A file of at least `--segment-threshold` bytes (64 MiB) whose `HEAD` gives its length, `Accept-Ranges: bytes`, no
 content coding and a strong validator comes in up to four ranges at once (`--segments`: 0 automatic, 1 one stream;
@@ -345,7 +346,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         except OSError as error:
             raise Refused(f"incomplete: {target} could not be read ({error.strerror})") from error
         if found == want:
-            return outcome("present", sha256=_digest(target, "sha256") if kind != "sha256" else found, resumed=False)
+            # Not fetched this run, so no URL served it: `url` is null (the line keeps one shape).
+            return outcome("present", sha256=_digest(target, "sha256") if kind != "sha256" else found, resumed=False,
+                           url=None)
         raise Refused(f"refused: {target} is in place but its {kind} differs")
 
     partial_dir.mkdir(parents=True, exist_ok=True)
@@ -473,14 +476,16 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             that does not qualify, or a one-stream partial from an earlier run); "again" asks the loop to come back (a
             segment answer that did not fit, so the rest of this run goes one stream, or a URL ruled out)."""
             nonlocal state, fetched, resumed, one_stream
-            if state.get("segments") and consistent(state):
-                pass  # saved ranges are resumed whatever this run asks (on one connection under --segments 1)
-            elif one_stream or (state and "segments" not in state):
-                return "one-stream"
             if state.get("segments") and not consistent(state):
+                # Ranges that do not tile the file, or a partial of the wrong length: start again, whatever this run
+                # asks (a one-stream run would otherwise read the sparse partial's full length as a whole file).
                 partial.unlink(missing_ok=True)
                 state_file.unlink(missing_ok=True)
                 state = {}
+            if state.get("segments"):
+                pass  # saved ranges are resumed whatever this run asks (on one connection under --segments 1)
+            elif one_stream or state:
+                return "one-stream"
             if not state.get("segments"):
                 # Any failure of the HEAD, or an answer that does not qualify, leaves the file to the one stream,
                 # which has its own budget and checks.
@@ -490,7 +495,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     try:
                         status = response.status
                         length = response.getheader("Content-Length") or ""
-                        ranges = (response.getheader("Accept-Ranges") or "").strip().lower()
+                        # A list of range units (RFC 9110 14.3): `bytes` among them qualifies.
+                        ranges = {unit.strip().lower() for unit in (response.getheader("Accept-Ranges") or "").split(",")}
                         validator = _validator(response.headers)
                         encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
                         wait_asked = _retry_after(response.getheader("Retry-After"))
@@ -512,7 +518,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     spend(f"HTTP {status} to the HEAD", wait_asked)
                     return "again"
                 ok = status == 200
-                if not (ok and _count(length) is not None and ranges == "bytes" and validator and encoding == "identity"
+                if not (ok and _count(length) is not None and "bytes" in ranges and validator and encoding == "identity"
                         and _count(length) >= segment_threshold):
                     one_stream = True
                     return "one-stream"
@@ -755,9 +761,17 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     thread.start()
                 along = threading.Thread(target=hash_along, daemon=True)
                 along.start()
-                for thread in threads:
-                    thread.join()
-                along.join()
+                try:
+                    for thread in threads:
+                        thread.join()
+                    along.join()
+                except BaseException:
+                    # Interrupted (Ctrl-C in a caller that goes on): every range stops and is waited for before the
+                    # shared descriptor closes, so none writes or saves after this call returns.
+                    stop.set()
+                    for thread in (*threads, along):
+                        thread.join()
+                    raise
                 if not errors and not hashed["failed"] and frontier() == state["total"]:
                     try:
                         hash_up_to(state["total"])
@@ -821,7 +835,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     code = response.status
                     if code == 416:
                         unsatisfied = response.getheader("Content-Range") or ""
-                        whole = re.fullmatch(r"bytes \*/(\d+)", unsatisfied)
+                        whole = re.fullmatch(r"bytes \*/(\d{1,19})", unsatisfied)  # bounded, as every header count
                         if have and whole and int(whole.group(1)) == have:
                             state["total"] = have
                             break
@@ -995,7 +1009,7 @@ def main(argv=None) -> int:
         reason = str(error)
         # The same fields as a success, so a caller reads one shape; `fetched` is unknown on a failure.
         print(json.dumps({"status": reason.split(":")[0], "bytes": 0, "fetched": None, "sha256": None,
-                          "resumed": False, "reason": reason}))
+                          "resumed": False, "url": None, "reason": reason}))
         return 1
     print(json.dumps(line))
     return 0

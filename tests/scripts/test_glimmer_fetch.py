@@ -75,7 +75,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if "no-length" not in modes:
             self.send_header("Content-Length", str(len(server.body)))
         if "no-accept-ranges" not in modes:
-            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Accept-Ranges", "none, bytes" if "listed-ranges" in modes else "bytes")
         self.send_header("ETag", 'W/"v1"' if "weak-etag" in modes else server.etag)
         if "encoding" in modes:
             self.send_header("Content-Encoding", "gzip")
@@ -171,7 +171,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             start = int(ranged.split("=")[1].split("-")[0])
             if start >= len(body):
                 self.send_response(416)
-                self.send_header("Content-Range", f"bytes */{len(body)}")
+                self.send_header("Content-Range", f"bytes */{'9' * 5000 if 'huge-416' in modes else len(body)}")
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
@@ -460,7 +460,7 @@ class Fetch(unittest.TestCase):
                              cwd=self.dir, check=False)
         self.assertEqual(out.returncode, 1, out.stderr)
         line = json.loads(out.stdout)
-        self.assertEqual(set(line), {"status", "bytes", "fetched", "sha256", "resumed", "reason"})
+        self.assertEqual(set(line), {"status", "bytes", "fetched", "sha256", "resumed", "url", "reason"})
         self.assertIn("malformed URL", line["reason"])
 
     def test_one_download_into_a_source_at_a_time(self):
@@ -900,7 +900,10 @@ class Fetch(unittest.TestCase):
                                    "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE),
                                    "--segment-threshold", str(1 << 20)], capture_output=True, text=True, check=False)
 
-        for modes, segmented in (({"segment-slow"}, True), ({"no-accept-ranges"}, False), ({"segment-wrong-offset"}, True)):
+        cases = (({"segment-slow"}, True), ({"no-accept-ranges"}, False), ({"weak-etag"}, False), ({"no-length"}, False),
+                 ({"encoding"}, False), ({"head-501"}, False), ({"segment-wrong-offset"}, True), ({"bad-bounds"}, True),
+                 ({"segment-bad-length"}, True), ({"no-validator-on-range"}, True), ({"segment-short"}, True))
+        for modes, segmented in cases:
             with self.subTest(modes=modes):
                 shutil.rmtree("src", ignore_errors=True)
                 self.server.modes, self.server.segment_requests = set(modes), 0
@@ -986,6 +989,70 @@ class Fetch(unittest.TestCase):
                              segment_threshold=1 << 20, attempts=1, **ROOMY)
         self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
         self.assert_whole()
+
+    # Final review findings (D03 T04 §20).
+    def test_a_hostile_416_total_is_a_refusal_line_not_a_traceback(self):
+        Path("src/.partial").mkdir(parents=True)
+        Path("src/.partial/data.bin").write_bytes(BODY)
+        Path("src/.partial/data.bin.state.json").write_text(state(self.base, total=None))
+        self.server.modes = {"huge-416"}
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin",
+                               "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE),
+                               "--segments", "1"], capture_output=True, text=True, check=False)
+        self.assertNotIn("Traceback", done.stderr)
+        line = json.loads(done.stdout)  # one JSON line, either way
+        self.assertIn(line["status"], ("fetched", "incomplete", "refused"))
+
+    def test_one_stream_over_an_inconsistent_segment_state_starts_again(self):
+        Path("src/.partial").mkdir(parents=True)
+        with open("src/.partial/data.bin", "wb") as handle:
+            handle.truncate(SIZE)  # a sparse partial of the full length, as a segmented run leaves
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps(
+            {"url": self.base + "/file", "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity",
+             "total": SIZE, "segments": [[0, 99, 100], [200, SIZE - 1, 0]]}))
+        result = self.run_fetch(segments=1)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+
+    def test_every_json_line_has_a_url(self):
+        self.run_fetch()
+        self.assertIsNone(self.run_fetch()["url"])  # present: not fetched this run
+        self.server.modes = {"fail"}
+        shutil.rmtree("src", ignore_errors=True)
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin",
+                               "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--attempts", "1"],
+                              capture_output=True, text=True, check=False)
+        self.assertIn("url", json.loads(done.stdout))
+
+    def test_accept_ranges_is_read_as_a_list(self):
+        self.server.modes = {"listed-ranges"}
+        self.run_fetch(**self.SEGMENTED)
+        self.assert_whole()
+        self.assertGreaterEqual(self.server.segment_requests, 4)
+
+    def test_an_interrupted_segmented_fetch_leaves_no_range_writing(self):
+        # A caller that catches Ctrl-C and goes on: once fetch() has returned, no range writes or saves.
+        self.server.modes = {"segment-slow"}
+        writes = []
+        real_pwrite, real_join = fetch.os.pwrite, threading.Thread.join
+        interrupted = {"done": False}
+
+        def counting(fd, data, offset):
+            writes.append(offset)
+            return real_pwrite(fd, data, offset)
+
+        def interrupting(thread, *args, **kwargs):
+            if not interrupted["done"] and writes:
+                interrupted["done"] = True
+                raise KeyboardInterrupt
+            return real_join(thread, *args, **kwargs)
+
+        with mock.patch.object(fetch.os, "pwrite", counting), mock.patch.object(threading.Thread, "join", interrupting):
+            with self.assertRaises(KeyboardInterrupt):
+                self.run_fetch(min_rate=0, **self.SEGMENTED)
+        after = len(writes)
+        time.sleep(0.5)
+        self.assertEqual(len(writes), after)
 
     def test_a_server_without_head_is_fetched_by_its_get(self):
         self.server.modes = {"head-501"}
