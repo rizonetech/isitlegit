@@ -121,7 +121,9 @@ describe("the deadline (completion review)", () => {
     };
     const result = await waitForCase({ messageId: ID, waitSeconds: 1, query, ...c });
     expect(result).toEqual({ ok: false, reason: "timed out after 1 s: case c9 finished late" });
+    // Each read gets only what is left: the second read, two seconds into a one-second run, gets the minimum.
     expect(budgets[0]).toBeLessThanOrEqual(1_000);
+    expect(budgets[1]).toBe(1);
   });
 
   it("gives wrangler no more time than the read was allowed", async () => {

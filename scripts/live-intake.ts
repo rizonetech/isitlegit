@@ -25,8 +25,10 @@ export function validMessageId(value: string): boolean {
 }
 
 // One look at the live state: the case for that Message-ID and its reply's send row.
-export async function look(query: Query, messageId: string, timeoutMs?: number) {
-  const cases = await query(`SELECT id, status FROM cases WHERE message_id = '${messageId}'`, timeoutMs);
+// `left` gives what is left of the run's budget, asked again before each read, so the second read never gets the
+// first's time back (round 1).
+export async function look(query: Query, messageId: string, left?: () => number) {
+  const cases = await query(`SELECT id, status FROM cases WHERE message_id = '${messageId}'`, left?.());
   if (cases.length > 1) return { kind: "fail" as const, reason: `${cases.length} cases carry that Message-ID` };
   const found = cases[0];
   if (!found) return { kind: "wait" as const, why: "no case for that Message-ID yet" };
@@ -34,7 +36,7 @@ export async function look(query: Query, messageId: string, timeoutMs?: number) 
   if (found.status === "partial")
     return { kind: "fail" as const, reason: `case ${caseId}: the analysis ended partial` };
   if (found.status !== "done") return { kind: "wait" as const, why: `case ${caseId} is ${String(found.status)}` };
-  const sends = await query(`SELECT status, error FROM mail_sends WHERE send_key = 'reply:${caseId}'`, timeoutMs);
+  const sends = await query(`SELECT status, error FROM mail_sends WHERE send_key = 'reply:${caseId}'`, left?.());
   const reply = sends[0];
   if (!reply) return { kind: "wait" as const, why: `case ${caseId} is done; no reply row yet` };
   if (reply.status === "sent") return { kind: "done" as const, caseId };
@@ -62,7 +64,7 @@ export async function waitForCase(options: {
     // A failed read (wrangler or the network) is retried until the deadline, and named if it is the last thing seen.
     let seen: Awaited<ReturnType<typeof look>>;
     try {
-      seen = await look(options.query, options.messageId, Math.max(1, deadline - now()));
+      seen = await look(options.query, options.messageId, () => Math.max(1, deadline - now()));
     } catch (error) {
       seen = { kind: "wait", why: `the live D1 could not be read (${(error as Error).message.slice(0, 200)})` };
     }
