@@ -12,6 +12,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { ModelError, metaResponses } from "../src/meta/client.ts";
+import { sastDay } from "../src/meta/day.ts";
+import { type Budget, NotSent } from "../src/meta/guard.ts";
+import { ledgerId, localBudget } from "./lib/meta-budget.ts";
 import {
   adoptLegacyLedger,
   checkLog,
@@ -64,6 +67,8 @@ export type LiveOptions = {
   logWaitMs?: number;
   pause?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
+  // The shared Meta budget in the live D1 (D03 T01 §2); the command line gives `localBudget`.
+  budget: Budget;
 };
 export type LiveOutcome = { code: 0 | 1; lines: string[] };
 // A call in flight or answered, until its log is checked and recorded: no body, only its identifiers and counts. It is
@@ -81,7 +86,7 @@ export type Pending = {
 
 type Say = (line: string) => void;
 
-export async function runClientLive(options: LiveOptions = {}): Promise<LiveOutcome> {
+export async function runClientLive(options: LiveOptions): Promise<LiveOutcome> {
   const lines: string[] = [];
   const say: Say = (line) => {
     lines.push(line);
@@ -160,7 +165,8 @@ async function run(
   }
 
   const now = options.now ?? (() => new Date());
-  const today = now().toISOString().slice(0, 10);
+  // The budget's day, SAST (src/meta/day.ts), as the shared caps count it.
+  const today = sastDay(now());
   const runId = now().toISOString();
   const estimate = tokenCost(MODEL, INPUT_TOKENS_CEILING, MAX_OUTPUT_TOKENS);
 
@@ -210,7 +216,8 @@ async function run(
           });
       if ("refused" in reserved) {
         stopped = reserved.refused;
-        throw new Error("spend refused");
+        // Stopped before the request left: the shared reservation is released, never kept as a charge (D03 T01 §2).
+        throw new NotSent("spend refused");
       }
       attempts.push(reserved.entry);
     }
@@ -242,6 +249,20 @@ async function run(
         env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
         fetch: guarded,
         deadlineMs: 60_000,
+        // The shared budget in the live D1 (D03 T01 §2), beside this script's own ledger record of each attempt.
+        owner: { kind: "script", name: "meta-client-live" },
+        // Each attempt's row named for its ledger entry (`client Spark attempt <n>`), so an import of the ledger finds it
+        // already counted.
+        budget: {
+          ...options.budget,
+          reserve: (model, estimateUsd, attempt) =>
+            options.budget.reserve(
+              model,
+              estimateUsd,
+              attempt,
+              ledgerId(today, runId, `client Spark attempt ${attempt}`),
+            ),
+        },
       },
     );
   } catch (error) {
@@ -441,6 +462,6 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(2);
   }
   installSignalCleanup("meta-client-live");
-  const outcome = await runClientLive({ log: (line) => console.log(line) });
+  const outcome = await runClientLive({ budget: localBudget("meta-client-live"), log: (line) => console.log(line) });
   process.exit(outcome.code);
 }

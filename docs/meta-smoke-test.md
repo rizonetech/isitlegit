@@ -8,3 +8,7 @@ Run 2026-10-27T16:32:55.809Z by `node scripts/meta-smoke.ts --confirm-credit` (D
 | Spark image | `muse-spark-1.3` | passed | 3224 | 420 (355 cached) / 345 | 200, success, 420 / 345, 3110 ms | US$0.001601 | US$0.001601 | BSK-68M-WPD | read exactly the code printed only on the fixture; metadata and a matching cost kept, no body |
 | SAM 3.1 | `sam-3.1` | passed | 1423 | 0 / 0 | 200, success, 0 / 0, 1377 ms | US$0.002500 | unavailable from the gateway; US$0.0025 per image | 1 box(es), best overlap 0.99 | 1 box(es); best overlap with the logo 0.99; metadata and Meta's counts kept, no body |
 | Wonder | `muse-wonder-1.0` | passed | 2656 | 1809 (1780 cached) / 143 | 200, success, 1809 / 143, 2541 ms | US$0.003332 | US$0.003332 | click(640, 453) | clicked Continue at (640, 453); metadata and a matching cost kept, no body |
+
+## Spend imported into the budget guard
+
+2026-10-29 04:20 SAST (D03 T01 §2): `node scripts/meta-spend-import.ts` added 4 rows to the live `model_spend` (this report's US$0.008507 to 2026-10-27, the client check's US$0.000291 on 2026-10-28, and the shared ledger's two teacher-label calls), US$0.031810 in all, the table's total read back; run again it added nothing.

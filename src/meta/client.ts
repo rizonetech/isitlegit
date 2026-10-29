@@ -14,7 +14,9 @@ import OpenAI from "openai";
 import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
 // extensionless path.
+import { type Budget, BudgetExceeded, BudgetUnavailable, type Call, charged, type Owner } from "./guard.ts";
 import { ENDPOINTS, type Endpoint, isModelId, type ModelId } from "./models.ts";
+import { estimateUsd } from "./pricing.ts";
 
 export const DEFAULT_DEADLINE_MS = 60_000;
 export const MAX_ATTEMPTS = 3;
@@ -23,6 +25,9 @@ export const MAX_RETRY_AFTER_MS = 20_000;
 // The largest answer read: an image edit's base64 images fit with room to spare; a larger body is refused as it streams,
 // never buffered whole.
 export const MAX_ANSWER_BYTES = 32 * 1024 * 1024;
+// The lowest bitrate a speech recording is sent at (Opus at 4 kbps is 500 bytes a second): a clip's size divided by this
+// bounds its length from above.
+export const MIN_AUDIO_BYTES_PER_SECOND = 500;
 const BACKOFF_MS = 1_000;
 const RETRIED = new Set([429, 500, 502, 503]);
 // What an identifier field (Meta's type, code and param; the gateway's and Meta's ids) may hold to be kept: a name,
@@ -32,6 +37,12 @@ const IDENTIFIER = /^[A-Za-z0-9_.:[\]-]{1,80}$/;
 export type MetaEnv = { META_API_KEY?: string; CF_AIG_TOKEN?: string; META_GATEWAY_URL?: string };
 export type MetaContext = {
   env: MetaEnv;
+  // The caps (D03 T01 §2): every attempt is reserved here before it is sent and settled after. Required, so no call
+  // can be made outside the budget.
+  budget: Budget;
+  // Who the call is for (D03 T01 §3): every attempt's record and the gateway's metadata carry it. Required, so every
+  // cost is attributed.
+  owner: Owner;
   // The whole call, every attempt and every wait between them included.
   deadlineMs?: number;
   fetch?: typeof fetch;
@@ -87,33 +98,90 @@ export type ResponsesParams = Omit<ResponseCreateParamsNonStreaming, "model" | "
 
 export async function metaResponses(params: ResponsesParams, ctx: MetaContext): Promise<MetaAnswer<MetaResponse>> {
   const model = standard(params.model, "responses");
+  // The output limit bounds what a call can cost (D03 T01 §2): a call without one cannot be reserved for.
+  if (!Number.isInteger(params.max_output_tokens) || (params.max_output_tokens as number) < 1)
+    throw new ModelError(
+      "invalid-request",
+      "a Responses call must set max_output_tokens, which the budget reserves for",
+    );
+  // What the budget cannot bound before the call is refused before it (D03 T01 §2 final review): web search is billed
+  // per query with no per-request cap Meta documents (D03 T02 §4 budgets it), and a file the server fetches (a file id,
+  // a file URL, an input file such as a PDF) is billed by its content, which the request does not carry.
+  if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
+    throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+  if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+    throw new ModelError(
+      "invalid-request",
+      "a server-referenced file cannot be bounded before it is sent; send its content",
+    );
   const { apiKey, token, base } = settings(ctx.env);
   const seen = observe(ctx.fetch ?? fetch);
   const client = new OpenAI({
     apiKey,
     baseURL: base,
-    defaultHeaders: gatewayHeaders(token),
+    defaultHeaders: { ...gatewayHeaders(token), ...(await metadataHeader(ctx.owner)) },
     fetch: seen.fetch,
     maxRetries: 0,
     timeout: ctx.deadlineMs ?? DEFAULT_DEADLINE_MS,
   });
   // Forced last, so no caller's `store` reaches Meta.
   const body: ResponseCreateParamsNonStreaming = { ...params, model, stream: false, store: false };
-  return withRetries(ctx, seen, async (signal) => {
-    const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
-    if (!isResponse(data))
-      throw new ModelError("malformed", "Meta's answer is not a response object", {
-        status: response.status,
-        ...traced(response.headers),
-      });
-    return { data, logId: response.headers.get("cf-aig-log-id") };
+  const json = JSON.stringify(body);
+  const images = imagesIn(json);
+  // An image's data is priced as an image (IMAGE_TOKEN_BOUND), not as the characters that carry it: only an
+  // `image_url` value is left out, never text that happens to start "data:" (round 1).
+  const text = JSON.stringify(body, (key, value) =>
+    key === "image_url" && typeof value === "string" && value.startsWith("data:") ? "" : value,
+  );
+  const estimate = estimateUsd(model, {
+    inputBytes: new TextEncoder().encode(text).byteLength,
+    maxOutputTokens: params.max_output_tokens as number,
+    images,
+  });
+  const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
+  return withRetries(ctx, seen, (signal, n) => {
+    let requestId: string | null = null;
+    return charged(
+      ctx.budget,
+      model,
+      estimate,
+      n,
+      async () => {
+        const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
+        requestId = response.headers.get("x-request-id");
+        if (!isResponse(data))
+          throw new ModelError("malformed", "Meta's answer is not a response object", {
+            status: response.status,
+            ...traced(response.headers),
+          });
+        return { data, logId: response.headers.get("cf-aig-log-id") };
+      },
+      ({ data, logId }) => ({
+        usage: {
+          inputTokens: data.usage?.input_tokens,
+          cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
+          outputTokens: data.usage?.output_tokens,
+          // SAM is billed per image sent, one at least.
+          images: Math.max(1, images),
+        },
+        logId,
+        requestId,
+      }),
+      call,
+    );
   });
 }
 
 // The endpoints the SDK route does not cover, each with its own wire contract: transcription is multipart, a `request`
 // part (the settings as JSON) and an `audio` part (sources/meta-api/docs/docs/api-reference/voice/transcribe.md); an
 // image edit is JSON (.../images/edit-image.md). Any other path is refused before the network.
-export type TranscribeBody = { request: { model: string } & Record<string, unknown>; audio: Blob; filename?: string };
+// `audioSeconds` is the recording's length, which the budget reserves for (D03 T01 §2).
+export type TranscribeBody = {
+  request: { model: string } & Record<string, unknown>;
+  audio: Blob;
+  filename?: string;
+  audioSeconds: number;
+};
 export type ImageEditBody = { model: string } & Record<string, unknown>;
 export const RAW_PATHS = ["/asr/transcribe", "/images/edits"] as const;
 export type RawPath = (typeof RAW_PATHS)[number];
@@ -129,49 +197,121 @@ export async function metaRaw(
     throw new ModelError("invalid-request", `${String(path).slice(0, 80)} is not an endpoint this client sends to`);
   let payload: BodyInit;
   let contentType: Record<string, string> = {};
+  let model: ModelId;
+  let estimate: number;
+  let usage: (data: unknown) => { audioSeconds?: number | undefined; images?: number };
   if (path === "/asr/transcribe") {
-    const { request, audio, filename } = body as TranscribeBody;
-    standard(request.model, "/asr/transcribe");
+    const { request, audio, filename, audioSeconds } = body as TranscribeBody;
+    model = standard(request.model, "/asr/transcribe");
+    if (!(Number.isFinite(audioSeconds) && audioSeconds > 0))
+      throw new ModelError(
+        "invalid-request",
+        "a transcription must give its audio length, which the budget reserves for",
+      );
+    // Never less than the recording could hold: a given length is checked against the clip's size at the lowest
+    // bitrate speech codecs use (D03 T01 §2 final review), so a short length cannot admit a long recording.
+    estimate = estimateUsd(model, { audioSeconds: Math.max(audioSeconds, audio.size / MIN_AUDIO_BYTES_PER_SECOND) });
+    // Meta reports the recording's length as `audioDurationMs` (sources/meta-api/docs: the transcribe response).
+    // Without it the length billed is unknown: the call settles at its reservation, marked estimated, never at the
+    // length the caller gave (round 3).
+    usage = (data) => {
+      const ms = numberAt(data, "audioDurationMs");
+      return { audioSeconds: ms === undefined ? undefined : ms / 1000 };
+    };
     const form = new FormData();
     form.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
     form.append("audio", audio, filename ?? "audio");
     payload = form;
   } else {
-    standard((body as ImageEditBody).model, "/images/edits");
+    model = standard((body as ImageEditBody).model, "/images/edits");
+    const asked = (body as ImageEditBody).n;
+    const count = typeof asked === "number" && asked >= 1 ? asked : 1;
+    estimate = estimateUsd(model, { images: count });
+    usage = (data) => {
+      const made = (data as { data?: unknown } | null)?.data;
+      return { images: Array.isArray(made) ? made.length : count };
+    };
     payload = JSON.stringify(body);
     contentType = { "content-type": "application/json" };
   }
   const { apiKey, token, base } = settings(ctx.env);
   const seen = observe(ctx.fetch ?? fetch);
-  return withRetries(ctx, seen, async (signal) => {
-    const response = await seen.fetch(`${base}${path}`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        accept: "application/json",
-        ...contentType,
-        ...gatewayHeaders(token),
+  const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
+  const headers = { ...gatewayHeaders(token), ...(await metadataHeader(ctx.owner)) };
+  return withRetries(ctx, seen, (signal, n) => {
+    let requestId: string | null = null;
+    return charged(
+      ctx.budget,
+      model,
+      estimate,
+      n,
+      async () => {
+        const { requestId: id, ...answer } = await rawAttempt(
+          seen,
+          base,
+          path,
+          apiKey,
+          headers,
+          contentType,
+          payload,
+          signal,
+        );
+        requestId = id;
+        return answer;
       },
-      body: payload,
-      signal,
-    });
-    const text = await response.text();
-    let data: unknown;
-    let parsed = true;
-    try {
-      data = text ? JSON.parse(text) : undefined;
-    } catch {
-      parsed = false;
-    }
-    if (!response.ok) throw statusError(response.status, response.headers, parsed ? data : undefined);
-    if (!parsed || typeof data !== "object" || data === null)
-      throw new ModelError("malformed", `Meta's answer from ${path} is not a JSON object`, {
-        status: response.status,
-        ...traced(response.headers),
-      });
-    return { data, logId: response.headers.get("cf-aig-log-id") };
+      ({ data, logId }) => ({ usage: usage(data), logId, requestId }),
+      call,
+    );
   });
 }
+
+async function rawAttempt(
+  seen: Observed,
+  base: string,
+  path: RawPath,
+  apiKey: string,
+  gateway: Record<string, string>,
+  contentType: Record<string, string>,
+  payload: BodyInit,
+  signal: AbortSignal,
+): Promise<MetaAnswer<unknown> & { requestId: string | null }> {
+  const response = await seen.fetch(`${base}${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      accept: "application/json",
+      ...contentType,
+      ...gateway,
+    },
+    body: payload,
+    signal,
+  });
+  const text = await response.text();
+  let data: unknown;
+  let parsed = true;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    parsed = false;
+  }
+  if (!response.ok) throw statusError(response.status, response.headers, parsed ? data : undefined);
+  if (!parsed || typeof data !== "object" || data === null)
+    throw new ModelError("malformed", `Meta's answer from ${path} is not a JSON object`, {
+      status: response.status,
+      ...traced(response.headers),
+    });
+  return { data, logId: response.headers.get("cf-aig-log-id"), requestId: response.headers.get("x-request-id") };
+}
+
+// The images a Responses request sends: SAM is billed by them (one at least, ./pricing.ts), and a token-priced model
+// reserves IMAGE_TOKEN_BOUND for each.
+const imagesIn = (json: string) => (json.match(/"type":"input_image"/g) ?? []).length;
+
+// A non-negative number at a field of an answer, or undefined.
+const numberAt = (data: unknown, field: string) => {
+  const value = (data as Record<string, unknown> | null)?.[field];
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+};
 
 function standard(model: unknown, endpoint: Endpoint): ModelId {
   if (!isModelId(model))
@@ -195,6 +335,24 @@ function settings(env: MetaEnv) {
 }
 
 // The gateway logs each call's metadata (it logs nothing by default, D00 T01 §6) and never its body.
+// The call's owner as the gateway's opaque metadata (D03 T01 §3), so its log filters by case or monitor run: ids and
+// the step only, the host as a hash, never a name, an address or content.
+async function metadataHeader(owner: Owner): Promise<Record<string, string>> {
+  const fields: Record<string, string> =
+    owner.kind === "case"
+      ? { case: owner.caseId, step: owner.step }
+      : owner.kind === "monitor"
+        ? { run: owner.run, host: await hostHash(owner.host), step: owner.step }
+        : { script: owner.name };
+  return { "cf-aig-metadata": JSON.stringify(fields) };
+}
+
+const hostHash = async (host: string) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(host.toLowerCase())))]
+    .slice(0, 8)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
 const gatewayHeaders = (token: string) => ({
   "cf-aig-authorization": `Bearer ${token}`,
   "cf-aig-collect-log": "true",
@@ -252,7 +410,7 @@ function completed(failure: ModelError, seen: Seen | null): ModelError {
 async function withRetries<T>(
   ctx: MetaContext,
   seen: Observed,
-  attempt: (signal: AbortSignal) => Promise<T>,
+  attempt: (signal: AbortSignal, n: number) => Promise<T>,
 ): Promise<T> {
   const deadlineMs = ctx.deadlineMs ?? DEFAULT_DEADLINE_MS;
   const sleep = ctx.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -278,8 +436,10 @@ async function withRetries<T>(
     for (let n = 1; ; n++) {
       seen.last = null;
       try {
-        return await Promise.race([attempt(controller.signal), expired]);
+        return await Promise.race([attempt(controller.signal, n), expired]);
       } catch (error) {
+        // A cap's refusal, or a budget that could not be reached: nothing was sent, and trying again cannot help.
+        if (error instanceof BudgetExceeded || error instanceof BudgetUnavailable) throw error;
         const failure = completed(classify(error), seen.last);
         const { status, retryAfterMs } = failure.details;
         attempts.push({

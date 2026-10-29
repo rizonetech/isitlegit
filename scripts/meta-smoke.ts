@@ -26,6 +26,10 @@ import { parseArgs } from "node:util";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
 import OpenAI from "openai";
 import { z } from "zod";
+import { sastDay } from "../src/meta/day.ts";
+import { type Budget, BudgetExceeded } from "../src/meta/guard.ts";
+import type { ModelId } from "../src/meta/models.ts";
+import { ledgerId, localBudget } from "./lib/meta-budget.ts";
 import { installSignalCleanup, runCommand } from "./smoke.ts";
 
 const ROOT = join(import.meta.dirname, "..");
@@ -536,6 +540,9 @@ export type RunOptions = {
   logWaitMs?: number;
   runCap?: number;
   dayCap?: number;
+  // The shared Meta budget in the live D1 (D03 T01 §2): every call is reserved there before it is sent. The command line
+  // gives `localBudget`; a paid run without one is refused.
+  budget?: Budget;
 };
 export type RunOutcome = { code: 0 | 1 | 2; lines: string[] };
 
@@ -584,6 +591,8 @@ export async function runMetaSmoke(options: RunOptions): Promise<RunOutcome> {
     }
     return { code: 0, lines };
   }
+  if (!options.dry && options.confirmCredit && !options.budget)
+    return refuse("no Meta budget was given; every call is reserved against the shared caps (D03 T01 §2)");
   if (!options.confirmCredit)
     return refuse("a live run spends Meta credit; pass --confirm-credit once the credit shows (D99 T01 §1)");
 
@@ -626,7 +635,8 @@ type Admitted = {
 async function spend(admitted: Admitted): Promise<RunOutcome> {
   const { options, fx, calls, partial, headers, ledgerFile, say, refuse, lines } = admitted;
   const now = options.now ?? (() => new Date());
-  const today = now().toISOString().slice(0, 10);
+  // The budget's day, SAST (src/meta/day.ts), as the shared caps count it.
+  const today = sastDay(now());
   const runId = now().toISOString();
   const estimate = calls.reduce((sum, c) => sum + c.estimate, 0);
   let ledger: Spend[];
@@ -738,7 +748,19 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     return refuse(`${reportFile} could not be written (${(error as Error).message})`);
   }
 
+  const budget = options.budget as Budget;
   for (const call of calls) {
+    // The shared caps first (the one authority, the live D1), then this checkout's own ledger record.
+    let held: string;
+    try {
+      // Named for its ledger entry, so an import of the ledger finds it already counted.
+      held = await budget.reserve(call.model as ModelId, call.estimate, 1, ledgerId(today, runId, call.name));
+    } catch (error) {
+      say(
+        `meta-smoke: stopped before ${call.name}: ${error instanceof BudgetExceeded ? `the ${error.cap} cap refused it` : "the shared budget could not be reached"}`,
+      );
+      return { code: 1, lines };
+    }
     const reserved = reserveSpend(ledgerFile, ledger, {
       date: today,
       run: runId,
@@ -746,6 +768,8 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
       estimate: call.estimate,
     });
     if ("refused" in reserved) {
+      // Never sent: the shared reservation is released, so a failed local record cannot use up the allowance.
+      await budget.settle(held, 0).catch(() => {});
       say(`meta-smoke: stopped before ${call.name}: ${reserved.refused}`);
       return { code: 1, lines };
     }
@@ -822,6 +846,10 @@ async function spend(admitted: Admitted): Promise<RunOutcome> {
     const passed = check.ok && logCheck.ok;
     rows.push({ call, passed, detail: check.detail, excerpt: check.excerpt, ms, usage, log: logCheck, cost });
     say(`${passed ? "passed" : "failed"}: ${call.name} (${check.detail}; log: ${logCheck.detail})`);
+    // Settled at Meta's reported cost; without it, the call stays counted at its estimate.
+    await (cost === null ? budget.uncertain(held) : budget.settle(held, cost)).catch(() =>
+      say(`meta-smoke: the shared budget's record of ${call.name} could not be updated; it stands at its estimate`),
+    );
     const unsettled = settleSpend(ledgerFile, ledger, entry, cost);
     if (unsettled) say(`meta-smoke: ${unsettled}; the reservation for ${call.name} stands at its estimate`);
     try {
@@ -897,6 +925,6 @@ if (import.meta.filename === process.argv[1]) {
   }
   installSignalCleanup("meta-smoke");
   const { help: _help, ...run } = args;
-  const outcome = await runMetaSmoke({ ...run, log: (line) => console.log(line) });
+  const outcome = await runMetaSmoke({ ...run, budget: localBudget("meta-smoke"), log: (line) => console.log(line) });
   process.exit(outcome.code);
 }

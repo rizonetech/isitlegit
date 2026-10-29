@@ -226,3 +226,22 @@ describe("reportOrigin and the link", () => {
     expect(await verifyReportLink(env.REPORT_LINK_SECRET, link)).toMatchObject({ ok: true });
   });
 });
+
+describe("a check the model budget refused (D03 T01 §2)", () => {
+  it("tells the member when checks resume instead of to forward again in a few minutes", () => {
+    const day = buildReply({
+      ...base,
+      report: { status: "partial", failedStep: "checks", errorClass: "budget:day:muse-spark-1.3" },
+    });
+    expect(day.text).toContain("Forward the message again tomorrow");
+    expect(day.text).not.toContain("in a few minutes");
+    for (const cap of ["total", "reserve"]) {
+      const paused = buildReply({
+        ...base,
+        report: { status: "partial", failedStep: "checks", errorClass: `budget:${cap}:muse-wonder-1.0` },
+      });
+      expect(paused.text, cap).toContain("Checking is paused while we top up");
+      expect(paused.html, cap).toContain("Checking is paused while we top up");
+    }
+  });
+});

@@ -7,6 +7,8 @@ import { signOut } from "./auth/sign-out";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
+import { markUnsettled } from "./meta/budget";
+import { sendPendingCapNotices } from "./meta/notice";
 import { smoke } from "./smoke";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -41,6 +43,10 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(scheduledReconcile(env));
     ctx.waitUntil(scheduledIntakeSweep(env));
+    // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
+    ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // A model call whose settlement was never written, marked so its record shows (D03 T01 §3).
+    ctx.waitUntil(markUnsettled(env.DB).catch(() => 0));
   },
 } satisfies ExportedHandler<Env>;
 
