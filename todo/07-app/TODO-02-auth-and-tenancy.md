@@ -44,7 +44,7 @@ track: day-1
 | 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [ ] |
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
-| 10 | §10 | Scanner-safe sign-in links | §1 | [ ] |
+| 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
@@ -350,9 +350,12 @@ Evidence 2026-10-29: `src/auth/confirm.tsx` (the routes) and `src/auth/confirm-p
 
 > **Deferred:** the busy state and repeat-submit prevention on the confirm and recovery forms, which need the app script -> XREF: D07 T02 §7
 
-- [ ] Commit: `auth: sign-in links survive link scanners`
+- [x] Commit: `auth: sign-in links survive link scanners` (landed as `d037e56`, with the reviews' fixes in `f0ced79`, `e63561a`, `5576a8c`, `bef350f` and `18f2cdc`)
 
 **Test checkpoint:** `pnpm exec vitest run test/auth test/node/signin-confirm-browser.test.ts` passes, and fails if a GET of either link creates a session or consumes the token, a used, expired, cross-origin or `Origin: null` POST signs in, the return path is lost or can leave the site, the recovery form sends no working link, or the real browser's POST is refused.
+
+> **Verified:** 2026-10-29 | §10 | 18f2cdce63700a6281c2d953216e14495116a610
+> **Review:** `docs/reviews/d07-t02-s10.json`
 
 
 ## 11. Sign-in code for another device
