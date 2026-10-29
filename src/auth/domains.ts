@@ -13,6 +13,7 @@
 // another organisation's claim.
 import { type Context, Hono } from "hono";
 import { z } from "zod";
+import { clientIp, recordAuthEvent } from "./audit";
 import { type MailOutcome, sendClaimCode } from "./claim-mail";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
@@ -276,6 +277,18 @@ const sendAnswer = (outcome: MailOutcome, body: Record<string, unknown>) =>
         )
       : problem(502, "the code could not be sent; send another");
 
+// Each verification attempt and its outcome in the auth trail (D07 T02 §6): the claim's id, never the domain's code or
+// the address itself.
+const attempt = (c: Context<OrgEnv>, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
+  recordAuthEvent(c.env.DB, c.env.BETTER_AUTH_SECRET ?? "", {
+    kind,
+    outcome,
+    orgId: c.get("org").id,
+    actorId: c.get("signedIn").user.id,
+    targetId: claimId,
+    ip: clientIp(c.req.raw.headers),
+  });
+
 // DNS-over-HTTPS: verified, not yet visible, or the provider failing (including the deadline).
 async function lookTxt(domain: string, token: string): Promise<"found" | "absent" | "failing"> {
   const url = `${DOH_URL}?${new URLSearchParams({ name: `_isitlegit.${domain}`, type: "TXT" })}`;
@@ -406,14 +419,21 @@ domainRoutes.post("/domains/:domain/check", async (c) => {
   if (!claim) return problem(404, "no such domain claim");
   if (claim.state === "verified") return c.json({ domain: claim.domain, verified: true });
   const seen = await lookTxt(claim.domain, claim.token);
-  if (seen === "failing") return problem(503, "the DNS check could not be made just now; try again in a moment");
-  if (seen === "absent")
+  if (seen === "failing") {
+    await attempt(c, "verify-domain", claim.id, "dns-lookup-failed");
+    return problem(503, "the DNS check could not be made just now; try again in a moment");
+  }
+  if (seen === "absent") {
+    await attempt(c, "verify-domain", claim.id, "dns-not-visible");
     return c.json({
       domain: claim.domain,
       verified: false,
       message: "the record is not visible yet; DNS can take up to an hour",
     });
-  return verifiedAnswer(await verifyByDns(c.env.DB, claim.id), { domain: claim.domain }, "domain");
+  }
+  const verified = await verifyByDns(c.env.DB, claim.id);
+  await attempt(c, "verify-domain", claim.id, verified === "verified" ? "verified-dns" : verified);
+  return verifiedAnswer(verified, { domain: claim.domain }, "domain");
 });
 
 domainRoutes.post("/domains/:domain/code", async (c) => {
@@ -447,11 +467,9 @@ domainRoutes.post("/domains/:domain/verify", async (c) => {
   if (claim.state === "verified") return c.json({ domain: claim.domain, verified: true });
   const body = await bodyOf(c);
   if (typeof body?.code !== "string") return problem(400, "send the code you were mailed");
-  return codeAnswer(
-    await proveByCode(c.env.DB, "org_domains", org, claim.id, body.code),
-    { domain: claim.domain },
-    "domain",
-  );
+  const proved = await proveByCode(c.env.DB, "org_domains", org, claim.id, body.code);
+  await attempt(c, "verify-domain", claim.id, proved === "verified" ? "verified-code" : proved);
+  return codeAnswer(proved, { domain: claim.domain }, "domain");
 });
 
 domainRoutes.delete("/domains/:domain", async (c) => {
@@ -517,11 +535,9 @@ domainRoutes.post("/addresses/verify", async (c) => {
   const claim = await claimedAddress(c.env.DB, org, parsed.data);
   if (!claim) return problem(404, "no such address claim");
   if (claim.state === "verified") return c.json({ address: claim.address, verified: true });
-  return codeAnswer(
-    await proveByCode(c.env.DB, "org_addresses", org, claim.id, body.code),
-    { address: claim.address },
-    "address",
-  );
+  const proved = await proveByCode(c.env.DB, "org_addresses", org, claim.id, body.code);
+  await attempt(c, "verify-address", claim.id, proved === "verified" ? "verified-code" : proved);
+  return codeAnswer(proved, { address: claim.address }, "address");
 });
 
 domainRoutes.delete("/addresses/:address", async (c) => {

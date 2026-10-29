@@ -10,6 +10,7 @@
 //   GET  /api/auth/magic-link/verify           a link mailed before this change: 303 to the page, never redeemed
 import { Hono } from "hono";
 import * as z from "zod";
+import { clientIp, recordAuthEvent } from "./audit";
 import { createAuth } from "./auth";
 import {
   CONFIRM_PATH,
@@ -20,9 +21,11 @@ import {
   LinkRequestPage,
   MessagePage,
   pageResponse,
+  resumesIn,
   returnPath,
 } from "./confirm-page";
 import { DEFAULT_RETURN, MAX_RETURN_PATH } from "./paths";
+import { LINK_WINDOW_SECONDS } from "./ratelimit";
 
 // What Better Auth's verify answered, sorted into the confirm page's states (better-auth/dist/plugins/magic-link):
 // signed in (a session cookie); rate limited (its limiter's 429, before the token is touched, so the same link works a
@@ -42,6 +45,15 @@ export function classifyVerify(answer: Response, origin: string): VerifyOutcome 
   const error = failure?.pathname === "/signin" ? failure.searchParams.get("error") : null;
   if (!error || SERVICE_ERRORS.has(error)) return "failed";
   return LINK_ERRORS.has(error) ? "used" : "no-account";
+}
+
+// The reason a link failed, as the audit trail names it: Better Auth's own error code, lowercased (`invalid_token`,
+// `expired_token`, `new_user_signup_disabled`, ...), or the outcome when it gave none.
+function failureReason(answer: Response, origin: string, outcome: VerifyOutcome): string {
+  const location = answer.headers.get("location");
+  const failure = location ? new URL(location, origin) : null;
+  const error = failure?.pathname === "/signin" ? failure.searchParams.get("error") : null;
+  return error && /^[A-Za-z_]{1,64}$/.test(error) ? error.toLowerCase() : outcome;
 }
 
 // The errors Better Auth's magic-link verify redirects with (better-auth/dist/plugins/magic-link): a used, expired or
@@ -101,6 +113,12 @@ function forwarded(env: Env, request: Request, extra: Record<string, string> = {
   return headers;
 }
 
+// The limiter's retry time (Better Auth's `X-Retry-After`, in seconds); its whole window when it is missing.
+const retryAfterOf = (answer: Response) => {
+  const seconds = Number(answer.headers.get("x-retry-after"));
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : LINK_WINDOW_SECONDS;
+};
+
 const log = (step: string) => console.log(JSON.stringify({ event: "signin-confirm", step }));
 
 export const confirmRoutes = new Hono<{ Bindings: Env }>();
@@ -132,6 +150,14 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   }
   const outcome = classifyVerify(answer, verify.origin);
   const cookies = answer.headers.getSetCookie();
+  // A link that did not sign anyone in is the audit trail's failed sign-in (D07 T02 §6), with Better Auth's reason
+  // (used or unknown, expired, no account, the service's failure), never the token.
+  if (outcome === "used" || outcome === "no-account" || outcome === "failed")
+    await recordAuthEvent(c.env.DB, c.env.BETTER_AUTH_SECRET ?? "", {
+      kind: "sign-in-failed",
+      outcome: failureReason(answer, verify.origin, outcome),
+      ip: clientIp(c.req.raw.headers),
+    });
   if (outcome === "signed-in") {
     log("signed-in");
     // Serialised as an absolute URL on the app's own origin: a header carries no raw non-ASCII (round 2), and a path
@@ -143,9 +169,9 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
     return out;
   }
   if (outcome === "rate-limited") {
-    // The token is untouched: the same button works again in a minute.
+    // The token is untouched: the same button works again once the limiter's window has passed.
     log("rate-limited");
-    return pageResponse(<ConfirmPage token={token} callbackURL={callbackURL} limited />, 429);
+    return pageResponse(<ConfirmPage token={token} callbackURL={callbackURL} retryAfter={retryAfterOf(answer)} />, 429);
   }
   if (outcome === "used") {
     log("used");
@@ -213,9 +239,21 @@ confirmRoutes.post(LINK_PATH, async (c) => {
   } catch {
     asked = new Response(null, { status: 500 });
   }
-  // A sent, refused or rate-limited address answers alike, so the page never tells a stranger who can sign in; only a
-  // failed send (the service's) says to try again, with the address and return path kept for the retry.
-  if (asked.ok || asked.status === 429) return pageResponse(<InboxPage email={email} callbackURL={callbackURL} />);
+  // A sent, refused or address-limited request answers alike, so the page never tells a stranger who can sign in (the
+  // per-address limit answers as sent, D01 T02 §2). The per-IP limit (D07 T02 §6) is this client's own, so it says when
+  // new links resume, the address and return path kept; a failed send (the service's) says to try again.
+  if (asked.ok) return pageResponse(<InboxPage email={email} callbackURL={callbackURL} />);
+  if (asked.status === 429)
+    return pageResponse(
+      <LinkRequestPage
+        callbackURL={callbackURL}
+        email={email}
+        title="Too many sign-in links"
+        heading="Too many sign-in links from here"
+        text={`New links can be sent from here again in ${resumesIn(retryAfterOf(asked))}. Your address is kept below.`}
+      />,
+      429,
+    );
   // Better Auth refusing the request itself (its own validation) is the address, not an outage.
   if (asked.status === 400) return badAddress();
   return pageResponse(

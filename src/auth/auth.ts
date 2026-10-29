@@ -20,9 +20,11 @@ import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "b
 import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
+import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink } from "./confirm-page";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
+import { d1RateLimit, RATE_RULES } from "./ratelimit";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { inviteSignup, type SendFirstLink } from "./signup";
 
@@ -57,9 +59,11 @@ export function authOptions(
   // Told the outcome of each magic-link send, so the signup knows whether its own first link went (createAuth).
   onMagicLinkOutcome: (email: string, outcome: SendOutcome) => void = () => {},
 ) {
+  // The audit trail (D07 T02 §6, ./audit): a row that cannot be written is logged, never a failed sign-in.
+  const audit = (event: AuthEvent) => recordAuthEvent(mail().db, env.BETTER_AUTH_SECRET ?? "", event);
   const schema = schemaOptions(
     {
-      sendMagicLink: async ({ email, url, token }) => {
+      sendMagicLink: async ({ email, url, token }, ctx) => {
         const outcome = await sendMail(mail(), {
           sendKey: `signin:${await sha256Hex(token)}`,
           kind: "signin",
@@ -70,6 +74,9 @@ export function authOptions(
           text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${mailedLink(env.APP_URL, url, token)}\n\nIf you did not ask for it, ignore this mail.`,
         });
         onMagicLinkOutcome(email, outcome);
+        // The per-address limit held the link back (sendMail's, D01 T02 §2): answered as sent, recorded here.
+        if (outcome.status === "refused" && /too many sign-in links/.test(outcome.reason))
+          await audit({ kind: "rate-limited", outcome: "per-address", ip: clientIp(ctx?.request?.headers) });
         // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
         // never tells a stranger who is registered; a failed or unknown send is still an error.
         if (outcome.status === "refused") return;
@@ -120,6 +127,12 @@ export function authOptions(
     },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.APP_URL,
+    // Better Auth's per-IP limiter, counted in D1 so every Worker instance shares the count (D07 T02 §6, ./ratelimit).
+    rateLimit: {
+      enabled: true,
+      customRules: RATE_RULES,
+      customStorage: d1RateLimit(() => mail().db, env.BETTER_AUTH_SECRET ?? "", audit),
+    },
     basePath: "/api/auth",
     trustedOrigins: [new URL(env.APP_URL).origin],
     advanced: {
@@ -277,8 +290,23 @@ export function authOptions(
           return;
         }
         if (ctx.path === "/organization/invite-member") {
-          const invitation = ctx.context.returned as { id?: unknown; expiresAt?: unknown } | null;
+          const invitation = ctx.context.returned as {
+            id?: unknown;
+            expiresAt?: unknown;
+            organizationId?: string;
+            inviterId?: string;
+            role?: string;
+          } | null;
           if (!invitation || typeof invitation.id !== "string" || isAPIError(invitation)) return;
+          await audit({
+            kind: "invite",
+            outcome: "made",
+            orgId: invitation.organizationId ?? null,
+            actorId: invitation.inviterId ?? null,
+            targetId: invitation.id,
+            ip: clientIp(ctx.request?.headers),
+            detail: { role: invitation.role ?? null },
+          });
           const sent = await mail()
             .db.prepare("SELECT status FROM mail_sends WHERE send_key = ?")
             .bind(inviteSendKey(invitation as Invitation))
@@ -292,12 +320,41 @@ export function authOptions(
                 : "the invitation is saved but its email could not be sent; send it again",
           });
         }
+        if (ctx.path === "/organization/update-member-role" || ctx.path === "/organization/cancel-invitation") {
+          const returned = ctx.context.returned as {
+            id?: string;
+            userId?: string;
+            organizationId?: string;
+            role?: string;
+            status?: string;
+          } | null;
+          if (!returned || isAPIError(returned) || !returned.organizationId) return;
+          const role = ctx.path === "/organization/update-member-role";
+          await audit({
+            kind: role ? "update-member-role" : "cancel-invitation",
+            outcome: role ? "changed" : "revoked",
+            orgId: returned.organizationId,
+            actorId: (await getSessionFromCtx(ctx))?.user.id ?? null,
+            targetId: (role ? returned.userId : returned.id) ?? null,
+            ip: clientIp(ctx.request?.headers),
+            ...(role ? { detail: { role: returned.role ?? null } } : {}),
+          });
+          return;
+        }
         if (ctx.path === "/organization/remove-member") {
           // A removed member's sessions in that organisation end with the membership; requireOrg refuses the rest, and
           // their old invitation is spent (invitation_uses), so it cannot bring them back.
           const removed = ctx.context.returned as { member?: { userId?: string; organizationId?: string } } | null;
           const member = removed?.member;
           if (!member?.userId || !member.organizationId || isAPIError(removed)) return;
+          await audit({
+            kind: "remove-member",
+            outcome: "removed",
+            orgId: member.organizationId,
+            actorId: (await getSessionFromCtx(ctx))?.user.id ?? null,
+            targetId: member.userId,
+            ip: clientIp(ctx.request?.headers),
+          });
           await ctx.context.adapter.deleteMany({
             model: "session",
             where: [
@@ -312,6 +369,17 @@ export function authOptions(
     databaseHooks: {
       session: {
         create: {
+          // Each session made is a sign-in in the audit trail, by the path that made it (a link, a passkey, a signup).
+          after: async (session, ctx) => {
+            await audit({
+              kind: "sign-in",
+              outcome: "signed-in",
+              orgId: (session as { activeOrganizationId?: string | null }).activeOrganizationId ?? null,
+              userId: session.userId,
+              ip: clientIp(ctx?.request?.headers) ?? session.ipAddress ?? null,
+              detail: { method: methodOf(ctx?.path) },
+            });
+          },
           before: async (session, ctx) => {
             const [first] = ctx
               ? await ctx.context.adapter.findMany<{ organizationId: string }>({
@@ -327,6 +395,15 @@ export function authOptions(
       },
     },
   } satisfies BetterAuthOptions;
+}
+
+// The way a session was made, as the audit trail names it.
+function methodOf(path: string | undefined): string {
+  if (!path) return "other";
+  if (path.startsWith("/magic-link")) return "magic-link";
+  if (path.startsWith("/passkey")) return "passkey";
+  if (path.startsWith("/sign-up")) return "signup";
+  return "other";
 }
 
 // One send key per invitation email: a resend extends the invitation's expiry, so it is a new send, not a duplicate.

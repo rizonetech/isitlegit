@@ -1,9 +1,11 @@
 import { Hono } from "hono";
+import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
+import { teamHistoryRoutes } from "./auth/team-history";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
@@ -30,6 +32,7 @@ app.post("/auth/sign-out", (c) => signOut(c.env, c.req.raw));
 app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
 // Domain and sending-address verification for owners and admins (D07 T02 §5), src/auth/domains.ts.
 app.route("/api/org", domainRoutes);
+app.route("/api/team", teamHistoryRoutes);
 app.route("/api/upload", uploadRoutes);
 
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
@@ -45,6 +48,12 @@ export default {
     ctx.waitUntil(scheduledIntakeSweep(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // Expired rate-limit buckets and audit rows past their 12 months (D07 T02 §6).
+    ctx.waitUntil(
+      sweepAuthTables(env.DB).catch((error: unknown) => {
+        console.error(JSON.stringify({ event: "auth-audit", outcome: "sweep-failed", error: (error as Error).name }));
+      }),
+    );
     // A model call whose settlement was never written, marked so its record shows (D03 T01 §3).
     ctx.waitUntil(
       markUnsettled(env.DB).catch((error: unknown) => {
