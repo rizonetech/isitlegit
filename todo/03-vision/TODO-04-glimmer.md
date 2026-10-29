@@ -51,7 +51,7 @@ track: day-6
 | 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [ ] |
 | 14 | §15 | Warm-up handling and wake call | §14 | [ ] |
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
-| 16 | §16 | Resumable verified dataset downloads | §4 | [ ] |
+| 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
 | 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6 | [ ] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [ ] |
@@ -535,9 +535,12 @@ Filed 2026-10-28 from D03 T04 §4's completion review (E2): a collection interru
 - [x] Measure a 10 MB transfer interrupted at 90 percent against `curl --continue-at -` (the comparator installed here): bytes refetched, recovery, integrity and time, recorded in `docs/glimmer/importing.md` (plan review gap 12). Done when: both figures are recorded, `fetch.py` refetching at most the last 10 percent plus 64 KB.
 - [x] Close the completion review's gaps in `scripts/glimmer/fetch.py`: no file without a published digest (`--unpublished` removed; MD5 kept, since datasets such as a Zenodo record publish only that), a `206` appended only with `first <= last < total`, a matching `Content-Length` and the same validator and encoding, a valid shorter range taken as progress, a strong ETag or (with no ETag at all) a Last-Modified date as the validator, each connection pinned to the address that was checked, one attempt budget over every restart and failure with the limits validated, a broken chunked body retried, the per-source limit counted over the whole folder and the free-space floor taken from the brief, the partial truncated before new state is written, the state synced and every finalisation failure an `incomplete` outcome a rerun recovers, `Retry-After` honoured with doubling waits, a slow trickle cut, and progress on standard error (completion review C1 to C10, E2 to E4). Done when: `tests/scripts/test_glimmer_fetch.py` proves each, 24 tests passing.
 - [x] Give the second sweep a persistent ownership mark (`<source>/.sweep-2`, written before its first download, the only folders a rerun may change), and have both briefs pass their free-space floors to `.fetch.py` and record a dataset with no published digest in `REJECTED.md` (completion review C1, C8, C11). Done when: `test/node/astra-brief.test.ts` requires each rule in both briefs.
-- [ ] Commit: `glimmer: resumable verified dataset downloads`
+- [x] Commit: `glimmer: resumable verified dataset downloads`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` and `pnpm exec vitest run test/node/astra-brief.test.ts` pass, and fail if an unchanged, valid `206` resume refetches the whole file, a mismatched or unverified file is promoted, a bad `206` or `416` is appended or taken for success, or either brief deletes `.partial/`; each successful case ends with exit 0, the exact contents and the verified digest.
+
+> **Verified:** 2026-10-29 | §16 | 058b12d8feb702366434d7cdfca46e1b6832e8ad
+> **Review:** `docs/reviews/d03-t04-s16.json`
 
 ## 17. Loupe model card per version
 
