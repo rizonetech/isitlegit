@@ -506,3 +506,40 @@ describe("round 1 (2026-10-29)", () => {
     expect(refused?.ip_hash).toBe(signedIn?.ip_hash);
   });
 });
+
+describe("round 2 (2026-10-29)", () => {
+  it("never lets a caller without the right hold a member an owner is changing", async () => {
+    const { cookie } = await owner(`hold-${unique()}@example.org`);
+    const memberEmail = `held-${unique()}@example.org`;
+    await joiner(cookie, memberEmail, "member");
+    const { cookie: plainCookie } = await joiner(cookie, `nosy-${unique()}@example.org`, "member");
+    const outsider = await owner(`outsider-${unique()}@example.org`);
+    const id =
+      (
+        await db
+          .prepare(`SELECT m.id FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE u.email = ?`)
+          .bind(memberEmail)
+          .first<{ id: string }>()
+      )?.id ?? "";
+    await db.batch([
+      db.prepare("CREATE TABLE IF NOT EXISTS lock_log (member_id TEXT)"),
+      db.prepare("DELETE FROM lock_log"),
+      db.prepare(
+        "CREATE TRIGGER IF NOT EXISTS lock_logged AFTER INSERT ON member_locks BEGIN INSERT INTO lock_log VALUES (NEW.member_id); END",
+      ),
+    ]);
+    try {
+      for (const c of [plainCookie, outsider.cookie])
+        expect(
+          (await api("/api/auth/organization/update-member-role", c, { memberId: id, role: "admin" })).status,
+        ).toBeGreaterThanOrEqual(400);
+      expect((await db.prepare("SELECT COUNT(*) AS n FROM lock_log").first<{ n: number }>())?.n).toBe(0);
+      expect(
+        (await api("/api/auth/organization/update-member-role", cookie, { memberId: id, role: "admin" })).status,
+      ).toBe(200);
+      expect((await db.prepare("SELECT COUNT(*) AS n FROM lock_log").first<{ n: number }>())?.n).toBe(1);
+    } finally {
+      await db.batch([db.prepare("DROP TRIGGER IF EXISTS lock_logged"), db.prepare("DROP TABLE IF EXISTS lock_log")]);
+    }
+  });
+});

@@ -174,15 +174,39 @@ export function authOptions(
           // held while the change runs (migration 0028), so a second change at once is refused, not recorded against a
           // role it did not replace (round 1).
           const memberId = (ctx.body as { memberId?: unknown } | undefined)?.memberId;
-          if (typeof memberId === "string") {
+          // Only an owner or admin of the member's own organisation takes the hold (round 2): anyone else is refused by
+          // Better Auth after this, and must not hold a member an owner is changing.
+          const caller = await getSessionFromCtx(ctx);
+          const target =
+            typeof memberId === "string"
+              ? await ctx.context.adapter.findOne<{ organizationId: string }>({
+                  model: "member",
+                  where: [{ field: "id", value: memberId }],
+                })
+              : null;
+          const callerMember =
+            caller && target
+              ? await ctx.context.adapter.findOne<{ role: string }>({
+                  model: "member",
+                  where: [
+                    { field: "userId", value: caller.user.id },
+                    { field: "organizationId", value: target.organizationId },
+                  ],
+                })
+              : null;
+          const mayChange = callerMember
+            ? callerMember.role.split(",").some((r) => r === "owner" || r === "admin")
+            : false;
+          if (typeof memberId === "string" && mayChange) {
             const now = Math.floor(Date.now() / 1000);
             const held = await mail()
               .db.prepare(
-                "INSERT INTO member_locks (member_id, until) VALUES (?1, ?2) ON CONFLICT (member_id) DO UPDATE SET until = excluded.until WHERE member_locks.until < ?3",
+                "INSERT INTO member_locks (member_id, until) VALUES (?1, ?2) ON CONFLICT (member_id) DO UPDATE SET until = excluded.until WHERE member_locks.until < ?3 RETURNING member_id",
               )
               .bind(memberId, now + MEMBER_LOCK_SECONDS, now)
-              .run();
-            if ((held.meta.changes ?? 0) !== 1)
+              .first();
+            // Taken when the row came back: a held member returns none.
+            if (!held)
               throw new APIError("CONFLICT", { message: "another change to this member is in progress; try again" });
             lockedMembers.set(ctx.request, memberId);
             const member = await ctx.context.adapter.findOne<{ role: string }>({
