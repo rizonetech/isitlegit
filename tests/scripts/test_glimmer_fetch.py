@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -137,6 +138,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Retry-After", self.date_time_string(time.time() + 20))
             if "429-asctime" in modes:
                 self.send_header("Retry-After", time.strftime("%a %b %d %H:%M:%S %Y", time.gmtime(time.time() + 20)))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if "not-found" in modes:
+            self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -596,6 +602,10 @@ class Fetch(unittest.TestCase):
         self.assertEqual(len(saved["segments"]), 4)
         missing = sum(last - first + 1 - done for first, last, done in saved["segments"])
         self.assertGreater(missing, 0)
+        # The first run's cut-off answers count their bytes when their write ends; only then is the count cleared.
+        deadline = time.monotonic() + 10
+        while self.server.active and time.monotonic() < deadline:
+            time.sleep(0.05)
         self.server.served.clear()
         done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin",
                                "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE),
@@ -707,6 +717,89 @@ class Fetch(unittest.TestCase):
         result = self.run_fetch(**self.SEGMENTED)
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
+
+    # Mirrors (D03 T04 §20): a second server holds the same file; the first one fails in each way a host can.
+    def mirror(self):
+        other = Server()
+        threading.Thread(target=other.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (other.shutdown(), other.server_close()))
+        return other, f"http://127.0.0.1:{other.server_address[1]}"
+
+    def test_a_failing_first_url_hands_the_file_to_the_next_mirror(self):
+        closed = socket.socket()
+        closed.bind(("127.0.0.1", 0))
+        dead = f"http://127.0.0.1:{closed.getsockname()[1]}/file"
+        closed.close()  # nothing listens there now: a refused connection
+        cases = {
+            "an HTTP 503": ({"fail"}, None),
+            "a refused connection": (set(), dead),
+            "a redirect to a private address": ({"private"}, "/hop"),
+            "different bytes": ({"other-bytes"}, None),
+            "an HTTP 404": ({"not-found"}, None),
+        }
+        for name, (modes, first) in cases.items():
+            with self.subTest(name):
+                shutil.rmtree("src", ignore_errors=True)
+                other, base = self.mirror()
+                self.server.modes = set(modes)
+                self.server.body = bytes(SIZE) if "other-bytes" in modes else BODY
+                start = first if first and first.startswith("http") else self.base + (first or "/file")
+                result = fetch.fetch(start, "src/data.bin", ("sha256", SHA), allow_loopback=True, mirrors=[base + "/file"],
+                                     timeout=2, sleep=lambda s: None, log=lambda line: None, **ROOMY)
+                self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
+                self.assert_whole()
+        self.server.body = BODY
+
+    def test_every_mirror_failing_is_a_failure_with_the_partial_kept(self):
+        other, base = self.mirror()
+        self.server.modes = {"fail"}
+        other.modes = {"fail"}
+        with self.assertRaisesRegex(fetch.Refused, "3 attempts failed"):
+            fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True, mirrors=[base + "/file"],
+                        timeout=2, sleep=lambda s: None, log=lambda line: None, **ROOMY)
+        self.assertFalse(Path("src/data.bin").exists())
+        # Both mirrors served other bytes: the last mismatch is the answer, and nothing is kept.
+        shutil.rmtree("src", ignore_errors=True)
+        self.server.modes, other.modes = set(), set()
+        self.server.body = other.body = bytes(SIZE)
+        with self.assertRaisesRegex(fetch.Refused, "does not match"):
+            fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True, mirrors=[base + "/file"],
+                        timeout=2, sleep=lambda s: None, log=lambda line: None, **ROOMY)
+        self.assertFalse(Path("src/.partial/data.bin").exists())
+        self.server.body = BODY
+
+    def test_segments_dropped_by_one_mirror_are_resumed_from_the_next(self):
+        other, base = self.mirror()
+        self.server.modes = {"segment-drop-once"}
+        result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[base + "/file"], timeout=2, sleep=lambda s: None, log=lambda line: None,
+                             segment_threshold=1 << 20, **ROOMY)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        # After the drop every range's next request goes to the mirror, and the same validator lets each resume there:
+        # the two hosts together sent the file once, nothing twice.
+        self.assertGreater(sum(other.served), 0)
+        self.assertEqual(sum(self.server.served) + sum(other.served), SIZE)
+
+    def test_the_cli_takes_repeated_mirrors_in_order(self):
+        other, base = self.mirror()
+        self.server.modes = {"fail"}
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin",
+                               "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE),
+                               "--mirror", self.base + "/hop", "--mirror", base + "/file", "--attempts", "5"],
+                              capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr[-400:])
+        line = json.loads(done.stdout)
+        self.assertEqual((line["status"], line["url"]), ("fetched", base + "/file"))
+        self.assert_whole()
+
+    def test_the_segment_and_mirror_options_are_documented_where_operators_read(self):
+        guide = (SCRIPT.parents[2] / "docs" / "glimmer" / "importing.md").read_text(encoding="utf-8")
+        for words in ("--segments", "--segment-threshold", "--mirror"):
+            self.assertIn(words, fetch.__doc__)
+            self.assertIn(words, guide)
+        self.assertIn("### Segmented downloads", guide)
+        self.assertIn("### Mirrors", guide)
 
     def test_limits_and_failures_end_bounded_with_the_partial_kept(self):
         with self.assertRaisesRegex(fetch.Refused, "limit"):
