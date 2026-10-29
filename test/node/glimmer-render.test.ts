@@ -196,6 +196,16 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
       res,
       `<style>.c::before { content: "Press & Hold"; position: fixed; inset: 0; background: white; z-index: 9999 }</style><p>${words}</p><div class=c></div>`,
     ),
+  "/form-covered": (res) =>
+    html(
+      res,
+      `<p>${words}</p><form><input type=password></form><div style="position:fixed;inset:0;background:#fff;z-index:9999"><p>Scheduled maintenance: we will be back shortly. Thank you for your patience while we work.</p></div>`,
+    ),
+  "/wall-pseudo-hidden": (res) =>
+    html(
+      res,
+      `<style>.c { display: none } .c::before { content: "Press & Hold"; position: fixed; inset: 0 }</style><p>${words}</p><div class=c></div>`,
+    ),
   "/frame-overflow": (res) =>
     html(
       res,
@@ -1011,6 +1021,11 @@ describe("the batch run", () => {
     expect(readingsAgree(reading(words), reading("short"))).toBe(false);
   });
 
+  it("reads no wall into a page from a hidden element's pseudo-element", async () => {
+    const shot = await renderer.render(`${origin}/wall-pseudo-hidden`);
+    expect(shot.overlays).not.toContain("Press & Hold");
+  });
+
   it("refuses a page with a closed shadow root, whose contents no reader can see", async () => {
     const store = openStore(join(dir, "store"));
     const journal = join(dir, "progress.jsonl");
@@ -1028,7 +1043,7 @@ describe("the batch run", () => {
   });
 
   it("counts a frame's fields only where the screenshot shows them, and reads shadow roots", async () => {
-    for (const path of ["/frame-clipped", "/frame-overflow", "/form-below", "/shadow-clipped"])
+    for (const path of ["/frame-clipped", "/frame-overflow", "/form-below", "/shadow-clipped", "/form-covered"])
       expect((await renderer.render(`${origin}${path}`)).has_login_form, path).toBe(false);
     // A frame drawn at half size still shows the field its own coordinates place below the scaled-down box's end.
     expect((await renderer.render(`${origin}/frame-scaled`)).has_login_form).toBe(true);

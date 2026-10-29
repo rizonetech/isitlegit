@@ -239,7 +239,9 @@ export function readWalls(): { captcha: boolean; consentWall: boolean; overlays:
     for (const part of ["::before", "::after"]) {
       const style = getComputedStyle(el, part);
       if (style.content === "none" || style.content === "normal") continue;
-      // Words a pseudo-element draws (`content: "Press & Hold"`) reach no text reader: they join the overlays.
+      // Words a pseudo-element draws (`content: "Press & Hold"`) reach no text reader: they join the overlays, when the
+      // element and its pseudo-element are shown (an inactive widget's hidden wording is not on the page).
+      if (!shown(el) || style.display === "none" || style.visibility === "hidden") continue;
       const drawn = [...style.content.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) =>
         (m[1] ?? "").replace(/\\(.)/g, "$1"),
       );
@@ -286,7 +288,17 @@ const OWNER_BOX = `function () {
     if (style.overflowY !== "visible") clip = { ...clip, top: Math.max(clip.top, outer.top), bottom: Math.min(clip.bottom, outer.bottom) };
   }
   return {
-    shown: box.width > 0 && box.height > 0 && this.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+    shown:
+      box.width > 0 &&
+      box.height > 0 &&
+      this.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
+      // Not painted over: the frame element is on top at one of its centre and inset corners within the view.
+      [[0.5, 0.5], [0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]].some(([fx, fy]) => {
+        const x = box.left + box.width * fx;
+        const y = box.top + box.height * fy;
+        if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return false;
+        return this.getRootNode().elementFromPoint(x, y) === this;
+      }),
     left,
     top,
     scaleX,
@@ -940,11 +952,10 @@ export async function openRenderer(
       }
     };
     const screenshot = async (height: number) => {
-      // Only the kept 1280 by 2000 pixels are captured (§5 found full captures of very tall pages crash the browser).
+      // The viewport is the 1280 by 2000 pixels kept, so the picture is the very layout the readers read (a full-page
+      // capture resizes the view and moves anything placed by it).
       return page.screenshot({
         type: "png",
-        // A full-page capture measures the page by its root, and waits forever on a page with none.
-        fullPage: height > 0,
         clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, height)) },
         timeout: left(),
       });
@@ -997,7 +1008,9 @@ export async function openRenderer(
     let abandoned = false;
     const work = (async () => {
       const made = await browser.newContext({
-        viewport: { width: MAX_WIDTH, height: 800 },
+        // The crop the screenshot keeps (§26): readers and picture share one layout, and what is on top can be asked
+        // anywhere in it.
+        viewport: { width: MAX_WIDTH, height: MAX_HEIGHT },
         acceptDownloads: false,
         serviceWorkers: "block",
         permissions: [],

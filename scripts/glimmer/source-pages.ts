@@ -128,7 +128,25 @@ export function readFormFlags(
       (box.right <= region.left || box.left >= region.right || box.bottom <= region.top || box.top >= region.bottom)
     )
       return false;
-    return Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true });
+    if (!Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true })) return false;
+    return onTop(el, box);
+  };
+  // Not painted over: at one of a few points of its visible box (its centre and four points inset from its corners),
+  // the topmost element is the field itself or inside it. An opaque panel above a form hides it from the screenshot.
+  // Points outside the viewport cannot be asked; a box wholly outside it counts as seen as before.
+  const onTop = (el: Element, box: { left: number; top: number; right: number; bottom: number }) => {
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const xs = [box.left + 2, (box.left + box.right) / 2, box.right - 2];
+    const ys = [box.top + 2, (box.top + box.bottom) / 2, box.bottom - 2];
+    let asked = false;
+    for (const x of xs)
+      for (const y of ys) {
+        if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
+        asked = true;
+        const hit = root.elementFromPoint(x, y);
+        if (hit && (hit === el || Node.prototype.contains.call(el, hit))) return true;
+      }
+    return !asked;
   };
   // A document's inputs, those inside open shadow roots included (a sign-in widget often draws its fields in one).
   const inputsOf = (root: Document | ShadowRoot): HTMLInputElement[] => {
