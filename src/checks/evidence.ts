@@ -40,10 +40,11 @@ export function evidenceIn(registry: CheckRegistry) {
 }
 export const Evidence = evidenceIn(checks);
 
-// A control character (a line break among them) or markup.
+// A control character, a format character (zero-width and bidirectional controls), a line or paragraph separator, or
+// markup: a summary that copies hostile text can neither break its line nor reorder what the report shows (final review).
+const UNPLAIN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>]/u;
 function unplain(character: string): boolean {
-  const code = character.codePointAt(0) as number;
-  return code < 0x20 || code === 0x7f || character === "<" || character === ">";
+  return UNPLAIN.test(character);
 }
 // What a check returns: the item before the store numbers it.
 export type EvidenceDraft = Omit<Evidence, "id">;

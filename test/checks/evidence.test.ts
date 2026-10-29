@@ -96,7 +96,17 @@ describe("Evidence", () => {
     expect(Evidence.safeParse({ ...good, summary: "x".repeat(201) }).success).toBe(false);
     // Characters, not UTF-16 units: 200 emoji are 400 units and still fit.
     expect(Evidence.safeParse({ ...good, summary: "😀".repeat(200) }).success).toBe(true);
-    for (const summary of ["", "line one\nline two", "<b>bold</b>"])
+    for (const summary of [
+      "",
+      "line one\nline two",
+      "<b>bold</b>",
+      "safe\u2028next line",
+      "safe\u2029next paragraph",
+      "safe\u0085next",
+      "pay \u202Eevil",
+      "zero\u200Bwidth",
+      "tab\there",
+    ])
       expect(Evidence.safeParse({ ...good, summary }).success, summary).toBe(false);
     for (const id of ["E0", "e1", "E", "1", "E01"]) expect(Evidence.safeParse({ ...good, id }).success, id).toBe(false);
     for (const detail of [[1], "x", null]) expect(Evidence.safeParse({ ...good, detail }).success).toBe(false);
