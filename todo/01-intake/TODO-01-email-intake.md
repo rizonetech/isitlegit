@@ -20,6 +20,7 @@ track: day-1
 - RFC 5322 (message format), RFC 2045 to 2049 (MIME), RFC 2046 section 5.2.1 (`message/rfc822`).
 - -> XREF: D07 T02 §5 -- the verified member domains and addresses the email handler admits
 - -> XREF: D01 T02 §3 -- the reply that closes the loop for every accepted case
+- -> XREF: D99 T01 §9 -- the domain recovery runbook whose move off Cloudflare waits on §15
 
 ## Outcome
 
@@ -49,6 +50,7 @@ track: day-1
 | 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
 | 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
 | 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
+| 15 | §15 | Second inbound mail route | §9 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -480,6 +482,31 @@ A forward near Email Routing's 25 MiB limit must finish on the deployed Worker a
 - [ ] Commit: `intake: a near-limit forward proved on the live Worker`
 
 **Test checkpoint:** `docs/live-checks.md` holds the near-limit run's `rawSize`, its `parse` event and its summary, with no memory or CPU outcome.
+
+## 15. Second inbound mail route
+
+`check@isitlegit.co.za` reaches the Worker only through Cloudflare Email Routing (§9), which exists only while Cloudflare serves the zone, so a nameserver move away from Cloudflare would silently end intake. D99 T01 §9's runbook stops a move off Cloudflare at its preparation step for that reason; this section builds the second route that lets the move go ahead. Filed 2026-10-29 from D99 T01 §9's completion review (gap 15, missing-out-of-scope); a campaign scope decision: nothing is planned that needs it before Phase 7, so it sits there, and the runbook's refusal stays until it stamps.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Choose the route. Done when: the section records the chosen inbound provider (an MX host that hands each message to an HTTPS endpoint), its size limit against §9's 25 MiB, its authentication of the hand-off, and its cost, with the alternatives weighed.
+2. Accept its hand-off in the Worker. Done when: a signed request carrying a raw message reaches the same `handleIncoming` path the `email()` handler uses, and an unsigned or replayed one is refused.
+3. Prove it end to end without moving the zone. Done when: a forward to a test address on the new route creates a case and gets its reply.
+4. Write the move into the runbook. Done when: D99 T01 §9's procedure (a) names the route switch, its read-back and its rollback in place of the refusal.
+
+- [ ] Record the inbound provider choice in this section (an MX-to-HTTPS service: its message size limit, its hand-off signature, its retry on a failed hand-off, its price), citing each provider's documentation. Done when: the record names the choice and why it beat each alternative.
+- [ ] Add the hand-off endpoint (`src/intake/inbound-http.ts`, routed from `src/index.ts`), verifying the provider's signature and a timestamp window before reading the body, and passing the raw message to the same intake function the `email()` handler calls. Done when: `test/intake/inbound-http.test.ts` proves a signed message creates one case, and an unsigned, wrongly signed, stale or replayed request creates nothing. Cheaper substitute: a shared secret in the URL (refused: it leaks into logs).
+- [ ] Refuse a message over §9's limit at the endpoint with the same outcome the `email()` path gives. Done when: the test shows an oversized hand-off refused and logged, no case created.
+- [ ] Store the provider's signing secret in the vault first and then on the Worker (`wrangler secret put`), never printed. Done when: `pnpm exec wrangler secret list` names it and the vault item exists.
+- [ ] Prove the route live on a test address of the new provider, without moving the zone. Done when: `docs/live-checks.md` records a forward that made a case and its reply, with the provider's message id.
+- [ ] Replace the refusal in `docs/operations.md` "Domain recovery" (a) with the route switch (the MX change, its read-back, a forward that gets its reply) and its rollback (the MX back to Email Routing). Done when: procedure (a) no longer stops at step 1 for a move off Cloudflare and `tests/scripts/test_check_domain.py`'s runbook test still passes.
+- [ ] Commit: `intake: a second inbound route, so the zone can leave Cloudflare`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/intake/inbound-http.test.ts` passes, and `python3 -m pytest tests/scripts/test_check_domain.py` passes.
 
 ## Verification
 

@@ -69,9 +69,11 @@ export type ResendReport = {
 export async function resendRequested(env: Env, now = () => new Date()): Promise<ResendReport> {
   const report: ResendReport = { done: 0, retried: 0, exhausted: 0, recovered: 0, alerted: 0, errors: [] };
   const started = Date.now();
-  // Each request is tried once a run (round 1): one put back for the next run is stamped at or after this, so this run
-  // does not select it again.
-  const runStart = now().toISOString();
+  // Each request is tried once a run (round 1), by its key: one put back for the next run is not selected again, and a
+  // request asked for in the same instant the run began is still taken (a time stamp could not tell the two apart). A
+  // claim that throws is tried once more in the run, never a third time.
+  const tried = new Set<string>();
+  const threw = new Set<string>();
   const inBudget = () => Date.now() - started < RUN_BUDGET_MS;
   // Each pass on its own (final review): one that fails is logged and the next still runs.
   await recoverAbandoned(env.DB, now(), report).catch((error: unknown) =>
@@ -83,22 +85,24 @@ export async function resendRequested(env: Env, now = () => new Date()): Promise
   // Every request in one run, a batch at a time within the run's budget (G4).
   while (Date.now() - started < RUN_BUDGET_MS) {
     const rows = await env.DB.prepare(
-      `SELECT send_key, case_id, resend_runs FROM mail_sends WHERE resend_state = 'requested' AND kind = 'reply' AND status = 'failed' AND resend_at < ? ORDER BY resend_at LIMIT ${BATCH}`,
+      "SELECT send_key, case_id, resend_runs FROM mail_sends WHERE resend_state = 'requested' AND kind = 'reply' AND status = 'failed' ORDER BY resend_at LIMIT ?",
     )
-      .bind(runStart)
+      .bind(BATCH + tried.size)
       .all<{ send_key: string; case_id: string | null; resend_runs: number }>();
-    if (rows.results.length === 0) break;
-    let claimedAny = false;
-    for (const row of rows.results) {
+    const fresh = rows.results.filter((row) => !tried.has(row.send_key));
+    if (fresh.length === 0) break;
+    for (const row of fresh.slice(0, BATCH)) {
       if (!inBudget()) break;
       // One request's failure (its claim included) never ends the run for the rest (final review).
-      claimedAny =
-        (await resendOne(env, row, now, report).catch((error: unknown) => {
-          report.errors.push(`${row.send_key}: its resend could not be handled (${(error as Error).name})`);
-          return true;
-        })) || claimedAny;
+      try {
+        await resendOne(env, row, now, report);
+        tried.add(row.send_key);
+      } catch (error) {
+        report.errors.push(`${row.send_key}: its resend could not be handled (${(error as Error).name})`);
+        if (threw.has(row.send_key)) tried.add(row.send_key);
+        else threw.add(row.send_key);
+      }
     }
-    if (!claimedAny) break;
   }
   return report;
 }
