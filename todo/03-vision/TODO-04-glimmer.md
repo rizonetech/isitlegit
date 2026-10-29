@@ -655,6 +655,8 @@ Filed 2026-10-29 from D03 T04 §16's completion review (E1, E5, E6): `scripts/gl
 
 ## 21. Downloads that beat aria2c outright
 
+> **Started:** 2026-10-29T05:47Z
+
 Filed 2026-10-29 from D03 T04 §20's completion review (E1, E2, E3): §20 brought `scripts/glimmer/fetch.py` within its bar against aria2c 1.37.0 (no more than 10 percent slower after a cut, faster when the first URL fails, nothing refetched), on a 96 MiB file over loopback HTTP. Three ways it still falls short of beating aria2c outright: after a cut it is still about 9 percent slower; it uses one healthy URL at a time where aria2c draws on several sources at once; and nothing shows the result holds on a gigabyte file over HTTPS with real latency.
 
 **Phase:** 7
