@@ -266,7 +266,7 @@ Sections: 59 | Checklist items: 238
 
 ### Phase 7: After the event
 
-Sections: 14 | Checklist items: 70
+Sections: 15 | Checklist items: 76
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -275,8 +275,9 @@ Sections: 14 | Checklist items: 70
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
-| [ ]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 12    |
+| [ ]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 4     |
+| [ ]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
@@ -304,6 +305,6 @@ Sections: 12 | Checklist items: 51
 | [ ]    | D99 T02 §5 | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6 | Paste competitor updates for review           | operator | 2     |
 
-Progress: 46/235 verified sections, 31 ready to run now.
+Progress: 46/236 verified sections, 31 ready to run now.
 
-Checklist: 619/1415 items completed (includes Commit items).
+Checklist: 621/1421 items completed (includes Commit items).

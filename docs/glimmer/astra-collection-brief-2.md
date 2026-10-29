@@ -33,11 +33,11 @@ Download a dataset only when its licence allows use for training a model in a co
 - Never execute, import or open with a program any file from a download; only download it, hash it, and list an archive's contents (`unzip -l`, `tar -tf`) to count its items.
 - Never unpack an archive: Claude's converter extracts it with each entry confined to its folder and the expanded size bounded.
 - Do not log in anywhere, accept a licence on someone's behalf, fill a form, or create an account. A dataset behind a sign-up or a request form is recorded as rejected with the reason `access by request`.
-- Write nothing outside the folder you start in, and change nothing in a folder that already exists there (`scamferret/`, `phreshphish/`, `majestic/`, `benign/` and the first sweep's files are Claude's).
+- Write nothing outside the folder you start in, and change nothing in a folder that already exists there (`scamferret/`, `phreshphish/`, `majestic/`, `benign/` and the first sweep's files are Claude's), except a folder this sweep made itself, which holds `.sweep-2` and which a rerun resumes.
 
 ## Output layout
 
-One new folder per source, `<source>/`, where `<source>` is a short lowercase name with dashes that no existing folder uses. Each accepted source gets `<source>/COLLECTED.md` with these fields:
+One new folder per source, `<source>/`, where `<source>` is a short lowercase name with dashes that no existing folder uses; put an empty `<source>/.sweep-2` in it before its first download, so a rerun knows the folder is this sweep's. Each accepted source gets `<source>/COLLECTED.md` with these fields:
 
 - `URL:` the page you downloaded from
 - `Licence:` the licence's name
@@ -53,10 +53,10 @@ Each rejected source gets one line in `REJECTED-2.md` (a new file; leave the fir
 
 ## Recovery rules
 
-- Every download is made with the downloader placed where you start: `python3 .fetch.py --url <url> --dest <source>/<name> --sha256 <the published SHA-256>` (`--md5 <hex>` where the dataset publishes only an MD5, `--unpublished` where it publishes no digest, which you then say in `COLLECTED.md`). It writes to `<source>/.partial/`, resumes an interrupted file from where it stopped, and moves a file into place only after its SHA-256 has been computed and its published digest matches; its last line is a JSON result, and only exit 0 means the file is in place.
+- Every download is made with the downloader placed where you start: `python3 .fetch.py --url <url> --dest <source>/<name> --sha256 <the published SHA-256>` (`--md5 <hex>` where the dataset publishes only an MD5), with `--min-free 20000000000`, so the stop on free space below holds inside each download. A dataset that publishes neither digest is not downloaded: record it in `REJECTED.md` with the reason `no published digest`. It writes to `<source>/.partial/`, resumes an interrupted file from where it stopped, and moves a file into place only after its SHA-256 has been computed and its published digest matches; its last line is a JSON result, and only exit 0 means the file is in place.
 - `COLLECTED.md` is written last, through a temporary file and a rename, only when every file it lists is in place.
 - A rerun skips a source whose `COLLECTED.md` hashes still match its files.
-- A rerun keeps `.partial/` and runs `.fetch.py` again for each file of a source without a `COLLECTED.md`: it resumes an unfinished file and reports a finished one `present` without fetching it again. `.fetch.py` tries each file 3 times; make no retries of your own. This sweep resumes only the folders it made itself; it never changes a folder the first sweep left.
+- A rerun keeps `.partial/` and runs `.fetch.py` again for each file of a source without a `COLLECTED.md`: it resumes an unfinished file and reports a finished one `present` without fetching it again. `.fetch.py` tries each file 3 times; make no retries of your own. This sweep resumes only the folders it made itself, those holding `.sweep-2`; it never changes a folder without one.
 - A rerun that finds a `COLLECTED.md` whose listed file is missing or has a different SHA-256 renames it to `COLLECTED.invalid-<UTC stamp>.md`, deletes that source's other files, and collects the source again; other sources are left as they are.
 
 ## Stop conditions

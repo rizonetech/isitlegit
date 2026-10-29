@@ -55,6 +55,7 @@ track: day-6
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
 | 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6 | [ ] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [ ] |
+| 20 | §20 | Faster and mirrored dataset downloads | §16 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -532,6 +533,8 @@ Filed 2026-10-28 from D03 T04 §4's completion review (E2): a collection interru
 - [x] Reuse each file of a multi-file source that is already in place by rehashing it against its expected digest, resume the unfinished ones, and leave `COLLECTED.md` to the collector, which writes it (temp-then-rename) only once every listed file is present and matches (plan review gap 10). Done when: the test reruns a fetch whose file is already in place and sees it rehashed and reported `present` with nothing fetched, and refused when its bytes differ. **Corrected 2026-10-29 (implementation):** `COLLECTED.md` carries the licence and label fields only the collector knows, so `fetch.py` does not write it; it makes each file of a source reusable on a rerun, and the briefs' rerun rule relies on that.
 - [x] Change the recovery rule in both briefs, `docs/glimmer/astra-collection-brief.md` and `docs/glimmer/astra-collection-brief-2.md`, to keep `.partial/` and resume through `fetch.py`, brief 2 resuming only its own sweep's folders and still leaving the first sweep's alone, and make `test/node/astra-brief.test.ts` read both (plan review gap 2). Done when: the brief test passes with the rule in both and fails with it removed from either.
 - [x] Measure a 10 MB transfer interrupted at 90 percent against `curl --continue-at -` (the comparator installed here): bytes refetched, recovery, integrity and time, recorded in `docs/glimmer/importing.md` (plan review gap 12). Done when: both figures are recorded, `fetch.py` refetching at most the last 10 percent plus 64 KB.
+- [x] Close the completion review's gaps in `scripts/glimmer/fetch.py`: no file without a published digest (`--unpublished` removed; MD5 kept, since datasets such as a Zenodo record publish only that), a `206` appended only with `first <= last < total`, a matching `Content-Length` and the same validator and encoding, a valid shorter range taken as progress, a strong ETag or (with no ETag at all) a Last-Modified date as the validator, each connection pinned to the address that was checked, one attempt budget over every restart and failure with the limits validated, a broken chunked body retried, the per-source limit counted over the whole folder and the free-space floor taken from the brief, the partial truncated before new state is written, the state synced and every finalisation failure an `incomplete` outcome a rerun recovers, `Retry-After` honoured with doubling waits, a slow trickle cut, and progress on standard error (completion review C1 to C10, E2 to E4). Done when: `tests/scripts/test_glimmer_fetch.py` proves each, 24 tests passing.
+- [x] Give the second sweep a persistent ownership mark (`<source>/.sweep-2`, written before its first download, the only folders a rerun may change), and have both briefs pass their free-space floors to `.fetch.py` and record a dataset with no published digest in `REJECTED.md` (completion review C1, C8, C11). Done when: `test/node/astra-brief.test.ts` requires each rule in both briefs.
 - [ ] Commit: `glimmer: resumable verified dataset downloads`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` and `pnpm exec vitest run test/node/astra-brief.test.ts` pass, and fail if an unchanged, valid `206` resume refetches the whole file, a mismatched or unverified file is promoted, a bad `206` or `416` is appended or taken for success, or either brief deletes `.partial/`; each successful case ends with exit 0, the exact contents and the verified digest.
@@ -607,6 +610,27 @@ Filed 2026-10-29 from D03 T04 §7's completion review (gaps 14, 15 and 17): the 
 - [ ] Commit: `glimmer: sample redaction beyond the dictionary`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-leak.test.ts test/node/glimmer-redact.test.ts` passes, with the benchmark's survived count 0 and its refusal rate no higher than before.
+
+
+## 20. Faster and mirrored dataset downloads
+
+Filed 2026-10-29 from D03 T04 §16's completion review (E1, E5, E6): `scripts/glimmer/fetch.py` downloads one file over one connection from one URL. aria2c, the strongest alternative, is not installed on this host and cannot be without root, so the measured head-to-head waits for a host that has it; segmented downloading and failover between a dataset's authorised mirrors would beat both on a large file.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Measure aria2c against `fetch.py`. Done when: both figures sit side by side in `docs/glimmer/importing.md`.
+2. Add segments and mirrors where the measurement supports them. Done when: a large file fetches faster with every rule `fetch.py` keeps still holding.
+
+- [ ] Run aria2c (`--continue`, `--checksum=sha-256=<hex>`, the same timeouts and attempts) and `fetch.py` on the same interrupted 10 MB and 1 GB local transfers, recording bytes refetched, recovery, integrity and time in `docs/glimmer/importing.md`. Done when: both tools' figures are recorded from one run on a host with aria2c installed.
+- [ ] Fetch a file in up to four ranged segments at once in `scripts/glimmer/fetch.py`, each checked as a single range is, the whole verified once. Done when: `tests/scripts/test_glimmer_fetch.py` fetches a segmented file faster than a single stream and refuses a segment that fails its range checks.
+- [ ] Fail over to a dataset's other authorised mirror (`--mirror URL`, repeatable) for the same published digest, each mirror held to the same address and redirect rules. Done when: the test finishes a file from its second mirror after the first fails.
+- [ ] Commit: `glimmer: faster and mirrored dataset downloads`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes with the segment and mirror cases.
 
 ## Verification
 
