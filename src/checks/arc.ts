@@ -9,7 +9,7 @@
 // own; any other receiver only in its trusted header. The receiver's boundary selects the verdict; the earlier set it
 // names may sit lower, where the earlier hop wrote it.
 import { parseAuthenticationResults, type Result } from "../intake/sender";
-import { bounded, boundedDetail, plain } from "./auth";
+import { bounded, fittedDetail, plain } from "./auth";
 import { receiverZone, trustedAuthResults } from "./auth-results";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
@@ -22,23 +22,41 @@ const MICROSOFT_ARC_ID = "mx.microsoft.com";
 export function readArcResults(
   value: string,
 ): { instance: number; authservId: string | null; results: Result[] } | null {
-  const match = /^\s*i\s*=\s*([0-9]{1,2})\s*;([\s\S]*)$/.exec(value);
-  if (!match) return null;
-  const parsed = parseAuthenticationResults(match[2] ?? "");
-  return parsed ? { instance: Number(match[1]), ...parsed } : null;
+  // The instance tag may carry comments and folding whitespace (CFWS, RFC 8617 sections 3.9 and 4.1.1): it is read with
+  // them removed, so `i (forwarder) = 1` is instance 1 and counts against a duplicate (round 1).
+  const at = value.indexOf(";");
+  if (at < 0) return null;
+  const tag = /^i=([0-9]{1,2})$/.exec(withoutComments(value.slice(0, at)).replace(/\s+/g, ""));
+  if (!tag) return null;
+  const parsed = parseAuthenticationResults(value.slice(at + 1));
+  return parsed ? { instance: Number(tag[1]), ...parsed } : null;
 }
 
 // An `ARC-Seal`'s instance and signing domain, from its tag list (RFC 8617 section 4.1.3); null when either is missing.
 export function readArcSeal(value: string): { instance: number; domain: string } | null {
   const tags = new Map(
-    value.split(";").map((tag) => {
-      const at = tag.indexOf("=");
-      return [tag.slice(0, at).trim().toLowerCase(), tag.slice(at + 1).replace(/\s+/g, "")] as const;
-    }),
+    withoutComments(value)
+      .split(";")
+      .map((tag) => {
+        const at = tag.indexOf("=");
+        return [tag.slice(0, at).trim().toLowerCase(), tag.slice(at + 1).replace(/\s+/g, "")] as const;
+      }),
   );
   const instance = /^[0-9]{1,2}$/.test(tags.get("i") ?? "") ? Number(tags.get("i")) : null;
   const domain = (tags.get("d") ?? "").toLowerCase();
   return instance !== null && domain ? { instance, domain } : null;
+}
+
+// The text with its comments (nested ones included) removed; the ARC tag lists it reads hold no quoted strings.
+function withoutComments(value: string): string {
+  let out = "";
+  let depth = 0;
+  for (const c of value) {
+    if (c === "(") depth++;
+    else if (c === ")" && depth > 0) depth--;
+    else if (depth === 0) out += c;
+  }
+  return out;
 }
 
 type Verdict = { result: Result; header: string; validated: number | null };
@@ -102,7 +120,7 @@ export function arcEvidence(view: CaseView): EvidenceDraft[] {
     check: "auth.arc",
     severity,
     summary: bounded(summary),
-    detail: boundedDetail({ verdict: outcome, ...detail, headers }) as EvidenceDraft["detail"],
+    detail: fittedDetail({ verdict: outcome, ...detail, headers }) as EvidenceDraft["detail"],
     artefacts: [view.raw],
   });
   if (outcome === "fail")

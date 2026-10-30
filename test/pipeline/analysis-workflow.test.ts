@@ -699,6 +699,45 @@ describe("the checks step and the event writer", () => {
     expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
   });
 
+  it("stores auth.arc with its verdict however large the earlier results are (D02 T02 §3, round 1)", async () => {
+    const org = "org-arc-big";
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+    )
+      .bind("claim-arc-big", org, "arc-big.co.za", "t".repeat(16), now, now)
+      .run();
+    await putRaw(store, id, new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay.\r\n"));
+    const props = Array.from({ length: 20 }, (_, p) => `p${p}=${"v".repeat(200)}`).join(" ");
+    const earlier = `i=1; mx.lists.example; ${Array.from({ length: 20 }, (_, r) => `m${r}=pass ${props}`).join("; ")}`;
+    await putParsed(store, id, {
+      headers: [
+        { name: "Received", value: "from lists.example (lists.example. [203.0.113.7]) by mx.google.com" },
+        { name: "Authentication-Results", value: "mx.google.com; arc=pass (i=1)" },
+        { name: "Received", value: "from client by lists.example" },
+        { name: "ARC-Authentication-Results", value: earlier },
+        { name: "ARC-Seal", value: "i=1; a=rsa-sha256; cv=none; d=lists.example; s=arc; b=x" },
+        { name: "From", value: "billing@bank.example" },
+      ],
+      text: "Pay.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]);
+    const stored = await readEvidence(env.DB, id);
+    expect(stored.some((e) => e.check === "not_checked")).toBe(false);
+    expect(stored.find((e) => e.check === "auth.arc")).toMatchObject({
+      artefacts: [rawKey(id)],
+      detail: { verdict: "pass", sealer: "lists.example", trimmed: true },
+    });
+  });
+
   it("stores one list however often the step runs, and returns only its count", async () => {
     const id = await caseWith(forwards["attached-rfc822"]);
     await parse(store, id, MAIL);

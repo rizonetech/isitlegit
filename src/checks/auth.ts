@@ -157,6 +157,26 @@ const MAX_RESULTS = 20;
 // Every string and list in an item's detail bounded, wherever it came from (round 3: a 66 KB result token): the header
 // excerpts to MAX_HEADER, any other string to MAX_VALUE, any list to MAX_RESULTS (MAX_SOURCES for the excerpts). One
 // place for all, so a field added later cannot overflow the schema either.
+// The whole detail inside the store's budget (the schema refuses more than 64 KiB, and a refused item becomes
+// `not_checked`, losing its outcome; D02 T02 §3's round 1): each value bounded, then, while the whole is still over
+// DETAIL_BUDGET, the optional lists (`OPTIONAL`, the context an item carries beyond its outcome) shortened from the end,
+// and emptied with `trimmed: true` when that is not enough. The outcome fields and the header excerpts always stay.
+const DETAIL_BUDGET = 60_000;
+const OPTIONAL = ["earlier", "results", "aligned"];
+const size = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+export function fittedDetail(detail: Record<string, unknown>): Record<string, unknown> {
+  const fitted = boundedDetail(detail) as Record<string, unknown>;
+  for (const key of OPTIONAL) {
+    const list = fitted[key];
+    if (!Array.isArray(list)) continue;
+    while (list.length && size(fitted) > DETAIL_BUDGET) {
+      list.pop();
+      fitted.trimmed = true;
+    }
+  }
+  return fitted;
+}
+
 export function boundedDetail(value: unknown, key = ""): unknown {
   if (typeof value === "string") return clip(value, key === "headers" ? MAX_HEADER : MAX_VALUE);
   if (Array.isArray(value))
@@ -207,7 +227,7 @@ function item(
     check,
     severity,
     summary: bounded(summary),
-    detail: boundedDetail({
+    detail: fittedDetail({
       ...detail,
       receiver: trusted.kind,
       headers: headersOf(trusted, results),

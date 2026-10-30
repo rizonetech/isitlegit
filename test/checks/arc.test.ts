@@ -185,6 +185,23 @@ describe("auth.arc", () => {
     expect(item?.detail).toMatchObject({ proof: false });
   });
 
+  it("reads an instance tag with comments, and counts it against a duplicate (round 1)", () => {
+    const commented = h(
+      "ARC-Authentication-Results",
+      "i (forwarder) = 1; mx.lists.example; spf=pass smtp.mailfrom=bank.example",
+    );
+    expect(one(view(viaGoogle("arc=pass (i=1)", commented, SEAL)))).toMatchObject({
+      detail: { sealer: "lists.example" },
+    });
+    const second = h(
+      "ARC-Authentication-Results",
+      "i (again) = 1; mx.lists.example; spf=fail smtp.mailfrom=bank.example",
+    );
+    expect(one(view(viaGoogle("arc=pass (i=1)", EARLIER, second, SEAL)))).toMatchObject({
+      detail: { context: "unavailable" },
+    });
+  });
+
   it("runs in the production registry after §2's checks", () => {
     const names = checks.names();
     expect(names.indexOf("auth.arc")).toBeGreaterThan(names.indexOf("auth.alignment"));
