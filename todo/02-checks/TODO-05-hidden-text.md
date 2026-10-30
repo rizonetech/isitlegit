@@ -62,7 +62,7 @@ Parse the email HTML, resolve inline styles and `<style>` rules that hide text, 
 - [x] Resolve simple `<style>` class and id selectors and inline styles; record that complex selectors are not resolved. Done when: a class-hidden fixture is caught. Done 2026-10-30: `addRules`, tag, class, `tag.class` and id selectors from every sheet; the rest counted and stored as not resolved.
 - [x] Register `content.hidden_text` (medium for hidden marketing preheaders under 120 characters with no instruction language, high otherwise) quoting up to 300 characters. Done when: the demo fixture is high and a normal preheader is medium. Done 2026-10-30: `src/checks/hidden-content.ts`, bounded at 20 items with instruction words first and a counted remainder, and a coverage item.
 - [x] Write the visible text to `raw/<caseId>/visible.txt` (`putVisible`, correction 2), read back by `readVisible`. Done when: the demo fixture's `visible.txt` lacks the hidden sentence. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `visibleKey`, `putVisible`, `readVisible` in `src/intake/store.ts`; read back through the step for the demo, all-visible, all-hidden and empty bodies; five mutations (no style rules, the charset ignored, colour matching off, no item cap, no medium preheader) each fail a test.
-- [ ] Commit: `checks: invisible text extraction`
+- [x] Commit: `checks: invisible text extraction` Done 2026-10-30: bbd465d, with c73d547 (completion review) and the round fixes 5b6e13e, ffec721, bc49d96, fcd963f, 6fc8eed, 2deb631.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/hidden-text.test.ts` passes and fails if the white-on-white sentence appears in `visible.txt`.
 
