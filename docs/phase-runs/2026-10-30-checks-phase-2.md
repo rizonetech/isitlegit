@@ -11,6 +11,8 @@ Started 2026-10-30 12:15 UTC by `process-plan`, scope plan, on branch `checks-la
 
 ## Sections
 
+- D02 T02 §3 ARC chain evidence: stamped (plan review 1 P1 + 3 P2 fixed; completion 2 gaps fixed, 2 filed to their owners D07 T03 §3 and D04 T01 §4; rounds 1 to 3 fixed (2 P2 + a P3, a P2, a P2), round 4 clean). 391 tests across the checks, intake, pipeline and auth folders.
+
 - D02 T02 §2 SPF, DKIM and DMARC alignment evidence: stamped (plan review 2 P1 + 3 P2 fixed; completion 3 gaps fixed, 2 filed to their owners D04 T01 §2 and D07 T03 §3; rounds 1 to 3 fixed (2 P1 + 3 P2, a P1 + a P2, a P2), round 4 clean). 374 tests across the checks, intake, pipeline and auth folders; the whole Worker suite waits for the coordinator's slot.
 
 - D02 T02 §1 Trusted Authentication-Results parsing: stamped (plan review 2 P1 + 2 P2 fixed; completion 4 gaps fixed, 1 filed as D02 T02 §6; rounds 1 to 4 fixed (2 P1 + 2 P2, then a P1 each), round 5 clean). The whole Worker suite passed at 862 on the build; the affected folders (319 tests) on the final code. Trust now rests on what each receiver can prove: Microsoft 365 and Google by their topmost stamp, any other receiver only above its topmost hop, its inner chain left to §6.
@@ -19,3 +21,4 @@ Started 2026-10-30 12:15 UTC by `process-plan`, scope plan, on branch `checks-la
 - 2026-10-30T12:15Z run guard: session `3be2e4be-a8fb-4ea8-9e8b-6d8060daa291`, heartbeat job `5c1771a3`, generation `9c2b46bb7ebd`, run `94de7fd7e7d6`, scope plan, lane checks.
 - 2026-10-30T13:00Z merged main (483e65a, D00 T01 §19 lane scoping) into checks-lane at 6234ec2; the run file renamed to the lane convention (`checks-phase-N`); the heartbeat is recreated from §19's prompt.
 - 2026-10-30T13:01Z guard re-pointed: heartbeat job `3fccf94f` from §19's prompt, generation `7340bf970e34`, run `40dfd8b5ef89`, run file renamed; the old job `5c1771a3` deleted. `campaign_guard.py rows` reads lane=checkout (the guard follows this worktree's lane), open=70, ready=22, next D02 T02 §2.
+- 2026-10-30T13:49Z D01 T02 §6 (Phase 1) released by the operator's analytics token, restarted and plan-reviewed; its review showed a controlled failure must be probed before the detector is written, so it waits on the operator's Exchange mail flow rule again (Needs `operator`), asked of the coordinator with migration 0035 and the fallback-mailbox decision.

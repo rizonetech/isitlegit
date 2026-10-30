@@ -142,7 +142,7 @@ export function policyOf(r: Result, from: string | null): Policy {
 }
 
 // Plain words on one line, bounded, for a value copied from a header into a summary.
-const plain = (value: string, max = 80) => {
+export const plain = (value: string, max = 80) => {
   const text = Array.from(value.replace(/[<>\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, "").trim());
   return text.length <= max ? text.join("") : `${text.slice(0, max - 1).join("")}…`;
 };
@@ -152,16 +152,43 @@ const MAX_HEADER = 2_000;
 const MAX_SOURCES = 8;
 const MAX_COMMENT = 256;
 const MAX_VALUE = 255;
+const MAX_NAME = 64;
 const MAX_RESULTS = 20;
 // Every string and list in an item's detail bounded, wherever it came from (round 3: a 66 KB result token): the header
 // excerpts to MAX_HEADER, any other string to MAX_VALUE, any list to MAX_RESULTS (MAX_SOURCES for the excerpts). One
 // place for all, so a field added later cannot overflow the schema either.
-function boundedDetail(value: unknown, key = ""): unknown {
+// The whole detail inside the store's budget (the schema refuses more than 64 KiB, and a refused item becomes
+// `not_checked`, losing its outcome; D02 T02 §3's round 1): each value bounded, then, while the whole is still over
+// DETAIL_BUDGET, the optional lists (`OPTIONAL`, the context an item carries beyond its outcome) shortened from the end,
+// and emptied with `trimmed: true` when that is not enough. The outcome fields and the header excerpts always stay.
+const DETAIL_BUDGET = 60_000;
+const OPTIONAL = ["earlier", "results", "aligned"];
+const size = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+export function fittedDetail(detail: Record<string, unknown>): Record<string, unknown> {
+  const fitted = boundedDetail(detail) as Record<string, unknown>;
+  for (const key of OPTIONAL) {
+    const list = fitted[key];
+    if (!Array.isArray(list)) continue;
+    while (list.length && size(fitted) > DETAIL_BUDGET) {
+      list.pop();
+      fitted.trimmed = true;
+    }
+  }
+  return fitted;
+}
+
+export function boundedDetail(value: unknown, key = ""): unknown {
   if (typeof value === "string") return clip(value, key === "headers" ? MAX_HEADER : MAX_VALUE);
   if (Array.isArray(value))
     return value.slice(0, key === "headers" ? MAX_SOURCES : MAX_RESULTS).map((v) => boundedDetail(v, key));
   if (value !== null && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, boundedDetail(v, k)]));
+    // An object's entries counted and their names clipped too (D02 T02 §3's completion review: a result with 300
+    // properties).
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, MAX_RESULTS)
+        .map(([k, v]) => [clip(k, MAX_NAME) ?? "", boundedDetail(v, k)]),
+    );
   return value;
 }
 
@@ -172,7 +199,7 @@ function clip(value: string | null, max = MAX_VALUE): string | null {
 }
 // The evidence schema's limit for a summary (at most 200 characters): a long one is cut, its detail keeping every result,
 // so an item is never refused and replaced by `not_checked` (round 1).
-const bounded = (summary: string) => {
+export const bounded = (summary: string) => {
   const text = Array.from(summary);
   return text.length <= 200 ? summary : `${text.slice(0, 199).join("")}…`;
 };
@@ -200,7 +227,7 @@ function item(
     check,
     severity,
     summary: bounded(summary),
-    detail: boundedDetail({
+    detail: fittedDetail({
       ...detail,
       receiver: trusted.kind,
       headers: headersOf(trusted, results),
