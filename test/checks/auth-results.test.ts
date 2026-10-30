@@ -359,6 +359,7 @@ function view(headers: { name: string; value: string }[], tenant: Partial<CaseVi
     raw: "raw/case-auth/message.eml",
     brands: bundled,
     senderHistory: null,
+    domainAges: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: "Pay the invoice.",

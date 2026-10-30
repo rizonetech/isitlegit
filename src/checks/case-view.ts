@@ -5,6 +5,7 @@
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
 import type { BrandTable } from "./brand-schema";
+import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
 const Attachment = z.strictObject({
@@ -72,6 +73,9 @@ export type CaseView = {
   // Whether the organisation's earlier IsItLegit checks had a case from this sender (D02 T02 §5), filled by the checks
   // step from `observeSender`; null when it was not asked (no single valid From in the original's own headers).
   senderHistory: "first" | "seen" | null;
+  // The registration dates of the case's header domains from RDAP (D02 T03 §4), read by the checks step; null when not
+  // read.
+  domainAges: DomainAges | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -96,6 +100,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       raw,
       brands,
       senderHistory: null,
+      domainAges: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -113,6 +118,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       raw,
       brands,
       senderHistory: null,
+      domainAges: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

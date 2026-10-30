@@ -67,6 +67,21 @@ export function headerDomains(view: CaseView): { domain: string; fields: Field[]
   return [...found.values()];
 }
 
+// The registrable domains the case's own context vouches for: the organisation's verified domains, its suppliers' and
+// the brand table's (a check of a domain's age or likeness says nothing about these).
+export function knownDomains(view: CaseView): Set<string> {
+  const known = new Set<string>();
+  const add = (domain: string) => {
+    const ascii = asciiDomain(domain);
+    const site = ascii ? registrable(ascii) : null;
+    if (site) known.add(site);
+  };
+  for (const d of view.tenant.trusted.own) add(d);
+  for (const d of view.tenant.trusted.suppliers) add(d);
+  for (const brand of view.brands.brands) for (const d of brand.domains) add(d);
+  return known;
+}
+
 // How `candidate` imitates `target`, strongest first, or null; the two are different registrable domains.
 export function techniqueOf(candidate: Split, target: Split): Technique | null {
   const a = unicodeLabel(candidate.label);

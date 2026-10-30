@@ -28,6 +28,7 @@ function view(headers: { name: string; value: string }[], headersAvailable = tru
     raw: RAW,
     brands: bundled,
     senderHistory: null,
+    domainAges: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

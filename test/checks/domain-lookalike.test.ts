@@ -43,6 +43,7 @@ function view(
     raw: "raw/case-lookalike/message.eml",
     brands,
     senderHistory: null,
+    domainAges: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,
