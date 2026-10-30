@@ -37,14 +37,13 @@ function covers(pattern: string, host: string): boolean {
   return host === base || host.endsWith(`.${base}`);
 }
 
-// The host a `Received` header names after `by` (who received it) or `from` (who handed it over), lowercased, comments
-// removed; null when it names none.
-function receivedHost(value: string, side: "by" | "from"): string | null {
+// The host a `Received` header says received the message (`by <host>`), lowercased, comments removed; null when none.
+// Only `by` is read: the `from` name is the sender's greeting (round 2).
+export function receivedBy(value: string): string | null {
   const plain = value.replace(/\([^()]*\)/g, " ");
-  const host = new RegExp(`(?:^|\\s)${side}\\s+([^\\s;]+)`, "i").exec(plain)?.[1];
-  return host ? host.replace(/\.$/, "").toLowerCase() : null;
+  const by = /(?:^|\s)by\s+([^\s;]+)/i.exec(plain)?.[1];
+  return by ? by.replace(/\.$/, "").toLowerCase() : null;
 }
-export const receivedBy = (value: string) => receivedHost(value, "by");
 
 // An address literal (`[203.0.113.1]`, `[IPv6:...]`, or the bare IPv6 Gmail's internal hops write): a hop inside a
 // receiver that names no host, so it neither opens nor ends the zone.
@@ -70,35 +69,16 @@ function kindsOf(parsed: { authservId: string | null; results: Result[] }, recei
 // promises no stamp (completion review).
 const STAMPS_EVERY_MESSAGE: ReadonlySet<ReceiverKind> = new Set(["microsoft", "google"]);
 
-// The address the receiver itself saw the previous hop connect from, in the `Received` header's TCP information
-// (`from helo (rdns [203.0.113.5])`, or `(203.0.113.5)`), never the greeting name, which the sender chooses (RFC 5321
-// section 4.4; round 2). Null when the header records none.
-function connectedFrom(value: string): string | null {
-  const info = /\bfrom\s+\S+\s*\(([^()]*)\)/i.exec(value)?.[1] ?? "";
-  const bracketed = /\[(?:ipv6:)?([0-9a-f:.]+)\]/i.exec(info)?.[1];
-  if (bracketed) return bracketed.toLowerCase();
-  const bare = /^\s*([0-9a-f:.]+)\s*$/i.exec(info)?.[1];
-  return bare && /[.:]/.test(bare) ? bare.toLowerCase() : null;
-}
-
-// Loopback, private, link-local and unique-local addresses: a hop between the receiver's own machines, never one the
-// internet can reach it from.
-function privateAddress(ip: string): boolean {
-  if (ip.includes(":")) return ip === "::1" || /^f[cd][0-9a-f]{2}:/.test(ip) || /^fe[89ab][0-9a-f]:/.test(ip);
-  const [a = -1, b = -1] = ip.split(".").map(Number);
-  return (
-    a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
-  );
-}
-
 type Read = { kinds: Set<ReceiverKind>; parsed: { authservId: string | null; results: Result[] } };
 
-// The receiver whose hop is at the top of the message took it in last, so its rules apply.
-//   Microsoft 365 or Google: the topmost header of theirs, read down to the first hop another host wrote.
-//   Another receiver: only headers above its entry hop, the first of its hops reading down whose connecting address
-//   (as it recorded it) is not private, so where the message came in from outside; all of them (a receiver may write
-//   several, RFC 8601 appendix B.4). A hop between public addresses ends the zone too: trust lost, never a forgery let
-//   in. Its results beside another receiver's above the entry hop are ambiguous.
+// The receiver whose hop is nearest the top took the message in last, so its rules apply.
+//   Microsoft 365 or Google: the topmost header of theirs, read down to the first hop another host wrote; a header of
+//   theirs above their first hop is that topmost one (round 3).
+//   Another receiver: only headers above the message's topmost `Received`, which must be the receiver's own. Nothing
+//   but the receiver writes above its final hop, so no hop below has to be judged: a greeting name is the sender's
+//   (round 2) and a private address can be a proxy's (round 4). A receiver that writes its header lower down is not
+//   trusted until its receiving chain is verified (D02 T02 §6). All its headers there count (RFC 8601 appendix B.4);
+//   beside another receiver's they are ambiguous.
 export function trustedAuthResults(
   headers: readonly { name: string; value: string }[],
   receivers: readonly Receiver[],
@@ -111,40 +91,40 @@ export function trustedAuthResults(
     const parsed = parseAuthenticationResults(value);
     return parsed ? { parsed, kinds: kindsOf(parsed, [...receivers]) } : null;
   };
+  const isReceived = (name: string) => name.trim().toLowerCase() === "received";
+  const isResults = (name: string) => name.trim().toLowerCase() === "authentication-results";
+  // The nearest receiver hop to the top, address-literal hops (a provider's internal ones) passed over.
   let top: ReceiverKind | undefined;
-  let entered = false;
-  const above: Read[] = [];
   for (const { name, value } of headers) {
-    const field = name.trim().toLowerCase();
-    if (field === "received") {
-      const by = receivedBy(value);
-      if (by === null || literal(by)) continue;
-      const receiver = ours(by);
-      if (!receiver) break; // another host wrote this: everything from here down came with the message
-      if (top === undefined) {
-        top = receiver.kind;
-        // A provider's header above its first hop is its topmost (round 3): read it, never a lower one.
-        const earlier = above.find((a) => a.kinds.has(receiver.kind));
-        if (STAMPS_EVERY_MESSAGE.has(top) && earlier) return { trusted: { kind: top, ...earlier.parsed } };
-      }
-      if (STAMPS_EVERY_MESSAGE.has(top)) continue;
-      const address = connectedFrom(value);
-      if (address !== null && privateAddress(address)) continue; // a hop between the receiver's own machines
-      entered = true;
-      break;
-    }
-    if (field !== "authentication-results") continue;
-    const found = read(value);
-    if (!found || found.kinds.size === 0) continue;
-    if (top !== undefined && STAMPS_EVERY_MESSAGE.has(top)) {
-      if (found.kinds.has(top)) return { trusted: { kind: top, ...found.parsed } };
-      continue;
-    }
-    above.push(found);
+    if (!isReceived(name)) continue;
+    const by = receivedBy(value);
+    if (by === null || literal(by)) continue;
+    top = ours(by)?.kind;
+    break;
   }
   if (top === undefined) return { untrusted: "no-boundary" };
-  if (STAMPS_EVERY_MESSAGE.has(top)) return { untrusted: "none-in-zone" };
-  if (!entered) return { untrusted: "no-boundary" };
+  if (STAMPS_EVERY_MESSAGE.has(top)) {
+    for (const { name, value } of headers) {
+      if (isReceived(name)) {
+        const by = receivedBy(value);
+        if (by !== null && !literal(by) && !ours(by)) break; // another host wrote this: the rest came with the message
+        continue;
+      }
+      if (!isResults(name)) continue;
+      const found = read(value);
+      if (found?.kinds.has(top)) return { trusted: { kind: top, ...found.parsed } };
+    }
+    return { untrusted: "none-in-zone" };
+  }
+  const topmost = headers.find((h) => isReceived(h.name));
+  const by = topmost ? receivedBy(topmost.value) : null;
+  if (!topmost || by === null || literal(by) || !ours(by)) return { untrusted: "no-boundary" };
+  const above: Read[] = [];
+  for (const { name, value } of headers.slice(0, headers.indexOf(topmost))) {
+    if (!isResults(name)) continue;
+    const found = read(value);
+    if (found && found.kinds.size > 0) above.push(found);
+  }
   const first = above[0];
   if (!first) return { untrusted: "none-in-zone" };
   const kinds = new Set(above.flatMap((a) => [...a.kinds]));
