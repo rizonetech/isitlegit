@@ -1,0 +1,129 @@
+{
+  "ref": "D03 T04 \u00a718",
+  "title": "Many more public sources for Loupe 1.0",
+  "implementation_sha": "16fb06032622040734c77f7f41f70f0354a78b53",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s18.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s18.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s18.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s18.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s18.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "node scripts/glimmer/sources.ts check -> sources: reconciled",
+    "node scripts/glimmer/render.ts receipt majestic -> exit 0 (20,576 URLs, 8,366 stored, 12,210 excluded, 0 unfinished, 0 missing)",
+    "node scripts/glimmer/sources.ts freeze -> exit 0, frozen at 2026-10-30T07:47:51Z: 129,892 pages, 7 sources"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s18.md",
+    "verdict": "filed",
+    "candidate": "5cf6d7d35be6f8632599e066d7417bc1d3eecbbd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a728"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s18.md",
+    "candidate": "2d2c6986d48015a0c55d72a9133382e1014e7a05",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s18.md",
+    "verdict": "fixed",
+    "candidate": "d00710ee3e6df4d10ab0757aa64077665f03093d",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}

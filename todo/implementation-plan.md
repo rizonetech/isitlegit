@@ -30,7 +30,7 @@ Sections: 27 | Checklist items: 360
 | [x]    | D03 T04 §8  | Synthetic South African lures              | meta-api             | 10    |
 | [x]    | D03 T04 §9  | Spark teacher labels and human check       | meta-api             | 18    |
 | [x]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
-| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
+| [x]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
 | [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 13    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
@@ -330,6 +330,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 79/261 verified sections, 41 ready to run now.
+Progress: 80/261 verified sections, 43 ready to run now.
 
-Checklist: 839/1650 items completed (includes Commit items).
+Checklist: 840/1650 items completed (includes Commit items).

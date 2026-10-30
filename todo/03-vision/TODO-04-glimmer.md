@@ -53,7 +53,7 @@ track: day-6
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
-| 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6, §26 | [ ] |
+| 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6, §26 | [x] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [ ] |
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [x] |
@@ -655,9 +655,12 @@ Loupe 1.0 trains on as much good data as the time allows (operator, 2026-10-28 2
 - [x] Hand §10 the widened benign pages only after D03 T04 §26 is stamped and `render.ts recheck` exits 0 on the real store (plan review gap 8). Done when: §18's checkpoint runs the recheck and §26 is stamped. **Done 2026-10-30:** §26 stamped at 9a7cf55 and `node scripts/glimmer/render.ts recheck` exited 0 on the real store (8,742 benign pages, none removed, damaged or unassessed).
 - [x] Write the widened render's receipt, `raw/majestic/RENDER.json` (temp-then-replace, read back): the URL list's SHA-256, one latest terminal outcome per listed URL (stored with its verified page, or excluded with its reason; a URL still at `retry` is unfinished), the concurrency, and the elapsed time from the first `started` to the last outcome of this list's runs, pauses left out; `render.ts receipt majestic` exits 1 while any URL is unfinished (plan review gap 9). Done when: tests cover a missing URL, an unresolved retry, a restart and a journal mixing lists, and the real receipt reads complete. **Done 2026-10-30:** `node scripts/glimmer/render.ts receipt majestic` wrote `raw/majestic/RENDER.json` and exited 0 (20,576 URLs, 0 unfinished, 0 missing), as did `receipt benign-sa` (662 URLs); the summary now reaches a piped reader whole (e2c8e8f).
 - [x] Freeze collection at 2026-10-31 00:00 SAST: `node scripts/glimmer/sources.ts freeze` writes `raw/FROZEN.json` (temp-then-replace) naming every source's manifest digest, import receipt and page count, and §10's builder refuses a page not in it, so a late or unfinished input cannot enter Loupe 1.0; any source unfinished then is recorded as deferred to 1.1 in `docs/glimmer/sources.md` (plan review gap 10). Done when: a test stores a page after the freeze and the builder leaves it out, and the real freeze is written by the deadline. **Done 2026-10-30 09:47 SAST, ahead of the deadline:** `node scripts/glimmer/sources.ts freeze` exited 0 and wrote `raw/FROZEN.json` once (129,892 pages, the 7 accepted sources each with its manifest, rows and import digests, both benign renders complete and every frozen benign page judged clear, no benign page left outside the lists); every rows file was hashed in full against its receipt first.
-- [ ] Commit: `glimmer: many more public sources for Loupe 1.0`
+- [x] Commit: `glimmer: many more public sources for Loupe 1.0`
 
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, binding every import to its manifest and export receipt; `pnpm exec vitest run test/node/glimmer-sources.test.ts` and each converter's test pass; `node scripts/glimmer/render.ts receipt majestic` and `node scripts/glimmer/render.ts recheck` exit 0; `raw/FROZEN.json` exists, written by 2026-10-31 00:00 SAST.
+
+> **Verified:** 2026-10-30 | §18 | 16fb06032622040734c77f7f41f70f0354a78b53
+> **Review:** `docs/reviews/d03-t04-s18.json`
 
 
 ## 19. Sample redaction beyond the dictionary
