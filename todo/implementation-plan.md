@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 39 | Checklist items: 230
+Sections: 39 | Checklist items: 232
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -118,7 +118,7 @@ Sections: 39 | Checklist items: 230
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
-| [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 8     |
+| [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 10    |
 | [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
@@ -335,4 +335,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 84/264 verified sections, 42 ready to run now.
 
-Checklist: 872/1702 items completed (includes Commit items).
+Checklist: 882/1704 items completed (includes Commit items).

@@ -24,7 +24,7 @@ describe("Button", () => {
     for (const [variant, classes] of Object.entries(variants)) {
       const markup = html(<Button variant={variant as ButtonVariant}>Go</Button>);
       for (const name of classes) expect(markup, `${variant} ${name}`).toContain(name);
-      if (variant !== "link") expect(markup).toContain("h-control ");
+      if (variant !== "link") expect(markup).toContain("min-h-control ");
       expect(markup).toContain(
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text",
       );
@@ -32,9 +32,11 @@ describe("Button", () => {
   });
 
   it("renders the 48 px and the small 36 px size", () => {
-    expect(html(<Button>Go</Button>)).toMatch(/h-control px-20 rounded-control text-16/);
+    expect(html(<Button>Go</Button>)).toMatch(/min-h-control py-8 px-20 rounded-control text-16/);
     // The board's 14 px padding of `.btn-sm` is built as the step above, 16 (design/SPEC.md 1).
-    expect(html(<Button size="small">Go</Button>)).toMatch(/h-control-small px-16 rounded-control-small text-14/);
+    expect(html(<Button size="small">Go</Button>)).toMatch(
+      /min-h-control-small py-4 px-16 rounded-control-small text-14/,
+    );
   });
 
   it("is a button of type button by default, a submit button when asked, and a link with href", () => {
