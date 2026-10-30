@@ -37,6 +37,8 @@ track: day-2
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [x] |
 | 5 | §5 | First-time sender per organisation | §4 | [ ] |
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
+| 7 | §7 | First-time sender per recipient | §5 | [ ] |
+| 8 | §8 | Familiarity from consented mail | §5 | [ ] |
 
 ## 1. Trusted Authentication-Results parsing
 
@@ -202,6 +204,42 @@ Filed 2026-10-30 from D02 T02 §1's completion review (Part 1 item 12): receiver
 - [ ] Commit: `checks: receiving chains behind a filtering gateway`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/auth-results.test.ts test/auth/receivers.test.ts` passes, with both gateway fixtures.
+
+## 7. First-time sender per recipient
+
+Filed 2026-10-30 from §5's completion review (out of scope): §5 remembers a sender for the whole organisation for good, so one member's earlier check makes the sender familiar to everyone, even after a long silence. Familiarity per recipient (the member who forwarded) and a recency horizon would keep the signal where it still means something.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Decide and build the finer familiarity. Done when: a sender seen only by another member, or not for a long time, still reads as unfamiliar where the decision says it should.
+
+- [ ] Decide, in `docs/specs/`, whether familiarity is per recipient, per organisation with a recency horizon, or both, and what the horizon is, recording the choice and its reversal cost. Done when: the decision is recorded.
+- [ ] Extend `sender_observations` (a migration the coordinator numbers) and `observeSender` in `src/checks/senders-seen.ts` as decided, keeping one atomic classification per case. Done when: `test/checks/first-time.test.ts` covers another member's earlier case and a sender silent past the horizon.
+- [ ] Commit: `checks: first-time sender per recipient`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/first-time.test.ts` passes.
+
+## 8. Familiarity from consented mail
+
+Filed 2026-10-30 from §5's completion review (out of scope): IsItLegit sees only the mail members submit, so a long-standing supplier's first checked message reads as first-time. With the organisation's consent, its own mail history (for example through Microsoft Graph or Gmail's API) would say whether the organisation has corresponded with the sender before.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Design consented history and use it. Done when: an organisation that consents has familiarity from its own mail, and one that does not keeps §5's behaviour.
+
+- [ ] Write the design in `docs/specs/`: the consent, the scopes asked for, what is read (sender domains or hashes only), how long it is kept, and how consent is withdrawn and the data deleted. Done when: the design is recorded and its privacy terms checked against `docs/specs/2026-10-26-phishing-invoice-analyser-design.md`.
+- [ ] File the build sections the design needs through `add-todo` (the connector in D07, the familiarity read here). Done when: the sections exist and resolve.
+- [ ] Commit: `docs: consented mail history for sender familiarity`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
 
 ## Verification
 
