@@ -57,7 +57,7 @@ track: day-0
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
-| 19 | §19 | Lane scoping for parallel building lanes | -- | [ ] |
+| 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -725,9 +725,12 @@ Decided 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`): two building 
 - [x] Scope `process-phase` to the lane's share of a phase: repair, gap-check and run only the lane's rows (another lane's rows are read for dependencies, never edited), and close the phase out when `query stats --phase N` reads the lane's rows all stamped. Done when: the skill's repair, loop and closeout steps name the lane's rows and `--phase N`, and no step requires the whole phase table to be `[x]`.
 - [x] Name phase-run files by lane in both skills: `docs/phase-runs/<YYYY-MM-DD>-<lane>-phase-<N>.md`, a file without a lane being main's (the records before 2026-10-30), and recovery reading only the latest record of this lane and phase. Done when: both skills give that path and the recovery rule, and say a record of another lane is never resumed.
 - [x] Rewrite `AGENTS.md` Parallel lanes for the four lanes (domains in `todo/lanes.json`, the coordinator owning main and the manual list), and add `--all`, `--phase`, `query lane` and `query manual` to the query lines in `docs/todo-workflow.md`. Done when: `AGENTS.md` names every lane in `todo/lanes.json` and no longer says there is one lane.
-- [ ] Commit: `tools: a lane's tools see only its own domains`
+- [x] Commit: `tools: a lane's tools see only its own domains`
 
 **Test checkpoint:** `python3 -m unittest discover -s tests/scripts` passes, including the two-lane tree tests in `test_todo_graph.py` and `test_campaign_guard.py`, and `for l in checks app glimmer main; do TODO_LANE=$l python3 scripts/todo-graph.py query stats; done` prints 70, 75, 22 and 14 open rows (fails if a lane is unlisted or a domain unclaimed; **Corrected 2026-10-30:** was 13 for main, before §20 was filed).
+
+> **Verified:** 2026-10-30 | §19 | b1d40eeea7dd851dd1c1792c4a89cdca39f3503c
+> **Review:** `docs/reviews/d00-t01-s19.json`
 
 ## 20. Lane run waits on another lane's rows, then resumes
 
