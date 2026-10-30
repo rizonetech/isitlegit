@@ -216,6 +216,18 @@ describe("auth.arc", () => {
     });
   });
 
+  it("counts a seal by its instance alone, so a seal missing its signer still makes a duplicate (round 3)", () => {
+    const first = h("ARC-Seal", "i=1; d=lists.example; b=abc");
+    const second = h("ARC-Seal", "i=1; b=def");
+    expect(one(view(viaGoogle("arc=pass (i=1)", EARLIER, first, second)))).toMatchObject({
+      detail: { context: "unavailable" },
+    });
+    const unreadable = h("ARC-Seal", "no instance here; d=lists.example");
+    expect(one(view(viaGoogle("arc=pass (i=1)", EARLIER, SEAL, unreadable)))).toMatchObject({
+      detail: { context: "unavailable" },
+    });
+  });
+
   it("runs in the production registry after §2's checks", () => {
     const names = checks.names();
     expect(names.indexOf("auth.arc")).toBeGreaterThan(names.indexOf("auth.alignment"));

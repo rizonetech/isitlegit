@@ -36,7 +36,21 @@ export function readArcResults(
 
 // An `ARC-Seal`'s instance and signing domain, from its tag list (RFC 8617 section 4.1.3); null when either is missing.
 export function readArcSeal(value: string): { instance: number; domain: string } | null {
-  const tags = new Map(
+  const tags = sealTags(value);
+  const instance = /^[0-9]{1,2}$/.test(tags.get("i") ?? "") ? Number(tags.get("i")) : null;
+  const domain = (tags.get("d") ?? "").toLowerCase();
+  return instance !== null && domain ? { instance, domain } : null;
+}
+
+// A seal's instance alone, read whatever its other tags hold, so a seal missing its `d=` still counts against a
+// duplicate instance (round 3); null when the instance itself cannot be read.
+export function arcSealInstance(value: string): number | null {
+  const i = sealTags(value).get("i") ?? "";
+  return /^[0-9]{1,2}$/.test(i) ? Number(i) : null;
+}
+
+function sealTags(value: string): Map<string, string> {
+  return new Map(
     splitOutside(value, ";")
       .map((raw) => stripComments(raw))
       .map((tag) => {
@@ -44,9 +58,6 @@ export function readArcSeal(value: string): { instance: number; domain: string }
         return [tag.slice(0, at).trim().toLowerCase(), tag.slice(at + 1).replace(/\s+/g, "")] as const;
       }),
   );
-  const instance = /^[0-9]{1,2}$/.test(tags.get("i") ?? "") ? Number(tags.get("i")) : null;
-  const domain = (tags.get("d") ?? "").toLowerCase();
-  return instance !== null && domain ? { instance, domain } : null;
 }
 
 type Verdict = { result: Result; header: string; validated: number | null };
@@ -83,9 +94,10 @@ function earlierSet(view: CaseView, instance: number) {
   // One that cannot be read could be a second set for this instance, so none can then be chosen (round 2).
   if (all.some((h) => readArcResults(h.value) === null)) return null;
   const results = all.filter((h) => readArcResults(h.value)?.instance === instance);
-  const seals = view.headers.filter(
-    (h) => h.name.trim().toLowerCase() === "arc-seal" && readArcSeal(h.value)?.instance === instance,
-  );
+  const allSeals = view.headers.filter((h) => h.name.trim().toLowerCase() === "arc-seal");
+  // As for the results: a seal whose instance cannot be read could be a second seal for this one.
+  if (allSeals.some((h) => arcSealInstance(h.value) === null)) return null;
+  const seals = allSeals.filter((h) => arcSealInstance(h.value) === instance);
   if (results.length !== 1 || seals.length !== 1) return null;
   const read = readArcResults(results[0]?.value ?? "");
   const seal = readArcSeal(seals[0]?.value ?? "");
