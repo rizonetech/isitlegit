@@ -11,6 +11,7 @@ import {
   capBrands,
   dedupe,
   dhash,
+  freezeDigest,
   groupEntries,
   groupOf,
   hamming,
@@ -353,5 +354,172 @@ describe("evaluation trust", () => {
     const spark = page("s", {}, { brand: "Bank", lure: false });
     spark.label_source.brand = "spark";
     expect(trusted(spark)).toBe(false);
+  });
+});
+
+// A store of whole pages for the build tests: each page its own picture and words, every source's import complete.
+type Spec = {
+  seed: number;
+  brand?: string | null;
+  lure?: boolean;
+  type?: "credential" | "payment" | "fake_shop" | "impersonation";
+  host?: string | null;
+  origin?: "public" | "samples";
+  southAfrica?: boolean;
+  text?: string;
+  redacted?: boolean;
+  source?: string;
+};
+async function fill(root: string, specs: Spec[]) {
+  const store = openStore(join(root, "store"));
+  const ids: string[] = [];
+  for (const spec of specs) {
+    const lure = spec.lure ?? true;
+    const labels = {
+      brand: spec.brand === undefined ? `Brand ${spec.seed}` : spec.brand,
+      has_login_form: lure,
+      has_payment_form: false,
+      lure,
+      lure_type: lure ? (spec.type ?? "credential") : ("none" as const),
+    };
+    const source = spec.source ?? "set";
+    ids.push(
+      await store.putPage(source, {
+        screenshot: await shot(spec.seed),
+        text: spec.text ?? `Page ${spec.seed}: ${"distinct words ".repeat(3)}${spec.seed * 7919}`,
+        origin: spec.origin ?? "public",
+        licence: "CC0",
+        host: spec.host === undefined ? `www.site${spec.seed}.com` : spec.host,
+        template: null,
+        south_africa: spec.southAfrica ?? false,
+        labels,
+        label_source: Object.fromEntries(Object.keys(labels).map((k) => [k, "ground-truth"])),
+        redacted: spec.redacted ?? spec.origin === "samples",
+      }),
+    );
+    mkdirSync(join(root, "store", "raw", source), { recursive: true });
+    writeFileSync(join(root, "store", "raw", source, "IMPORT.json"), JSON.stringify({ status: "complete" }));
+  }
+  if (specs.some((s) => s.origin === "samples")) {
+    mkdirSync(join(root, "store", "raw", "samples"), { recursive: true });
+    writeFileSync(
+      join(root, "store", "raw", "samples", "REDACTION.json"),
+      JSON.stringify({ key: "k", building: null }),
+    );
+  }
+  return { store, ids };
+}
+// The teacher's saved state: one outcome for each page named.
+function teach(root: string, outcomes: Record<string, unknown>) {
+  mkdirSync(join(root, "store", "raw", "teacher"), { recursive: true });
+  writeFileSync(join(root, "store", "raw", "teacher", "state.json"), JSON.stringify({ pages: outcomes }));
+}
+const AGREED = { status: "agreed", answer: null, applied: true };
+let versions = 0;
+const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<typeof buildDataset>[0]> = {}) =>
+  buildDataset({ store, version: `2.${++versions}`, mode: "image", seed: 3, ...extra });
+const idsIn = (folder: string, name: string) =>
+  readFileSync(join(folder, `${name}.meta.jsonl`), "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => (JSON.parse(line) as { id: string }).id);
+
+describe("teacher admission to evaluation", () => {
+  it("keeps an unchecked, failed, refused, stale and disputed page out of evaluation and training", async () => {
+    // Eight brands of six pages each; every group the split holds out has one page of each kind.
+    const specs: Spec[] = [];
+    for (let b = 0; b < 8; b++)
+      for (let i = 0; i < 6; i++)
+        specs.push({ seed: b * 10 + i, brand: `Brand ${b}`, host: `www.site${b}-${i}.com`, lure: i % 2 === 0 });
+    const { store, ids } = await fill(dir, specs);
+    const outcomes: Record<string, unknown> = {};
+    const kind = (id: string) => ids.indexOf(id) % 6;
+    for (const id of ids) {
+      const k = kind(id);
+      if (k === 0 || k === 5) outcomes[id] = AGREED;
+      else if (k === 2) outcomes[id] = { status: "failed", reason: "no valid answer" };
+      else if (k === 3) outcomes[id] = { status: "refused", reason: "budget" };
+      else if (k === 4) outcomes[id] = { status: "disputed", answer: null, applied: false };
+      // k === 1 stays unchecked.
+    }
+    // A stale agreement: the lure it checked is not the page's now.
+    const stale = ids[6] as string;
+    outcomes[stale] = {
+      status: "agreed",
+      answer: null,
+      applied: true,
+      checked: { lure: false, screenshot: "0".repeat(64), text: "0".repeat(64) },
+    };
+    teach(dir, outcomes);
+    const built = await build(store);
+    const evaluation = idsIn(built.dir, "eval");
+    expect(evaluation.length).toBeGreaterThan(0);
+    for (const id of evaluation) expect(outcomes[id]).toEqual(AGREED);
+    expect(evaluation).not.toContain(stale);
+    const disputed = ids.filter((id) => kind(id) === 4);
+    for (const id of [...evaluation, ...idsIn(built.dir, "train")]) expect(disputed).not.toContain(id);
+    expect(built.dropped.disputed).toBe(disputed.length);
+  });
+
+  it("puts two spellings of one brand in one group", () => {
+    const lure = { lure: true, lure_type: "credential" as const };
+    const fnb = entryOf(page("a", { host: "a.example.co.za" }, { brand: "FNB", ...lure }));
+    const long = entryOf(page("b", { host: "b.example.net" }, { brand: "First National Bank", ...lure }));
+    expect([...groupEntries([fnb, long]).values()]).toHaveLength(1);
+  });
+});
+
+describe("the split without admissible pages", () => {
+  it("does not hold training groups out for an evaluation nothing can enter", () => {
+    const entries = Array.from({ length: 40 }, (_, b) =>
+      entryOf(
+        page(`p${b}`, { host: `www.site${b}.co.za` }, { brand: `Brand ${b}`, lure: true, lure_type: "credential" }),
+      ),
+    );
+    const parts = split(
+      entries,
+      () => 0.5,
+      () => false,
+    );
+    expect(parts.evaluation).toHaveLength(0);
+    // Only the tenth of brands held out at the start leaves training.
+    expect(parts.train.length).toBe(36);
+  });
+});
+
+function entryOf(p: StoredPage) {
+  return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+}
+
+describe("a dispute known only to the teacher's state", () => {
+  it("keeps the page out of training and evaluation although no queue entry was written", async () => {
+    const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, { [ids[2] as string]: { status: "disputed", answer: null, applied: false } });
+    const built = await build(store);
+    expect(built.dropped.disputed).toBe(1);
+    for (const name of ["train", "eval"]) expect(idsIn(built.dir, name)).not.toContain(ids[2]);
+  });
+});
+
+describe("verified bytes", () => {
+  it("refuses the build on a page whose text was altered", async () => {
+    const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2 }, { seed: 3, lure: false }]);
+    writeFileSync(join(dir, "store", "pages", ids[0] as string, "text.txt"), "altered words");
+    await expect(build(store)).rejects.toThrow(/1 pages' files do not match their records \(first: set-/);
+  });
+
+  it("refuses the build on a valid JPEG substituted under a frozen id", async () => {
+    const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2 }, { seed: 3, lure: false }]);
+    writeFileSync(join(dir, "store", "pages", ids[1] as string, "screenshot.jpg"), await shot(99));
+    await expect(build(store, { frozen: new Set(ids) })).rejects.toThrow(/do not match their records/);
+  });
+
+  it("records the freeze's digest and size in summary.json", async () => {
+    const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2 }, { seed: 3, lure: false }]);
+    const built = await build(store, { frozen: new Set(ids) });
+    const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
+    expect(summary.freeze).toEqual({ pages: 3, sha256: freezeDigest(new Set(ids)) });
+    expect(freezeDigest(new Set(ids))).not.toBe(freezeDigest(new Set(ids.slice(1))));
   });
 });

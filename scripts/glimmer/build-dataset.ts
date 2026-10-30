@@ -22,6 +22,7 @@ import {
 } from "../../src/vision/page-screen.ts";
 import { canonicalBrand, readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
+import { readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const BRAND_CAP = 300;
@@ -265,9 +266,14 @@ export function balance(entries: Entry[], random: () => number): Entry[] {
 export type Split = { train: Entry[]; evaluation: Entry[]; heldOut: string[]; template: string | null };
 
 // Whole groups go to evaluation: 10 percent of brands, every page of one synthetic template, and further groups until
-// the minimums hold; only pages whose every label is trusted. A held-out group's untrusted pages are dropped, never
-// trained on, so no brand, site or template is on both sides.
-export function split(entries: Entry[], random: () => number): Split {
+// the minimums hold; only pages `admit` accepts (by default those with trusted labels; `buildDataset` also requires the
+// teacher's agreement). A held-out group's other pages are dropped, never trained on, so no brand, site or template is
+// on both sides.
+export function split(
+  entries: Entry[],
+  random: () => number,
+  admit: (entry: Entry) => boolean = (entry) => trusted(entry.page),
+): Split {
   const groups = groupEntries(entries);
   const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
@@ -286,9 +292,9 @@ export function split(entries: Entry[], random: () => number): Split {
   });
   const take = (group: string) => {
     held.add(group);
-    evaluation.push(...(groups.get(group) ?? []).filter((e) => trusted(e.page)));
+    evaluation.push(...(groups.get(group) ?? []).filter((e) => admit(e)));
   };
-  for (const group of held) evaluation.push(...(groups.get(group) ?? []).filter((e) => trusted(e.page)));
+  for (const group of held) evaluation.push(...(groups.get(group) ?? []).filter((e) => admit(e)));
   if (template)
     for (const [group, members] of groups)
       if (!held.has(group) && members.some((e) => e.page.template === template)) take(group);
@@ -311,8 +317,11 @@ export function split(entries: Entry[], random: () => number): Split {
     const needs = (e: Entry) =>
       (now.southAfrica < EVAL_MINIMUMS.southAfrica && e.page.south_africa) ||
       (now.lureTypes[e.answer.lure_type] ?? 0) < EVAL_MINIMUMS.perLureType;
-    const index = rest.findIndex((g) => (groups.get(g) ?? []).some((e) => trusted(e.page) && needs(e)));
-    take(rest.splice(index >= 0 ? index : 0, 1)[0] as string);
+    const wanted = rest.findIndex((g) => (groups.get(g) ?? []).some((e) => admit(e) && needs(e)));
+    const index = wanted >= 0 ? wanted : rest.findIndex((g) => (groups.get(g) ?? []).some(admit));
+    // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
+    if (index < 0) break;
+    take(rest.splice(index, 1)[0] as string);
   }
   const train = [...groups.entries()].filter(([group]) => !held.has(group)).flatMap(([, members]) => members);
   return { train, evaluation, heldOut: [...held].sort(), template };
@@ -373,6 +382,19 @@ export function readFreeze(dir: string): Set<string> {
   return new Set(record.pages);
 }
 
+// The freeze's identity for a version's summary: the SHA-256 of its page ids in sorted order, one a line, so a version
+// names the exact collection it was built from.
+export function freezeDigest(frozen: Set<string>): string {
+  return createHash("sha256")
+    .update(
+      [...frozen]
+        .sort()
+        .map((id) => `${id}\n`)
+        .join(""),
+    )
+    .digest("hex");
+}
+
 export async function buildDataset(options: {
   store: ReturnType<typeof openStore>;
   version: string;
@@ -396,16 +418,14 @@ export async function buildDataset(options: {
     afterFreeze: 0,
     excluded: 0,
   };
-  // A page whose `lure` the teacher disputed waits in the review queue and is left out of both files (§9).
-  const queue = join(store.dir, "review-queue.jsonl");
-  const disputed = new Set(
-    existsSync(queue)
-      ? readFileSync(queue, "utf-8")
-          .split("\n")
-          .filter((line) => line.trim())
-          .map((line) => (JSON.parse(line) as { id: string }).id)
-      : [],
-  );
+  // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
+  // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
+  // known only to its state (plan review finding 5). The queue's own entries count too.
+  const teacher = readTeacherState(store.dir);
+  const disputed = new Set([
+    ...readQueue(store.dir).map((entry) => entry.id),
+    ...[...teacher].filter(([, outcome]) => outcome.status === "disputed").map(([id]) => id),
+  ]);
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
   if (options.frozen) {
@@ -418,6 +438,7 @@ export async function buildDataset(options: {
   }
   const excluded = readExcluded(store.dir);
   const entries: Entry[] = [];
+  const unverified: string[] = [];
   // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
   // is not trained on or evaluated, whatever pages it already stored.
   const importStatus = new Map<string, string>();
@@ -470,15 +491,34 @@ export async function buildDataset(options: {
       dropped.unredacted++;
       continue;
     }
-    const { screenshot, text } = store.readPage(page.id);
-    entries.push({ page, answer, hash: await dhash(screenshot), words: shingles(text) });
+    // The bytes are checked against the SHA-256 the record holds before anything is derived from them (plan review
+    // finding 2): the near-duplicate hash and shingles below come from these exact bytes, and the line is built from
+    // them again, verified again, in `write`. A page that fails is no page of this collection, so the build stops.
+    const verified = store.readVerifiedPage(page.id);
+    if (!verified) {
+      unverified.push(page.id);
+      continue;
+    }
+    entries.push({
+      page: verified.page,
+      answer,
+      hash: await dhash(verified.screenshot),
+      words: shingles(verified.text),
+    });
   }
+  if (unverified.length)
+    throw new Error(
+      `${unverified.length} pages' files do not match their records (first: ${unverified[0]}): repair or remove them before building`,
+    );
   const deduped = dedupe(entries);
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
   const capped = capBrands(deduped.kept, random);
   dropped.capped = deduped.kept.length - capped.length;
-  const parts = split(capped, random);
+  // Only a page the teacher checked and agreed with, whose lure and files are still the ones it checked, may be
+  // evaluated on (§9; the teacher's `stale` and `unchecked` states both fail this).
+  const admit = (entry: Entry) => trusted(entry.page) && teacherState(teacher, entry.page) === "agreed";
+  const parts = split(capped, random, admit);
   const train = balance(parts.train, random);
   const evaluation = balance(parts.evaluation, random);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
@@ -493,7 +533,14 @@ export async function buildDataset(options: {
     const lines: string[] = [];
     const meta: string[] = [];
     for (const entry of shuffle(chosen, random)) {
-      const { screenshot, text } = store.readPage(entry.page.id);
+      const verified = store.readVerifiedPage(entry.page.id);
+      if (
+        !verified ||
+        verified.page.sha256.screenshot !== entry.page.sha256.screenshot ||
+        verified.page.sha256.text !== entry.page.sha256.text
+      )
+        throw new Error(`page ${entry.page.id} changed on disk during the build`);
+      const { screenshot, text } = verified;
       // The nonce comes from the page, so a rebuild writes the same line.
       const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
       const line = buildTrainingLine(
@@ -545,7 +592,7 @@ export async function buildDataset(options: {
   });
   writeAtomic(
     join(dir, "summary.json"),
-    `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, ...built, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
+    `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
   );
   const previous = `${final}.previous-${process.pid}`;
   if (existsSync(final)) renameSync(final, previous);
