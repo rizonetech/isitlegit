@@ -13,11 +13,11 @@
     },
     {
       "scene": "The problem, and the answer",
-      "text": "Phishing and business email compromise get past Microsoft 365 and other filters every day. The costliest case is an invoice from a real supplier, whose bank details were quietly changed. IsItLegit takes a forwarded email, an upload or a voice note, and runs an investigation. The answer is a plain-language verdict: {fact.verdictClasses}, with the top three reasons, and what to do now. Every claim cites evidence, and hard rules set a floor the model can't lower."
+      "text": "Phishing and business email compromise get past Microsoft three sixty-five and other filters every day. The costliest case is an invoice from a real supplier, whose bank details were quietly changed. IsItLegit takes a forwarded email, an upload or a voice note, and runs an investigation. The answer is a plain-language verdict: {fact.verdictClasses}, with the top three reasons, and what to do now. Every claim cites evidence, and hard rules set a floor the model can't lower."
     },
     {
       "scene": "The whole system, one Cloudflare Worker",
-      "text": "The whole system is one Cloudflare Worker. Email Routing hands mail to the Worker. It's admitted and deduplicated, and a Workflow runs the investigation. Deterministic checks produce evidence, Meta's models run through AI Gateway, and the verdict is cited, with a rule-based floor. Everything is stored in D1, R2 and KV, and the reply goes out by mail, with a signed report link."
+      "text": "The whole system is one Cloudflare Worker. Email Routing hands mail to the Worker. It's admitted and deduplicated, and a Workflow runs the investigation. Deterministic checks produce evidence, Meta's models run through AI Gateway, and the verdict is cited, with a rule-based floor. Everything is stored in D one, R two and KV, and the reply goes out by mail, with a signed report link."
     },
     {
       "scene": "Email intake",
@@ -25,7 +25,7 @@
     },
     {
       "scene": "From a forward to a case",
-      "text": "You forward mail to {fact.intakeAddress}, and Cloudflare Email Routing hands it to the Worker. Only members are processed. Anything else is {fact.dropNoReply}, so there's no backscatter. Oversized messages are refused before they're read, and machine mail is never answered, so two auto-responders can't loop. Every delivery is claimed in D1 first, and the case ID is the Workflow's instance ID, so a retry never makes two cases. Forwarding as an attachment is the supported path, because it keeps the original headers."
+      "text": "You forward mail to {fact.intakeAddress}, and Cloudflare Email Routing hands it to the Worker. Only members are processed. Anything else is {fact.dropNoReply}, so there's no backscatter. Oversized messages are refused before they're read, and machine mail is never answered, so two auto-responders can't loop. Every delivery is claimed in D one first, and the case ID is the Workflow's instance ID, so a retry never makes two cases. Forwarding as an attachment is the supported path, because it keeps the original headers."
     },
     {
       "scene": "Uploads, parsing and voice",
@@ -41,7 +41,7 @@
     },
     {
       "scene": "Cloudflare Workflows: {fact.workflowName}",
-      "text": "The pipeline runs on Cloudflare Workflows. Admit makes sure the case exists exactly once. Parse handles MIME and attachments, and stores the artefacts in R2. Checks gathers deterministic evidence. The verdict step is a stub today, one that is {fact.stubVerdict}. Then come store, reply and finish."
+      "text": "The pipeline runs on Cloudflare Workflows. Admit makes sure the case exists exactly once. Parse handles MIME and attachments, and stores the artefacts in R two. Checks gathers deterministic evidence. The verdict step is a stub today, one that is {fact.stubVerdict}. Then come store, reply and finish."
     },
     {
       "scene": "Durable by design",
@@ -89,7 +89,7 @@
     },
     {
       "scene": "Seeing what the user sees",
-      "text": "Muse Spark reads rendered emails, PDFs and screenshots, and returns structured output: the claimed brand, the requested action, and the urgency. {fact.samUse} crops the logos, and Spark compares them with the registered logo. And Loupe, our LoRA fine-tune of Muse Glimmer, screens impersonation pages cheaply. It {fact.loupeSpec}."
+      "text": "Muse Spark reads rendered emails, PDFs and screenshots, and returns structured output: the claimed brand, the requested action, and the urgency. SAM three point one crops the logos, and Spark compares them with the registered logo. And Loupe, our LoRA fine-tune of Muse Glimmer, screens impersonation pages cheaply. It {fact.loupeSpec}."
     },
     {
       "scene": "The Meta model client",
@@ -141,7 +141,7 @@
     },
     {
       "scene": "Where data lives, and for how long",
-      "text": "Cases, evidence and verdicts live in D1. Raw mail goes to R2, and it's {fact.r2Retention} by a lifecycle rule, for POPIA. Model results are cached in KV by artefact hash. Errors leave a step as a class name only, so mail content never reaches a log. And because {fact.dataTerms}, real client mail needs consent."
+      "text": "Cases, evidence and verdicts live in D one. Raw mail goes to R two, and it's {fact.r2Retention} by a lifecycle rule, for POPIA. Model results are cached in KV by artefact hash. Errors leave a step as a class name only, so mail content never reaches a log. And because {fact.dataTerms}, real client mail needs consent."
     },
     {
       "scene": "The app",
@@ -149,7 +149,7 @@
     },
     {
       "scene": "Accounts and tenancy",
-      "text": "Accounts run on Better Auth, on D1: email magic links, passkeys, and organisations with roles. Membership is checked on every request. Invite codes are redeemed in one atomic update, with a {fact.trialDays} day trial. Sign-in links are scanner-safe, so Microsoft 365 link scanners can't burn a token. Report links are signed, and expire after {fact.reportLinkDays} days. And the admin console sits behind Cloudflare Access."
+      "text": "Accounts run on Better Auth, on D one: email magic links, passkeys, and organisations with roles. Membership is checked on every request. Invite codes are redeemed in one atomic update, with a {fact.trialDays} day trial. Sign-in links are scanner-safe, so Microsoft three sixty-five link scanners can't burn a token. Report links are signed, and expire after {fact.reportLinkDays} days. And the admin console sits behind Cloudflare Access."
     },
     {
       "scene": "Proof and the stack",

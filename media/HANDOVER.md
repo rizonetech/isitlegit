@@ -13,7 +13,7 @@ Written 2026-10-30 by the media lane's cloud session, on the operator's decision
 | Theme | Dark by default (operator, 2026-10-30); `REMOTION_THEME=light` for light |
 | Scene changes | Content fades over a steady ground; no dips to black |
 | Remotion licence | Free tier: Rizonetech has 3 people (D10 T01 §2, recorded 2026-10-30) |
-| Voiceover | Guide, recording text and `tools/voiceover.py` done; narration scripts and the audio wiring not written yet |
+| Voiceover | Narration in `data/narration/` and the audio wiring done locally (2026-10-30; `src/kit/voice.tsx`, `tools/voice-index.py`, imported clips rather than a second public folder); waiting on the operator's voice clone (README steps 2 and 3) |
 | D10 TODO | `todo/10-media/TODO-01-channel-videos.md`; nothing stamped yet: stamps wait for D00 T01 §26 (the uncoordinated-lane waiver), which the coordinator owns |
 
 Operator decisions so far: dark theme for the explainers; reviewer model names (GPT-6 Astra, Muse Wonder) stay on screen; text only until the cloned voiceover lands; ElevenLabs hosted cloning; every video 1920 x 1080 at 30 fps.

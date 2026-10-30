@@ -125,15 +125,15 @@
     },
     {
       "scene": "Who writes, who reviews",
-      "text": "Claude Code is the only writer, and its subagents can read and run, but never write. GPT-6 Astra reviews through the Codex CLI, in a read-only sandbox. And Muse Wonder gives a final review from a third model family, one pass per section."
+      "text": "Claude Code is the only writer, and its subagents can read and run, but never write. GPT six Astra reviews through the Codex CLI, in a read-only sandbox. And Muse Wonder gives a final review from a third model family, one pass per section."
     },
     {
       "scene": "The review schedule for one section",
-      "text": "Here's the review schedule for one section. A high-effort plan review before any code. Then the build, then a completion review. Round one runs four lenses at high effort: adversarial, integration, source defect and plan delivery. Rounds two and three step down in effort, then a rotation covers consistency, quality, design, optimization and the record, before the final review. The loop stops at the first round with no P1 or P2 finding, capped at {fact.roundCap} rounds."
+      "text": "Here's the review schedule for one section. A high-effort plan review before any code. Then the build, then a completion review. Round one runs four lenses at high effort: adversarial, integration, source defect and plan delivery. Rounds two and three step down in effort, then a rotation covers consistency, quality, design, optimization and the record, before the final review. The loop stops at the first round with no P one or P two finding, capped at {fact.roundCap} rounds."
     },
     {
       "scene": "The rules of a review",
-      "text": "These are the rules of a review. Findings are graded P1, P2 or P3, and a P1 or P2 is fixed, then proven by another round. Every reply ends with an overall line: approve, or needs attention. A reviewer that fails or times out is skipped and recorded, and that round is not an approval. Light-risk sections get a lighter review. And right now the Muse Wonder final review is {fact.finalOff}, {fact.finalOffWhy}. It comes back when the limit resets."
+      "text": "These are the rules of a review. Findings are graded P one, P two or P three, and a P one or P two is fixed, then proven by another round. Every reply ends with an overall line: approve, or needs attention. A reviewer that fails or times out is skipped and recorded, and that round is not an approval. Light-risk sections get a lighter review. And right now the Muse Wonder final review is {fact.finalOff}, {fact.finalOffWhy}. It comes back when the limit resets."
     },
     {
       "scene": "Review, measured",
@@ -141,7 +141,7 @@
     },
     {
       "scene": "A real final review finding, docs/reviews/01-intake/D01-T01-s2.md",
-      "text": "Here's a real finding from a final review. The expired-object restore path can desynchronise R2, D1 and the returned media type, breaking the very invariant the section was closed on."
+      "text": "Here's a real finding from a final review. The expired-object restore path can desynchronise R two, D one and the returned media type, breaking the very invariant the section was closed on."
     },
     {
       "scene": "Nothing ships without a receipt",

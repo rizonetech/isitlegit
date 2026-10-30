@@ -5,7 +5,7 @@
   "segments": [
     {
       "scene": "title",
-      "text": "Loupe 1.0: training a page screener on Muse Glimmer."
+      "text": "Loupe one point oh: training a page screener on Muse Glimmer."
     },
     {
       "scene": "job",
@@ -21,11 +21,11 @@
     },
     {
       "scene": "collection",
-      "text": "For build 1.0 we read {fact.collection} pages, and admitted {fact.admitted}. Most trusted lures are impersonation, then credential pages, with fake shops and payment pages far behind."
+      "text": "For build one point oh we read {fact.collection} pages, and admitted {fact.admitted}. Most trusted lures are impersonation, then credential pages, with fake shops and payment pages far behind."
     },
     {
       "scene": "teacher",
-      "text": "A teacher labels the hardest pages first. Muse Spark checked {fact.teacherChecked} South African pages. It agreed on {fact.teacherAgreed} and disputed {fact.teacherDisputed}, and the disputed pages stay out of training and evaluation. That sets the bar: base Muse Spark found {fact.sparkRecall} of confirmed South African lures. Loupe 1.0 has to beat it."
+      "text": "A teacher labels the hardest pages first. Muse Spark checked {fact.teacherChecked} South African pages. It agreed on {fact.teacherAgreed} and disputed {fact.teacherDisputed}, and the disputed pages stay out of training and evaluation. That sets the bar: base Muse Spark found {fact.sparkRecall} of confirmed South African lures. Loupe one point oh has to beat it."
     },
     {
       "scene": "splits",
@@ -53,7 +53,7 @@
     },
     {
       "scene": "close",
-      "text": "Loupe 1.0 results follow in its model card. The code is on GitHub, at rizonetech slash IsItLegit."
+      "text": "Loupe one point oh results follow in its model card. The code is on GitHub, at rizonetech slash IsItLegit."
     }
   ]
 }
