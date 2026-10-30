@@ -296,7 +296,7 @@ Sections: 63 | Checklist items: 264
 
 ### Phase 7: After the event
 
-Sections: 30 | Checklist items: 171
+Sections: 31 | Checklist items: 174
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -329,6 +329,7 @@ Sections: 30 | Checklist items: 171
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §9  | Next and previous case from a report             | owner-decision | 3     |
+| [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -353,6 +354,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 96/284 verified sections, 59 ready to run now.
+Progress: 96/285 verified sections, 59 ready to run now.
 
-Checklist: 996/1831 items completed (includes Commit items).
+Checklist: 996/1834 items completed (includes Commit items).

@@ -38,6 +38,7 @@ track: day-6
 | 7 | §7 | Subject, sender and search in the Cases list | §1 | [ ] |
 | 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
 | 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
+| 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -281,6 +282,29 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 - [ ] Commit: `web: next and previous case from a report`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if a step leaves the filter or the organisation.
+
+## 10. A Checked by filter in the Cases list
+
+A member narrows the list to the cases one colleague checked. Filed 2026-10-30 at the checks lane's suggestion (D01 T03 §11's completion review, through the coordinator): the board `Cases` has no such filter, so the control is a design change first; it waits on §7 so an upload names its uploader.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the filter
+**Job:** a member reviews what one colleague has checked
+**Treatment:** a Checked by select beside the channel filter (Everyone, then each member), in the query string with the other filters
+**Chrome:** §1's filters
+
+**Build order:**
+
+1. Draw the filter on the board `Cases` and have the operator approve it. Done when: `design/SPEC.md` M1 lists the control.
+2. Filter `listCases` by the member (their forwarding address for email, their user id for an upload) and draw the select. Done when: `test/web/cases-page.test.ts` filters by a member.
+
+- [ ] Add the Checked by filter to the board and SPEC M1 with the operator's approval. Done when: `design/SPEC.md` M1 names it.
+- [ ] Filter `src/db/case-list.ts` by one member of the organisation, refusing a member of another, and draw the select with the organisation's members. Done when: `test/web/cases-page.test.ts` lists only that member's cases and never another organisation's.
+- [ ] Commit: `web: a checked by filter in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
 
 ## Verification
 
