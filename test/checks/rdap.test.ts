@@ -146,6 +146,26 @@ describe("rdapLookup", () => {
     expect(Date.now() - started).toBeLessThan(LOOKUP_BUDGET_MS);
   });
 
+  it("keeps a date found late in its budget when the cache write is slow too (round 1)", async () => {
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const slowCache = {
+      get: async () => null,
+      put: () => wait(700),
+    } as unknown as KVNamespace;
+    const slow = {
+      fetch: (async (input: RequestInfo | URL) => {
+        if (String(input) === BOOTSTRAP_URL) {
+          await wait(1_400);
+          return new Response(JSON.stringify(BOOTSTRAP), { status: 200 });
+        }
+        await wait(3_350);
+        return new Response(JSON.stringify(registered("2026-10-25T00:00:00Z")), { status: 200 });
+      }) as typeof fetch,
+      cache: slowCache,
+    };
+    expect(await rdapLookup("brand-new-supplier.com", slow)).toMatchObject({ state: "known" });
+  });
+
   it("reads a body cut off by the request's own deadline as unavailable, not malformed (completion review)", async () => {
     const slow = {
       fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {

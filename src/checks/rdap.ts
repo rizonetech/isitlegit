@@ -98,13 +98,17 @@ async function fetchJson(url: string, deps: RdapDeps, signal: AbortSignal): Prom
 }
 
 type Services = [string[], string[]][];
-async function bootstrap(deps: RdapDeps, signal: AbortSignal): Promise<Services | null> {
+// What a lookup found to keep, written after its answer is had (each write still bounded), so a slow KV never costs the
+// lookup its answer (round 1).
+type Writes = (() => Promise<unknown>)[];
+
+async function bootstrap(deps: RdapDeps, signal: AbortSignal, writes: Writes): Promise<Services | null> {
   const cached = await cacheGet(deps, "rdap:bootstrap");
   if (cached) return (cached as { services: Services }).services;
   const read = await fetchJson(BOOTSTRAP_URL, deps, signal);
   if (!read || read === "malformed" || !Array.isArray((read as { services?: unknown }).services)) return null;
   const services = (read as { services: Services }).services;
-  await cachePut(deps, "rdap:bootstrap", { services }, BOOTSTRAP_TTL_S);
+  writes.push(() => cachePut(deps, "rdap:bootstrap", { services }, BOOTSTRAP_TTL_S));
   return services;
 }
 
@@ -152,7 +156,10 @@ export async function rdapLookup(domain: string, deps: RdapDeps): Promise<Domain
     }, LOOKUP_BUDGET_MS);
   });
   try {
-    return await Promise.race([lookup(domain, deps, budget.signal), deadline]);
+    const writes: Writes = [];
+    const age = await Promise.race([lookup(domain, deps, budget.signal, writes), deadline]);
+    await Promise.all(writes.map((write) => write()));
+    return age;
   } catch {
     return { state: "unknown", reason: "unavailable" };
   } finally {
@@ -161,11 +168,11 @@ export async function rdapLookup(domain: string, deps: RdapDeps): Promise<Domain
   }
 }
 
-async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal): Promise<DomainAge> {
+async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal, writes: Writes): Promise<DomainAge> {
   const key = `rdap:domain:${domain}`;
   const cached = await cacheGet(deps, key);
   if (cached) return cached as DomainAge;
-  const services = await bootstrap(deps, signal);
+  const services = await bootstrap(deps, signal, writes);
   if (!services) return { state: "unknown", reason: "unavailable" };
   const server = serviceFor(domain, services);
   if (!server) return { state: "unknown", reason: "no-service" };
@@ -180,7 +187,7 @@ async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal): Prom
   const date = typeof event?.eventDate === "string" ? rfc3339(event.eventDate) : null;
   if (!date) return { state: "unknown", reason: "no-date" };
   const age: DomainAge = { state: "known", registered: date.toISOString(), server };
-  await cachePut(deps, key, age, DOMAIN_TTL_S);
+  writes.push(() => cachePut(deps, key, age, DOMAIN_TTL_S));
   return age;
 }
 
