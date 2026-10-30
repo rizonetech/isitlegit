@@ -606,10 +606,12 @@ export function validateLine(line: string, mode: ScreenMode): { answer: PageAnsw
   return { answer, text: text.text };
 }
 
-// Where a protected term, or an address, phone or long number, shows in the lines made from sample pages (§7, filed from
-// its completion review, gap 12): the page text as the line states it and the answer, never the screenshot (the import
-// read those by OCR). The problems name the line's page and the kind of detail, never the detail. The nonce is left out
-// of what is read: a run of hex digits is no phone number.
+// Where a protected term shows in any line, and where an address, phone or long number shows in a line made from a
+// sample page (§7, filed from its completion review, gap 12; review G4): the page text as the line states it and the
+// answer, never the screenshot (the import read those by OCR). A client's name can reach a public page's line as well,
+// so the terms are looked for in every line; the generic personal-detail patterns would fire on any public page's
+// phone numbers, so they read sample lines only. The problems name the line's page and the kind of detail, never the
+// detail. The nonce is left out of what is read: a run of hex digits is no phone number.
 export function scanSampleLines(
   lines: { id: string; origin: string; line: string }[],
   terms: string[],
@@ -617,11 +619,11 @@ export function scanSampleLines(
 ): string[] {
   const problems: string[] = [];
   for (const { id, origin, line } of lines) {
-    if (origin !== "samples") continue;
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
     const shown = `${text.split(nonce).join("")}\n${answer.brand ?? ""}`;
     if (leaks([{ id, text: shown }], terms).length) problems.push(`${id}: a protected sample term`);
+    if (origin !== "samples") continue;
     const kind = personalDetail(shown);
     if (kind) problems.push(`${id}: ${kind}`);
   }
@@ -682,7 +684,7 @@ function readBack(dir: string, name: string, mode: ScreenMode, terms: string[]):
   const problems = scanSampleLines(checked, terms, mode);
   if (problems.length)
     throw new PublicationRefused(
-      `${name}: ${problems.length} sample-derived lines hold protected details (${problems.slice(0, 5).join("; ")})`,
+      `${name}: ${problems.length} lines hold protected details (${problems.slice(0, 5).join("; ")})`,
     );
   return { sha256: createHash("sha256").update(body).digest("hex"), lines: lines.length };
 }

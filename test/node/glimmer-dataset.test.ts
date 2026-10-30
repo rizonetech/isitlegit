@@ -1113,9 +1113,21 @@ describe("the scan of the built files for protected sample details", () => {
     expect(problems.join()).not.toMatch(/Kestrel|clientco|555|4012/);
   });
 
-  it("reads only the lines made from sample pages", async () => {
+  it("reads the generic details of sample lines only, and the protected terms of every line", async () => {
     const line = await sampleLine("p-1", "Call 082 555 1234 now");
     expect(scanSampleLines([{ id: "p-1", origin: "public", line }], ["Kestrel"], "image")).toEqual([]);
+    const named = await sampleLine("p-2", "Pay Kestrel Holdings today");
+    expect(scanSampleLines([{ id: "p-2", origin: "public", line: named }], ["Kestrel Holdings"], "image")).toEqual([
+      "p-2: a protected sample term",
+    ]);
+  });
+
+  it("refuses a version whose public-origin line names a protected client", async () => {
+    const { store } = await fill(dir, [
+      ...Array.from({ length: 3 }, (_, i) => ({ seed: i + 1, text: `Invoice from Kestrel Holdings ${i}` })),
+      ...Array.from({ length: 4 }, (_, i) => ({ seed: 10 + i, lure: false })),
+    ]);
+    await expect(build(store, { protectedTerms: ["Kestrel Holdings"] })).rejects.toThrow(/a protected sample term/);
   });
 
   const planted = (text: string) =>
@@ -1130,9 +1142,7 @@ describe("the scan of the built files for protected sample details", () => {
     const { store } = await fill(dir, [...planted("Call 082 555 1234 about invoice"), { seed: 30, lure: false }]);
     const refusal = build(store);
     await expect(refusal).rejects.toBeInstanceOf(PublicationRefused);
-    await expect(refusal).rejects.toThrow(
-      /sample-derived lines hold protected details \(samples-body-[0-9a-f]+: a phone number/,
-    );
+    await expect(refusal).rejects.toThrow(/lines hold protected details \(samples-body-[0-9a-f]+: a phone number/);
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
   });
 
