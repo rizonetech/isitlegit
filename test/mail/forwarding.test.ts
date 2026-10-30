@@ -24,6 +24,7 @@ beforeEach(async () => {
     db.prepare("DELETE FROM forward_scan"),
     db.prepare("DELETE FROM forward_seen"),
     db.prepare("DELETE FROM forward_incidents"),
+    db.prepare("DELETE FROM forward_notices"),
     db.prepare("DELETE FROM mail_sends"),
   ]);
 });
@@ -361,6 +362,17 @@ describe("round 1", () => {
   it("counts a refusal's same-second notices and says how many came (round 2)", async () => {
     const w = world([[forward(), report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })]]);
     await checkForwarding(deps(w.fetcher, at(5)));
+    expect(w.sends[0]?.text).toContain("Cloudflare dropped the 2 refusal notices");
+  });
+
+  it("counts each notice once however often the scans read it again (round 3)", async () => {
+    const notices = [report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })];
+    const w = world([[forward(), ...notices], [forward(), ...notices], [forward(), ...notices], []]);
+    const grace = { graceMs: MATCH_GRACE_MS };
+    await checkForwarding(deps(w.fetcher, at(1), grace));
+    await checkForwarding(deps(w.fetcher, at(8), grace));
+    await checkForwarding(deps(w.fetcher, at(15), grace));
+    await checkForwarding(deps(w.fetcher, at(22), grace));
     expect(w.sends[0]?.text).toContain("Cloudflare dropped the 2 refusal notices");
   });
 

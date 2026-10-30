@@ -199,6 +199,11 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
     db.prepare("DELETE FROM forward_seen WHERE at < ?").bind(new Date(now.getTime() - FORWARDS_KEPT_MS).toISOString()),
     db
       .prepare(
+        "DELETE FROM forward_notices WHERE incident_key IN (SELECT key FROM forward_incidents WHERE alert IN ('none', 'sent', 'refused') AND state <> 'retrying' AND detected_at < ?)",
+      )
+      .bind(new Date(now.getTime() - INCIDENTS_KEPT_MS).toISOString()),
+    db
+      .prepare(
         "DELETE FROM forward_incidents WHERE alert IN ('none', 'sent', 'refused') AND state <> 'retrying' AND detected_at < ?",
       )
       .bind(new Date(now.getTime() - INCIDENTS_KEPT_MS).toISOString()),
@@ -206,7 +211,7 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
   await resolveRefusals(db, now, deps.graceMs ?? MATCH_GRACE_MS);
   const pending = await db
     .prepare(
-      "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, reports, possible_retry_at FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
+      "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, possible_retry_at, (SELECT COUNT(*) FROM forward_notices n WHERE n.incident_key = forward_incidents.key) AS reports FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
     )
     .bind(ALERTS_PER_RUN)
     .all<Incident>();
@@ -252,20 +257,32 @@ async function record(db: D1Database, event: RoutingEvent, now: Date): Promise<n
       )
       .bind(subject, destination, at)
       .first<{ key: string }>();
+    const notice = await eventKey(event);
     if (known) {
-      if (known.key !== (await eventKey(event)))
-        await db.prepare("UPDATE forward_incidents SET reports = reports + 1 WHERE key = ?").bind(known.key).run();
+      // Each notice counted once by its identity, however often the overlapping scans read it again (round 3).
+      await db
+        .prepare(
+          "INSERT INTO forward_notices (notice_hash, incident_key) VALUES (?, ?) ON CONFLICT (notice_hash) DO NOTHING",
+        )
+        .bind(notice, known.key)
+        .run();
       return 0;
     }
     // Recorded under the report's own identity, waiting: which forward it refused is resolved each run, once every
     // forward of the window can have been read (`resolveRefusals`).
-    const opened = await db
-      .prepare(
-        "INSERT INTO forward_incidents (key, kind, subject_hash, destination_domain, occurred_at, detected_at, state, alert) VALUES (?, 'refused', ?, ?, ?, ?, 'open', 'waiting') ON CONFLICT (key) DO NOTHING",
-      )
-      .bind(await eventKey(event), subject, destination, at, now.toISOString())
-      .run();
-    return opened.meta.changes;
+    const [opened] = await db.batch([
+      db
+        .prepare(
+          "INSERT INTO forward_incidents (key, kind, subject_hash, destination_domain, occurred_at, detected_at, state, alert) VALUES (?, 'refused', ?, ?, ?, ?, 'open', 'waiting') ON CONFLICT (key) DO NOTHING",
+        )
+        .bind(notice, subject, destination, at, now.toISOString()),
+      db
+        .prepare(
+          "INSERT INTO forward_notices (notice_hash, incident_key) VALUES (?, ?) ON CONFLICT (notice_hash) DO NOTHING",
+        )
+        .bind(notice, notice),
+    ]);
+    return opened?.meta.changes ?? 0;
   }
   if (event.action === "worker" && event.status === "deliveryFailed") {
     const opened = await db

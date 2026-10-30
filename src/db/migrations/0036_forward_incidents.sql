@@ -33,8 +33,6 @@ CREATE TABLE forward_incidents (
   destination_domain TEXT,
   -- The forward a refusal was tied to, so no other refusal claims it.
   forward_hash TEXT,
-  -- How many refusal notices arrived for it (a destination can send several for one message), said in the alert.
-  reports INTEGER NOT NULL DEFAULT 1,
   -- A Worker failure with no Message-ID cannot be matched to its retry; a later delivery from the same sender to the
   -- same alias is only noted, as a possible retry, never taken as recovery.
   possible_retry_at TEXT,
@@ -53,3 +51,11 @@ CREATE TABLE forward_incidents (
 );
 CREATE INDEX forward_incidents_alert ON forward_incidents (alert, detected_at);
 CREATE INDEX forward_incidents_subject ON forward_incidents (subject_hash, occurred_at);
+
+-- Each refusal notice once, by its identity, with the incident it belongs to: a destination can send several for one
+-- message, and the alert says how many distinct ones came, however often the scans read them again.
+CREATE TABLE forward_notices (
+  notice_hash TEXT PRIMARY KEY CHECK (length(notice_hash) = 64),
+  incident_key TEXT NOT NULL
+);
+CREATE INDEX forward_notices_incident ON forward_notices (incident_key);
