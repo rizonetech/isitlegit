@@ -1223,10 +1223,24 @@ describe("the scan of the built files for protected sample details", () => {
     ]);
     // A recipient's first name alone on a public page is a stranger's name, not a leak; on a sample line it is one.
     const firstName = await sampleLine("p-3", "Dear Thandiwe, your parcel is waiting");
-    expect(scanSampleLines([{ id: "p-3", origin: "public", line: firstName }], ["Thandiwe"], "image")).toEqual([]);
-    expect(scanSampleLines([{ id: "p-3", origin: "samples", line: firstName }], ["Thandiwe"], "image")).toEqual([
+    const kinds = { client: ["Kestrel"], addresses: [], domains: [], pieces: ["Thandiwe"] };
+    expect(scanSampleLines([{ id: "p-3", origin: "public", line: firstName }], kinds, "image")).toEqual([]);
+    expect(scanSampleLines([{ id: "p-3", origin: "samples", line: firstName }], kinds, "image")).toEqual([
       "p-3: a protected sample term",
     ]);
+  });
+
+  it("scans a one-word client name on a public line, whatever the form of the name", async () => {
+    const kinds = { client: ["Kestrel"], addresses: ["a@b.example"], domains: ["b.example"], pieces: [] };
+    const public_ = await sampleLine("p-4", "Welcome to Kestrel");
+    expect(scanSampleLines([{ id: "p-4", origin: "public", line: public_ }], kinds, "image")).toEqual([
+      "p-4: a protected sample term",
+    ]);
+    expect(scanSampleLines([{ id: "p-4", origin: "samples", line: public_ }], kinds, "image")).toEqual([
+      "p-4: a protected sample term",
+    ]);
+    const domain = await sampleLine("p-5", "Visit www.b.example today");
+    expect(scanSampleLines([{ id: "p-5", origin: "public", line: domain }], kinds, "image")).toHaveLength(1);
   });
 
   it("refuses a version whose public-origin line names a protected client", async () => {
@@ -1278,15 +1292,10 @@ describe("the scan of the built files for protected sample details", () => {
     );
     const { terms, unreadable } = await sampleTerms(samples);
     expect(unreadable).toBe(0);
-    expect(terms).toEqual(
-      expect.arrayContaining([
-        "Kestrel Holdings",
-        "thandi.mokoena@kestrel.example",
-        "kestrel.example",
-        "Thandi",
-        "Mokoena",
-      ]),
-    );
+    expect(terms.client).toEqual(["Kestrel Holdings"]);
+    expect(terms.addresses).toEqual(["thandi.mokoena@kestrel.example"]);
+    expect(terms.domains).toEqual(["kestrel.example"]);
+    expect(terms.pieces).toEqual(expect.arrayContaining(["Thandi", "Mokoena"]));
     // Without the consent section nothing is read.
     writeFileSync(join(samples, "pilot-consent.md"), "# Consent\n");
     await expect(sampleTerms(samples)).rejects.toThrow(/no sample is read without it/);
