@@ -58,7 +58,7 @@ track: day-0
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
-| 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
+| 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [x] |
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
@@ -772,9 +772,12 @@ Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/
 - [x] Enter waiting from `process-plan`: when the audit finds nothing runnable in the lane but rows that wait only on another lane's rows, start the guard and its heartbeat and `wait` on those rows, instead of halting; with mixed leftovers, the operator- or host-bound ones go to the coordinator's manual list and the wait keeps the heartbeat for the rest. Done when: the skill names the transition, and a dry run in a scratch tree whose lane has only cross-lane-blocked rows reaches `wait` with a live guard.
 - [x] Enter waiting from `process-phase`: when a phase's only leftovers in the lane wait on another lane's rows, and `process-plan` finds no other runnable phase, `wait` on them before any `PARKED` line or guard deletion; a phase with a runnable row elsewhere moves on as today. Done when: the skill names the order (other phases first, then wait, park only for leftovers that wait on a person or an unreachable host).
 - [x] Describe the waiting state in `AGENTS.md` Parallel lanes. Done when: it names `wait`, `wake` and the park rule for the other leftovers.
-- [ ] Commit: `tools: a lane waits on another lane's rows and resumes by itself`
+- [x] Commit: `tools: a lane waits on another lane's rows and resumes by itself`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_campaign_guard tests.scripts.test_lane_wake` passes, including the end-to-end resumption over a bare remote (`test_lane_wake`), which fails when `wake` skips the fetch, the merge or the conclusion (**Corrected 2026-10-30**, completion review G6: the checkpoint named only `test_campaign_guard`, which does not load the real-remote tests).
+
+> **Verified:** 2026-10-30 | §20 | 984a8fd927d70f80545c18ad5cd563fbc33ba560
+> **Review:** `docs/reviews/d00-t01-s20.json`
 
 ## 21. Pre-push excerpt from the tools' error output
 

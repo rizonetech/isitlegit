@@ -99,7 +99,7 @@ Sections: 54 | Checklist items: 352
 | [x]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
 | [x]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
-| [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 14    |
+| [x]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 14    |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
@@ -360,6 +360,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 100/291 verified sections, 63 ready to run now.
+Progress: 101/291 verified sections, 63 ready to run now.
 
-Checklist: 1024/1866 items completed (includes Commit items).
+Checklist: 1025/1866 items completed (includes Commit items).
