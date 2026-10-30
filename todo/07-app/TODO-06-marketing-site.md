@@ -16,6 +16,7 @@ track: day-6
 ## Inputs
 
 - -> XREF: D07 T01 §2 -- the token stylesheet the site reuses, and the raw-colour guard this section extends to the site
+- -> XREF: D07 T02 §13 -- the signup page whose Read the privacy notice opens the privacy page (§5)
 - Design spec 2b (business model), 4.8 (marketing site), 11 (Pricing, Brand); stack doc "Marketing site" (Astro 7.4.2, TypeScript 6.0.3 in `site/` only, Workers static assets, app on `app.isitlegit.co.za`).
 - `design/SPEC.md` marketing site section; the global writing rules for articles and marketing copy (no AI phrasing, E-E-A-T, sources).
 

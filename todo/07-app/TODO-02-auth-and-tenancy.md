@@ -47,10 +47,11 @@ track: day-1
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
 | 12 | §12 | Sign-in link opened on another device | §11 | [ ] |
-| 13 | §13 | Signup page | §4, §7 | [ ] |
+| 13 | §13 | Signup page | §4, §7 | [x] |
 | 14 | §14 | Invite acceptance page | §3, §7 | [ ] |
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
+| 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -495,6 +496,10 @@ Wrong-device link: b (2026-10-30)
 
 ## 13. Signup page
 
+> **Started:** 2026-10-30T21:33:30Z
+
+**Corrected 2026-10-31** (at stamp): the Started line was written with the first plan correction (1fa38f4, 2026-10-30T21:29:15Z), before the plan review and its renamed test file (5c42ef2); the build began after the plan review's gaps were built in (592d334), at the time above.
+
 The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's address, the organisation's name and the POPIA consent, then the first link and its code. Split from §7 on 2026-10-30 (its items moved here unchanged).
 
 **Phase:** 2
@@ -505,15 +510,36 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 **Treatment:** one task, plain words, consent asked for plainly, every error says what to do next
 **Chrome:** `Field`, `Checkbox`, `Button`, `ErrorState` from D07 T01 §6 to §8 on the sign-in frame (§7)
 
+**Corrected 2026-10-30** at start, against the code and the board (`Signup`):
+- `/api/auth/sign-up/invite-code` (§4, `src/auth/signup.ts`) takes JSON, which a form cannot send without script, so the page has its own `POST /signup` that calls it (as `/signin/link` calls Better Auth's endpoint, `src/auth/confirm.tsx`) and draws its answers; with no script the page works whole.
+- The endpoint answers every unusable code with one message, while the board draws three ("We do not recognise that code.", "This code has been used up. Ask whoever gave it to you for a new one.", "This code expired on 31 Oct 2026."). §4 decided the one answer on purpose ("so a guess learns nothing", `test/auth/invite.test.ts`), and that decision stands: the page says it in one sentence that covers all three ("We do not recognise that code, or it has been used up or has expired. Ask whoever gave it to you for a new one."), a Deviation in `design/SPEC.md` A2. **Corrected 2026-10-30** (at build: the endpoint was not changed; reversing §4's decision would let a guess tell a dead code from none, and is the operator's to make).
+- The page is A1's frame (§7's `SigninFrame`) with A2's own panel words ("Protect your business from fake invoices and phishing.", "Create your organisation. During the launch you need an invite code; checks are free."), so the frame takes its panel words as props.
+- "Read the privacy notice" links `https://isitlegit.co.za/privacy`, the public page S6 that D07 T06 §5 builds on the public site (the signup page is on `app.isitlegit.co.za`, so a relative `/privacy` would never reach it); until then the link answers 404, recorded as a Deferred line. **Corrected 2026-10-30 (plan review P2).**
+- "Create account" is enabled only with consent (SPEC A2): the app script holds it until the box is ticked, and the server refuses without it (the field error), so without script the refusal is the guard.
+- An address that already has an account is answered on the email field with Sign in (the endpoint's 409, as today); the endpoint's 503 and a rate limit (D07 T02 §6) are answered in words with the form kept.
+
 **Build order:**
 
 1. Build the signup page and both of its answers. Done when: a rendered-page test signs up with a code and signs in from the first mail.
 
-- [ ] Build `src/web/pages/signup.tsx` (invite code, email, organisation name, POPIA notice and consent checkbox). Done when: submitting without consent shows the field error and stores nothing. It posts to `/api/auth/sign-up/invite-code` (§4) and renders both answers: `linkSent: true` ("check your inbox") and `linkSent: false` ("your account is ready, but the sign-in link could not be confirmed", with a button that asks for a new link). A signup link the operator shares, `/signup?code=<code>`, fills the code in so nobody types it (the code stays in the form, never in a log or a stored URL).
-- [ ] Show the sign-in code field (§11) on the signup page's "check your inbox" answer (`linkSent: true`, whose first link carries a code bound to the browser that signed up), with its refusals, the page setting the code handle when it is served to a browser with none. Done when: the page test signs up and signs in by the code from the first mail. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
-- [ ] Commit: `web: the signup page`
+- [x] Give `SigninFrame` (`src/web/pages/signin.tsx`) its panel words as props, A1's as the default. Done when: `test/web/signin-page.test.ts` still reads A1's, and the signup page test reads A2's. Evidence 2026-10-30: `SigninFrame` takes `panel` (A1's words by default); `test/web/signin-page.test.ts` (8) still reads A1's and `test/web/signup-page.test.ts` reads A2's.
+- [x] Keep §4's one answer for every unusable code, said on the page as one sentence covering unknown, used up and expired (a Deviation in `design/SPEC.md` A2). Done when: `test/auth/invite.test.ts` still finds the same answer for all three, and the page test reads the one sentence for each. **Corrected 2026-10-30.** Evidence 2026-10-30: `src/auth/signup.ts` unchanged; `test/auth/invite.test.ts` still finds one answer for all three; the page test reads the one sentence for an unknown, a used-up and an expired code; the Deviation is in `design/SPEC.md` A2.
+- [x] Guard `POST /signup` as `/signin/link` is guarded (`src/auth/confirm.tsx`): the app's own origin only, the form body bounded, and the client IP forwarded to the endpoint so the auth limiter counts it (D07 T02 §6). Done when: `test/web/signup-page.test.ts` posts from a foreign origin and an oversized body and finds nothing created, and repeated signups from one IP through `/signup` meet the real per-IP limit and its page. **Added 2026-10-30 (plan review P1).** Evidence 2026-10-30: `POST /signup` in `src/auth/confirm.tsx` checks the origin, reads the form bounded (`MAX_FIELD` gains `invite`, `organizationName`, `consent`) and calls the endpoint with `forwarded` headers; the page test finds 403 and 413 with nothing created, and the eleventh signup from one IP meeting the real limit's page while another IP is not limited; dropping the origin check or the forwarded IP fails it.
+- [x] Build `src/web/pages/signup.tsx` and `GET /signup` and `POST /signup`: Create an account, Already have one? Sign in, Invite code, Work email, Organisation name, the POPIA notice with Read the privacy notice and the consent box, Create account; `/signup?code=<code>` fills the code in (kept in the form only, the page `no-store` and `same-origin`). Done when: `test/web/signup-page.test.ts` finds each control by name, the code filled in from the address, and Read the privacy notice resolving to `https://isitlegit.co.za/privacy`. Evidence 2026-10-30: `src/web/pages/signup.tsx` and `GET /signup`; the page test finds each control by name, `?code=` filled into the field, `no-store` and `same-origin`, and Read the privacy notice at `https://isitlegit.co.za/privacy` (a Deviation in `design/SPEC.md` A2).
+- [x] Answer each refusal on its field, the form kept: no consent, an unusable code (one sentence for all three reasons), an address that already has an account (with Sign in), an invalid address or name, and a rate limit (when it lifts, in SAST). Done when: the page test reads each and finds nothing stored for them (no use of the code, no redemption, no account). **Corrected 2026-10-30 (plan review P2).** Evidence 2026-10-30: the page test reads the consent, code, address and name refusals on their fields with the other values kept, an existing address with Sign in instead (409), and the limit's time in SAST, with no user, no redemption and no use of the code; the server's consent check removed fails it.
+- [x] Answer a signup interrupted after the code was used (the endpoint's 503: the redemption is kept, `src/auth/signup.ts`) with try again and every field kept, and resume it on the retry. Done when: the page test fails the account write once, reads the kept fields, submits again, and reads exactly one organisation, one owner membership, one completed redemption with its consent, and one use of the code. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: the page test fails the organisation's write once, reads the 503 with every field kept, submits again (201), and reads one user, one owner membership, one completed redemption with its consent, one organisation and one use of the code; answering the failure as a bad code fails it.
+- [x] Draw both answers: `linkSent: true` is the check-your-inbox state with the code field (§11; the page sets the code handle for a browser with none, so the first link's code is this browser's), and `linkSent: false` says the account is ready but the link could not be confirmed, with Email me a new link. Done when: the page test signs up and signs in by the code from the first mail, and reads the second answer with a working new-link form. Evidence 2026-10-30: the page test serves `/signup` to a fresh browser (it now sets the code handle, as `/signin/*` does), signs up, reads the inbox with the code field, signs in by the first code and reads the Cases list for Karoo Couriers; with the mail refused it reads "Your account is ready" with the new-link form; dropping the handle on `/signup` fails it.
+- [x] Hold Create account until the box is ticked, show it busy while it runs (D07 T02 §7's `data-busy`), and pass the accessibility gate's rules at 360 and 1280 px in both themes for the form, a code refusal and both answers. Done when: `test/node/signup-page-browser.test.tsx` finds the button held, ticks the box, sends once for two presses, and scans each state. Evidence 2026-10-30: `data-needs-consent` in `src/web/client/app.ts`; `test/node/signup-page-browser.test.tsx` (7) finds the button held, enabled on ticking and held again on unticking, one post for two presses, and no accessibility problem in four states at 360 and 1280 px in both themes; removing the hold fails it.
+- [x] Work without script and by keyboard alone: with JavaScript off, Create account is usable (only the script holds it) and the signup and the first code go through; by Tab, Space and Enter alone a member fills the form, ticks consent, submits, meets a refusal tied to its field (`aria-describedby`, announced), corrects it, and submits again with the other values kept. Done when: the browser test drives both journeys. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: the browser test with JavaScript off finds the box's own `required` stopping a form without consent (nothing sent), then signs up and signs in by the first code; by keyboard it types each field, ticks with Space, submits with Enter, reads the refused code as the field's description with the other values kept, corrects it and submits.
+- [x] Close the completion review's in-scope gaps: Create account stays held when a retry's time comes with consent unticked; a form too large to read is the signup page again saying why (413), the fields bounded (`maxlength` 200, 254 and 120) so a typed form stays under it; a shared invite code is taken into the form and out of the address (`data-drop-query`, `history.replaceState`); and the server's part of a signup is timed. Done when: `test/node/signup-page-browser.test.tsx` (9) holds the button past an expired retry with the box unticked and finds `/signup` with no code and the field filled; `test/web/signup-page.test.ts` (9) reads the 413 page and times ten signups at p95 207 ms locally (the browser and the mail are the rest of the minute, unmeasured here). Each fix's removal fails its test. **Added 2026-10-31 (completion review).**
+- [x] Commit: `web: the signup page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if signup proceeds without the POPIA consent.
+> **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
+
+**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/invite.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
+
+> **Verified:** 2026-10-31 | §13 | 060ad6980a49f3b0796b115ae0eb2c5e32bd76a8
+> **Review:** `docs/reviews/d07-t02-s13.json`
 
 ## 14. Invite acceptance page
 
@@ -607,6 +633,29 @@ The sign-in page's "Sign in with a passkey" (`design/SPEC.md` A1, the passkey bu
 - [ ] Commit: `web: passkey sign-in from the sign-in page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-client.test.ts test/node/passkey-signin-browser.test.tsx` passes: a real passkey sign-in landing on its return path with the session read back, and every recovery state by keyboard.
+
+## 17. Correct a mistyped signup address
+
+An owner who typed their address wrong at signup fixes it without a second invite code and without leaving an organisation stranded under an address nobody reads. Filed 2026-10-31 from D07 T02 §13's completion review (Part 1, the typo recovery Slack's signup offers): today the first link goes to the wrong address, the code is used, and only the operator can recover it.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A2 Sign up, once the operator approves a board change adding the correction
+**Job:** an owner who mistyped their address finishes signing up from the same browser
+**Treatment:** on the inbox answer after signup, "Wrong address?" opens the address to correct; the organisation and its consent move to the corrected address only once that address proves itself, and the mistyped one is removed
+**Chrome:** §13's page
+
+**Build order:**
+
+1. Draw the correction on the board and have the operator approve it (who may correct, for how long, and what proves the new address). Done when: `design/SPEC.md` A2 lists it.
+2. Build the correction against the redemption the browser signed up with. Done when: `test/web/signup-page.test.ts` corrects an address and signs in at the new one, the old address left with nothing.
+
+- [ ] Add the correction to the board and SPEC A2 with the operator's approval, its limits named. Done when: `design/SPEC.md` A2 names it.
+- [ ] Correct the address of a signup not yet signed in to, from the browser that made it (its code handle), moving the redemption, the user and the owner membership to the new address once its first link or code is used. Done when: `test/web/signup-page.test.ts` corrects a mistyped address, signs in at the corrected one, and finds no account and no membership left at the old one, with one use of the code.
+- [ ] Commit: `web: correct a mistyped signup address`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if the mistyped address keeps an account after the correction.
 
 ## Verification
 

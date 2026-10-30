@@ -160,7 +160,9 @@ document.addEventListener("submit", (event) => {
     delete form.dataset.sent;
     if (status) status.textContent = "";
     button.textContent = label;
-    button.disabled = false;
+    // Usable again, unless another hold still applies: a box it needs that is unticked (the signup page's consent).
+    const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
+    button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.removeAttribute("aria-busy");
   }, Number(form.dataset.busyMs) || BUSY_MS);
 });
@@ -170,8 +172,10 @@ document.addEventListener("submit", (event) => {
 // Without this script the button is never held, and a press before then is refused again by the server.
 for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-retry-at]")) {
   const wait = Number(button.dataset.retryAt) * 1000 - Date.now();
+  // Ready again, unless the same button also needs a box ticked that is not (the signup page's consent, below).
   const ready = () => {
-    button.disabled = false;
+    const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
+    button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.textContent = button.dataset.readyLabel ?? button.textContent;
   };
   if (wait <= 0) ready();
@@ -249,6 +253,28 @@ if (waiting) {
   };
   setInterval(check, 5000);
   document.addEventListener("visibilitychange", check);
+}
+
+// A shared invite code (`/signup?code=<code>`) is taken into the form and out of the address, so it is neither
+// bookmarked nor left in the history (D07 T02 §13); without script the page still sends it to no other site.
+if (document.querySelector("[data-drop-query]") && new URLSearchParams(location.search).has("code")) {
+  const url = new URL(location.href);
+  url.searchParams.delete("code");
+  history.replaceState(history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+// A submit that needs a box ticked first (`data-needs-consent`, the box's id: the signup page's POPIA consent, D07 T02
+// §13): held until the box is ticked, and again if it is unticked. Without this script the button is never held, and
+// the server refuses the form without consent. A retry hold on the same button (`data-retry-at`) still holds it.
+for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-needs-consent]")) {
+  const box = document.getElementById(button.dataset.needsConsent ?? "");
+  if (!(box instanceof HTMLInputElement)) continue;
+  const sync = () => {
+    const retrying = Number(button.dataset.retryAt ?? 0) * 1000 > Date.now();
+    button.disabled = !box.checked || retrying;
+  };
+  sync();
+  box.addEventListener("change", sync);
 }
 
 export {};
