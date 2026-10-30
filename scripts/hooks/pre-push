@@ -1,0 +1,68 @@
+#!/bin/sh
+# Refuse a push that would turn CI's type check or lint red (D00 T01 §13): three glimmer-screener pushes on 2026-10-29
+# reached CI with a type error in a test and failed there in about 35 seconds. Both lanes share this hook through
+# `git config core.hooksPath scripts/hooks`, each pushing from its own worktree with its own node_modules.
+#
+# The check runs on the working tree, so it judges a push only when the tree is the commit being pushed: a tree that
+# differs from HEAD is refused, and so is any update whose commit is not HEAD (another branch's tip is pushed from its
+# own worktree). git hands the hook one line per ref on stdin: `<local ref> <local sha> <remote ref> <remote sha>`, a
+# local sha of zeros for a deletion. A push of deletions only, or of nothing, needs no check. A missing pnpm or
+# node_modules refuses the push, naming what to install, never a silent pass.
+zero=0000000000000000000000000000000000000000
+root="$(git rev-parse --show-toplevel)" || exit 1
+cd "$root" || exit 1
+head="$(git rev-parse HEAD)" || exit 1
+
+updates=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -n "$local_sha" ] || continue
+    case "$local_sha" in "$zero" | 00000000*) continue ;; esac
+    updates=$((updates + 1))
+    if [ "$local_sha" != "$head" ]; then
+        echo "pre-push: $local_ref ($local_sha) is not this worktree's HEAD ($head), so this check cannot judge it;" \
+            "push it from the worktree that has it checked out" >&2
+        exit 1
+    fi
+done
+[ "$updates" -gt 0 ] || exit 0
+
+# A status that cannot be read (a damaged index, a lock) is not a clean tree: the push waits until it can be.
+if ! changed=$(git status --porcelain --untracked-files=normal); then
+    echo "pre-push: git status failed, so whether the tree is the commit pushed is not known; fix the repository" \
+        "(git status shows why) and push again" >&2
+    exit 1
+fi
+if [ -n "$changed" ]; then
+    echo "pre-push: the working tree differs from HEAD, so the type check would judge files the push does not send;" \
+        "commit or stash these first:" >&2
+    printf '%s\n' "$changed" | head -20 >&2
+    exit 1
+fi
+if ! command -v pnpm >/dev/null 2>&1; then
+    echo "pre-push: pnpm is not on PATH, so the type check cannot run; install it (corepack enable) and push again" >&2
+    exit 1
+fi
+if [ ! -d node_modules ]; then
+    echo "pre-push: node_modules is missing in $root, so the type check cannot run; run 'pnpm install' there and" \
+        "push again" >&2
+    exit 1
+fi
+for check in typecheck lint; do
+    echo "pre-push: running pnpm $check" >&2
+    out=$(pnpm "$check" 2>&1)
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        # The errors first, wherever they fall in the output (warnings can fill the first lines), then its opening.
+        echo "pre-push: 'pnpm $check' failed (exit $status), so nothing was pushed; its errors:" >&2
+        errors=$(printf '%s\n' "$out" | grep -iE 'error|✖|×|failed' | head -20)
+        if [ -n "$errors" ]; then
+            printf '%s\n' "$errors" >&2
+        else
+            printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | head -20 >&2
+        fi
+        echo "pre-push: fix it and push again; 'pnpm $check' shows the whole output" >&2
+        exit 1
+    fi
+    echo "pre-push: pnpm $check passed" >&2
+done
+exit 0

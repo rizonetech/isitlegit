@@ -52,10 +52,11 @@ track: day-0
 | 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [x] |
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
 | 13 | §13 | Type check before every push | §4 | [ ] |
-| 14 | §14 | Timing-free render, import and fetch tests | §4 | [ ] |
+| 14 | §14 | Timing-free render, import and fetch tests | §4 | [x] |
 | 15 | §15 | Review schedule by section risk | §4 | [x] |
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
+| 18 | §18 | Each round held to the schedule it ran under | §4 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -527,8 +528,15 @@ Evidence 2026-10-27 14:05 SAST, after the final review's fixes (commit `a7a3aee`
 
 Filed 2026-10-29 at the operator's request, after CI's Worker gates failed in 30 to 36 seconds on three `glimmer-screener` commits pushed with a type error in a test (`6d1c736`, `902ae19`, `8d979c8`, 17:12 to 17:22 SAST: `test/node/glimmer-dataset.test.ts` named an `afterFreeze` field the code did not have yet). The pre-commit hook checks the plan, client names and private paths, but nothing local runs the type checker, so a lane that skips it finds out from CI. A pre-push hook beside the pre-commit one makes the check mechanical for both lanes, which share `core.hooksPath = scripts/hooks`.
 
+> **Started:** 2026-10-30T10:12Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) `pnpm typecheck` and `pnpm lint` run against the working tree, not the commits being pushed, so the hook refuses a push while the tree differs from `HEAD` (an unstaged or uncommitted change could pass or fail the check for the wrong commit), naming the files to commit or stash; (2) both lanes push through their own worktrees, which share `core.hooksPath = scripts/hooks`, so the hook runs in whichever worktree pushes, with that worktree's `node_modules`; (3) a push that deletes a branch or carries no commits (git hands the hook such lines on stdin) needs no check and passes.
+
+**Corrected 2026-10-30** (plan review): (4) a clean tree is not what a push sends: git hands the hook each outgoing ref on stdin, and every update that is not a deletion must be the commit checked, `HEAD` of the clean tree, or the push is refused naming the ref and saying to push it from its own worktree (a lane's branch from the lane's); a push of deletions only, or of nothing, passes without running any check, and a mixed push still checks its updates; (5) the lint is a check of its own, proven by a failure only it reports.
+
 **Phase:** 2
 **Needs:** none
+**Risk:** light
 **Surface:** no
 
 **Build order:**
@@ -536,9 +544,9 @@ Filed 2026-10-29 at the operator's request, after CI's Worker gates failed in 30
 1. Add the hook. Done when: a push with a type error is refused locally with the first error shown, and a clean push goes through.
 2. Prove it. Done when: tests cover a refused push, a clean push and the documented escape.
 
-- [ ] Write `scripts/hooks/pre-push` running `pnpm typecheck` (and `pnpm lint`), refusing the push on a failure with the first errors printed and the command to rerun. Done when: in a scratch clone with `core.hooksPath` set, a push with a type error exits non-zero before anything leaves, and a clean push succeeds.
-- [ ] Keep the hook bounded and honest: a missing `pnpm` or `node_modules` is a refusal naming what to install, never a silent pass, and the escape is git's own `--no-verify`, documented, not a variable the hook reads. Done when: `tests/scripts/test_pre_push_hook.py` covers each case with a stubbed `pnpm` on `PATH`.
-- [ ] Add the tests to `tests/scripts/test_pre_push_hook.py` and name the hook in `AGENTS.md` beside the pre-commit hook. Done when: each case fails if its branch in the hook is removed, and `AGENTS.md` names both hooks.
+- [x] Write `scripts/hooks/pre-push`: read git's ref lines from stdin; pass with no check when every line is a deletion or there are none; refuse when the working tree differs from `HEAD` (staged, unstaged or untracked), naming the files and saying to commit or stash them; refuse an update whose commit is not `HEAD`, naming the ref and its worktree; then run `pnpm typecheck` and `pnpm lint` in the pushing worktree, refusing on either failure with its first lines and the command to rerun. Done when: in a scratch clone with `core.hooksPath` set and a bare remote, a push with a type error and one with only a lint error are each refused with the remote unchanged, and a clean push succeeds. (**Corrected 2026-10-30**, at start and plan review.) Done 2026-10-30: `scripts/hooks/pre-push`.
+- [x] Keep the hook bounded and honest: a missing `pnpm` or `node_modules` is a refusal naming what to install, never a silent pass, and the escape is git's own `--no-verify`, documented, not a variable the hook reads. Done when: `tests/scripts/test_pre_push_hook.py` covers each case with a stubbed `pnpm` on `PATH`. Done 2026-10-30: the missing-`pnpm` and missing-`node_modules` refusals; git's own skip option is git's, not read by the hook.
+- [x] Add the tests to `tests/scripts/test_pre_push_hook.py` (a stubbed `pnpm` recording each command and its folder) and name the hook in `AGENTS.md` beside the pre-commit hook. Done when: the tests cover a type error, a lint-only error (both commands run, the lint's output and rerun shown), a missing `pnpm` and `node_modules`, staged, unstaged and untracked changes, another branch's tip, a two-ref push, a deletion-only push and an empty one passing with no `pnpm`, a mixed deletion and update still checked, and a linked worktree checked with its own folder; each refusal leaves the remote unchanged; each case fails with its branch of the hook removed. (**Corrected 2026-10-30**, plan review.) Done 2026-10-30: 8 tests, each of four branches (the HEAD check, the clean-tree check, the lint, the early pass) proven to fail its tests when removed; `AGENTS.md` names both hooks. Completion review, 2026-10-30: a status that cannot be read refuses with no check run; the errors are shown wherever they fall in the output (a test with 25 warning lines first); each check is announced before it starts (the stub reads the push's own stderr) and reported when it passes; the escape is git's `--no-verify`, proven in the scratch clone, and no variable turns the hook off; every refusal asserts the remote unchanged, both refs in the mixed push; 12 tests, the four new branches each proven by mutation.
 - [ ] Commit: `tools: a pre-push hook runs the type check and lint`
 
 **Test checkpoint:** `python3 -m pytest tests/scripts/test_pre_push_hook.py` passes and fails if a push with a type error is let through.
@@ -547,7 +555,7 @@ Filed 2026-10-29 at the operator's request, after CI's Worker gates failed in 30
 
 Filed 2026-10-29 at the operator's request: most of the red CI runs that are not a real defect come from tests that wait on a fixed time and lose the race on a slow runner. The Glimmer lane owns the code (D03 T04), so its runner takes this row (Phase 0). The runs: `test/node/glimmer-render.test.ts` "renderPage > renders a page with its screenshot, text and form flags" timed out at 15 s on `main` (runs 40797268504, 40798611883) and "the batch run" cases failed on the lane (40899049673, 40881446236); `test/node/glimmer-import.test.ts` "turns a load that never settles into an exclusion" (40812786684); `tests/scripts/test_fetch_bench.py` "test_aria2c_too_is_killed_at_the_byte_and_resumes" (40927700660, the most recent red) and "test_a_small_run_records_fetch_py_recovering_intact" (40832290146).
 
-> **Started:** 2026-10-29T19:57Z (main's session, at the operator's request, after main merged the lane at `b80e4bf`, so it works on the lane's current files)
+> **Started:** 2026-10-30T10:02Z (restarted after its plan review at `fb21ee4`, at the operator's decision, 2026-10-30: the first build, `9e1111f`, ran on 2026-10-29 before any plan review, at the operator's request to go at once; every later commit, `3af7260` to `2c0a2cd`, came after the review and answers it; the first start was 2026-10-29T19:57Z, main's session)
 
 **Corrected 2026-10-29** (at start, from the failed runs' logs and the code): (1) both fetch-bench failures are one assertion, `resumed` false: `killed_and_resumed` in `scripts/glimmer/fetch_bench.py` kills the first process as soon as the server holds every connection at the kill byte, whether or not the tool has saved its progress since (aria2c saves every second, `--auto-save-interval=1`; `scripts/glimmer/fetch.py` every MiB), and waits a fixed `time.sleep(0.5)` for the dead connections to close; the harness, not the tests, owns both; (2) the text-swap page changes its text on a 10 ms `setInterval`, a timer headless Chromium may throttle, so the two readings sometimes agree; a `requestAnimationFrame` loop changes it on every frame the screenshot between the readings draws; (3) the frame case stored the page (1, not 0): its read fault fires only on a non-main frame, so a run that captured before the cross-origin frame was in the renderer's frame tree read no frame at all; whether that is the renderer storing a page whose shown frame it never read (a real defect) is diagnosed before anything is changed; (4) "renders a page" timed out at 15 s on its first render, which carries the browser's cold start; (5) the import case's deadline is real time (3 s after the lane raised it from 0.3 s), so a busy runner can still push a normal item past it.
 
@@ -564,12 +572,15 @@ Filed 2026-10-29 at the operator's request: most of the red CI runs that are not
 2. Wait on the event instead. Done when: each test passes repeatedly under load and still fails when the behaviour it checks is removed.
 
 - [x] Replace each fixed sleep or wall-clock deadline in the named tests (`test/node/glimmer-render.test.ts`, `test/node/glimmer-import.test.ts`, `tests/scripts/test_fetch_bench.py`) with the event it waits for: a promise, a file or byte count observed, a fake clock, or a process exit read with a bounded retry. Done when: no named test asserts on elapsed real time except as a generous upper bound. Done 2026-10-29: the text-swap page changes on every drawn frame (`requestAnimationFrame`), not a 10 ms timer; the import case's 25 normal pages are made before the run, so only the stuck item meets the deadline (back to 0.3 s); the harness kills only once `tool_saved` sees the tool's progress saved since the hold, and the second run starts once the server's open connections reach zero (`Bench.open`, `Bench.closed`), not after `time.sleep(0.5)`. The cold-start timeouts (runs 40797268504, 40798611883) were on commits that predated the lane's warm-up in `beforeAll` (`d16dc8b`), already fixed; the frame case did not reproduce in 20 loaded runs, so the renderer is left as it is.
-- [x] Run each named test 20 times under CPU load (`stress-ng --cpu` or parallel copies) and record the results. Done when: the section records 20 of 20 passes for each, with the command used. Done 2026-10-29, each on two cores held busy by `stress-ng --cpu 2 --taskset 8,9` with the test pinned to them (`taskset -c 8,9`), so the lane's Majestic render kept the rest of the machine: the text-swap case 20 of 20 (2 of 20 failed before the change), the frame case 20 of 20, the import case 20 of 20, the fetch-bench small-run and aria2c cases 20 of 20.
+- [x] Run each named test 20 times under CPU load (`stress-ng --cpu` or parallel copies) and record the results. Done when: the section records 20 of 20 passes for each, with the command used. Done 2026-10-29, each on two cores held busy by `stress-ng --cpu 2 --taskset 8,9` with the test pinned to them (`taskset -c 8,9`), so the lane's Majestic render kept the rest of the machine: the text-swap case 20 of 20 (2 of 20 failed before the change), the frame case 20 of 20, the import case 20 of 20, the fetch-bench small-run and aria2c cases 20 of 20. The whole checkpoint, 2026-10-30, on the final candidate (completion review): `pnpm exec vitest run --project node test/node/glimmer-render.test.ts test/node/glimmer-import.test.ts` 21 of 21 and `python3 -m pytest tests/scripts/test_fetch_bench.py` 21 of 21, each three copies at once across the machine, the copies the load; 81 and 21 tests a run.
 - [x] Prove each still catches its defect. Done when: removing the behaviour each test checks makes it fail, recorded per test. Done 2026-10-29: the text-swap case fails with `readingsAgree` always true; the import case fails (times out) with the deadline removed; both fetch-bench cases fail with the saved progress wiped before the resume.
-- [x] Diagnose the frame case's one failure (run 40881446236, the page stored though its frame's read was made to fail) with a controlled sequence in `test/node/glimmer-render.test.ts`: the frame's server held until the test releases it, a count of the read fault's calls, and the exclusion test proven to fail with the renderer's unreadable-frame count removed; fix the owning layer (the fixture's readiness or the renderer's capture) the diagnosis names. Done when: the test asserts the fault ran, the cause is recorded with its evidence, and the fix is at that layer. (**Added 2026-10-30**, plan review.) Done 2026-10-30: the one failure ran on `b6f4239`, the commit that introduced this test and the renderer's unread-frame handling, which D03 T04 §26's rounds then reworked (726 lines of `scripts/glimmer/render.ts`): a defect of that first capture, fixed at the renderer by §26, not a timing flake. A 40-run diagnostic of the current renderer on two loaded cores excluded the page every time with the fault run 18 times each; the test now asserts the fault ran, and fails (the page stored) with the renderer's unread-frame count removed. No further change is owed at either layer.
-- [ ] Commit: `glimmer: render, import and fetch tests wait on events, not time`
+- [x] Diagnose the frame case's one failure (run 40881446236, the page stored though its frame's read was made to fail) with a controlled sequence in `test/node/glimmer-render.test.ts`: the frame's server held until the test releases it, a count of the read fault's calls, and the exclusion test proven to fail with the renderer's unreadable-frame count removed; fix the owning layer (the fixture's readiness or the renderer's capture) the diagnosis names. Done when: the test asserts the fault ran, the cause is recorded with its evidence, and the fix is at that layer. (**Added 2026-10-30**, plan review.) Done 2026-10-30: the one failure ran on `b6f4239`, the commit that introduced this test and the renderer's unread-frame handling, which D03 T04 §26's rounds then reworked (726 lines of `scripts/glimmer/render.ts`): a defect of that first capture, fixed at the renderer by §26, not a timing flake. A 40-run diagnostic of the current renderer on two loaded cores excluded the page every time with the fault run 18 times each; the test now asserts the fault ran, and fails (the page stored) with the renderer's unread-frame count removed. No further change is owed at either layer. The controlled sequence (completion review): a frame the test holds (`frameHold`, on its held-frame page) is read only once released, the test asserting no fault before and some after, the page refused; it fails with the unread-frame count removed.
+- [x] Commit: `glimmer: render, import and fetch tests wait on events, not time` Done 2026-10-30: 9e1111f, then the review fixes to 2c0a2cd.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-import.test.ts` and `python3 -m pytest tests/scripts/test_fetch_bench.py` pass 20 times in a row under load.
+
+> **Verified:** 2026-10-30 | §14 | 6ad2743880b7b13fc2127debbcd2e58a90b840c9
+> **Review:** `docs/reviews/d00-t01-s14.json`
 
 ## 15. Review schedule by section risk
 
@@ -640,6 +651,26 @@ Filed 2026-10-30 from D00 T01 §15's completion review (Part 2, item 2): the lig
 - [ ] Commit: `docs: light against full review, measured`
 
 **Test checkpoint:** `docs/evals/review-schedules.md` holds the table with time, usage and missed findings for both schedules.
+
+## 18. Each round held to the schedule it ran under
+
+Filed 2026-10-30 from the Glimmer lane's report on D03 T04 §18: the stamp replays every recorded pass against the review schedule in `.conclave/reviewers.toml` at the stamped commit (`schedule_ok` in `scripts/lib/todo_graph.py`), so a section whose rounds ran before a schedule change (round 1 at xhigh until 2026-10-30 00:30 SAST, high after) is refused at a later commit, and one whose rounds straddle the change has no commit to stamp at. The lane stamped at its last reviewed candidate, which works only when every round ran under one schedule.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find the schedule each pass ran under. Done when: each recorded pass maps to the pin at the commit that recorded it.
+2. Replay each pass against its own schedule. Done when: a section whose rounds straddle a schedule change stamps at its tip.
+
+- [ ] Write `pass_schedules(root, report)` in `scripts/lib/todo_graph.py`: for each pass a findings file records, the commit that added it (`git log` on the file, oldest first, matched by its heading) and the `[schedule]` in `.conclave/reviewers.toml` at that commit. Done when: `tests/scripts/test_todo_graph.py` maps each round of a file built across two commits to its commit's pin.
+- [ ] Have `schedule_ok` replay each pass against the schedule it ran under, the position still counted across all rounds, and keep the stamped commit's schedule for the final mode and the receipt. Done when: a section with round 1 under an xhigh pin and round 2 under a high one stamps at its tip, and a round whose recorded effort matches neither its own pin nor the stamped one is refused.
+- [ ] Refuse a pass whose adding commit cannot be found (an uncommitted round), naming it. Done when: a test with an uncommitted round shows the refusal.
+- [ ] Commit: `tools: each round held to the schedule it ran under`
+
+**Test checkpoint:** `python3 -m pytest tests/scripts/test_todo_graph.py` passes, including a section stamped across a schedule change.
 
 ## Verification
 

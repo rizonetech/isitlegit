@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { dirname, join } from "node:path";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { LoadRefused, loadBrands, type Run } from "../../scripts/load-brands.ts";
 import { BRANDS_KEY, BRANDS_PREVIOUS_KEY } from "../../src/checks/brand-schema.ts";
 
@@ -38,13 +38,16 @@ const COMMITTED = (() => {
   return join(where, "brands.json");
 })();
 
-let dir: string | undefined;
+// Every folder a test makes is removed after it, not only the last: /tmp is memory-backed on the operator's machine,
+// and folders left behind once crowded out a long build (2026-10-30).
+const made: string[] = [];
 afterEach(() => {
-  if (dir) rmSync(dir, { recursive: true, force: true });
-  dir = undefined;
+  for (const folder of made.splice(0)) rmSync(folder, { recursive: true, force: true });
 });
+afterAll(() => rmSync(dirname(COMMITTED), { recursive: true, force: true }));
 function file(content: string) {
-  dir = mkdtempSync(join(tmpdir(), "load-brands-"));
+  const dir = mkdtempSync(join(tmpdir(), "load-brands-"));
+  made.push(dir);
   const path = join(dir, "brands.json");
   writeFileSync(path, content);
   return path;

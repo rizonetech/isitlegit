@@ -1,0 +1,110 @@
+{
+  "ref": "D00 T01 \u00a714",
+  "title": "Timing-free render, import and fetch tests",
+  "implementation_sha": "6ad2743880b7b13fc2127debbcd2e58a90b840c9",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s14.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/glimmer-render.test.ts test/node/glimmer-import.test.ts",
+    "python3 -m pytest tests/scripts/test_fetch_bench.py"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s14.md",
+    "verdict": "completed",
+    "candidate": "b2503e2dc2d61ccd24903eb08a1579845a2c0010",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s14.md",
+    "candidate": "fb21ee481f848f0f34fa297710089b530ee6acfc",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

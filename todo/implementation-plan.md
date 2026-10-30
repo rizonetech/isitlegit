@@ -20,7 +20,7 @@ Sections: 27 | Checklist items: 371
 | [x]    | D00 T01 §6  | AI Gateway for the Meta Model API          | cloudflare           | 9     |
 | [x]    | D00 T01 §10 | Deploy rollback and re-verification        | cloudflare           | 11    |
 | [x]    | D00 T01 §12 | Rollback from a split deployment           | cloudflare           | 10    |
-| [ ]    | D00 T01 §14 | Timing-free render, import and fetch tests | none                 | 5     |
+| [x]    | D00 T01 §14 | Timing-free render, import and fetch tests | none                 | 5     |
 | [x]    | D03 T04 §2  | Fireworks account check and image probe    | none                 | 22    |
 | [x]    | D03 T04 §3  | PageScreen contract and training store     | none                 | 15    |
 | [x]    | D03 T04 §4  | Astra as dataset collector                 | none                 | 17    |
@@ -91,11 +91,12 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 36 | Checklist items: 195
+Sections: 37 | Checklist items: 199
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [ ]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
+| [ ]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
@@ -330,6 +331,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 80/261 verified sections, 43 ready to run now.
+Progress: 81/262 verified sections, 43 ready to run now.
 
-Checklist: 844/1667 items completed (includes Commit items).
+Checklist: 848/1671 items completed (includes Commit items).
