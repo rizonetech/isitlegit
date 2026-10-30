@@ -388,6 +388,10 @@ AAC decoding: not during the event; M4A stays refused with its MP3-or-WAV messag
 
 Filed 2026-10-30 at the app lane's request, through the coordinator: the cases list's "Checked by" column (D07 T04 §1, drawn by the app lane's D07 T04 §7) names the member who checked each case. An email case has `forwarded_by`; an upload case records no one, so the list can only say "Not recorded". The uploading member's user id goes on the case when the upload admits it.
 
+> **Started:** 2026-10-30T17:24Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) the member reaches `admitCase` through `admitDelivery`'s `Delivery` (`src/intake/admit.ts`), which gains `uploadedBy`, as `forwardedBy` came; both case inserts in `src/db/cases.ts` (`admitCase`, `createCase`) name the column; (2) the id is Better Auth's user id from `c.get("signedIn").user.id`, kept as given: a member who later leaves the organisation or deletes their account leaves an id the list cannot resolve, which D07 T04 shows as a former member, so no foreign key ties the case to the user row (the closure purge, D07 T02 §9, deletes whole case rows, so the column needs no purge entry of its own); (3) `NewCase` refuses `uploadedBy` on an email case and requires it on an upload case.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -399,7 +403,7 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the cases l
 - [ ] Add `uploaded_by` (nullable, the user id) to `cases` in `src/db/migrations/0039_case_uploaded_by.sql` (0039 offered by the coordinator, 2026-10-30). Done when: the migration applies locally and existing cases read null.
 - [ ] Accept `uploadedBy` in `NewCase` and `admitCase` (`src/db/cases.ts`), refused on an email case, and pass the signed-in member's id from `uploadRoutes` (`src/intake/upload.ts`, `c.get("signedIn")`) through `admitDelivery` (`src/intake/admit.ts`). Done when: `test/intake/upload.test.ts` reads the uploader on a new upload case; a repeat of the same file within the day answers the first case and keeps its first uploader (the claim answers the case, it does not re-admit it).
 - [ ] Return it as `Case.uploadedBy` through `getCase`. Done when: `test/db/cases.test.ts` reads it back for its organisation and refuses another organisation; an email case reads null.
-- [ ] Name `uploaded_by` in the closure purge's reckoning if the purge lists columns (D07 T02 §9 deletes whole case rows, so likely none). Done when: the purge item is checked and the answer recorded here.
+- [x] Name `uploaded_by` in the closure purge's reckoning if the purge lists columns (D07 T02 §9 deletes whole case rows, so likely none). Done 2026-10-30: none needed; D07 T02 §9 deletes whole case rows (correction 2).
 - [ ] Commit: `intake: the uploading member stored on the case`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/db/cases.test.ts` passes.
