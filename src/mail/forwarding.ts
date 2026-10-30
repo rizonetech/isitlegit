@@ -25,7 +25,8 @@ export const MAX_SPAN_MS = 30 * 24 * 60 * 60 * 1000;
 export const INCIDENTS_KEPT_MS = 90 * 24 * 60 * 60 * 1000;
 export const PAGE = 1000;
 export const MAX_PAGES = 10;
-export const ALERTS_PER_RUN = 20;
+// Alerts sent per run, the least-tried first, so a new incident is never starved by older ones still retrying (round 1).
+export const ALERTS_PER_RUN = 100;
 const FORWARDS_KEPT_MS = 24 * 60 * 60 * 1000;
 const ALERTS_FROM = "IsItLegit <alerts@isitlegit.co.za>";
 
@@ -192,10 +193,6 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
         "UPDATE forward_incidents SET state = 'unresolved', alert = 'pending' WHERE kind = 'worker' AND state = 'retrying' AND occurred_at <= ?",
       )
       .bind(new Date(now.getTime() - RECOVERY_MS).toISOString()),
-    // A refusal whose forward never appeared is alerted as it stands: the destination, with no alias.
-    db
-      .prepare("UPDATE forward_incidents SET alert = 'pending' WHERE alert = 'waiting' AND detected_at <= ?")
-      .bind(new Date(now.getTime() - MATCH_GRACE_MS).toISOString()),
     db.prepare("DELETE FROM forward_seen WHERE at < ?").bind(new Date(now.getTime() - FORWARDS_KEPT_MS).toISOString()),
     db
       .prepare(
@@ -203,9 +200,10 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
       )
       .bind(new Date(now.getTime() - INCIDENTS_KEPT_MS).toISOString()),
   ]);
+  await resolveRefusals(db, now);
   const pending = await db
     .prepare(
-      "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason FROM forward_incidents WHERE alert = 'pending' ORDER BY detected_at LIMIT ?",
+      "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
     )
     .bind(ALERTS_PER_RUN)
     .all<Incident>();
@@ -222,79 +220,65 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
   return outcome;
 }
 
+// Reports of one refusal arrive together (Exchange sent two for probe 2, in the same second); a second refused message
+// of the same subject is minutes apart, and stays its own incident (round 1).
+const SAME_REFUSAL_MS = 2 * 60 * 1000;
+
 // One event recorded; returns 1 when it opened an incident.
 async function record(db: D1Database, event: RoutingEvent, now: Date): Promise<number> {
   const at = event.datetime;
   if (event.action === "forward" && event.isNDR === 0) {
-    const subject = await subjectKey(event.subject);
-    const alias = (event.to ?? "").toLowerCase();
-    await db.batch([
-      db
-        .prepare(
-          "INSERT INTO forward_seen (message_hash, subject_hash, alias, sender_domain, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (message_hash) DO NOTHING",
-        )
-        .bind(await eventKey(event), subject, alias, domainOf(event.from), at),
-      // A refusal read before its forward (whose analytics show later) is waiting for it: it is completed here.
-      db
-        .prepare(
-          "UPDATE forward_incidents SET alias = ?, sender_domain = ?, received_at = ?, alert = 'pending' WHERE kind = 'refused' AND alert = 'waiting' AND subject_hash = ? AND occurred_at >= ? AND occurred_at <= ?",
-        )
-        .bind(alias, domainOf(event.from), at, subject, at, new Date(Date.parse(at) + NDR_WINDOW_MS).toISOString()),
-    ]);
+    await db
+      .prepare(
+        "INSERT INTO forward_seen (message_hash, subject_hash, alias, sender_domain, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (message_hash) DO NOTHING",
+      )
+      .bind(
+        await eventKey(event),
+        await subjectKey(event.subject),
+        (event.to ?? "").toLowerCase(),
+        domainOf(event.from),
+        at,
+      )
+      .run();
     return 0;
   }
   if (event.isNDR === 1 && (event.to ?? "").toLowerCase().startsWith("cfbounces+")) {
     const subject = await subjectKey(event.subject);
     const destination = domainOf(event.from);
-    const windowStart = new Date(Date.parse(at) - NDR_WINDOW_MS).toISOString();
-    // Several reports of one refusal (Exchange sent two for probe 2), read in any order and any run, are one incident:
-    // the same subject and destination within the window.
+    // Another report of a refusal already recorded: the same subject and destination within SAME_REFUSAL_MS.
     const known = await db
       .prepare(
         "SELECT 1 FROM forward_incidents WHERE kind = 'refused' AND subject_hash = ? AND destination_domain IS ? AND occurred_at >= ? AND occurred_at <= ?",
       )
-      .bind(subject, destination, windowStart, new Date(Date.parse(at) + NDR_WINDOW_MS).toISOString())
+      .bind(
+        subject,
+        destination,
+        new Date(Date.parse(at) - SAME_REFUSAL_MS).toISOString(),
+        new Date(Date.parse(at) + SAME_REFUSAL_MS).toISOString(),
+      )
       .first();
     if (known) return 0;
-    const forwards = await db
-      .prepare(
-        "SELECT message_hash, alias, sender_domain, at FROM forward_seen WHERE subject_hash = ? AND at <= ? AND at >= ? ORDER BY at",
-      )
-      .bind(subject, at, windowStart)
-      .all<{ message_hash: string; alias: string; sender_domain: string | null; at: string }>();
-    const found = forwards.results;
-    const only = found.length === 1 ? found[0] : undefined;
-    // One forward of that subject: it is the refused one. Several: each is named and the incident marked uncertain,
-    // never pinned to the latest. None yet: the incident waits for the forward to appear.
-    const aliases = [...new Set(found.map((f) => f.alias))];
+    // Recorded under the report's own identity, waiting: which forward it refused is resolved each run, once every
+    // forward of the window can have been read (`resolveRefusals`).
     const opened = await db
       .prepare(
-        "INSERT INTO forward_incidents (key, kind, subject_hash, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, detected_at, reason, state, alert) VALUES (?, 'refused', ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'open', ?) ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO forward_incidents (key, kind, subject_hash, destination_domain, occurred_at, detected_at, state, alert) VALUES (?, 'refused', ?, ?, ?, ?, 'open', 'waiting') ON CONFLICT (key) DO NOTHING",
       )
-      .bind(
-        only?.message_hash ?? (await eventKey(event)),
-        subject,
-        aliases.length ? aliases.join(", ") : null,
-        found.length > 1 ? 1 : 0,
-        only?.sender_domain ?? null,
-        destination,
-        only?.at ?? null,
-        at,
-        now.toISOString(),
-        found.length ? "pending" : "waiting",
-      )
+      .bind(await eventKey(event), subject, destination, at, now.toISOString())
       .run();
     return opened.meta.changes;
   }
   if (event.action === "worker" && event.status === "deliveryFailed") {
     const opened = await db
       .prepare(
-        "INSERT INTO forward_incidents (key, kind, alias, sender_domain, received_at, occurred_at, detected_at, reason, state, alert) VALUES (?, 'worker', ?, ?, ?, ?, ?, ?, 'retrying', 'none') ON CONFLICT (key) DO NOTHING",
+        "INSERT INTO forward_incidents (key, kind, alias, sender_domain, sender_hash, no_message_id, received_at, occurred_at, detected_at, reason, state, alert) VALUES (?, 'worker', ?, ?, ?, ?, ?, ?, ?, ?, 'retrying', 'none') ON CONFLICT (key) DO NOTHING",
       )
       .bind(
         await eventKey(event),
         (event.to ?? "").toLowerCase(),
         domainOf(event.from),
+        await sha256((event.from ?? "").trim().toLowerCase()),
+        event.messageId?.trim() ? 0 : 1,
         at,
         at,
         now.toISOString(),
@@ -304,15 +288,62 @@ async function record(db: D1Database, event: RoutingEvent, now: Date): Promise<n
     return opened.meta.changes;
   }
   if (event.action === "worker" && event.status === "delivered") {
-    // The sender's retry arrived, however late: the failure is recovered, and an alert not yet sent is dropped.
+    // The sender's retry arrived, however late: the failure is recovered, and an alert not yet sent is dropped. A
+    // failure that carried no Message-ID is recognised by its sender and alias, delivered after it (round 1).
     await db
       .prepare(
-        "UPDATE forward_incidents SET state = 'recovered', alert = CASE alert WHEN 'pending' THEN 'none' ELSE alert END WHERE key = ? AND kind = 'worker' AND state IN ('retrying', 'unresolved')",
+        "UPDATE forward_incidents SET state = 'recovered', alert = CASE alert WHEN 'pending' THEN 'none' ELSE alert END WHERE kind = 'worker' AND state IN ('retrying', 'unresolved') AND (key = ? OR (no_message_id = 1 AND sender_hash = ? AND alias = ? AND occurred_at <= ?))",
       )
-      .bind(await eventKey(event))
+      .bind(
+        await eventKey(event),
+        await sha256((event.from ?? "").trim().toLowerCase()),
+        (event.to ?? "").toLowerCase(),
+        at,
+      )
       .run();
   }
   return 0;
+}
+
+// Each waiting refusal, oldest first, tied to the forwards of its subject within NDR_WINDOW_MS before it that no other
+// refusal has claimed: one is the refused message; several are all named and the incident marked uncertain; none, past
+// MATCH_GRACE_MS, is alerted as it stands. Claims are made in time order, so two refusals of the same subject take two
+// forwards, never one (round 1).
+async function resolveRefusals(db: D1Database, now: Date): Promise<void> {
+  const waiting = await db
+    .prepare(
+      "SELECT key, subject_hash, occurred_at, detected_at FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at",
+    )
+    .all<{ key: string; subject_hash: string; occurred_at: string; detected_at: string }>();
+  for (const incident of waiting.results) {
+    const forwards = await db
+      .prepare(
+        "SELECT message_hash, alias, sender_domain, at FROM forward_seen WHERE subject_hash = ? AND at <= ? AND at >= ? AND message_hash NOT IN (SELECT forward_hash FROM forward_incidents WHERE forward_hash IS NOT NULL) ORDER BY at",
+      )
+      .bind(
+        incident.subject_hash,
+        incident.occurred_at,
+        new Date(Date.parse(incident.occurred_at) - NDR_WINDOW_MS).toISOString(),
+      )
+      .all<{ message_hash: string; alias: string; sender_domain: string | null; at: string }>();
+    const found = forwards.results;
+    const only = found.length === 1 ? found[0] : undefined;
+    if (only) {
+      await db
+        .prepare(
+          "UPDATE forward_incidents SET alias = ?, sender_domain = ?, received_at = ?, forward_hash = ?, alert = 'pending' WHERE key = ?",
+        )
+        .bind(only.alias, only.sender_domain, only.at, only.message_hash, incident.key)
+        .run();
+    } else if (found.length > 1) {
+      await db
+        .prepare("UPDATE forward_incidents SET alias = ?, uncertain = 1, alert = 'pending' WHERE key = ?")
+        .bind([...new Set(found.map((f) => f.alias))].join(", "), incident.key)
+        .run();
+    } else if (Date.parse(incident.detected_at) <= now.getTime() - MATCH_GRACE_MS) {
+      await db.prepare("UPDATE forward_incidents SET alert = 'pending' WHERE key = ?").bind(incident.key).run();
+    }
+  }
 }
 
 type Incident = {

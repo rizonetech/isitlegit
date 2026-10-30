@@ -27,7 +27,12 @@ CREATE TABLE forward_incidents (
   alias TEXT,
   uncertain INTEGER NOT NULL DEFAULT 0 CHECK (uncertain IN (0, 1)),
   sender_domain TEXT,
+  -- A Worker failure's sender, hashed, to recognise its retry when the message carried no Message-ID.
+  sender_hash TEXT,
+  no_message_id INTEGER NOT NULL DEFAULT 0 CHECK (no_message_id IN (0, 1)),
   destination_domain TEXT,
+  -- The forward a refusal was tied to, so no other refusal claims it.
+  forward_hash TEXT,
   -- When the original was received (the forward, when known) and when it failed (the report, or the Worker's failure).
   received_at TEXT,
   occurred_at TEXT NOT NULL,

@@ -269,6 +269,80 @@ describe("completion review", () => {
   });
 });
 
+describe("round 1", () => {
+  it("keeps two refused messages of the same subject apart, each with its own alias", async () => {
+    const second = {
+      messageId: "<second@x>",
+      sessionId: "s-second",
+      to: "conduct@isitlegit.co.za",
+      datetime: at(10).toISOString(),
+    };
+    const w = world([
+      [
+        forward(),
+        report(),
+        report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" }),
+        forward(second),
+        report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: at(10.2).toISOString() }),
+      ],
+    ]);
+    expect(await checkForwarding(deps(w.fetcher, at(15)))).toMatchObject({ incidents: 2, alerted: 2 });
+    const aliases = (
+      await db.prepare("SELECT alias FROM forward_incidents ORDER BY occurred_at").all<{ alias: string }>()
+    ).results;
+    expect(aliases.map((a) => a.alias)).toEqual(["hello@isitlegit.co.za", "conduct@isitlegit.co.za"]);
+  });
+
+  it("names both aliases as uncertain when two earlier same-subject forwards are read after the report", async () => {
+    const w = world([
+      [report({ datetime: at(5).toISOString() })],
+      [
+        forward(),
+        forward({
+          messageId: "<other@x>",
+          sessionId: "s2",
+          to: "conduct@isitlegit.co.za",
+          datetime: at(1).toISOString(),
+        }),
+      ],
+    ]);
+    await checkForwarding(deps(w.fetcher, at(6)));
+    expect(w.sends).toEqual([]);
+    await checkForwarding(deps(w.fetcher, at(10)));
+    expect(w.sends[0]?.text).toContain("one of hello@isitlegit.co.za, conduct@isitlegit.co.za");
+  });
+
+  it("recognises the retry of a failure that carried no Message-ID by its sender and alias", async () => {
+    const failed = worker("deliveryFailed", { messageId: null });
+    const retry = worker("delivered", { messageId: null, sessionId: "s-retry", datetime: at(20).toISOString() });
+    const w = world([[failed], [retry], []]);
+    await checkForwarding(deps(w.fetcher, at(1)));
+    await checkForwarding(deps(w.fetcher, at(25)));
+    await checkForwarding(deps(w.fetcher, new Date(at(0).getTime() + RECOVERY_MS + 60_000)));
+    expect(w.sends).toEqual([]);
+    expect((await db.prepare("SELECT state FROM forward_incidents").first<{ state: string }>())?.state).toBe(
+      "recovered",
+    );
+  });
+
+  it("sends a new incident's alert even when a hundred older ones are still retrying", async () => {
+    const stale = Array.from({ length: 100 }, (_, i) =>
+      db
+        .prepare(
+          "INSERT INTO forward_incidents (key, kind, alias, occurred_at, detected_at, state, alert, alert_tries) VALUES (?, 'refused', 'hello@isitlegit.co.za', ?, ?, 'open', 'pending', 5)",
+        )
+        .bind(i.toString(16).padStart(64, "0"), at(-60).toISOString(), at(-60).toISOString()),
+    );
+    await db.batch(stale);
+    const w = world([[forward(), report()]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    const fresh = await db
+      .prepare("SELECT alert FROM forward_incidents WHERE alert_tries = 1 AND forward_hash IS NOT NULL")
+      .first<{ alert: string }>();
+    expect(fresh?.alert).toBe("sent");
+  });
+});
+
 describe("member mail the Worker could not take", () => {
   it("is alerted as unresolved when the sender's retry has not arrived within the hour", async () => {
     const w = world([[worker("deliveryFailed")], []]);
