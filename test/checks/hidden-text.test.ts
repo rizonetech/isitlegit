@@ -60,12 +60,17 @@ describe("scanHtml", () => {
     expect(scan.visible).toContain("After.");
   });
 
-  it("ignores conditional comments, script and style text, and the head", async () => {
-    const scan = await scanHtml(() =>
-      wrap(`<!--[if mso]><table><tr><td><![endif]--><script>var x = "${SECRET}";</script>`, "<title>Invoice</title>"),
+  it("ignores conditional comments, script and style text, the head and templates, each by its own content", async () => {
+    const scan = await scanHtml(
+      () =>
+        "<html><head><title>TITLE-TEXT</title><style>.x{color:red} /* STYLE-TEXT */</style></head><body>" +
+        "<!--[if mso]>MSO-TEXT<![endif]--><script>var s = 'SCRIPT-TEXT';</script><noscript>NOSCRIPT-TEXT</noscript>" +
+        "<template>TEMPLATE-TEXT</template><p>Body text.</p></body></html>",
     );
-    expect(scan.hidden).toEqual([]);
-    expect(scan.visible).not.toContain("Invoice\n");
+    expect(scan.visible).toBe("Body text.");
+    const everything = JSON.stringify(scan);
+    for (const marker of ["TITLE", "STYLE", "MSO", "SCRIPT", "NOSCRIPT", "TEMPLATE"])
+      expect(everything, marker).not.toContain(`${marker}-TEXT`);
   });
 
   it("counts selectors it does not resolve", async () => {
