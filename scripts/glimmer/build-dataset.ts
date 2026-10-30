@@ -22,7 +22,7 @@ import {
 } from "../../src/vision/page-screen.ts";
 import { canonicalBrand, readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
-import { readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
+import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const BRAND_CAP = 300;
@@ -30,6 +30,47 @@ export const NEAR_BITS = 6;
 export const NEAR_TEXT = 0.8;
 export const LURE_SHARE = { min: 0.4, max: 0.6 };
 export const EVAL_MINIMUMS = { total: 1000, southAfrica: 300, perLureType: 50 };
+
+// What a version must hold before it is published (§10, plan review finding 7). The sample floors keep the South
+// African lures this product exists for in both splits (filed from §8's plan review, finding 2): evaluation holds at
+// least `sampleEvaluation` trusted sample-derived lures, and training keeps at least `sampleTraining` of the trusted
+// sample-derived lures admitted after every exclusion, rounded up.
+export type Floors = {
+  evaluation: number;
+  southAfrica: number;
+  perLureType: number;
+  sampleEvaluation: number;
+  sampleTraining: number;
+  // The lure share each split must stay within; null for none (a test of something else).
+  lureShare: { min: number; max: number } | null;
+};
+export const FLOORS: Floors = {
+  evaluation: EVAL_MINIMUMS.total,
+  southAfrica: EVAL_MINIMUMS.southAfrica,
+  perLureType: EVAL_MINIMUMS.perLureType,
+  sampleEvaluation: 30,
+  sampleTraining: 0.5,
+  lureShare: LURE_SHARE,
+};
+// No floor at all: for a test of something other than the floors, never for a real build.
+export const NO_FLOORS: Floors = {
+  evaluation: 0,
+  southAfrica: 0,
+  perLureType: 0,
+  sampleEvaluation: 0,
+  sampleTraining: 0,
+  lureShare: null,
+};
+
+// A refused publication: every floor the version misses, named.
+export class ShortfallError extends Error {
+  readonly shortfalls: string[];
+  constructor(shortfalls: string[]) {
+    super(`refused: ${shortfalls.length} shortfalls: ${shortfalls.join("; ")}`);
+    this.name = "ShortfallError";
+    this.shortfalls = shortfalls;
+  }
+}
 // Label sources an evaluation page may carry: what is known to be true, never a model's fill-in (§9).
 const TRUSTED = new Set(["ground-truth", "construction", "dom", "claude", "astra+claude"]);
 
@@ -197,6 +238,12 @@ function shuffle<T>(items: T[], random: () => number): T[] {
   return out;
 }
 
+// A shuffle with the trusted sample-derived lures first, for a cut that must keep them: the South African lures the
+// sample floors protect are dropped only when nothing else is left to drop.
+function samplesFirst(items: Entry[], random: () => number): Entry[] {
+  return shuffle(items, random).sort((a, b) => Number(sampleLure(b.page)) - Number(sampleLure(a.page)));
+}
+
 type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Set<number> };
 
 // Pages kept after exact and near duplicates go: exact by screenshot and text hash; near when the screenshots are
@@ -247,33 +294,137 @@ export function capBrands(entries: Entry[], random: () => number): Entry[] {
     if (!brand) out.push(entry);
     else append(byBrand, brand, entry);
   }
-  for (const group of byBrand.values()) out.push(...shuffle(group, random).slice(0, BRAND_CAP));
+  for (const group of byBrand.values()) out.push(...samplesFirst(group, random).slice(0, BRAND_CAP));
   return out;
 }
 
-// Lures held within 40 to 60 percent by dropping the larger side, chosen with the seed.
+// Lures held within 40 to 60 percent by dropping the larger side, chosen with the seed; a cut drops every other lure
+// before a sample-derived one.
 export function balance(entries: Entry[], random: () => number): Entry[] {
   const lures = entries.filter((e) => e.answer.lure);
   const benign = entries.filter((e) => !e.answer.lure);
   const most = (other: number, share: number) => Math.floor((other * share) / (1 - share));
   if (lures.length > most(benign.length, LURE_SHARE.max))
-    return [...shuffle(lures, random).slice(0, most(benign.length, LURE_SHARE.max)), ...benign];
+    return [...samplesFirst(lures, random).slice(0, most(benign.length, LURE_SHARE.max)), ...benign];
   if (benign.length > most(lures.length, 1 - LURE_SHARE.min))
     return [...lures, ...shuffle(benign, random).slice(0, most(lures.length, 1 - LURE_SHARE.min))];
   return entries;
 }
 
+// A page that is a trusted sample-derived lure: the South African lures the sample floors protect.
+export function sampleLure(page: StoredPage): boolean {
+  return page.origin === "samples" && page.labels.lure === true && trusted(page);
+}
+
+// The most pages a pool of `lures` and `benign` can give with the lure share held within `share`: both sides cut as
+// `balance` cuts them.
+function balancedTotal(lures: number, benign: number, share: Floors["lureShare"]): number {
+  if (!share) return lures + benign;
+  const benignFor = (l: number) => Math.min(benign, Math.floor((l * (1 - share.min)) / share.min));
+  const luresFor = (b: number) => Math.min(lures, Math.floor((b * share.max) / (1 - share.max)));
+  const l = luresFor(benignFor(lures));
+  const b = benignFor(l);
+  return l > 0 && b > 0 ? l + b : 0;
+}
+
+export type Pool = {
+  total: number;
+  lures: number;
+  benign: number;
+  southAfrica: number;
+  byLureType: Record<string, number>;
+  sampleLures: number;
+  // The pages the pool gives once its lure share is held within 40 to 60 percent.
+  balanced: number;
+  shortfalls: string[];
+};
+
+// The feasibility check before the split (plan review finding 1): the pages evaluation could be built from, those a
+// trusted label and the teacher's agreement admit, counted by lure type and South African slice. It names every floor
+// the pool cannot meet, however the groups fall, so a build the teacher has not made possible stops before it splits.
+export function evaluationPool(
+  entries: Pick<Entry, "page" | "answer">[],
+  state: Map<string, PageOutcome>,
+  floors: Floors = FLOORS,
+): Pool {
+  const admitted = entries.filter((e) => trusted(e.page) && teacherState(state, e.page) === "agreed");
+  const lures = admitted.filter((e) => e.answer.lure).length;
+  const benign = admitted.length - lures;
+  const byLureType = Object.fromEntries(
+    LURE_TYPES.map((t) => [t, admitted.filter((e) => e.answer.lure_type === t).length]),
+  );
+  const southAfrica = admitted.filter((e) => e.page.south_africa).length;
+  const sampleLures = admitted.filter((e) => sampleLure(e.page)).length;
+  const balanced = balancedTotal(lures, benign, floors.lureShare);
+  const shortfalls: string[] = [];
+  if (balanced < floors.evaluation)
+    shortfalls.push(
+      `evaluation pool ${balanced} of ${floors.evaluation} pages once lures are held within the share (${lures} lures, ${benign} benign)`,
+    );
+  else if (floors.lureShare && admitted.length && !balanced)
+    shortfalls.push(`evaluation pool cannot hold its lures within the share (${lures} lures, ${benign} benign)`);
+  if (southAfrica < floors.southAfrica)
+    shortfalls.push(`South African evaluation pool ${southAfrica} of ${floors.southAfrica}`);
+  for (const type of LURE_TYPES)
+    if ((byLureType[type] ?? 0) < floors.perLureType)
+      shortfalls.push(`${type} evaluation pool ${byLureType[type] ?? 0} of ${floors.perLureType}`);
+  if (sampleLures < floors.sampleEvaluation)
+    shortfalls.push(`sample-derived lure evaluation pool ${sampleLures} of ${floors.sampleEvaluation}`);
+  return { total: admitted.length, lures, benign, southAfrica, byLureType, sampleLures, balanced, shortfalls };
+}
+
+// Every floor a finished split misses, named (plan review finding 7), checked after deduplication, capping and
+// balancing and before anything is published. `admittedSampleLures` is the trusted sample-derived lures admitted after
+// every exclusion, the denominator of training's half.
+export function checkFloors(
+  input: { train: Entry[]; evaluation: Entry[]; admittedSampleLures: number },
+  floors: Floors = FLOORS,
+): string[] {
+  const { train, evaluation } = input;
+  const out: string[] = [];
+  if (evaluation.length < floors.evaluation) out.push(`evaluation ${evaluation.length} of ${floors.evaluation}`);
+  const share = floors.lureShare;
+  if (share)
+    for (const [name, lines] of [
+      ["training", train],
+      ["evaluation", evaluation],
+    ] as const) {
+      const lures = lines.filter((e) => e.answer.lure).length;
+      if (!lines.length) out.push(`${name} holds no lines`);
+      else if (lures / lines.length < share.min || lures / lines.length > share.max)
+        out.push(`${name} lures ${lures} of ${lines.length}, outside ${share.min * 100} to ${share.max * 100} percent`);
+    }
+  const southAfrica = evaluation.filter((e) => e.page.south_africa).length;
+  if (southAfrica < floors.southAfrica) out.push(`South African evaluation ${southAfrica} of ${floors.southAfrica}`);
+  for (const type of LURE_TYPES) {
+    const n = evaluation.filter((e) => e.answer.lure_type === type).length;
+    if (n < floors.perLureType) out.push(`${type} evaluation ${n} of ${floors.perLureType}`);
+  }
+  const sampleEvaluation = evaluation.filter((e) => sampleLure(e.page)).length;
+  if (sampleEvaluation < floors.sampleEvaluation)
+    out.push(`sample-derived lure evaluation ${sampleEvaluation} of ${floors.sampleEvaluation}`);
+  const sampleTraining = train.filter((e) => sampleLure(e.page)).length;
+  const half = Math.ceil(input.admittedSampleLures * floors.sampleTraining);
+  if (sampleTraining < half)
+    out.push(
+      `training keeps ${sampleTraining} of ${input.admittedSampleLures} sample-derived lures, at least ${half} needed`,
+    );
+  return out;
+}
+
 export type Split = { train: Entry[]; evaluation: Entry[]; heldOut: string[]; template: string | null };
 
 // Whole groups go to evaluation: 10 percent of brands, every page of one synthetic template, and further groups until
-// the minimums hold; only pages `admit` accepts (by default those with trusted labels; `buildDataset` also requires the
+// the floors hold; only pages `admit` accepts (by default those with trusted labels; `buildDataset` also requires the
 // teacher's agreement). A held-out group's other pages are dropped, never trained on, so no brand, site or template is
 // on both sides.
 export function split(
   entries: Entry[],
   random: () => number,
-  admit: (entry: Entry) => boolean = (entry) => trusted(entry.page),
+  options: { admit?: (entry: Entry) => boolean; floors?: Floors } = {},
 ): Split {
+  const admit = options.admit ?? ((entry: Entry) => trusted(entry.page));
+  const floors = options.floors ?? FLOORS;
   const groups = groupEntries(entries);
   const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
@@ -286,6 +437,7 @@ export function split(
   const counts = () => ({
     total: evaluation.length,
     southAfrica: evaluation.filter((e) => e.page.south_africa).length,
+    sampleLures: evaluation.filter((e) => sampleLure(e.page)).length,
     lureTypes: Object.fromEntries(
       LURE_TYPES.map((t) => [t, evaluation.filter((e) => e.answer.lure_type === t).length]),
     ),
@@ -301,13 +453,14 @@ export function split(
   const short = () => {
     const now = counts();
     return (
-      now.total < EVAL_MINIMUMS.total ||
-      now.southAfrica < EVAL_MINIMUMS.southAfrica ||
-      LURE_TYPES.some((t) => (now.lureTypes[t] ?? 0) < EVAL_MINIMUMS.perLureType)
+      now.total < floors.evaluation ||
+      now.southAfrica < floors.southAfrica ||
+      now.sampleLures < floors.sampleEvaluation ||
+      LURE_TYPES.some((t) => (now.lureTypes[t] ?? 0) < floors.perLureType)
     );
   };
-  // Further groups, the ones that fill the scarcest shortfall first, until every minimum holds or none is left. At
-  // most a third of the pages go to evaluation.
+  // Further groups, the ones that fill the scarcest shortfall first, until every floor holds or none is left. At most a
+  // third of the pages go to evaluation.
   const rest = shuffle(
     [...groups.keys()].filter((g) => !held.has(g)),
     random,
@@ -315,8 +468,9 @@ export function split(
   while (short() && rest.length && evaluation.length < entries.length / 3) {
     const now = counts();
     const needs = (e: Entry) =>
-      (now.southAfrica < EVAL_MINIMUMS.southAfrica && e.page.south_africa) ||
-      (now.lureTypes[e.answer.lure_type] ?? 0) < EVAL_MINIMUMS.perLureType;
+      (now.southAfrica < floors.southAfrica && e.page.south_africa) ||
+      (now.sampleLures < floors.sampleEvaluation && sampleLure(e.page)) ||
+      (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType;
     const wanted = rest.findIndex((g) => (groups.get(g) ?? []).some((e) => admit(e) && needs(e)));
     const index = wanted >= 0 ? wanted : rest.findIndex((g) => (groups.get(g) ?? []).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
@@ -352,7 +506,6 @@ export type Built = {
     // incomplete labels, a lost teacher answer (§9, §18).
     excluded: number;
   };
-  shortfalls: string[];
   sha256: { train: string; evaluation: string };
 };
 
@@ -403,8 +556,11 @@ export async function buildDataset(options: {
   // Loupe's collection freeze (§18, `sources.ts freeze`): only pages it names are built from. Left out (a test with no
   // freeze), every stored page is a candidate; the command refuses to build without one.
   frozen?: Set<string>;
+  // The floors a version must meet to be published; `FLOORS` unless a test of something else lowers them.
+  floors?: Floors;
 }): Promise<Built> {
   const { store, version, mode } = options;
+  const floors = options.floors ?? FLOORS;
   const random = seeded(options.seed ?? 20261101);
   const dropped = {
     unlabelled: 0,
@@ -510,6 +666,8 @@ export async function buildDataset(options: {
     throw new Error(
       `${unverified.length} pages' files do not match their records (first: ${unverified[0]}): repair or remove them before building`,
     );
+  // The trusted sample-derived lures admitted after every exclusion: the denominator of training's half.
+  const admittedSampleLures = entries.filter((e) => sampleLure(e.page)).length;
   const deduped = dedupe(entries);
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
@@ -518,10 +676,18 @@ export async function buildDataset(options: {
   // Only a page the teacher checked and agreed with, whose lure and files are still the ones it checked, may be
   // evaluated on (§9; the teacher's `stale` and `unchecked` states both fail this).
   const admit = (entry: Entry) => trusted(entry.page) && teacherState(teacher, entry.page) === "agreed";
-  const parts = split(capped, random, admit);
+  // Before the split: can the teacher's agreed pages meet every floor at all? A build that cannot stops here, naming
+  // each shortfall, instead of splitting a pool that was never enough.
+  const pool = evaluationPool(capped, teacher, floors);
+  if (pool.shortfalls.length) throw new ShortfallError(pool.shortfalls);
+  const parts = split(capped, random, { admit, floors });
   const train = balance(parts.train, random);
   const evaluation = balance(parts.evaluation, random);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
+  // Every floor, checked on the finished splits before anything is written: a version short of one is never published
+  // and the previous version stays in place (plan review finding 7).
+  const shortfalls = checkFloors({ train, evaluation, admittedSampleLures }, floors);
+  if (shortfalls.length) throw new ShortfallError(shortfalls);
 
   // The whole version is written into a building folder and swapped in at the end, so a stopped build never leaves new
   // training lines beside an earlier run's evaluation lines and summary.
@@ -567,16 +733,7 @@ export async function buildDataset(options: {
     return createHash("sha256").update(body).digest("hex");
   };
   const sha256 = { train: write("train", train), evaluation: write("eval", evaluation) };
-  const shortfalls: string[] = [];
-  const sa = evaluation.filter((e) => e.page.south_africa).length;
-  if (evaluation.length < EVAL_MINIMUMS.total)
-    shortfalls.push(`evaluation ${evaluation.length} of ${EVAL_MINIMUMS.total}`);
-  if (sa < EVAL_MINIMUMS.southAfrica) shortfalls.push(`South African evaluation ${sa} of ${EVAL_MINIMUMS.southAfrica}`);
-  for (const type of LURE_TYPES) {
-    const n = evaluation.filter((e) => e.answer.lure_type === type).length;
-    if (n < EVAL_MINIMUMS.perLureType) shortfalls.push(`${type} evaluation ${n} of ${EVAL_MINIMUMS.perLureType}`);
-  }
-  const built: Built = { dir: final, train: train.length, evaluation: evaluation.length, dropped, shortfalls, sha256 };
+  const built: Built = { dir: final, train: train.length, evaluation: evaluation.length, dropped, sha256 };
   const by = (chosen: Entry[], key: (e: Entry) => string) =>
     chosen.reduce<Record<string, number>>((acc, e) => {
       acc[key(e)] = (acc[key(e)] ?? 0) + 1;
@@ -592,7 +749,7 @@ export async function buildDataset(options: {
   });
   writeAtomic(
     join(dir, "summary.json"),
-    `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
+    `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, floors, pool, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
   );
   const previous = `${final}.previous-${process.pid}`;
   if (existsSync(final)) renameSync(final, previous);
@@ -623,13 +780,19 @@ if (import.meta.filename === process.argv[1]) {
     console.error(`build-dataset: ${(error as Error).message}`);
     process.exit(2);
   }
-  const built = await buildDataset({
-    store,
-    version,
-    mode: recorded,
-    frozen,
-    ...(seed ? { seed: Number(seed) } : {}),
-  });
-  console.log(JSON.stringify(built, null, 2));
-  process.exit(built.shortfalls.length ? 1 : 0);
+  try {
+    const built = await buildDataset({
+      store,
+      version,
+      mode: recorded,
+      frozen,
+      ...(seed ? { seed: Number(seed) } : {}),
+    });
+    console.log(JSON.stringify(built, null, 2));
+  } catch (error) {
+    if (!(error instanceof ShortfallError)) throw error;
+    // A refused version names every floor it missed; nothing was published.
+    console.error(`build-dataset: ${error.message}`);
+    process.exit(1);
+  }
 }

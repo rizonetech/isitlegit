@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -9,13 +9,18 @@ import {
   brandIdentity,
   buildDataset,
   capBrands,
+  checkFloors,
   dedupe,
   dhash,
+  evaluationPool,
+  FLOORS,
   freezeDigest,
   groupEntries,
   groupOf,
   hamming,
   jaccard,
+  NO_FLOORS,
+  ShortfallError,
   shingles,
   siteOf,
   split,
@@ -124,6 +129,35 @@ describe("caps and balance", () => {
   });
 });
 
+describe("caps and balance keep the sample-derived lures", () => {
+  const credential = { lure: true, lure_type: "credential" as const };
+  const make = (id: string, sample: boolean, labels: Partial<StoredPage["labels"]> = credential) => {
+    const p = page(id, { origin: sample ? "samples" : "public" }, labels);
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+  };
+
+  it("cuts a brand's other pages before a sample-derived lure", () => {
+    const entries = [
+      ...Array.from({ length: 400 }, (_, i) => make(`p${i}`, false, { brand: "FNB", ...credential })),
+      ...Array.from({ length: 5 }, (_, i) => make(`s${i}`, true, { brand: "FNB", ...credential })),
+    ];
+    const capped = capBrands(entries, () => 0.1);
+    expect(capped).toHaveLength(300);
+    expect(capped.filter((e) => e.page.origin === "samples")).toHaveLength(5);
+  });
+
+  it("drops every other lure before a sample-derived one when it balances", () => {
+    const lures = [
+      ...Array.from({ length: 20 }, (_, i) => make(`p${i}`, false)),
+      ...Array.from({ length: 3 }, (_, i) => make(`s${i}`, true)),
+    ];
+    const benign = Array.from({ length: 3 }, (_, i) => make(`n${i}`, false, {}));
+    const balanced = balance([...lures, ...benign], () => 0.7);
+    expect(balanced.filter((e) => e.answer.lure)).toHaveLength(4);
+    expect(balanced.filter((e) => e.page.origin === "samples")).toHaveLength(3);
+  });
+});
+
 describe("one brand identity and site-joined groups", () => {
   const entry = (id: string, over: Partial<StoredPage>, labels: Partial<StoredPage["labels"]>) => {
     const p = page(id, over, labels);
@@ -224,7 +258,7 @@ describe("the split", () => {
 });
 
 describe("buildDataset", () => {
-  it("writes lines that validate, a meta line each, refuses unredacted samples, and counts shortfalls", async () => {
+  it("writes lines that validate, a meta line each, refuses unredacted samples, and builds on no floors", async () => {
     const store = openStore(join(dir, "store"));
     const put = async (seed: number, input: Partial<PageInput>, labels: PageInput["labels"]) =>
       store.putPage("set", {
@@ -275,13 +309,12 @@ describe("buildDataset", () => {
     // The sample set's redaction key is recorded, so its pages reach the redaction check.
     mkdirSync(join(dir, "store", "raw", "samples"), { recursive: true });
     writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: "k", building: null }));
-    const built = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
+    const built = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
     expect(built.dropped.unredacted).toBe(1);
     expect(built.dropped.unlabelled).toBe(1);
     expect(built.dropped.disputed).toBe(1);
     expect(built.dropped.incomplete).toBe(1);
     expect(built.train + built.evaluation).toBeGreaterThan(0);
-    expect(built.shortfalls.some((s) => s.startsWith("evaluation"))).toBe(true);
     const lines = readFileSync(join(built.dir, "train.jsonl"), "utf-8").trim().split("\n");
     const meta = readFileSync(join(built.dir, "train.meta.jsonl"), "utf-8").trim().split("\n");
     expect(meta).toHaveLength(lines.length);
@@ -291,7 +324,7 @@ describe("buildDataset", () => {
       expect(messages[1].content.some((p: { type: string }) => p.type === "image_url")).toBe(true);
     }
     // A second build replaces the version whole: no building or previous folder is left beside it.
-    const rebuilt = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
+    const rebuilt = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
     expect(rebuilt.dir).toBe(built.dir);
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual(["1.0"]);
     const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
@@ -301,7 +334,7 @@ describe("buildDataset", () => {
       join(dir, "store", "raw", "samples", "REDACTION.json"),
       JSON.stringify({ key: null, building: "k2" }),
     );
-    const unset = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
+    const unset = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
     expect([unset.dropped.unredacted, unset.dropped.incomplete]).toEqual([0, 2]);
     // Built from a freeze (§18): a page the freeze does not name (stored after it) is left out, and counted.
     const named = store.manifest().map((p) => p.id);
@@ -309,6 +342,7 @@ describe("buildDataset", () => {
       store,
       version: "1.0",
       mode: "image",
+      floors: NO_FLOORS,
       seed: 3,
       frozen: new Set(named.slice(1)),
     });
@@ -319,6 +353,7 @@ describe("buildDataset", () => {
         store,
         version: "1.0",
         mode: "image",
+        floors: NO_FLOORS,
         seed: 3,
         frozen: new Set([...named, "set-ffffffffffffffff"]),
       }),
@@ -331,7 +366,7 @@ describe("buildDataset", () => {
       join(dir, "store", "raw", "labels", "excluded.jsonl"),
       `${JSON.stringify({ id: named[0], reason: "the capture is a parked, suspended or taken-down page" })}\n`,
     );
-    const ruled = await buildDataset({ store, version: "1.0", mode: "image", seed: 3 });
+    const ruled = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
     expect(ruled.dropped.excluded).toBe(1);
     const ids = [
       ...readFileSync(join(ruled.dir, "train.meta.jsonl"), "utf-8").split("\n"),
@@ -414,10 +449,10 @@ function teach(root: string, outcomes: Record<string, unknown>) {
   mkdirSync(join(root, "store", "raw", "teacher"), { recursive: true });
   writeFileSync(join(root, "store", "raw", "teacher", "state.json"), JSON.stringify({ pages: outcomes }));
 }
-const AGREED = { status: "agreed", answer: null, applied: true };
+const AGREED = { status: "agreed" as const, answer: null, applied: true };
 let versions = 0;
 const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<typeof buildDataset>[0]> = {}) =>
-  buildDataset({ store, version: `2.${++versions}`, mode: "image", seed: 3, ...extra });
+  buildDataset({ store, version: `2.${++versions}`, mode: "image", seed: 3, floors: NO_FLOORS, ...extra });
 const idsIn = (folder: string, name: string) =>
   readFileSync(join(folder, `${name}.meta.jsonl`), "utf-8")
     .split("\n")
@@ -451,7 +486,7 @@ describe("teacher admission to evaluation", () => {
       checked: { lure: false, screenshot: "0".repeat(64), text: "0".repeat(64) },
     };
     teach(dir, outcomes);
-    const built = await build(store);
+    const built = await build(store, { floors: { ...NO_FLOORS, evaluation: 4 } });
     const evaluation = idsIn(built.dir, "eval");
     expect(evaluation.length).toBeGreaterThan(0);
     for (const id of evaluation) expect(outcomes[id]).toEqual(AGREED);
@@ -476,11 +511,7 @@ describe("the split without admissible pages", () => {
         page(`p${b}`, { host: `www.site${b}.co.za` }, { brand: `Brand ${b}`, lure: true, lure_type: "credential" }),
       ),
     );
-    const parts = split(
-      entries,
-      () => 0.5,
-      () => false,
-    );
+    const parts = split(entries, () => 0.5, { admit: () => false });
     expect(parts.evaluation).toHaveLength(0);
     // Only the tenth of brands held out at the start leaves training.
     expect(parts.train.length).toBe(36);
@@ -521,5 +552,210 @@ describe("verified bytes", () => {
     const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
     expect(summary.freeze).toEqual({ pages: 3, sha256: freezeDigest(new Set(ids)) });
     expect(freezeDigest(new Set(ids))).not.toBe(freezeDigest(new Set(ids.slice(1))));
+  });
+});
+
+type Kind = { lure: boolean; type?: "credential" | "payment" | "fake_shop" | "impersonation"; sa?: boolean };
+function shaped(i: number, kind: Kind, sample = false) {
+  const labels = kind.lure
+    ? { brand: `B${i}`, has_login_form: true, lure: true, lure_type: kind.type ?? "credential" }
+    : {};
+  return entryOf(page(`q${i}`, { south_africa: !!kind.sa, origin: sample ? "samples" : "public" }, labels));
+}
+const AGREED_STATE = (entries: { page: StoredPage }[]) => new Map(entries.map((e) => [e.page.id, AGREED]));
+
+describe("evaluationPool", () => {
+  const TYPES = ["credential", "payment", "fake_shop", "impersonation"] as const;
+  // Exactly the floors: 500 lures (350 credential, 50 each of the other types, 300 South African, 30 sample-derived) and
+  // 500 benign pages.
+  const exact = (change: (i: number, kind: Kind, sample: boolean) => [Kind, boolean] | null = (_, k, s) => [k, s]) => {
+    const out = [];
+    for (let i = 0; i < 1000; i++) {
+      const kind: Kind =
+        i < 500
+          ? { lure: true, type: TYPES[Math.max(0, Math.floor(i / 50) - 6)] as (typeof TYPES)[number], sa: i < 300 }
+          : { lure: false };
+      const changed = change(i, kind, i >= 300 && i < 330);
+      if (changed) out.push(shaped(i, changed[0], changed[1]));
+    }
+    return out;
+  };
+
+  it("passes a pool that meets every floor", () => {
+    const entries = exact();
+    const pool = evaluationPool(entries, AGREED_STATE(entries));
+    expect(pool.shortfalls).toEqual([]);
+    expect([pool.total, pool.lures, pool.benign, pool.southAfrica, pool.sampleLures, pool.balanced]).toEqual([
+      1000, 500, 500, 300, 30, 1000,
+    ]);
+  });
+
+  it("refuses a pool one page short of each floor, naming it", () => {
+    const short = (entries: ReturnType<typeof exact>, state?: Map<string, unknown>) =>
+      evaluationPool(entries, (state ?? AGREED_STATE(entries)) as Map<string, never>).shortfalls;
+    // 999 pages in all.
+    expect(short(exact((i, k, s) => (i === 700 ? null : [k, s])))).toEqual([
+      expect.stringMatching(/^evaluation pool 999 of 1000/),
+    ]);
+    // 299 South African pages.
+    expect(short(exact((i, k, s) => [i === 0 ? { ...k, sa: false } : k, s]))).toEqual([
+      "South African evaluation pool 299 of 300",
+    ]);
+    // 49 payment lures (one became a credential lure).
+    expect(short(exact((i, k, s) => [i === 350 ? { ...k, type: "credential" } : k, s]))).toEqual([
+      "payment evaluation pool 49 of 50",
+    ]);
+    // 29 sample-derived lures.
+    expect(short(exact((i, k, s) => [k, i === 300 ? false : s]))).toEqual([
+      "sample-derived lure evaluation pool 29 of 30",
+    ]);
+    // 49 benign pages: the only floor "none" is held to.
+    expect(short(exact((i, k, s) => (i >= 500 && i < 951 ? null : [k, s])))).toEqual([
+      expect.stringMatching(/^evaluation pool \d+ of 1000/),
+      "none evaluation pool 49 of 50",
+    ]);
+    // A page the teacher did not agree with is no part of the pool.
+    const all = exact();
+    const state = AGREED_STATE(all);
+    state.delete("q700");
+    expect(short(all, state)).toEqual([expect.stringMatching(/^evaluation pool 999 of 1000/)]);
+  });
+
+  it("refuses a pool whose lures cannot be held within 40 to 60 percent", () => {
+    // 300 lures and 700 benign pages: 1,000 pages, but the share allows 750 at most.
+    const entries = [];
+    for (let i = 0; i < 1000; i++) entries.push(shaped(i, i < 300 ? { lure: true, sa: true } : { lure: false }));
+    const pool = evaluationPool(entries, AGREED_STATE(entries), {
+      ...NO_FLOORS,
+      evaluation: 1000,
+      lureShare: FLOORS.lureShare,
+    });
+    expect(pool.balanced).toBe(750);
+    expect(pool.shortfalls).toEqual([expect.stringMatching(/^evaluation pool 750 of 1000 pages/)]);
+  });
+});
+
+describe("the floors a version must meet", () => {
+  const lures = (n: number, sample: boolean, from = 0) =>
+    Array.from({ length: n }, (_, i) => shaped(from + i, { lure: true }, sample));
+
+  it("pins the sample floors the item names", () => {
+    expect([FLOORS.sampleEvaluation, FLOORS.sampleTraining]).toEqual([30, 0.5]);
+  });
+
+  it("refuses 29 evaluation sample lures and passes 30", () => {
+    const floors = { ...NO_FLOORS, sampleEvaluation: FLOORS.sampleEvaluation };
+    expect(checkFloors({ train: [], evaluation: lures(29, true), admittedSampleLures: 60 }, floors)).toEqual([
+      "sample-derived lure evaluation 29 of 30",
+    ]);
+    expect(checkFloors({ train: [], evaluation: lures(30, true), admittedSampleLures: 60 }, floors)).toEqual([]);
+  });
+
+  it("refuses one below the training half of the admitted sample lures, rounded up", () => {
+    const floors = { ...NO_FLOORS, sampleTraining: FLOORS.sampleTraining };
+    expect(checkFloors({ train: lures(9, true), evaluation: [], admittedSampleLures: 20 }, floors)).toEqual([
+      "training keeps 9 of 20 sample-derived lures, at least 10 needed",
+    ]);
+    expect(checkFloors({ train: lures(10, true), evaluation: [], admittedSampleLures: 20 }, floors)).toEqual([]);
+    // Half of 21 rounds up to 11.
+    expect(checkFloors({ train: lures(10, true), evaluation: [], admittedSampleLures: 21 }, floors)).toHaveLength(1);
+    expect(checkFloors({ train: lures(11, true), evaluation: [], admittedSampleLures: 21 }, floors)).toEqual([]);
+  });
+
+  it("refuses each general shortfall of the finished splits, all named", () => {
+    const floors = { ...NO_FLOORS, evaluation: 20, southAfrica: 3, perLureType: 2, lureShare: FLOORS.lureShare };
+    const TYPES = ["credential", "payment", "fake_shop", "impersonation"] as const;
+    const evaluationOf = (change: (i: number, kind: Kind) => Kind | null) => {
+      const out = [];
+      for (let i = 0; i < 20; i++) {
+        // 10 lures (3, 3, 2, 2 by type) and 10 benign pages, 3 of the lures South African.
+        const kind: Kind =
+          i < 10
+            ? {
+                lure: true,
+                type: TYPES[[0, 0, 0, 1, 1, 1, 2, 2, 3, 3][i] as number] as (typeof TYPES)[number],
+                sa: i < 3,
+              }
+            : { lure: false };
+        const changed = change(i, kind);
+        if (changed) out.push(shaped(i, changed));
+      }
+      return out;
+    };
+    const train = lures(5, false, 100).concat(Array.from({ length: 5 }, (_, i) => shaped(200 + i, { lure: false })));
+    const check = (evaluation: ReturnType<typeof evaluationOf>, over = train) =>
+      checkFloors({ train: over, evaluation, admittedSampleLures: 0 }, floors);
+    expect(check(evaluationOf((_, k) => k))).toEqual([]);
+    expect(check(evaluationOf((i, k) => (i === 15 ? null : k)))).toEqual(["evaluation 19 of 20"]);
+    expect(check(evaluationOf((i, k) => (i === 0 ? { ...k, sa: false } : k)))).toEqual([
+      "South African evaluation 2 of 3",
+    ]);
+    expect(check(evaluationOf((i, k) => (i === 8 ? { ...k, type: "credential" } : k)))).toEqual([
+      "fake_shop evaluation 1 of 2".replace("fake_shop", "impersonation"),
+    ]);
+    // A split with 61 percent lures.
+    expect(
+      check(
+        evaluationOf((i, k) => k),
+        lures(7, false, 300)
+          .concat(lures(0, false))
+          .concat([shaped(900, { lure: false }), shaped(901, { lure: false }), shaped(902, { lure: false })]),
+      ),
+    ).toEqual(["training lures 7 of 10, outside 40 to 60 percent"]);
+    // Several at once are all named.
+    expect(check([], [])).toEqual(
+      expect.arrayContaining(["evaluation 0 of 20", "training holds no lines", "evaluation holds no lines"]),
+    );
+  });
+});
+
+describe("a build short of a floor", () => {
+  it("is refused with the shortfalls named and nothing published", async () => {
+    const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2 }, { seed: 3, lure: false }]);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const refusal = build(store, { floors: FLOORS });
+    await expect(refusal).rejects.toBeInstanceOf(ShortfallError);
+    await expect(refusal).rejects.toThrow(/evaluation pool 2 of 1000.*South African evaluation pool 0 of 300/);
+    expect(existsSync(join(dir, "store", "dataset"))).toBe(false);
+  });
+
+  // A group of one brand: `lures` sample-derived lures and as many benign public pages, so the lure share holds.
+  const group = (brand: string, first: number, lures: number): Spec[] => [
+    ...Array.from({ length: lures }, (_, i) => ({
+      seed: first + i,
+      brand,
+      origin: "samples" as const,
+      source: "samples-body",
+      southAfrica: true,
+      host: null,
+    })),
+    ...Array.from({ length: lures }, (_, i) => ({ seed: first + 50 + i, brand, lure: false })),
+  ];
+  const publics: Spec[] = Array.from({ length: 6 }, (_, i) => ({ seed: 300 + i }));
+  const floors = { ...NO_FLOORS, sampleEvaluation: 2, sampleTraining: 0.5 };
+
+  it("refuses a build with no sample-derived lure in evaluation", async () => {
+    // Four sample lures the teacher never agreed with: none can enter evaluation.
+    const { store } = await fill(dir, [...group("S One", 1, 2), ...group("S Two", 11, 2), ...publics]);
+    teach(dir, {});
+    await expect(build(store, { floors })).rejects.toThrow(/sample-derived lure evaluation pool 0 of 2/);
+  });
+
+  it("refuses a build with every sample-derived lure in evaluation", async () => {
+    // All four in one group, agreed: evaluation takes the whole group and training keeps none.
+    const { store, ids } = await fill(dir, [...group("S One", 1, 4), ...publics]);
+    teach(dir, Object.fromEntries(ids.slice(0, 8).map((id) => [id, AGREED])));
+    await expect(build(store, { floors })).rejects.toThrow(
+      /training keeps 0 of 4 sample-derived lures, at least 2 needed/,
+    );
+  });
+
+  it("publishes a build with half of them in training, and records both counts in summary.json", async () => {
+    const { store, ids } = await fill(dir, [...group("S One", 1, 2), ...group("S Two", 11, 2), ...publics]);
+    teach(dir, Object.fromEntries(ids.slice(0, 8).map((id) => [id, AGREED])));
+    const built = await build(store, { floors });
+    const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
+    expect(summary.sampleLures).toEqual({ admitted: 4, training: 2, evaluation: 2 });
+    expect(summary.floors.sampleEvaluation).toBe(2);
   });
 });
