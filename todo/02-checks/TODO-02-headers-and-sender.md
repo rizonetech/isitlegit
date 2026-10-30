@@ -32,7 +32,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Trusted Authentication-Results parsing | D02 T01 §2 | [x] |
-| 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [ ] |
+| 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [x] |
 | 3 | §3 | ARC chain evidence | §1 | [ ] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [ ] |
 | 5 | §5 | First-time sender per organisation | §4 | [ ] |
@@ -98,6 +98,9 @@ From the trusted results, produce evidence: SPF and DKIM pass or fail, DMARC res
 - [x] Commit: `checks: SPF, DKIM and DMARC alignment evidence` Done 2026-10-30: c2ceba4, then the review fixes to 51f8c3d.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/auth.test.ts test/checks/auth-results.test.ts test/intake/sender.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if alignment compares full host names instead of registrable domains.
+
+> **Verified:** 2026-10-30 | §2 | fa8df3f037fa4ba4aa479807d186fbfd8ebb12db
+> **Review:** `docs/reviews/d02-t02-s2.json`
 
 ## 3. ARC chain evidence
 
