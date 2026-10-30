@@ -11,6 +11,8 @@ Started 2026-10-30 12:15 UTC by `process-plan`, scope plan, on branch `checks-la
 
 ## Sections
 
+- D02 T02 §3 ARC chain evidence: stamped (plan review 1 P1 + 3 P2 fixed; completion 2 gaps fixed, 2 filed to their owners D07 T03 §3 and D04 T01 §4; rounds 1 to 3 fixed (2 P2 + a P3, a P2, a P2), round 4 clean). 391 tests across the checks, intake, pipeline and auth folders.
+
 - D02 T02 §2 SPF, DKIM and DMARC alignment evidence: stamped (plan review 2 P1 + 3 P2 fixed; completion 3 gaps fixed, 2 filed to their owners D04 T01 §2 and D07 T03 §3; rounds 1 to 3 fixed (2 P1 + 3 P2, a P1 + a P2, a P2), round 4 clean). 374 tests across the checks, intake, pipeline and auth folders; the whole Worker suite waits for the coordinator's slot.
 
 - D02 T02 §1 Trusted Authentication-Results parsing: stamped (plan review 2 P1 + 2 P2 fixed; completion 4 gaps fixed, 1 filed as D02 T02 §6; rounds 1 to 4 fixed (2 P1 + 2 P2, then a P1 each), round 5 clean). The whole Worker suite passed at 862 on the build; the affected folders (319 tests) on the final code. Trust now rests on what each receiver can prove: Microsoft 365 and Google by their topmost stamp, any other receiver only above its topmost hop, its inner chain left to §6.

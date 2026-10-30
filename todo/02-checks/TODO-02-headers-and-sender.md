@@ -33,7 +33,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Trusted Authentication-Results parsing | D02 T01 §2 | [x] |
 | 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [x] |
-| 3 | §3 | ARC chain evidence | §1 | [ ] |
+| 3 | §3 | ARC chain evidence | §1 | [x] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [ ] |
 | 5 | §5 | First-time sender per organisation | §4 | [ ] |
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
@@ -125,6 +125,9 @@ Forwarders and mailing lists break SPF and DKIM; ARC (RFC 8617) carries the earl
 - [x] Commit: `checks: ARC chain evidence` Done 2026-10-30: 15bffc4, then the review fixes to 72e916f.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/arc.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §3 | 7d159c86737ac82b10633ec6d6e5b9067b8bf9c1
+> **Review:** `docs/reviews/d02-t02-s3.json`
 
 ## 4. Display name, Reply-To and Return-Path checks
 
