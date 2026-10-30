@@ -30,7 +30,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [ ] |
+| 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [x] |
 | 2 | §2 | HTML attachments and smuggling | §1 | [ ] |
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [ ] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
@@ -60,6 +60,9 @@ A `.pdf` that is really a Windows executable is the classic trick. Magic bytes d
 - [x] Commit: `checks: content-type sniffing against the extension` Done 2026-10-30: 4eeacda, with 522145e (completion review), 1f13a57 and f5616ac (rounds 1 and 2).
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts` passes and fails if the extension is used instead of the bytes.
+
+> **Verified:** 2026-10-30 | §1 | f091bcf80cf9e53897b5671da3476d5002ddc077
+> **Review:** `docs/reviews/d02-t04-s1.json`
 
 ## 2. HTML attachments and smuggling
 

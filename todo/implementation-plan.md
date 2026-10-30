@@ -120,7 +120,7 @@ Sections: 57 | Checklist items: 361
 | [x]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
 | [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
 | [ ]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
-| [ ]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
+| [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
 | [ ]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
@@ -365,6 +365,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 102/296 verified sections, 64 ready to run now.
+Progress: 103/296 verified sections, 67 ready to run now.
 
 Checklist: 1040/1881 items completed (includes Commit items).
