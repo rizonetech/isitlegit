@@ -10,8 +10,9 @@ exported, sampled out, or rejected with its reason; the totals reconcile with th
 manifest's digest, the rows file's SHA-256 and the converter's own SHA-256, so an import can be tied to the exact
 inputs and code that made its rows.
 
-`Limits` bounds what a converter may read (archive entries, bytes expanded, unmatched parts held, seconds); a
-converter stopped by one raises before its rows file is replaced, so the earlier output stays whole.
+`Limits` bounds what a converter may read (archive entries, bytes expanded, bytes retained, one allocation, unmatched
+parts held, seconds); a converter stopped by one raises before its rows file is replaced, so the earlier output stays
+whole.
 """
 import hashlib
 import json
@@ -120,14 +121,27 @@ def verify(folder, names):
 
 
 class Limits:
-    """What one conversion may read. Each `count_*` raises `Refused` past its bound."""
+    """What one conversion may read. Each `count_*`, `charge_*` and `check_*` raises `Refused` past its bound.
 
-    def __init__(self, entries=2_000_000, expanded=200 * 10**9, pending=50_000, seconds=6 * 3600, clock=time.monotonic):
+    `expanded` bounds the bytes decompressed in all; `retained` bounds the bytes a converter holds at once (indexes,
+    workbook row tables, unmatched capture parts); `allocation` bounds one buffer built in one step (a whole file
+    read, one archive member, one Parquet row group). The expanded bound alone lets a converter hold everything it
+    expanded, so the retained and allocation bounds keep it inside the host's 17 GB."""
+
+    def __init__(self, entries=2_000_000, expanded=200 * 10**9, pending=50_000, seconds=6 * 3600, clock=time.monotonic,
+                 retained=4 * 10**9, allocation=10**9):
         self.max_entries, self.max_expanded, self.max_pending, self.max_seconds = entries, expanded, pending, seconds
+        self.max_retained, self.max_allocation = retained, allocation
         self.clock = clock
         self.started = clock()
         self.entries = 0
         self.expanded = 0
+        self.retained = 0
+
+    def check_deadline(self):
+        """Called inside every loop: the conversion's one deadline, started when the `Limits` was made."""
+        if self.clock() - self.started > self.max_seconds:
+            raise Refused(f"the conversion passed {self.max_seconds} seconds")
 
     def count_entry(self, size=0):
         self.entries += 1
@@ -136,8 +150,33 @@ class Limits:
             raise Refused(f"more than {self.max_entries} archive entries")
         if self.expanded > self.max_expanded:
             raise Refused(f"more than {self.max_expanded} bytes expanded")
-        if self.clock() - self.started > self.max_seconds:
-            raise Refused(f"the conversion passed {self.max_seconds} seconds")
+        self.check_deadline()
+
+    def count_expanded(self, size):
+        """Bytes decompressed that are not an archive entry (a Parquet row group, a nested workbook's part)."""
+        self.expanded += max(0, size)
+        if self.expanded > self.max_expanded:
+            raise Refused(f"more than {self.max_expanded} bytes expanded")
+        self.check_deadline()
+
+    def check_allocation(self, size, what="a buffer"):
+        """Before building one buffer of `size` bytes (a file read whole, one member, one row group)."""
+        if size > self.max_allocation:
+            raise Refused(f"{what} of {size} bytes passes the {self.max_allocation} byte allocation limit")
+
+    def charge_retained(self, size):
+        """Bytes a converter now holds (an index entry, a workbook row, an unmatched capture part)."""
+        self.retained += max(0, size)
+        if self.retained > self.max_retained:
+            raise Refused(f"more than {self.max_retained} bytes retained at once")
+
+    def release_retained(self, size):
+        self.retained = max(0, self.retained - max(0, size))
+
+    def new_pass(self):
+        """A second pass over the same input: the counts start again, the deadline and what is retained do not."""
+        self.entries = 0
+        self.expanded = 0
 
     def count_pending(self, held):
         if held > self.max_pending:
