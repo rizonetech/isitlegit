@@ -44,6 +44,11 @@ training mode: image
 
 - 2026-10-28 19:32 to 19:34 UTC, throughput measure (unpromoted, `runs/loupe-1.0-measure`): 50 lines in 7 steps of 8, 58,143 tokens as the trainer counts them (about 1,160 a line), 1,066 to 1,212 tokens a second once warm, loss 0.880 to 0.047; about 3,400 lines an hour, so 24 hours of training holds about 80,000 lines and 40 hours about 135,000. Rated US$0.34 if billed.
 - 2026-10-29 correction to the 19:32 UTC measure: the trainer's `train/total_tokens` counts text tokens only (a real line is about 788 text and 3,312 image tokens by Glimmer's renderer), so its tokens a second do not size the set. By wall time, steps 2 to 6 trained 40 lines in 34.9 seconds, about 1.15 lines a second (about 4,100 lines an hour) once warm; 50 lines took 69.7 seconds with the first step's warm-up. `train_serverless.py --lines-per-second` sizes the set from this.
+- Loupe 1.0: isitlegit-loupe-1-0, set 52019 of 52019 lines (243634301 tokens, seed 20261101, cap lifted), dataset e8c693be6d5a0eba4ce25ec1cc8e6d5d8585d62b32a8209a74172ada0f3adc9e
+- Loupe 1.0: isitlegit-loupe-1-0, trained 2026-10-30, dataset e8c693be6d5a0eba4ce25ec1cc8e6d5d8585d62b32a8209a74172ada0f3adc9e, job ts-026d14227a0042128f9dd410c648d329
+- Loupe 1.0 step 50: loss 0.029872754192271506, 543177 tokens sent, rated US$3.18
+- Loupe 1.0 step 100: loss 0.07222907683528788, 1096264 tokens sent, rated US$6.42
+- Loupe 1.0 step 150: loss 0.06353033982888283, 1682865 tokens sent, rated US$9.86
 
 ## Deployment
 
