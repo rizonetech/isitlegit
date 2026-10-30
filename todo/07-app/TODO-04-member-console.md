@@ -32,7 +32,7 @@ track: day-6
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [ ] |
 | 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [ ] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
-| 4 | §4 | Domains and sending addresses page | D07 T02 §7 | [ ] |
+| 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 

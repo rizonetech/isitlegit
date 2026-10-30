@@ -41,12 +41,15 @@ track: day-1
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [x] |
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [x] |
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [x] |
-| 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
+| 7 | §7 | Sign-in page | §1, §2, §11, D07 T01 §10 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [x] |
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
 | 12 | §12 | Sign-in link opened on another device | §11 | [ ] |
+| 13 | §13 | Signup page | §4, §7 | [ ] |
+| 14 | §14 | Invite acceptance page | §3, §7 | [ ] |
+| 15 | §15 | Domain verification page | §5, D07 T01 §10 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -259,34 +262,34 @@ Sign-in routes are rate-limited per address and per IP (stack doc), and every si
 > **Verified:** 2026-10-29 | §6 | dd469114955fb7dae155301555200df12e7cb030
 > **Review:** `docs/reviews/d07-t02-s6.json`
 
-## 7. Sign-in, signup, invite and domain verification pages
+## 7. Sign-in page
 
-The pages members see before and around sign-in, built on the shell and components (D07 T01 §3) against `design/SPEC.md`.
+> **Started:** 2026-10-30T15:53:07Z
+
+The sign-in page (`/signin`, `design/SPEC.md` A1): a magic link, a passkey, the code from the mail, and every state a sign-in can end in.
+
+**Corrected 2026-10-30** (validation before build): the section held four pages, each a feature of its own (sign-in with passkeys and the tab that asked finishing by itself; signup; invite acceptance; domain verification), against the TODO rule of small single-responsibility sections. It is split: this section is the sign-in page; the signup page is §13, invite acceptance §14 and domain verification §15, each with its own items moved there unchanged. The sections that waited on §7 for the other pages now name the one they need (D07 T04 §4 on §15, D07 T08 §2 on §7 and §13).
 
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` sign-in, signup and domain verification sections
-**Job:** a business owner gets in, creates the organisation and proves their domain in a few minutes
-**Treatment:** one task per page, plain words, every error says what to do next
+**Fidelity:** `design/SPEC.md` A1 Sign in (boards `Signin`, `Signin-States`), its confirm step and sign-in code
+**Job:** a member signs in, by link, passkey or code, and lands on the page they asked for
+**Treatment:** one task, plain words, every error says what to do next
 **Chrome:** `AppShell`, `Field`, `Button`, `ErrorState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
-1. Build the sign-in and signup pages. Done when: a rendered-page test signs up with a code and signs in with a magic link.
-2. Build invite acceptance and domain verification pages. Done when: a test verifies a domain by DNS and by code through the pages.
+1. Build the sign-in page and its states. Done when: a rendered-page test signs in with a magic link, a passkey and a code, each landing on `next`.
 
 - [ ] Build `src/web/pages/signin.tsx` (email field, magic-link button, passkey button, "check your inbox" state), passing the `next` that `requireSession` (§1) puts on `/signin` as the link request's `callbackURL`, so signing in returns to the page asked for (§1 validates it as a same-site path). Done when: the page test finds each control by accessible name. Cheaper substitute: Better Auth's default unstyled form. The "check your inbox" state says "If this address can sign in to IsItLegit, a link is on its way", never that a link was sent: a refused or rate-limited address is answered exactly as a sent one (D01 T02 §2).
 - [ ] Render the failed-link state on `src/web/pages/signin.tsx`: when §1 sends a used, expired or unknown link to `/signin?next=<page>&error=<code>` (`INVALID_TOKEN`, or Better Auth's other magic-link codes, `src/auth/auth.ts` `recoveryPath`), show that the link no longer works and why in plain words, with the email field and "Email me a new link" ready, keeping `next` as the new request's `callbackURL`, and announce the message (`role="alert"`). Done when: `test/web/auth-pages.test.ts` renders `/signin?next=%2Fcases%2F42&error=INVALID_TOKEN`, finds the message and the button by role and name, and a new link requested from it carries `callbackURL=/cases/42`; an unknown `error` code shows the generic wording, never the raw code. Cheaper substitute: a generic "something went wrong" banner, or dropping `next`, fails the test. Source: D07 T02 §1 completion review (`docs/reviews/07-app/D07-T02-s1.md`, Part 1 item 9 and Part 2 item 1).
 - [ ] Finish the sign-in in the tab that asked for the link: the "check your inbox" state on `src/web/pages/signin.tsx` listens for the session (a `BroadcastChannel("isitlegit-auth")` message from the tab the link opened, with a `/api/auth/get-session` check every 5 seconds while the page is visible as the fallback) and goes to `next` once signed in, with no reload or second click. Done when: a browser test requests a link, redeems it in a second tab, and the first tab reaches `next` within 2 seconds; with no session it stays on the inbox state. Cheaper substitute: a "refresh after clicking the link" note fails the test. Source: D07 T02 §1 completion review (Part 2 item 3, the initiating-tab completion Clerk documents).
 - [ ] Run the passkey sign-in from `src/web/pages/signin.tsx`'s "Sign in with a passkey" button in one activation (no email entry): `navigator.credentials.get` with the options from `/api/auth/passkey/generate-authenticate-options`, then `verify-authentication`, then `next`; cancellation and "no passkey on this device" return at once to the page with the email field focused and a plain message, an expired challenge retries with new options, and a refusal for a device that was not unlocked (401 with the code `USER_VERIFICATION_REQUIRED`, §2) says to unlock the device or use the email link, announced (`role="alert"`). Done when: a browser test with a virtual authenticator signs in and lands on `next`, and cancels, has none, and is refused, each ending on the email field with the message; post-approval navigation to `next` stays within 2 seconds p95 on a throttled mid-range mobile profile. Cheaper substitute: a passkey button that reloads the page or drops `next` fails the test. Source: D07 T02 §2 completion review (Part 2 items 2 and 3).
-- [ ] Build `src/web/pages/signup.tsx` (invite code, email, organisation name, POPIA notice and consent checkbox). Done when: submitting without consent shows the field error and stores nothing. It posts to `/api/auth/sign-up/invite-code` (§4) and renders both answers: `linkSent: true` ("check your inbox") and `linkSent: false` ("your account is ready, but the sign-in link could not be confirmed", with a button that asks for a new link). A signup link the operator shares, `/signup?code=<code>`, fills the code in so nobody types it (the code stays in the form, never in a log or a stored URL).
-- [ ] Carry the sign-in code field (§11) from `InboxPage` onto the "check your inbox" states of `src/web/pages/signin.tsx` and of `src/web/pages/signup.tsx` (its `linkSent: true` answer, whose first link carries a code bound to the browser that signed up), with its refusals, each page setting the code handle when it is served to a browser with none (as the `/signin/*` middleware in `src/auth/confirm.tsx` does), so requests sent at once share one handle. Done when: the page test signs in by code from each page, and two requests from a fresh browser keep both codes its own. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
-- [ ] Build `src/web/pages/invite.tsx` for accepting an invite. Done when: an invitee lands in the organisation.
-- [ ] Build `src/web/pages/domains.tsx` with the TXT record to copy, a "check now" button, the emailed-code option, and pending, verified and failed states. Done when: each state renders in the test.
-- [ ] Commit: `web: sign-in, signup, invite and domain verification pages`
+- [ ] Carry the sign-in code field (§11) from `InboxPage` onto the "check your inbox" state of `src/web/pages/signin.tsx`, with its refusals (the signup page's is §13), the page setting the code handle when it is served to a browser with none (as the `/signin/*` middleware in `src/auth/confirm.tsx` does), so requests sent at once share one handle. Done when: the page test signs in by code from the sign-in page, and two requests from a fresh browser keep both codes its own. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
+- [ ] Commit: `web: the sign-in page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/auth-pages.test.ts` passes and fails if signup proceeds without the POPIA consent.
+**Test checkpoint:** `pnpm exec vitest run test/web/signin-page.test.ts` passes: the page by accessible name, the failed-link state with `next` kept, sign-in by link, passkey and code each landing on `next`, and the inbox state finishing in the tab that asked.
 
 ## 8. Plans, trial and feature flags
 
@@ -473,6 +476,70 @@ Wrong-device link: b (2026-10-30)
 - [ ] Commit: `auth: a link opened on another device keeps the asking browser's sign-in`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts` passes: the link opened in another browser does what the decision records, and the asking browser's code still signs it in.
+
+## 13. Signup page
+
+The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's address, the organisation's name and the POPIA consent, then the first link and its code. Split from §7 on 2026-10-30 (its items moved here unchanged).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A2 Sign up and its board
+**Job:** a business owner with an invite code creates the organisation in a minute
+**Treatment:** one task, plain words, consent asked for plainly, every error says what to do next
+**Chrome:** `Field`, `Checkbox`, `Button`, `ErrorState` from D07 T01 §6 to §8 on the sign-in frame (§7)
+
+**Build order:**
+
+1. Build the signup page and both of its answers. Done when: a rendered-page test signs up with a code and signs in from the first mail.
+
+- [ ] Build `src/web/pages/signup.tsx` (invite code, email, organisation name, POPIA notice and consent checkbox). Done when: submitting without consent shows the field error and stores nothing. It posts to `/api/auth/sign-up/invite-code` (§4) and renders both answers: `linkSent: true` ("check your inbox") and `linkSent: false` ("your account is ready, but the sign-in link could not be confirmed", with a button that asks for a new link). A signup link the operator shares, `/signup?code=<code>`, fills the code in so nobody types it (the code stays in the form, never in a log or a stored URL).
+- [ ] Show the sign-in code field (§11) on the signup page's "check your inbox" answer (`linkSent: true`, whose first link carries a code bound to the browser that signed up), with its refusals, the page setting the code handle when it is served to a browser with none. Done when: the page test signs up and signs in by the code from the first mail. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
+- [ ] Commit: `web: the signup page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if signup proceeds without the POPIA consent.
+
+## 14. Invite acceptance page
+
+The page an invitation's link opens (`/invite/<id>`, `design/SPEC.md` A3). Split from §7 on 2026-10-30 (its item moved here unchanged).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A3 Accept invitation and its board
+**Job:** an invited person joins the organisation that invited them, with no other step
+**Treatment:** who invited them to what, one button, every error says what to do next
+**Chrome:** `Button`, `ErrorState` from D07 T01 §6 to §8 on the sign-in frame (§7)
+
+**Build order:**
+
+1. Build the invitation page. Done when: an invitee lands in the organisation.
+
+- [ ] Build `src/web/pages/invite.tsx` for accepting an invite. Done when: an invitee lands in the organisation.
+- [ ] Commit: `web: the invitation page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/invite-page.test.ts` passes: an invitee lands in the organisation.
+
+## 15. Domain verification page
+
+The page an owner proves a domain on (`design/SPEC.md` A5). Split from §7 on 2026-10-30 (its item moved here unchanged).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A5 Verify a domain and its board
+**Job:** an owner proves the organisation's domain in a few minutes, by DNS or by an emailed code
+**Treatment:** the record to copy, one check, each state says what to do next
+**Chrome:** `AppShell`, `Field`, `Button`, `ErrorState` from D07 T01 §3 and §6 to §8, the copy group (D07 T01 §9)
+
+**Build order:**
+
+1. Build the domain verification page. Done when: a test verifies a domain by DNS and by code through the page.
+
+- [ ] Build `src/web/pages/domains.tsx` with the TXT record to copy, a "check now" button, the emailed-code option, and pending, verified and failed states. Done when: each state renders in the test.
+- [ ] Commit: `web: the domain verification page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes: a domain verified by DNS and by code through the page, each state rendered.
 
 ## Verification
 

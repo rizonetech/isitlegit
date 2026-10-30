@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 44 | Checklist items: 288
+Sections: 47 | Checklist items: 292
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -127,8 +127,11 @@ Sections: 44 | Checklist items: 288
 | [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
 | [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
-| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
+| [ ]    | D07 T02 §7  | Sign-in page                                          | none     | 6     |
+| [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
+| [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
+| [ ]    | D07 T02 §15 | Domain verification page                              | none     | 2     |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -343,6 +346,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 93/274 verified sections, 56 ready to run now.
+Progress: 93/277 verified sections, 57 ready to run now.
 
-Checklist: 960/1778 items completed (includes Commit items).
+Checklist: 960/1782 items completed (includes Commit items).
