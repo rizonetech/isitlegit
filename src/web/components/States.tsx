@@ -7,7 +7,9 @@ import { cx, hasText, nonBlank } from "./attrs";
 // `.card` in `ui.css` (16 px radius, `card-large`). The art is drawn in ink for a light ground, so in the dark theme it
 // sits on the white `on-band` tile, as the verdict band's does (§7).
 const CARD = "bg-surface border border-line rounded-card-large";
-const HEADING = "min-w-0 font-heading weight-heading wrap-anywhere";
+// Headings take the type roles of `design/tokens/typography.json` (size, line height, weight and tracking together), as
+// the boards' `h2`, `h3` and `h4` in `ui.css` draw them.
+const HEADING = "min-w-0 wrap-anywhere";
 
 type Level = 1 | 2 | 3 | 4;
 
@@ -43,7 +45,7 @@ export function EmptyState(props: EmptyStateProps) {
         class={cx(CARD, "flex flex-col items-start gap-16 p-24 md:flex-row md:items-center md:justify-between md:p-32")}
       >
         <div class="flex min-w-0 flex-col gap-4">
-          <Heading class={cx(HEADING, "text-20")}>{title}</Heading>
+          <Heading class={cx(HEADING, "type-h3")}>{title}</Heading>
           <p class="type-small text-muted wrap-anywhere">{sentence}</p>
         </div>
         {props.action}
@@ -63,7 +65,7 @@ export function EmptyState(props: EmptyStateProps) {
       <div class="flex min-w-0 flex-col gap-20">
         <div class="flex flex-col gap-8">
           <p class="type-eyebrow text-orange-text">{eyebrow}</p>
-          <Heading class={cx(HEADING, "text-28")}>{title}</Heading>
+          <Heading class={cx(HEADING, "type-h2")}>{title}</Heading>
           <p class="text-18 text-muted wrap-anywhere">{sentence}</p>
         </div>
         {props.children}
@@ -168,7 +170,8 @@ export function ErrorState(props: ErrorStateProps) {
         </span>
         <div class="flex min-w-0 flex-col gap-16">
           <p class={cx("type-eyebrow", EYEBROW_COLOUR[code])}>{eyebrow}</p>
-          <h1 class={cx(HEADING, "text-32")}>{title}</h1>
+          {/* The boards' 32 px title is the h2 role at 32 from `md`; at phone width it keeps the role's 28. */}
+          <h1 class={cx(HEADING, "type-h2 md:text-32")}>{title}</h1>
           <p class="text-muted wrap-anywhere">{props.children}</p>
           <div class="flex flex-wrap gap-12 mt-8">{actions}</div>
           {note && <p class="type-small text-muted wrap-anywhere">{note}</p>}
@@ -223,7 +226,7 @@ export function PartialNotice(props: { skipped: SkippedCheck[]; ran: number }) {
         <path d="M12 7v6M12 16.5v.5" />
       </svg>
       <div class="flex min-w-0 flex-1 flex-col gap-8">
-        <h4 class={cx(HEADING, "text-16")}>{heading}</h4>
+        <h4 class={cx(HEADING, "type-h4")}>{heading}</h4>
         <ul class="flex flex-col gap-8 pl-20 list-disc type-small">
           {skipped.map((check) => (
             <li class="wrap-anywhere">

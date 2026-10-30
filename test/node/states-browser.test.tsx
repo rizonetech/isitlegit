@@ -144,18 +144,67 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
   "empty, loading, error and partial states in Chromium",
   { timeout: 60_000 },
   () => {
-    it("announces the loading state, and stills its square under reduced motion", async () => {
-      for (const reducedMotion of ["no-preference", "reduce"] as const) {
-        const p = await openPage(browser, page("light"), { viewport: { width: 1280, height: 800 }, reducedMotion });
-        const region = p.locator("#state-loading [role=status]");
-        expect(await region.getAttribute("aria-live")).toBe("polite");
-        expect(await region.textContent()).toBe("Running");
-        const animation = await p.evaluate(
-          () => getComputedStyle(document.querySelector("#state-loading [aria-hidden]") as Element).animationName,
-        );
-        expect(animation, reducedMotion).toBe(reducedMotion === "reduce" ? "none" : "pulse");
-        await p.context().close();
-      }
+    for (const theme of ["light", "dark"] as const)
+      it(`announces the loading state, and stills its square under reduced motion (${theme})`, async () => {
+        for (const reducedMotion of ["no-preference", "reduce"] as const) {
+          const p = await openPage(browser, page(theme), { viewport: { width: 1280, height: 800 }, reducedMotion });
+          const region = p.locator("#state-loading [role=status]");
+          expect(await region.getAttribute("aria-live")).toBe("polite");
+          expect(await region.textContent()).toBe("Running");
+          const animation = await p.evaluate(
+            () => getComputedStyle(document.querySelector("#state-loading [aria-hidden]") as Element).animationName,
+          );
+          expect(animation, reducedMotion).toBe(reducedMotion === "reduce" ? "none" : "pulse");
+          await p.context().close();
+        }
+      });
+
+    // The headings take the boards' type roles (`ui.css` h2, h3, h4; `design/tokens/typography.json`): size, line
+    // height, weight and tracking together.
+    it("draws every heading in its type role", async () => {
+      const p = await openPage(browser, page("light"), { viewport: { width: 1280, height: 800 } });
+      const style = (selector: string) =>
+        p.evaluate((sel) => {
+          const s = getComputedStyle(document.querySelector(sel) as Element);
+          const size = Number.parseFloat(s.fontSize);
+          return {
+            size,
+            line: Math.round((Number.parseFloat(s.lineHeight) / size) * 100) / 100,
+            weight: s.fontWeight,
+            tracking: Math.round((Number.parseFloat(s.letterSpacing) / size) * 100) / 100,
+            family: s.fontFamily.split(",")[0]?.replace(/"/g, ""),
+          };
+        }, selector);
+      expect(await style("#state-first-run h2")).toEqual({
+        size: 28,
+        line: 1.2,
+        weight: "800",
+        tracking: -0.01,
+        family: "Exo",
+      });
+      expect(await style("#state-filtered h3")).toEqual({
+        size: 20,
+        line: 1.3,
+        weight: "700",
+        tracking: -0.01,
+        family: "Exo",
+      });
+      expect(await style("#state-partial h4")).toEqual({
+        size: 16,
+        line: 1.4,
+        weight: "700",
+        tracking: -0.01,
+        family: "Exo",
+      });
+      for (const key of ERROR_KEYS)
+        expect(await style(`#state-error-${key} h1`), key).toEqual({
+          size: 32,
+          line: 1.2,
+          weight: "800",
+          tracking: -0.01,
+          family: "Exo",
+        });
+      await p.context().close();
     });
 
     for (const theme of ["light", "dark"] as const)
@@ -196,70 +245,73 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         await p.context().close();
       });
 
-    for (const zoom of ["100%", "200%"] as const)
-      it(`fits every state at 360 px with text at ${zoom}, stacked, with every action reached by Tab`, async () => {
-        const p = await openPage(browser, page("light"), { viewport: { width: 360, height: 800 } });
-        await p.evaluate((size) => {
-          document.documentElement.style.fontSize = size;
-        }, zoom);
-        expect(
-          await p.evaluate(() => document.documentElement.scrollWidth),
-          "no horizontal overflow",
-        ).toBeLessThanOrEqual(360);
-        const states = await p.locator("[data-state]").evaluateAll((els) => els.map((el) => el.id));
-        expect(states).toHaveLength(10);
-        for (const id of states) {
-          // An error state's first child holds its card and the reference row below it.
-          const card = await box(
-            p,
-            id.startsWith("state-error") ? `#${id} > div > div:first-child` : `#${id} > :first-child`,
+    for (const theme of ["light", "dark"] as const)
+      for (const zoom of ["100%", "200%"] as const)
+        it(`fits every state at 360 px with text at ${zoom}, stacked, with every action reached by Tab in order (${theme})`, async () => {
+          const p = await openPage(browser, page(theme), { viewport: { width: 360, height: 800 } });
+          await p.evaluate((size) => {
+            document.documentElement.style.fontSize = size;
+          }, zoom);
+          expect(
+            await p.evaluate(() => document.documentElement.scrollWidth),
+            "no horizontal overflow",
+          ).toBeLessThanOrEqual(360);
+          const states = await p.locator("[data-state]").evaluateAll((els) => els.map((el) => el.id));
+          expect(states).toHaveLength(10);
+          for (const id of states) {
+            // An error state's first child holds its card and the reference row below it.
+            const card = await box(
+              p,
+              id.startsWith("state-error") ? `#${id} > div > div:first-child` : `#${id} > :first-child`,
+            );
+            if (id.startsWith("state-error")) {
+              const footer = await box(p, `#${id} > div > div:last-child`);
+              expect(footer.x >= 0 && footer.x + footer.width <= 360, `${id} reference inside the window`).toBe(true);
+            }
+            expect(card.x >= 0 && card.x + card.width <= 360, `${id} card inside the window`).toBe(true);
+            const parts = await p.locator(`#${id} :is(${PARTS})`).all();
+            for (const part of parts) {
+              const found = await part.boundingBox();
+              if (!found) continue;
+              expect(
+                inside(found, card),
+                `${id}: "${((await part.textContent()) ?? "").slice(0, 40)}" inside its card`,
+              ).toBe(true);
+            }
+            // No word spills out of its own box (a button's text past its edge would not move the box itself).
+            const spilled = await p
+              .locator(`#${id} :is(${PARTS})`)
+              .evaluateAll((els) =>
+                els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent),
+              );
+            expect(spilled, `${id}: words spilling out`).toEqual([]);
+          }
+          // Stacked: the error tile above its eyebrow, the first-run art above its column, the filtered action below its
+          // words.
+          for (const key of ERROR_KEYS) {
+            const tile = await box(p, `#state-error-${key} span:has(> img)`);
+            const eyebrow = await box(p, `#state-error-${key} .type-eyebrow`);
+            expect(tile.y + tile.height, `${key} tile above its text`).toBeLessThanOrEqual(eyebrow.y);
+            expect([tile.width, tile.height], key).toEqual([88, 88]);
+          }
+          const art = await box(p, "#state-first-run img");
+          expect(art.y + art.height).toBeLessThanOrEqual((await box(p, "#state-first-run .type-eyebrow")).y);
+          const words = await box(p, "#state-filtered p");
+          expect((await box(p, "#state-filtered a")).y, "Clear filters below its words").toBeGreaterThanOrEqual(
+            words.y + words.height,
           );
-          if (id.startsWith("state-error")) {
-            const footer = await box(p, `#${id} > div > div:last-child`);
-            expect(footer.x >= 0 && footer.x + footer.width <= 360, `${id} reference inside the window`).toBe(true);
+          // Every action is reached by Tab, in document order, and nothing else takes focus in between.
+          const actions = await p
+            .locator("[data-state] :is(a, button)")
+            .evaluateAll((els) => els.map((el) => (el.textContent ?? "").trim()));
+          const reached: string[] = [];
+          for (let i = 0; i < actions.length + 4; i++) {
+            await p.keyboard.press("Tab");
+            const focus = await focused(p);
+            if (focus) reached.push(focus.key);
           }
-          expect(card.x >= 0 && card.x + card.width <= 360, `${id} card inside the window`).toBe(true);
-          const parts = await p.locator(`#${id} :is(${PARTS})`).all();
-          for (const part of parts) {
-            const found = await part.boundingBox();
-            if (!found) continue;
-            expect(
-              inside(found, card),
-              `${id}: "${((await part.textContent()) ?? "").slice(0, 40)}" inside its card`,
-            ).toBe(true);
-          }
-          // No word spills out of its own box (a button's text past its edge would not move the box itself).
-          const spilled = await p
-            .locator(`#${id} :is(${PARTS})`)
-            .evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent));
-          expect(spilled, `${id}: words spilling out`).toEqual([]);
-        }
-        // Stacked: the error tile above its eyebrow, the first-run art above its column, the filtered action below its
-        // words.
-        for (const key of ERROR_KEYS) {
-          const tile = await box(p, `#state-error-${key} span:has(> img)`);
-          const eyebrow = await box(p, `#state-error-${key} .type-eyebrow`);
-          expect(tile.y + tile.height, `${key} tile above its text`).toBeLessThanOrEqual(eyebrow.y);
-          expect([tile.width, tile.height], key).toEqual([88, 88]);
-        }
-        const art = await box(p, "#state-first-run img");
-        expect(art.y + art.height).toBeLessThanOrEqual((await box(p, "#state-first-run .type-eyebrow")).y);
-        const words = await box(p, "#state-filtered p");
-        expect((await box(p, "#state-filtered a")).y, "Clear filters below its words").toBeGreaterThanOrEqual(
-          words.y + words.height,
-        );
-        // Every action is reached by Tab, in order.
-        const actions = await p
-          .locator("[data-state] :is(a, button)")
-          .evaluateAll((els) => els.map((el) => (el.textContent ?? "").trim()));
-        const reached: string[] = [];
-        for (let i = 0; i < actions.length + 4; i++) {
-          await p.keyboard.press("Tab");
-          const focus = await focused(p);
-          if (focus) reached.push(focus.key);
-        }
-        for (const action of actions) expect(reached, `Tab reaches ${action}`).toContain(action);
-        await p.context().close();
-      });
+          expect(reached.slice(0, actions.length)).toEqual(actions);
+          await p.context().close();
+        });
   },
 );
