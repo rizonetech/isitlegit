@@ -51,7 +51,7 @@ track: day-0
 | 10 | §10 | Deploy rollback and re-verification | §5 | [x] |
 | 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [x] |
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
-| 13 | §13 | Type check before every push | §4 | [ ] |
+| 13 | §13 | Type check before every push | §4 | [x] |
 | 14 | §14 | Timing-free render, import and fetch tests | §4 | [x] |
 | 15 | §15 | Review schedule by section risk | §4 | [x] |
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
@@ -550,6 +550,9 @@ Filed 2026-10-29 at the operator's request, after CI's Worker gates failed in 30
 - [x] Commit: `tools: a pre-push hook runs the type check and lint` Done 2026-10-30: b0a6227, then the review fixes to 83f38e3.
 
 **Test checkpoint:** `python3 -m pytest tests/scripts/test_pre_push_hook.py` passes and fails if a push with a type error is let through.
+
+> **Verified:** 2026-10-30 | §13 | 79ee0be4b52ac47efafca9aa2ad26bf0d9716d5b
+> **Review:** `docs/reviews/d00-t01-s13.json`
 
 ## 14. Timing-free render, import and fetch tests
 
