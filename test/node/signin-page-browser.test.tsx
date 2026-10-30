@@ -31,6 +31,9 @@ const state = {
   delayMs: 0,
   session: null as string | null,
   sessionFails: false,
+  // Per session check, in the order they arrive: how long to hold its answer (the answer is the session as it was
+  // when the check arrived).
+  sessionDelays: [] as number[],
   gets: 0,
   posts: [] as Post[],
   linkAnswer: "inbox" as "inbox" | "limited",
@@ -41,6 +44,7 @@ afterEach(() =>
     delayMs: 0,
     session: null,
     sessionFails: false,
+    sessionDelays: [],
     gets: 0,
     posts: [],
     linkAnswer: "inbox",
@@ -116,8 +120,10 @@ beforeAll(async () => {
     }
     if (url.pathname === "/api/auth/get-session") {
       if (state.sessionFails) return res.writeHead(500).end();
+      const now = state.session;
+      await new Promise((done) => setTimeout(done, state.sessionDelays.shift() ?? 0));
       res.writeHead(200, { "content-type": "application/json" });
-      return res.end(JSON.stringify(state.session ? { user: { email: state.session } } : null));
+      return res.end(JSON.stringify(now ? { user: { email: now } } : null));
     }
     const page = pages[url.pathname];
     state.gets++;
@@ -331,6 +337,26 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     state.session = EMAIL;
     await other.p.evaluate((email) => new BroadcastChannel("isitlegit-auth").postMessage({ signedIn: email }), EMAIL);
     await asked.p.waitForURL(`${origin}/cases/42`, { timeout: 2000 });
+    await context.close();
+  });
+
+  it("drops a slow answer for its address that arrives after a newer one for another", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const asked = await open("/signin/inbox", { context });
+    const show = () =>
+      asked.p.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+    // The first check finds this address but answers slowly; the second, after another address signed in, answers at once.
+    state.session = EMAIL;
+    state.sessionDelays = [2500, 0];
+    await show();
+    await asked.p.waitForTimeout(200);
+    state.session = "someone-else@example.org";
+    await show();
+    await asked.p.waitForTimeout(3500);
+    expect(new URL(asked.p.url()).pathname).toBe("/signin/inbox");
     await context.close();
   });
 

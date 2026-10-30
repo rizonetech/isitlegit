@@ -225,24 +225,27 @@ if (waiting) {
     location.assign(next);
   };
   // A word from another tab is only a cue to ask: the session as it is now decides, so a word that arrives late, after
-  // another address signed in, cannot take this page on (round 1).
-  const ask = () =>
+  // another address signed in, cannot take this page on (round 1). Each ask is numbered, and an answer older than one
+  // already seen is dropped, so a slow answer for this address cannot overrule a newer one for another (round 2).
+  let asked = 0;
+  let seen = 0;
+  const ask = () => {
+    const id = ++asked;
     sessionEmail()
       .then((email) => {
+        if (done || id < seen) return;
+        seen = id;
         if (email === wanted) finish();
       })
       .catch(() => {});
+  };
   channel()?.addEventListener("message", (event: MessageEvent) => {
     const email = (event.data as { signedIn?: unknown })?.signedIn;
     if (typeof email === "string" && email.toLowerCase() === wanted && !done) ask();
   });
   const check = () => {
     if (done || document.visibilityState !== "visible") return;
-    sessionEmail()
-      .then((email) => {
-        if (email === wanted) finish();
-      })
-      .catch(() => {});
+    ask();
   };
   setInterval(check, 5000);
   document.addEventListener("visibilitychange", check);
