@@ -152,6 +152,7 @@ const MAX_HEADER = 2_000;
 const MAX_SOURCES = 8;
 const MAX_COMMENT = 256;
 const MAX_VALUE = 255;
+const MAX_NAME = 64;
 const MAX_RESULTS = 20;
 // Every string and list in an item's detail bounded, wherever it came from (round 3: a 66 KB result token): the header
 // excerpts to MAX_HEADER, any other string to MAX_VALUE, any list to MAX_RESULTS (MAX_SOURCES for the excerpts). One
@@ -161,7 +162,13 @@ export function boundedDetail(value: unknown, key = ""): unknown {
   if (Array.isArray(value))
     return value.slice(0, key === "headers" ? MAX_SOURCES : MAX_RESULTS).map((v) => boundedDetail(v, key));
   if (value !== null && typeof value === "object")
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, boundedDetail(v, k)]));
+    // An object's entries counted and their names clipped too (D02 T02 §3's completion review: a result with 300
+    // properties).
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, MAX_RESULTS)
+        .map(([k, v]) => [clip(k, MAX_NAME) ?? "", boundedDetail(v, k)]),
+    );
   return value;
 }
 

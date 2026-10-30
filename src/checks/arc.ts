@@ -130,8 +130,10 @@ export function arcEvidence(view: CaseView): EvidenceDraft[] {
   return [
     make(
       "info",
-      `ARC passed: the earlier hop, sealed by ${plain(set.sealer, 60)}, recorded ${plain(said, 80) || "no results"}. Context, not proof.`,
-      { instance: verdict.validated, sealer: set.sealer, earlier: set.read.results.map(json) },
+      // The qualification first, and the parts copied from headers bounded so the whole always fits: a summary cut short
+      // never loses "not proof" (completion review), and the detail says so too.
+      `ARC passed, context not proof: the earlier hop, sealed by ${plain(set.sealer, 50)}, recorded ${plain(said, 70) || "no results"}.`,
+      { instance: verdict.validated, sealer: set.sealer, proof: false, earlier: set.read.results.map(json) },
       [verdict.header, ...set.headers],
     ),
   ];

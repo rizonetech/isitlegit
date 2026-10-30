@@ -80,7 +80,7 @@ describe("auth.arc", () => {
       },
     });
     expect(item?.summary).toBe(
-      "ARC passed: the earlier hop, sealed by lists.example, recorded spf pass, dkim pass. Context, not proof.",
+      "ARC passed, context not proof: the earlier hop, sealed by lists.example, recorded spf pass, dkim pass.",
     );
     expect((item?.detail as { headers: string[] } | undefined)?.headers).toEqual([
       expect.stringContaining("arc=pass"),
@@ -159,6 +159,30 @@ describe("auth.arc", () => {
     expect(Array.from(items[0]?.summary ?? "").length).toBeLessThanOrEqual(200);
     expect(items[0]?.summary).not.toMatch(/[<>]/);
     expect(new TextEncoder().encode(JSON.stringify(items[0]?.detail)).length).toBeLessThanOrEqual(64 * 1024);
+  });
+
+  it("keeps the item, its verdict and its raw key with 300 properties in one earlier result (completion review)", async () => {
+    const props = Array.from({ length: 300 }, (_, i) => `p${i}.${"n".repeat(200)}=${"v".repeat(200)}`).join(" ");
+    const crowded = h("ARC-Authentication-Results", `i=1; mx.lists.example; spf=pass ${props}`);
+    const registry = new CheckRegistry();
+    registerArcCheck(registry);
+    const [item, ...rest] = await runChecks(view(viaGoogle("arc=pass (i=1)", crowded, SEAL)), registry);
+    expect(rest).toEqual([]);
+    expect(item).toMatchObject({ check: "auth.arc", detail: { verdict: "pass" }, artefacts: [RAW] });
+    expect(new TextEncoder().encode(JSON.stringify(item?.detail)).length).toBeLessThanOrEqual(64 * 1024);
+  });
+
+  it('keeps "not proof" in the summary at the longest sealer and results, and says so in the detail', () => {
+    const sealer = `${"s".repeat(60)}.${"t".repeat(60)}.example`;
+    const longSeal = h("ARC-Seal", `i=1; a=rsa-sha256; cv=none; d=${sealer}; s=arc; b=x`);
+    const longEarlier = h(
+      "ARC-Authentication-Results",
+      `i=1; mx.lists.example; ${["spf", "dkim", "dmarc", "arc"].map((m) => `${m}=${"pass".repeat(20)}`).join("; ")}`,
+    );
+    const item = one(view(viaGoogle("arc=pass (i=1)", longEarlier, longSeal)));
+    expect(item?.summary).toContain("context not proof");
+    expect(Array.from(item?.summary ?? "").length).toBeLessThanOrEqual(200);
+    expect(item?.detail).toMatchObject({ proof: false });
   });
 
   it("runs in the production registry after §2's checks", () => {
