@@ -36,6 +36,7 @@ track: day-2
 | 4 | §4 | Experiment: transcribing SA languages | §3, D01 T03 §4 | [ ] |
 | 5 | §5 | Experiment: Spark on a scam video | §4 | [ ] |
 | 6 | §6 | Experiment: reasoning effort and cost | §5, D08 T02 §1 | [ ] |
+| 7 | §7 | Experiment: effort for other calls | §6, D03 T02 §3, D03 T03 §3, D04 T02 §4 | [ ] |
 
 ## 1. Experiment: edited invoice digits
 
@@ -149,6 +150,26 @@ Which reasoning effort (`low`, `medium`, `high`, `xhigh`) gives the best verdict
 - [ ] Commit: `frontier: reasoning effort against accuracy and cost`
 
 **Test checkpoint:** `grep -c 'reasoning effort' docs/frontier-log.md` prints at least `1`.
+
+## 7. Experiment: effort for other calls
+
+Filed 2026-10-30 at the operator's prompting, through the coordinator: at the Fireworks workshop the operator heard that medium reasoning effort sometimes beats high. §6 measures only the verdict agent; every other model call that takes an effort gets its default the same way, from accuracy per dollar on its own eval slice, rather than an assumed one. Nothing in `src/` sets an effort yet.
+
+**Phase:** 6
+**Needs:** meta-api, cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Measure each call's effort on its own slice. Done when: the log records accuracy, latency and cost per effort for each of the three calls, and each call's default is set from it.
+
+- [ ] Run Muse Spark's structured reading of renders and pages (D03 T02 §3) at each effort on its eval slice through the runner (D08 T02 §1). Done when: one run row per effort exists.
+- [ ] Run Muse Spark's logo comparison (D03 T03 §3) at each effort on its slice. Done when: one run row per effort exists.
+- [ ] Run Muse Wonder's walkthrough loop (D04 T02 §4) at each effort on its slice. Done when: one run row per effort exists.
+- [ ] Write the log entry in `docs/frontier-log.md` and set each call's default effort where the call is made, with the reason; a D03 default goes to the Glimmer lane through the coordinator. Done when: the entry and the three defaults exist.
+- [ ] Commit: `frontier: reasoning effort for the screener and walkthrough calls`
+
+**Test checkpoint:** `grep -c 'effort for other calls' docs/frontier-log.md` prints at least `1`.
 
 ## Verification
 

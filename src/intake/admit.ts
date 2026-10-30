@@ -49,6 +49,8 @@ export type Delivery = {
   headersAvailable: boolean;
   forwardedBy?: string | null;
   messageId?: string | null;
+  // The uploading member's user id, on an upload (D01 T03 §11).
+  uploadedBy?: string | null;
   // Stores what came under the new case; a failure undoes the case and releases the claim.
   store: (caseId: string) => Promise<void>;
 };
@@ -84,6 +86,7 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
       headersAvailable: delivery.headersAvailable,
       forwardedBy: delivery.forwardedBy ?? null,
       messageId: delivery.messageId ?? null,
+      uploadedBy: delivery.uploadedBy ?? null,
     },
     now,
   );

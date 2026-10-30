@@ -44,7 +44,12 @@ const multipart = (parts: string[]) =>
   );
 
 async function newCase(channel: "email" | "upload" = "email") {
-  const made = await createCase(db, { orgId: "org-evidence", channel, headersAvailable: channel === "email" });
+  const made = await createCase(db, {
+    orgId: "org-evidence",
+    channel,
+    headersAvailable: channel === "email",
+    uploadedBy: channel === "upload" ? "user-evidence" : null,
+  });
   if (!made.ok) throw new Error(made.error.message);
   return made.value.id;
 }

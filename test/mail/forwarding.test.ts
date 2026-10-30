@@ -107,7 +107,8 @@ describe("a forward the destination refused", () => {
   it("alerts both mailboxes once, with the alias, the time, the domains and never the sender's address or subject", async () => {
     const w = world([[forward(), report(), report({ sessionId: "s-report-2", messageId: "<ndr-2@x>" })]]);
     const outcome = await checkForwarding(deps(w.fetcher, at(5)));
-    expect(outcome).toMatchObject({ state: "ok", events: 3, incidents: 1, alerted: 1 });
+    // Each notice is opened as read; the second, with no forward of its own, is folded into the first (D01 T02 §9).
+    expect(outcome).toMatchObject({ state: "ok", events: 3, incidents: 2, folded: 1, alerted: 1 });
     expect(w.sends.map((s) => s.to)).toEqual(OPERATORS);
     const [first] = w.sends;
     expect(first?.subject).toBe("IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding");
@@ -161,7 +162,7 @@ describe("completion review", () => {
     const reports = [report(), report({ sessionId: "s-r2", messageId: "<ndr-2@x>" })];
     const w = world([reports, [forward(), ...reports], []]);
     const grace = { graceMs: MATCH_GRACE_MS };
-    expect(await checkForwarding(deps(w.fetcher, at(1), grace))).toMatchObject({ incidents: 1, alerted: 0 });
+    expect(await checkForwarding(deps(w.fetcher, at(1), grace))).toMatchObject({ incidents: 2, folded: 0, alerted: 0 });
     await checkForwarding(deps(w.fetcher, at(16), grace));
     await checkForwarding(deps(w.fetcher, at(22), grace));
     const rows = await db.prepare("SELECT alias, alert FROM forward_incidents").all<{ alias: string; alert: string }>();
@@ -333,7 +334,7 @@ describe("round 1", () => {
         report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: at(10.2).toISOString() }),
       ],
     ]);
-    expect(await checkForwarding(deps(w.fetcher, at(15)))).toMatchObject({ incidents: 2, alerted: 2 });
+    expect(await checkForwarding(deps(w.fetcher, at(15)))).toMatchObject({ incidents: 3, folded: 1, alerted: 2 });
     const aliases = (
       await db.prepare("SELECT alias FROM forward_incidents ORDER BY occurred_at").all<{ alias: string }>()
     ).results;
@@ -403,6 +404,204 @@ describe("round 1", () => {
     const w = world([[forward(), report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })]]);
     await checkForwarding(deps(w.fetcher, at(5)));
     expect(w.sends[0]?.text).toContain("Cloudflare dropped the 2 refusal notices");
+  });
+
+  it("counts notices a second apart as one refusal, never a second alert (D01 T02 §9, probe 3)", async () => {
+    const second = report({
+      sessionId: "s-r1b",
+      messageId: "<ndr-1b@x>",
+      datetime: new Date(at(0.2).getTime() + 1000).toISOString(),
+    });
+    const w = world([[forward(), report(), second]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    // One alert (a copy to each mailbox), counting both notices; none for a forward "not found".
+    expect(new Set(w.sends.map((m) => m.subject))).toEqual(new Set([w.sends[0]?.subject]));
+    for (const m of w.sends) {
+      expect(m.text).toContain("Cloudflare dropped the 2 refusal notices");
+      expect(m.text).not.toContain("forward was not found");
+    }
+  });
+
+  it("names both messages when two of one subject are refused seconds apart, losing neither (§9 rounds 1 and 2)", async () => {
+    const second = forward({
+      messageId: "<m-2@x>",
+      sessionId: "s2",
+      to: "conduct@isitlegit.co.za",
+      datetime: new Date(at(0).getTime() + 11_000).toISOString(),
+    });
+    const notices = [
+      report({ datetime: new Date(at(0).getTime() + 10_000).toISOString() }),
+      report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: new Date(at(0).getTime() + 13_000).toISOString() }),
+    ];
+    const w = world([[forward(), second, ...notices]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    // A notice does not say which message it refused: one incident, both named, uncertain, both notices counted.
+    const rows = (
+      await env.DB.prepare("SELECT alias, uncertain FROM forward_incidents WHERE kind = 'refused'").all<{
+        alias: string;
+        uncertain: number;
+      }>()
+    ).results;
+    expect(rows).toEqual([{ alias: "hello@isitlegit.co.za, conduct@isitlegit.co.za", uncertain: 1 }]);
+    for (const m of w.sends) {
+      expect(m.text).toContain("hello@isitlegit.co.za, conduct@isitlegit.co.za");
+      expect(m.text).toContain("Cloudflare dropped the 2 refusal notices");
+    }
+  });
+
+  it("never names a later, delivered forward as refused on a duplicate notice's word (§9 round 2)", async () => {
+    // A refused at :00 (notices :10 and :12); B forwarded fine at :11, between the notices.
+    const b = forward({
+      messageId: "<m-b@x>",
+      sessionId: "s-b",
+      to: "conduct@isitlegit.co.za",
+      datetime: new Date(at(0).getTime() + 11_000).toISOString(),
+    });
+    const notices = [
+      report({ datetime: new Date(at(0).getTime() + 10_000).toISOString() }),
+      report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: new Date(at(0).getTime() + 12_000).toISOString() }),
+    ];
+    const w = world([[forward(), b, ...notices]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    const definite = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM forward_incidents WHERE kind = 'refused' AND uncertain = 0 AND alias = 'conduct@isitlegit.co.za'",
+    ).first<{ n: number }>();
+    expect(definite?.n).toBe(0);
+    expect(new Set(w.sends.map((m) => m.subject)).size).toBe(1);
+  });
+
+  it("never names a delivered forward refused when a refusal's notices are read in separate scans (§9 round 3)", async () => {
+    const t = (seconds: number) => new Date(at(0).getTime() + seconds * 1000).toISOString();
+    const a = forward({ datetime: t(-10) });
+    const b = forward({ messageId: "<m-b@x>", sessionId: "s-b", to: "conduct@isitlegit.co.za", datetime: t(0) });
+    const n1 = report({ datetime: t(-1) });
+    const n2 = report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: t(1) });
+    const grace = { graceMs: MATCH_GRACE_MS };
+    // Read a scan apart, both before the first is resolved.
+    const w = world([[a, n1], [b, n2], [], []]);
+    await checkForwarding(deps(w.fetcher, at(1), grace));
+    await checkForwarding(deps(w.fetcher, at(16), grace));
+    await checkForwarding(deps(w.fetcher, at(31), grace));
+    await checkForwarding(deps(w.fetcher, at(46), grace));
+    const definite = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM forward_incidents WHERE uncertain = 0 AND alias LIKE '%conduct@%'",
+    ).first<{ n: number }>();
+    expect(definite?.n).toBe(0);
+  });
+
+  it("keeps a notice read after its sibling was resolved from naming a forward definitively (§9 round 3)", async () => {
+    const t = (seconds: number) => new Date(at(0).getTime() + seconds * 1000).toISOString();
+    const a = forward({ datetime: t(-10) });
+    const b = forward({ messageId: "<m-b@x>", sessionId: "s-b", to: "conduct@isitlegit.co.za", datetime: t(0) });
+    const grace = { graceMs: MATCH_GRACE_MS };
+    const w = world([
+      [a, report({ datetime: t(-1) })],
+      [],
+      [b, report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: t(1) })],
+      [],
+    ]);
+    await checkForwarding(deps(w.fetcher, at(1), grace));
+    await checkForwarding(deps(w.fetcher, at(22), grace));
+    await checkForwarding(deps(w.fetcher, at(30), grace));
+    await checkForwarding(deps(w.fetcher, at(52), grace));
+    const rows = (
+      await env.DB.prepare(
+        "SELECT alias, uncertain FROM forward_incidents WHERE kind = 'refused' ORDER BY occurred_at",
+      ).all<{
+        alias: string;
+        uncertain: number;
+      }>()
+    ).results;
+    expect(rows).toEqual([
+      { alias: "hello@isitlegit.co.za", uncertain: 0 },
+      { alias: "conduct@isitlegit.co.za", uncertain: 1 },
+    ]);
+    expect(w.sends.some((m) => m.text.includes("possibly conduct@isitlegit.co.za"))).toBe(true);
+  });
+
+  it("loses no cluster span when a run is interrupted while resolving it (§9 round 4)", async () => {
+    const t = (seconds: number) => new Date(at(0).getTime() + seconds * 1000).toISOString();
+    const b = forward({ messageId: "<m-b@x>", sessionId: "s-b", to: "conduct@isitlegit.co.za", datetime: t(11) });
+    const notices = [
+      report({ datetime: t(10) }),
+      report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: t(12) }),
+    ];
+    const w = world([[forward(), b, ...notices], [], []]);
+    // The first run's read of the candidate forwards fails, once, as a D1 request may.
+    let failed = false;
+    const flaky = new Proxy(db, {
+      get(target, name) {
+        if (name === "prepare")
+          return (query: string) => {
+            const statement = target.prepare(query);
+            if (failed || !query.startsWith("SELECT message_hash, alias")) return statement;
+            return new Proxy(statement, {
+              get(st, key) {
+                if (key === "bind")
+                  return (...args: unknown[]) => {
+                    const bound = st.bind(...args);
+                    return new Proxy(bound, {
+                      get(bd, k) {
+                        if (k === "all") {
+                          failed = true;
+                          return () => Promise.reject(new Error("D1_ERROR: transient"));
+                        }
+                        const v = Reflect.get(bd, k);
+                        return typeof v === "function" ? v.bind(bd) : v;
+                      },
+                    });
+                  };
+                const v = Reflect.get(st, key);
+                return typeof v === "function" ? v.bind(st) : v;
+              },
+            });
+          };
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    await checkForwarding(deps(w.fetcher, at(5), { db: flaky })).catch(() => undefined);
+    expect(failed).toBe(true);
+    await checkForwarding(deps(w.fetcher, at(6)));
+    const rows = (
+      await env.DB.prepare("SELECT alias, uncertain FROM forward_incidents WHERE kind = 'refused'").all<{
+        alias: string;
+        uncertain: number;
+      }>()
+    ).results;
+    expect(rows).toEqual([{ alias: "hello@isitlegit.co.za, conduct@isitlegit.co.za", uncertain: 1 }]);
+  });
+
+  it("counts one refusal's same-second notices once even with two candidate forwards (§9 round 2)", async () => {
+    const earlier = forward({ messageId: "<m-0@x>", sessionId: "s0", datetime: at(-1).toISOString() });
+    const notices = [report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })];
+    const w = world([[earlier, forward(), ...notices]]);
+    expect(await checkForwarding(deps(w.fetcher, at(5)))).toMatchObject({ folded: 1, alerted: 1 });
+    expect(w.sends.map((m) => m.to)).toEqual(OPERATORS);
+    expect(w.sends[0]?.text).toContain("Cloudflare dropped the 2 refusal notices");
+  });
+
+  it("keeps notices minutes apart as separate refusals", async () => {
+    // (The window is NOTICE_SPREAD_MS; the round 2 test above keeps a minute apart as two as well.)
+    const later = report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: at(3).toISOString() });
+    const w = world([
+      [forward(), forward({ messageId: "<m-2@x>", sessionId: "s2", datetime: at(2.9).toISOString() }), report(), later],
+    ]);
+    await checkForwarding(deps(w.fetcher, at(9)));
+    const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM forward_incidents WHERE kind = 'refused'").first<{
+      n: number;
+    }>();
+    expect(rows?.n).toBe(2);
+  });
+
+  it("names a domain without the angle bracket the analytics leave on it (D01 T02 §9, probe 3)", async () => {
+    const w = world([
+      [forward({ from: "<billing@supplier.example>" }), report({ from: "<postmaster@rizonetech.com>" })],
+    ]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    expect(w.sends[0]?.text).toContain("from supplier.example to");
+    expect(w.sends[0]?.text).toContain("refused by rizonetech.com at");
+    expect(w.sends[0]?.text).not.toContain(">");
   });
 
   it("counts each notice once however often the scans read it again (round 3)", async () => {

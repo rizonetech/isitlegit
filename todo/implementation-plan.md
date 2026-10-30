@@ -42,7 +42,7 @@ Sections: 27 | Checklist items: 371
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 43 | Checklist items: 370
+Sections: 43 | Checklist items: 372
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -54,7 +54,7 @@ Sections: 43 | Checklist items: 370
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
 | [x]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
-| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 3     |
+| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 5     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
 | [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
 | [x]    | D01 T03 §8  | M4A decoding                              | none                  | 5     |
@@ -92,21 +92,22 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 53 | Checklist items: 354
+Sections: 54 | Checklist items: 365
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [x]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
 | [x]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
-| [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
+| [x]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 14    |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
-| [ ]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
+| [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
+| [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -227,7 +228,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 64 | Checklist items: 267
+Sections: 65 | Checklist items: 272
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -286,6 +287,7 @@ Sections: 64 | Checklist items: 267
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
+| [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
 | [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
@@ -298,7 +300,7 @@ Sections: 64 | Checklist items: 267
 
 ### Phase 7: After the event
 
-Sections: 33 | Checklist items: 180
+Sections: 34 | Checklist items: 183
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -306,6 +308,7 @@ Sections: 33 | Checklist items: 180
 | [x]    | D00 T01 §15 | Review schedule by section risk                  | none           | 5     |
 | [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none           | 3     |
 | [ ]    | D00 T01 §17 | Light against full review, measured              | none           | 4     |
+| [ ]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 3     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none           | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
@@ -358,6 +361,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 99/289 verified sections, 64 ready to run now.
+Progress: 102/292 verified sections, 63 ready to run now.
 
-Checklist: 1015/1862 items completed (includes Commit items).
+Checklist: 1040/1883 items completed (includes Commit items).

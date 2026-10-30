@@ -49,6 +49,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-10-30 20:27 | `c69c8c3` | `d184c2a2-0771-4fae-b6d7-3f6ed63511a8` | 0037, 0038, 0039 | `/health` reports the commit; smoke 13 s |
 | 2026-10-30 18:39 | `6d051b3` | `9599a7bb-06a6-446d-b5cc-41aeaca60f08` (after the two secrets) | 0036 | `/health`, smoke 15 s, `check-smtp2go.py`, `/dev/components` 404 |
 | 2026-10-30 17:05 | `3670dfe` (from `9b6dfc9`, 458 commits) | `86106996-37bb-4388-9cf2-6f37244d4d09` | 0034, 0035 | `/health` reports the commit; `scripts/smoke.ts` passed in 13 s (DB, ARTEFACTS, CACHE, ANALYSIS, BROWSER ok) |
 
@@ -59,8 +60,9 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | 0034 | checks | `org_receivers`, `receiver_lookups` (D02 T02 §1) | 2026-10-30; live 17:05 |
 | 0035 | app | `signin_codes` (D07 T02 §11) | 2026-10-30; live 17:05 |
 | 0036 | checks | forwarding incidents and scan progress (D01 T02 §6) | 2026-10-30; live 18:39 |
-| 0037 | checks | `org_sender_salts`, `sender_observations` (D02 T02 §5) | 2026-10-30 |
-| 0038 | checks | `cases` original subject and sender (D01 T01 §16) | 2026-10-30 |
-| 0039 | checks | `cases.uploaded_by` (D01 T03 §11) | 2026-10-30 |
+| 0037 | checks | `org_sender_salts`, `sender_observations` (D02 T02 §5) | 2026-10-30; live 20:27 |
+| 0038 | checks | `cases` original subject and sender (D01 T01 §16) | 2026-10-30; live 20:27 |
+| 0039 | checks | `cases.uploaded_by` (D01 T03 §11) | 2026-10-30; live 20:27 |
+| 0040 | checks | data repair of probe 3's forward_incidents rows (D01 T02 §9): brackets trimmed, the false incident folded | 2026-10-30 |
 
-The next free number is 0040.
+The next free number is 0041.

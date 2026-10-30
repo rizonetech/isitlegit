@@ -1,0 +1,123 @@
+{
+  "ref": "D00 T01 \u00a720",
+  "title": "Lane run waits on another lane's rows, then resumes",
+  "implementation_sha": "984a8fd927d70f80545c18ad5cd563fbc33ba560",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s20.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s20.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/00-workspace/D00-T01-s20.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_campaign_guard tests.scripts.test_lane_wake -> Ran 76 tests, OK",
+    "python3 -m unittest discover -s tests/scripts -> Ran 853 tests in 394.106s, OK (skipped=2)",
+    "python3 -m unittest discover -s scripts/tests -> Ran 91 tests, OK (skipped=1)"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s20.md",
+    "verdict": "filed",
+    "candidate": "593151e1afc9e6eb4a86574a7ce7484bad810c2d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D00 T01 \u00a727"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s20.md",
+    "candidate": "e6359bbb52cb4477c8c6b59a2030b2548ad49e21",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
