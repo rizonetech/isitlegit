@@ -94,15 +94,11 @@ const CELL = new Set(["td", "th"]);
 
 type Declaration = { value: string; important: boolean };
 type Declarations = Map<string, Declaration>;
-// A simple rule: its selector's parts, its specificity (ids, classes, tags) and its place in the document.
-type Rule = {
-  tag: string | null;
-  cls: string | null;
-  id: string | null;
-  specificity: number;
-  order: number;
-  body: Declarations;
-};
+// The rules of one selector, merged: each property's winning value, its importance and the rule order that set it, so
+// a sheet of forty thousand identical rules is one entry per property (round 1: the cascade must stay linear).
+type Selector = { specificity: number; props: Map<string, Declaration & { order: number }> };
+export type Rules = { byKey: Map<string, Selector>; order: number };
+export const newRules = (): Rules => ({ byKey: new Map(), order: 0 });
 type Rgb = [number, number, number];
 type Colour = Rgb | "transparent";
 type State = {
@@ -117,7 +113,23 @@ type State = {
   silent: boolean;
 };
 
-// `prop: value; ...` as a map of lower-cased names to values and their `!important`.
+const FONT_SIZE =
+  /^(?:[\d.]+(?:px|pt|em|rem|%)|0|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)$/;
+// A shorthand's longhands, set where the shorthand stands (CSS Cascade 5, shorthands; round 1): `background` sets its
+// colour (transparent when it names none), `font` its size.
+function expand(name: string, value: string): [string, string][] {
+  if (name === "background") return [["background-color", backgroundColourToken(value) ?? "transparent"]];
+  if (name === "font") {
+    const size = value
+      .split(/\s+/)
+      .map((t) => t.split("/")[0] ?? "")
+      .find((t) => FONT_SIZE.test(t));
+    return size ? [["font-size", size]] : [];
+  }
+  return [[name, value]];
+}
+
+// `prop: value; ...` as a map of lower-cased names to values and their `!important`, shorthands expanded in order.
 export function declarations(text: string): Declarations {
   const out: Declarations = new Map();
   for (const part of text.replace(/\/\*[\s\S]*?\*\//g, "").split(";")) {
@@ -130,15 +142,18 @@ export function declarations(text: string): Declarations {
       .toLowerCase();
     const important = /!\s*important\s*$/.test(raw);
     const value = raw.replace(/!\s*important\s*$/, "").trim();
+    if (!name || !value) continue;
     // Within one block a later declaration wins, except that a normal one never overrides an `!important` one.
-    if (name && value && !(out.get(name)?.important && !important)) out.set(name, { value, important });
+    for (const [longhand, v] of expand(name, value))
+      if (!(out.get(longhand)?.important && !important)) out.set(longhand, { value: v, important });
   }
   return out;
 }
 
-const SIMPLE = /^([a-z][a-z0-9]*)?(?:\.([a-z0-9_-]+))?$|^#([a-z0-9_-]+)$/i;
-// A style sheet's simple rules appended to `rules` in document order; returns how many selectors were not simple.
-export function addRules(sheet: string, rules: Rule[]): number {
+// Selectors keep their case for classes and ids (case-sensitive outside quirks mode); only a tag name is lower-cased.
+const SIMPLE = /^([a-zA-Z][a-zA-Z0-9]*)?(?:\.([A-Za-z0-9_-]+))?$|^#([A-Za-z0-9_-]+)$/;
+// A style sheet's simple rules merged into `rules` in document order; returns how many selectors were not simple.
+export function addRules(sheet: string, rules: Rules): number {
   let unresolved = 0;
   const text = sheet.replace(/\/\*[\s\S]*?\*\//g, "");
   // At-rule blocks (`@media`, `@supports`) hold conditional rules: not resolved, counted once each.
@@ -148,50 +163,58 @@ export function addRules(sheet: string, rules: Rule[]): number {
   });
   for (const match of flat.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const body = declarations(match[2] ?? "");
+    const order = rules.order++;
     for (const raw of (match[1] ?? "").split(",")) {
-      const selector = raw.trim().toLowerCase();
+      const selector = raw.trim();
       if (!selector) continue;
       const simple = SIMPLE.exec(selector);
       if (!simple || (!simple[1] && !simple[2] && !simple[3])) {
         unresolved++;
         continue;
       }
-      const [, tag = null, cls = null, id = null] = simple;
+      const [, tag, cls, id] = simple;
+      const key = id ? `#${id}` : `${tag?.toLowerCase() ?? ""}${cls ? `.${cls}` : ""}`;
       const specificity = (id ? 10_000 : 0) + (cls ? 100 : 0) + (tag ? 1 : 0);
-      rules.push({ tag, cls, id, specificity, order: rules.length, body });
+      const entry = rules.byKey.get(key) ?? { specificity, props: new Map() };
+      for (const [name, d] of body) {
+        const existing = entry.props.get(name);
+        // A later rule wins for its property unless it is normal and the earlier one `!important`.
+        if (!existing || d.important || !existing.important) entry.props.set(name, { ...d, order });
+      }
+      rules.byKey.set(key, entry);
     }
   }
   return unresolved;
 }
 
-// The declarations that apply to an element, by the cascade: normal rules by specificity then order, the inline style
-// over them, then `!important` rules by specificity then order, the inline style's `!important` last (completion
-// review: `!important` and stylesheet order decide, never the order of the class attribute).
+// The declarations that apply to an element, by the cascade: rules by importance, then specificity, then order, the
+// inline style above normal rules and its `!important` above all. Only the element's own selector keys are looked up,
+// so each element costs what its tag, classes and id name, never the whole sheet (round 1).
 export function cascade(
-  rules: Rule[],
+  rules: Rules,
   tag: string,
   classes: string[],
   id: string,
   inline: Declarations,
 ): Map<string, string> {
-  const matching = rules
-    .filter(
-      (r) =>
-        (r.id === null || r.id === id) &&
-        (r.cls === null || classes.includes(r.cls)) &&
-        (r.tag === null || r.tag === tag) &&
-        (r.id !== null || r.cls !== null || r.tag !== null),
-    )
-    .sort((a, b) => a.specificity - b.specificity || a.order - b.order);
-  const out = new Map<string, string>();
-  const apply = (body: Declarations, important: boolean) => {
-    for (const [name, d] of body) if (d.important === important) out.set(name, d.value);
+  const keys = [tag, ...classes.flatMap((c) => [`.${c}`, `${tag}.${c}`]), ...(id ? [`#${id}`] : [])];
+  const best = new Map<string, { value: string; rank: [number, number, number] }>();
+  const offer = (name: string, value: string, rank: [number, number, number]) => {
+    const current = best.get(name);
+    const wins =
+      !current ||
+      rank[0] > current.rank[0] ||
+      (rank[0] === current.rank[0] &&
+        (rank[1] > current.rank[1] || (rank[1] === current.rank[1] && rank[2] >= current.rank[2])));
+    if (wins) best.set(name, { value, rank });
   };
-  for (const r of matching) apply(r.body, false);
-  apply(inline, false);
-  for (const r of matching) apply(r.body, true);
-  apply(inline, true);
-  return out;
+  for (const key of new Set(keys)) {
+    const selector = rules.byKey.get(key);
+    if (!selector) continue;
+    for (const [name, d] of selector.props) offer(name, d.value, [d.important ? 2 : 0, selector.specificity, d.order]);
+  }
+  for (const [name, d] of inline) offer(name, d.value, [d.important ? 3 : 1, 0, 0]);
+  return new Map([...best].map(([name, { value }]) => [name, value]));
 }
 
 // The CSS named colours (CSS Color Module Level 4), as `rrggbb`.
@@ -235,9 +258,9 @@ export const parseColor = (value: string | null | undefined): Rgb | null => {
   return c === "transparent" ? null : c;
 };
 
-// The colour in a `background` shorthand: its tokens split outside parentheses, the first that reads as a colour.
-function backgroundColour(value: string | undefined): Colour | null {
-  if (!value) return null;
+// The colour token in a `background` shorthand, as written: its tokens split outside parentheses, the first that reads
+// as a colour.
+function backgroundColourToken(value: string): string | null {
   const tokens: string[] = [];
   let depth = 0;
   let token = "";
@@ -250,11 +273,7 @@ function backgroundColour(value: string | undefined): Colour | null {
     } else token += c;
   }
   if (token) tokens.push(token);
-  for (const t of tokens) {
-    const c = readColour(t);
-    if (c) return c;
-  }
-  return null;
+  return tokens.find((t) => readColour(t) !== null) ?? null;
 }
 
 // CIE76 colour difference between two sRGB colours (D65).
@@ -315,6 +334,43 @@ export const hasInstruction = (text: string) => INSTRUCTION.test(text);
 // Whether a hidden span reads as a marketing preheader: short, before any visible text, no instruction words.
 export const isPreheader = (span: HiddenSpan) => span.beforeVisible && span.text.length < 120 && !span.instruction;
 
+// Character references decoded (round 1): numeric ones, and the named ones mail text uses; an unknown name stays as is.
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00a0",
+  shy: "\u00ad",
+  zwnj: "\u200c",
+  zwj: "\u200d",
+  copy: "\u00a9",
+  reg: "\u00ae",
+  trade: "\u2122",
+  hellip: "\u2026",
+  mdash: "\u2014",
+  ndash: "\u2013",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201c",
+  rdquo: "\u201d",
+  bull: "\u2022",
+  euro: "\u20ac",
+  pound: "\u00a3",
+  middot: "\u00b7",
+};
+export function decodeEntities(text: string): string {
+  return text.replace(/&(#\d{1,7}|#x[0-9a-f]{1,6}|[a-z]{2,8});/gi, (whole, ref: string) => {
+    if (ref.startsWith("#")) {
+      const code =
+        ref[1] === "x" || ref[1] === "X" ? Number.parseInt(ref.slice(2), 16) : Number.parseInt(ref.slice(1), 10);
+      return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : whole;
+    }
+    return ENTITIES[ref.toLowerCase()] ?? whole;
+  });
+}
+
 // Drains a transformed response without keeping its bytes: the rewriter's handlers are what read it (completion review).
 async function drain(response: Response): Promise<void> {
   const reader = response.body?.getReader();
@@ -341,12 +397,16 @@ async function sheets(html: ReadableStream | string): Promise<{ text: string; cu
 }
 
 // `source` gives the HTML afresh each time it is called: it is read twice, once for the rules, once to classify.
+// `extraSheets` are style sheets found elsewhere (the full text of a part the summary's HTML was cut from), applied after
+// the document's own.
 export async function scanHtml(
   source: () => ReadableStream | string | Promise<ReadableStream | string>,
+  extraSheets = "",
 ): Promise<Scan> {
-  const rules: Rule[] = [];
+  const rules = newRules();
   const sheet = await sheets(await source());
-  const unresolvedRules = addRules(sheet.text, rules) + (sheet.cut ? 1 : 0);
+  const unresolvedRules =
+    addRules(sheet.text, rules) + (sheet.cut ? 1 : 0) + (extraSheets ? addRules(extraSheets, rules) : 0);
   let unreadColours = 0;
   const root: State = {
     tag: "#root",
@@ -374,9 +434,10 @@ export async function scanHtml(
     omittedSpans++;
   };
   const flush = () => {
-    if (open?.text.trim())
+    if (open && !open.instruction && INSTRUCTION.test(decodeEntities(open.tail))) open.instruction = true;
+    if (open && (open.text.trim() || open.instruction))
       keep({
-        text: open.text.replace(/\s+/g, " ").trim(),
+        text: decodeEntities(open.text.replace(/\s+/g, " ").trim()),
         reason: open.reason,
         beforeVisible: open.beforeVisible,
         instruction: open.instruction,
@@ -388,12 +449,19 @@ export async function scanHtml(
       flush();
       open = { reason, text: "", tail: "", beforeVisible: !visible.trim(), instruction: false };
     }
-    // Instruction words are looked for across chunk boundaries (the last 64 characters carried over), the text kept up
-    // to MAX_SPAN_CHARS.
-    const window = open.tail + text;
-    if (!open.instruction && INSTRUCTION.test(window)) open.instruction = true;
-    open.tail = window.slice(-64);
-    if (open.text.length < MAX_SPAN_CHARS) open.text += text.slice(0, MAX_SPAN_CHARS - open.text.length);
+    // Whitespace collapses as it arrives, so padding never fills MAX_SPAN_CHARS (round 1). Instruction words are
+    // matched on whole words only: the text up to the last whitespace, the rest carried to the next chunk, so a chunk
+    // boundary is never a word boundary (round 1); character references are decoded first.
+    const collapsed = text.replace(/\s+/g, " ");
+    const window = open.tail + collapsed;
+    const cut = window.lastIndexOf(" ");
+    if (cut >= 0) {
+      if (!open.instruction && INSTRUCTION.test(decodeEntities(window.slice(0, cut)))) open.instruction = true;
+      open.tail = window.slice(cut);
+    } else open.tail = window.slice(-256);
+    const room = MAX_SPAN_CHARS - open.text.length;
+    if (room > 0)
+      open.text += open.text.endsWith(" ") ? collapsed.replace(/^ /, "").slice(0, room) : collapsed.slice(0, room);
   };
   const addVisible = (text: string) => {
     if (visible.length < MAX_VISIBLE_CHARS) visible += text.slice(0, MAX_VISIBLE_CHARS - visible.length);
@@ -415,13 +483,37 @@ export async function scanHtml(
     else if (!reasonOf(state)) addVisible(separator);
   };
 
+  // HTML's optional end tags (round 1; WHATWG HTML, optional tags): <body> closes an open <head>; a block element
+  // closes an open <p>; <li>, <dt>/<dd>, a cell and a row close the open sibling of their kind, within its container.
+  const popTo = (at: number) => {
+    if (at > 0) stack.length = at;
+  };
+  const openAt = (tags: string[], boundaries: string[]) => {
+    for (let i = stack.length - 1; i > 0; i--) {
+      const t = (stack[i] as State).tag;
+      if (tags.includes(t)) return i;
+      if (boundaries.includes(t)) return -1;
+    }
+    return -1;
+  };
+  const implyEnds = (tag: string) => {
+    if (tag === "body") popTo(openAt(["head"], []));
+    if (BLOCK.has(tag)) popTo(openAt(["p"], ["div", "td", "th", "li", "table", "body", "blockquote"]));
+    if (tag === "li") popTo(openAt(["li"], ["ul", "ol"]));
+    if (tag === "dt" || tag === "dd") popTo(openAt(["dt", "dd"], ["dl"]));
+    if (CELL.has(tag)) popTo(openAt(["td", "th"], ["tr", "table"]));
+    if (tag === "tr") popTo(openAt(["tr"], ["table", "tbody", "thead", "tfoot"]));
+  };
+
   const rewriter = new HTMLRewriter()
     .on("*", {
       element(element) {
         const tag = element.tagName.toLowerCase();
+        if (!VOID.has(tag)) implyEnds(tag);
         const parent = top();
-        const classes = (element.getAttribute("class") ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-        const id = (element.getAttribute("id") ?? "").toLowerCase();
+        // Classes and ids keep their case (round 1).
+        const classes = (element.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
+        const id = element.getAttribute("id") ?? "";
         const d = cascade(rules, tag, classes, id, declarations(element.getAttribute("style") ?? ""));
         const readOrCount = (value: string | undefined | null, read: (v: string) => Colour | null) => {
           if (value === undefined || value === null || value === "") return null;
@@ -429,9 +521,9 @@ export async function scanHtml(
           if (c === null && !/^(inherit|initial|unset|currentcolor|none)$/.test(value.trim())) unreadColours++;
           return c;
         };
+        // `background` is expanded to its colour where it stands (`declarations`), so one longhand decides.
         const bg =
           readOrCount(d.get("background-color"), readColour) ??
-          readOrCount(d.get("background"), (v) => backgroundColour(v)) ??
           readOrCount(element.getAttribute("bgcolor"), readColour);
         const visibility = d.get("visibility");
         const state: State = {
@@ -485,7 +577,7 @@ export async function scanHtml(
   flush();
   return {
     hidden,
-    visible: visible
+    visible: decodeEntities(visible)
       .split("\n")
       .map((line) =>
         line
@@ -523,22 +615,14 @@ export async function hiddenTextOf(
     truncated: readonly { mediaType: string; charset: string | null; key: string }[];
   },
 ): Promise<{ hidden: HiddenText; visible: string }> {
-  const spans: HiddenText["spans"] = [];
+  const partSpans: HiddenText["spans"] = [];
   const notScanned: HiddenText["notScanned"] = [];
   let unresolvedRules = 0;
   let unreadColours = 0;
   let omittedSpans = 0;
-  let visible = summary.text ?? "";
-  let visibleFromWholePart = false;
-  if (summary.html !== null) {
-    const html = summary.html;
-    const scan = await scanHtml(() => html);
-    spans.push(...scan.hidden.map((h) => ({ ...h, part: "summary" })));
-    unresolvedRules += scan.unresolvedRules;
-    unreadColours += scan.unreadColours;
-    omittedSpans += scan.omittedSpans;
-    visible = scan.visible;
-  }
+  // The full parts' own style sheets, applied to the summary's HTML too: a rule after the cut still hides the text
+  // before it that the summary kept, and every other body part stays in the visible text (round 1).
+  let partSheets = "";
   for (const part of summary.truncated) {
     if (part.mediaType.split(";")[0]?.trim().toLowerCase() !== "text/html") continue;
     const charset = part.charset ?? "utf-8";
@@ -558,24 +642,32 @@ export async function hiddenTextOf(
       if (!object) throw new Error(`the cut part ${part.key} disappeared while it was read`);
       return object.body.pipeThrough(new TextDecoderStream(charset)).pipeThrough(new TextEncoderStream());
     };
+    const sheet = await sheets(await open());
+    if (partSheets.length + sheet.text.length <= MAX_SHEET_CHARS) partSheets += sheet.text;
     const scan = await scanHtml(open);
     unresolvedRules += scan.unresolvedRules;
     unreadColours += scan.unreadColours;
     omittedSpans += scan.omittedSpans;
-    for (const span of scan.hidden) {
-      // A span already kept from another reading of the same text (the summary's prefix, or the same part listed again)
-      // is not repeated; the longer reading is kept.
-      const at = spans.findIndex((s) => s.reason === span.reason && span.text.startsWith(s.text));
-      if (at >= 0) {
-        if ((spans[at] as HiddenSpan).text.length < span.text.length) spans[at] = { ...span, part: part.key };
-      } else spans.push({ ...span, part: part.key });
-    }
-    // The part the summary's HTML was cut from: its whole scan gives the visible text, so a rule after the cut that
-    // hides text before it takes that text out of what the model reads (completion review).
-    if (!visibleFromWholePart && summary.html !== null && (await startsAs(bucket, part.key, charset, summary.html))) {
-      visible = scan.visible;
-      visibleFromWholePart = true;
-    }
+    partSpans.push(...scan.hidden.map((h) => ({ ...h, part: part.key })));
+  }
+  const spans: HiddenText["spans"] = [];
+  let visible = summary.text ?? "";
+  if (summary.html !== null) {
+    const html = summary.html;
+    const scan = await scanHtml(() => html, partSheets);
+    spans.push(...scan.hidden.map((h) => ({ ...h, part: "summary" })));
+    unresolvedRules += scan.unresolvedRules;
+    unreadColours += scan.unreadColours;
+    omittedSpans += scan.omittedSpans;
+    visible = scan.visible;
+  }
+  for (const span of partSpans) {
+    // A span already kept from another reading of the same text (the summary's prefix, or the same part listed again)
+    // is not repeated; the longer reading is kept.
+    const at = spans.findIndex((s) => s.reason === span.reason && span.text.startsWith(s.text));
+    if (at >= 0) {
+      if ((spans[at] as HiddenSpan).text.length < span.text.length) spans[at] = span;
+    } else spans.push(span);
   }
   return {
     hidden: {
@@ -592,12 +684,3 @@ export async function hiddenTextOf(
 // The kept spans across the parts, at most MAX_HIDDEN_SPANS, instruction-bearing ones first.
 const rankKept = (spans: HiddenText["spans"]) =>
   [...spans].sort((a, b) => Number(b.instruction) - Number(a.instruction)).slice(0, MAX_HIDDEN_SPANS);
-
-// Whether a stored part begins as the summary's HTML does (its first 512 characters, whitespace aside).
-async function startsAs(bucket: R2Bucket, key: string, charset: string, html: string): Promise<boolean> {
-  const head = await bucket.get(key, { range: { offset: 0, length: 4096 } });
-  if (!head) return false;
-  const text = new TextDecoder(charset).decode(await head.arrayBuffer());
-  const squash = (t: string) => t.replace(/\s+/g, "").slice(0, 512);
-  return squash(text).startsWith(squash(html).slice(0, Math.min(512, squash(text).length)));
-}
