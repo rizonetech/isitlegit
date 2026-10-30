@@ -220,7 +220,9 @@ describe("auth.results", () => {
   });
 
   it("keeps the summary plain and bounded whatever the header holds", () => {
-    const hostile = gmail(`mx.google.com; ${Array.from({ length: 80 }, (_, i) => `x${i}=<b>pass</b>\u202e`).join("; ")}`);
+    const hostile = gmail(
+      `mx.google.com; ${Array.from({ length: 80 }, (_, i) => `x${i}=<b>pass</b>\u202e`).join("; ")}`,
+    );
     const [item] = authResultsEvidence(view(hostile));
     expect(Array.from(item?.summary ?? "").length).toBeLessThanOrEqual(200);
     expect(item?.summary).not.toMatch(/[<>\u202e]/);
@@ -249,8 +251,13 @@ describe("auth.results", () => {
     expect(item?.summary).toBe("Google, your receiving system, recorded spf pass, dkim pass.");
     // Run by the runner when the headers are missing too: no `needs` keeps it from being skipped.
     const headerless = { ...view([]), tenant: { ...view([]).tenant, headersAvailable: false } };
-    expect((await runChecks(headerless)).filter((e) => e.check === "auth.results" || e.check === "not_checked")).toEqual([
-      expect.objectContaining({ check: "auth.results", detail: { trusted: false, reason: "no-headers", fromFile: false } }),
+    expect(
+      (await runChecks(headerless)).filter((e) => e.check === "auth.results" || e.check === "not_checked"),
+    ).toEqual([
+      expect.objectContaining({
+        check: "auth.results",
+        detail: { trusted: false, reason: "no-headers", fromFile: false },
+      }),
     ]);
   });
 });
