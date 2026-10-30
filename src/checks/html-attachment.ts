@@ -5,6 +5,7 @@
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import { decodeEntities } from "./hidden-text";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
 
@@ -34,10 +35,12 @@ const CARD = /card.?num|cardnumber|cc.?num|\bcvv\b|\bcvc\b|security.?code|expir|
 const BUILDS = /new\s+Blob\s*\(|\batob\s*\(|data:[a-z0-9.+/-]*;base64,|Uint8Array\s*\.\s*from\s*\(/i;
 // A download in script: a download attribute set, a save call, or an object URL with a click or a navigation anywhere
 // in the script (completion review: no proximity limit between them).
-const DOWNLOAD_DIRECT = /\.download\s*=|msSaveOrOpenBlob|msSaveBlob/i;
+const DOWNLOAD_DIRECT = /\.download\s*=|setAttribute\s*\(\s*["'`]download["'`]|msSaveOrOpenBlob|msSaveBlob/i;
+const DATA_URL = /data:[^"'`\s]*;base64,/i;
 const OBJECT_URL = /createObjectURL/i;
 const OPENS = /\.click\s*\(|location(?:\.href)?\s*=|location\.(?:assign|replace)\s*\(|window\.open\s*\(/i;
-const downloadsIn = (script: string) => DOWNLOAD_DIRECT.test(script) || (OBJECT_URL.test(script) && OPENS.test(script));
+const downloadsIn = (script: string) =>
+  DOWNLOAD_DIRECT.test(script) || ((OBJECT_URL.test(script) || DATA_URL.test(script)) && OPENS.test(script));
 
 // The longest run of base64 characters in a text, found in one pass.
 function longestBase64(text: string): number {
@@ -65,10 +68,15 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
   const labelFor = new Map<string, string>();
   const inputIds: string[] = [];
   const openLabels: { text: string; for: string | null; wraps: boolean }[] = [];
+  // An attribute as a browser reads it: its character references decoded (round 1).
+  const attr = (e: Element, name: string) => {
+    const value = e.getAttribute(name);
+    return value === null ? null : decodeEntities(value);
+  };
   await new HTMLRewriter()
     .on("label", {
       element(e) {
-        const label = { text: "", for: e.getAttribute("for"), wraps: false };
+        const label = { text: "", for: attr(e, "for"), wraps: false };
         openLabels.push(label);
         e.onEndTag(() => {
           openLabels.splice(openLabels.lastIndexOf(label), 1);
@@ -83,12 +91,12 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
     })
     .on("input, select", {
       element(e) {
-        const type = (e.getAttribute("type") ?? "").toLowerCase();
+        const type = (attr(e, "type") ?? "").toLowerCase();
         if (type === "password") passwordField = true;
-        const hints = ["name", "id", "placeholder", "aria-label", "autocomplete"].map((a) => e.getAttribute(a) ?? "");
-        if ((e.getAttribute("autocomplete") ?? "").toLowerCase().startsWith("cc-") || hints.some((h) => CARD.test(h)))
+        const hints = ["name", "id", "placeholder", "aria-label", "autocomplete"].map((a) => attr(e, a) ?? "");
+        if ((attr(e, "autocomplete") ?? "").toLowerCase().startsWith("cc-") || hints.some((h) => CARD.test(h)))
           cardField = true;
-        const id = e.getAttribute("id");
+        const id = attr(e, "id");
         if (id && inputIds.length < 10_000) inputIds.push(id);
         const wrapping = openLabels[openLabels.length - 1];
         if (wrapping) wrapping.wraps = true;
@@ -96,7 +104,7 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
     })
     .on("form", {
       element(e) {
-        const action = (e.getAttribute("action") ?? "").trim();
+        const action = (attr(e, "action") ?? "").trim();
         if (/^https?:\/\//i.test(action) && formActions.length < 20) formActions.push(action.slice(0, 2048));
       },
     })
@@ -104,7 +112,7 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
       element(e) {
         // A link that downloads its own `data:` payload: the loader written as markup (plan review), judged on this
         // link's payload alone.
-        const href = e.getAttribute("href") ?? "";
+        const href = attr(e, "href") ?? "";
         if (!e.hasAttribute("download") || !/^\s*data:[^,]*;base64,/i.test(href)) return;
         const run = longestBase64(href.slice(href.indexOf(",") + 1));
         dataBase64 = Math.max(dataBase64, run);
@@ -118,6 +126,11 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
     })
     .transform(new Response(html, { headers: { "content-type": "text/html" } }))
     .body?.pipeTo(new WritableStream());
+  // Labels left open at the end of the document still name what they wrap (round 1: a browser shows them).
+  for (const label of openLabels) {
+    if (label.wraps && CARD.test(label.text)) cardField = true;
+    if (label.for) labelFor.set(label.for, `${labelFor.get(label.for) ?? ""} ${label.text}`);
+  }
   if (inputIds.some((id) => CARD.test(labelFor.get(id) ?? ""))) cardField = true;
   // A loader in script: its own long payload, built into a file and downloaded, all in script (plan review: a large
   // inline image beside an ordinary download link is no loader).
@@ -139,11 +152,12 @@ export function decodeHtml(bytes: Uint8Array): string {
   // The declaration outside comments; a declared UTF-16 is read as UTF-8, as browsers do (WHATWG HTML, prescan), since
   // bytes that reached this point carry no UTF-16 byte order mark (completion review).
   const head = String.fromCharCode(...bytes.subarray(0, 1024)).replace(/<!--[\s\S]*?(?:-->|$)/g, "");
-  let declared = /<meta[^>]+charset\s*=\s*["']?([a-z0-9_.:-]+)/i.exec(head)?.[1];
-  if (declared && /^utf-?16/i.test(declared)) declared = "utf-8";
+  const declared = /<meta[^>]+charset\s*=\s*["']?([a-z0-9_.:-]+)/i.exec(head)?.[1];
   if (declared) {
     try {
-      return new TextDecoder(declared).decode(bytes);
+      // The label's resolved encoding decides, not its spelling (round 1: `unicode` and `csUnicode` name UTF-16).
+      const decoder = new TextDecoder(declared);
+      return (decoder.encoding.startsWith("utf-16") ? new TextDecoder("utf-8") : decoder).decode(bytes);
     } catch {
       // A charset the runtime does not know: read on by the next rule.
     }

