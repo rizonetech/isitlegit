@@ -42,7 +42,7 @@ Sections: 27 | Checklist items: 371
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 43 | Checklist items: 372
+Sections: 43 | Checklist items: 373
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -54,7 +54,7 @@ Sections: 43 | Checklist items: 372
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
 | [x]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
-| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 5     |
+| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 6     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
 | [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
 | [x]    | D01 T03 §8  | M4A decoding                              | none                  | 5     |
@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 372
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 55 | Checklist items: 355
+Sections: 58 | Checklist items: 364
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -118,11 +118,14 @@ Sections: 55 | Checklist items: 355
 | [x]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
 | [x]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 6     |
 | [x]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
-| [ ]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
+| [x]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
 | [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
-| [ ]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
+| [ ]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
+| [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
 | [ ]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
+| [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
+| [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
 | [ ]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
 | [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
@@ -154,7 +157,7 @@ Sections: 55 | Checklist items: 355
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 20 | Checklist items: 95
+Sections: 21 | Checklist items: 97
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -169,6 +172,7 @@ Sections: 20 | Checklist items: 95
 | [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 6     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
 | [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 4     |
+| [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
@@ -229,7 +233,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 65 | Checklist items: 272
+Sections: 66 | Checklist items: 275
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -237,6 +241,7 @@ Sections: 65 | Checklist items: 272
 | [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
+| [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
@@ -361,6 +366,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 101/292 verified sections, 64 ready to run now.
+Progress: 103/297 verified sections, 68 ready to run now.
 
-Checklist: 1025/1869 items completed (includes Commit items).
+Checklist: 1040/1884 items completed (includes Commit items).

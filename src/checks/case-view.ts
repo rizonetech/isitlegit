@@ -5,6 +5,7 @@
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
 import type { BrandTable } from "./brand-schema";
+import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
 const Attachment = z.strictObject({
@@ -52,7 +53,14 @@ const UploadSummary = z.strictObject({
 
 // The organisation the case is for, and its receiving systems (D02 T02 §1), which the checks step reads from the store
 // so a check never has to: only Authentication-Results headers these wrote are trusted. Empty when none are known.
-export type Tenant = { orgId: string; channel: "email" | "upload"; receivers: Receiver[] };
+export type Tenant = {
+  orgId: string;
+  channel: "email" | "upload";
+  receivers: Receiver[];
+  // The domains the organisation trusts, which `domain.lookalike` compares against (D02 T03 §2): its verified domains
+  // and its suppliers', read by the checks step.
+  trusted: { own: string[]; suppliers: string[] };
+};
 
 export type CaseView = {
   tenant: Tenant & { headersAvailable: boolean };
@@ -65,6 +73,12 @@ export type CaseView = {
   // Whether the organisation's earlier IsItLegit checks had a case from this sender (D02 T02 §5), filled by the checks
   // step from `observeSender`; null when it was not asked (no single valid From in the original's own headers).
   senderHistory: "first" | "seen" | null;
+  // The registration dates of the case's header domains from RDAP (D02 T03 §4), read by the checks step; null when not
+  // read.
+  domainAges: DomainAges | null;
+  // The first bytes (SNIFF_BYTES, base64) of up to MAX_SNIFFED attachments, read from R2 by the checks step for the
+  // type-mismatch check (D02 T04 §1); `unread` counts those not read. Null when not read.
+  attachmentHeads: { heads: { key: string; head: string }[]; unread: number } | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -89,6 +103,8 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       raw,
       brands,
       senderHistory: null,
+      domainAges: null,
+      attachmentHeads: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -106,6 +122,8 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       raw,
       brands,
       senderHistory: null,
+      domainAges: null,
+      attachmentHeads: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

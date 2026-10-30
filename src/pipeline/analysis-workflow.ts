@@ -4,8 +4,11 @@ import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
+import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecks } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
+import { attachmentHeadsOf } from "../checks/sniff";
+import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
 import {
   type CaseResult,
   getCaseForPipeline,
@@ -193,7 +196,10 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
       await timed("checks", async () =>
-        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env)),
+        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), {
+          fetch: (input, init) => fetch(input, init),
+          cache: this.env.CACHE,
+        }),
       );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
@@ -362,22 +368,39 @@ export async function checks(
   store: Store,
   caseId: string,
   key: string,
-  tenant: Omit<Tenant, "receivers">,
+  tenant: Omit<Tenant, "receivers" | "trusted">,
   lookup: LookupMx = lookupMx,
   brands: BrandTable = bundled,
+  // RDAP for the domain-age check (D02 T03 §4): none by default, so a caller that gives none reads no ages (null).
+  rdap: RdapDeps | null = null,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
   const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
-    { ...tenant, receivers },
+    {
+      ...tenant,
+      receivers,
+      // The domains the organisation trusts, for the lookalike check (D02 T03 §2).
+      trusted: {
+        own: await listOwnDomains(store.db, tenant.orgId),
+        suppliers: await listSupplierDomains(store.db, tenant.orgId),
+      },
+    },
     rawKey(caseId),
     brands,
   );
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
-  const view = { ...read, senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null };
+  const view = {
+    ...read,
+    senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
+    // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
+    domainAges: rdap ? await domainAgesOf(read, rdap) : null,
+    // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
+    attachmentHeads: read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null,
+  };
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };
 }
