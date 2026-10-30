@@ -5,7 +5,9 @@
     python scripts/todo-graph.py build                       # todo/ -> build/todo-cache.json
     python scripts/todo-graph.py render                      # mermaid dependency graph
     python scripts/todo-graph.py plan --sync | --check
-    python scripts/todo-graph.py query ready | blocked | stats | deferred | adjacency | plan | rounds
+    python scripts/todo-graph.py query ready | blocked | stats | deferred | adjacency | plan | rounds | lane | manual
+                                                             # ready, blocked and stats count this checkout's lane
+                                                             # (todo/lanes.json); --all the whole plan, --phase N one phase
     python scripts/todo-graph.py resolve 'D02 T01 §1'        # exit 0 ready, 1 no such section,
                                                              # 2 no reference in input, 3 verified,
                                                              # 4 waiting (or another lane's); a pasted plan row works too
@@ -29,7 +31,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from todo_graph import (ROOT, Refused, adjacency_report, atomic, claimable, current_lane,  # noqa: E402
-                        deferrals, disposition, extract_ref, graph, lane_of, lanes, ordered, plan_config, projections,
+                        deferrals, disposition, extract_ref, graph, lane_info, lane_of, lane_query, lanes, manual_rows,
+                        ordered, plan_config, projections,
                         require, review_rounds, settled, stamp, suspects, unstamp)
 
 
@@ -67,7 +70,10 @@ def main():
     for name in ("validate", "build", "render"):
         sub.add_parser(name)
     q = sub.add_parser("query")
-    q.add_argument("kind", choices=["ready", "blocked", "stats", "deferred", "adjacency", "plan", "rounds"])
+    q.add_argument("kind", choices=["ready", "blocked", "stats", "deferred", "adjacency", "plan", "rounds", "lane",
+                                    "manual"])
+    q.add_argument("--all", action="store_true", help="ready, blocked, stats: the whole plan, not this lane's rows")
+    q.add_argument("--phase", type=int, help="ready, blocked, stats: one phase's rows")
     r = sub.add_parser("resolve")
     r.add_argument("ref")
     c = sub.add_parser("classify")
@@ -139,16 +145,21 @@ def main():
             out[item] = claimable(rows[ref], rows, config, here) if code == 0 else code
         print(json.dumps(out, ensure_ascii=False))
     elif args.command == "query":
-        if args.kind == "stats":
-            result = {"total": len(rows), "verified": sum(r.done for r in rows.values()),
-                      "ready": sum(disposition(r, rows) == 0 for r in rows.values()),
-                      "blocked": sum(disposition(r, rows) == 4 for r in rows.values())}
+        require(not (args.all or args.phase is not None) or args.kind in ("ready", "blocked", "stats"),
+                "--all and --phase go with query ready, blocked or stats")
+        if args.kind in ("ready", "blocked", "stats"):
+            # A lane counts only its own rows (todo/lanes.json; AGENTS.md, Parallel lanes).
+            result = lane_query(args.kind, rows, lanes(), current_lane(), everything=args.all, phase=args.phase)
+        elif args.kind == "lane":
+            result = lane_info()
+        elif args.kind == "manual":
+            # The coordinator's list (docs/specs/2026-10-30-four-lanes-design.md, Manual work): every lane's open rows
+            # that wait on the operator or on a paid or attended environment.
+            result = manual_rows(rows, lanes())
         elif args.kind == "deferred":
             result = deferrals()
         elif args.kind == "adjacency":
             result = adjacency_report()
-        elif args.kind == "rounds":
-            result = review_rounds()
         elif args.kind == "plan":
             # The plan's names come from plan_config and every section from the graph, so a reader such as the
             # editor extension never parses todo/ itself (plan R34). graph() has already loaded todo/plan.json
@@ -158,12 +169,8 @@ def main():
                       "phases": {str(n): name for n, name in sorted(config["phases"].items())},
                       "sections": [{"ref": r.ref, "path": r.path, "title": r.title, "phase": r.phase,
                                     "status": plan_status(r, rows), "depends": r.depends} for r in ordered(rows)]}
-        elif args.kind == "ready":
-            # Ready for this checkout's lane: another lane's ready row is left to its own worktree.
-            config, here = lanes(), current_lane()
-            result = [r.public() for r in ordered(rows) if claimable(r, rows, config, here) == 0]
         else:
-            result = [r.public() for r in ordered(rows) if disposition(r, rows) == 4]
+            result = review_rounds()
         print(json.dumps(result, indent=2, ensure_ascii=False))
     elif args.command == "build":
         atomic(ROOT / "build/todo-cache.json",

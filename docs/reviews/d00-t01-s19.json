@@ -1,0 +1,118 @@
+{
+  "ref": "D00 T01 \u00a719",
+  "title": "Lane scoping for parallel building lanes",
+  "implementation_sha": "b1d40eeea7dd851dd1c1792c4a89cdca39f3503c",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s19.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s19.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest discover -s tests/scripts -> Ran 803 tests in 336.501s, OK (skipped=2)",
+    "python3 -m unittest discover -s scripts/tests -> Ran 91 tests in 40.522s, OK (skipped=1)",
+    "for l in checks app glimmer main; do TODO_LANE=$l python3 scripts/todo-graph.py query stats; done -> open 70, 75, 22, 14"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s19.md",
+    "verdict": "filed",
+    "candidate": "42da8609d1dd2232249bc0f0df6979dc970940a6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D00 T01 \u00a720"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s19.md",
+    "candidate": "b4b140db5febf1044747ea87fb019d2a0a109a30",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

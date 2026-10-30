@@ -9,6 +9,8 @@ One phase, start to 100%, or parked when the rest of it cannot run here. You do 
 
 Exactly three endings: zero open rows and a written closeout; every leftover row blocked or waiting in this context, so the phase is parked and `process-plan` moves to the next ready phase; or the operator's own pause. A parked phase is neither complete nor a stall.
 
+A phase here is this lane's share of it (`process-plan`, Lanes): the lane's rows of the phase, read with `python scripts/todo-graph.py query ready --phase <N>`, `query blocked --phase <N>` and `query stats --phase <N>`. Another lane's rows in the same phase are read for their dependencies and never edited: work they need is asked of that lane, through the coordinator.
+
 The whole plan is `process-plan`, not this skill. When the session entered through `process-plan`, return to it after closeout or park; a session pinned to one phase ends here.
 
 Attended means interruptible, not stoppable: answer a mid-run message briefly and continue the loop in the same turn. The one exception outranks everything: if the user tells you to stop or pause, obey immediately, record it in the run file, end the run guard (`python scripts/campaign_guard.py end --session $CLAUDE_CODE_SESSION_ID --reason operator-stop`, with `$env:CLAUDE_CODE_SESSION_ID` in PowerShell, then `CronDelete` the heartbeat it names), and wait.
@@ -17,7 +19,7 @@ Completion never buys completion with a bypass: no `--no-verify`, no amend of a 
 
 ## Step 0: open the run
 
-Read `todo/README.md` (the format every TODO edit keeps) before the run's first write, then check that no other writer holds the tree (`git status`; ask about unfamiliar uncommitted work). Writes are serial: this run is the only writer. Open the run file `docs/phase-runs/<YYYY-MM-DD>-phase-<N>.md` (create `docs/phase-runs/` if absent) and append every finding the moment it is made: the file survives session death where chat scrollback does not. A phase started on its own (not from `process-plan`) starts the run guard first, as `process-plan` describes, with `--scope phase`, so its heartbeat resumes this phase and never the rest of the plan; one started from `process-plan` already has it.
+Read `todo/README.md` (the format every TODO edit keeps) before the run's first write, then check that no other writer holds the tree (`git status`; ask about unfamiliar uncommitted work). Writes are serial: this run is the only writer. Open the run file `docs/phase-runs/<YYYY-MM-DD>-<lane>-phase-<N>.md`, the lane being the one `python scripts/todo-graph.py query lane` names (create `docs/phase-runs/` if absent) and append every finding the moment it is made: the file survives session death where chat scrollback does not. A phase started on its own (not from `process-plan`) starts the run guard first, as `process-plan` describes, with `--scope phase`, so its heartbeat resumes this phase and never the rest of the plan; one started from `process-plan` already has it.
 
 ```markdown
 # Phase run: <heading>
@@ -30,13 +32,13 @@ Read `todo/README.md` (the format every TODO edit keeps) before the run's first 
 ## Lessons                    (what was learned this run, worth keeping)
 ```
 
-Read the most recent prior run file for this phase, if one exists: anything unresolved there is this run's first input.
+Read the most recent prior run file of this lane for this phase, if one exists: anything unresolved there is this run's first input. A run file without a lane is main's (the records before 2026-10-30); a record of another lane, merged in from its branch, is never resumed.
 
 ## Step 1: repair the phase before running it
 
 1. `python scripts/todo-graph.py validate`: fix every refusal now.
 2. `python scripts/todo-graph.py plan --check`: if stale, `plan --sync`.
-3. For every open row in the phase: `python scripts/todo-graph.py resolve '<ref>'`. Record the exit code. Exit 4 with unmet dependencies outside this phase, or a waiting Need this session cannot satisfy (`owner-decision`, `third-party`, `operator`, or a host that is not reachable), is a leftover, not a stall: leave the row, ship every exit-0 row, and park when only leftovers remain. Exit 1 or 2 means the plan cites a section that does not exist: repair the reference against the TODO files; a broken reference blocks a park.
+3. For every open row of this lane in the phase (`query ready --phase <N>` and `query blocked --phase <N>`): `python scripts/todo-graph.py resolve '<ref>'`. Record the exit code. Exit 4 with unmet dependencies outside this phase or in another lane's rows (the park record names that lane), or a waiting Need this session cannot satisfy (`owner-decision`, `third-party`, `operator`, or a host that is not reachable), is a leftover, not a stall: leave the row, ship every exit-0 row, and park when only leftovers remain. Exit 1 or 2 means the plan cites a section that does not exist: repair the reference against the TODO files; a broken reference blocks a park.
 4. Read each open section's TODO file top to bottom for phase-level staleness only (per-section validation happens again inside `process-todo-section`): work already shipped elsewhere, sections made moot by a later decision, Current state blocks contradicted by the tree. Correct with dated `**Corrected YYYY-MM-DD:**` notes.
 
 ### Step 1b: shipped rows are verified, not trusted
@@ -45,16 +47,16 @@ Read the most recent prior run file for this phase, if one exists: anything unre
 
 ## Step 2: gap-audit the phase for 100% completeness
 
-Read the phase as a user would use it, end to end, against its governing documents (the milestone "Done when" in the project's governing plan, the SPEC sections the phase implements). Ask what is missing for a 100% complete phase: screens, dialogs, controls, settings consumers, refusal/error paths, undo/reverse paths, persistence read-backs, or handoffs between domains nobody specified. Split any coarse umbrella sections into small, single-responsibility sections and expand any summary checkboxes into concrete five-part micro-steps. File each gap with `add-todo` (evidence, owner, dependency) and sync the plan. Never cap planning or silently drop scope. A gap found is a gap filed the same turn.
+Read the phase as a user would use it, end to end, against its governing documents (the milestone "Done when" in the project's governing plan, the SPEC sections the phase implements). Ask what is missing for a 100% complete phase: screens, dialogs, controls, settings consumers, refusal/error paths, undo/reverse paths, persistence read-backs, or handoffs between domains nobody specified. Split any coarse umbrella sections into small, single-responsibility sections and expand any summary checkboxes into concrete five-part micro-steps. File each gap with `add-todo` (evidence, owner, dependency) and sync the plan; a gap in another lane's domains is sent to that lane through the coordinator, never written into its TODO files. Never cap planning or silently drop scope. A gap found is a gap filed the same turn.
 
 ## Step 3: ship the phase, one row at a time
 
-In the generated plan's table order, for each open row: `process-todo-section`, then `review-todo-section`, whose one-pass completion and excellence review comes before its regular rounds and whose verdict every new stamp carries (`stamp --completion '<findings file>:<complete|completed|filed>'`, beside the plan review's `--plan` findings file). Every gap it files becomes a new section through `add-todo` in this phase or the one that owns it. Record each outcome in the run file, with the completion verdict and any sections filed. Commit the section work, then its stamp commit. After the stamp commit is pushed, run `python scripts/merge_prs.py` before claiming the next row: it merges green dependency pull requests (Dependabot, plus any producer the `merge` policy in `.conclave/ci.json` names) only when the tree is clean, `HEAD` is `origin/main` and no section is in progress, one at a time, and leaves any that fails for the operator. Record its last line in the run file when it merged or stopped.
+In the generated plan's table order, for each open row of this lane: `process-todo-section`, then `review-todo-section`, whose one-pass completion and excellence review comes before its regular rounds and whose verdict every new stamp carries (`stamp --completion '<findings file>:<complete|completed|filed>'`, beside the plan review's `--plan` findings file). Every gap it files becomes a new section through `add-todo` in this phase or the one that owns it. Record each outcome in the run file, with the completion verdict and any sections filed. Commit the section work, then its stamp commit. After the stamp commit is pushed, run `python scripts/merge_prs.py` before claiming the next row: it merges green dependency pull requests (Dependabot, plus any producer the `merge` policy in `.conclave/ci.json` names) only when the tree is clean, `HEAD` is `origin/main` and no section is in progress, one at a time, and leaves any that fails for the operator. Record its last line in the run file when it merged or stopped. On a lane other than `main`, `merge_prs.py` is the coordinator's: skip it.
 
-Then check CI, red first: run `python scripts/ci_status.py` (the latest completed run of each watched workflow on main, and whether newer runs are still in progress) before claiming the next row.
+Then check CI, red first: run `python scripts/ci_status.py --branch <the lane's branch>` (`main` on main; the latest completed run of each watched workflow on that branch, and whether newer runs are still in progress) before claiming the next row. On a lane other than `main`, also run `python scripts/ci_status.py` for main: a red main is reported to the coordinator with its run URL and recorded, and never holds the lane.
 
 - Exit 0: no watched workflow is red; carry on.
-- Exit 1 (red): red comes before any new row. Read the failed job's log, bounded (`gh run view <id> --log-failed`, the last 200 lines into scratch). If it is an infrastructure or flaky failure (a runner outage, a network or download failure, or a test the run file already records as flaky), run `gh run rerun <id> --failed` once and record it; a second red on the same commit is a real failure. Otherwise diagnose and fix it at the owning layer: a fix commit with a regression test that fails before it, or a section through `add-todo` when the fix is real scope (that section is then the next row). Never skip, disable or loosen a check, test or workflow to make CI green.
+- Exit 1 (red on the lane's own branch): red comes before any new row. Read the failed job's log, bounded (`gh run view <id> --log-failed`, the last 200 lines into scratch). If it is an infrastructure or flaky failure (a runner outage, a network or download failure, or a test the run file already records as flaky), run `gh run rerun <id> --failed` once and record it; a second red on the same commit is a real failure. Otherwise diagnose and fix it at the owning layer: a fix commit with a regression test that fails before it, or a section through `add-todo` when the fix is real scope (that section is then the next row). Never skip, disable or loosen a check, test or workflow to make CI green.
 - Exit 3 (`gh` missing, unauthenticated or failing): the state is unknown, never green. Record it in the run file and carry on; the next boundary checks again.
 - Record every red in the run file's Sections or Critical events: workflow, commit, run URL, failed jobs, the cause and the outcome (rerun green, fix commit, or the section filed).
 
@@ -69,12 +71,13 @@ Skip rows whose `resolve` is not exit 0 here, and rows whose Needs name a host t
 
 ## Step 4: closeout
 
-When the phase table is all `[x]`: `process-todo-file` on any file the phase exhausted, re-run the full test suite once, confirm `query stats` and the regenerated plan show the phase complete, write the closeout under a `## Closeout run=<run id>` heading in the run file (what shipped, what was repaired, what was learned), commit, and report. A phase started on its own ends its guard before the report: `python scripts/campaign_guard.py end --session $CLAUDE_CODE_SESSION_ID --reason closeout`, `CronDelete` the job it names, confirm with `CronList`, then `cancel-confirmed`. A phase is complete when its table says so and the closeout is written: not before.
+When the lane's share of the phase is all `[x]` (`python scripts/todo-graph.py query stats --phase <N>` reads `verified` equal to `total`; another lane's open rows in the phase do not hold the closeout): `process-todo-file` on any file of this lane the phase exhausted, re-run the full test suite once, confirm `query stats --phase <N>` and the regenerated plan show the lane's share complete, write the closeout under a `## Closeout run=<run id>` heading in the run file (what shipped, what was repaired, what was learned), commit, and report. A phase started on its own ends its guard before the report: `python scripts/campaign_guard.py end --session $CLAUDE_CODE_SESSION_ID --reason closeout`, `CronDelete` the job it names, confirm with `CronList`, then `cancel-confirmed`. The lane's share of a phase is complete when its rows say so and the closeout is written: not before.
 
 ## Guardrails
 
 - Do not invent a side loop that ships rows outside `process-todo-section` plus `review-todo-section`.
 - Do not tick `implementation-plan.md` by hand. It is generated; sync it.
-- Do not claim a phase complete while its table has `[ ]` rows, and do not call a parked phase complete or a stall.
+- Do not claim the lane's share of a phase complete while one of its rows is `[ ]`, and do not call a parked phase complete or a stall.
+- Do not edit another lane's TODO files, source or tests: ask that lane through the coordinator.
 - Do not end the turn on the audit. Ship, park, or close out.
-- Do not claim a new row while `scripts/ci_status.py` reports main red, and never make CI green by skipping, disabling or loosening a check.
+- Do not claim a new row while `scripts/ci_status.py --branch <the lane's branch>` reports red (on main, main's own red), and never make CI green by skipping, disabling or loosening a check.

@@ -1,11 +1,19 @@
 {
   "lanes": {
+    "checks": {
+      "branch": "checks-lane",
+      "worktree": "../isitlegit",
+      "domains": ["D01", "D02", "D04", "D08", "D09"]
+    },
+    "app": {
+      "branch": "app-lane",
+      "worktree": "../isitlegit-app",
+      "domains": ["D05", "D06", "D07"]
+    },
     "glimmer": {
       "branch": "glimmer-screener",
       "worktree": "../isitlegit-glimmer",
-      "files": [
-        "todo/03-vision/TODO-04-glimmer.md"
-      ]
+      "domains": ["D03"]
     }
   }
 }
