@@ -2,12 +2,19 @@ import type React from "react";
 import { interpolate, Series, useCurrentFrame } from "remotion";
 import data from "../../data/loupe-facts.json";
 import { body, c, CARD, Card, CloseScene, Headline, head, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { Voice, voicedFrames, voiceFor } from "../kit/voice";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
 const F = data.facts;
 const v = (k: keyof typeof F) => F[k].value;
 const LABEL = `Loupe 1.0, in preparation: figures as of ${data.asOf}, glimmer ${data.commit.slice(0, 8)}`;
 export const SCENES = [5, 10, 10, 14, 10, 14, 16, 10, 10, 12, 8, 8, 5];
+// Each scene's frames, stretched to its narration clip when media/data/narration/03.json has been voiced.
+const timing = () => {
+  const clips = voiceFor("03", SCENES.length);
+  return { frames: voicedFrames(SCENES, clips), clips };
+};
+export const loupeFrames = () => timing().frames.reduce((a, f) => a + f, 0);
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const n = (s: string) => Number(s.replace(/,/g, ""));
@@ -372,11 +379,13 @@ export const LoupeV1: React.FC = () => {
     <Credits key="cr" />,
     <CloseScene key="x" lines={["github.com/rizonetech/isitlegit", "Loupe 1.0 results follow in its model card"]} />,
   ];
+  const { frames, clips } = timing();
   return (
     <Series>
       {parts.map((part, i) => (
-        <Series.Sequence key={part.key} durationInFrames={SCENES[i] * 30}>
+        <Series.Sequence key={part.key} durationInFrames={frames[i]}>
           {part}
+          <Voice clip={clips?.[i]} />
         </Series.Sequence>
       ))}
     </Series>

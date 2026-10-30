@@ -1,0 +1,59 @@
+{
+  "video": "03",
+  "composition": "LoupeV1",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "title",
+      "text": "Loupe 1.0: training a page screener on Muse Glimmer."
+    },
+    {
+      "scene": "job",
+      "text": "Loupe has one job: is this page a brand lure? A login or payment form, wearing someone else's brand. Loupe answers first, and Muse Spark takes over when it can't."
+    },
+    {
+      "scene": "base model",
+      "text": "The base model is Muse Glimmer on Fireworks AI, with image and text input. We tune it with LoRA, with the vision encoder frozen, through the {fact.serverless}. All of this was read from the provider's model record before any data was built."
+    },
+    {
+      "scene": "data",
+      "text": "The data comes from {fact.accepted} public sets, plus our own renders of popular sites for the benign side. {fact.rejected} other candidates were rejected, mostly for non-commercial or by-request terms. And every file is admitted against its publisher's digest."
+    },
+    {
+      "scene": "collection",
+      "text": "For build 1.0 we read {fact.collection} pages, and admitted {fact.admitted}. Most trusted lures are impersonation, then credential pages, with fake shops and payment pages far behind."
+    },
+    {
+      "scene": "teacher",
+      "text": "A teacher labels the hardest pages first. Muse Spark checked {fact.teacherChecked} South African pages. It agreed on {fact.teacherAgreed} and disputed {fact.teacherDisputed}, and the disputed pages stay out of training and evaluation. That sets the bar: base Muse Spark found {fact.sparkRecall} of confirmed South African lures. Loupe 1.0 has to beat it."
+    },
+    {
+      "scene": "splits",
+      "text": "Nothing crosses the split: no shared page, near-duplicate or brand group between training and evaluation. Here's the catch we hit. Grouping by registrable domain chained dozens of brands on one shared host into a single group of {fact.chainGroup} pages. The fix: a domain carrying more than two brands now names a site by its full host."
+    },
+    {
+      "scene": "builds",
+      "text": "Two builds were refused by their own checks. Build one kept too few sample-derived lures in training, because shared hosts chained brands into giant groups. Build two came up just short of its {fact.evalPages} evaluation pages, because deduplication dropped teacher-agreed twins. The fix: {fact.build2Fix}."
+    },
+    {
+      "scene": "recipe",
+      "text": "The recipe is planned: supervised fine-tuning with a LoRA adapter of rank {fact.loraRank}, streamed through the serverless API, for {fact.epochs} epoch."
+    },
+    {
+      "scene": "gate",
+      "text": "And a version only ships if it's better. It has to train on more lines than the version before, be measured on the same held-out file, and keep lure recall no lower and false alarms no higher, overall and on the South African slice. Otherwise, the previous version stays."
+    },
+    {
+      "scene": "serving",
+      "text": "Serving is planned on {fact.gpu}, scaling to zero when idle. Version names are never reused, and the model card is built only from run records."
+    },
+    {
+      "scene": "credits",
+      "text": "The data comes from these public datasets, each under its own licence. Thank you to everyone who published them."
+    },
+    {
+      "scene": "close",
+      "text": "Loupe 1.0 results follow in its model card. The code is on GitHub, at rizonetech slash IsItLegit."
+    }
+  ]
+}

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Turn a video's narration into per-scene audio with the operator's cloned ElevenLabs voice.
 
-Run on the operator's machine (media/voiceover/README.md). Reads media/data/narration/<video>.json, sends only its
-text to ElevenLabs' text-to-speech with timestamps (POST /v1/text-to-speech/{voice_id}/with-timestamps, from the
-official `elevenlabs` SDK 2.75.0), and writes media/out/voice/<video>/NN.mp3 plus manifest.json with each clip's
-length, every file replaced atomically. A clip whose text, voice and model have not changed is reused, so a re-run
-only pays for edited lines.
+Run on the operator's machine (media/voiceover/README.md). Reads media/data/narration/<video>.json, fills each
+`{fact.key}` from media/data/*-facts.json (a `{stats.x}` is refused: it changes with every commit and would re-bill the
+clip), sends only that text to ElevenLabs' text-to-speech with timestamps
+(POST /v1/text-to-speech/{voice_id}/with-timestamps, from the official `elevenlabs` SDK 2.75.0), and writes media/out/voice/<video>/NN.mp3 plus manifest.json with each clip's
+length and text, every file replaced atomically. A clip whose text, voice and model have not changed since it was made
+for the same scene is reused, so a re-run only pays for edited lines.
 
 The key comes from ELEVENLABS_API_KEY and is never printed or written; the voice from ELEVENLABS_VOICE_ID. Without
 them it prints the setup steps and exits 2. It shows what it will send and asks once before sending (--yes skips the
@@ -19,6 +20,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 import urllib.error
@@ -31,15 +33,41 @@ OUT = MEDIA / "out" / "voice"
 API = "https://api.elevenlabs.io"
 OUTPUT_FORMAT = "mp3_44100_128"
 SETUP = "media/voiceover/README.md, steps 1 to 3"
+REF = re.compile(r"\{(stats|fact)\.([A-Za-z0-9_.]+)\}")
 
 
-def load(video: str) -> dict:
+def facts() -> dict[str, str]:
+    """Every pinned fact's value, from the files tools/check-facts.py proves."""
+    values: dict[str, str] = {}
+    for path in sorted((MEDIA / "data").glob("*-facts.json")):
+        values.update({k: f["value"] for k, f in json.loads(path.read_text())["facts"].items()})
+    return values
+
+
+def resolve(text: str, known: dict[str, str]) -> str:
+    def value(m: re.Match) -> str:
+        kind, key = m.groups()
+        if kind == "stats":
+            raise ValueError(f"names {{stats.{key}}}; narration may name only pinned facts")
+        if key not in known:
+            raise ValueError(f"names unknown fact {key}")
+        return known[key]
+
+    return REF.sub(value, text)
+
+
+def load(video: str) -> tuple[dict, list[str]]:
+    """The narration file and each segment's text, facts filled in."""
     path = NARRATION / f"{video}.json"
     data = json.loads(path.read_text())
     texts = [s.get("text", "").strip() for s in data.get("segments", [])]
     if not texts or not all(texts):
         raise ValueError(f"{path.name}: every segment needs non-empty text")
-    return data
+    known = facts()
+    try:
+        return data, [resolve(t, known) for t in texts]
+    except ValueError as exc:
+        raise ValueError(f"{path.name}: {exc}") from None
 
 
 def digest(text: str, voice: str, model: str) -> str:
@@ -79,20 +107,26 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     try:
-        data = load(args.video)
+        data, segments = load(args.video)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"voiceover: {exc}", file=sys.stderr)
         return 2
     model = data.get("model_id", "eleven_multilingual_v2")
-    segments = [s["text"].strip() for s in data["segments"]]
     out = OUT / args.video
     manifest_path = out / "manifest.json"
     old = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"clips": []}
-    known = {c["digest"]: c for c in old.get("clips", []) if (out / c["file"]).exists()}
+    # Reuse is per scene: a clip is kept only when its own file still holds this text, so inserting or moving a
+    # segment never leaves a scene playing another scene's words.
+    made = {c["file"]: c for c in old.get("clips", []) if (out / c["file"]).exists()}
 
     key = os.environ.get("ELEVENLABS_API_KEY", "")
     voice = os.environ.get("ELEVENLABS_VOICE_ID", "")
-    todo = [i for i, t in enumerate(segments) if digest(t, voice, model) not in known]
+
+    def reusable(i: int, d: str) -> dict | None:
+        clip = made.get(f"{i:02d}.mp3")
+        return clip if clip and clip["digest"] == d else None
+
+    todo = [i for i, t in enumerate(segments) if not reusable(i, digest(t, voice, model))]
     chars = sum(len(segments[i]) for i in todo)
     print(f"voiceover: video {args.video}, {len(segments)} segments, {len(todo)} to generate, {chars} characters")
     print(f"voiceover: model {model}, output {OUTPUT_FORMAT}, to {API}, audio into {out.relative_to(MEDIA.parent)}")
@@ -114,8 +148,9 @@ def main(argv: list[str] | None = None) -> int:
     for i, text in enumerate(segments):
         d = digest(text, voice, model)
         name = f"{i:02d}.mp3"
-        if d in known:
-            clips.append({**known[d], "file": name} if known[d]["file"] == name else known[d])
+        clip = reusable(i, d)
+        if clip:
+            clips.append({**clip, "index": i, "text": text})
             continue
         try:
             audio, seconds = synthesise(key, voice, model, text, segments[i - 1] if i else "", segments[i + 1] if i + 1 < len(segments) else "")
@@ -126,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
             failed += 1
             continue
         replace(out / name, audio)
-        clips.append({"index": i, "file": name, "seconds": round(seconds, 3), "digest": d})
+        clips.append({"index": i, "file": name, "seconds": round(seconds, 3), "digest": d, "text": text})
         print(f"  {i:02d}  {seconds:6.2f} s")
     clips.sort(key=lambda c: c["index"])
     replace(manifest_path, (json.dumps({"video": args.video, "model_id": model, "clips": clips}, indent=2) + "\n").encode())

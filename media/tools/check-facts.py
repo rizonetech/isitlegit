@@ -3,7 +3,8 @@
 
 Each fact names a file and either an exact quote, which must appear in `git show <commit>:<file>` and contain the
 displayed value unless the fact is marked `"label": true`, or a `count` pattern, whose matching lines must number the
-value. Every `{fact.key}` a storyboard in media/data/storyboards/ names must be defined. Exit 0 when everything holds,
+value. Every `{fact.key}` a storyboard in media/data/storyboards/ or a narration file in media/data/narration/ names
+must be defined. Exit 0 when everything holds,
 1 with each failure listed. The render scripts run it first, so a number on screen always has a source.
 """
 
@@ -60,12 +61,12 @@ def main() -> int:
         failures += [f"{path.name}: {f}" for f in check(data)]
         known |= set(data["facts"])
         total += len(data["facts"])
-    failures += unknown_refs(known, sorted((DATA / "storyboards").glob("*.json")))
+    failures += unknown_refs(known, sorted((DATA / "storyboards").glob("*.json")) + sorted((DATA / "narration").glob("*.json")))
     for f in failures:
         print(f"check-facts: {f}", file=sys.stderr)
     if failures:
         return 1
-    print(f"check-facts: {total} facts in {len(files)} files hold, and every storyboard reference resolves")
+    print(f"check-facts: {total} facts in {len(files)} files hold, and every storyboard and narration reference resolves")
     return 0
 
 

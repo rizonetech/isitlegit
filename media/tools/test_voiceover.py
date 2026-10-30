@@ -98,6 +98,33 @@ class VoiceoverTest(unittest.TestCase):
         self.assertIn("segment 00 failed (401)", text)
         self.assertNotIn(KEY, text)
 
+    def test_an_inserted_segment_never_leaves_a_scene_with_another_scenes_audio(self):
+        env = {"ELEVENLABS_API_KEY": KEY, "ELEVENLABS_VOICE_ID": "v1"}
+        with mock.patch.object(vo.urllib.request, "urlopen", side_effect=[reply(1.0), reply(2.0)]):
+            self.run_main(["t", "--yes"], env)
+        (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": "Zero."}, {"text": "One."}, {"text": "Two."}]}))
+        with mock.patch.object(vo.urllib.request, "urlopen", side_effect=[reply(3.0), reply(1.0), reply(2.0)]) as urlopen:
+            code, _ = self.run_main(["t", "--yes"], env)
+        self.assertEqual(code, 0)
+        self.assertEqual([json.loads(c.args[0].data)["text"] for c in urlopen.call_args_list], ["Zero.", "One.", "Two."])
+        manifest = json.loads((self.out / "manifest.json").read_text())
+        self.assertEqual([(c["file"], c["text"]) for c in manifest["clips"]], [("00.mp3", "Zero."), ("01.mp3", "One."), ("02.mp3", "Two.")])
+
+    def test_a_fact_is_filled_before_sending_and_a_stat_is_refused(self):
+        (vo.MEDIA / "data").mkdir()
+        (vo.MEDIA / "data" / "x-facts.json").write_text(json.dumps({"facts": {"pages": {"value": "129,892"}}}))
+        (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": "We read {fact.pages} pages."}]}))
+        env = {"ELEVENLABS_API_KEY": KEY, "ELEVENLABS_VOICE_ID": "v1"}
+        with mock.patch.object(vo.urllib.request, "urlopen", side_effect=[reply(1.0)]) as urlopen:
+            self.assertEqual(self.run_main(["t", "--yes"], env)[0], 0)
+        self.assertEqual(json.loads(urlopen.call_args.args[0].data)["text"], "We read 129,892 pages.")
+        self.assertEqual(json.loads((self.out / "manifest.json").read_text())["clips"][0]["text"], "We read 129,892 pages.")
+        for text in ("{stats.commits} commits.", "{fact.missing} pages."):
+            (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": text}]}))
+            code, out = self.run_main(["t", "--dry-run"], {})
+            self.assertEqual(code, 2, text)
+            self.assertIn("t.json", out)
+
     def test_an_empty_segment_is_refused(self):
         (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": " "}]}))
         code, _ = self.run_main(["t", "--dry-run"], {})

@@ -1,6 +1,6 @@
 # 03 Loupe 1.0: training a page screener
 
-A technical deep dive in about 2 minutes 12 seconds: what Loupe screens, the base model, the data, the teacher, the splits and their leakage controls, the two refused builds, the training recipe, the promotion gate and the serving plan. 1920 × 1080, 30 fps, on-screen text, no voiceover unless the operator records one.
+A technical deep dive in about 2 minutes 12 seconds: what Loupe screens, the base model, the data, the teacher, the splits and their leakage controls, the two refused builds, the training recipe, the promotion gate and the serving plan. 1920 × 1080, 30 fps, on-screen text, narrated in the operator's cloned voice when `data/narration/03.json` has been voiced (silent otherwise).
 
 Loupe 1.0 is not trained yet. Every scene carries the status label "Loupe 1.0, in preparation: figures as of {asOf}, glimmer {commit}", measured figures are shown plain, and planned values carry a "planned" tag. No accuracy, latency or cost result is claimed until one is recorded.
 
@@ -34,5 +34,5 @@ The pilot client's sample mail and anything from it beyond counts, the data stor
 
 - Show the teacher's spend (US$6.91), or keep costs out?
 - Show the 61% Muse Spark recall bar? It is an aggregate over the pilot client's redacted sample lures; only the count and the rate would appear.
-- Text only for now; a voiceover is planned for later, recorded by the operator against the finished cut (operator, 2026-10-30).
+- Narration in the operator's ElevenLabs voice clone, one segment per scene in [data/narration/03.json](../data/narration/03.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
 - Re-render after Loupe 1.0 trains, adding a results scene from the model card?

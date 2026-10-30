@@ -14,7 +14,7 @@ The API details below come from ElevenLabs' official Python SDK (`elevenlabs` 2.
 
 1. Sign in at elevenlabs.io on a plan that includes Instant Voice Cloning (check the current plans; cloning is not on every tier).
 2. Create an API key in the ElevenLabs dashboard. If it offers per-key permissions, allow only text to speech and voices.
-3. Save the key in your password vault as `ElevenLabs API key (IsItLegit voiceover)`.
+3. Save the key in the Conclave vault item `ElevenLabs API key (IsItLegit voiceover)`, field `credential`, and the voice ID (step 3) in its `voice_id` field.
 4. In the terminal you will run the steps from, load it without typing it into a file:
 
 ```bash
@@ -70,7 +70,9 @@ python3 media/tools/voiceover.py 01
 
 It shows what it will send and asks once before sending. Each scene's narration becomes `media/out/voice/01/NN.mp3`, plus `manifest.json` with each clip's length. A clip whose text has not changed is not generated again, so a re-run only pays for edited lines. Repeat for `02` and `03`.
 
-What the script sends: only the narration text from `media/data/narration/`, to `POST /v1/text-to-speech/{voice_id}/with-timestamps` with `model_id` `eleven_multilingual_v2`, `output_format` `mp3_44100_128`, and the neighbouring segments' text as `previous_text` and `next_text` so the clips join smoothly. It never sends repository files, client data or anything else.
+The narration is `media/data/narration/<video>.json`: one segment per sequence (the title, every scene, the close), each labelled with its scene; `test_voice_index.py` keeps the labels in step with the storyboards. A segment may name a pinned `{fact.key}`, filled in before sending; a `{stats.x}` is refused, because it changes with every commit and would re-bill the clip.
+
+What the script sends: only the narration text from `media/data/narration/`, facts filled in, to `POST /v1/text-to-speech/{voice_id}/with-timestamps` with `model_id` `eleven_multilingual_v2`, `output_format` `mp3_44100_128`, and the neighbouring segments' text as `previous_text` and `next_text` so the clips join smoothly. It never sends repository files, client data or anything else.
 
 ## 6. Render with the voice
 
@@ -78,7 +80,7 @@ What the script sends: only the narration text from `media/data/narration/`, to 
 cd media && pnpm install --frozen-lockfile && pnpm render:01
 ```
 
-When `media/out/voice/01/manifest.json` exists, each scene plays its clip and stays on screen until the clip ends; without it, the video renders silent as before. Repeat for `02` and `03`.
+Every render first runs `tools/voice-index.py`, which writes the git-ignored `src/data/voice.ts` from `media/out/voice/<video>/manifest.json`. When a video has a manifest, each scene plays its clip half a second in and stays on screen until the clip has ended; without one, the video renders silent at its reading pace. A manifest that misses a segment, or whose clip says other words than the narration file now does, stops the render and names the `voiceover.py` run that fixes it. Repeat for `02` and `03`.
 
 ## 7. Upload
 
