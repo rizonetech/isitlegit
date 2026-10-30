@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 42 | Checklist items: 271
+Sections: 43 | Checklist items: 275
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -102,6 +102,7 @@ Sections: 42 | Checklist items: 271
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
+| [ ]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 4     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -338,6 +339,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 90/269 verified sections, 46 ready to run now.
+Progress: 90/270 verified sections, 47 ready to run now.
 
-Checklist: 935/1751 items completed (includes Commit items).
+Checklist: 935/1755 items completed (includes Commit items).

@@ -62,6 +62,7 @@ track: day-0
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
+| 24 | §24 | Pre-commit refuses a missing client list | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -832,6 +833,27 @@ Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope the
 - [ ] Commit: `tools: one command for a lane merge through its plan stop`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan` passes, including the one-call stamped merge.
+
+## 24. Pre-commit refuses a missing client list
+
+> **Started:** 2026-10-30T15:30Z
+
+Found 2026-10-30 by the app lane (message to the coordinator) and confirmed by the coordinator: `scripts/hooks/pre-commit` scans the staged tree for client names only `if [ -f samples/client-names.txt ]`, so a worktree without that git-ignored list commits with no scan and no word. The coordinator's worktree `~/isitlegit-main` and the app lane's `~/isitlegit-app`, both made by `git worktree add` (which copies no ignored file), had none; every coordinator commit until 2026-10-30 16:00 SAST went unscanned. `python3 scripts/check-publication.py` over the tree afterwards found no client name in 980 tracked files. `scripts/check-publication.py` already refuses a missing or empty list (exit 2, `scripts/check-publication.py:10`); the hook is the one guard that fails open. Fixed at the hook, not by linking worktrees alone: the link is setup, the refusal is the guard.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Refuse a commit without a client list. Done when: a commit in a clone whose `samples/client-names.txt` is missing, or names no one, is refused with how to provide it, and one with a list still scans as before.
+
+- [ ] Refuse in `scripts/hooks/pre-commit` when `samples/client-names.txt` is missing or holds no non-blank line, naming the fix (in a worktree: `ln -s <main checkout>/samples/client-names.txt samples/client-names.txt`; in a new clone: the operator's list from outside the repository), as `scripts/check-publication.py` refuses (`scripts/check-publication.py:10`). Done when: `tests/scripts/test_pre_commit_hook.py` refuses a commit with the list missing and with a blank-only list, each naming the fix, and the existing name scans still pass. Cheaper substitute: linking the file in each worktree and leaving the hook fail-open, which the next `git worktree add` misses again.
+- [ ] Give the hook test fixtures a client list (`tests/scripts/test_pre_commit_hook.py`, `tests/scripts/test_merge_plan.py`), so they test the guard they mean to. Done when: both suites pass with the refusal in place.
+- [ ] Name the link in the worktree setup in `AGENTS.md` (Parallel lanes: a new lane worktree links `samples/client-names.txt` from the main checkout, as `~/isitlegit-app` and `~/isitlegit-glimmer` do). Done when: `AGENTS.md` names the link step.
+- [ ] Commit: `tools: pre-commit refuses a missing client list`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_commit_hook tests.scripts.test_merge_plan` passes, including a commit refused with the list missing, which passes on the fail-open hook.
 
 ## Verification
 
