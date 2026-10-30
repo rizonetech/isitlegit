@@ -35,7 +35,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Report route with signed-link and session access | D07 T01 §10, D01 T01 §8 | [ ] |
+| 1 | §1 | Report route with signed-link and session access | D07 T01 §10, D01 T01 §8 | [x] |
 | 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [ ] |
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [ ] |
 | 4 | §4 | Live status, partial and failed states | §2 | [ ] |
@@ -80,11 +80,14 @@ track: day-2
 - [x] Add the report's phone back link to Cases per `Report-Mobile` (a link to `/cases` above the report title at phone width, for a signed-in member only; the public frame shows none). Done when: `test/node/report-browser.test.tsx` at 360 and 1280 px in both themes finds the link visible and reached by Tab for a member and absent from the signed-link view, long evidence summaries wrapping without sideways scroll, and the composed page passing axe-core with the A11y gate's rules. **Corrected 2026-10-30 (plan review P2):** markup alone passed a hidden link. (Assigned by D07 T01 §3's plan review, 2026-10-27.)
 > **Deferred:** the report header (subject, sender, who forwarded it and when, Download PDF, Copy link; SPEC M3 anatomy) -> XREF: §9
 - [x] Close the completion review's in-scope gaps: an outage's "Try again" keeps a link holder's signed link; the 410's sentence says the case stays in the organisation's account (a Deviation in `design/SPEC.md` E2: 30 days is the raw files', not the case's); the support reference the 503 shows is the one its log line carries; the tests follow the sign-in return onto the report and `/cases/:id` to its outcome; and a member's phone paints the largest report (100 findings) within 2.5 s, cold and warm, on a throttled profile (4x CPU, 150 ms, 1.6 Mbit/s). Done when: `test/web/report-access.test.ts` (13) and `test/node/report-browser.test.tsx` (8) cover each, the retry losing its link failing the first (measured 2026-10-30: 264 ms cold, 304 ms warm, the page's own paint; the Worker's reads are `test/web`'s). **Added 2026-10-30 (completion review).**
-- [ ] Commit: `web: report route with signed-link and session access`
+- [x] Commit: `web: report route with signed-link and session access`
 
 Evidence 2026-10-30 18:18 SAST. `src/web/pages/report.tsx` (`reportRoutes`: `GET /r/:caseId` in one access order, `GET /cases/:caseId` to it, 404, 410 and 503 drawn with `ErrorState`, private headers), `src/web/pages/report-view.tsx` (`shownState`, the body, `ReportDocument`, kept apart so the browser test renders it with no storage), `src/web/pages/member-shell.ts` (the member frame's data, the first page to need it), mounted in `src/index.ts`; the shell's print classes; `test/node/axe.ts` holds the gate's axe rules for every browser test, `test/node/a11y.test.tsx` now importing it. `pnpm exec vitest run --project worker test/web/report-access.test.ts`: 12 passed (the state map and six stored states, a member's own evidence in order and none of another organisation's, a non-active organisation's membership and its removal, a signed link with no session and with an outsider's, an entitled session with an expired link and the 410's recovery, the sign-in redirect, five refusals as one 404, `/cases/:id`, four injected outages as 503s with their headers, one query each, the headers). `pnpm exec vitest run test/node/report-browser.test.tsx`: 7 passed (axe at 360 and 1280 px in both themes for a member and a link holder, the phone back link by keyboard and its absence, print of a 40-finding report in both themes with no navigation and nothing cut). Mutations caught: the sidebar printing, any member's session opening any case, a partial case with no verdict drawn as if it had one. With them: typecheck, lint, `pnpm test:a11y` 14 passed, the gallery, shell, colour and stylesheet tests, and `test/web/` with `test/auth/` (16 files, 234 passed).
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-browser.test.tsx` passes and fails if another organisation's member can open the case.
+
+> **Verified:** 2026-10-30 | §1 | f82e543db13d4b1a78134ddf023c963994b92cf7
+> **Review:** `docs/reviews/d07-t03-s1.json`
 
 ## 2. Verdict banner, headline, reasons and actions
 
