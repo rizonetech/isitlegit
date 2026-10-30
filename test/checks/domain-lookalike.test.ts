@@ -44,6 +44,7 @@ function view(
     brands,
     senderHistory: null,
     domainAges: null,
+    attachmentHeads: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

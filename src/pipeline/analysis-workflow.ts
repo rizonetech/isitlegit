@@ -7,6 +7,7 @@ import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecks } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
+import { attachmentHeadsOf } from "../checks/sniff";
 import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
 import {
   type CaseResult,
@@ -397,6 +398,8 @@ export async function checks(
     senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,
+    // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
+    attachmentHeads: read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null,
   };
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };

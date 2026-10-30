@@ -76,6 +76,9 @@ export type CaseView = {
   // The registration dates of the case's header domains from RDAP (D02 T03 §4), read by the checks step; null when not
   // read.
   domainAges: DomainAges | null;
+  // The first bytes (SNIFF_BYTES, base64) of up to MAX_SNIFFED attachments, read from R2 by the checks step for the
+  // type-mismatch check (D02 T04 §1); `unread` counts those not read. Null when not read.
+  attachmentHeads: { heads: { key: string; head: string }[]; unread: number } | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -101,6 +104,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       brands,
       senderHistory: null,
       domainAges: null,
+      attachmentHeads: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -119,6 +123,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       brands,
       senderHistory: null,
       domainAges: null,
+      attachmentHeads: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

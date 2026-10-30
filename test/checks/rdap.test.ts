@@ -226,6 +226,7 @@ function view(domainAges: DomainAges | null): CaseView {
     } as unknown as CaseView["brands"],
     senderHistory: null,
     domainAges,
+    attachmentHeads: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers: [],
     text: null,

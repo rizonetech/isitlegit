@@ -33,6 +33,7 @@ function view(headers: { name: string; value: string }[], receivers: Receiver[] 
     brands: bundled,
     senderHistory: null,
     domainAges: null,
+    attachmentHeads: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,
