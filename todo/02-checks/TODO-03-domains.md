@@ -39,6 +39,7 @@ track: day-2
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
+| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -74,6 +75,10 @@ UTS #39 defines a "skeleton" that maps visually confusable characters to one pro
 
 For every domain in the case, compare its registrable label with the organisation's verified domains, its suppliers' domains (when the ledger exists) and the brand table. A lookalike of a domain the organisation trusts is high; of a brand, medium; an exact match is never a lookalike.
 
+> **Started:** 2026-10-30T18:11Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) the case's domains here are the header domains, read only with the original's own headers (`headersAvailable`): the From's single mailbox (`fromDomain` in `src/checks/auth.ts`), every Reply-To mailbox and the topmost Return-Path; link and landing hosts have no extractor yet (URL extraction is D02 T07 §1 and landing pages §3, both Phase 3), so they are filed as §7, which runs this check over them; (2) checks are pure (`src/checks/registry.ts`), so the targets reach the view: `Tenant.trusted` carries the organisation's verified domains (`org_domains`, state `verified`) and its suppliers' domains, both read by the Workflow's `checks` step; suppliers come through `listSupplierDomains(db, orgId)` in `src/checks/suppliers.ts`, an empty list until the ledger (D06 T01 §2, the app lane's, Phase 5) fills it, asked of the app lane through the coordinator; (3) domains are compared as registrable domains (`tldts`, ICANN suffixes), their label the registrable domain without its suffix; a domain whose registrable domain is a target's, the organisation's own, or a brand's own is never a lookalike; (4) techniques, strongest first: `skeleton` (the labels differ but share a UTS #39 skeleton, `labelSkeleton`), `different-tld` (the same label under another suffix), `added-word` (`addedWords`), `edit` (distance 1 or 2, both labels at least 6 characters); a label with a right-to-left character has no skeleton and is not compared (§6 owns it); (5) one item per lookalike domain, its strongest match (the organisation's own or a supplier before a brand), citing the header fields it was read from and the raw message, its summary and detail bounded as §2 of D02 T02 does (`item` in `src/checks/sender.ts`'s manner): `detail.domain`, `detail.target`, `detail.targetKind` (`own`, `supplier` or `brand`), `detail.technique`, `detail.fields`.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -82,10 +87,10 @@ For every domain in the case, compare its registrable label with the organisatio
 
 1. Register check `domain.lookalike`. Done when: the synthetic lookalike fixtures yield items naming the technique and the target.
 
-- [ ] Collect case domains (From, Reply-To, Return-Path, link hosts, landing hosts) as registrable domains with `tldts`. Done when: `test/checks/domain-lookalike.test.ts` lists them for a fixture.
-- [ ] Compare each with targets: skeleton equal, distance 1 or 2 on labels of 6 or more characters, or added words; skip exact matches and the organisation's own domains. Done when: the four synthetic lookalikes are found and `example.com` vs `example.org` is reported as a different TLD, not a lookalike, unless the brand table lists it.
+- [ ] Collect the case's header domains (From, Reply-To, Return-Path) as registrable domains with `tldts`, each with the fields it came from (correction 1). Done when: `test/checks/domain-lookalike.test.ts` lists them for a fixture, and none for an inline forward or a headerless upload. (**Corrected 2026-10-30**, at start.)
+- [ ] Compare each with the targets by the techniques of correction 4, skipping exact matches, the organisation's own domains and a brand's own. Done when: the four synthetic lookalikes (skeleton, different suffix, added word, edit) are found with their technique, `example.com` against `example.org` is `different-tld` unless the brand table lists both, and an exact match is never flagged. (**Corrected 2026-10-30**, at start.)
 - [ ] Set severity high for the organisation's own and supplier domains, medium for brands, with `detail.technique` and `detail.target`. Done when: the test checks severities.
-- [ ] Read suppliers through `listSupplierDomains(orgId)` returning an empty list until D06 T01 §2 provides the ledger. Done when: the check runs with and without suppliers. Cheaper substitute: none.
+- [ ] Fill `Tenant.trusted` in the Workflow's `checks` step: the verified `org_domains` and `listSupplierDomains(db, orgId)` from `src/checks/suppliers.ts`, an empty list until D06 T01 §2 provides the ledger (correction 2). Done when: the check runs with and without suppliers, and a Workflow read-back test stores a lookalike of the organisation's verified domain as high. Cheaper substitute: none. (**Corrected 2026-10-30**, at start.)
 - [ ] Commit: `checks: lookalike domains against own, supplier and brand domains`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes and fails if an exact match is flagged.
@@ -182,6 +187,23 @@ The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have 
 - [ ] Commit: `checks: right-to-left labels compared by display order`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts` passes, including the BidiCharacterTest.txt cases.
+
+## 7. Lookalike check on link and landing hosts
+
+Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header domains, since nothing extracts a message's links yet. Once URL extraction (D02 T07 §1) and landing pages (D02 T07 §3) exist, every link host and landing host goes through the same comparison, so a lookalike in a link is found as one in a From is.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Run the lookalike comparison over link and landing hosts. Done when: a lookalike in a link or behind a redirect is an item naming the host, the target and the technique.
+
+- [ ] Feed the hosts D02 T07 §1 extracts and D02 T07 §3 lands on into `domain.lookalike` (`src/checks/domain-lookalike.ts`), each with where it was found. Done when: `test/checks/domain-lookalike.test.ts` finds a lookalike link host and a lookalike landing host, and a link to the organisation's own domain is never flagged.
+- [ ] Commit: `checks: lookalike link and landing hosts`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes.
 
 ## Verification
 
