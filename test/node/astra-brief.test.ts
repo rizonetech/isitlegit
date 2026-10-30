@@ -98,6 +98,29 @@ describe("Astra's collection brief", () => {
   });
 });
 
+describe("the second brief, for Loupe 1.1 (D03 T04 §27)", () => {
+  const brief = readFileSync(join(import.meta.dirname, "../../docs/glimmer/astra-collection-brief-2.md"), "utf-8");
+  const sources = readFileSync(join(import.meta.dirname, "../../docs/glimmer/sources.md"), "utf-8");
+  const decided = (text: string) => {
+    const start = text.indexOf("## Already decided: do not research again");
+    return text.slice(start, text.indexOf("\n## ", start + 1));
+  };
+  it("names every source docs/glimmer/sources.md has decided, so none is researched twice", () => {
+    const codes = [...sources.matchAll(/^\| `([a-z0-9-]+)`/gm)].map((m) => m[1] as string);
+    expect(codes.length).toBeGreaterThan(50);
+    for (const code of codes) expect(decided(brief)).toContain(`\`${code}\``);
+    // Caught missing one.
+    const first = codes[0] as string;
+    expect(decided(brief.replace(`\`${first}\``, ""))).not.toContain(`\`${first}\``);
+  });
+
+  it("keeps 1.1 apart from the frozen 1.0, and keeps the commercial licence rule", () => {
+    expect(brief).toMatch(/nothing this sweep brings reaches Loupe 1\.0/);
+    expect(brief).toMatch(/training a model in a commercial product/);
+    expect(brief).toMatch(/research-only, non-commercial/);
+  });
+});
+
 // docs/glimmer/astra-collection-brief-2.md (D03 T04 §18) downloads the same way (D03 T04 §16): its recovery rules are
 // the first brief's, and it resumes only its own sweep's folders.
 const BRIEF_2 = readFileSync(join(import.meta.dirname, "../../docs/glimmer/astra-collection-brief-2.md"), "utf-8");
