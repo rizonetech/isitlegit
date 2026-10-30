@@ -1,12 +1,13 @@
 import type React from "react";
-import { Sequence, Series } from "remotion";
-import { Backdrop, CloseScene, TitleScene } from "../brand";
+import { Series } from "remotion";
+import { Backdrop, CloseScene, MetaBadge, TitleScene } from "../brand";
 import { DURATION as INTRO, LogoReveal } from "../videos/LogoReveal";
+import { ColdOpen, coldOpenFrames, hookFor } from "./coldopen";
 import { CREDITS, Credits } from "./credits";
 import { RenderScene, type SceneSpec } from "./scenes";
 import { fill, words } from "./text";
 import { MusicBed, Sfx } from "./sound";
-import { Voice, voicedFrames, voiceFor } from "./voice";
+import { Voice, voicedFrames, voiceFor, voiceSpans } from "./voice";
 
 export type StoryboardSpec = {
   id: string;
@@ -14,6 +15,8 @@ export type StoryboardSpec = {
   sub: string;
   label: string;
   close: string[];
+  // Indexes into `scenes` for the cold open's cuts, in order.
+  coldOpen?: number[];
   scenes: SceneSpec[];
 };
 
@@ -51,18 +54,30 @@ const sequenceFrames = (b: StoryboardSpec, video: string) => {
   return { frames: voicedFrames(seconds, clips), clips };
 };
 
-// The dark logo animation opens the video and the credits close it, around the voiced sequences.
-export const storyboardFrames = (b: StoryboardSpec, video: string) => INTRO + sequenceFrames(b, video).frames.reduce((a, f) => a + f, 0) + CREDITS;
+// The cold open (when its hook is voiced) and the dark logo animation open the video and the credits close it, around
+// the voiced sequences.
+export const storyboardFrames = (b: StoryboardSpec, video: string) =>
+  coldOpenFrames(hookFor(video)) + INTRO + sequenceFrames(b, video).frames.reduce((a, f) => a + f, 0) + CREDITS;
 
 export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({ board, video }) => {
   const chapters = board.scenes.filter((s) => s.type === "chapter").length;
   const { frames, clips } = sequenceFrames(board, video);
   const last = frames.length - 1;
   const voiced = frames.reduce((a, f) => a + f, 0);
+  const label = fill(board.label);
+  const hook = hookFor(video);
+  const cold = coldOpenFrames(hook);
+  // The music runs from the first frame and stays level through the logo, so it never fights the logo's own sound.
+  const quiet: [number, number][] = [...(hook ? voiceSpans([cold], [hook]) : []), [cold, cold + INTRO], ...voiceSpans(frames, clips, cold + INTRO)];
   return (
     <>
       <Backdrop />
       <Series>
+        {hook ? (
+          <Series.Sequence durationInFrames={cold}>
+            <ColdOpen clip={hook} cuts={(board.coldOpen ?? []).map((i) => <RenderScene key={i} s={board.scenes[i]} chapters={chapters} label={label} />)} />
+          </Series.Sequence>
+        ) : null}
         <Series.Sequence durationInFrames={INTRO}>
           <LogoReveal theme="dark" />
         </Series.Sequence>
@@ -73,7 +88,8 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
         </Series.Sequence>
         {board.scenes.map((s, i) => (
           <Series.Sequence key={`${i}-${s.title}`} durationInFrames={frames[i + 1]}>
-            <RenderScene s={s} chapters={chapters} label={fill(board.label)} />
+            <RenderScene s={s} chapters={chapters} label={label} />
+            {s.meta ? <MetaBadge text={s.meta} /> : null}
             {s.type === "chapter" ? <Sfx name="whoosh" /> : null}
             <Voice clip={clips?.[i + 1]} />
           </Series.Sequence>
@@ -86,9 +102,7 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
           <Credits />
         </Series.Sequence>
       </Series>
-      <Sequence from={INTRO} layout="none">
-        <MusicBed name="bed" frames={voiced + CREDITS} />
-      </Sequence>
+      <MusicBed name="bed" frames={cold + INTRO + voiced + CREDITS} voice={quiet} />
     </>
   );
 };

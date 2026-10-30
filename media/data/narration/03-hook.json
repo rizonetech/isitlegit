@@ -1,0 +1,11 @@
+{
+  "video": "03-hook",
+  "composition": "cold open",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "cold open",
+      "text": "Can a small, fine-tuned model spot a fake login page as well as a big one, for a fraction of the cost? We're training one to find out. This is Loupe."
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "$comment": "Every figure video 02 shows, pinned to the commit below; proven by media/tools/check-facts.py. shipped means in src/ at that commit; planned means designed, not built.",
-  "commit": "ca9a927901a634c97c2411b13c06930415cc98e8",
-  "asOf": "30 Oct 2026",
+  "commit": "295572f0f8823a5ab1b457e68624cb0eb6a64972",
+  "asOf": "31 Oct 2026",
   "facts": {
     "intakeAddress": {
       "value": "check@isitlegit.co.za",

@@ -1,0 +1,11 @@
+{
+  "video": "01-hook",
+  "composition": "cold open",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "cold open",
+      "text": "One person. A team of AI developers that never sleeps. And a rulebook that won't let any of them cut a corner. This is how IsItLegit gets built."
+    }
+  ]
+}

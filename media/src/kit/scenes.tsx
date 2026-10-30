@@ -7,7 +7,7 @@ import { fill } from "./text";
 // The scene types a storyboard (media/data/storyboards/*.json) is written in. Every string passes through fill(), so
 // a figure is named ({stats.x}, {fact.y}) rather than typed.
 export type Step = { title: string; sub?: string };
-export type SceneSpec =
+export type SceneSpec = (
   | { type: "chapter"; number: number; title: string; sub?: string; seconds?: number }
   | { type: "bullets"; title: string; sub?: string; items: string[]; seconds?: number }
   | { type: "table"; title: string; sub?: string; columns: string[]; rows: string[][]; seconds?: number }
@@ -16,7 +16,11 @@ export type SceneSpec =
   | { type: "stats"; title: string; sub?: string; items: { value: string; label: string }[]; note?: string; seconds?: number }
   | { type: "chart"; title: string; sub?: string; data: "domains" | "days" | "hours"; note?: string; seconds?: number }
   | { type: "lanes"; title: string; sub?: string; lanes: { name: string; branch: string; owns: string; role: string }[]; seconds?: number }
-  | { type: "callout"; title: string; text: string; seconds?: number };
+  | { type: "callout"; title: string; text: string; seconds?: number }
+) & {
+  // Names the Meta model that does this scene's work; shows the MetaBadge.
+  meta?: string;
+};
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const stagger = (frame: number, i: number, from = 24, gap = 14) => interpolate(frame, [from + i * gap, from + 14 + i * gap], [0, 1], clamp);

@@ -4,6 +4,7 @@
   "sub": "A technical deep dive: intake, the pipeline, the checks, Meta's models, the verdict, the trust network, storage and the app.",
   "label": "Technical deep dive: built state as of {stats.date}, commit {stats.commit}",
   "close": ["github.com/rizonetech/isitlegit", "Every figure is quoted from the repository at commit {stats.commit}"],
+  "coldOpen": [2, 12, 22, 25],
   "scenes": [
     { "type": "chapter", "number": 1, "title": "What it does", "sub": "Forward a suspicious email. Get a verdict with the evidence." },
     {
@@ -142,6 +143,7 @@
     {
       "type": "flow",
       "title": "A contained walkthrough",
+      "meta": "Muse Wonder",
       "steps": [
         { "title": "Expand", "sub": "follow redirects in {fact.browserRun}" },
         { "title": "Screenshot", "sub": "every landing page" },
@@ -165,6 +167,7 @@
     {
       "type": "bullets",
       "title": "Seeing what the user sees",
+      "meta": "Muse Spark and SAM 3.1",
       "items": [
         "Muse Spark ({fact.sparkModel}) reads rendered emails, PDFs and screenshots with JSON-schema output: claimed brand, requested action, urgency.",
         "{fact.samUse}: crops go back to Spark beside the registered logo for a same or different call.",
@@ -178,6 +181,7 @@
     {
       "type": "table",
       "title": "Meta's models, each with one job",
+      "meta": "Muse Spark, Muse Wonder, SAM 3.1, Muse Image",
       "columns": ["Model", "Job in IsItLegit"],
       "rows": [
         ["{fact.sparkModel}", "Reads the mail and evidence, writes the cited verdict, screens lookalike sites"],
@@ -191,6 +195,7 @@
     {
       "type": "bullets",
       "title": "One client, strict rules",
+      "meta": "Meta Model API",
       "items": [
         "Every call goes through AI Gateway {fact.gatewayName}, authenticated, logging metadata only, logs kept {fact.gatewayRetention}.",
         "{fact.storeFalse} is forced on every Responses call, and {fact.standardOnly}, never contributor ones.",
@@ -205,6 +210,7 @@
     {
       "type": "code",
       "title": "Muse Spark with tools, and a strict output",
+      "meta": "Muse Spark",
       "sub": "The agent reads the evidence summary, never raw HTML.",
       "lines": [
         "# tools, each validated with zod before it runs",
@@ -255,6 +261,7 @@
     {
       "type": "flow",
       "title": "The impersonation monitor",
+      "meta": "Loupe on Muse Glimmer",
       "steps": [
         { "title": "Generate", "sub": "lookalike domains of each registered business" },
         { "title": "Screen", "sub": "candidate pages with Loupe; Spark on failover" },

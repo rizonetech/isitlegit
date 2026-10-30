@@ -1,7 +1,7 @@
 {
   "$comment": "Every figure video 01 shows, pinned to the commit below; proven by media/tools/check-facts.py. No model identifier of the writer, no client data, no account or vault names.",
-  "commit": "ca9a927901a634c97c2411b13c06930415cc98e8",
-  "asOf": "30 Oct 2026",
+  "commit": "295572f0f8823a5ab1b457e68624cb0eb6a64972",
+  "asOf": "31 Oct 2026",
   "facts": {
     "track": {
       "value": "Startup track",
@@ -199,10 +199,10 @@
       "quote": "the coordinator sweeps `/tmp` of test leftovers older than an hour and reports what it removed"
     },
     "nextMig": {
-      "value": "0040",
+      "value": "0041",
       "status": "measured",
       "source": "docs/coordinator.md",
-      "quote": "The next free number is 0040."
+      "quote": "The next free number is 0041."
     },
     "stallBreaker": {
       "value": "3 blocks",

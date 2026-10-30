@@ -105,6 +105,39 @@ export const Scene: React.FC<{ children: React.ReactNode; label?: string; center
   );
 };
 
+/**
+ * The marker on scenes where one of Meta's models does the work (operator, 2026-10-31), so a judge skimming any frame
+ * sees where Meta's tooling sits: top right, an orange dot and the model's name.
+ */
+export const MetaBadge: React.FC<{ text: string }> = ({ text }) => {
+  const p = useIn(18, 20);
+  return (
+    <div
+      style={{
+        ...body,
+        position: "absolute",
+        right: 60,
+        top: 48,
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        fontSize: 24,
+        fontWeight: 600,
+        color: c.ink,
+        background: `${CARD}cc`,
+        border: `2px solid ${c.orange}`,
+        borderRadius: 999,
+        padding: "8px 22px",
+        opacity: p,
+        transform: `translateY(${(1 - p) * -10}px)`,
+      }}
+    >
+      <div style={{ width: 12, height: 12, borderRadius: 6, background: c.orange }} />
+      Meta AI: {text}
+    </div>
+  );
+};
+
 /** The corner label that says what kind of video this is, on every scene but the title. */
 export const Label: React.FC<{ text: string }> = ({ text }) => (
   <div

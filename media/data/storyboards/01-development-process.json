@@ -4,6 +4,7 @@
   "sub": "One operator, five AI lanes, a team that never sleeps. Our development process, not a product feature.",
   "label": "Our development process, not a product feature",
   "close": ["github.com/rizonetech/isitlegit", "Figures read from the repository on {stats.date}, commit {stats.commit}"],
+  "coldOpen": [16, 26, 30, 35],
   "scenes": [
     { "type": "chapter", "number": 1, "title": "The idea", "sub": "One operator directing a team of AI developers that works around the clock." },
     {
@@ -263,6 +264,7 @@
     {
       "type": "table",
       "title": "Who writes, who reviews",
+      "meta": "Muse Wonder",
       "sub": "Pinned in .conclave/reviewers.toml.",
       "columns": ["Role", "Who", "How"],
       "rows": [
@@ -310,6 +312,7 @@
     {
       "type": "callout",
       "title": "A real final review finding, docs/reviews/01-intake/D01-T01-s2.md",
+      "meta": "Muse Wonder",
       "text": "The expired-object restore path can desynchronise R2, D1 and the returned media type, breaking the invariant this section was closed on."
     },
 

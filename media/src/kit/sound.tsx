@@ -22,7 +22,17 @@ const sound = (name: string) => {
 
 const ramp = (x: number, over: number) => Math.min(1, Math.max(0, x / over));
 
-export const MusicBed: React.FC<{ name: string; frames: number }> = ({ name, frames }) => {
+// The bed rises 6 dB where the narration has been silent for over a second (a held scene, the credits) and settles
+// back under the voice before it speaks again; the short breaths between scenes stay level, so it never pumps.
+const SWELL = db(6) - 1;
+const QUIET = 1 * FPS;
+const swell = (f: number, voice: [number, number][]) => {
+  let gap = Number.POSITIVE_INFINITY;
+  for (const [a, b] of voice) gap = Math.min(gap, f < a ? a - f : f > b ? f - b : 0);
+  return 1 + SWELL * ramp(gap - QUIET, QUIET);
+};
+
+export const MusicBed: React.FC<{ name: string; frames: number; voice?: [number, number][] }> = ({ name, frames, voice = [] }) => {
   const bed = sound(name);
   if (!bed) return null;
   const length = Math.floor(bed.seconds * FPS);
@@ -40,6 +50,7 @@ export const MusicBed: React.FC<{ name: string; frames: number }> = ({ name, fra
               volume={(f) =>
                 MUSIC *
                 bed.gain *
+                swell(start + f, voice) *
                 Math.min(
                   k === 0 ? ramp(f, FADE_IN) : ramp(f, CROSSFADE),
                   start + duration < frames ? ramp(duration - f, CROSSFADE) : 1,

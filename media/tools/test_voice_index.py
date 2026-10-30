@@ -70,6 +70,11 @@ class VoiceIndexTest(unittest.TestCase):
         self.assertIn('"01": [{ src: v01_00, seconds: 1.25, gain: 1.9953 }, { src: v01_01, seconds: 2.5, gain: 1.9953 }],', ts)
         self.assertNotIn('"02"', ts)
 
+    def test_a_video_name_with_a_dash_imports_as_a_valid_identifier(self):
+        ts = vi.module({"01-hook": [{"index": 0, "file": "00.mp3", "seconds": 9.5, "gain": 1.0}]}, {})
+        self.assertIn('import v01_hook_00 from "../../out/voice/01-hook/00.mp3";', ts)
+        self.assertIn('"01-hook": [{ src: v01_hook_00, seconds: 9.5, gain: 1.0 }],', ts)
+
     def test_each_file_is_measured_once_until_its_content_changes(self):
         self.voice("01", [{"index": 0, "file": "00.mp3", "seconds": 1.0, "text": "One."}, {"index": 1, "file": "01.mp3", "seconds": 1.0, "text": "Two."}])
         self.run_main()

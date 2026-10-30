@@ -1,0 +1,11 @@
+{
+  "video": "02-hook",
+  "composition": "cold open",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "cold open",
+      "text": "A real supplier's invoice, with one quietly changed bank account. It's the costliest scam in business email. This is how IsItLegit is built to catch it."
+    }
+  ]
+}

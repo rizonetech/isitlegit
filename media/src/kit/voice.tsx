@@ -23,6 +23,18 @@ export const voiceFor = (video: string, sequences: number): Clip[] | null => {
 export const voicedFrames = (seconds: number[], clips: Clip[] | null): number[] =>
   seconds.map((s, i) => Math.max(s * FPS, clips ? Math.ceil((LEAD + clips[i].seconds + TAIL) * FPS) : 0));
 
+// Where the narration speaks, as [start, end] frames from `offset`, for sequences laid end to end: the music
+// rises in the gaps (src/kit/sound.tsx).
+export const voiceSpans = (frames: number[], clips: Clip[] | null, offset = 0): [number, number][] => {
+  if (!clips) return [];
+  let t = offset;
+  return frames.map((f, i) => {
+    const start = t + Math.round(LEAD * FPS);
+    t += f;
+    return [start, start + Math.ceil(clips[i].seconds * FPS)];
+  });
+};
+
 export const Voice: React.FC<{ clip?: Clip }> = ({ clip }) =>
   clip ? (
     <Sequence from={Math.round(LEAD * FPS)} layout="none">

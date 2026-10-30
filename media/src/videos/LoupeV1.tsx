@@ -1,10 +1,11 @@
 import type React from "react";
-import { interpolate, Sequence, Series, useCurrentFrame } from "remotion";
+import { interpolate, Series, useCurrentFrame } from "remotion";
 import data from "../../data/loupe-facts.json";
-import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, MetaBadge, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { ColdOpen, coldOpenFrames, hookFor } from "../kit/coldopen";
 import { CREDITS as END_CREDITS, Credits as EndCredits } from "../kit/credits";
 import { MusicBed, Sfx } from "../kit/sound";
-import { Voice, voicedFrames, voiceFor } from "../kit/voice";
+import { Voice, voicedFrames, voiceFor, voiceSpans } from "../kit/voice";
 import { DURATION as INTRO, LogoReveal } from "./LogoReveal";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
@@ -18,7 +19,10 @@ const timing = () => {
   return { frames: voicedFrames(SCENES, clips), clips };
 };
 // The dark logo animation opens the video and the credits close it, around the voiced scenes.
-export const loupeFrames = () => INTRO + timing().frames.reduce((a, f) => a + f, 0) + END_CREDITS;
+export const loupeFrames = () => coldOpenFrames(hookFor("03")) + INTRO + timing().frames.reduce((a, f) => a + f, 0) + END_CREDITS;
+// The cold open's cuts (indexes into the scene list below) and the scenes where a Meta model does the work.
+const COLD_OPEN = [1, 4, 5, 6];
+const META: Record<number, string> = { 1: "Loupe on Muse Glimmer, Muse Spark failover", 2: "Muse Glimmer 30B", 5: "Muse Spark as teacher" };
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const n = (s: string) => Number(s.replace(/,/g, ""));
@@ -386,16 +390,26 @@ export const LoupeV1: React.FC = () => {
   const { frames, clips } = timing();
   const last = parts.length - 1;
   const voiced = frames.reduce((a, f) => a + f, 0);
+  const hook = hookFor("03");
+  const cold = coldOpenFrames(hook);
+  // The music runs from the first frame and stays level through the logo, so it never fights the logo's own sound.
+  const quiet: [number, number][] = [...(hook ? voiceSpans([cold], [hook]) : []), [cold, cold + INTRO], ...voiceSpans(frames, clips, cold + INTRO)];
   return (
     <>
       <Backdrop />
       <Series>
+        {hook ? (
+          <Series.Sequence durationInFrames={cold}>
+            <ColdOpen clip={hook} cuts={COLD_OPEN.map((i) => parts[i])} />
+          </Series.Sequence>
+        ) : null}
         <Series.Sequence durationInFrames={INTRO}>
           <LogoReveal theme="dark" />
         </Series.Sequence>
         {parts.map((part, i) => (
           <Series.Sequence key={part.key} durationInFrames={frames[i]}>
             {part}
+            {META[i] ? <MetaBadge text={META[i]} /> : null}
             {i === 0 ? <Sfx name="swell" /> : i < last ? <Sfx name="whoosh" /> : null}
             <Voice clip={clips?.[i]} />
           </Series.Sequence>
@@ -404,9 +418,7 @@ export const LoupeV1: React.FC = () => {
           <EndCredits />
         </Series.Sequence>
       </Series>
-      <Sequence from={INTRO} layout="none">
-        <MusicBed name="bed" frames={voiced + END_CREDITS} />
-      </Sequence>
+      <MusicBed name="bed" frames={cold + INTRO + voiced + END_CREDITS} voice={quiet} />
     </>
   );
 };
