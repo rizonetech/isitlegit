@@ -22,7 +22,7 @@ export const EMAIL_ROUTING_AUTHSERV_ID = "mx.cloudflare.net";
 // Headers end at the first empty line; a header block longer than this is not a mail anyone sends us.
 const MAX_HEADER_BYTES = 256 * 1024;
 
-type Result = { method: string; result: string; props: Map<string, string> };
+export type Result = { method: string; result: string; props: Map<string, string> };
 
 export async function senderAuthenticated(
   raw: Uint8Array,
@@ -118,10 +118,15 @@ function singleFromMailbox(headers: { name: string; value: string }[]): string {
 
 // RFC 8601 section 2.2: `authserv-id [version] *( ";" resinfo )`, each resinfo `method[/version]=result` then
 // `reason=...` and `ptype.property=value` pairs; comments in parentheses are ignored and values may be quoted.
-export function parseAuthenticationResults(value: string): { authservId: string; results: Result[] } | null {
+// Microsoft 365 writes no authserv-id (`spf=pass (...) smtp.mailfrom=contoso.com; dkim=...; compauth=pass reason=100`,
+// Microsoft Learn's "Anti-spam message headers"): a first part that is itself a result gives `authservId: null` and is
+// read as a result (D02 T02 §1). The intake's own check needs Email Routing's authserv-id, so it refuses such a header.
+export function parseAuthenticationResults(value: string): { authservId: string | null; results: Result[] } | null {
   const parts = splitOutsideQuotes(tightenSeparators(stripComments(value)), ";").map((p) => p.trim());
-  const authservId = parts.shift()?.split(/\s+/)[0]?.toLowerCase();
-  if (!authservId) return null;
+  const first = parts[0]?.split(/\s+/)[0] ?? "";
+  if (!first) return null;
+  const authservId = first.indexOf("=") > 0 ? null : first.toLowerCase();
+  if (authservId !== null) parts.shift();
   const results: Result[] = [];
   for (const part of parts) {
     const tokens = splitOutsideQuotes(part.replace(/\s/g, " "), " ")

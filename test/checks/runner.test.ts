@@ -32,7 +32,11 @@ async function viewOf(message: Uint8Array): Promise<CaseView> {
   await storeParsed(store, caseId, await parseMessage(forward.original), forward);
   const read = await readArtefact(store, caseId, parsedKey(caseId));
   if (!read || !("body" in read)) throw new Error("no summary");
-  return caseViewOf(JSON.parse(new TextDecoder().decode(read.body)), { orgId: "org-runner", channel: "email" });
+  return caseViewOf(JSON.parse(new TextDecoder().decode(read.body)), {
+    orgId: "org-runner",
+    channel: "email",
+    receivers: [],
+  });
 }
 const said = (check: string, n = 1): EvidenceDraft => ({
   check,
@@ -209,7 +213,7 @@ describe("round 1 (2026-10-29): evidence too large to store", () => {
     expect(view.truncated[0]?.charset).toBeNull();
     const caseId = await newCase();
     const saved = await saveEvidence(db, caseId, await runChecks(view));
-    expect(saved.map((e) => e.check)).toEqual(["intake.forward", "intake.truncated"]);
+    expect(saved.map((e) => e.check)).toEqual(["intake.forward", "intake.truncated", "auth.results"]);
   });
 });
 

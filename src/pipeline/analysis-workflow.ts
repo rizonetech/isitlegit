@@ -1,5 +1,6 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { runChecks } from "../checks/runner";
@@ -330,10 +331,19 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
 // Every registered check run against the case view built from the summary (D02 T01 §2), the list stored in D1 in one
 // replacing batch, so a retried step leaves one list; the step passes on only the count (a step's output is at most
 // 1 MiB). A missing or malformed summary fails the step.
-export async function checks(store: Store, caseId: string, key: string, tenant: Tenant): Promise<{ evidence: number }> {
+// The organisation's receiving systems join the tenant here (D02 T02 §1): the step reads them, learning again within its
+// bounded lookups those missing or stale, so the checks stay pure.
+export async function checks(
+  store: Store,
+  caseId: string,
+  key: string,
+  tenant: Omit<Tenant, "receivers">,
+  lookup: LookupMx = lookupMx,
+): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
-  const view = caseViewOf(JSON.parse(new TextDecoder().decode(summary.body)), tenant);
+  const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
+  const view = caseViewOf(JSON.parse(new TextDecoder().decode(summary.body)), { ...tenant, receivers });
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };
 }

@@ -24,9 +24,11 @@ For TODO work, use the skill in your agent's isolated skill directory (`.agents/
 ```bash
 python3 scripts/todo-graph.py validate        # graph integrity; any fault exits 2 with the reason
 python3 scripts/todo-graph.py plan --check    # generated plan is current (CI runs this)
-python3 scripts/todo-graph.py query ready     # dependency-safe work right now
-python3 scripts/todo-graph.py query blocked   # sections waiting, and on what
-python3 scripts/todo-graph.py query stats     # tree health
+python3 scripts/todo-graph.py query lane      # this checkout's lane and its domains (todo/lanes.json)
+python3 scripts/todo-graph.py query ready     # dependency-safe work right now, this lane's rows
+python3 scripts/todo-graph.py query blocked   # this lane's sections waiting, and on what
+python3 scripts/todo-graph.py query stats     # this lane's tree health; --all the whole plan, --phase N one phase
+python3 scripts/todo-graph.py query manual    # every lane's rows waiting on the operator or a paid or attended host
 python3 scripts/todo-graph.py query deferred  # open and resolved deferrals
 python3 scripts/todo-graph.py query plan      # plan title, phase names and every section's status, as JSON
 ```

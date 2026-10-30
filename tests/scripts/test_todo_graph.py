@@ -2055,7 +2055,7 @@ class Lanes(Tree):
             "not a TODO file": self.glimmer(files=["todo/03-vision/TODO-09-missing.md"]),
             "must list its files": self.glimmer(files=[]),
             "cannot work branch main": self.glimmer(branch="main"),
-            "holds branch, worktree and files": {"glimmer": {"branch": "g", "files": [self.lane_file]}},
+            "holds branch, worktree and domains or files": {"glimmer": {"branch": "g", "files": [self.lane_file]}},
             "must be lower-case": {"Glimmer": self.glimmer()["glimmer"]},
         }
         for fragment, lanes in cases.items():
@@ -2081,6 +2081,134 @@ class Lanes(Tree):
                       json.loads(resolved.stdout)["lane_note"])
         self.assertEqual(run("resolve", "D03 T04 §1", lane="glimmer").returncode, 0)
         self.assertEqual(run("resolve", "D00 T01 §1", lane="glimmer").returncode, 4)
+
+
+class LaneDomains(Tree):
+    """Lanes that claim whole domains (D00 T01 §19; docs/specs/2026-10-30-four-lanes-design.md): two building lanes and
+    main over one tree. Queries count only the lane's rows, while readiness is read over the whole graph."""
+
+    def setUp(self):
+        super().setUp()
+        self.write(todo_file([(1, "Coordinator work", 0, "none", "--")]))
+        self.write(todo_file([(1, "Intake", 0, "none", "--"), (2, "Intake later", 1, "meta-api", "--"),
+                              (3, "Needs trust", 1, "none", "D05 T01 §1")], ident="intake", domain="01-intake"),
+                   domain="01-intake")
+        self.write(todo_file([(1, "Trust", 1, "none", "--"), (2, "Trust wait", 1, "operator", "--")],
+                             ident="trust", domain="05-trust"), domain="05-trust")
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"]},
+                     "app": {"branch": "app-lane", "worktree": "../a", "domains": ["D05"]}})
+
+    def config(self, lanes):
+        (self.root / "todo/lanes.json").write_text(json.dumps({"lanes": lanes}), encoding="utf-8")
+
+    def query(self, kind, here, **kw):
+        rows = tg.graph(self.root)
+        return tg.lane_query(kind, rows, tg.lanes(self.root), here, **kw)
+
+    def refs(self, kind, here, **kw):
+        return [r["ref"] for r in self.query(kind, here, **kw)]
+
+    def test_a_row_belongs_to_its_listed_file_then_its_domain_then_main(self):
+        self.write(todo_file([(1, "Glimmer", 0, "none", "--")], ident="glim", domain="03-vision"),
+                   name="TODO-04-g.md", domain="03-vision")
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"]},
+                     "glimmer": {"branch": "g", "worktree": "../g", "files": ["todo/03-vision/TODO-04-g.md"]}})
+        rows, config = tg.graph(self.root), tg.lanes(self.root)
+        self.assertEqual({ref: tg.lane_of(row, config) for ref, row in rows.items()},
+                         {"D00 T01 §1": "main", "D01 T01 §1": "checks", "D01 T01 §2": "checks",
+                          "D01 T01 §3": "checks", "D03 T04 §1": "glimmer", "D05 T01 §1": "main",
+                          "D05 T01 §2": "main"})
+
+    def test_a_malformed_domain_list_refuses_the_graph(self):
+        lane = lambda **kw: {"checks": {"branch": "checks-lane", "worktree": "../c", **kw}}  # noqa: E731
+        cases = {
+            "must list its domains": lane(domains=[]),
+            "a domain is DNN": lane(domains=["3"]),
+            "lists domain 'D3'": lane(domains=["D3"]),
+            "lists domain 'vision'": lane(domains=["vision"]),
+            "lists D07, which has no todo/07-* folder": lane(domains=["D07"]),
+            "holds branch, worktree and domains or files": lane(),
+            "holds branch, worktree and domains or files ": lane(domains=["D01"], owner="me"),
+        }
+        for fragment, lanes in cases.items():
+            with self.subTest(fragment):
+                self.config(lanes)
+                self.refuses(fragment.strip())
+
+    def test_a_domain_or_file_claimed_twice_refuses_the_graph(self):
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"]},
+                     "app": {"branch": "app-lane", "worktree": "../a", "domains": ["D05", "D01"]}})
+        self.refuses("D01 is claimed by lanes checks and app")
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"]},
+                     "app": {"branch": "app-lane", "worktree": "../a",
+                             "files": ["todo/01-intake/TODO-01-a.md"]}})
+        self.refuses("todo/01-intake/TODO-01-a.md is listed by lane app inside checks's domain")
+        # A lane listing a file inside its own domain is redundant, not a split.
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"],
+                                "files": ["todo/01-intake/TODO-01-a.md"]}})
+        self.assertEqual(set(tg.lanes(self.root)), {"checks"})
+
+    def test_each_lane_counts_only_its_own_rows_and_all_counts_every_row(self):
+        self.assertEqual(self.refs("ready", "checks"), ["D01 T01 §1", "D01 T01 §2"])
+        self.assertEqual(self.refs("ready", "app"), ["D05 T01 §1"])
+        self.assertEqual(self.refs("ready", "main"), ["D00 T01 §1"])
+        self.assertEqual(self.refs("blocked", "checks"), ["D01 T01 §3"])
+        self.assertEqual(self.refs("blocked", "app"), ["D05 T01 §2"])
+        self.assertEqual(self.refs("blocked", "main"), [])
+        self.assertEqual(self.query("stats", "checks"), {"lane": "checks", "total": 3, "verified": 0, "ready": 2,
+                                                        "blocked": 1})
+        self.assertEqual(self.query("stats", "app", everything=True),
+                         {"lane": "all", "total": 6, "verified": 0, "ready": 4, "blocked": 2})
+        self.assertEqual(len(self.refs("ready", "app", everything=True)), 4)
+        self.assertEqual(len(self.refs("blocked", "main", everything=True)), 2)
+
+    def test_without_lanes_stats_counts_the_whole_plan_as_main(self):
+        (self.root / "todo/lanes.json").unlink()
+        self.assertEqual(self.query("stats", "main"), {"lane": "main", "total": 6, "verified": 0, "ready": 4,
+                                                      "blocked": 2})
+
+    def test_phase_narrows_a_lane_to_its_share_of_one_phase(self):
+        rows = tg.graph(self.root)
+        config = tg.lanes(self.root)
+        for ref in ("D01 T01 §2", "D01 T01 §3"):  # the checks lane's Phase 1 rows, stamped
+            rows[ref].done = True
+        self.assertEqual(tg.lane_query("stats", rows, config, "checks", phase=1),
+                         {"lane": "checks", "total": 2, "verified": 2, "ready": 0, "blocked": 0, "phase": 1})
+        # Another lane's Phase 1 rows stay open, and only the whole plan counts them.
+        self.assertEqual(tg.lane_query("stats", rows, config, "checks", everything=True, phase=1),
+                         {"lane": "all", "total": 4, "verified": 2, "ready": 1, "blocked": 1, "phase": 1})
+        self.assertEqual([r["ref"] for r in tg.lane_query("ready", rows, config, "app", phase=1)], ["D05 T01 §1"])
+        self.assertEqual(tg.lane_query("ready", rows, config, "checks", phase=0)[0]["ref"], "D01 T01 §1")
+
+    def test_a_row_waiting_on_another_lanes_row_stays_blocked_until_it_is_stamped(self):
+        rows, config = tg.graph(self.root), tg.lanes(self.root)
+        self.assertIn("D01 T01 §3", [r["ref"] for r in tg.lane_query("blocked", rows, config, "checks")])
+        self.assertNotIn("D01 T01 §3", [r["ref"] for r in tg.lane_query("ready", rows, config, "checks")])
+        self.assertEqual(tg.lane_query("stats", rows, config, "checks")["verified"], 0)
+        rows["D05 T01 §1"].done = True  # the app lane stamps the prerequisite, and it reaches this lane
+        self.assertIn("D01 T01 §3", [r["ref"] for r in tg.lane_query("ready", rows, config, "checks")])
+        self.assertNotIn("D05 T01 §1", [r["ref"] for r in tg.lane_query("ready", rows, config, "checks")])
+
+    def test_the_manual_list_names_every_lanes_waiting_rows(self):
+        rows, config = tg.graph(self.root), tg.lanes(self.root)
+        listed = {r["ref"]: (r["lane"], r["disposition"]) for r in tg.manual_rows(rows, config)}
+        self.assertEqual(listed, {"D01 T01 §2": ("checks", 0), "D05 T01 §2": ("app", 4)})
+        rows["D01 T01 §2"].done = True
+        self.assertEqual([r["ref"] for r in tg.manual_rows(rows, config)], ["D05 T01 §2"])
+
+    def test_query_lane_names_this_checkouts_lane(self):
+        shutil.copytree(SCRIPTS, self.root / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+        run = lambda *args, lane: json.loads(subprocess.run(  # noqa: E731
+            [sys.executable, str(self.root / "scripts/todo-graph.py"), *args], capture_output=True, text=True,
+            check=True, env={**os.environ, "TODO_LANE": lane}).stdout)
+        self.assertEqual(run("query", "lane", lane="checks"),
+                         {"lane": "checks", "branch": "checks-lane", "worktree": "../c", "domains": ["D01"],
+                          "files": []})
+        self.assertEqual(run("query", "lane", lane="main")["domains"], ["D00"])
+        self.assertEqual([r["ref"] for r in run("query", "ready", lane="app")], ["D05 T01 §1"])
+        self.assertEqual(run("query", "stats", "--all", "--phase", "1", lane="app")["total"], 4)
+        (self.root / "todo/lanes.json").unlink()
+        self.assertEqual(run("query", "lane", lane="")["domains"], ["D00", "D01", "D05"])
 
 
 class MergeInProgress(unittest.TestCase):

@@ -91,15 +91,17 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 37 | Checklist items: 199
+Sections: 39 | Checklist items: 227
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [x]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
 | [x]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
+| [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
+| [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
-| [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
+| [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
 | [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
 | [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
@@ -121,7 +123,7 @@ Sections: 37 | Checklist items: 199
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 8     |
-| [ ]    | D07 T02 §11 | Sign-in code for another device                       | operator | 3     |
+| [ ]    | D07 T02 §11 | Sign-in code for another device                       | none     | 3     |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -331,6 +333,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 83/262 verified sections, 41 ready to run now.
+Progress: 84/264 verified sections, 43 ready to run now.
 
-Checklist: 859/1671 items completed (includes Commit items).
+Checklist: 879/1699 items completed (includes Commit items).

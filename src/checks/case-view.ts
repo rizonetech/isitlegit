@@ -3,6 +3,7 @@
 // its headers, bodies, cut parts and attachments; an uploaded document, image or voice note gives only its file. Links
 // (D02 T07 §1) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
+import type { Receiver } from "../auth/receivers";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
 const Attachment = z.strictObject({
@@ -48,7 +49,9 @@ const UploadSummary = z.strictObject({
   forward: z.strictObject({ headersAvailable: z.literal(false) }),
 });
 
-export type Tenant = { orgId: string; channel: "email" | "upload" };
+// The organisation the case is for, and its receiving systems (D02 T02 §1), which the checks step reads from the store
+// so a check never has to: only Authentication-Results headers these wrote are trusted. Empty when none are known.
+export type Tenant = { orgId: string; channel: "email" | "upload"; receivers: Receiver[] };
 
 export type CaseView = {
   tenant: Tenant & { headersAvailable: boolean };

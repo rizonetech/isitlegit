@@ -331,7 +331,7 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 - [ ] Add the owner's Close account control to `design/SPEC.md` (where it sits, the confirmation naming the 30-day purge, what members see afterwards) and build it on that page, posting to the closure route. Done when: the SPEC section and its board exist, and a rendered-page test finds the control by role and name for an owner only, refuses it without the confirmation, and closes the organisation with it. Cheaper substitute: a route with no control, or a control for every member, fails the test. Source: D07 T02 §1 completion review (Part 1 item 14), which found no control to start the closure.
 - [ ] Record an organisation's closure (`closed_at`) when its owner closes the account, and refuse new cases for it from then on. Done when: a test closes an organisation and its next case is refused.
 - [ ] Write the purge: a scheduled Worker run deletes, for each organisation closed 30 days or more, its R2 objects listed by each case's prefixes (`raw/<caseId>/` and `art/<caseId>/`, so an object whose row was never written goes too; D01 T01 §2) and then its cases (the child rows cascade), in batches that resume after a failure. Done when: a test with two organisations purges only the closed one's cases, rows and objects, and a purge interrupted halfway finishes on the next run. The purge also deletes the organisation's `invitation_uses` rows (migration 0012, which has no foreign key to `invitation`), so a spent invitation's user and time go with it (D07 T02 §3 final review).
-- [ ] Revoke a closed organisation's domains and addresses at closure (mail from them is no longer admitted, and another organisation may then claim them) and purge its `org_domains`, `org_addresses`, `verification_codes` and `verification_sends` rows (migration 0015, D07 T02 §5) and its `intake_messages` claims (migration 0016, D01 T01 §3), none of which carries a foreign key to the organisation, with the rest. Done when: `test/auth/closure.test.ts` closes an organisation and `findMemberBySender` returns null for its domain at once, another organisation can then verify it, and after the purge none of those rows remain while another organisation's are untouched. Source: D07 T02 §5 completion review (Part 1 item 16); `intake_messages` added by D01 T01 §3's plan review, 2026-10-28.
+- [ ] Revoke a closed organisation's domains and addresses at closure (mail from them is no longer admitted, and another organisation may then claim them) and purge its `org_domains`, `org_addresses`, `verification_codes` and `verification_sends` rows (migration 0015, D07 T02 §5), its `org_receivers` rows (migration 0034, D02 T02 §1) and its `intake_messages` claims (migration 0016, D01 T01 §3), none of which carries a foreign key to the organisation, with the rest. Done when: `test/auth/closure.test.ts` closes an organisation and `findMemberBySender` returns null for its domain at once, another organisation can then verify it, and after the purge none of those rows remain while another organisation's are untouched. Source: D07 T02 §5 completion review (Part 1 item 16); `intake_messages` added by D01 T01 §3's plan review, 2026-10-28.
 - [ ] Purge a closed organisation's signup records with it (`invite_redemptions` rows naming it, migration 0013, with their address and consent time), and delete a pending redemption untouched for 30 days (an abandoned signup: its address, consent time and any user it made with no membership); a completed redemption of an open organisation is kept as its consent record. Done when: `test/auth/closure.test.ts` finds a closed organisation's redemptions gone after the purge and an abandoned pending one gone after 30 days, and an open organisation's kept. Source: D07 T02 §4 completion review (Part 1 item 12).
 - [ ] State the period on the privacy page and in `docs/operations.md`. Done when: both name 30 days from closure.
 - [ ] Delete a closed organisation's `auth_events` rows with its other data (from D07 T02 §6, which keeps them 12 months otherwise). Done when: the purge test finds none left for the closed organisation and another's untouched.
@@ -389,7 +389,7 @@ Evidence 2026-10-29: `src/auth/confirm.tsx` (the routes) and `src/auth/confirm-p
 A sign-in link signs in whichever browser opens it, so a member who asked on a laptop and reads the mail on a phone ends up signed in on the phone (D07 T02 §10 completion review, 2026-10-29: Okta's email authenticator offers a code to type into the browser that asked). Whether IsItLegit offers a code beside the link, and how it looks, is a design decision for the operator, then built here.
 
 **Phase:** 2
-**Needs:** operator
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A1 Sign in (a code state is not drawn yet)
 **Job:** a member who asked for a sign-in link on one device and opened the mail on another finishes signing in where they asked.
@@ -398,12 +398,16 @@ A sign-in link signs in whichever browser opens it, so a member who asked on a l
 
 **Operator decision (open):** offer a one-time code in the sign-in mail beside the link, or keep the link alone. Recording `Code sign-in: <yes|no> (YYYY-MM-DD)` here releases the section.
 
+Code sign-in: yes (2026-10-30)
+
+**Operator decision (2026-10-30 14:58 SAST):** yes, a 6-digit code in the sign-in mail beside the link (asked by the coordinator in operator batch 1, `docs/coordinator.md`); `operator` removed from Needs (was `operator`).
+
 **Build order:**
 
 1. Decide and record. Done when: the `Code sign-in:` line is recorded.
 2. If yes, sign in by code in the browser that asked. Done when: a code typed into the asking browser signs it in once, within the link's lifetime, and a guessed code is locked out.
 
-- [ ] Record the operator's decision. Done when: the `Code sign-in:` line is recorded.
+- [x] Record the operator's decision. Done when: the `Code sign-in:` line is recorded. Done 2026-10-30: `Code sign-in: yes (2026-10-30)`.
 - [ ] If yes: mail a 6-digit code with the link (one per link, stored hashed, the link's 15 minutes), show a code field on the "check your inbox" state, and sign in the browser that submits it, three wrong codes ending that code. Done when: `test/auth/sign-in-code.test.ts` signs in by code once, refuses a used, expired or guessed code, and locks the code after three wrong tries.
 - [ ] Commit: `auth: sign in by code on another device`
 

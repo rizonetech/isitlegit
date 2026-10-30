@@ -43,15 +43,24 @@ A row flips to `[x]` only through `python3 scripts/todo-graph.py stamp`, backed 
 
 ## Parallel lanes
 
-Work that runs beside main for days runs as a lane: its own branch in its own worktree, worked by its own session. Today there is one, `glimmer` (branch `glimmer-screener` in `../isitlegit-glimmer`): Loupe, the Glimmer LoRA page screener on Fireworks, D03 T04. `todo/lanes.json` names each lane's branch, worktree and the TODO files it alone claims; every other file is main's (operator, 2026-10-28).
+The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/specs/2026-10-30-four-lanes-design.md`), each its own branch in its own worktree, worked by its own session. `todo/lanes.json` names each lane's branch, worktree and the domains (`DNN`) and TODO files it alone claims; every domain no lane names is main's.
 
-- Claiming: `query ready` and `resolve` offer a session only its own lane's rows (the lane follows the checked-out branch; `TODO_LANE` overrides it), so another lane's ready row resolves with exit 4 and a `lane_note`. Which rows are ready, and the generated plan, are the same on every branch.
-- Editing: a lane changes its own TODO files, its own new code and its own data, plus small notes elsewhere (a finding, an XREF, a dated `Corrected` line). What main owns (a shared script, the Meta client, the budget guard, `package.json`) changes on main, or is filed for main through `add-todo`.
-- Dependencies: a lane row that depends on a main row waits until that row is stamped on main and merged into the lane.
-- Merging: the lane merges `origin/main` into its branch after each of its stamps (a merge, never a rebase or a force-push; on a conflict in `todo/implementation-plan.md`, take either side, then `plan --sync`). Main merges the lane at milestones, with every gate green: the screening contract, then Loupe once measured (D03 T04 §13).
+| Lane | Branch | Worktree | Domains |
+| ---- | ------ | -------- | ------- |
+| main (the coordinator) | `main` | `../isitlegit-main` | D00, D99 |
+| `checks` | `checks-lane` | `../isitlegit` | D01, D02, D04, D08, D09 |
+| `app` | `app-lane` | `../isitlegit-app` | D05, D06, D07 |
+| `glimmer` | `glimmer-screener` | `../isitlegit-glimmer` | D03 |
+
+- The coordinator owns `main`: it merges the lanes, owns CI, deploys, the shared tooling (`scripts/`, `scripts/hooks/`, `.claude/`, `.conclave/reviewers.toml`), migration numbers, the machine and the manual list (`query manual`: every lane's rows waiting on the operator or a paid or attended environment, each prepared to the step only the operator can take). It builds no product section.
+- Claiming: `query lane` names this checkout's lane (it follows the checked-out branch; `TODO_LANE` overrides it). `query ready`, `query blocked` and `query stats` count only the lane's rows (`--all` the whole plan, `--phase N` one phase), and `resolve` gives another lane's ready row exit 4 with a `lane_note`. Which rows are ready, and the generated plan, are the same on every branch.
+- Editing: a lane changes its own TODO files, its own new code and its own data. Cross-lane work is asked for, not done: a lane that needs another lane's row, an XREF in another lane's file, or a change to shared tooling asks through the coordinator.
+- Dependencies: a lane row that depends on another lane's row waits until that row is stamped and merged into the lane through `main`.
+- Merging: only the coordinator merges into `main`, at a lane's stamp boundaries, with every gate green on the merge. A lane merges `origin/main` into its branch at its own boundaries and tells the coordinator (a merge, never a rebase or a force-push; on a conflict in `todo/implementation-plan.md`, take either side, then `plan --sync`). Every stamp is announced to the coordinator with its commit.
+- Migration numbers: the coordinator hands out the next D1 migration number before a lane writes one.
 - Spend: every checkout spends Meta credit through one ledger outside the repositories, `~/isitlegit-data/ledgers/meta-spend.json` (`metaLedger()` in `scripts/meta-smoke.ts`; `ISITLEGIT_LEDGER_DIR` moves it), so spec 11's Meta caps hold across lanes; a checkout's old `build/meta-smoke-spend.json` is moved into it on first use. Lane data stays outside the repositories as well (`~/isitlegit-data/`). Loupe's training store, every page it trains on with its labels, sources and manifest, is `~/isitlegit-data/glimmer` (`GLIMMER_DATA_DIR` moves it; `storeDir()` in `scripts/glimmer/store.ts`); the monitor's labelled findings flow into it (D05 T04 §10) for Loupe's next version, and the glimmer lane's retraining reads it from there.
-- Machine: one heavy job at a time across both sessions (a full test run, a review, a build, a training job). Check free memory first (`free -m`; wait below about 3000 MB) and run the full suite with `--maxWorkers=2` while the other lane is busy.
-- Campaign runs: each lane runs its own guard and heartbeat from its own worktree (`build/` is per worktree), and never ends or edits the other's.
+- Machine: 10 cores and 17 GB, with `/tmp` memory-backed. Glimmer's long runs keep cores 4 and 5, the checks lane pins its tests to `taskset -c 6,7`, the app lane to `taskset -c 8,9`, and the coordinator uses what is left, lightly. One whole Worker suite at a time across the machine; otherwise a lane runs only its targeted tests. Check free memory first (`free -m`; wait below about 3000 MB). Tests remove every folder they make.
+- Campaign runs: each lane runs its own guard and heartbeat from its own worktree (`build/` is per worktree), and never ends or edits another's. The guard pins a run to the lane it was acquired in, and its run files are named `docs/phase-runs/<YYYY-MM-DD>-<lane>-phase-<N>.md`.
 - Model providers: the product calls Meta's Model API and Fireworks AI only (operator, 2026-10-28); Baseten and Modal are closed.
 
 ## The safety contract (frozen)
