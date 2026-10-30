@@ -77,8 +77,18 @@ export function dkimIdentifier(r: Result): string | null {
 // domain, or one compared by full host name, does not).
 export function aligned(identifier: string | null, from: string | null): boolean {
   if (!identifier || !from) return false;
-  const a = registrable(identifier);
-  return a !== null && a === registrable(from);
+  const a = registrable(asciiDomain(identifier));
+  return a !== null && a === registrable(asciiDomain(from));
+}
+
+// A domain in its A-label form (`bücher.example` is `xn--bcher-kva.example`), as DMARC compares them (RFC 7489 section
+// 6.6.1), by the platform's own IDNA conversion; the input as given when it is not a valid host name.
+export function asciiDomain(domain: string): string {
+  try {
+    return new URL(`http://${domain}/`).hostname;
+  } catch {
+    return domain;
+  }
 }
 
 type Enforcing = "reject" | "quarantine";
@@ -114,8 +124,12 @@ const plain = (value: string, max = 80) => {
 const MAX_HEADER = 2_000;
 
 // The headers the given results came from, each once, bounded: an item cites the header its result is in.
+// A method the receiver did not report is explained from every header it wrote, all of which were read (completion
+// review): an item always cites what it rests on.
 function headersOf(trusted: Trusted, results: Result[]): string[] {
-  const used = trusted.sources.filter((s: Source) => s.results.some((r) => results.includes(r)));
+  const used = results.length
+    ? trusted.sources.filter((s: Source) => s.results.some((r) => results.includes(r)))
+    : trusted.sources;
   return used.map((s) => Array.from(s.header).slice(0, MAX_HEADER).join(""));
 }
 
@@ -164,15 +178,22 @@ function methodEvidence(method: "spf" | "dkim") {
     const results = ofMethod(trusted, method);
     const state = overall(results.map((r) => stateOf(method, r)));
     const identifiers = results.map((r) => (method === "spf" ? (spfIdentifier(r)?.domain ?? null) : dkimIdentifier(r)));
-    const named = identifiers.filter((d): d is string => d !== null);
-    const forWhom = named.length ? ` for ${plain(named.join(", "), 80)}` : "";
+    // Each signer with its own outcome: a pass for one never reads as a pass for another (completion review).
+    const byState = RANK.map((st) => ({
+      st,
+      names: identifiers.filter((d, i): d is string => d !== null && stateOf(method, results[i] as Result) === st),
+    })).filter((g) => g.names.length);
+    const said =
+      byState.length > 1
+        ? byState.map((g) => `${SAID[g.st]} for ${plain(g.names.join(", "), 40)}`).join(" and ")
+        : `${SAID[state]}${byState[0] ? ` for ${plain(byState[0].names.join(", "), 80)}` : ""}`;
     return [
       item(
         view,
         trusted,
         `auth.${method}`,
         SEVERITY[state],
-        `${NAMED[method]} ${SAID[state]}${forWhom}, as your receiving system recorded.`,
+        `${NAMED[method]} ${said}, as your receiving system recorded.`,
         {
           state,
           results: results.map((r, i) => ({

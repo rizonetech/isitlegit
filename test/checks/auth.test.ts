@@ -203,6 +203,44 @@ describe("auth.alignment", () => {
   });
 });
 
+describe("completion review", () => {
+  it("aligns an internationalised From with its A-label signer, either way round", () => {
+    expect(
+      alignmentEvidence(view(gmail("dkim=pass header.d=xn--bcher-kva.example", "a@bücher.example")))[0],
+    ).toMatchObject({
+      severity: "info",
+    });
+    expect(
+      alignmentEvidence(view(gmail("dkim=pass header.d=bücher.example", "a@xn--bcher-kva.example")))[0],
+    ).toMatchObject({
+      severity: "info",
+    });
+  });
+
+  it("gives each signer its own outcome in the summary", async () => {
+    const item = await one(
+      view(gmail("dkim=fail header.d=bank.example; dkim=pass header.d=mailer.example")),
+      "auth.dkim",
+    );
+    expect(item?.summary).toBe(
+      "DKIM passed for mailer.example and failed for bank.example, as your receiving system recorded.",
+    );
+    expect(item?.summary).not.toContain("passed for bank.example");
+  });
+
+  it("cites the receiver's headers for a method it did not report", async () => {
+    const headers = gmail("spf=pass smtp.mailfrom=bounce@mailer.example");
+    const items = await run(view(headers));
+    for (const check of ["auth.dkim", "auth.dmarc"]) {
+      expect(items.find((e) => e.check === check)).toMatchObject({
+        detail: { state: "unavailable", headers: [headers[1]?.value] },
+      });
+    }
+    const silent = gmail("iprev=pass policy.iprev=203.0.113.5");
+    expect((await one(view(silent), "auth.alignment"))?.detail.headers).toEqual([silent[1]?.value]);
+  });
+});
+
 describe("each item cites its own header", () => {
   it("cites the header its result came from, never a neighbour or a rejected forgery", async () => {
     const other: Receiver[] = [{ kind: "other", pattern: "*.mailhost.example" }];
