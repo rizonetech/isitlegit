@@ -18,6 +18,10 @@ export const NDR_WINDOW_MS = 30 * 60 * 1000;
 // How long a refusal waits before it is tied to a forward, so every forward that will show has shown (a delivered
 // forward took about 14 minutes to show, probe 1).
 export const MATCH_GRACE_MS = 20 * 60 * 1000;
+// One refusal's notices arrive together but not always in one second: probe 3's two came at 16:41:08 and 16:41:09, and
+// the second, read as its own refusal, alerted a "forward not found" (D01 T02 §9). Notices of the same subject and
+// destination this close are one refusal's, counted on it; two refusals a minute apart stay two (round 2).
+export const NOTICE_SPREAD_MS = 5 * 1000;
 // How long a Worker failure waits for the sender's retry before it is alerted as unresolved.
 export const RECOVERY_MS = 60 * 60 * 1000;
 // The dataset's limit on one query's span (4 weeks 3 days), kept under; a longer gap starts from this far back.
@@ -70,10 +74,14 @@ async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", encoder.encode(text));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+// The analytics write some addresses with their angle brackets ("<bounce@x>"): probe 3's alert read "from
+// isitlegit.co.za>" (D01 T02 §9). The address inside them, and a domain only when it is a host name.
 const domainOf = (address: string | null) => {
-  const a = (address ?? "").trim().toLowerCase();
+  const raw = (address ?? "").trim().toLowerCase();
+  const a = /<([^<>]*)>?\s*$/.exec(raw)?.[1]?.trim() ?? raw;
   const at = a.lastIndexOf("@");
-  return at > 0 && at < a.length - 1 ? a.slice(at + 1) : null;
+  const domain = at > 0 ? a.slice(at + 1) : "";
+  return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(domain) ? domain : null;
 };
 // A report's subject is the original's behind a prefix its writer adds.
 const REPORT_PREFIX =
@@ -267,13 +275,14 @@ async function record(db: D1Database, event: RoutingEvent, now: Date): Promise<n
   if (event.isNDR === 1 && (event.to ?? "").toLowerCase().startsWith("cfbounces+")) {
     const subject = await subjectKey(event.subject);
     const destination = domainOf(event.from);
-    // Another notice of a refusal already recorded: the same subject and destination in the same second (Exchange sent
-    // two for probe 2, together). It is counted, and the alert says how many came, so a merge is never silent (round 2).
+    // Another notice of a refusal already recorded: the same subject and destination within NOTICE_SPREAD_MS (Exchange
+    // sent two for probe 2 in one second, and for probe 3 a second apart). It is counted, and the alert says how many
+    // came, so a merge is never silent (round 2).
     const known = await db
       .prepare(
-        "SELECT key FROM forward_incidents WHERE kind = 'refused' AND subject_hash = ? AND destination_domain IS ? AND occurred_at = ?",
+        "SELECT key FROM forward_incidents WHERE kind = 'refused' AND subject_hash = ? AND destination_domain IS ? AND ABS(julianday(occurred_at) - julianday(?)) * 86400000 <= ? ORDER BY occurred_at LIMIT 1",
       )
-      .bind(subject, destination, at)
+      .bind(subject, destination, at, NOTICE_SPREAD_MS)
       .first<{ key: string }>();
     const notice = await eventKey(event);
     if (known) {

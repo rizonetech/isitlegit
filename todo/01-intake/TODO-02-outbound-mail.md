@@ -338,6 +338,14 @@ When the operator settles an uncertain send `failed` (§5, `scripts/mail-settle.
 
 Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven end to end once. It waits on the coordinator's deploy of §6 (migration 0036 applied, `CF_ANALYTICS_TOKEN` set from the vault, the Worker deployed with the operator's go) and on the operator's Exchange mail flow rule, kept since probe 2 for this proof.
 
+> **Started:** 2026-10-30T17:21Z
+
+**Probe 3, 2026-10-30** (deployed at 6d051b3, Worker version 9599a7bb, per the coordinator): sent 16:40:58Z through SMTP2GO (email_id `1xMpez-4o5NDgrlT3m-oy4F`), subject "ILPROBE-7Q4K9X forward probe 3 (D01 T02 section 6)". Email Routing analytics: forward `delivered` at 16:40:59Z, refusal notices (`dropped`, isNDR 1) at 16:41:08Z and 16:41:09Z. The 17:15 UTC scheduled run alerted both mailboxes:
+- incident `130199c1f8fb`, "IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding": to `hostmaster@rizonetech.com` sent 17:15:35Z, `<E1xMqCV-FnQW0hPtIz1-iHxO@message-id.smtpcorp.com>`; to `rizonetech@gmail.com` sent 17:15:37Z, `<E1xMqCX-FnQW0hPpFQp-HOIm@message-id.smtpcorp.com>`;
+- a second, false incident, "IsItLegit: mail to an alias was refused after forwarding" ("its forward was not found"), for the 16:41:09Z notice: sent 17:15:37Z and 17:15:38Z, `<E1xMqCX-AIkwcC8oOg7-fUIX@message-id.smtpcorp.com>` and `<E1xMqCY-FnQW0hPpFTs-I2wU@message-id.smtpcorp.com>`.
+
+**Corrected 2026-10-30** (from probe 3): (1) the operator mailbox is `hostmaster@rizonetech.com` (`OPERATOR_EMAIL` in `wrangler.jsonc`), not `derick@rizonetech.com`; (2) one refusal's notices can land a second apart, and §6 merged only same-second notices, so the second opened a false "forward not found" incident: notices of the same subject and destination within `NOTICE_SPREAD_MS` (5 s) are now one refusal's, while refusals a minute apart stay two (§6's round 2 test); (3) the analytics give some addresses with their angle brackets, so the alert read "from isitlegit.co.za>" and "refused by rizonetech.com>": `domainOf` now reads the address inside them and keeps a domain only when it is a host name; both fixed in `src/mail/forwarding.ts` with regressions in `test/mail/forwarding.test.ts`, each failing on the old code; (4) the proof therefore needs a probe 4 on the fixed Worker before the rule goes.
+
 **Phase:** 1
 **Needs:** operator
 **Surface:** no
@@ -346,7 +354,9 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 
 1. Prove the deployed detector alerts on a real refusal. Done when: both alerts are recorded and the rule is gone.
 
-- [ ] Once the coordinator says §6 is deployed with the token set, send probe 3 (subject containing `ILPROBE-7Q4K9X`) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, and confirm within two scheduled runs that the alert reaches `derick@rizonetech.com` and `rizonetech@gmail.com`, recording each alert's time and `internetMessageId`, and the `event: forwarding` log line. Done when: both alerts are recorded here.
+- [x] Once the coordinator says §6 is deployed with the token set, send probe 3 (subject containing `ILPROBE-7Q4K9X`) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, and confirm within two scheduled runs that the alert reaches `hostmaster@rizonetech.com` and `rizonetech@gmail.com`, recording each alert's time and `internetMessageId`. Done 2026-10-30: recorded above (Probe 3); both mailboxes alerted at the first run after the grace, and two defects found (corrections 2 and 3). (**Corrected 2026-10-30**, mailbox.)
+- [ ] Fix the defects probe 3 found (corrections 2 and 3) in `src/mail/forwarding.ts` (`NOTICE_SPREAD_MS`, `domainOf`). Done when: `test/mail/forwarding.test.ts` passes with regressions that fail on the old code, and the fix is reviewed.
+- [ ] Once the coordinator deploys the fix, send probe 4 the same way and confirm one incident, its alert in both mailboxes counting both notices and naming plain domains, recording each alert's time and `internetMessageId`, and the run's `event: forwarding` log line from the coordinator's tail. Done when: both alerts and the log line are recorded here.
 - [ ] Ask the coordinator to have the operator delete the Exchange mail flow rule "IsItLegit forward probe (delete after test)", and record its removal. Done when: the removal is recorded here.
 - [ ] Commit: `mail: forwarding failures proven live`
 

@@ -405,6 +405,45 @@ describe("round 1", () => {
     expect(w.sends[0]?.text).toContain("Cloudflare dropped the 2 refusal notices");
   });
 
+  it("counts notices a second apart as one refusal, never a second alert (D01 T02 §9, probe 3)", async () => {
+    const second = report({
+      sessionId: "s-r1b",
+      messageId: "<ndr-1b@x>",
+      datetime: new Date(at(0.2).getTime() + 1000).toISOString(),
+    });
+    const w = world([[forward(), report(), second]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    // One alert (a copy to each mailbox), counting both notices; none for a forward "not found".
+    expect(new Set(w.sends.map((m) => m.subject))).toEqual(new Set([w.sends[0]?.subject]));
+    for (const m of w.sends) {
+      expect(m.text).toContain("Cloudflare dropped the 2 refusal notices");
+      expect(m.text).not.toContain("forward was not found");
+    }
+  });
+
+  it("keeps notices minutes apart as separate refusals", async () => {
+    // (The window is NOTICE_SPREAD_MS; the round 2 test above keeps a minute apart as two as well.)
+    const later = report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: at(3).toISOString() });
+    const w = world([
+      [forward(), forward({ messageId: "<m-2@x>", sessionId: "s2", datetime: at(2.9).toISOString() }), report(), later],
+    ]);
+    await checkForwarding(deps(w.fetcher, at(9)));
+    const rows = await env.DB.prepare("SELECT COUNT(*) AS n FROM forward_incidents WHERE kind = 'refused'").first<{
+      n: number;
+    }>();
+    expect(rows?.n).toBe(2);
+  });
+
+  it("names a domain without the angle bracket the analytics leave on it (D01 T02 §9, probe 3)", async () => {
+    const w = world([
+      [forward({ from: "<billing@supplier.example>" }), report({ from: "<postmaster@rizonetech.com>" })],
+    ]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    expect(w.sends[0]?.text).toContain("from supplier.example to");
+    expect(w.sends[0]?.text).toContain("refused by rizonetech.com at");
+    expect(w.sends[0]?.text).not.toContain(">");
+  });
+
   it("counts each notice once however often the scans read it again (round 3)", async () => {
     const notices = [report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })];
     const w = world([[forward(), ...notices], [forward(), ...notices], [forward(), ...notices], []]);
