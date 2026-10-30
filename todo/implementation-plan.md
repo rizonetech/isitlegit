@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 372
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 55 | Checklist items: 373
+Sections: 55 | Checklist items: 376
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -144,7 +144,7 @@ Sections: 55 | Checklist items: 373
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
-| [ ]    | D07 T02 §13 | Signup page                                           | none     | 7     |
+| [ ]    | D07 T02 §13 | Signup page                                           | none     | 10    |
 | [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
@@ -364,4 +364,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 103/293 verified sections, 66 ready to run now.
 
-Checklist: 1054/1891 items completed (includes Commit items).
+Checklist: 1054/1894 items completed (includes Commit items).
