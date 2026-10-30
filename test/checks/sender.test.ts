@@ -191,6 +191,54 @@ describe("completion review", () => {
   });
 });
 
+describe("round 1", () => {
+  it("reads 80 KB of punctuation in linear time and still finds the address after it", () => {
+    const name = `a${"!".repeat(80_000)}b debtors@fynbosfreight.example`;
+    const started = performance.now();
+    const [item] = displayAddressEvidence(from(`"${name}" <x@freemail.example>`));
+    expect(performance.now() - started).toBeLessThan(250);
+    expect(item).toMatchObject({ detail: { shown: "debtors@fynbosfreight.example" } });
+  });
+
+  it("finds an address behind a label, and keeps an apostrophe in a local part", () => {
+    expect(displayAddressEvidence(from('"Email:debtors@fynbosfreight.example" <x@freemail.example>'))[0]).toMatchObject(
+      {
+        severity: "medium",
+        detail: { shown: "debtors@fynbosfreight.example" },
+      },
+    );
+    expect(
+      displayAddressEvidence(from(`"O'Connor o'connor@fynbosfreight.example" <o'connor@fynbosfreight.example>`)),
+    ).toEqual([]);
+    expect(
+      displayAddressEvidence(from(`"O'Connor o'connor@fynbosfreight.example" <connor@fynbosfreight.example>`))[0],
+    ).toMatchObject({ detail: { shown: "o'connor@fynbosfreight.example" } });
+  });
+
+  it("treats a brand's mail domain as its own even where its website hosts others' content on some paths", () => {
+    expect(displayBrandEvidence(from('"PayPal" <service@paypal.com>'))).toEqual([]);
+    expect(displayBrandEvidence(from('"PayPal" <service@freemail.example>'))[0]).toMatchObject({
+      detail: { brand: "PayPal" },
+    });
+  });
+
+  it("stores a Reply-To finding however large its fields", async () => {
+    const registry = new CheckRegistry();
+    registerSenderChecks(registry);
+    const field = (n: number) =>
+      h(
+        "Reply-To",
+        `"${"\u{10400}".repeat(2_000)}" <${"a".repeat(64)}${n}@elsewhere.example>, ${"b".repeat(64)}@elsewhere.example, ${"c".repeat(64)}@elsewhere.example`,
+      );
+    const items = await runChecks(
+      from("accounts@fynbosfreight.example", ...Array.from({ length: 8 }, (_, n) => field(n))),
+      registry,
+    );
+    expect(items.map((e) => e.check)).toEqual(["sender.reply_to"]);
+    expect(new TextEncoder().encode(JSON.stringify(items[0]?.detail)).length).toBeLessThanOrEqual(64 * 1024);
+  });
+});
+
 describe("all four", () => {
   it("say nothing when the original's headers did not come", () => {
     const none = view([h("From", '"FNB" <x@freemail.example>'), h("Reply-To", "a@b.example")], false);

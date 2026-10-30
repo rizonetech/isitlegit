@@ -174,6 +174,18 @@ export function fittedDetail(detail: Record<string, unknown>): Record<string, un
       fitted.trimmed = true;
     }
   }
+  // Then any other list a caller added, the header excerpts last, down to one excerpt (D02 T02 §4's round 1: Reply-To
+  // destinations): whatever a check puts in its detail, the item is stored.
+  const lists = () =>
+    Object.entries(fitted)
+      .filter(([key, value]) => Array.isArray(value) && value.length > (key === "headers" ? 1 : 0))
+      .sort(([a], [b]) => Number(a === "headers") - Number(b === "headers"));
+  while (size(fitted) > DETAIL_BUDGET) {
+    const [entry] = lists();
+    if (!entry) break;
+    (entry[1] as unknown[]).pop();
+    fitted.trimmed = true;
+  }
   return fitted;
 }
 

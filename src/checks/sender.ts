@@ -5,7 +5,7 @@
 import { addressParser } from "postal-mime";
 import { ATOM, asciiDomain, bounded, fittedDetail, fromDomain, LOCAL, plain } from "./auth";
 import { registrable } from "./brand-schema";
-import { brandForDomain } from "./brands";
+import { brandForMailbox } from "./brands";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import type { CheckRegistry } from "./registry";
@@ -62,23 +62,43 @@ function fromOf(view: CaseView): { header: Header; name: string; address: string
   return { header: from[0], name: parsed[0]?.name ?? "", address: (parsed[0]?.address ?? "").toLowerCase() };
 }
 
-// What a display name shows: its words, split at spaces and quoting, each with prose punctuation trimmed from its ends,
-// read as a mailbox when it has an `@` and as a domain when it is dot-separated labels ending in a top-level domain
-// (letters, or an A-label such as `xn--p1ai`). Words are read one at a time against anchored patterns, and a word
-// longer than any address can be is skipped, so the work stays linear in the name (completion review: an unanchored
-// pattern took four seconds on an 80 KB name).
+// What a display name shows, found in one linear pass (round 1): each `@` grown outward over the characters a mailbox
+// may hold (RFC 5322 section 3.2.3's atext and dots to its left, apostrophes included; a domain's letters, digits,
+// dots and hyphens to its right), stopping at anything else, so `Email:debtors@x` shows `debtors@x`; and each run of
+// domain characters elsewhere read as a domain when it is dot-separated labels ending in a top-level domain (letters, or
+// an A-label such as `xn--p1ai`). No pattern ever rescans: a run is bounded by MAX_WORD, past which it is skipped.
 const MAX_WORD = 320;
+const LOCAL_CHAR = /[\p{L}\p{N}\p{M}!#$%&'*+/=?^_`{|}~.-]/u;
+const DOMAIN_CHAR = /[\p{L}\p{N}\p{M}.-]/u;
 const SHOWN_DOMAIN = /^(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?:\p{L}{2,}|xn--[a-z0-9-]+)$/iu;
+const trimDots = (text: string) => text.replace(/^[.-]+/u, "").replace(/[.-]+$/u, "");
 function shownIn(name: string): { addresses: string[]; domains: string[] } {
+  const chars = Array.from(name);
   const addresses: string[] = [];
-  const domains: string[] = [];
-  for (const raw of name.split(/[\s<>"'(),;[\]]+/u)) {
-    const word = raw.replace(/^[.,;:!?]+|[.,;:!?]+$/gu, "");
-    if (!word || word.length > MAX_WORD) continue;
-    if (word.includes("@")) {
-      if (mailbox(word)) addresses.push(word);
-    } else if (SHOWN_DOMAIN.test(word)) domains.push(word);
+  const inAddress = new Array<boolean>(chars.length).fill(false);
+  for (let at = 0; at < chars.length; at++) {
+    if (chars[at] !== "@") continue;
+    let start = at;
+    while (start > 0 && at - start < MAX_WORD && LOCAL_CHAR.test(chars[start - 1] as string)) start--;
+    let end = at + 1;
+    while (end < chars.length && end - at < MAX_WORD && DOMAIN_CHAR.test(chars[end] as string)) end++;
+    const local = trimDots(chars.slice(start, at).join(""));
+    const domain = trimDots(chars.slice(at + 1, end).join(""));
+    for (let i = start; i < end; i++) inAddress[i] = true;
+    if (local && domain && mailbox(`${local}@${domain}`)) addresses.push(`${local}@${domain}`);
   }
+  const domains: string[] = [];
+  let run: string[] = [];
+  const flush = () => {
+    const word = trimDots(run.join(""));
+    if (word && run.length <= MAX_WORD && SHOWN_DOMAIN.test(word)) domains.push(word);
+    run = [];
+  };
+  for (const [i, c] of chars.entries()) {
+    if (!inAddress[i] && DOMAIN_CHAR.test(c)) run.push(c);
+    else flush();
+  }
+  flush();
   return { addresses, domains };
 }
 
@@ -134,7 +154,7 @@ export function displayBrandEvidence(view: CaseView): EvidenceDraft[] {
   const ascii = domain === null ? null : asciiDomain(domain);
   // Official: one of the brand's registrable domains or under it; a `user_content` host (a consumer mailbox it runs) is
   // its platform, never the brand.
-  const at = ascii === null ? null : brandForDomain(view.brands, ascii);
+  const at = ascii === null ? null : brandForMailbox(view.brands, ascii);
   if (at?.brand.name === brand.name && at.official) return [];
   return [
     item(
