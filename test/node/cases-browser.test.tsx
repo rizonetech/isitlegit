@@ -79,6 +79,9 @@ async function answer(req: IncomingMessage): Promise<Response> {
           })
         : Response.json({ error: "sign in first" }, { status: 401 });
     if (state.fail === "removed" || state.removed) return errorPage(403, "", { email: "thandi@karoo.example" });
+    // As the route answers a results request once the organisation has no cases left.
+    if (htmx && ORGS[state.org].cases.length === 0)
+      return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     // As the route answers a results request drawn for another organisation than the active one.
     const drawnFor = req.headers["x-cases-org"];
     if (htmx && drawnFor && drawnFor !== state.org)
@@ -239,6 +242,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await p.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
     await expect.poll(() => p.getByText("You're not a member of this organisation.").isVisible()).toBe(true);
     expect(state.seen.slice(before)).toContainEqual({ path: "/cases", htmx: false });
+    await context.close();
+  });
+
+  it("shows the first-run state, controls and all, when the last case goes while the list is open", async () => {
+    const { p, context } = await open();
+    const kept = ORGS.A.cases;
+    ORGS.A.cases = [];
+    try {
+      await segment(p, "Malicious").click();
+      await expect.poll(() => p.getByText("Check your first suspicious email.").isVisible()).toBe(true);
+      expect(p.url()).toContain("verdict=malicious");
+      expect(state.seen.at(-1)?.htmx).toBe(false);
+    } finally {
+      ORGS.A.cases = kept;
+    }
     await context.close();
   });
 

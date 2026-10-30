@@ -45,6 +45,10 @@ casesRoutes.get(
         memberShell(c.env.DB, signedIn.user, membership.org.id, "cases"),
       ]);
       if (!list.ok) return outage(c.req.raw, list.error.code);
+      // No cases at all now (the last one withdrawn since the page was drawn): the first-run page has no results region
+      // for a results request to fill, so the whole page loads again at the address asked for.
+      if (list.value.total === 0 && c.req.header("hx-request") === "true")
+        return new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": c.req.url } });
       const senders =
         list.value.total === 0 ? await verifiedSenders(c.env.DB, membership.org.id) : { domains: [], addresses: [] };
       return new Response(

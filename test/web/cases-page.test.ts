@@ -321,6 +321,19 @@ describe("the cases list", () => {
     expect(fresh.status).toBe(200);
     expect(await fresh.text()).toContain(`&quot;x-cases-org&quot;:&quot;${a}&quot;`);
   });
+
+  it("reloads the whole page for a results request once the organisation has no cases left", async () => {
+    const a = await org("Karoo Couriers");
+    const only = await made(a, { status: "received", verdict: null });
+    const { cookie } = await member(a);
+    expect(listed(await page("/cases", cookie))).toEqual([only]);
+    await db.prepare("DELETE FROM cases WHERE id = ?").bind(only).run();
+    const res = await call("/cases?verdict=safe", { headers: { cookie, "hx-request": "true", "x-cases-org": a } });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("hx-redirect")).toMatch(/\/cases\?verdict=safe$/);
+    // The page itself, asked for whole, is the first-run state.
+    expect(await page("/cases?verdict=safe", cookie)).toContain("Check your first suspicious email.");
+  });
 });
 
 describe("when a case arrived", () => {
