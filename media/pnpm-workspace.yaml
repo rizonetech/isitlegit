@@ -1,0 +1,8 @@
+# media/ is its own pnpm root, so its lockfile is media/pnpm-lock.yaml and the root lockfile is never touched
+# (coordinator, 2026-10-30, D10 step 5). The root workspace lists only "." and "site".
+packages:
+  - "."
+
+# Remotion bundles the compositions with esbuild, whose install script fetches its platform binary.
+allowBuilds:
+  esbuild: true

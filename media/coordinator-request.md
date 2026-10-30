@@ -1,6 +1,6 @@
 # Request to the coordinator: register the media lane
 
-Prepared 2026-10-30 for the operator to paste into the coordinator session once it reaches a boundary (no review round or stamp in progress). Not yet sent.
+Prepared 2026-10-30 and sent by the operator the same day. Done on `main` in `b223a08` (steps 1, 2, 4, 6), with the tool rules for step 3 filed as D00 T01 §26 (`465a473`); step 5 changed to its own pnpm root (`media/pnpm-workspace.yaml`). Kept as the record of what was asked.
 
 ```
 Operator request (2026-10-30): register a fifth lane, "media", that the coordinator registers but does not run.
