@@ -125,6 +125,20 @@ class VoiceoverTest(unittest.TestCase):
             self.assertEqual(code, 2, text)
             self.assertIn("t.json", out)
 
+    def test_a_dry_run_without_the_voice_counts_against_the_voice_the_clips_were_made_with(self):
+        with mock.patch.object(vo.urllib.request, "urlopen", side_effect=[reply(1.0), reply(2.0)]):
+            self.run_main(["t", "--yes"], {"ELEVENLABS_API_KEY": KEY, "ELEVENLABS_VOICE_ID": "v1"})
+        (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": "One."}, {"text": "Two, edited."}]}))
+        code, text = self.run_main(["t", "--dry-run"], {})
+        self.assertEqual(code, 0)
+        self.assertIn("2 segments, 1 to generate", text)
+
+    def test_names_are_said_the_way_the_pronunciation_table_says(self):
+        (vo.MEDIA / "data").mkdir(exist_ok=True)
+        (vo.MEDIA / "data" / "pronunciation.json").write_text(json.dumps({"say": {"IsItLegit": "Is It Legit", "IsItLegit.co": "Is It Legit dot co"}}))
+        (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": "IsItLegit lives at IsItLegit.co."}]}))
+        self.assertEqual(vo.load("t")[1], ["Is It Legit lives at Is It Legit dot co."])
+
     def test_an_empty_segment_is_refused(self):
         (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": " "}]}))
         code, _ = self.run_main(["t", "--dry-run"], {})

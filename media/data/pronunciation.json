@@ -1,0 +1,8 @@
+{
+  "about": "How the narration says names the voice would misread. tools/voiceover.py replaces each written form (case-sensitive, longest first) with its spoken form after filling facts and before sending, so a new or rewritten line is said the same way. Operator corrections, 2026-10-30.",
+  "say": {
+    "check@isitlegit.co.za": "check at is it legit dot co dot za",
+    "IsItLegit": "Is It Legit",
+    "rizonetech": "Rye-zone-tech"
+  }
+}

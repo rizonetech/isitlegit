@@ -26,6 +26,10 @@ class VoiceIndexTest(unittest.TestCase):
             mock.patch.object(vo, "OUT", root / "voice"),
             mock.patch.object(vo, "MEDIA", root),
             mock.patch.object(vi, "OUT", root / "voice.ts"),
+            mock.patch.object(vi.snd, "OUT", root / "sound"),
+            mock.patch.object(vi.snd, "SPEC", root / "sound.json"),
+            mock.patch.object(vi, "LEVELS", root / "levels.json"),
+            mock.patch.object(vi, "loudness", side_effect=lambda path: -25.0),
         ]
         for p in self.patches:
             p.start()
@@ -53,15 +57,26 @@ class VoiceIndexTest(unittest.TestCase):
 
     def test_without_manifests_every_video_renders_silent(self):
         self.assertEqual(self.run_main()[0], 0)
-        self.assertIn("export const VOICE: Record<string, { src: string; seconds: number }[]> = {\n};", (self.root / "voice.ts").read_text())
+        self.assertIn("export const VOICE: Record<string, { src: string; seconds: number; gain: number }[]> = {\n};", (self.root / "voice.ts").read_text())
 
     def test_a_complete_voice_is_imported_in_segment_order(self):
         self.voice("01", [{"index": 1, "file": "01.mp3", "seconds": 2.5, "text": "Two."}, {"index": 0, "file": "00.mp3", "seconds": 1.25, "text": "One."}])
         self.assertEqual(self.run_main()[0], 0)
         ts = (self.root / "voice.ts").read_text()
         self.assertIn('import v01_00 from "../../out/voice/01/00.mp3";', ts)
-        self.assertIn('"01": [{ src: v01_00, seconds: 1.25 }, { src: v01_01, seconds: 2.5 }],', ts)
+        # -25 LUFS measured, so 6 dB of gain brings each clip to the -19 LUFS reference.
+        self.assertIn('"01": [{ src: v01_00, seconds: 1.25, gain: 1.9953 }, { src: v01_01, seconds: 2.5, gain: 1.9953 }],', ts)
         self.assertNotIn('"02"', ts)
+
+    def test_each_file_is_measured_once_until_its_content_changes(self):
+        self.voice("01", [{"index": 0, "file": "00.mp3", "seconds": 1.0, "text": "One."}, {"index": 1, "file": "01.mp3", "seconds": 1.0, "text": "Two."}])
+        self.run_main()
+        self.assertEqual(vi.loudness.call_count, 1)  # both files hold the same bytes, so one measurement serves both
+        self.run_main()
+        self.assertEqual(vi.loudness.call_count, 1)
+        (self.root / "voice" / "01" / "01.mp3").write_bytes(b"ID3 new take")
+        self.run_main()
+        self.assertEqual(vi.loudness.call_count, 2)
 
     def test_a_missing_or_stale_clip_stops_the_render(self):
         self.voice("01", [{"index": 0, "file": "00.mp3", "seconds": 1.0, "text": "One."}, {"index": 1, "file": "01.mp3", "seconds": 1.0, "text": "Old words."}])

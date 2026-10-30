@@ -70,18 +70,27 @@ python3 media/tools/voiceover.py 01
 
 It shows what it will send and asks once before sending. Each scene's narration becomes `media/out/voice/01/NN.mp3`, plus `manifest.json` with each clip's length. A clip whose text has not changed is not generated again, so a re-run only pays for edited lines. Repeat for `02` and `03`.
 
-The narration is `media/data/narration/<video>.json`: one segment per sequence (the title, every scene, the close), each labelled with its scene; `test_voice_index.py` keeps the labels in step with the storyboards. A segment may name a pinned `{fact.key}`, filled in before sending; a `{stats.x}` is refused, because it changes with every commit and would re-bill the clip.
+The narration is `media/data/narration/<video>.json`: one segment per sequence (the title, every scene, the close), each labelled with its scene; `test_voice_index.py` keeps the labels in step with the storyboards. Names the voice misreads are fixed once in `media/data/pronunciation.json` (written form to spoken form, for example `IsItLegit` to `Is It Legit`), applied to every line before sending, so the narration keeps the normal spelling and a new line is said the same way; a changed entry re-makes only the clips that use it. A segment may name a pinned `{fact.key}`, filled in before sending; a `{stats.x}` is refused, because it changes with every commit and would re-bill the clip.
 
 What the script sends: only the narration text from `media/data/narration/`, facts filled in, to `POST /v1/text-to-speech/{voice_id}/with-timestamps` with `model_id` `eleven_multilingual_v2`, `output_format` `mp3_44100_128`, and the neighbouring segments' text as `previous_text` and `next_text` so the clips join smoothly. It never sends repository files, client data or anything else.
 
-## 6. Render with the voice
+## 6. Music and sound effects
+
+```bash
+python3 media/tools/sound.py --dry-run
+python3 media/tools/sound.py
+```
+
+It sends only the prompts and lengths in `media/data/sound.json` (one channel bed through Eleven Music, instrumental, and a title swell and chapter whoosh through Sound Effects) and writes `media/out/sound/`. Unchanged entries are reused. Edit a prompt and re-run to replace one file; the videos pick it up on the next render.
+
+## 7. Render with the voice
 
 ```bash
 cd media && pnpm install --frozen-lockfile && pnpm render:01
 ```
 
-Every render first runs `tools/voice-index.py`, which writes the git-ignored `src/data/voice.ts` from `media/out/voice/<video>/manifest.json`. When a video has a manifest, each scene plays its clip half a second in and stays on screen until the clip has ended; without one, the video renders silent at its reading pace. A manifest that misses a segment, or whose clip says other words than the narration file now does, stops the render and names the `voiceover.py` run that fixes it. Repeat for `02` and `03`.
+Every render first runs `tools/voice-index.py`, which writes the git-ignored `src/data/voice.ts` from `media/out/voice/<video>/manifest.json`. When a video has a manifest, each scene plays its clip half a second in and stays on screen until the clip has ended; without one, the video renders silent at its reading pace. A manifest that misses a segment, or whose clip says other words than the narration file now does, stops the render and names the `voiceover.py` run that fixes it. Each render is normalised to -14 LUFS after Remotion writes it (`out/raw/` to `out/`). Repeat for `02` and `03`.
 
-## 7. Upload
+## 8. Upload
 
 On YouTube, answer "Yes" to altered or synthetic content: the voice is realistic and generated, even though it is yours. Say in the description that the narration is an AI clone of the presenter's own voice.

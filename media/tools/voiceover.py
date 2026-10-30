@@ -3,7 +3,7 @@
 
 Run on the operator's machine (media/voiceover/README.md). Reads media/data/narration/<video>.json, fills each
 `{fact.key}` from media/data/*-facts.json (a `{stats.x}` is refused: it changes with every commit and would re-bill the
-clip), sends only that text to ElevenLabs' text-to-speech with timestamps
+clip), says each name in media/data/pronunciation.json its spoken way, and sends only that text to ElevenLabs' text-to-speech with timestamps
 (POST /v1/text-to-speech/{voice_id}/with-timestamps, from the official `elevenlabs` SDK 2.75.0), and writes media/out/voice/<video>/NN.mp3 plus manifest.json with each clip's
 length and text, every file replaced atomically. A clip whose text, voice and model have not changed since it was made
 for the same scene is reused, so a re-run only pays for edited lines.
@@ -56,6 +56,15 @@ def resolve(text: str, known: dict[str, str]) -> str:
     return REF.sub(value, text)
 
 
+def pronounce(text: str) -> str:
+    """Each written form in media/data/pronunciation.json replaced by how the narration says it, longest first."""
+    path = MEDIA / "data" / "pronunciation.json"
+    say = json.loads(path.read_text())["say"] if path.exists() else {}
+    for written in sorted(say, key=len, reverse=True):
+        text = text.replace(written, say[written])
+    return text
+
+
 def load(video: str) -> tuple[dict, list[str]]:
     """The narration file and each segment's text, facts filled in."""
     path = NARRATION / f"{video}.json"
@@ -65,7 +74,7 @@ def load(video: str) -> tuple[dict, list[str]]:
         raise ValueError(f"{path.name}: every segment needs non-empty text")
     known = facts()
     try:
-        return data, [resolve(t, known) for t in texts]
+        return data, [pronounce(resolve(t, known)) for t in texts]
     except ValueError as exc:
         raise ValueError(f"{path.name}: {exc}") from None
 
@@ -121,12 +130,15 @@ def main(argv: list[str] | None = None) -> int:
 
     key = os.environ.get("ELEVENLABS_API_KEY", "")
     voice = os.environ.get("ELEVENLABS_VOICE_ID", "")
+    # A dry run without the voice in the environment counts against the voice the clips were made with, so it shows
+    # what a real run with that voice would pay for rather than every clip.
+    counted = voice or (old.get("voice", "") if args.dry_run else "")
 
     def reusable(i: int, d: str) -> dict | None:
         clip = made.get(f"{i:02d}.mp3")
         return clip if clip and clip["digest"] == d else None
 
-    todo = [i for i, t in enumerate(segments) if not reusable(i, digest(t, voice, model))]
+    todo = [i for i, t in enumerate(segments) if not reusable(i, digest(t, counted, model))]
     chars = sum(len(segments[i]) for i in todo)
     print(f"voiceover: video {args.video}, {len(segments)} segments, {len(todo)} to generate, {chars} characters")
     print(f"voiceover: model {model}, output {OUTPUT_FORMAT}, to {API}, audio into {out.relative_to(MEDIA.parent)}")
@@ -164,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
         clips.append({"index": i, "file": name, "seconds": round(seconds, 3), "digest": d, "text": text})
         print(f"  {i:02d}  {seconds:6.2f} s")
     clips.sort(key=lambda c: c["index"])
-    replace(manifest_path, (json.dumps({"video": args.video, "model_id": model, "clips": clips}, indent=2) + "\n").encode())
+    replace(manifest_path, (json.dumps({"video": args.video, "model_id": model, "voice": voice, "clips": clips}, indent=2) + "\n").encode())
     return 1 if failed else 0
 
 

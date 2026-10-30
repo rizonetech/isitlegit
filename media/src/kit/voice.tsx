@@ -5,7 +5,8 @@ import { VOICE } from "../data/voice";
 // Narration in the operator's cloned voice (media/voiceover/README.md). tools/voice-index.py writes VOICE from the
 // clips voiceover.py made, one per sequence (title, every scene, close). A video without clips renders silent at its
 // reading pace; with clips, each sequence stays up until its clip has ended.
-export type Clip = { src: string; seconds: number };
+// Each clip's gain brings it to the shared reference level (tools/voice-index.py), so narration plays at that level.
+export type Clip = { src: string; seconds: number; gain: number };
 
 const FPS = 30;
 const LEAD = 0.5; // the scene's content fades in before the voice starts
@@ -25,6 +26,6 @@ export const voicedFrames = (seconds: number[], clips: Clip[] | null): number[] 
 export const Voice: React.FC<{ clip?: Clip }> = ({ clip }) =>
   clip ? (
     <Sequence from={Math.round(LEAD * FPS)} layout="none">
-      <Audio src={clip.src} />
+      <Audio src={clip.src} volume={clip.gain} />
     </Sequence>
   ) : null;

@@ -2,6 +2,7 @@ import type React from "react";
 import { interpolate, Series, useCurrentFrame } from "remotion";
 import data from "../../data/loupe-facts.json";
 import { body, c, CARD, Card, CloseScene, Headline, head, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { MusicBed, Sfx } from "../kit/sound";
 import { Voice, voicedFrames, voiceFor } from "../kit/voice";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
@@ -380,14 +381,19 @@ export const LoupeV1: React.FC = () => {
     <CloseScene key="x" lines={["github.com/rizonetech/isitlegit", "Loupe 1.0 results follow in its model card"]} />,
   ];
   const { frames, clips } = timing();
+  const last = parts.length - 1;
   return (
-    <Series>
-      {parts.map((part, i) => (
-        <Series.Sequence key={part.key} durationInFrames={frames[i]}>
-          {part}
-          <Voice clip={clips?.[i]} />
-        </Series.Sequence>
-      ))}
-    </Series>
+    <>
+      <Series>
+        {parts.map((part, i) => (
+          <Series.Sequence key={part.key} durationInFrames={frames[i]}>
+            {part}
+            {i === 0 ? <Sfx name="swell" /> : i < last ? <Sfx name="whoosh" /> : null}
+            <Voice clip={clips?.[i]} />
+          </Series.Sequence>
+        ))}
+      </Series>
+      <MusicBed name="bed" frames={frames.reduce((a, f) => a + f, 0)} />
+    </>
   );
 };

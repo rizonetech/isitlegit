@@ -3,6 +3,7 @@ import { Series } from "remotion";
 import { CloseScene, TitleScene } from "../brand";
 import { RenderScene, type SceneSpec } from "./scenes";
 import { fill, words } from "./text";
+import { MusicBed, Sfx } from "./sound";
 import { Voice, voicedFrames, voiceFor } from "./voice";
 
 export type StoryboardSpec = {
@@ -55,21 +56,26 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
   const { frames, clips } = sequenceFrames(board, video);
   const last = frames.length - 1;
   return (
-    <Series>
-      <Series.Sequence durationInFrames={frames[0]}>
-        <TitleScene line={fill(board.title)} sub={fill(board.sub)} />
-        <Voice clip={clips?.[0]} />
-      </Series.Sequence>
-      {board.scenes.map((s, i) => (
-        <Series.Sequence key={`${i}-${s.title}`} durationInFrames={frames[i + 1]}>
-          <RenderScene s={s} chapters={chapters} label={fill(board.label)} />
-          <Voice clip={clips?.[i + 1]} />
+    <>
+      <Series>
+        <Series.Sequence durationInFrames={frames[0]}>
+          <TitleScene line={fill(board.title)} sub={fill(board.sub)} />
+          <Sfx name="swell" />
+          <Voice clip={clips?.[0]} />
         </Series.Sequence>
-      ))}
-      <Series.Sequence durationInFrames={frames[last]}>
-        <CloseScene lines={board.close.map(fill)} />
-        <Voice clip={clips?.[last]} />
-      </Series.Sequence>
-    </Series>
+        {board.scenes.map((s, i) => (
+          <Series.Sequence key={`${i}-${s.title}`} durationInFrames={frames[i + 1]}>
+            <RenderScene s={s} chapters={chapters} label={fill(board.label)} />
+            {s.type === "chapter" ? <Sfx name="whoosh" /> : null}
+            <Voice clip={clips?.[i + 1]} />
+          </Series.Sequence>
+        ))}
+        <Series.Sequence durationInFrames={frames[last]}>
+          <CloseScene lines={board.close.map(fill)} />
+          <Voice clip={clips?.[last]} />
+        </Series.Sequence>
+      </Series>
+      <MusicBed name="bed" frames={frames.reduce((a, f) => a + f, 0)} />
+    </>
   );
 };
