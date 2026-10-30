@@ -8,6 +8,7 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, 
 
 - The demo video is not made here: its title cards and architecture animation are D09 T02 §4 (`video/`, checks lane), and recording and upload are D99 T02 §3 to §5 (operator).
 - This folder is its own pnpm root: `media/pnpm-workspace.yaml` and `media/pnpm-lock.yaml`, never the root workspace or lockfile, and outside Biome, the TypeScript build and Vitest.
+- Every video is 1920 x 1080 at 30 fps (operator, 2026-10-30): compositions take `VIDEO` from `src/Root.tsx`, never their own size.
 - Brand files, fonts and colours come from `design/` unchanged (`design/brand/README.md`).
 - Every number on screen is read from the repository at render time, never typed in.
 - Development tooling (Claude Code, GPT-6 Astra, the Muse Wonder final review) is shown as how we build, never as a product feature, and is declared in `CONTRIBUTIONS.md`.
@@ -20,6 +21,7 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, 
 | 01 | How IsItLegit is built (development method) | [scripts/01-how-isitlegit-is-built.md](scripts/01-how-isitlegit-is-built.md) | First render, awaiting operator approval |
 | 02 | IsItLegit in 60 seconds (tech stack) | [scripts/02-isitlegit-in-60-seconds.md](scripts/02-isitlegit-in-60-seconds.md) | First render, awaiting operator approval |
 | 03 | Loupe 1.0: training a page screener (technical) | [scripts/03-loupe-1-0.md](scripts/03-loupe-1-0.md) | First render, awaiting operator approval; Loupe 1.0 not yet trained |
+| Logo | IsItLegit logo animation, rebuilt at 1080p from the brand geometry | n/a | Rendered; replaces the 720p `design/brand/videos/logo_animation.mp4` for YouTube |
 
 ## Render
 
@@ -30,6 +32,7 @@ pnpm install --frozen-lockfile
 pnpm render:01   # out/01-how-isitlegit-is-built.mp4, 65 s, 1920 x 1080
 pnpm render:02   # out/02-isitlegit-in-60-seconds.mp4, 60 s, 1920 x 1080
 pnpm render:03   # out/03-loupe-1-0.mp4, 132 s, 1920 x 1080 (runs check:facts first)
+pnpm render:logo # out/isitlegit-logo-animation-1080p.mp4, 8 s, 1920 x 1080, with the original clip's sound
 pnpm studio      # preview and scrub in the browser
 ```
 

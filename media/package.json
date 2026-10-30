@@ -8,7 +8,8 @@
     "render:01": "pnpm run stats && remotion render src/index.ts HowItIsBuilt out/01-how-isitlegit-is-built.mp4",
     "render:02": "pnpm run stats && remotion render src/index.ts InSixtySeconds out/02-isitlegit-in-60-seconds.mp4",
     "check:facts": "python3 tools/check-facts.py",
-    "render:03": "pnpm run check:facts && remotion render src/index.ts LoupeV1 out/03-loupe-1-0.mp4"
+    "render:03": "pnpm run check:facts && remotion render src/index.ts LoupeV1 out/03-loupe-1-0.mp4",
+    "render:logo": "remotion render src/index.ts LogoReveal out/isitlegit-logo-animation-1080p.mp4"
   },
   "dependencies": {
     "@remotion/cli": "4.0.539",
