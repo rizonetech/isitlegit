@@ -923,6 +923,8 @@ Filed 2026-10-29 by main's decision on §6's stamp: work added to `scripts/glimm
 
 ## 27. A second source sweep for Loupe 1.1
 
+> **Started:** 2026-10-30T08:18Z
+
 Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a second Astra sweep for lures (fake shops, social and corporate impersonation, tech-support, investment and delivery scams, phishing kits rendered to pages), its licence re-reads and a converter for each accepted source cannot be finished safely before Loupe 1.0's collection freeze (2026-10-31 00:00 SAST), so they feed Loupe 1.1. Every rule §18 sets for a source holds here: an input manifest, an export receipt, resource limits, capture-level label admission, provenance and a frozen handoff.
 
 **Phase:** 7
