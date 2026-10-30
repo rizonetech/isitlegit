@@ -85,7 +85,7 @@ An HTML attachment is either a local phishing page (opened from disk, so link ch
 
 - [x] Flag any HTML or SVG attachment as medium `attachment.html`, and raise to high when it contains a password or card field, a form posting off-site, or script building a `Blob` or a `data:` URL from a long base64 string (over 10 KB) with a download trigger. Done when: `test/checks/html-attachment.test.ts` gives high for both hostile fixtures and medium for the receipt. Done 2026-10-31: `src/checks/html-attachment.ts` (`analyseHtml`, `htmlAttachmentsOf`, `decodeHtml`), wired in the `checks` step; `test/checks/html-attachment.test.ts` (14 tests); five mutations (unregistered, not wired, never high, the password field ignored, a loader without a download) each fail a test.
 - [x] Extract links and form actions from the HTML attachment into the case's link list for D02 T07. Done 2026-10-31: moved to D02 T07 §1 as its own item (correction 3), since the link list is built there.
-- [ ] Commit: `checks: HTML attachments and smuggling`
+- [x] Commit: `checks: HTML attachments and smuggling` Done 2026-10-31: 625e0a3, with 601a4cd (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/html-attachment.test.ts` passes and fails if the base64 blob loader is rated medium.
 
