@@ -94,8 +94,9 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
         const type = (attr(e, "type") ?? "").toLowerCase();
         if (type === "password") passwordField = true;
         const hints = ["name", "id", "placeholder", "aria-label", "autocomplete"].map((a) => attr(e, a) ?? "");
-        if ((attr(e, "autocomplete") ?? "").toLowerCase().startsWith("cc-") || hints.some((h) => CARD.test(h)))
-          cardField = true;
+        // Any `cc-` token, after the section and billing tokens autocomplete allows before it (round 2).
+        const tokens = (attr(e, "autocomplete") ?? "").toLowerCase().split(/\s+/);
+        if (tokens.some((t) => t.startsWith("cc-")) || hints.some((h) => CARD.test(h))) cardField = true;
         const id = attr(e, "id");
         if (id && inputIds.length < 10_000) inputIds.push(id);
         const wrapping = openLabels[openLabels.length - 1];

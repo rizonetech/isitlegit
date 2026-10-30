@@ -445,7 +445,10 @@ const ENTITIES: Record<string, string> = {
   middot: "\u00b7",
 };
 export function decodeEntities(text: string): string {
-  return text.replace(/&(#\d{1,7}|#x[0-9a-f]{1,6}|[a-z]{2,8});/gi, (whole, ref: string) => {
+  // A numeric reference needs no closing semicolon (WHATWG HTML, numeric character reference states: a parse error,
+  // still decoded), so `pass&#119ord` reads `password`; a named one keeps its semicolon (D02 T04 §2, round 2).
+  return text.replace(/&(#\d{1,7};?|#x[0-9a-f]{1,6};?|[a-z]{2,8};)/gi, (whole, raw: string) => {
+    const ref = raw.replace(/;$/, "");
     if (ref.startsWith("#")) {
       const code =
         ref[1] === "x" || ref[1] === "X" ? Number.parseInt(ref.slice(2), 16) : Number.parseInt(ref.slice(1), 10);

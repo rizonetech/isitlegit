@@ -210,6 +210,19 @@ describe("after round 1", () => {
   });
 });
 
+describe("after round 2", () => {
+  it("decodes a numeric reference without its semicolon, as browsers do", async () => {
+    expect((await analyseHtml(`<input type="pass&#119ord">`)).passwordField).toBe(true);
+    expect((await analyseHtml(`<input type="pass&#x77ord">`)).passwordField).toBe(true);
+  });
+
+  it("reads a cc- token after the section and billing tokens", async () => {
+    for (const ac of ["billing cc-exp", "section-pay billing cc-csc", "shipping cc-number"])
+      expect((await analyseHtml(`<input name="x" autocomplete="${ac}">`)).cardField, ac).toBe(true);
+    expect((await analyseHtml(`<input name="x" autocomplete="billing email">`)).cardField).toBe(false);
+  });
+});
+
 describe("attachment.html through the checks step", () => {
   it("stores a login page and a loader as high, a receipt as medium, citing each attachment", async () => {
     const id = await caseWith([
