@@ -4,11 +4,11 @@ import tokens from "../../../design/tokens/colors.json";
 import { LOGO_GAIN } from "../data/voice";
 
 // The standalone logo video is always light: it rebuilds the original light clip and draws the ink mark. The
-// explainers open with the dark variant (operator, 2026-10-31): the darkest brand surface, the on-dark logo and the
+// explainers open with the dark variant (operator, 2026-10-31): the explainers' near-black ground, the on-dark logo and the
 // dark theme's light ink, the same ground as the explainers' Backdrop.
 const THEMES = {
   light: { c: tokens.themes.light, bg: tokens.themes.light.light, logo: "brand/logo-svg/isitlegit-logo.svg" },
-  dark: { c: tokens.themes.dark, bg: tokens.themes.dark.surface, logo: "brand/logo-svg/isitlegit-logo-on-dark.svg" },
+  dark: { c: tokens.themes.dark, bg: "#0B0A0D", logo: "brand/logo-svg/isitlegit-logo-on-dark.svg" },
 } as const;
 
 // The logo animation rebuilt from the brand geometry (design/brand/logo-svg/isitlegit-logo.svg, mark at
@@ -32,7 +32,8 @@ const QUESTION = "M66 68A34 34 0 1 1 124.04 92.04L100 116.08V130";
 const TICK = "M82 152L100 170L138 132";
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-export const LogoReveal: React.FC<{ theme?: keyof typeof THEMES }> = ({ theme = "light" }) => {
+// `ground={false}` leaves the ground to the composition's Backdrop, so the logo can move over it (src/kit/reveal.tsx).
+export const LogoReveal: React.FC<{ theme?: keyof typeof THEMES; ground?: boolean }> = ({ theme = "light", ground = true }) => {
   const { c, bg, logo } = THEMES[theme];
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -54,7 +55,7 @@ export const LogoReveal: React.FC<{ theme?: keyof typeof THEMES }> = ({ theme = 
   };
 
   return (
-    <AbsoluteFill style={{ background: bg }}>
+    <AbsoluteFill style={{ background: ground ? bg : undefined }}>
       <Audio src={staticFile("brand/videos/logo_animation.mp4")} volume={theme === "dark" ? LOGO_GAIN : 1} />
       {final ? (
         <Img src={staticFile(logo)} style={{ position: "absolute", left: LOGO_X, top: LOGO_Y, width: LOGO_W }} />

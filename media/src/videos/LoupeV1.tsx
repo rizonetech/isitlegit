@@ -4,10 +4,10 @@ import data from "../../data/loupe-facts.json";
 import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, MetaBadge, mono, Scene, Tick, useIn } from "../brand";
 import { ColdOpen, coldOpenFrames, hookFor } from "../kit/coldopen";
 import { CREDITS as END_CREDITS, Credits as EndCredits } from "../kit/credits";
+import { revealFrames } from "../kit/reveal";
 import { MusicBed, Sfx } from "../kit/sound";
 import { Voice, voicedFrames, voiceFor, voiceSpans } from "../kit/voice";
-import { DURATION as INTRO, LogoReveal } from "./LogoReveal";
-import { LoupeTitle } from "./LoupeMark";
+import { LOUPE_REVEAL_MIN, LOUPE_VOICE_AT, LoupeReveal } from "./LoupeMark";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
 const F = data.facts;
@@ -17,12 +17,13 @@ export const SCENES = [5, 10, 10, 14, 10, 14, 16, 10, 10, 12, 8, 8, 5];
 // Each scene's frames, stretched to its narration clip when media/data/narration/03.json has been voiced.
 const timing = () => {
   const clips = voiceFor("03", SCENES.length);
-  return { frames: voicedFrames(SCENES, clips), clips };
+  const frames = voicedFrames(SCENES, clips);
+  frames[0] = revealFrames(clips?.[0], LOUPE_VOICE_AT, LOUPE_REVEAL_MIN);
+  return { frames, clips };
 };
 // The dark logo animation opens the video and the credits close it, around the voiced scenes.
-export const loupeFrames = () => coldOpenFrames(hookFor("03")) + INTRO + timing().frames.reduce((a, f) => a + f, 0) + END_CREDITS;
-// The cold open's cuts (indexes into the scene list below) and the scenes where a Meta model does the work.
-const COLD_OPEN = [1, 4, 5, 6];
+export const loupeFrames = () => coldOpenFrames(hookFor("03")) + timing().frames.reduce((a, f) => a + f, 0) + END_CREDITS;
+// The scenes where a Meta model does the work.
 const META: Record<number, string> = { 1: "Loupe on Muse Glimmer, Muse Spark failover", 2: "Muse Glimmer 30B", 5: "Muse Spark as teacher" };
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -373,8 +374,9 @@ const Credits: React.FC = () => (
 );
 
 export const LoupeV1: React.FC = () => {
+  const { frames, clips } = timing();
   const parts = [
-    <LoupeTitle key="t" line="Loupe 1.0" sub={`Training a page screener on ${v("baseModel")}.`} />,
+    <LoupeReveal key="t" line="Loupe 1.0" sub={`Training a page screener on ${v("baseModel")}.`} clip={clips?.[0]} />,
     <Job key="j" />,
     <BaseModel key="b" />,
     <Data key="d" />,
@@ -388,38 +390,38 @@ export const LoupeV1: React.FC = () => {
     <Credits key="cr" />,
     <CloseScene key="x" lines={["github.com/rizonetech/isitlegit", "Loupe 1.0 results follow in its model card"]} />,
   ];
-  const { frames, clips } = timing();
   const last = parts.length - 1;
   const voiced = frames.reduce((a, f) => a + f, 0);
   const hook = hookFor("03");
   const cold = coldOpenFrames(hook);
-  // The music runs from the first frame and stays level through the logo, so it never fights the logo's own sound.
-  const quiet: [number, number][] = [...(hook ? voiceSpans([cold], [hook]) : []), [cold, cold + INTRO], ...voiceSpans(frames, clips, cold + INTRO)];
+  // The music runs from the first frame and stays level through the reveal.
+  const quiet: [number, number][] = [
+    ...(hook ? voiceSpans([cold], [hook]) : []),
+    [cold, cold + frames[0]],
+    ...voiceSpans(frames.slice(1), clips?.slice(1) ?? null, cold + frames[0]),
+  ];
   return (
     <>
       <Backdrop />
       <Series>
         {hook ? (
           <Series.Sequence durationInFrames={cold}>
-            <ColdOpen clip={hook} cuts={COLD_OPEN.map((i) => parts[i])} />
+            <ColdOpen video="03" clip={hook} />
           </Series.Sequence>
         ) : null}
-        <Series.Sequence durationInFrames={INTRO}>
-          <LogoReveal theme="dark" />
-        </Series.Sequence>
         {parts.map((part, i) => (
           <Series.Sequence key={part.key} durationInFrames={frames[i]}>
             {part}
             {META[i] ? <MetaBadge text={META[i]} /> : null}
             {i === 0 ? <Sfx name="swell" /> : i < last ? <Sfx name="whoosh" /> : null}
-            <Voice clip={clips?.[i]} />
+            {i > 0 ? <Voice clip={clips?.[i]} /> : null}
           </Series.Sequence>
         ))}
         <Series.Sequence durationInFrames={END_CREDITS}>
           <EndCredits />
         </Series.Sequence>
       </Series>
-      <MusicBed name="bed" frames={cold + INTRO + voiced + END_CREDITS} voice={quiet} />
+      <MusicBed name="bed" frames={cold + voiced + END_CREDITS} voice={quiet} />
     </>
   );
 };

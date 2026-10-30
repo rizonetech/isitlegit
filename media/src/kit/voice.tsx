@@ -35,9 +35,10 @@ export const voiceSpans = (frames: number[], clips: Clip[] | null, offset = 0): 
   });
 };
 
-export const Voice: React.FC<{ clip?: Clip }> = ({ clip }) =>
+// `at` places the clip at a frame of its sequence instead of half a second in (the reveals, src/kit/reveal.tsx).
+export const Voice: React.FC<{ clip?: Clip; at?: number }> = ({ clip, at = Math.round(LEAD * FPS) }) =>
   clip ? (
-    <Sequence from={Math.round(LEAD * FPS)} layout="none">
+    <Sequence from={at} layout="none">
       <Audio src={clip.src} volume={clip.gain} />
     </Sequence>
   ) : null;

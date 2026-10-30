@@ -2,10 +2,16 @@
   "video": "03-hook",
   "composition": "cold open",
   "model_id": "eleven_multilingual_v2",
+  "voice_settings": {
+    "stability": 0.3,
+    "similarity_boost": 0.85,
+    "style": 0.45,
+    "use_speaker_boost": true
+  },
   "segments": [
     {
       "scene": "cold open",
-      "text": "Can a small, fine-tuned model spot a fake login page as well as a big one, for a fraction of the cost? We're training one to find out. This is Loupe."
+      "text": "A fake login page, <break time=\"0.4s\" /> wearing a brand you trust. <break time=\"0.6s\" /> Can a small model *spot it*, <break time=\"0.4s\" /> for a fraction of the cost?"
     }
   ]
 }

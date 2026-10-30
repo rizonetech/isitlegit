@@ -74,13 +74,16 @@ def load(video: str) -> tuple[dict, list[str]]:
         raise ValueError(f"{path.name}: every segment needs non-empty text")
     known = facts()
     try:
-        return data, [pronounce(resolve(t, known)) for t in texts]
+        # *Starred* words are emphasis for the on-screen hook (src/kit/coldopen.tsx); the voice reads them plainly.
+        return data, [pronounce(resolve(t, known)).replace("*", "") for t in texts]
     except ValueError as exc:
         raise ValueError(f"{path.name}: {exc}") from None
 
 
-def digest(text: str, voice: str, model: str) -> str:
-    return hashlib.sha256(json.dumps([text, voice, model, OUTPUT_FORMAT]).encode()).hexdigest()[:16]
+def digest(text: str, voice: str, model: str, settings: dict | None = None) -> str:
+    # Settings join the digest only when a file sets them, so clips made without them keep their digests.
+    parts = [text, voice, model, OUTPUT_FORMAT] + ([settings] if settings else [])
+    return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def replace(path: Path, data: bytes) -> None:
@@ -92,9 +95,11 @@ def replace(path: Path, data: bytes) -> None:
     os.replace(tmp, path)
 
 
-def synthesise(key: str, voice: str, model: str, text: str, before: str, after: str) -> tuple[bytes, float]:
+def synthesise(key: str, voice: str, model: str, text: str, before: str, after: str, settings: dict | None = None) -> tuple[bytes, float]:
     """One clip: the mp3 bytes and its length in seconds, from the character alignment."""
     body = {"text": text, "model_id": model, "previous_text": before, "next_text": after}
+    if settings:
+        body["voice_settings"] = settings
     req = urllib.request.Request(
         f"{API}/v1/text-to-speech/{voice}/with-timestamps?output_format={OUTPUT_FORMAT}",
         data=json.dumps(body).encode(),
@@ -121,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"voiceover: {exc}", file=sys.stderr)
         return 2
     model = data.get("model_id", "eleven_multilingual_v2")
+    # A file may ask for a more expressive read (the hooks: lower stability, some style); the narration does not.
+    settings = data.get("voice_settings")
     out = OUT / args.video
     manifest_path = out / "manifest.json"
     old = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"clips": []}
@@ -138,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         clip = made.get(f"{i:02d}.mp3")
         return clip if clip and clip["digest"] == d else None
 
-    todo = [i for i, t in enumerate(segments) if not reusable(i, digest(t, counted, model))]
+    todo = [i for i, t in enumerate(segments) if not reusable(i, digest(t, counted, model, settings))]
     chars = sum(len(segments[i]) for i in todo)
     print(f"voiceover: video {args.video}, {len(segments)} segments, {len(todo)} to generate, {chars} characters")
     print(f"voiceover: model {model}, output {OUTPUT_FORMAT}, to {API}, audio into {out.relative_to(MEDIA.parent)}")
@@ -158,14 +165,14 @@ def main(argv: list[str] | None = None) -> int:
 
     clips, failed = [], 0
     for i, text in enumerate(segments):
-        d = digest(text, voice, model)
+        d = digest(text, voice, model, settings)
         name = f"{i:02d}.mp3"
         clip = reusable(i, d)
         if clip:
             clips.append({**clip, "index": i, "text": text})
             continue
         try:
-            audio, seconds = synthesise(key, voice, model, text, segments[i - 1] if i else "", segments[i + 1] if i + 1 < len(segments) else "")
+            audio, seconds = synthesise(key, voice, model, text, segments[i - 1] if i else "", segments[i + 1] if i + 1 < len(segments) else "", settings)
         except (urllib.error.URLError, KeyError, ValueError, TimeoutError) as exc:
             # The reason only: an HTTP error's body can be long, and headers are never printed.
             reason = exc.code if isinstance(exc, urllib.error.HTTPError) else type(exc).__name__

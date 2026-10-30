@@ -2,8 +2,8 @@
 """Write YouTube captions (SRT) and chapters for videos 01 to 03 into media/out/captions/.
 
 The timeline is computed the way the compositions lay it out (src/kit/Storyboard.tsx, src/videos/LoupeV1.tsx,
-src/kit/voice.tsx, src/kit/coldopen.tsx): the cold open, the logo, every sequence stretched to its narration clip,
-the credits. Because that layout lives in TypeScript, the computed length is checked against `remotion compositions`
+src/kit/voice.tsx, src/kit/coldopen.tsx, src/kit/reveal.tsx): the cold open, the reveal with the title line, every
+sequence stretched to its narration clip, the credits. Because that layout lives in TypeScript, the computed length is checked against `remotion compositions`
 and nothing is written when they differ by a frame. Captions carry the written narration (facts filled, names in
 their written form, not the spoken ones in data/pronunciation.json), split into cues of at most two 42-character
 lines, timed in proportion to their length within the clip. Chapters start at each chapter card (each scene in
@@ -87,7 +87,13 @@ def clips(video: str) -> list[dict]:
 def timeline(video: str) -> dict:
     """Frames of every part, in order, and where each voiced clip starts."""
     facts, stats = vo.facts(), json.loads((MEDIA / "src" / "data" / "stats.json").read_text())
-    intro, credits = constant("src/videos/LogoReveal.tsx", "DURATION"), constant("src/kit/credits.tsx", "CREDITS")
+    credits = constant("src/kit/credits.tsx", "CREDITS")
+    tail = constant("src/kit/reveal.tsx", "REVEAL_TAIL")
+    voice_at, minimum = (
+        (constant("src/kit/reveal.tsx", "REVEAL_VOICE_AT"), constant("src/kit/reveal.tsx", "REVEAL_MIN"))
+        if VIDEOS[video][1]
+        else (constant("src/videos/LoupeMark.tsx", "LOUPE_VOICE_AT"), constant("src/videos/LoupeMark.tsx", "LOUPE_REVEAL_MIN"))
+    )
     _, board = VIDEOS[video]
     if board:
         b = json.loads((MEDIA / "data" / "storyboards" / f"{board}.json").read_text())
@@ -99,15 +105,17 @@ def timeline(video: str) -> dict:
         names = [label[:1].upper() + label[1:] for label in labels[:-1]] + [None]
     cs = clips(video)
     frames = [max(s * FPS, math.ceil((0.5 + c["seconds"] + 0.8) * FPS)) for s, c in zip(seconds, cs, strict=True)]
+    frames[0] = max(minimum, voice_at + math.ceil(cs[0]["seconds"] * FPS) + tail)
     hook = clips(f"{video}-hook")[0] if (vo.OUT / f"{video}-hook" / "manifest.json").exists() else None
-    cold = math.ceil((0.5 + hook["seconds"] + 0.6) * FPS) if hook else 0
-    voice, t = [], cold + intro
+    lead_ms, tail_ms = constant("src/kit/coldopen.tsx", "HOOK_LEAD_MS"), constant("src/kit/coldopen.tsx", "HOOK_TAIL_MS")
+    cold = math.ceil((lead_ms / 1000 + hook["seconds"] + tail_ms / 1000) * FPS) if hook else 0
+    voice, t = [], cold
     if hook:
-        voice.append((round(0.5 * FPS), hook, f"{video}-hook"))
+        voice.append((round(lead_ms / 1000 * FPS), hook, f"{video}-hook"))
     starts = []
-    for f, c in zip(frames, cs, strict=True):
+    for i, (f, c) in enumerate(zip(frames, cs, strict=True)):
         starts.append(t)
-        voice.append((t + round(0.5 * FPS), c, video))
+        voice.append((t + (voice_at if i == 0 else round(0.5 * FPS)), c, video))
         t += f
     return {"total": t + credits, "voice": voice, "chapters": [(s, n) for s, n in zip(starts, names, strict=True) if n]}
 
@@ -123,7 +131,9 @@ def rendered_frames(composition: str) -> int:
 def written(video: str) -> list[str]:
     """Each segment's narration as written: facts filled, before the pronunciation table."""
     known = vo.facts()
-    return [vo.resolve(s["text"].strip(), known) for s in json.loads((vo.NARRATION / f"{video}.json").read_text())["segments"]]
+    texts = [vo.resolve(s["text"].strip(), known) for s in json.loads((vo.NARRATION / f"{video}.json").read_text())["segments"]]
+    # Pause tags (<break time="0.5s" />) shape the delivery and *stars* the on-screen hook; a caption shows only the words.
+    return [" ".join(re.sub(r"<break[^>]*/>", " ", t).replace("*", "").split()) for t in texts]
 
 
 def cues(text: str, start: float, seconds: float, width: int = 42) -> list[tuple[float, float, str]]:

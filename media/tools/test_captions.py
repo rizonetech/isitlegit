@@ -19,6 +19,14 @@ class CaptionsTest(unittest.TestCase):
         self.assertAlmostEqual(out[-1][1], 16.0)
         self.assertEqual(" ".join(block.replace("\n", " ") for _, _, block in out), text)
 
+    def test_captions_drop_pause_tags(self):
+        import json, tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "h.json").write_text(json.dumps({"segments": [{"text": 'A fake login page. <break time="0.5s" /> Spot it?'}]}))
+            with mock.patch.object(cap.vo, "NARRATION", Path(d)), mock.patch.object(cap.vo, "facts", return_value={}):
+                self.assertEqual(cap.written("h"), ["A fake login page. Spot it?"])
+
     def test_srt_timestamps(self):
         self.assertEqual(cap.stamp(3725.5), "01:02:05,500")
         self.assertEqual(cap.srt([(0.5, 1.25, "Hi")]), "1\n00:00:00,500 --> 00:00:01,250\nHi\n\n")

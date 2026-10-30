@@ -34,44 +34,24 @@ export const useIn = (from = 0, frames = 20) => {
   return spring({ frame: frame - from, fps, durationInFrames: frames, config: { damping: 200 } });
 };
 
-// The living ground under every scene: the darkest brand surface, falling to near-black at the edges (operator,
-// 2026-10-31), faint topographic lines flowing sideways with every fifth line in orange, a soft orange glow, film grain
-// and a vignette (chosen from five mockups, 2026-10-31). A composition draws it once behind its whole Series, so it
-// flows on across scene changes instead of restarting with each scene.
-const GROUND = DARK ? c.surface : c.light;
-const EDGE = DARK ? "#060507" : c.light;
+// The living ground under every scene (operator, 2026-10-31, after a contour-line version proved too busy): a
+// near-black ground and one soft orange glow drifting on a long, slow path, with a fainter second glow so it never
+// reads as a stage spotlight, and a vignette. No lines and no grain: nothing competes with the text. A composition
+// draws it once behind its whole Series, so the light moves on across scene changes instead of restarting.
+const GROUND = DARK ? "#0B0A0D" : c.light;
+const EDGE = DARK ? "#040305" : c.light;
 const alpha = (a: number) => Math.round(a * 255).toString(16).padStart(2, "0");
 
 export const Backdrop: React.FC = () => {
-  const frame = useCurrentFrame();
-  const t = frame / 30;
-  const lines = Array.from({ length: 22 }, (_, i) => {
-    const base = 80 + i * 46;
-    const d = Array.from({ length: 49 }, (_, k) => {
-      const x = k * 40;
-      const y = base + 26 * Math.sin(x / 260 + t / 6 + i * 0.45) + 14 * Math.sin(x / 120 - t / 9 + i * 0.8);
-      return `${k ? "L" : "M"}${x} ${y.toFixed(1)}`;
-    }).join(" ");
-    const accent = i % 5 === 0;
-    return <path key={i} d={d} fill="none" stroke={accent ? c.orange : c["line-strong"]} strokeWidth={accent ? 1.6 : 1} opacity={accent ? 0.35 : 0.5} />;
-  });
-  const seed = Math.floor(frame / 2) % 50;
+  const t = useCurrentFrame() / 30;
+  const a = { x: 62 + 26 * Math.sin(t / 29), y: 58 + 20 * Math.sin(t / 37 + 1.3) };
+  const b = { x: 30 + 18 * Math.cos(t / 41), y: 30 + 14 * Math.sin(t / 33) };
+  const breathe = 0.22 + 0.04 * Math.sin(t / 11);
   return (
     <AbsoluteFill style={{ background: GROUND }}>
-      <AbsoluteFill style={{ background: `radial-gradient(ellipse 50% 60% at 78% 70%, ${c.orange}${alpha(0.14)}, transparent 70%)` }} />
-      <svg width={1920} height={1080} style={{ position: "absolute", inset: 0 }} aria-hidden>
-        {lines}
-      </svg>
-      <AbsoluteFill style={{ background: `radial-gradient(ellipse 75% 70% at 50% 45%, transparent 40%, ${EDGE}${alpha(0.8)} 100%)` }} />
-      <AbsoluteFill style={{ opacity: 0.05, mixBlendMode: "overlay" }}>
-        <svg width="100%" height="100%" aria-hidden>
-          <filter id={`grain-${seed}`}>
-            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves={3} seed={seed} stitchTiles="stitch" />
-            <feColorMatrix type="saturate" values="0" />
-          </filter>
-          <rect width="100%" height="100%" filter={`url(#grain-${seed})`} />
-        </svg>
-      </AbsoluteFill>
+      <AbsoluteFill style={{ background: `radial-gradient(circle 760px at ${a.x}% ${a.y}%, ${c.orange}${alpha(breathe)}, transparent 70%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(circle 560px at ${b.x}% ${b.y}%, ${c.orange}${alpha(0.08)}, transparent 70%)` }} />
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 80% 75% at 50% 50%, transparent 45%, ${EDGE}${alpha(0.85)} 100%)` }} />
     </AbsoluteFill>
   );
 };

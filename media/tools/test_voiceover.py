@@ -139,6 +139,15 @@ class VoiceoverTest(unittest.TestCase):
         (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": "IsItLegit lives at IsItLegit.co."}]}))
         self.assertEqual(vo.load("t")[1], ["Is It Legit lives at Is It Legit dot co."])
 
+    def test_voice_settings_are_sent_and_only_change_the_files_that_set_them(self):
+        self.assertEqual(vo.digest("One.", "v1", "m"), vo.digest("One.", "v1", "m", None))
+        settings = {"stability": 0.35, "style": 0.4}
+        self.assertNotEqual(vo.digest("One.", "v1", "m"), vo.digest("One.", "v1", "m", settings))
+        (vo.NARRATION / "t.json").write_text(json.dumps({"voice_settings": settings, "segments": [{"text": "One."}]}))
+        with mock.patch.object(vo.urllib.request, "urlopen", side_effect=[reply(1.0)]) as urlopen:
+            self.run_main(["t", "--yes"], {"ELEVENLABS_API_KEY": KEY, "ELEVENLABS_VOICE_ID": "v1"})
+        self.assertEqual(json.loads(urlopen.call_args.args[0].data)["voice_settings"], settings)
+
     def test_an_empty_segment_is_refused(self):
         (vo.NARRATION / "t.json").write_text(json.dumps({"segments": [{"text": " "}]}))
         code, _ = self.run_main(["t", "--dry-run"], {})

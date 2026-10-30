@@ -1,9 +1,9 @@
 import type React from "react";
 import { Series } from "remotion";
-import { Backdrop, CloseScene, MetaBadge, TitleScene } from "../brand";
-import { DURATION as INTRO, LogoReveal } from "../videos/LogoReveal";
+import { Backdrop, CloseScene, MetaBadge } from "../brand";
 import { ColdOpen, coldOpenFrames, hookFor } from "./coldopen";
 import { CREDITS, Credits } from "./credits";
+import { BrandReveal, revealFrames } from "./reveal";
 import { RenderScene, type SceneSpec } from "./scenes";
 import { fill, words } from "./text";
 import { MusicBed, Sfx } from "./sound";
@@ -47,17 +47,18 @@ export const sceneSeconds = (s: SceneSpec): number => {
   return Math.max(7, Math.ceil(words(sceneText(s)) / 3.6 + visual));
 };
 
-// One entry per sequence, matching the narration file's segments: the title, every scene, the close.
+// One entry per sequence, matching the narration file's segments: the reveal (the title), every scene, the close.
 const sequenceFrames = (b: StoryboardSpec, video: string) => {
   const seconds = [TITLE, ...b.scenes.map(sceneSeconds), CLOSE];
   const clips = voiceFor(video, seconds.length);
-  return { frames: voicedFrames(seconds, clips), clips };
+  const frames = voicedFrames(seconds, clips);
+  frames[0] = revealFrames(clips?.[0]);
+  return { frames, clips };
 };
 
-// The cold open (when its hook is voiced) and the dark logo animation open the video and the credits close it, around
-// the voiced sequences.
+// The cold open (when its hook is voiced) and the reveal open the video and the credits close it.
 export const storyboardFrames = (b: StoryboardSpec, video: string) =>
-  coldOpenFrames(hookFor(video)) + INTRO + sequenceFrames(b, video).frames.reduce((a, f) => a + f, 0) + CREDITS;
+  coldOpenFrames(hookFor(video)) + sequenceFrames(b, video).frames.reduce((a, f) => a + f, 0) + CREDITS;
 
 export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({ board, video }) => {
   const chapters = board.scenes.filter((s) => s.type === "chapter").length;
@@ -67,24 +68,24 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
   const label = fill(board.label);
   const hook = hookFor(video);
   const cold = coldOpenFrames(hook);
-  // The music runs from the first frame and stays level through the logo, so it never fights the logo's own sound.
-  const quiet: [number, number][] = [...(hook ? voiceSpans([cold], [hook]) : []), [cold, cold + INTRO], ...voiceSpans(frames, clips, cold + INTRO)];
+  // The music runs from the first frame and stays level through the reveal, so it never fights the logo's own sound.
+  const quiet: [number, number][] = [
+    ...(hook ? voiceSpans([cold], [hook]) : []),
+    [cold, cold + frames[0]],
+    ...voiceSpans(frames.slice(1), clips?.slice(1) ?? null, cold + frames[0]),
+  ];
   return (
     <>
       <Backdrop />
       <Series>
         {hook ? (
           <Series.Sequence durationInFrames={cold}>
-            <ColdOpen clip={hook} cuts={(board.coldOpen ?? []).map((i) => <RenderScene key={i} s={board.scenes[i]} chapters={chapters} label={label} />)} />
+            <ColdOpen video={video} clip={hook} />
           </Series.Sequence>
         ) : null}
-        <Series.Sequence durationInFrames={INTRO}>
-          <LogoReveal theme="dark" />
-        </Series.Sequence>
         <Series.Sequence durationInFrames={frames[0]}>
-          <TitleScene line={fill(board.title)} sub={fill(board.sub)} />
+          <BrandReveal line={fill(board.title)} sub={fill(board.sub)} clip={clips?.[0]} />
           <Sfx name="swell" />
-          <Voice clip={clips?.[0]} />
         </Series.Sequence>
         {board.scenes.map((s, i) => (
           <Series.Sequence key={`${i}-${s.title}`} durationInFrames={frames[i + 1]}>
@@ -102,7 +103,7 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
           <Credits />
         </Series.Sequence>
       </Series>
-      <MusicBed name="bed" frames={cold + INTRO + voiced + CREDITS} voice={quiet} />
+      <MusicBed name="bed" frames={cold + voiced + CREDITS} voice={quiet} />
     </>
   );
 };
