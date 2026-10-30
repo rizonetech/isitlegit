@@ -6,6 +6,7 @@ import { registerAuthChecks } from "./auth";
 import { registerAuthResultsCheck } from "./auth-results";
 import { registerDomainAgeCheck } from "./domain-age";
 import { registerLookalikeCheck } from "./domain-lookalike";
+import { registerHiddenTextCheck } from "./hidden-content";
 import { registerIntakeChecks } from "./intake";
 import { checks } from "./registry";
 import { registerSenderChecks } from "./sender";
@@ -18,5 +19,6 @@ registerSenderChecks(checks);
 registerLookalikeCheck(checks);
 registerDomainAgeCheck(checks);
 registerTypeMismatchCheck(checks);
+registerHiddenTextCheck(checks);
 
 export { allChecks, checks } from "./registry";

@@ -5,6 +5,7 @@
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
 import type { BrandTable } from "./brand-schema";
+import type { HiddenText } from "./hidden-text";
 import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
@@ -79,6 +80,9 @@ export type CaseView = {
   // The first bytes (SNIFF_BYTES, base64) of up to MAX_SNIFFED attachments, read from R2 by the checks step for the
   // type-mismatch check (D02 T04 §1); `unread` counts those not read. Null when not read.
   attachmentHeads: { heads: { key: string; head: string }[]; unread: number } | null;
+  // The hidden text the checks step found in the HTML, the summary's and each cut part's (D02 T05 §1); null when the
+  // message had no HTML.
+  hiddenText: HiddenText | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -105,6 +109,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       senderHistory: null,
       domainAges: null,
       attachmentHeads: null,
+      hiddenText: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -124,6 +129,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       senderHistory: null,
       domainAges: null,
       attachmentHeads: null,
+      hiddenText: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,
