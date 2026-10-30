@@ -1,0 +1,127 @@
+{
+  "ref": "D01 T02 \u00a76",
+  "title": "Forwarding failures detected and reported",
+  "implementation_sha": "86f7bcf77bccf3d6df7fc7854190eb1ea2af50ae",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T02-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/01-intake/D01-T02-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/01-intake/D01-T02-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/mail/forwarding.test.ts test/scheduled.test.ts",
+    "pnpm exec vitest run test/mail test/scheduled.test.ts test/intake test/pipeline"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s6.md",
+    "verdict": "filed",
+    "candidate": "6dc1fc12a35a05d87997f3beee103044356ad15d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T02 \u00a79"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s6.md",
+    "candidate": "b9f65103daae7f3e964edfa8605865bdcaae3c74",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

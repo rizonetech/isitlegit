@@ -44,6 +44,11 @@
     "META_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1",
     // The operator's mailbox (design spec section 11): alerts and unresolved sends go here (D01 T02 §5, §2).
     "OPERATOR_EMAIL": "hostmaster@rizonetech.com",
+    // A second copy of each forwarding-failure alert, on another provider, since OPERATOR_EMAIL is the aliases' own
+    // destination (D01 T02 §6, operator decision 2026-10-30).
+    "OPERATOR_FALLBACK_EMAIL": "rizonetech@gmail.com",
+    // isitlegit.co.za's zone, whose Email Routing events the forwarding check reads (D01 T02 §6).
+    "EMAIL_ZONE_ID": "88aeec6df134bc59bfa16a25751241ef",
     // The app's own origin: Better Auth's base URL, the origin its cookies and its origin check rely on (D07 T02 §1).
     "APP_URL": "https://app.isitlegit.co.za",
     // The origin the reply's report links are made absolute with (D01 T02 §3): the app's own, and https only. Separate

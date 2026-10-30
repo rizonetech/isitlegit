@@ -23,7 +23,7 @@ todo/
 └── 01-intake/
 ```
 
-Domains are flat-numbered in allocation order: `00-workspace`, `01-intake`, `02-checks`, `03-vision`, `04-agent`, `05-trust`, `06-invoice`, `07-app`, `08-eval`, `09-launch`, `99-manual` (operator only). Numbers are stable addresses: a new domain appends after the last one, because `DNN` cross-references encode them. Execution order lives in the dependency graph, not in the numbering.
+Domains are flat-numbered in allocation order: `00-workspace`, `01-intake`, `02-checks`, `03-vision`, `04-agent`, `05-trust`, `06-invoice`, `07-app`, `08-eval`, `09-launch`, `10-media` (the media lane's videos, uncoordinated), `99-manual` (operator only). Numbers are stable addresses: a new domain appends after the last one, because `DNN` cross-references encode them. Execution order lives in the dependency graph, not in the numbering.
 
 Naming: `TODO-NN-short-name.md`, where `NN` is the next free number within that domain. Numbers are never reused. Renaming a file is safe: the stable `id` in frontmatter is what file-level references resolve against.
 

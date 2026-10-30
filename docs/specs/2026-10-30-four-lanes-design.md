@@ -46,6 +46,25 @@ The coordinator owns the operator rows (Phase 1) and the rows whose Needs name `
 
 The tools see every row: `query ready`, the run guard's stop hook and the heartbeat would each have one lane block on, and resume, the other lane's rows. Lane scoping (a lane's domains named once, honoured by `query ready`, the stop hook, the heartbeat and `process-plan`) is the coordinator's first section, D00 T01 §19. Until it lands, only one building lane runs `process-plan`.
 
+## Amendment, 2026-10-30: a fifth lane, `media`, registered but not coordinated
+
+Operator request, 2026-10-30. A fifth lane, `media`, makes promo and explainer videos for the IsItLegit YouTube channel (@DerickPayneDev) with Remotion: first "How IsItLegit is built" (the development method, including the final review through Muse Code) and "IsItLegit in 60 seconds" (the tech stack). It is not the demo video: D09 T02 §4 and D99 T02 §3 to §5 stay as they are.
+
+| Lane | Branch | Worktree | Owns |
+| ---- | ------ | -------- | ---- |
+| Media | `claude/trusting-pasteur-umwvqz` | a Claude Code cloud session | D10 `10-media`, and `media/` |
+
+The coordinator registers the lane and does not run it:
+
+- Its rows never appear in another lane's `query ready`, `blocked` or `stats`: `todo/lanes.json` gives it D10, and every lane counts only its own domains (D00 T01 §19).
+- It runs no `process-plan`, and no run guard or heartbeat blocks on or resumes its rows.
+- Its stamps need no plan review, completion review or review rounds, only the commit and the checks that ran.
+- It merges into `main` only when the operator asks, never at its stamps. Until then its rows and files stay on its branch.
+- It touches only `media/` and `todo/10-media/`, never `scripts/`, `.claude/`, `.conclave/`, `todo/lanes.json` or another domain, and it never calls the Meta Model API.
+- `media/` is self-contained: its own `package.json`, its own `pnpm-workspace.yaml` (so pnpm, looking upward, stops there and keeps `media/pnpm-lock.yaml` apart from the root lockfile), outside the root workspace's `packages` list. The root gates do not read it: Biome, TypeScript and Vitest include named folders only. Remotion's licence is checked by the lane before its first render: Remotion is free for individuals and companies of up to three people, and needs a company licence above that.
+
+The first rule holds today through the lane scoping. The rest are enforced in the tools by D00 T01 §26 (an uncoordinated lane): a `"coordinated": false` key in `todo/lanes.json`, a run guard that refuses to start a run in such a lane, and a stamp that records the waived reviews in the receipt.
+
 ## Order of the switch
 
 1. File D00 T01 §19 (lane scoping) and this note on `main`.
