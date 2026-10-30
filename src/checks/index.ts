@@ -3,6 +3,7 @@
 import { registerArcCheck } from "./arc";
 import { registerAuthChecks } from "./auth";
 import { registerAuthResultsCheck } from "./auth-results";
+import { registerLookalikeCheck } from "./domain-lookalike";
 import { registerIntakeChecks } from "./intake";
 import { checks } from "./registry";
 import { registerSenderChecks } from "./sender";
@@ -12,5 +13,6 @@ registerAuthResultsCheck(checks);
 registerAuthChecks(checks);
 registerArcCheck(checks);
 registerSenderChecks(checks);
+registerLookalikeCheck(checks);
 
 export { allChecks, checks } from "./registry";

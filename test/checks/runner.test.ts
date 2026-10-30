@@ -39,6 +39,7 @@ async function viewOf(message: Uint8Array): Promise<CaseView> {
       orgId: "org-runner",
       channel: "email",
       receivers: [],
+      trusted: { own: [], suppliers: [] },
     },
     rawKey(caseId),
     bundled,

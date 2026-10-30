@@ -52,7 +52,14 @@ const UploadSummary = z.strictObject({
 
 // The organisation the case is for, and its receiving systems (D02 T02 §1), which the checks step reads from the store
 // so a check never has to: only Authentication-Results headers these wrote are trusted. Empty when none are known.
-export type Tenant = { orgId: string; channel: "email" | "upload"; receivers: Receiver[] };
+export type Tenant = {
+  orgId: string;
+  channel: "email" | "upload";
+  receivers: Receiver[];
+  // The domains the organisation trusts, which `domain.lookalike` compares against (D02 T03 §2): its verified domains
+  // and its suppliers', read by the checks step.
+  trusted: { own: string[]; suppliers: string[] };
+};
 
 export type CaseView = {
   tenant: Tenant & { headersAvailable: boolean };

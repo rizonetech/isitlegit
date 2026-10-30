@@ -348,7 +348,14 @@ describe("trustedAuthResults", () => {
 // A case view as the runner builds it: a forwarded or uploaded message with the given headers.
 function view(headers: { name: string; value: string }[], tenant: Partial<CaseView["tenant"]> = {}): CaseView {
   return {
-    tenant: { orgId: "org-auth", channel: "email", receivers: GOOGLE, headersAvailable: true, ...tenant },
+    tenant: {
+      orgId: "org-auth",
+      channel: "email",
+      receivers: GOOGLE,
+      headersAvailable: true,
+      trusted: { own: [], suppliers: [] },
+      ...tenant,
+    },
     raw: "raw/case-auth/message.eml",
     brands: bundled,
     senderHistory: null,

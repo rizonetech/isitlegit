@@ -6,6 +6,7 @@ import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { runChecks } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
+import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
 import {
   type CaseResult,
   getCaseForPipeline,
@@ -362,7 +363,7 @@ export async function checks(
   store: Store,
   caseId: string,
   key: string,
-  tenant: Omit<Tenant, "receivers">,
+  tenant: Omit<Tenant, "receivers" | "trusted">,
   lookup: LookupMx = lookupMx,
   brands: BrandTable = bundled,
 ): Promise<{ evidence: number }> {
@@ -371,7 +372,15 @@ export async function checks(
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
   const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
-    { ...tenant, receivers },
+    {
+      ...tenant,
+      receivers,
+      // The domains the organisation trusts, for the lookalike check (D02 T03 §2).
+      trusted: {
+        own: await listOwnDomains(store.db, tenant.orgId),
+        suppliers: await listSupplierDomains(store.db, tenant.orgId),
+      },
+    },
     rawKey(caseId),
     brands,
   );
