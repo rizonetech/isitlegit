@@ -4,7 +4,7 @@ import { saveEvidence } from "../../src/checks/evidence";
 import { type Case, createCase, setStatus } from "../../src/db/cases";
 import { shownState } from "../../src/web/pages/report";
 import { signReportLink } from "../../src/web/report-link";
-import { call, sessionCookie, signIn, target } from "../auth/helpers";
+import { call, redeem, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "../auth/helpers";
 
 // The report route (D07 T03 §1): one access order, the case's real state, nothing of another organisation's, every
 // failure the same 404 that reveals nothing, an expired link its own 410, an outage a 503.
@@ -186,6 +186,22 @@ describe("the report route", () => {
     const res = await get(`/r/${id}`);
     expect(res.status).toBe(303);
     expect(target(res)).toBe(`/signin?next=%2Fr%2F${id}`);
+    // Signing in with that return path lands back on the report, which then opens.
+    const next = new URL(target(res) ?? "", "http://localhost").searchParams.get("next") ?? "";
+    const email = `back-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    await signIn(email);
+    await join(email, a);
+    const smtp = stubSmtp2go();
+    try {
+      await requestLink(email, next);
+      const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+      expect(target(landed)).toBe(`/r/${id}`);
+      const opened = await get(target(landed) ?? "", sessionCookie(landed));
+      expect(opened.status).toBe(200);
+      expect(await opened.text()).toContain("BACK: the sender");
+    } finally {
+      smtp.restore();
+    }
   });
 
   it("answers the same 404 for a tampered or malformed link, another organisation's case, a missing one and a non-member", async () => {
@@ -220,6 +236,40 @@ describe("the report route", () => {
     const res = await get(`/cases/${id}`);
     expect(res.status).toBe(303);
     expect(target(res)).toBe(`/r/${id}`);
+    // Followed: the report for a member, the same 404 for anyone else.
+    const { cookie } = await member(a);
+    expect((await get(target(await get(`/cases/${id}`, cookie)) ?? "", cookie)).status).toBe(200);
+    const outsider = await member(await org("Elsewhere"));
+    expect((await get(target(await get(`/cases/${id}`, outsider.cookie)) ?? "", outsider.cookie)).status).toBe(404);
+  });
+
+  it("keeps a link holder's link through an outage's Try again, and logs the reference the page shows", async () => {
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "RETRY");
+    const link = await signReportLink(SECRET, id, a);
+    const lines: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((line: unknown) => void lines.push(String(line)));
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/from evidence/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const down = await get(link);
+    expect(down.status).toBe(503);
+    const html = await down.text();
+    vi.restoreAllMocks();
+    const shown = /Reference (500-[0-9A-F]{6})/.exec(html)?.[1];
+    expect(shown).toBeDefined();
+    const logged = lines.map((l) => JSON.parse(l)).find((e) => e.event === "report");
+    expect(logged).toMatchObject({ outcome: "unavailable", reference: shown });
+    const anchor = html.slice(html.lastIndexOf("<a ", html.indexOf(">Try again<")), html.indexOf(">Try again<"));
+    const retry = /\shref="([^"]+)"/.exec(anchor)?.[1]?.replace(/&amp;/g, "&") ?? "";
+    expect(new URL(retry, "http://localhost").searchParams.get("s")).toBe(
+      new URL(link, "http://localhost").searchParams.get("s"),
+    );
+    const back = await get(retry);
+    expect(back.status).toBe(200);
+    expect(await back.text()).toContain("RETRY: the sender");
   });
 
   it("answers an outage as one, with a retry and the privacy headers", async () => {

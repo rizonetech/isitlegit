@@ -111,4 +111,49 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
       expect(await p.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(1200);
       await context.close();
     });
+  // How fast a member's phone shows the report, its largest kind included (D07 T03 §1, completion review): the page as
+  // served, on a throttled mid-range phone profile (4x CPU, fast 3G: 150 ms, 1.6 Mbit/s down), cold and warm, with the
+  // Largest Contentful Paint the browser reports. This measures the page's own weight and rendering, the Worker's
+  // reads being test/web's; the target is the Web Vitals "good" line, 2.5 s.
+  it("paints the largest report within 2.5 s on a throttled phone, cold and warm", async () => {
+    const context = await browser.newContext({ viewport: { width: 360, height: 740 } });
+    const p = await context.newPage();
+    const body = html("member", 100);
+    await p.route(`${APP}/**`, async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
+      const file = join(PUBLIC, path);
+      if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
+      return route.fulfill({ status: 404 });
+    });
+    const cdp = await context.newCDPSession(p);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    await cdp.send("Network.enable");
+    await cdp.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: 150,
+      downloadThroughput: (1.6 * 1024 * 1024) / 8,
+      uploadThroughput: (750 * 1024) / 8,
+    });
+    const lcp = () =>
+      p.evaluate(
+        () =>
+          new Promise<number>((resolve) => {
+            new PerformanceObserver((list) => {
+              const entries = list.getEntries();
+              resolve(entries[entries.length - 1]?.startTime ?? Number.NaN);
+            }).observe({ type: "largest-contentful-paint", buffered: true });
+          }),
+      );
+    const timings: number[] = [];
+    await p.goto(`${APP}/r/case`, { waitUntil: "load" });
+    timings.push(await lcp());
+    await p.reload({ waitUntil: "load" });
+    timings.push(await lcp());
+    console.log(
+      JSON.stringify({ event: "report-lcp", coldMs: Math.round(timings[0] ?? 0), warmMs: Math.round(timings[1] ?? 0) }),
+    );
+    for (const t of timings) expect(t).toBeLessThan(2500);
+    await context.close();
+  });
 });

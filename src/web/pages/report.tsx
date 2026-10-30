@@ -53,8 +53,14 @@ const forward = (
 
 // The error pages this route answers with, in E1, E2 and E5's compositions (D07 T08 §1 later owns them all). Their
 // actions are the boards' own: the cases list (D07 T04 §1) and the upload page (D01 T03 §6) are their sections' pages.
-function errorPage(code: Extract<ErrorCode, 404 | 410 | 500>, caseId: string, now = new Date()) {
-  const footer = referenceLine(reference(code), now);
+// `retry` is the page an outage's "Try again" opens: the address asked for, its signed link kept, so a link holder is
+// not sent to sign in. `ref` is the reference shown, the same one the outage's log line carries.
+function errorPage(
+  code: Extract<ErrorCode, 404 | 410 | 500>,
+  caseId: string,
+  options: { retry?: string; ref?: string; now?: Date } = {},
+) {
+  const footer = referenceLine(options.ref ?? reference(code), options.now ?? new Date());
   const body =
     code === 404 ? (
       <ErrorState
@@ -91,15 +97,15 @@ function errorPage(code: Extract<ErrorCode, 404 | 410 | 500>, caseId: string, no
         }
         footer={footer}
       >
-        Links in our reply emails work for 7 days, so an old email can't be used to read a report. The case itself is
-        still in your account until it reaches 30 days.
+        Links in our reply emails work for 7 days, so an old email can't be used to read a report. The case itself stays
+        in your organisation's account: sign in to open it.
       </ErrorState>
     ) : (
       <ErrorState
         code={500}
         title="Sorry, something broke on our side."
         actions={[
-          <Button variant="dark" href={`/r/${caseId}`}>
+          <Button variant="dark" href={options.retry ?? `/r/${caseId}`}>
             Try again
           </Button>,
           <Button variant="ghost" href="mailto:support@isitlegit.co.za">
@@ -165,8 +171,12 @@ reportRoutes.get("/r/:caseId", async (c) => {
     if (!user) return c.redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`, 303);
     return errorPage(404, id);
   } catch (error) {
-    console.log(JSON.stringify({ event: "report", outcome: "unavailable", error: (error as Error).name }));
-    return errorPage(500, id);
+    // The reference the page shows is the one logged, so support can find the failure by it.
+    const ref = reference(500);
+    console.log(
+      JSON.stringify({ event: "report", outcome: "unavailable", reference: ref, error: (error as Error).name }),
+    );
+    return errorPage(500, id, { ref, retry: `/r/${id}${hasLink ? url.search : ""}` });
   }
 });
 
