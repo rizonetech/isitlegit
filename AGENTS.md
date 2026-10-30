@@ -140,12 +140,14 @@ Answer from source first: the design spec, the stack doc, the RFCs above, and th
 
 ## Validation
 
+Two hooks run through `git config core.hooksPath scripts/hooks`, in every worktree: `scripts/hooks/pre-commit` (the plan, client names, private paths) and `scripts/hooks/pre-push` (`pnpm typecheck` and `pnpm lint` on a clean tree whose `HEAD` is what the push sends, D00 T01 §13). Push a lane's branch from that lane's own worktree.
+
 ```bash
 python3 scripts/todo-graph.py validate             # graph integrity; any fault exits 2 with the reason
 python3 scripts/todo-graph.py plan --check         # generated plan is current (CI runs this)
 python3 scripts/todo-graph.py query ready          # dependency-safe work right now
 python3 scripts/review-dispatch.py --check-pin --json   # the reviewer pin loads and codex is on PATH
-python3 -m unittest discover -s tests/scripts      # TODO graph, run guard, pre-commit hook, CI and merge tooling
+python3 -m unittest discover -s tests/scripts      # TODO graph, run guard, pre-commit and pre-push hooks, CI and merge tooling
 python3 -m unittest discover -s scripts/tests      # review dispatcher
 node scripts/verify-agent-tiers.mjs                # subagent model tiers
 python3 scripts/meta-docs.py sync                   # refresh the local Meta docs and cookbook mirror
