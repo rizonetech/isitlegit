@@ -91,13 +91,13 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 38 | Checklist items: 205
+Sections: 38 | Checklist items: 212
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [x]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
 | [x]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
-| [ ]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 5     |
+| [ ]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 12    |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -334,4 +334,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 83/263 verified sections, 42 ready to run now.
 
-Checklist: 853/1677 items completed (includes Commit items).
+Checklist: 853/1684 items completed (includes Commit items).
