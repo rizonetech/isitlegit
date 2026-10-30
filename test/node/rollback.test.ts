@@ -825,8 +825,15 @@ esac
     child.kill("SIGINT");
     expect(await exited).toBe(130);
     expect(stderr).toContain("rollback: interrupted; whether the deployment changed is uncertain");
-    // The cleanup's signal lands asynchronously, so the stalled command is given 2 s to go; one never stopped fails.
+    // The cleanup's signal lands asynchronously, so the stalled command is given 10 s to go (2 s was too tight on a
+    // loaded machine: the whole suite failed it once, 2026-10-30); one never stopped fails. A command that has exited
+    // but is not yet reaped is a zombie, which signal 0 still reaches: on Linux its /proc state `Z` counts as stopped.
     const alive = () => {
+      try {
+        if (readFileSync(`/proc/${stalled}/stat`, "utf-8").split(") ")[1]?.startsWith("Z")) return false;
+      } catch {
+        // No /proc entry (gone, or not Linux): signal 0 decides.
+      }
       try {
         process.kill(stalled, 0);
         return true;
@@ -834,7 +841,7 @@ esac
         return false;
       }
     };
-    for (let waited = 0; alive() && waited < 2_000; waited += 50) await new Promise((r) => setTimeout(r, 50));
+    for (let waited = 0; alive() && waited < 10_000; waited += 50) await new Promise((r) => setTimeout(r, 50));
     expect(alive()).toBe(false);
   }, 20_000);
 });

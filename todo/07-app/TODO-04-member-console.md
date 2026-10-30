@@ -16,6 +16,8 @@ track: day-6
 ## Inputs
 
 - Design spec 4.8 (client dashboard: cases and verdicts, invoice flags and money at risk caught, weekly stats, team, approved domains, supplier ledger), 4.10 (production counts), `design/SPEC.md` member console.
+- -> XREF: D01 T01 §16 -- the original's subject and sender the Cases rows and search read
+- -> XREF: D01 T03 §11 -- the uploading member that Checked by names
 
 ## Outcome
 
@@ -29,18 +31,27 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Cases list with filters and search | D07 T03 §1 | [ ] |
+| 1 | §1 | Cases list with filters and search | D07 T03 §1 | [x] |
 | 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [ ] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
-| 4 | §4 | Domains and sending addresses page | D07 T02 §7 | [ ] |
+| 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
+| 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [ ] |
+| 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
+| 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
+| 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
+| 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
 
 ## 1. Cases list with filters and search
 
+> **Started:** 2026-10-30T16:54:24Z
+
 Every case of the organisation, newest first, with verdict, channel, sender (display only for members), subject and time; filters by verdict, channel and date; search by sender or subject words; paged 25 at a time.
 
-**Phase:** 6
+**Phase:** 2
+
+**Corrected 2026-10-30** (the operator's decision, 18:20 SAST, through the coordinator): was Phase 6. Every sign-in lands on `/cases` (`DEFAULT_RETURN`), so the Cases list is built before the sign-in page (D07 T02 §7), which depends on it, ahead of the operator's own sign-up (D99 T02 §1).
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` member console, cases list
@@ -48,16 +59,38 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 **Treatment:** a scannable table, verdict first, filters that keep their state in the URL
 **Chrome:** `AppShell`, `VerdictBadge`, `EmptyState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
+**Corrected 2026-10-30** at start, against the code and the boards (`Cases`, `Cases-Empty`):
+- The subject and the original's sender are not stored yet: storing them at intake is the checks lane's D01 T01 §16 (migration 0038, filed at this lane's request through the coordinator), not this section's, and is not on main. The row's subject-and-sender cell, and the search box that searches them, move to §7 (filed below), which waits on D01 T01 §16. Until then a row is named by what was checked (`Forwarded email`; `Uploaded document`, `image` or `voice note`) and the search box is not drawn.
+- "Checked by" is the member who forwarded the mail: the case's `forwarded_by` matched to a member of the organisation by address (their name, else the address). An upload stores no uploader (D01 T03 §1 admits it with no forwarder), so its cell reads "Not recorded" until the checks lane stores one; asked of the checks lane through the coordinator, and §7 draws it.
+- The "Type" column's invoice and payment-document words ("Email, invoice") come from the invoice checks (D06), not stored on the case; §7 draws them from the evidence once D06 T01 classifies a case. This section shows the channel and source kind.
+- The stats tiles above the table are §2's. A row's verdict pill reads the case's real state, as the report does (`shownState`, `src/web/pages/report-view.tsx`): Checking, Partial, Could not be checked, or the verdict.
+- `requireOrg` answers any refusal as JSON. A page answers it as a page: a member with no active organisation, or one just removed, gets the E3 403 page, not a JSON body.
+
 **Build order:**
 
-1. Build `GET /cases` behind `requireSession` (D07 T02 §1). Done when: filters, search and paging work in a rendered test, and an anonymous request is sent to `/signin`.
+1. Build `GET /cases` behind `requireSession` (D07 T02 §1). Done when: filters and paging work in a rendered test (search is §7's), and an anonymous request is sent to `/signin`. **Corrected 2026-10-30 (plan review P3).**
 
-- [ ] Store `subject` and `sender_display` on cases at parse time (members only see their own organisation's). Done when: the parse test stores both.
-- [ ] Build `src/web/pages/cases.tsx` with the table, verdict and channel filters, date range, search box and pager, state in query parameters, updated with htmx. Done when: `test/web/cases-page.test.ts` covers each filter and a search. Cheaper substitute: an unfiltered list.
-- [ ] Show the empty state with how to forward the first mail. Done when: a new organisation sees it.
-- [ ] Commit: `web: cases list with filters and search`
+- [x] Read one page of the organisation's cases in `src/db/case-list.ts` (`listCases(db, orgId, { verdict, channel, period, page }, now)`): newest first by `created_at` then `id`, 25 a page, scoped by `org_id`, with the matching count and the organisation's total; the period's start in SAST days (7, 30 or 90, or all time). Done when: `test/db/case-list.test.ts` reads each filter, the page edges and another organisation's cases never appearing, and a bad filter value is refused, not ignored. Evidence 2026-10-30: `test/db/case-list.test.ts` 4 passed (a bad verdict, page 0 and no organisation refused; 27 cases paged 25 and 2, page 7 answering page 2, another organisation's case never read; the period starting at SAST midnight; a failing database a typed `database` refusal); the filter shapes live in `src/db/case-filters.ts` so the page and its browser test read them without the database.
+- [x] Name who checked each email case: the `forwarded_by` address matched to a member of the organisation (`"user".name`, else the address), in the same read. Done when: the test shows a member's name, a former member's address, and "Not recorded" for an upload. Evidence 2026-10-30: `test/web/cases-page.test.ts` "names who checked each case" reads Thandi Nkosi for a member, the address for a former member and null (drawn "Not recorded") for an upload.
+- [x] Build `src/web/pages/cases.tsx` (`GET /cases` behind `requireSession` and the active organisation): heading "Cases" and "Everything <organisation> has checked", Check a file (`/upload`, D01 T03 §6), the verdict segmented filter (All, Malicious, Suspicious, Safe), channel (All channels, Email, Upload) and period (Last 7 days, Last 30 days, Last 90 days, All time; Last 30 days by default), the table (Verdict, Case, Type, Checked by, When; every row opens `/r/<id>`), "Showing 1 to 25 of 64" and Previous and Next. Filters and page live in the query string; a bad value answers the default, never a 500. Changing a filter goes back to page 1; Previous and Next keep every filter; a page past the last answers the last page (or the empty state when nothing matches); Previous is disabled on page 1 and Next on the last, as disabled links (`aria-disabled`, no `href`). Done when: `test/web/cases-page.test.ts` covers each filter, combined filters, paging with filters kept, a filter change from page 3 returning page 1, an out-of-range page and every row's link. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: the route is `src/web/pages/cases.tsx`, the page `src/web/pages/cases-view.tsx`; `test/web/cases-page.test.ts` covers each filter and three combinations, the form echoing the address, bad values answering defaults, paging 30 cases with the filter kept in both pager links, page 9 answering the last, and the ends drawn as disabled buttons (a link with no `href` is no control; announced as dimmed), every row linking `/r/<id>`.
+- [x] Keep the filters working without JavaScript (a GET form with its own Apply button) and, with htmx (D07 T01 §9), redraw only the results on each change and push the URL, so Back returns to the previous filters. The newest change wins (`hx-sync` replaces a request still in flight), the form shows "Loading cases" while it waits, and the results' count line is announced politely; focus stays on the control that changed. Done when: `test/node/cases-browser.test.tsx` changes a filter, sees the URL and rows change, presses Back and sees the earlier rows; with a delayed response it sees the loading line, and two quick changes leave only the second's rows; it filters, pages and opens a report by keyboard alone; and with JavaScript off, Apply submits the form. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: `test/node/cases-browser.test.tsx` (13 passed) changes a verdict and reads the pushed address and new rows with only the results fetched and focus kept, presses Back and reads the earlier rows; with a delayed response sees Loading cases; two quick changes leave only the second's rows (removing `hx-sync` fails it); filters with ArrowRight, pages with Enter and opens a report by keyboard; and with JavaScript off filters through Apply.
+- [x] Never show cases from history without asking the server: htmx keeps no page snapshots (`historyCacheSize` 0 and `refreshOnHistoryMiss`, set once in `src/web/components/Document.tsx` for every page), so Back reloads the page through the session and organisation checks; every answer is `private, no-store`. Done when: the browser test switches organisation (or is removed) and presses Back, and sees the active organisation's cases or the 403 page, never the earlier organisation's rows. **Added 2026-10-30 (plan review P1).** Evidence 2026-10-30: `src/web/components/Document.tsx` sets `historyCacheSize` 0 and `refreshOnHistoryMiss`; the browser test switches organisation then presses Back and reads the new organisation's rows, then removes the member and reads the 403 page; keeping snapshots fails two tests.
+- [x] Recover a filter request that fails as the page would: when a results request is answered with an error (an expired session sent to sign in, a revoked membership, a database outage) or cannot be sent, `src/web/client/app.ts` loads the requested address as a whole page, so the reader meets the sign-in page, the 403 page or the 503 page, whose Try again keeps the filters. Done when: the browser test drives each through a filter change, not a direct page load. **Added 2026-10-30 (plan review P1).** Evidence 2026-10-30: `src/web/client/app.ts` loads the address whole on `htmx:responseError`, `htmx:sendError` and a response that landed elsewhere; the browser test drives an expired session (lands on sign-in with `next` keeping the filter), a removal (403 page), an outage (503 page whose Try again keeps the filter and, once the store is back, shows the rows) and a dropped connection through a filter change; removing the handlers fails four tests.
+- [x] Write "When" as SAST: "Just now" under a minute, the time today, "Yesterday", then "Fri 24 Oct", with the full date and time in the cell's `datetime` and title. Done when: unit cases cover each band and the SAST midnight edge. Evidence 2026-10-30: `test/web/cases-page.test.ts` "when a case arrived" covers Just now, 09:14, Yesterday, Sat 24 Oct, Fri 24 Oct 2025, the full title, and 00:30 SAST on the 30th as today while 23:30 SAST on the 29th is Yesterday.
+- [x] Show the first-run state (board `Cases-Empty`) when the organisation has no cases: the eyebrow, heading and sentence, the check address with Copy address (D07 T01 §9's copy script), the three how-to tiles, and the accepted-senders line with Or upload a file. The line reads the organisation's verified domains and verified addresses (`src/auth/senders.ts`'s sources): domains only ("Only mail sent from karoocouriers.example, your verified domain, is accepted."), addresses only, both, or neither (no mail is accepted yet; a link to Domains and addresses, `/settings/domains`, D07 T04 §4). Done when: the page test reads each of the four. **Corrected 2026-10-30 (plan review P2).** Evidence 2026-10-30: `test/web/cases-page.test.ts` reads the first-run state with Copy address and the how-to tiles for a domain-only, an address-only, a domain-and-addresses and a no-sender organisation (the last linking `/settings/domains`), from `verifiedSenders` in `src/auth/senders.ts`.
+- [x] Show the filtered-empty state when filters match nothing: 'No cases match Malicious, last 7 days.', "64 cases in total. Try a wider date range or another verdict." and Clear filters, which resets verdict, channel and page and selects All time (`/cases?period=all`, since the default is the last 30 days). Done when: the page test reads it, and an organisation with only older cases sees them after Clear filters. **Corrected 2026-10-30 (plan review P2).** Evidence 2026-10-30: `test/web/cases-page.test.ts` reads "No cases match Malicious, last 7 days.", "1 case in total.", Clear filters to `/cases?period=all`, and a 60-day-old case missing from `/cases` but listed there; pointing Clear filters at `/cases` fails it.
+- [x] Draw each row's state as the report does (`shownState`): received and running as Checking, partial with a verdict as Partial beside nothing hidden, partial or done without one as Could not be checked, and done as its verdict; All lists them all, and a verdict filter lists only cases with that verdict. Done when: the page test renders a fixture of each and reads its pill and its place under All. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: `test/web/cases-page.test.ts` renders received and running (Checking), partial with a verdict (Partial), partial without one (Partial with "Could not be checked"), done (Malicious), all five under All in order and only the partial under Suspicious; hiding the words fails it.
+- [x] Answer a member with no active organisation, or one just removed, with the E3 403 page (`ErrorState` 403), and a read that fails with the E5 page (503, its reference logged as the report's is, Try again keeping the filters). The active organisation and membership are read through one function `src/auth/org.ts` exports, which `requireOrg` also uses, so the page and the API agree. Done when: the page test covers each. Evidence 2026-10-30: `activeMembership` in `src/auth/org.ts` (requireOrg uses it, `test/auth/org.test.ts` 19 passed); `test/web/cases-page.test.ts` reads the 403 page with the address and Sign out for a removed member and for no active organisation (a Deviation in `design/SPEC.md` E3), and the 503 page with its logged reference and Try again keeping the filters. The error pages moved to `src/web/pages/errors.tsx`, shared with the report.
+- [x] Pass the accessibility gate's rules at 360 and 1280 px in both themes, the table a real table with its caption and column headers, the segmented filter a labelled radio group, on a phone the table reflowing to one card per case with no sideways scroll. Done when: the browser test scans each and measures the width. Evidence 2026-10-30: `test/node/cases-browser.test.tsx` scans the list, the filtered-empty and the first-run states at 360 and 1280 px in both themes with no problem and no sideways scroll (a captioned table on desktop, one card per case on phones, the verdict filter a fieldset of radios). It found a body shorter than the viewport leaving the sidebar's text over two backgrounds: `Document` now gives the body `min-h-screen`.
+- [x] Close the completion review's in-scope gaps: every results request (the filters and the pager) joins one queue so the newest wins in either order; a results request from a page drawn for another organisation (switched in another tab) reloads the whole page (`x-cases-org`, answered `HX-Redirect`); the Gmail tile says to tick the email and use More at the top (a Deviation in `design/SPEC.md` M1); a session store that cannot be read answers the E5 page (`sessionGate` in `src/auth/gate.ts`, the API keeping JSON); focus stays on a pager end through each redraw; and the list is timed at 10,000 cases. Done when: `test/node/cases-browser.test.tsx` (15) drives both queue orders, the switched organisation, and Tab and Enter through filtering, paging to the last page and back and opening a case with no programmatic focus; `test/web/cases-page.test.ts` (15) reads the session-store outage's E5 page with its logged reference and the stale organisation's 204 `HX-Redirect`; `test/db/case-list.test.ts` (5) reads 10,000 cases at p95 6 ms on the local SQLite through `cases_org_created` (production D1 adds its network time). Each fix's removal fails its test. **Added 2026-10-30 (completion review).**
+- [x] Commit: `web: cases list with filters and search`
+
+> **Deferred:** the row's subject and original sender, the search box that searches them, the uploader's name and the invoice words in Type (boards `Cases`) -> XREF: D07 T04 §7
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if another organisation's case appears.
+
+> **Verified:** 2026-10-30 | §1 | d3456050f9e9893852d6041dace75d72ae0059ec
+> **Review:** `docs/reviews/d07-t04-s1.json`
 
 ## 2. Weekly stats, money at risk, CSV export
 
@@ -184,6 +217,123 @@ Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console,
 - [ ] Commit: `web: MSP console and own branding`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/msp-console.test.ts` passes and fails if an MSP reads a client it does not manage or a non-MSP plan reaches the console.
+
+## 7. Subject, sender and search in the Cases list
+
+Each row named as the board names it: the original's subject over its sender, the search box that finds a case by either, the uploader in Checked by and the invoice and payment-document words in Type. Filed 2026-10-30 from D07 T04 §1's start, where the stored fields did not yet exist.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases (board `Cases`)
+**Job:** a member finds a past check by what it was about or who sent it
+**Treatment:** the board's two-line cell, subject over sender; search as the board's input, in the query string with the filters
+**Chrome:** §1's page
+
+**Build order:**
+
+1. Wait for D01 T01 §16 (the checks lane: the original's subject and sender stored on the case, migration 0038) to reach main and this branch, then add it to this section's Depends with its XREF. Done when: `validate` accepts the edge.
+2. Draw the two-line cell and search; draw the uploader and Type words once their rows exist (asked of the checks and invoice lanes through the coordinator). Done when: `test/web/cases-page.test.ts` reads each.
+
+- [x] Add D01 T01 §16 to this section's Depends once it is on main and merged here. Done when: `validate` accepts the edge. Evidence 2026-10-30: D01 T01 §16 (the original's subject and sender, migration 0038) and D01 T03 §11 (`uploaded_by`, migration 0039) are stamped on main, merged here at 5731f56, and both are in the Depends column; `validate` accepts them.
+- [ ] Draw the subject over the sender (name and address; "Uploaded PDF" and the like for a document with neither), and Search by sender or subject over both, case-insensitively, in the query string. Done when: `test/web/cases-page.test.ts` finds a case by a subject word and by a sender address, and another organisation's never.
+- [ ] Draw the uploader's name in Checked by for an upload, from `uploaded_by` (D01 T03 §11), matched to a member of the organisation as an email case's forwarder is. Done when: the page test reads it, and "Not recorded" only for an upload from before migration 0039.
+- [ ] Draw the invoice and payment-document words in Type from the invoice checks' stored classification (D06). Done when: the page test reads "Email, invoice".
+- [ ] Commit: `web: subject, sender and search in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search returns another organisation's case.
+
+## 8. A chosen date range in the Cases list
+
+A member looking for a check from a known week picks its dates instead of paging through a fixed period. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 2): the board `Cases` offers only fixed periods, so the control is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the date range
+**Job:** a member finds the checks of a known week or month in one step
+**Treatment:** a From and To date beside the period filter, in the query string with the other filters
+**Chrome:** §1's filters
+
+**Build order:**
+
+1. Draw the date range on the board `Cases` and have the operator approve it. Done when: `design/SPEC.md` M1 lists the control.
+2. Build it into §1's filters and `src/db/case-list.ts`. Done when: `test/web/cases-page.test.ts` filters by a range.
+
+- [ ] Add the date range to the board and SPEC M1 with the operator's approval. Done when: `design/SPEC.md` M1 names it.
+- [ ] Filter `listCases` by a From and To date (SAST days, inclusive) and draw the control. Done when: `test/web/cases-page.test.ts` reads a range's cases only.
+- [ ] Commit: `web: a chosen date range in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
+
+## 9. Next and previous case from a report
+
+A member reviewing a filtered run of cases steps from one report to the next without going back to the list. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 3): the board `Main` (M3) has no such control, so the control is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 Report, once the operator approves a board change adding the step controls
+**Job:** a member works through a filtered list of reports in order
+**Treatment:** Previous and Next on the report, keeping the list's filters
+**Chrome:** D07 T03 §1's report
+
+**Build order:**
+
+1. Draw the controls on the report board and have the operator approve them. Done when: `design/SPEC.md` M3 lists them.
+2. Carry the list's filters to the report and step through them. Done when: `test/web/report-access.test.ts` steps to the next case under a filter.
+
+- [ ] Add Previous and Next to the report board and SPEC M3 with the operator's approval. Done when: `design/SPEC.md` M3 names them.
+- [ ] Carry the filters from `/cases` to `/r/<id>` and answer Previous and Next within them, scoped by the organisation. Done when: `test/web/report-access.test.ts` steps to the next filtered case and never to another organisation's.
+- [ ] Commit: `web: next and previous case from a report`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if a step leaves the filter or the organisation.
+
+## 10. A Checked by filter in the Cases list
+
+A member narrows the list to the cases one colleague checked. Filed 2026-10-30 at the checks lane's suggestion (D01 T03 §11's completion review, through the coordinator): the board `Cases` has no such filter, so the control is a design change first; it waits on §7 so an upload names its uploader.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the filter
+**Job:** a member reviews what one colleague has checked
+**Treatment:** a Checked by select beside the channel filter (Everyone, then each member), in the query string with the other filters
+**Chrome:** §1's filters
+
+**Build order:**
+
+1. Draw the filter on the board `Cases` and have the operator approve it. Done when: `design/SPEC.md` M1 lists the control.
+2. Filter `listCases` by the member (their forwarding address for email, their user id for an upload) and draw the select. Done when: `test/web/cases-page.test.ts` filters by a member.
+
+- [ ] Add the Checked by filter to the board and SPEC M1 with the operator's approval. Done when: `design/SPEC.md` M1 names it.
+- [ ] Filter `src/db/case-list.ts` by one member of the organisation, refusing a member of another, and draw the select with the organisation's members. Done when: `test/web/cases-page.test.ts` lists only that member's cases and never another organisation's.
+- [ ] Commit: `web: a checked by filter in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
+
+## 11. DNS help for each provider on the domain page
+
+An owner who does not know where their DNS lives reaches the steps for their provider in one action from the domain page: where the TXT record goes, what the provider calls Name (host, `@`, or the whole name), the value, TTL, and what to do when Check now still finds nothing. Filed 2026-10-30 from D07 T02 §15's completion review (excellence item 2, against Microsoft 365's domain setup): the board `Verify-Domain` has no help entry, so it is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A5 Verify a domain, once the operator approves a board change adding the help entry
+**Job:** an owner adds the TXT record at their own DNS provider without searching for how
+**Treatment:** a "How do I add this at my provider?" entry beside the record, opening steps for the common South African and global providers, with propagation troubleshooting
+**Chrome:** D07 T02 §15's page
+
+**Build order:**
+
+1. Draw the help entry on the board `Verify-Domain` and have the operator approve it. Done when: `design/SPEC.md` A5 lists the control.
+2. Write and test the steps for each provider named. Done when: `test/web/domains-page.test.ts` opens each provider's steps from the page.
+
+- [ ] Add the help entry to the board and SPEC A5 with the operator's approval, naming the providers covered. Done when: `design/SPEC.md` A5 names it and the providers.
+- [ ] Write each provider's steps (where the record goes, what its Name field expects, TTL, propagation and troubleshooting), checked against that provider, and draw them from the page. Done when: `test/web/domains-page.test.ts` reaches each provider's steps in one action and reads the Name each expects.
+- [ ] Commit: `web: dns help for each provider on the domain page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a provider's steps name the wrong field for the record's name.
 
 ## Verification
 

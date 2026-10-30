@@ -1,10 +1,11 @@
 import { raw } from "hono/html";
 import type { Child } from "hono/jsx";
-import { APP_CSS, FONTS, LOGO_MARK } from "../assets";
+import { APP_CSS, APP_JS, FONTS, HTMX, LOGO_MARK } from "../assets";
 
 // The HTML document every page renders into (D07 T01 §3): the fingerprinted stylesheet, the two brand fonts preloaded
-// so text does not reflow when they arrive, the mark as the icon, and a `scripts` slot §9 fills (htmx and the app
-// script) at the end of the body.
+// so text does not reflow when they arrive, the mark as the icon, and at the end of the body htmx and the app script
+// (D07 T01 §9), both deferred until the page is parsed and run in that order, then any scripts of the page's own. The
+// app script is a module (deferred by being one), so it can keep to the erasable syntax Node's type stripping builds.
 export type DocumentProps = {
   // The page's own name; the document title is "<title> · IsItLegit".
   title: string;
@@ -27,9 +28,14 @@ export function Document({ title, scripts, children }: DocumentProps) {
             <link rel="preload" href={href} as="font" type="font/woff2" crossorigin="anonymous" />
           ))}
           <link rel="stylesheet" href={APP_CSS} />
+          {/* htmx keeps no page snapshots (D07 T04 §1): Back loads the page again through the session and organisation
+              checks, so no member's cases are shown from the browser's memory after a switch or a removal. */}
+          <meta name="htmx-config" content='{"historyCacheSize":0,"refreshOnHistoryMiss":true}' />
         </head>
-        <body class="bg-surface text-ink font-text text-16 antialiased">
+        <body class="min-h-screen bg-surface text-ink font-text text-16 antialiased">
           {children}
+          <script src={HTMX} defer />
+          <script type="module" src={APP_JS} />
           {scripts}
         </body>
       </html>

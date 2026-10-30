@@ -1,22 +1,30 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
+import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
+import { hiddenTextOf } from "../checks/hidden-text";
+import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecks } from "../checks/runner";
+import { observeSender, originalSender } from "../checks/senders-seen";
+import { attachmentHeadsOf } from "../checks/sniff";
+import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
 import {
   type CaseResult,
   getCaseForPipeline,
   type SourceKind,
   setHeadersAvailable,
+  setOriginalHeader,
   setStatus,
   type Verdict,
 } from "../db/cases";
 import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
+import { NO_HEADER, originalHeaderOf } from "../intake/original-header";
 import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
-import { artefactsOf, parsedKey, putParsed, rawKey, readArtefact, type Store } from "../intake/store";
+import { artefactsOf, parsedKey, putParsed, putVisible, rawKey, readArtefact, type Store } from "../intake/store";
 import {
   buildReply,
   HEADER_RANGE,
@@ -187,7 +195,13 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     try {
       const key = await timed("parse", () => parse(store, caseId, { channel, sourceKind, headersAvailable }));
       current = "checks";
-      await timed("checks", () => checks(store, caseId, key, { orgId, channel }));
+      // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
+      await timed("checks", async () =>
+        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), {
+          fetch: (input, init) => fetch(input, init),
+          cache: this.env.CACHE,
+        }),
+      );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
       current = "store";
@@ -301,10 +315,15 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
     // trace gave it at upload, a .msg by its own answer.
     if (source.channel === "upload") {
       const isMsg = raw.stored.mediaType === "application/vnd.ms-outlook";
-      const { parsed, headersAvailable } = isMsg
+      const { parsed, headersAvailable, sender } = isMsg
         ? await parseMsg(raw.body)
-        : { parsed: await parseMessage(raw.body), headersAvailable: source.headersAvailable };
+        : { parsed: await parseMessage(raw.body), headersAvailable: source.headersAvailable, sender: undefined };
       must(await setHeadersAvailable(store.db, caseId, headersAvailable), "storing the header state");
+      // The upload is the original itself, so its Subject and From are taken whatever its header state (D01 T01 §16).
+      must(
+        await setOriginalHeader(store.db, caseId, originalHeaderOf(parsed.headers, sender)),
+        "storing the original's header",
+      );
       await storeParsed(store, caseId, parsed, {
         original: raw.body,
         format: isMsg ? "msg" : "eml",
@@ -315,11 +334,24 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
       return parsedKey(caseId);
     }
     const forward = await extractOriginal(raw.body);
-    const { parsed, headersAvailable } =
+    const { parsed, headersAvailable, sender } =
       forward.format === "msg"
         ? await parseMsg(forward.original)
-        : { parsed: await parseMessage(forward.original), headersAvailable: forward.headersAvailable };
+        : {
+            parsed: await parseMessage(forward.original),
+            headersAvailable: forward.headersAvailable,
+            sender: undefined,
+          };
     must(await setHeadersAvailable(store.db, caseId, headersAvailable), "storing the header state");
+    // An inline forward is the member's own message: its Subject and From are theirs, not the original's (D01 T01 §16).
+    must(
+      await setOriginalHeader(
+        store.db,
+        caseId,
+        forward.path === "inline" ? NO_HEADER : originalHeaderOf(parsed.headers, sender),
+      ),
+      "storing the original's header",
+    );
     await storeParsed(store, caseId, parsed, { ...forward, headersAvailable });
     return parsedKey(caseId);
   } catch (error) {
@@ -337,13 +369,46 @@ export async function checks(
   store: Store,
   caseId: string,
   key: string,
-  tenant: Omit<Tenant, "receivers">,
+  tenant: Omit<Tenant, "receivers" | "trusted">,
   lookup: LookupMx = lookupMx,
+  brands: BrandTable = bundled,
+  // RDAP for the domain-age check (D02 T03 §4): none by default, so a caller that gives none reads no ages (null).
+  rdap: RdapDeps | null = null,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
-  const view = caseViewOf(JSON.parse(new TextDecoder().decode(summary.body)), { ...tenant, receivers });
+  const read = caseViewOf(
+    JSON.parse(new TextDecoder().decode(summary.body)),
+    {
+      ...tenant,
+      receivers,
+      // The domains the organisation trusts, for the lookalike check (D02 T03 §2).
+      trusted: {
+        own: await listOwnDomains(store.db, tenant.orgId),
+        suppliers: await listSupplierDomains(store.db, tenant.orgId),
+      },
+    },
+    rawKey(caseId),
+    brands,
+  );
+  // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
+  const sender = originalSender(read);
+  const scanned =
+    read.source.kind === "message" && (read.html !== null || read.truncated.length)
+      ? await hiddenTextOf(store.bucket, read)
+      : null;
+  if (read.source.kind === "message") await putVisible(store, caseId, scanned?.visible ?? read.text ?? "");
+  const view = {
+    ...read,
+    senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
+    // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
+    domainAges: rdap ? await domainAgesOf(read, rdap) : null,
+    // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
+    attachmentHeads: read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null,
+    // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
+    hiddenText: scanned?.hidden ?? null,
+  };
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };
 }

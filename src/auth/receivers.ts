@@ -63,9 +63,13 @@ export function receiversOf(mx: string[]): Receiver[] {
   return [...found.values()];
 }
 
+// A claim whose last lookup found no MX, or failed, is not looked up again for this long, so it cannot take a slot from
+// the others case after case (completion review).
+export const RETRY_EMPTY_MS = 60 * 60 * 1000;
+
 // Learns a verified claim's receivers and replaces its rows in one batch that writes only while the claim is still
-// verified. A failed lookup keeps the rows already there; a domain with no MX keeps none. Returns what was stored, or
-// null when nothing could be learned.
+// verified, recording the lookup whatever it found. A failed lookup keeps the rows already there; a domain with no MX
+// keeps none. Returns what was stored, or null when nothing could be learned.
 export async function learnReceivers(db: D1Database, claimId: string, lookup: LookupMx = lookupMx) {
   const claim = await db
     .prepare("SELECT org_id, domain FROM org_domains WHERE id = ? AND state = 'verified'")
@@ -73,10 +77,19 @@ export async function learnReceivers(db: D1Database, claimId: string, lookup: Lo
     .first<{ org_id: string; domain: string }>();
   if (!claim) return null;
   const mx = await lookup(claim.domain);
-  if (mx === null) return null;
-  const receivers = receiversOf(mx);
   const now = new Date().toISOString();
   const verified = "EXISTS (SELECT 1 FROM org_domains WHERE id = ?1 AND state = 'verified')";
+  const tried = (outcome: "found" | "none" | "failed") =>
+    db
+      .prepare(
+        `INSERT INTO receiver_lookups (claim_id, org_id, tried_at, outcome) SELECT ?1, ?2, ?3, ?4 WHERE ${verified} ON CONFLICT (claim_id) DO UPDATE SET tried_at = excluded.tried_at, outcome = excluded.outcome`,
+      )
+      .bind(claimId, claim.org_id, now, outcome);
+  if (mx === null) {
+    await tried("failed").run();
+    return null;
+  }
+  const receivers = receiversOf(mx);
   await db.batch([
     db.prepare(`DELETE FROM org_receivers WHERE claim_id = ?1 AND ${verified}`).bind(claimId),
     ...receivers.map((r) =>
@@ -86,21 +99,27 @@ export async function learnReceivers(db: D1Database, claimId: string, lookup: Lo
         )
         .bind(claimId, claim.org_id, claim.domain, r.kind, r.pattern, now),
     ),
+    tried(receivers.length > 0 ? "found" : "none"),
   ]);
   return receivers;
 }
 
 // The receivers of an organisation's verified claims, learning again (within RELEARN_DOMAINS lookups) the claims that
-// have none or whose receivers are older than RECEIVERS_STALE_MS. A lookup that fails keeps what was there.
+// have none or whose receivers are older than RECEIVERS_STALE_MS, the least recently tried first, so every claim gets
+// its turn; one whose last lookup found nothing or failed waits RETRY_EMPTY_MS. A lookup that fails keeps what was there.
 export async function receiversForOrg(db: D1Database, orgId: string, lookup: LookupMx = lookupMx): Promise<Receiver[]> {
   const claims = await db
     .prepare(
-      "SELECT d.id, MIN(r.learned_at) AS learned FROM org_domains d LEFT JOIN org_receivers r ON r.claim_id = d.id WHERE d.org_id = ? AND d.state = 'verified' GROUP BY d.id ORDER BY learned IS NOT NULL, learned",
+      "SELECT d.id, MIN(r.learned_at) AS learned, l.tried_at AS tried, l.outcome FROM org_domains d LEFT JOIN org_receivers r ON r.claim_id = d.id LEFT JOIN receiver_lookups l ON l.claim_id = d.id WHERE d.org_id = ? AND d.state = 'verified' GROUP BY d.id ORDER BY tried IS NOT NULL, tried",
     )
     .bind(orgId)
-    .all<{ id: string; learned: string | null }>();
+    .all<{ id: string; learned: string | null; tried: string | null; outcome: string | null }>();
   const stale = new Date(Date.now() - RECEIVERS_STALE_MS).toISOString();
-  const due = claims.results.filter((c) => c.learned === null || c.learned < stale).slice(0, RELEARN_DOMAINS);
+  const resting = new Date(Date.now() - RETRY_EMPTY_MS).toISOString();
+  const due = claims.results
+    .filter((c) => c.learned === null || c.learned < stale)
+    .filter((c) => !(c.outcome !== "found" && c.tried !== null && c.tried > resting))
+    .slice(0, RELEARN_DOMAINS);
   for (const claim of due) await learnReceivers(db, claim.id, lookup);
   const rows = await db
     .prepare(

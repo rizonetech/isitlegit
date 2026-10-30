@@ -20,6 +20,7 @@ track: day-2
 - -> XREF: D02 T06 §4 -- the reputation listings whose disputes the feedback records by provider
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 - -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
+- -> XREF: D01 T01 §16 -- the original's subject and sender stored on the case, which the header draws
 
 ## Outcome
 
@@ -35,7 +36,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Report route with signed-link and session access | D07 T01 §10, D01 T01 §8 | [ ] |
+| 1 | §1 | Report route with signed-link and session access | D07 T01 §10, D01 T01 §8 | [x] |
 | 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [ ] |
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [ ] |
 | 4 | §4 | Live status, partial and failed states | §2 | [ ] |
@@ -43,8 +44,11 @@ track: day-2
 | 6 | §6 | This-was-wrong feedback | §2 | [ ] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
+| 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
 
 ## 1. Report route with signed-link and session access
+
+> **Started:** 2026-10-30T16:02:27Z
 
 `GET /r/:caseId` serves the report to a valid signed link (no session needed) or to a signed-in member of the case's organisation; anything else gets a 404 that reveals nothing (spec 4.8). A print stylesheet makes the report save cleanly as PDF.
 
@@ -56,20 +60,35 @@ track: day-2
 **Treatment:** verdict first, nothing private to anyone outside the organisation
 **Chrome:** `AppShell` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
+**Corrected 2026-10-30** (validation before build): `requireOrg` (`src/auth/org.ts`) checks only the session's active organisation, so the report checks membership itself, in Better Auth's `member` table, and a session opens a case when its user is a member of the case's organisation, any of theirs (**Corrected 2026-10-30**, plan review P3: this said `requireOrg` did not exist); a case does not store its subject or sender (`cases` holds status, verdict, channel, `forwarded_by` and times; the message is in R2), so the report header (subject, sender, who forwarded it and when, Download PDF, Copy link) waits on intake storing them, a D01 row asked of the checks lane, and is filed as §9; until §2 and §3 draw the verdict and evidence, the page shows the case's real state (its verdict badge, status in words, when it arrived, its evidence as a severity pill and summary each), never a placeholder; the shell frame is the member's (`AppShell` member) for a session and the public frame for a signed link.
+
 **Build order:**
 
 1. Build the route and access rule. Done when: tests cover signed link, member session, other organisation and tampered link.
 2. Add the print stylesheet. Done when: the report prints to PDF without the shell's navigation.
 
-- [ ] Write `GET /r/:caseId` in `src/web/pages/report.tsx` accepting a valid `verifyReportLink` or a session with `requireOrg` matching the case. Done when: `test/web/report-access.test.ts` covers the four cases, all failures returning the same 404. Cheaper substitute: case ids as the only secret.
-- [ ] Answer an authentic link past its expiry (`verifyReportLink` refuses it as `expired`, so its signature held) with the 410 "Link expired" page (`design/SPEC.md` E2, D07 T08 §1), and every other refusal (tampered, malformed, foreign, another organisation's case) with the same 404, so the 410 discloses nothing a stranger could not already know. Done when: `test/web/report-access.test.ts` gets 410 for an expired authentic link and byte-identical 404s for a tampered link and for another organisation's case. (**Added 2026-10-27**, D01 T01 §8's completion review: this section said every failure is a 404, while the SPEC draws a 410 recovery page for an expired link.)
-- [ ] Load the case, verdict and evidence with one query each, scoped to the organisation. Done when: the test counts queries.
-- [ ] Add a print stylesheet hiding navigation and expanding evidence cards. Done when: a Browser Run PDF render of a fixture has no navigation text.
-- [ ] Set `Cache-Control: private, no-store` and `X-Robots-Tag: noindex`. Done when: the test reads both headers.
-- [ ] Add the report's phone back link to Cases per `Report-Mobile` (a link to `/cases` above the report title at phone width, for a signed-in member only; the public frame shows none). Done when: a test renders the report at 360 px for a member and finds the link to `/cases`, and renders the signed-link view and finds none. (Assigned by D07 T01 §3's plan review, 2026-10-27.)
-- [ ] Commit: `web: report route with signed-link and session access`
+- [x] Write `GET /r/:caseId` in `src/web/pages/report.tsx`, mounted in `src/index.ts`, accepting a valid `verifyReportLink` (the public frame) or a session whose user is a member of the case's organisation (Better Auth's `member` table; the member frame), a request with neither and no valid link going to `/signin?next=` like any member page. Done when: `test/web/report-access.test.ts` covers the four cases, all failures returning the same 404. Cheaper substitute: case ids as the only secret.
+- [x] Decide access in one order (`src/web/pages/report.tsx`): a session whose user is a member of the case's organisation opens the member view, whatever link comes with it; otherwise a valid signed link opens the public view; otherwise an authentic link past its expiry answers 410; otherwise a request with no session and no link parameters goes to `/signin?next=/r/<id>` (the path only, no link parameters); everything else (a session without membership, a tampered, malformed or foreign link, a missing case) answers the same 404. Done when: `test/web/report-access.test.ts` covers an entitled session with an expired link (opens), a valid link with no session and with a non-member session (public view), an unsigned anonymous request (sign-in, then back on the report after signing in), a malformed link, a missing case, membership in a non-active organisation (opens) and a removed membership (404). Cheaper substitute: a link check before the session check. **Added 2026-10-30 (plan review P1).**
+- [x] Serve `GET /cases/:caseId` (`design/SPEC.md` 0.4's M3 route) as a 303 to `/r/<id>` behind `requireSession`, so the member's address and the reply's link reach one report. Done when: the test follows it to the report for a member and to the same 404 for a non-member. **Added 2026-10-30 (plan review P2).**
+- [x] Answer an authentic link past its expiry (`verifyReportLink` refuses it as `expired`, so its signature held) with the 410 "Link expired" page drawn here with `ErrorState` (D07 T01 §8) in E2's composition ("Sign in to see the case" to `/signin?next=/r/<id>` and the forward-again note), D07 T08 §1 later owning the error pages as a whole, and every other refusal (tampered, malformed, foreign, another organisation's case) with the same 404, so the 410 discloses nothing a stranger could not already know. Done when: `test/web/report-access.test.ts` gets 410 for an expired authentic link with its explanation and a working "Sign in to see the case", and identical 404s (E1's composition) for a tampered link and for another organisation's case, the same but for each page's own reference line (**Corrected 2026-10-30** at build: a support reference and its time differ per request by design, and say nothing about the case). (**Added 2026-10-27**, D01 T01 §8's completion review: this section said every failure is a 404, while the SPEC draws a 410 recovery page for an expired link.)
+- [x] Answer an outage as one: a session, membership or report read that fails answers 503 with `ErrorState`'s 500 composition, `Retry-After: 5` and the privacy headers, never a 404 and never a partial report. Done when: the test injects each failure (the session read, the membership query, each report query) and finds the 503 with its headers. **Added 2026-10-30 (plan review P2).**
+- [x] Load the case, verdict and evidence with one query each, scoped to the organisation. Done when: the test counts queries, and with two organisations' cases stored (each with evidence `E1` to `E3`), the requested case's exact evidence in order and none of the other case's. **Corrected 2026-10-30 (plan review P2):** a count alone passed hard-coded content.
+- [x] Draw the case's state in `src/web/pages/report.tsx` until §2 and §3 draw the report itself: the `VerdictBadge` (D07 T01 §7) for its state, mapped from the stored status and its nullable verdict (received or running: running; done with a verdict: complete; partial with a verdict: partial; partial, or done, with none: failed, "No verdict"), the state in words ("Received", "Checking", "Checked", "Partly checked", "Could not be checked"), when it arrived in SAST, and each piece of evidence as its `SeverityPill` and summary in order, under an `h1` naming the case by its arrival. Done when: `test/web/report-access.test.ts` renders a received case, a running one before and after its verdict is stored, a partial one with and without a verdict, and a done one, finds each one's badge, words and evidence without throwing or inventing a verdict, and the page passes the colour guard. **Corrected 2026-10-30 (plan review P1):** a partial case with no verdict threw. Cheaper substitute: an empty page or "coming soon".
+- [x] Draw the report's footer (`design/SPEC.md` M3: retention and access): for a member, "Raw files are deleted after 30 days. This summary stays while your organisation has an account."; for a signed link, "Anyone with this link can read this report until <SAST date>. Raw files are deleted after 30 days."; "This verdict is wrong" is §6's. Done when: the test finds each wording in its view. **Added 2026-10-30 (plan review P2).**
+> **Deferred:** "This verdict is wrong" in the footer -> XREF: §6
+- [x] Add a print stylesheet hiding navigation and expanding evidence cards (**Corrected 2026-10-30** at build: `print:hidden` on the shell's sidebars and phone header and `print:ml-0` on its main column, `src/web/components/AppShell.tsx`, the shell owning its own print; the cards §3 adds expand there). Done when: `test/node/report-browser.test.tsx` emulates print media in Chromium on a multipage fixture in both themes and finds the case heading, state and every evidence summary visible and unclipped, and no navigation. **Corrected 2026-10-30 (plan review P2):** "no navigation text" passed a blank page; the cards §3 adds carry their own print check there.
+- [x] Set `Cache-Control: private, no-store` and `X-Robots-Tag: noindex`. Done when: the test reads both headers.
+- [x] Add the report's phone back link to Cases per `Report-Mobile` (a link to `/cases` above the report title at phone width, for a signed-in member only; the public frame shows none). Done when: `test/node/report-browser.test.tsx` at 360 and 1280 px in both themes finds the link visible and reached by Tab for a member and absent from the signed-link view, long evidence summaries wrapping without sideways scroll, and the composed page passing axe-core with the A11y gate's rules. **Corrected 2026-10-30 (plan review P2):** markup alone passed a hidden link. (Assigned by D07 T01 §3's plan review, 2026-10-27.)
+> **Deferred:** the report header (subject, sender, who forwarded it and when, Download PDF, Copy link; SPEC M3 anatomy) -> XREF: §9
+- [x] Close the completion review's in-scope gaps: an outage's "Try again" keeps a link holder's signed link; the 410's sentence says the case stays in the organisation's account (a Deviation in `design/SPEC.md` E2: 30 days is the raw files', not the case's); the support reference the 503 shows is the one its log line carries; the tests follow the sign-in return onto the report and `/cases/:id` to its outcome; and a member's phone paints the largest report (100 findings) within 2.5 s, cold and warm, on a throttled profile (4x CPU, 150 ms, 1.6 Mbit/s). Done when: `test/web/report-access.test.ts` (13) and `test/node/report-browser.test.tsx` (8) cover each, the retry losing its link failing the first (measured 2026-10-30: 264 ms cold, 304 ms warm, the page's own paint; the Worker's reads are `test/web`'s). **Added 2026-10-30 (completion review).**
+- [x] Commit: `web: report route with signed-link and session access`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if another organisation's member can open the case.
+Evidence 2026-10-30 18:18 SAST. `src/web/pages/report.tsx` (`reportRoutes`: `GET /r/:caseId` in one access order, `GET /cases/:caseId` to it, 404, 410 and 503 drawn with `ErrorState`, private headers), `src/web/pages/report-view.tsx` (`shownState`, the body, `ReportDocument`, kept apart so the browser test renders it with no storage), `src/web/pages/member-shell.ts` (the member frame's data, the first page to need it), mounted in `src/index.ts`; the shell's print classes; `test/node/axe.ts` holds the gate's axe rules for every browser test, `test/node/a11y.test.tsx` now importing it. `pnpm exec vitest run --project worker test/web/report-access.test.ts`: 12 passed (the state map and six stored states, a member's own evidence in order and none of another organisation's, a non-active organisation's membership and its removal, a signed link with no session and with an outsider's, an entitled session with an expired link and the 410's recovery, the sign-in redirect, five refusals as one 404, `/cases/:id`, four injected outages as 503s with their headers, one query each, the headers). `pnpm exec vitest run test/node/report-browser.test.tsx`: 7 passed (axe at 360 and 1280 px in both themes for a member and a link holder, the phone back link by keyboard and its absence, print of a 40-finding report in both themes with no navigation and nothing cut). Mutations caught: the sidebar printing, any member's session opening any case, a partial case with no verdict drawn as if it had one. With them: typecheck, lint, `pnpm test:a11y` 14 passed, the gallery, shell, colour and stylesheet tests, and `test/web/` with `test/auth/` (16 files, 234 passed).
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-browser.test.tsx` passes and fails if another organisation's member can open the case.
+
+> **Verified:** 2026-10-30 | §1 | f82e543db13d4b1a78134ddf023c963994b92cf7
+> **Review:** `docs/reviews/d07-t03-s1.json`
 
 ## 2. Verdict banner, headline, reasons and actions
 
@@ -138,6 +157,7 @@ While a case runs, the report shows progress by step and updates itself (htmx po
 
 - [ ] Write `GET /r/:caseId/status` returning the step list fragment, polled with `hx-trigger="every 2s"` until `done`, `partial` or `failed`. Done when: `test/web/report-status.test.ts` sees polling stop.
 - [ ] Render partial cases with `PartialNotice` naming the steps that did not run and that the verdict is based on what did. Done when: the partial fixture shows it.
+- [ ] Announce each state change of a running report once through a polite live region outside the polled fragment (`LoadingState`, D07 T01 §8): the step that started, then the terminal outcome (verdict, partial or failed) by the next 2 s poll, with no repeat on an unchanged poll and keyboard focus kept where it was. Done when: `test/web/report-status.test.ts` drives a running fixture to done, partial and failed and finds each announcement once in order, none on unchanged polls, and focus unmoved. Cheaper substitute: making the swapped fragment itself live, which re-announces every poll. **Added 2026-10-30** (D07 T01 §8 completion review G8; Fluent 2 wait guidance announces state changes).
 - [ ] Render failed cases with a retry button for members (re-runs the Workflow for that case once). Done when: the retry creates one new instance and a second click is refused while it runs. (**Noted 2026-10-28**, D01 T01 §7's completion review: the Workflow's `admit` step skips a `done` or `partial` case so a finished case is never analysed twice, so a retry must first return the case to a state `admit` takes, through a lifecycle move `src/db/cases.ts` does not allow yet, and record it; a new instance alone would end at `admit`.)
 - [ ] Commit: `web: live status, partial and failed states`
 
@@ -247,6 +267,27 @@ A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T
 - [ ] Commit: `web: full-size evidence viewer`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/node/evidence-viewer-browser.test.tsx` passes, and fails when the viewer leaves focus anywhere but the figure that opened it.
+
+## 9. Report header
+
+The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb back to Cases, the subject as the title, the sender, who forwarded it and when, and Download PDF and Copy link. Filed 2026-10-30 from §1's validation: a case does not store its subject or sender, so the header waits on intake storing them (a D01 row, asked of the checks lane through the coordinator).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the header), boards `Main`, `Report-Mobile`
+**Job:** a member sees which message the report is about before reading the verdict, and can keep or share it
+**Treatment:** the subject as the title, the sender and forwarder in plain words, two quiet actions
+**Chrome:** `AppShell`, `Button` and the copy group (D07 T01 §3, §6, §9)
+
+**Build order:**
+
+1. Draw the header from the stored subject and sender. Done when: each fixture's header shows its message.
+
+- [ ] Read the case's subject, sender and forwarder from the columns intake stores (the D01 row) and draw the header above the verdict: the breadcrumb "Cases / <subject>" for a member, the subject as the `h1` (wrapping anywhere), "From <name> <address>", "Forwarded as an attachment by <name> · <SAST time>", Download PDF (the browser's print to PDF, §1's print stylesheet) and Copy link (the copy group with the report's own link). Done when: `test/web/report-access.test.ts` finds each part for an emailed and an uploaded fixture, and a hostile subject (markup, a 2,000-character line) renders as text and wraps. Cheaper substitute: the case id as the title.
+- [ ] Commit: `web: the report header`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes with the header drawn from stored fields for an emailed and an uploaded case.
 
 ## Verification
 

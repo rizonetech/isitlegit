@@ -1,0 +1,130 @@
+{
+  "ref": "D07 T03 \u00a71",
+  "title": "Report route with signed-link and session access",
+  "implementation_sha": "f82e543db13d4b1a78134ddf023c963994b92cf7",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T03-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T03-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web test/auth -> Tests 238 passed (238)",
+    "pnpm exec vitest run --project node -> Tests 809 passed | 1 skipped (810)",
+    "pnpm test:a11y -> Tests 14 passed (14)",
+    "pnpm typecheck -> exit 0",
+    "pnpm lint -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s1.md",
+    "verdict": "filed",
+    "candidate": "e71cf4462171b02a8ef164a14108e29fcf753695",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T02 \u00a77",
+      "D07 T04 \u00a71",
+      "D07 T03 \u00a79",
+      "D07 T03 \u00a72",
+      "D07 T03 \u00a73",
+      "D07 T03 \u00a74",
+      "D07 T03 \u00a75",
+      "D07 T03 \u00a76",
+      "D07 T03 \u00a77",
+      "D07 T03 \u00a78",
+      "D07 T08 \u00a77"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s1.md",
+    "candidate": "85d39268ae8a69e5dd5e3a16627a85dd737b84c2",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

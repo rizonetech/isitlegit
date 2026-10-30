@@ -21,11 +21,13 @@ import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
-import { mailedLink } from "./confirm-page";
+import { mailedLink, returnPath } from "./confirm-page";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { d1RateLimit, RATE_RULES } from "./ratelimit";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
+import { CODE_COOKIE, drawCode, HANDLE_COOKIE, newHandle, readHandle, spaced } from "./signin-code";
+import { decoy, issueSignInCode, withdraw } from "./signin-code-store";
 import { inviteSignup, type SendFirstLink } from "./signup";
 
 export { DEFAULT_RETURN, MAGIC_LINK_SECONDS, sameSitePath };
@@ -65,6 +67,32 @@ export function authOptions(
   const schema = schemaOptions(
     {
       sendMagicLink: async ({ email, url, token }, ctx) => {
+        // The code beside the link signs in only the browser that asked (D07 T02 §11, ./signin-code): the handle it
+        // already holds, or a new one, set on this answer.
+        const held = readHandle(ctx?.headers ?? ctx?.request?.headers ?? new Headers());
+        const handle = held ?? newHandle();
+        const keepHandle = () => ctx?.setCookie(CODE_COOKIE, handle, HANDLE_COOKIE);
+        const code = drawCode();
+        const db = mail().db;
+        const secret = env.BETTER_AUTH_SECRET ?? "";
+        const unrecorded = (step: string) => (error: unknown) =>
+          console.log(JSON.stringify({ event: "signin-code", outcome: step, error: (error as Error).name }));
+        // The code's row is written before the mail goes, so a code in a member's inbox always has one behind it; one
+        // that cannot be written sends nothing and answers as a failed send.
+        let row: string;
+        try {
+          row = await issueSignInCode(
+            db,
+            secret,
+            { email, token, callbackURL: returnPath(new URL(url).searchParams.get("callbackURL")), handle },
+            code,
+          );
+        } catch (error) {
+          unrecorded("unissued")(error);
+          throw new APIError("BAD_GATEWAY", {
+            message: "the sign-in link could not be sent; try again in a few minutes",
+          });
+        }
         const outcome = await sendMail(mail(), {
           sendKey: `signin:${await sha256Hex(token)}`,
           kind: "signin",
@@ -72,20 +100,29 @@ export function authOptions(
           from: SIGNIN_FROM,
           subject: "Your IsItLegit sign-in link",
           // The confirm page, not Better Auth's verify URL, which signs in on GET (D07 T02 §10).
-          text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${mailedLink(env.APP_URL, url, token)}\n\nIf you did not ask for it, ignore this mail.`,
+          text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${mailedLink(env.APP_URL, url, token)}\n\nOr type this code in the browser where you asked for the link (it works only there, once, for the same ${MAGIC_LINK_SECONDS / 60} minutes):\n\n${spaced(code)}\n\nIf you did not ask for it, ignore this mail.`,
         });
         onMagicLinkOutcome(email, outcome);
         // The per-address limit held the link back (sendMail's, D01 T02 §2): answered as sent, recorded here.
         if (outcome.status === "refused" && /too many sign-in links/.test(outcome.reason))
           await audit({ kind: "rate-limited", outcome: "per-address", ip: clientIp(ctx?.request?.headers) });
         // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
-        // never tells a stranger who is registered; a failed or unknown send is still an error.
-        if (outcome.status === "refused") return;
+        // never tells a stranger who is registered; a failed or unknown send is still an error. A refused request keeps
+        // its row with a decoy token and gets the browser's handle like a sent one (./signin-code-store), so nothing the
+        // browser can see afterwards tells the two apart.
+        if (outcome.status === "refused") {
+          await decoy(db, secret, row).catch(unrecorded("undecoyed"));
+          keepHandle();
+          return;
+        }
         const delivered = outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
-        if (!delivered)
+        if (!delivered) {
+          await withdraw(db, row).catch(unrecorded("unwithdrawn"));
           throw new APIError("BAD_GATEWAY", {
             message: "the sign-in link could not be sent; try again in a few minutes",
           });
+        }
+        keepHandle();
       },
       // Better Auth swallows a failure here (it logs and reports the invite made), so its outcome is read back in the
       // after hook on /organization/invite-member, which answers 502 unless the send was confirmed.
@@ -537,9 +574,14 @@ export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
   // endpoint answers a held-back link (the sign-in limit) as a sent one, so a stranger learns nothing, but the new
   // owner must be told the truth (D01 T02 §2), and no other mail to the address can stand in for it.
   const outcomes = new Map<string, SendOutcome>();
-  const sendFirstLink: SendFirstLink = async (email) => {
+  // The handle is the signup browser's (D07 T02 §11): carried in as its cookie, so the code mailed with this first link
+  // is bound to the browser that signed up.
+  const sendFirstLink: SendFirstLink = async (email, handle) => {
     outcomes.delete(email.toLowerCase());
-    await auth.api.signInMagicLink({ body: { email, callbackURL: DEFAULT_RETURN }, headers: new Headers({ origin }) });
+    await auth.api.signInMagicLink({
+      body: { email, callbackURL: DEFAULT_RETURN },
+      headers: new Headers({ origin, cookie: `${CODE_COOKIE}=${handle}` }),
+    });
     const outcome = outcomes.get(email.toLowerCase());
     return outcome?.status === "sent" || (outcome?.status === "duplicate" && outcome.previous === "sent");
   };

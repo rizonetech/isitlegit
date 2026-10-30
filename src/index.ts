@@ -8,11 +8,16 @@ import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
+import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { smoke } from "./smoke";
+import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { casesRoutes } from "./web/pages/cases";
+import { domainPageRoutes } from "./web/pages/domains";
+import { reportRoutes } from "./web/pages/report";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
@@ -35,6 +40,19 @@ app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
 app.route("/api/org", domainRoutes);
 app.route("/api/team", teamHistoryRoutes);
 app.route("/api/upload", uploadRoutes);
+// The report, to a member of the case's organisation or a signed link (D07 T03 §1), src/web/pages/report.tsx.
+app.route("/", reportRoutes);
+// The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
+app.route("/", casesRoutes);
+// The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
+app.route("/", domainPageRoutes);
+// The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
+// "production" in wrangler.jsonc, so every deploy answers them 404.
+app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));
+app.get("/dev/components/frame/:id", (c) => {
+  const frame = c.env.ENV === "development" ? GalleryFrame(c.req.param("id")) : null;
+  return frame ? c.html(frame) : c.notFound();
+});
 
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
 // cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)
@@ -47,6 +65,8 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(scheduledReconcile(env));
     ctx.waitUntil(scheduledIntakeSweep(env));
+    // Forwarded mail a destination refused, and member mail the Worker could not take (D01 T02 §6).
+    ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).
@@ -76,6 +96,30 @@ export default {
     );
   },
 } satisfies ExportedHandler<Env>;
+
+// The forwarding check's outcome as one log line (counts and error classes only): `disabled` when the analytics token
+// or the zone is not set, never silent (D01 T02 §6).
+export async function scheduledForwarding(
+  env: Env,
+  log: (line: string) => void = console.log,
+  fetcher: typeof fetch = fetch,
+): Promise<ForwardingOutcome> {
+  let outcome: ForwardingOutcome;
+  try {
+    outcome = await checkForwarding({
+      db: env.DB,
+      token: env.CF_ANALYTICS_TOKEN,
+      zone: env.EMAIL_ZONE_ID,
+      mail: { db: env.DB, apiKey: env.SMTP2GO_API_KEY },
+      operators: [env.OPERATOR_EMAIL, env.OPERATOR_FALLBACK_EMAIL].filter((o): o is string => !!o),
+      fetch: fetcher,
+    });
+  } catch (error) {
+    outcome = { state: "degraded", events: 0, incidents: 0, folded: 0, alerted: 0, errors: [(error as Error).name] };
+  }
+  log(JSON.stringify({ event: "forwarding", ...outcome }));
+  return outcome;
+}
 
 // The intake sweep's outcome as one log line (counts only: no address, key or Message-ID).
 export async function scheduledIntakeSweep(env: Env, log: (line: string) => void = console.log) {

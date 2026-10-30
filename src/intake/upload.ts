@@ -71,6 +71,7 @@ uploadRoutes.post("/", async (c) => {
       orgId: c.get("org").id,
       key: `sha256:${await sha256Hex(bytes)}`,
       channel: "upload",
+      uploadedBy: c.get("signedIn").user.id,
       sourceKind: sniffed.kind,
       headersAvailable: sniffed.kind === "mail" && sniffed.headersAvailable,
       store: async (caseId) => {

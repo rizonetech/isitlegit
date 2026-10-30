@@ -12,34 +12,90 @@
 # text: their bytes carry no words anyone writes a name into, and a short name (three letters) matches them by chance;
 # their paths are still checked, and mail fixtures and PDFs are still read as text. scripts/check-publication.py runs
 # the same scan before a push.
-names_file="$(git rev-parse --show-toplevel)/samples/client-names.txt"
-if [ -f "$names_file" ]; then
-    # Fail closed: a list that exists but cannot be read, or a scan that errors, refuses the commit rather than
-    # passing it unchecked (git grep and grep exit 1 for "no match" and above 1 for an error).
-    patterns=$(mktemp) || exit 1
-    if ! sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file" > "$patterns"; then
-        rm -f "$patterns"
-        echo "pre-commit: samples/client-names.txt exists but cannot be read; fix its permissions" >&2
-        exit 1
-    fi
-    if [ -s "$patterns" ]; then
-        git grep --cached -q -a -i -F -f "$patterns" -- . ':(exclude,glob)**/*.ttf' ':(exclude,glob)**/*.otf' ':(exclude,glob)**/*.woff' ':(exclude,glob)**/*.woff2' ':(exclude,glob)**/*.png' ':(exclude,glob)**/*.jpg' ':(exclude,glob)**/*.jpeg' ':(exclude,glob)**/*.gif' ':(exclude,glob)**/*.webp' ':(exclude,glob)**/*.ico'
-        content=$?
-        git -c core.quotePath=false ls-files > "$patterns.paths" && grep -q -i -F -f "$patterns" "$patterns.paths"
-        paths=$?
-        rm -f "$patterns" "$patterns.paths"
-        if [ "$content" -eq 0 ] || [ "$paths" -eq 0 ]; then
-            echo "pre-commit: the staged tree contains a client name from samples/client-names.txt; anonymise it" >&2
-            exit 1
-        fi
-        if [ "$content" -ne 1 ] || [ "$paths" -ne 1 ]; then
-            echo "pre-commit: the client-name scan failed, so the commit is refused unchecked; run it again" >&2
-            exit 1
-        fi
+# The list is the clone's, not the worktree's (D00 T01 §24): a worktree's own samples/client-names.txt when it has
+# one, else the main checkout's beside the shared git directory, since `git worktree add` copies no ignored file. No
+# usable list refuses the commit, each state with its own fix: a commit is never passed unscanned.
+own="$(git rev-parse --show-toplevel)/samples/client-names.txt"
+main_list="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)/samples/client-names.txt"
+if [ -L "$own" ] && [ ! -e "$own" ]; then
+    # The repair depends on where the link sits: the main checkout's own list cannot point at itself, and a worktree's
+    # link is only worth pointing at the main checkout's list when that list exists.
+    if [ "$own" = "$main_list" ] || [ ! -e "$main_list" ]; then
+        echo "pre-commit: samples/client-names.txt is a link to $(readlink "$own"), which does not exist; put the" \
+            "operator's private list there, or replace the link with the list itself ('rm $own', then write the" \
+            "list at $main_list)" >&2
     else
-        rm -f "$patterns"
+        echo "pre-commit: samples/client-names.txt is a link to $(readlink "$own"), which does not exist; repair it" \
+            "with 'ln -sfn $main_list $own', or remove the link ('rm $own') to use the main checkout's list" >&2
     fi
+    exit 1
 fi
+if [ ! -e "$own" ] && [ -L "$main_list" ] && [ ! -e "$main_list" ]; then
+    # The main checkout's list, found from this worktree, is itself a link to nothing.
+    echo "pre-commit: the main checkout's client list $main_list is a link to $(readlink "$main_list"), which does" \
+        "not exist; restore the list at that target, or replace the link with the list itself ('rm $main_list'," \
+        "then write the operator's private list there)" >&2
+    exit 1
+fi
+if [ -e "$own" ]; then
+    names_file=$own
+elif [ -e "$main_list" ]; then
+    names_file=$main_list
+else
+    echo "pre-commit: no client list: this clone has no samples/client-names.txt, in this worktree or the main" \
+        "checkout. Put the operator's private list (one client name, domain or address per line; git-ignored, never" \
+        "committed) at $main_list, then commit again" >&2
+    exit 1
+fi
+if [ ! -r "$names_file" ]; then
+    echo "pre-commit: $names_file exists but cannot be read; fix its permissions" >&2
+    exit 1
+fi
+# The scan's files (the list's patterns, the tracked paths, the matching lines) hold private text, so they live in
+# one directory only its owner can read (mktemp -d makes it 0700), removed on every exit, an interrupt included.
+if ! scan=$(mktemp -d); then
+    echo "pre-commit: no temporary folder could be made (${TMPDIR:-/tmp} full or not writable), so the client-name" \
+        "scan cannot run; free space there and commit again" >&2
+    exit 1
+fi
+patterns="$scan/patterns"
+trap 'rm -rf "$scan"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+# Fail closed: a copy that cannot be written, or a scan that errors, refuses the commit rather than passing it
+# unchecked (git grep and grep exit 1 for "no match" and above 1 for an error).
+if ! sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file" > "$patterns"; then
+    echo "pre-commit: the client list could not be copied to a temporary file (${TMPDIR:-/tmp} full?), so the" \
+        "scan cannot run; free space there and commit again" >&2
+    exit 1
+fi
+if [ ! -s "$patterns" ]; then
+    echo "pre-commit: the client list $names_file names no one; add the client names, one per line, then commit" \
+        "again" >&2
+    exit 1
+fi
+git -c core.quotePath=false grep --cached -n -a -i -F -f "$patterns" -- . ':(exclude,glob)**/*.ttf' ':(exclude,glob)**/*.otf' ':(exclude,glob)**/*.woff' ':(exclude,glob)**/*.woff2' ':(exclude,glob)**/*.png' ':(exclude,glob)**/*.jpg' ':(exclude,glob)**/*.jpeg' ':(exclude,glob)**/*.gif' ':(exclude,glob)**/*.webp' ':(exclude,glob)**/*.ico' > "$patterns.hits"
+content=$?
+git -c core.quotePath=false ls-files > "$patterns.paths" && grep -q -i -F -f "$patterns" "$patterns.paths"
+paths=$?
+if [ "$content" -eq 0 ] || [ "$paths" -eq 0 ]; then
+    echo "pre-commit: the staged tree contains a client name from samples/client-names.txt; anonymise it:" >&2
+    # Where, never what: each match as path:line, without the matched text, and a path that itself names a client is
+    # not printed at all (only said to exist).
+    printf '%s\n' "$(cut -d: -f1,2 "$patterns.hits" | grep -v -i -F -f "$patterns" | sort -u | head -20)" \
+        | sed -e '/^$/d' -e 's/^/  /' >&2
+    if [ "$paths" -eq 0 ] || cut -d: -f1 "$patterns.hits" | grep -q -i -F -f "$patterns"; then
+        echo "  and a staged file path names a client ('git ls-files | grep -iFf <the list>' shows it)" >&2
+    fi
+    exit 1
+fi
+if [ "$content" -ne 1 ] || [ "$paths" -ne 1 ]; then
+    echo "pre-commit: the client-name scan failed, so the commit is refused unchecked; run it again" >&2
+    exit 1
+fi
+rm -rf "$scan"
+trap - EXIT INT TERM HUP
 
 # Private machine paths (a home folder, a Windows or WSL-mounted user folder) never enter the public repository either:
 # the pattern scripts/check-publication.py uses, over the whole index, so a reviewer's quoted path in a findings file is
@@ -79,6 +135,18 @@ done
 if [ -z "$python" ]; then
     echo "pre-commit: Python is needed to check the TODO graph" >&2
     exit 1
+fi
+# A merge being concluded (D00 T01 §22): the todo-plan driver kept this side's plan, so it is regenerated here, after
+# the check above that nothing under todo/ or docs/reviews/ is unstaged, from exactly the merged inputs. MERGE_HEAD
+# exists by now, so the incoming parent's stamps and pins validate (pre-merge-commit runs before git writes it).
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    if ! "$python" "$root/scripts/todo-graph.py" plan --sync >/dev/null; then
+        echo "pre-commit: plan --sync failed over the merged tree (its refusal is above: an invalid graph, or a write" \
+            "that failed), so the merge is not committed; fix it and run 'git commit --no-edit' again, or" \
+            "'git merge --abort'" >&2
+        exit 1
+    fi
+    git add -- todo/implementation-plan.md || exit 1
 fi
 if ! "$python" "$root/scripts/todo-graph.py" validate >/dev/null || ! "$python" "$root/scripts/todo-graph.py" plan --check; then
     echo "pre-commit: run 'python scripts/todo-graph.py plan --sync', stage todo/implementation-plan.md, and commit again" >&2

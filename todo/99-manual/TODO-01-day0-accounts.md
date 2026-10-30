@@ -354,10 +354,14 @@ Walkthrough 2026-10-29, against the live domain, nothing changed, every step lis
 D99 T01 §6's check proves the Web Risk key works and that seven other Google APIs refuse it, at least one by the key's API restriction; it cannot read the key's exact allowed-service list, so a key allowed Web Risk and an eighth, unprobed API would pass. Google's API Keys API reads that list (`keys.lookupKey` with the key string, then `keys.get` for its `restrictions.apiTargets`; https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys), but needs a Google Cloud credential with `apikeys.keys.lookup` and `apikeys.keys.get` on the Rizonetech project, which this repository does not hold. Filed from §6's completion review (gap C1 and E1, 2026-10-28).
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Operator action (open):** create a Google Cloud service account in the Rizonetech project with the API Keys Viewer role only, and store its JSON key in the Conclave vault as "IsItLegit Google API keys viewer". Recording `Operator ready: API keys viewer (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+Operator ready: API keys viewer (2026-10-30)
+
+**Corrected 2026-10-30** (Needs was `operator`): the operator created the service account `isitlegit-apikeys-viewer@rizonetech-511822.iam.gserviceaccount.com` (API Keys Viewer only) and stored its JSON key in "IsItLegit Google API keys viewer" (operator batch 1, `docs/coordinator.md`), and enabled the API Keys API in project 131143319364, which holds the Web Risk key. A first read by the coordinator (2026-10-30 15:31 SAST) found `keys.lookupKey` and `keys.get` answering 200 and `restrictions.apiTargets` naming exactly `webrisk.googleapis.com`, with no other restriction. Read the key with `op read`, not `op item get --fields`, which CSV-quotes a JSON value.
 
 **Build order:**
 
@@ -374,10 +378,21 @@ D99 T01 §6's check proves the Web Risk key works and that seven other Google AP
 D99 T01 §4's check proves the SMTP2GO key is live and refused two account endpoints, and `sendMail` refuses any sender outside isitlegit.co.za, but the key's complete saved permission set and its permitted sender domains are settings only an account-level key can read (SMTP2GO refuses the sending key `api_keys/view` with `ENDPOINT_PERMISSION_DENIED`, 2026-10-29). A key granted one extra permission, or allowed another verified domain in the account, would still pass. Filed from §4's completion review (gaps C1, C2 and E1, 2026-10-29).
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Operator action (open):** in SMTP2GO, either confirm on the API keys page that the "IsItLegit SMTP2GO" key holds only the sending permission, the read-only stats, and activity search (which `src/mail/reconcile.ts` needs to settle an uncertain send) that isitlegit.co.za is the only verified sender domain and still reads verified, and that click and open tracking are off for it (the `link` tracking CNAME Domain Connect added stays unused, since the product's mail promises no tracking), recording what the page shows with its date, or create an account-level read-only key with the API keys view permission and store it in the vault as "IsItLegit SMTP2GO admin". Recording `Operator ready: <which> (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+Operator ready: admin key (2026-10-30)
+
+**Corrected 2026-10-30** (Needs was `operator`), from operator batch 1 (`docs/coordinator.md`), read by the coordinator through the admin key's `api_keys/view` and `domain/view` at 15:40 to 15:50 SAST:
+
+- The admin key, "IsItLegit SMTP2GO admin", holds every account endpoint SMTP2GO offers (key, domain, subaccount, webhook and SMTP-user management included), not a view-only set. Asked to narrow it to the view endpoints, the operator chose to keep it as it is (2026-10-30); it is the operator's accepted risk, stored only in the vault.
+- The sending key ("IsItLegit SMTP2GO", no description in SMTP2GO) was narrowed by the operator: it held template create, edit and delete beyond the product's needs; it now holds SMTP2GO's Emails group (`/email/send`, `/email/batch`, `/email/mime`, `/email/search`, `/email/scheduled/search`, `/email/scheduled/remove`, `/archive/email`, `/archive/search`), `/activity/search` and the Statistics group (`/stats/email_summary` and five other reports). The product calls `/email/send`, `/activity/search` and `/stats/email_summary` only; the form grants the Emails and Statistics groups whole. `python3 scripts/check-smtp2go.py` passed afterwards.
+- Verified sender domains: `isitlegit.co.za` only, DKIM and return path verified; no single-sender addresses.
+- Tracking: the domain's `link` tracking subdomain reads enabled. The operator chose to leave tracking as it is (2026-10-30), so whether SMTP2GO rewrites links in the product's mail is not yet measured; the check below reads it.
+
+The item below therefore compares the sending key with that set (refusing a template, account or subaccount endpoint, and a missing send, activity or summary endpoint), not with the three endpoints alone (**Corrected 2026-10-30:** was "any permission beyond sending, stats and activity search", which SMTP2GO's grouped form cannot grant).
 
 **Build order:**
 

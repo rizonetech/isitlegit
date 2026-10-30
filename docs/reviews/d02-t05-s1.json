@@ -1,0 +1,145 @@
+{
+  "ref": "D02 T05 \u00a71",
+  "title": "Invisible text extraction from HTML",
+  "implementation_sha": "813b546710d5e3f909ec272eae4256115c64f327",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T05-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T05-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/02-checks/D02-T05-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/02-checks/D02-T05-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/02-checks/D02-T05-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/02-checks/D02-T05-s1.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 7,
+      "report": "docs/reviews/02-checks/D02-T05-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/hidden-text.test.ts"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T05-s1.md",
+    "verdict": "filed",
+    "candidate": "bbd465d0a5d12e4f60fcd09796125dedaa91e648",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T02 \u00a73",
+      "D04 T01 \u00a74",
+      "D04 T01 \u00a76",
+      "D07 T03 \u00a73",
+      "D02 T05 \u00a73"
+    ]
+  },
+  "rounds_spent": 7,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T05-s1.md",
+    "candidate": "8bc62b6b1ea0cb9b601e86fae1187b0805a1acea",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

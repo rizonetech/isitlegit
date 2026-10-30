@@ -4,6 +4,9 @@
 // (D02 T07 §1) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
+import type { BrandTable } from "./brand-schema";
+import type { HiddenText } from "./hidden-text";
+import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
 const Attachment = z.strictObject({
@@ -51,10 +54,35 @@ const UploadSummary = z.strictObject({
 
 // The organisation the case is for, and its receiving systems (D02 T02 §1), which the checks step reads from the store
 // so a check never has to: only Authentication-Results headers these wrote are trusted. Empty when none are known.
-export type Tenant = { orgId: string; channel: "email" | "upload"; receivers: Receiver[] };
+export type Tenant = {
+  orgId: string;
+  channel: "email" | "upload";
+  receivers: Receiver[];
+  // The domains the organisation trusts, which `domain.lookalike` compares against (D02 T03 §2): its verified domains
+  // and its suppliers', read by the checks step.
+  trusted: { own: string[]; suppliers: string[] };
+};
 
 export type CaseView = {
   tenant: Tenant & { headersAvailable: boolean };
+  // The stored raw message the view was read from (`raw/<caseId>/message.eml`): the artefact a header-based item rests
+  // on, since a check cannot store one of its own (D02 T02 §2).
+  raw: string;
+  // The curated brand table in force (D02 T02 §4): KV's copy, or the bundled one, read by the checks step so a check
+  // never reads KV.
+  brands: BrandTable;
+  // Whether the organisation's earlier IsItLegit checks had a case from this sender (D02 T02 §5), filled by the checks
+  // step from `observeSender`; null when it was not asked (no single valid From in the original's own headers).
+  senderHistory: "first" | "seen" | null;
+  // The registration dates of the case's header domains from RDAP (D02 T03 §4), read by the checks step; null when not
+  // read.
+  domainAges: DomainAges | null;
+  // The first bytes (SNIFF_BYTES, base64) of up to MAX_SNIFFED attachments, read from R2 by the checks step for the
+  // type-mismatch check (D02 T04 §1); `unread` counts those not read. Null when not read.
+  attachmentHeads: { heads: { key: string; head: string }[]; unread: number } | null;
+  // The hidden text the checks step found in the HTML, the summary's and each cut part's (D02 T05 §1); null when the
+  // message had no HTML.
+  hiddenText: HiddenText | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -70,12 +98,18 @@ export class SummaryRefused extends TypeError {
   override name = "SummaryRefused";
 }
 
-export function caseViewOf(summary: unknown, tenant: Tenant): CaseView {
+export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands: BrandTable): CaseView {
   const message = MessageSummary.safeParse(summary);
   if (message.success) {
     const m = message.data;
     return {
       tenant: { ...tenant, headersAvailable: m.forward.headersAvailable },
+      raw,
+      brands,
+      senderHistory: null,
+      domainAges: null,
+      attachmentHeads: null,
+      hiddenText: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -90,6 +124,12 @@ export function caseViewOf(summary: unknown, tenant: Tenant): CaseView {
     const { kind, ...file } = upload.data.source;
     return {
       tenant: { ...tenant, headersAvailable: false },
+      raw,
+      brands,
+      senderHistory: null,
+      domainAges: null,
+      attachmentHeads: null,
+      hiddenText: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

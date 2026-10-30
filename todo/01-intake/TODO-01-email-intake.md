@@ -21,6 +21,8 @@ track: day-1
 - -> XREF: D07 T02 §5 -- the verified member domains and addresses the email handler admits
 - -> XREF: D01 T02 §3 -- the reply that closes the loop for every accepted case
 - -> XREF: D99 T01 §9 -- the domain recovery runbook whose move off Cloudflare waits on §15
+- -> XREF: D07 T03 §9 -- the report header that draws the stored subject and sender
+- -> XREF: D07 T04 §7 -- the Cases list rows and search that read them
 
 ## Outcome
 
@@ -51,6 +53,7 @@ track: day-1
 | 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
 | 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
+| 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -218,7 +221,7 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 - [x] Commit: `intake: MIME parsing with attachments stored in R2`
 
 > **Deferred:** links in a cut part's full text -> XREF: D02 T07 §1
-> **Deferred:** hidden text in a cut part's full HTML -> XREF: D02 T05 §1
+> **Resolved:** hidden text in a cut part's full HTML -> XREF: D02 T05 §1. Resolved 2026-10-31 by D02 T05 §1 in `bbd465d` and its review fixes: `hiddenTextOf` streams each cut HTML part's full artefact from R2 in its own charset through the hidden-text scan, its rules applied to the summary's HTML too, and a part it cannot scan (its object missing, its charset undecodable) is named in the stored coverage item.
 > **Resolved:** the evidence item saying a body was cut for reading and that the full part was still checked -> XREF: D02 T01 §1. Resolved 2026-10-29 by D02 T01 §1 in `f88f338` and `34b5da2`: `truncatedEvidence` states the cut (each part, its sizes, the further parts kept only to the cut); its plan review moved the claim that the full part was checked to the checks that read it (D02 T07 §1, D02 T05 §1), so a check that fails leaves no such claim.
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/parse.test.ts` and `pnpm exec vitest run --project node test/node/parse-memory.test.ts` pass, and fail if duplicate headers are collapsed (the `Received` chain needs them), the total budget is passed, an attachment is cut, or a summary is written before its attachments.
@@ -507,6 +510,34 @@ A forward near Email Routing's 25 MiB limit must finish on the deployed Worker a
 - [ ] Commit: `intake: a second inbound route, so the zone can leave Cloudflare`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/inbound-http.test.ts` passes, and `python3 -m pytest tests/scripts/test_check_domain.py` passes.
+
+## 16. Original's subject and sender stored on the case
+
+Filed 2026-10-30 at the app lane's request, through the coordinator: the report header (design spec M3; the app lane's D07 T03 §9, "Report header") shows the checked message's subject and its sender, so the case carries them from intake. They come from the original the case was opened for (the attached message of a forward, or an uploaded `.eml` or `.msg`), never the forward around it: a forward's own subject and From are the member's.
+
+> **Started:** 2026-10-30T16:40Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) a `.msg` without transport headers still carries its subject and sender as properties (PidTagSubject, the sender's name and SMTP address), so `parseMsg` in `src/intake/msg.ts` returns them and they are used when the headers lack a Subject or From; (2) an inline forward's "original" is the forward itself (`extractOriginal` in `src/intake/forward.ts`, path `inline`), whose Subject and From are the member's, so all three stay null; (3) the fields are written before the summary is stored, as the header state is, because a re-driven case returns early once its summary exists and would never write them after; (4) "one line" means control and bidirectional formatting characters removed and whitespace runs collapsed, then a cut at 300 code points ending in an ellipsis; (5) an uploaded `.eml` is the original itself, so its Subject and From are taken whatever its header state; (6) `getCase` in `src/db/cases.ts` already scopes by organisation, so the fields join `Case` and its row mapping.
+
+**Corrected 2026-10-30** (plan review): (7) the address is kept only when it is at most 254 characters (RFC 5321's path limit) and has no control or bidirectional formatting character, else null, never cut or rewritten; (8) the tests cover an attached and an uploaded `.msg` without transport headers, headers missing only the Subject or only the From, an uploaded `.eml` without trusted headers, an encoded and an oversized display name, and several or invalid From mailboxes; (9) a refused header write fails the parse attempt before the summary is stored (`must`), so a retry writes it; the tests fail the write, see no summary, retry and read the fields back, and read them unchanged after a replay once the raw message is gone.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Store the fields when the original is parsed. Done when: a case from a forward, an uploaded `.eml` and an uploaded `.msg` each carries the original's subject and From, and a document, image or audio upload carries nulls.
+
+- [x] Add the columns to `cases` (`original_subject`, `original_from_name`, `original_from_address`) in `src/db/migrations/0038_case_original_header.sql` (0038 reserved by the coordinator, 2026-10-30). Done when: the migration applies locally and the columns read null for existing cases. Done 2026-10-30: `src/db/migrations/0038_case_original_header.sql`; the case tests read nulls for a new case.
+- [x] Write them in the Workflow's `parse` step (`parse` in `src/pipeline/analysis-workflow.ts`) through `originalHeaderOf` in `src/intake/original-header.ts` and `setOriginalHeader` in `src/db/cases.ts`, before the summary is stored (corrections 1 to 5): the subject decoded (RFC 2047) and made one line, at most 300 characters; the From's display name decoded and bounded likewise, and its address only when it is one valid mailbox (`mailbox` in `src/checks/sender.ts`), else null; a `.msg` without transport headers from its properties. Done when: `test/pipeline/analysis-workflow.test.ts` reads them back for an attached forward, an uploaded `.eml` and an uploaded `.msg`, nulls for a document upload and for an inline forward, a bounded value for an oversized subject, an encoded-word subject decoded, control and bidirectional characters removed, and a retried step the same values. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `originalHeaderOf` in `src/intake/original-header.ts`, `parseMsg`'s `sender`, `setOriginalHeader` before `storeParsed`; `test/intake/original-header.test.ts` (16 tests; the step's paths tested through `parse` there rather than in `test/pipeline/analysis-workflow.test.ts`); five mutations (inline kept, a refused write ignored, no address bound, no .msg sender, no .msg subject) each fail a test.
+- [x] Read them through the case accessor the report uses (`src/db/cases.ts`). Done when: `test/db/cases.test.ts` reads the three fields from a stored case, and an organisation never reads another's. Done 2026-10-30: `Case.originalSubject`, `originalFromName`, `originalFromAddress` from `getCase`; another organisation reads not_found (`test/intake/original-header.test.ts`); 429 tests across intake, pipeline, db and checks pass.
+- [x] Commit: `intake: the original's subject and sender stored on the case` Done 2026-10-30: da7c52b, with 135d702, the round 1 and round 2 fixes after it.
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts test/db/cases.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §16 | 2d82cfe54f4c9d233d76ab42280c574489d2cc53
+> **Review:** `docs/reviews/d01-t01-s16.json`
 
 ## Verification
 

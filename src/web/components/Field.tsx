@@ -14,6 +14,11 @@ export type FieldProps = PassThrough & {
   required?: boolean;
   autocomplete?: string;
   inputmode?: "text" | "email" | "numeric" | "decimal" | "tel" | "url" | "search";
+  // Length and pattern limits the browser enforces before submitting (a sign-in code's 7 characters, D07 T02 §11).
+  maxlength?: number;
+  pattern?: string;
+  // The one field a single-task page is for (a sign-in code, D07 T02 §11): focused when the page opens.
+  autofocus?: boolean;
   class?: string;
 };
 
@@ -26,6 +31,7 @@ const INPUT = cx(
 
 export function Field(props: FieldProps) {
   const { id, label, name, type = "text", value, placeholder, hint, error, required, autocomplete, inputmode } = props;
+  const { maxlength, pattern, autofocus } = props;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const given = passThrough(props as Record<string, unknown>);
@@ -53,12 +59,16 @@ export function Field(props: FieldProps) {
         required={required}
         autocomplete={autocomplete}
         inputmode={inputmode}
+        maxlength={maxlength}
+        pattern={pattern}
+        autofocus={autofocus}
         aria-invalid={invalid}
         aria-describedby={describedBy}
         class={INPUT}
       />
+      {/* Announced as the page that carries it arrives (a refused code, a wrong address), and the field's description. */}
       {error && (
-        <p id={errorId} class="text-13 text-mal weight-text-strong">
+        <p id={errorId} role="alert" class="text-13 text-mal weight-text-strong">
           {error}
         </p>
       )}

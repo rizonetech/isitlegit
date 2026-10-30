@@ -1,0 +1,127 @@
+{
+  "ref": "D07 T02 \u00a711",
+  "title": "Sign-in code for another device",
+  "implementation_sha": "f6ccadf8b691111664075c1dacc54ba2c10defab",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s11.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s11.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T02-s11.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/auth/sign-in-code.test.ts -> 30 passed",
+    "pnpm exec vitest run test/node/sign-in-code-browser.test.ts -> 3 passed (Chromium: code typed with Enter, HttpOnly handle sent, another browser refused, refusal on the field at 360 px)",
+    "pnpm exec vitest run --project worker test/auth/ -> 14 files, 214 passed",
+    "pnpm typecheck and pnpm lint -> clean",
+    "python3 -m unittest tests.scripts.test_design_spec -> OK"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s11.md",
+    "verdict": "filed",
+    "candidate": "7d93d8b03c4676f51ed3783e23f4e314a89c40b5",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T02 \u00a77",
+      "D07 T08 \u00a76",
+      "D07 T02 \u00a712"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s11.md",
+    "candidate": "658537e69541eb32cd77bd465a6445f476a67871",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

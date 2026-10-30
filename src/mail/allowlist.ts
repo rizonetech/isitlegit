@@ -58,12 +58,16 @@ export async function isAllowedRecipient(
   db: D1Database,
   to: string,
   kind: MailKind,
-  operatorEmail: string | undefined,
+  operatorEmail: string | readonly string[] | undefined,
   now = new Date(),
 ): Promise<boolean> {
   const address = to.trim().toLowerCase();
   const demo = isDemoAlias(address);
-  const operator = !!operatorEmail && address === operatorEmail.trim().toLowerCase();
+  // The operator's mailboxes: OPERATOR_EMAIL, and for forwarding-failure alerts its fallback (D01 T02 §6).
+  const operators = (typeof operatorEmail === "string" ? [operatorEmail] : (operatorEmail ?? [])).map((o) =>
+    o.trim().toLowerCase(),
+  );
+  const operator = operators.some((o) => o !== "" && address === o);
   switch (kind) {
     case "verify":
       return demo;

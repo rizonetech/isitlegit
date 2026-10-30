@@ -20,7 +20,10 @@ export type Untrusted =
   | "ambiguous" // results from two receiving systems sit inside the zone: which is genuine cannot be told
   | "none-in-zone"; // the receiver's zone holds no Authentication-Results header it wrote
 
-export type Trusted = { kind: ReceiverKind; authservId: string | null; results: Result[] };
+// What the receiver recorded: its results, and each header they came from with its own results (`sources`), so an item
+// cites the header its result is in, never a neighbour (D02 T02 §2).
+export type Source = { header: string; results: Result[] };
+export type Trusted = { kind: ReceiverKind; authservId: string | null; results: Result[]; sources: Source[] };
 
 export type Selection = { trusted: Trusted } | { untrusted: Untrusted };
 
@@ -38,6 +41,7 @@ function covers(pattern: string, host: string): boolean {
 }
 
 // The host a `Received` header says received the message (`by <host>`), lowercased, comments removed; null when none.
+// Only `by` is read: the `from` name is the sender's greeting (round 2).
 export function receivedBy(value: string): string | null {
   const plain = value.replace(/\([^()]*\)/g, " ");
   const by = /(?:^|\s)by\s+([^\s;]+)/i.exec(plain)?.[1];
@@ -62,6 +66,27 @@ function kindsOf(parsed: { authservId: string | null; results: Result[] }, recei
   return kinds;
 }
 
+// Microsoft 365 and Google stamp every message they receive (Microsoft Learn: "When an email is received in Microsoft
+// 365, the service adds an Authentication-Results header"), and a stamp written on receipt sits above every header the
+// sender could have supplied, so the topmost of theirs is theirs, whatever the hops below claim. Any other receiver
+// promises no stamp (completion review).
+const STAMPS_EVERY_MESSAGE: ReadonlySet<ReceiverKind> = new Set(["microsoft", "google"]);
+
+type Read = { kinds: Set<ReceiverKind>; header: string; parsed: { authservId: string | null; results: Result[] } };
+const only = (kind: ReceiverKind, read: Read): Trusted => ({
+  kind,
+  ...read.parsed,
+  sources: [{ header: read.header, results: read.parsed.results }],
+});
+
+// The receiver whose hop is nearest the top took the message in last, so its rules apply.
+//   Microsoft 365 or Google: the topmost header of theirs, read down to the first hop another host wrote; a header of
+//   theirs above their first hop is that topmost one (round 3).
+//   Another receiver: only headers above the message's topmost `Received`, which must be the receiver's own. Nothing
+//   but the receiver writes above its final hop, so no hop below has to be judged: a greeting name is the sender's
+//   (round 2) and a private address can be a proxy's (round 4). A receiver that writes its header lower down is not
+//   trusted until its receiving chain is verified (D02 T02 §6). All its headers there count (RFC 8601 appendix B.4);
+//   beside another receiver's they are ambiguous.
 export function trustedAuthResults(
   headers: readonly { name: string; value: string }[],
   receivers: readonly Receiver[],
@@ -69,33 +94,82 @@ export function trustedAuthResults(
 ): Selection {
   if (!headersAvailable || headers.length === 0) return { untrusted: "no-headers" };
   if (receivers.length === 0) return { untrusted: "unknown-receiver" };
-  let opened = false;
-  const found: { kinds: Set<ReceiverKind>; trusted: Trusted }[] = [];
+  const ours = (host: string | null) => (host === null ? undefined : receivers.find((r) => covers(r.pattern, host)));
+  const read = (value: string): Read | null => {
+    const parsed = parseAuthenticationResults(value);
+    return parsed ? { parsed, header: value, kinds: kindsOf(parsed, [...receivers]) } : null;
+  };
+  const isReceived = (name: string) => name.trim().toLowerCase() === "received";
+  const isResults = (name: string) => name.trim().toLowerCase() === "authentication-results";
+  // The nearest receiver hop to the top, address-literal hops (a provider's internal ones) passed over.
+  let top: ReceiverKind | undefined;
   for (const { name, value } of headers) {
-    const field = name.trim().toLowerCase();
-    if (field === "received") {
-      const host = receivedBy(value);
-      if (host === null || literal(host)) continue;
-      if (receivers.some((r) => covers(r.pattern, host))) {
-        opened = true;
+    if (!isReceived(name)) continue;
+    const by = receivedBy(value);
+    if (by === null || literal(by)) continue;
+    top = ours(by)?.kind;
+    break;
+  }
+  if (top === undefined) return { untrusted: "no-boundary" };
+  if (STAMPS_EVERY_MESSAGE.has(top)) {
+    for (const { name, value } of headers) {
+      if (isReceived(name)) {
+        const by = receivedBy(value);
+        if (by !== null && !literal(by) && !ours(by)) break; // another host wrote this: the rest came with the message
         continue;
       }
-      break; // a host outside the receiver wrote this: everything below came with the message
+      if (!isResults(name)) continue;
+      const found = read(value);
+      if (found?.kinds.has(top)) return { trusted: only(top, found) };
     }
-    if (field !== "authentication-results") continue;
-    const parsed = parseAuthenticationResults(value);
-    if (!parsed) continue;
-    const kinds = kindsOf(parsed, [...receivers]);
-    const [kind] = kinds;
-    if (kind !== undefined)
-      found.push({ kinds, trusted: { kind, authservId: parsed.authservId, results: parsed.results } });
+    return { untrusted: "none-in-zone" };
   }
-  if (!opened) return { untrusted: "no-boundary" };
-  const first = found[0];
+  const topmost = headers.find((h) => isReceived(h.name));
+  const by = topmost ? receivedBy(topmost.value) : null;
+  if (!topmost || by === null || literal(by) || !ours(by)) return { untrusted: "no-boundary" };
+  const above: Read[] = [];
+  for (const { name, value } of headers.slice(0, headers.indexOf(topmost))) {
+    if (!isResults(name)) continue;
+    const found = read(value);
+    if (found && found.kinds.size > 0) above.push(found);
+  }
+  const first = above[0];
   if (!first) return { untrusted: "none-in-zone" };
-  const kinds = new Set(found.flatMap((f) => [...f.kinds]));
-  if (kinds.size > 1) return { untrusted: "ambiguous" };
-  return { trusted: first.trusted };
+  const kinds = new Set(above.flatMap((a) => [...a.kinds]));
+  const [kind] = kinds;
+  if (kinds.size > 1 || kind === undefined) return { untrusted: "ambiguous" };
+  return {
+    trusted: {
+      kind,
+      authservId: first.parsed.authservId,
+      results: above.flatMap((a) => a.parsed.results),
+      sources: above.map((a) => ({ header: a.header, results: a.parsed.results })),
+    },
+  };
+}
+
+// The headers from the top down to the first hop a host outside the receivers wrote, and the receiver whose hop is
+// nearest the top (undefined when none is): where the receiver's own stamps can be, under the rules of
+// `trustedAuthResults` (D02 T02 §3 reads Microsoft's ARC verdict there).
+export function receiverZone(
+  headers: readonly { name: string; value: string }[],
+  receivers: readonly Receiver[],
+): { top: ReceiverKind | undefined; zone: { name: string; value: string }[] } {
+  const ours = (host: string) => receivers.find((r) => covers(r.pattern, host));
+  let top: ReceiverKind | undefined;
+  const zone: { name: string; value: string }[] = [];
+  for (const header of headers) {
+    if (header.name.trim().toLowerCase() === "received") {
+      const by = receivedBy(header.value);
+      if (by !== null && !literal(by)) {
+        const receiver = ours(by);
+        if (!receiver) break;
+        top ??= receiver.kind;
+      }
+    }
+    zone.push(header);
+  }
+  return { top, zone };
 }
 
 const UNTRUSTED: Record<Untrusted, string> = {

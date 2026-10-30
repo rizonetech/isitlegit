@@ -20,6 +20,7 @@ track: day-1
 - Meta docs `speech-to-text.md` and `api-reference_voice_transcribe.md` (look up with `python3 scripts/meta-docs.py find transcribe diarization`).
 - -> XREF: D07 T02 §1 -- the session that authorises uploads
 - -> XREF: D03 T01 §1 -- the model client every Voice Transcribe and Spark call goes through
+- -> XREF: D07 T04 §7 -- the Cases list's Checked by, which names the uploader
 
 ## Outcome
 
@@ -44,6 +45,7 @@ track: day-1
 | 8 | §8 | M4A decoding | §2 | [x] |
 | 9 | §9 | Filtered resampling for WAV | §2 | [x] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
+| 11 | §11 | Uploading member stored on the case | §1 | [x] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -382,6 +384,35 @@ AAC decoding: not during the event; M4A stays refused with its MP3-or-WAV messag
 - [ ] Commit: `voice: M4A voice notes decoded with libxaac`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/m4a.test.ts test/voice/decode.test.ts` passes, and fails if an M4A is refused, decoded to the wrong length or pitch, or damage is passed on.
+
+## 11. Uploading member stored on the case
+
+Filed 2026-10-30 at the app lane's request, through the coordinator: the cases list's "Checked by" column (D07 T04 §1, drawn by the app lane's D07 T04 §7) names the member who checked each case. An email case has `forwarded_by`; an upload case records no one, so the list can only say "Not recorded". The uploading member's user id goes on the case when the upload admits it.
+
+> **Started:** 2026-10-30T17:24Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) the member reaches `admitCase` through `admitDelivery`'s `Delivery` (`src/intake/admit.ts`), which gains `uploadedBy`, as `forwardedBy` came; both case inserts in `src/db/cases.ts` (`admitCase`, `createCase`) name the column; (2) the id is Better Auth's user id from `c.get("signedIn").user.id`, kept as given: a member who later leaves the organisation or deletes their account leaves an id the list cannot resolve, which D07 T04 shows as a former member, so no foreign key ties the case to the user row (the closure purge, D07 T02 §9, deletes whole case rows, so the column needs no purge entry of its own); (3) `NewCase` refuses `uploadedBy` on an email case and requires it on an upload case.
+
+**Corrected 2026-10-30** (plan review): (4) the repeat proof uses two members of one organisation: A uploads, B uploads the same file, one case, its uploader still A; (5) the refusals are tested on both inserts: an upload without an uploader and an email case with one are `invalid` from `admitCase` and `createCase` alike, and no case is stored.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Record and read the uploader. Done when: a case admitted through `POST /api/upload` carries the signed-in member's user id, an email case carries null, and it reads back only within the organisation.
+
+- [x] Add `uploaded_by` (nullable, the user id) to `cases` in `src/db/migrations/0039_case_uploaded_by.sql` (0039 offered by the coordinator, 2026-10-30). Done when: the migration applies locally and existing cases read null. Done 2026-10-30: `src/db/migrations/0039_case_uploaded_by.sql`.
+- [x] Accept `uploadedBy` in `NewCase` and `admitCase` (`src/db/cases.ts`), refused on an email case, and pass the signed-in member's id from `uploadRoutes` (`src/intake/upload.ts`, `c.get("signedIn")`) through `admitDelivery` (`src/intake/admit.ts`). Done when: `test/intake/upload.test.ts` reads the uploader on a new upload case; a repeat of the same file within the day answers the first case and keeps its first uploader (the claim answers the case, it does not re-admit it). Done 2026-10-30: `test/intake/upload.test.ts` ("records the uploading member", "keeps the first uploader when another member uploads the same file again"); three mutations (the uploader not passed, `admitDelivery` dropping it, no rule in `NewCase`) each fail a test.
+- [x] Return it as `Case.uploadedBy` through `getCase`. Done when: `test/db/cases.test.ts` reads it back for its organisation and refuses another organisation; an email case reads null. Done 2026-10-30: `test/db/cases.test.ts` (the uploader read back in its organisation, not_found elsewhere, refusals on both inserts storing nothing); 746 tests across intake, pipeline, db, checks, auth, mail and scheduled pass.
+- [x] Name `uploaded_by` in the closure purge's reckoning if the purge lists columns (D07 T02 §9 deletes whole case rows, so likely none). Done 2026-10-30: none needed; D07 T02 §9 deletes whole case rows (correction 2).
+- [x] Commit: `intake: the uploading member stored on the case` Done 2026-10-30: 5dc3c11, with 3b003b1 (the completion review's regressions).
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/db/cases.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §11 | 08848553b71c2d274992d43f3e147ed89b6ab9bf
+> **Review:** `docs/reviews/d01-t03-s11.json`
 
 ## Verification
 

@@ -15,11 +15,13 @@ import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { clientIp, recordAuthEvent } from "./audit";
 import { type MailOutcome, sendClaimCode } from "./claim-mail";
+import type { DomainClaimView } from "./domain-claim";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
 import { learnReceivers } from "./receivers";
 import { findMemberBySender, registrable } from "./senders";
 
+export type { DomainClaimView };
 export { findMemberBySender, registrable };
 
 export const DOH_URL = "https://cloudflare-dns.com/dns-query";
@@ -34,7 +36,13 @@ const CODES_PER_HOUR = 5;
 const ORG_CODES_PER_HOUR = 20;
 const ORG_CODES_PER_DAY = 50;
 const DAY_MS = 24 * HOUR_MS;
+const SENDING_NOW = "the last code is still being sent; check the inbox before asking for another";
 const ORG_LIMIT = `at most ${ORG_CODES_PER_HOUR} codes an hour and ${ORG_CODES_PER_DAY} a day for an organisation; try again later`;
+// How long a claim's code may still be on its way: a mail send's whole life, three attempts of 30 seconds and their
+// backoff (src/mail/smtp2go.ts), with room. No new code is issued while the last one, issued this recently, has not
+// finished being mailed, so a second press cannot replace a code still on its way (D07 T02 §15); a send stuck longer
+// (its Worker gone) no longer holds the claim.
+export const CODE_SEND_WINDOW_MS = 2 * 60_000;
 const PENDING_DOMAINS = 10;
 const PENDING_ADDRESSES = 20;
 
@@ -93,7 +101,13 @@ const allowanceOf = (claim: { domain?: string; address?: string }) =>
 // statement that records the send, and the code is written only if that send was recorded.
 // Why a code was not issued: the claim is gone, its code is locked (a code sent now would expire before the lock
 // ends), its own hourly allowance is spent, or the organisation's is.
-type NotIssued = "gone" | "locked" | "limit" | "busy";
+type NotIssued = "gone" | "locked" | "limit" | "busy" | "sending";
+// A claim's last code still on its way: issued within the window (its expiry is CODE_LIFETIME_MS after issue) and its
+// mail not finished, whether the send row is pending or not written yet. Claim mail is keyed `claim:<claim>:<code>`
+// (src/auth/claim-mail.ts). The code row is written in the same transaction that records the send, so two presses at
+// once cannot both pass: the second sees the first's code (round 3).
+const SENDING =
+  "SELECT 1 FROM verification_codes vc WHERE vc.claim_id = ? AND vc.expires_at > ? AND NOT EXISTS (SELECT 1 FROM mail_sends ms WHERE ms.send_key = 'claim:' || vc.claim_id || ':' || vc.code_id AND ms.status <> 'pending')";
 const PENDING_CLAIM =
   "SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending'";
 
@@ -114,7 +128,7 @@ async function issueCode(
   const [counted] = await db.batch([
     db
       .prepare(
-        `INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE EXISTS (${PENDING_CLAIM}) AND NOT EXISTS (SELECT 1 FROM verification_codes WHERE claim_id = ? AND locked_until > ?) AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ?`,
+        `INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE EXISTS (${PENDING_CLAIM}) AND NOT EXISTS (${SENDING}) AND NOT EXISTS (SELECT 1 FROM verification_codes WHERE claim_id = ? AND locked_until > ?) AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ?`,
       )
       .bind(
         crypto.randomUUID(),
@@ -125,6 +139,8 @@ async function issueCode(
         orgId,
         claimId,
         orgId,
+        claimId,
+        new Date(now + CODE_LIFETIME_MS - CODE_SEND_WINDOW_MS).toISOString(),
         claimId,
         at,
         orgId,
@@ -152,6 +168,13 @@ async function issueCode(
   ]);
   if (counted?.meta.changes === 1) return { code, codeId };
   if (!(await db.prepare(PENDING_CLAIM).bind(claimId, orgId, claimId, orgId).first())) return "gone";
+  if (
+    await db
+      .prepare(SENDING)
+      .bind(claimId, new Date(now + CODE_LIFETIME_MS - CODE_SEND_WINDOW_MS).toISOString())
+      .first()
+  )
+    return "sending";
   const wait = await nextCodeAt(db, orgId, claimId, allowance);
   return wait.locked ? "locked" : wait.target ? "limit" : "busy";
 }
@@ -202,13 +225,23 @@ async function nextCodeAt(db: D1Database, orgId: string, claimId: string, allowa
 const plus = (iso: string, ms: number) => new Date(Date.parse(iso) + ms).toISOString();
 
 // Checks a code and, when right, consumes it and verifies the claim in one batch, so neither happens without the other.
+// A code as people type or paste it: six digits, with spaces or hyphens between them allowed ("48 21 07", "482-107"),
+// leading zeroes kept; anything else is no code at all, refused without spending an attempt (D07 T02 §15).
+export function normaliseClaimCode(input: string): string | null {
+  const trimmed = input.trim();
+  if (!/^\d(?:[ -]?\d){5}$/.test(trimmed)) return null;
+  return trimmed.replace(/[ -]/g, "");
+}
+
 async function proveByCode(
   db: D1Database,
   table: "org_domains" | "org_addresses",
   orgId: string,
   claimId: string,
-  code: string,
-): Promise<"locked" | "expired" | "none" | "wrong" | Verified> {
+  typed: string,
+): Promise<"malformed" | "locked" | "expired" | "none" | "wrong" | Verified> {
+  const code = normaliseClaimCode(typed);
+  if (code === null) return "malformed";
   const now = new Date().toISOString();
   // One transaction: the guess takes one of the three attempts (the third setting the lock as it is taken), then a right
   // code is consumed and the claim verified. However guesses and resends interleave, at most three are weighed and the
@@ -225,7 +258,7 @@ async function proveByCode(
         .bind(MAX_ATTEMPTS, new Date(Date.now() + LOCK_MS).toISOString(), claimId, orgId, now, MAX_ATTEMPTS, now),
       db
         .prepare("DELETE FROM verification_codes WHERE claim_id = ? AND org_id = ? AND code_hash = ? AND changes() = 1")
-        .bind(claimId, orgId, await sha256Hex(`${claimId}:${code.trim()}`)),
+        .bind(claimId, orgId, await sha256Hex(`${claimId}:${code}`)),
       db.prepare(`${verifySql(table)} AND changes() = 1`).bind(now, "email", claimId),
     ])) as [D1Result<{ attempts: number }>, D1Result, D1Result];
   } catch (error) {
@@ -258,15 +291,17 @@ const codeAnswer = (
   body: Record<string, unknown>,
   what: "domain" | "address",
 ) =>
-  result === "locked"
-    ? problem(429, "too many wrong codes; try again in an hour")
-    : result === "expired"
-      ? problem(400, "that code has expired; send another")
-      : result === "none"
-        ? problem(400, "no code is waiting; send one first")
-        : result === "wrong"
-          ? problem(400, "that code is not right")
-          : verifiedAnswer(result, body, what);
+  result === "malformed"
+    ? problem(400, "send the 6 digits you were mailed")
+    : result === "locked"
+      ? problem(429, "too many wrong codes; try again in an hour")
+      : result === "expired"
+        ? problem(400, "that code has expired; send another")
+        : result === "none"
+          ? problem(400, "no code is waiting; send one first")
+          : result === "wrong"
+            ? problem(400, "that code is not right")
+            : verifiedAnswer(result, body, what);
 
 const sendAnswer = (outcome: MailOutcome, body: Record<string, unknown>) =>
   outcome === "sent"
@@ -280,35 +315,53 @@ const sendAnswer = (outcome: MailOutcome, body: Record<string, unknown>) =>
 
 // Each verification attempt and its outcome in the auth trail (D07 T02 §6): the claim's id, never the domain's code or
 // the address itself.
+// Who acts, for the shared actions below: the JSON routes and the domain page (D07 T02 §15) each build one.
+// `defer` runs work after the answer has gone (the Worker's waitUntil): learning a verified domain's receivers is not
+// what the owner waits for, and the checks step learns them again when they are missing (D07 T02 §15).
+export type Actor = {
+  db: D1Database;
+  secret: string;
+  orgId: string;
+  userId: string;
+  ip: string | null;
+  defer: (work: Promise<unknown>) => void;
+};
+const actorOf = (c: Context<OrgEnv>): Actor => ({
+  db: c.env.DB,
+  secret: c.env.BETTER_AUTH_SECRET ?? "",
+  orgId: c.get("org").id,
+  userId: c.get("signedIn").user.id,
+  ip: clientIp(c.req.raw.headers),
+  defer: (work) => c.executionCtx.waitUntil(work),
+});
+const recordAttempt = (a: Actor, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
+  recordAuthEvent(a.db, a.secret, { kind, outcome, orgId: a.orgId, actorId: a.userId, targetId: claimId, ip: a.ip });
 const attempt = (c: Context<OrgEnv>, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
-  recordAuthEvent(c.env.DB, c.env.BETTER_AUTH_SECRET ?? "", {
-    kind,
-    outcome,
-    orgId: c.get("org").id,
-    actorId: c.get("signedIn").user.id,
-    targetId: claimId,
-    ip: clientIp(c.req.raw.headers),
-  });
+  recordAttempt(actorOf(c), kind, claimId, outcome);
 
-// DNS-over-HTTPS: verified, not yet visible, or the provider failing (including the deadline).
-async function lookTxt(domain: string, token: string): Promise<"found" | "absent" | "failing"> {
+// DNS-over-HTTPS: verified, not yet visible, another verification value in its place (the start of the first one it
+// saw, for the page to name; D07 T02 §15), or the provider failing (including the deadline).
+export type TxtSeen = { state: "found" | "absent" | "failing" } | { state: "different"; seen: string };
+async function lookTxt(domain: string, token: string): Promise<TxtSeen> {
   const url = `${DOH_URL}?${new URLSearchParams({ name: `_isitlegit.${domain}`, type: "TXT" })}`;
   try {
     const response = await fetch(url, {
       headers: { accept: "application/dns-json" },
       signal: AbortSignal.timeout(DOH_DEADLINE_MS),
     });
-    if (!response.ok) return "failing";
+    if (!response.ok) return { state: "failing" };
     const body = (await response.json()) as { Status?: unknown; Answer?: { type?: number; data?: string }[] };
-    if (body.Status === 3) return "absent";
-    if (body.Status !== 0) return "failing";
+    if (body.Status === 3) return { state: "absent" };
+    if (body.Status !== 0) return { state: "failing" };
     const want = `isitlegit-verify=${token}`;
-    const found = (body.Answer ?? []).some(
-      (a) => a.type === 16 && (a.data ?? "").replace(/"\s*"/g, "").replace(/"/g, "").trim() === want,
-    );
-    return found ? "found" : "absent";
+    const values = (body.Answer ?? [])
+      .filter((a) => a.type === 16)
+      .map((a) => (a.data ?? "").replace(/"\s*"/g, "").replace(/"/g, "").trim());
+    if (values.includes(want)) return { state: "found" };
+    const other = values.find((v) => v.startsWith("isitlegit-verify="));
+    return other ? { state: "different", seen: other.slice(0, "isitlegit-verify=".length + 4) } : { state: "absent" };
   } catch {
-    return "failing";
+    return { state: "failing" };
   }
 }
 
@@ -320,6 +373,116 @@ async function learnedQuietly(db: D1Database, claimId: string): Promise<void> {
   } catch {
     // Nothing to undo: the receivers are learned again when missing.
   }
+}
+
+// The three actions on a domain claim, shared by the JSON routes below and the domain page (D07 T02 §15), so the two
+// cannot disagree. Each names the actor's organisation, records its attempt in the auth trail and answers a typed
+// outcome; a database failure throws, which each caller answers as an outage.
+export type CheckOutcome =
+  | { kind: "gone" }
+  | { kind: "verified" | "failing" | "absent" | "taken" | "unavailable"; domain: string }
+  | { kind: "different"; domain: string; seen: string };
+export async function checkDomain(a: Actor, domain: string): Promise<CheckOutcome> {
+  const claim = await claimedDomain(a.db, a.orgId, domain);
+  if (!claim) return { kind: "gone" };
+  if (claim.state === "verified") return { kind: "verified", domain: claim.domain };
+  const seen = await lookTxt(claim.domain, claim.token);
+  if (seen.state === "failing") {
+    await recordAttempt(a, "verify-domain", claim.id, "dns-lookup-failed");
+    return { kind: "failing", domain: claim.domain };
+  }
+  if (seen.state === "different") {
+    await recordAttempt(a, "verify-domain", claim.id, "dns-different");
+    return { kind: "different", domain: claim.domain, seen: seen.seen };
+  }
+  if (seen.state === "absent") {
+    await recordAttempt(a, "verify-domain", claim.id, "dns-not-visible");
+    return { kind: "absent", domain: claim.domain };
+  }
+  const verified = await verifyByDns(a.db, claim.id);
+  await recordAttempt(a, "verify-domain", claim.id, verified === "verified" ? "verified-dns" : verified);
+  if (verified === "verified") a.defer(learnedQuietly(a.db, claim.id));
+  return { kind: verified, domain: claim.domain };
+}
+
+export type SendOutcome =
+  | { kind: "gone" | "already" | "bad-local" | "locked" | "limit" | "busy" | "sending" }
+  | { kind: MailOutcome; domain: string; to: string };
+export async function sendDomainCode(env: Env, a: Actor, domain: string, local: unknown): Promise<SendOutcome> {
+  const claim = await claimedDomain(a.db, a.orgId, domain);
+  if (!claim) return { kind: "gone" };
+  if (claim.state === "verified") return { kind: "already" };
+  if (local !== "admin" && local !== "postmaster") return { kind: "bad-local" };
+  const issued = await issueCode(a.db, a.orgId, claim.id, allowanceOf({ domain: claim.domain }));
+  if (typeof issued === "string") return { kind: issued };
+  const to = `${local}@${claim.domain}`;
+  const outcome = await sendClaimCode(env, {
+    to,
+    claimId: claim.id,
+    codeId: issued.codeId,
+    code: issued.code,
+    what: claim.domain,
+  });
+  return { kind: outcome, domain: claim.domain, to };
+}
+
+export type VerifyOutcome =
+  | { kind: "gone" }
+  | { kind: "already" | Awaited<ReturnType<typeof proveByCode>>; domain: string };
+export async function verifyDomainCode(a: Actor, domain: string, code: string): Promise<VerifyOutcome> {
+  const claim = await claimedDomain(a.db, a.orgId, domain);
+  if (!claim) return { kind: "gone" };
+  if (claim.state === "verified") return { kind: "already", domain: claim.domain };
+  const proved = await proveByCode(a.db, "org_domains", a.orgId, claim.id, code);
+  // A malformed code spends no attempt, so it is no attempt in the trail either.
+  if (proved !== "malformed")
+    await recordAttempt(a, "verify-domain", claim.id, proved === "verified" ? "verified-code" : proved);
+  if (proved === "verified") a.defer(learnedQuietly(a.db, claim.id));
+  return { kind: proved, domain: claim.domain };
+}
+
+// One domain claim as its page draws it (D07 T02 §15): its state and, while pending, the record to add, the code's
+// life (when it expires, the wrong attempts so far, until when it is locked, when the next code may go) and the latest
+// DNS check; never the code or its hash. Null when the organisation has not claimed it.
+
+export async function domainClaimView(db: D1Database, orgId: string, domain: string): Promise<DomainClaimView | null> {
+  const claim = await db
+    .prepare("SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? AND domain = ?")
+    .bind(orgId, domain)
+    .first<Domain & { method: "dns" | "email" | null; verified_at: string | null }>();
+  if (!claim) return null;
+  const now = new Date().toISOString();
+  const [code, check] = await Promise.all([
+    db
+      .prepare("SELECT expires_at, attempts, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?")
+      .bind(claim.id, orgId)
+      .first<{ expires_at: string; attempts: number; locked_until: string | null }>(),
+    db
+      .prepare(
+        "SELECT at, outcome FROM auth_events WHERE org_id = ? AND target_id = ? AND kind = 'verify-domain' AND outcome LIKE 'dns-%' ORDER BY at DESC LIMIT 1",
+      )
+      .bind(orgId, claim.id)
+      .first<{ at: string; outcome: string }>(),
+  ]);
+  const locked = code?.locked_until && code.locked_until > now ? code.locked_until : null;
+  return {
+    domain: claim.domain,
+    state: claim.state as "pending" | "verified",
+    method: claim.method,
+    verifiedAt: claim.verified_at,
+    txt: txtFor(claim.domain, claim.token),
+    code: {
+      expiresAt: code && code.expires_at > now ? code.expires_at : null,
+      expired: Boolean(code && code.expires_at <= now && !locked),
+      attempts: code && !locked ? code.attempts : 0,
+      lockedUntil: locked,
+      nextCodeAt:
+        claim.state === "pending"
+          ? (await nextCodeAt(db, orgId, claim.id, allowanceOf({ domain: claim.domain }))).until
+          : null,
+    },
+    lastCheck: check ?? null,
+  };
 }
 
 export const domainRoutes = new Hono<OrgEnv>();
@@ -426,63 +589,40 @@ domainRoutes.post("/domains", async (c) => {
 });
 
 domainRoutes.post("/domains/:domain/check", async (c) => {
-  const claim = await claimedDomain(c.env.DB, c.get("org").id, c.req.param("domain").toLowerCase());
-  if (!claim) return problem(404, "no such domain claim");
-  if (claim.state === "verified") return c.json({ domain: claim.domain, verified: true });
-  const seen = await lookTxt(claim.domain, claim.token);
-  if (seen === "failing") {
-    await attempt(c, "verify-domain", claim.id, "dns-lookup-failed");
+  const checked = await checkDomain(actorOf(c), c.req.param("domain").toLowerCase());
+  if (checked.kind === "gone") return problem(404, "no such domain claim");
+  if (checked.kind === "verified") return c.json({ domain: checked.domain, verified: true });
+  if (checked.kind === "failing")
     return problem(503, "the DNS check could not be made just now; try again in a moment");
-  }
-  if (seen === "absent") {
-    await attempt(c, "verify-domain", claim.id, "dns-not-visible");
+  if (checked.kind === "absent" || checked.kind === "different")
     return c.json({
-      domain: claim.domain,
+      domain: checked.domain,
       verified: false,
       message: "the record is not visible yet; DNS can take up to an hour",
     });
-  }
-  const verified = await verifyByDns(c.env.DB, claim.id);
-  await attempt(c, "verify-domain", claim.id, verified === "verified" ? "verified-dns" : verified);
-  if (verified === "verified") await learnedQuietly(c.env.DB, claim.id);
-  return verifiedAnswer(verified, { domain: claim.domain }, "domain");
+  return verifiedAnswer(checked.kind, { domain: checked.domain }, "domain");
 });
 
 domainRoutes.post("/domains/:domain/code", async (c) => {
-  const org = c.get("org").id;
-  const claim = await claimedDomain(c.env.DB, org, c.req.param("domain").toLowerCase());
-  if (!claim) return problem(404, "no such domain claim");
-  if (claim.state === "verified") return problem(409, "that domain is already verified");
   const body = await bodyOf(c);
-  if (body?.local !== "admin" && body?.local !== "postmaster")
-    return problem(400, "the code goes to admin@ or postmaster@");
-  const to = `${body.local}@${claim.domain}`;
-  const issued = await issueCode(c.env.DB, org, claim.id, allowanceOf({ domain: claim.domain }));
-  if (issued === "gone") return problem(404, "no such domain claim");
-  if (issued === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
-  if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes a domain an hour; try again later`);
-  if (issued === "busy") return problem(429, ORG_LIMIT);
-  const outcome = await sendClaimCode(c.env, {
-    to,
-    claimId: claim.id,
-    codeId: issued.codeId,
-    code: issued.code,
-    what: claim.domain,
-  });
-  return sendAnswer(outcome, { domain: claim.domain, to });
+  const sent = await sendDomainCode(c.env, actorOf(c), c.req.param("domain").toLowerCase(), body?.local);
+  if ("to" in sent) return sendAnswer(sent.kind, { domain: sent.domain, to: sent.to });
+  if (sent.kind === "gone") return problem(404, "no such domain claim");
+  if (sent.kind === "already") return problem(409, "that domain is already verified");
+  if (sent.kind === "bad-local") return problem(400, "the code goes to admin@ or postmaster@");
+  if (sent.kind === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
+  if (sent.kind === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes a domain an hour; try again later`);
+  if (sent.kind === "sending") return problem(429, SENDING_NOW);
+  return problem(429, ORG_LIMIT);
 });
 
 domainRoutes.post("/domains/:domain/verify", async (c) => {
-  const org = c.get("org").id;
-  const claim = await claimedDomain(c.env.DB, org, c.req.param("domain").toLowerCase());
-  if (!claim) return problem(404, "no such domain claim");
-  if (claim.state === "verified") return c.json({ domain: claim.domain, verified: true });
   const body = await bodyOf(c);
   if (typeof body?.code !== "string") return problem(400, "send the code you were mailed");
-  const proved = await proveByCode(c.env.DB, "org_domains", org, claim.id, body.code);
-  await attempt(c, "verify-domain", claim.id, proved === "verified" ? "verified-code" : proved);
-  if (proved === "verified") await learnedQuietly(c.env.DB, claim.id);
-  return codeAnswer(proved, { domain: claim.domain }, "domain");
+  const proved = await verifyDomainCode(actorOf(c), c.req.param("domain").toLowerCase(), body.code);
+  if (proved.kind === "gone") return problem(404, "no such domain claim");
+  if (proved.kind === "already") return c.json({ domain: proved.domain, verified: true });
+  return codeAnswer(proved.kind, { domain: proved.domain }, "domain");
 });
 
 domainRoutes.delete("/domains/:domain", async (c) => {
@@ -494,6 +634,7 @@ domainRoutes.delete("/domains/:domain", async (c) => {
     c.env.DB.prepare("DELETE FROM verification_codes WHERE claim_id = ?").bind(claim.id),
     // Its receivers go with it (D02 T02 §1): a removed domain's receiving system is no longer trusted.
     c.env.DB.prepare("DELETE FROM org_receivers WHERE claim_id = ?").bind(claim.id),
+    c.env.DB.prepare("DELETE FROM receiver_lookups WHERE claim_id = ?").bind(claim.id),
   ]);
   return c.body(null, 204);
 });
@@ -529,6 +670,7 @@ async function addressCode(c: Context<OrgEnv>, create: boolean) {
   if (issued === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
   if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes an address an hour; try again later`);
   if (issued === "busy") return problem(429, ORG_LIMIT);
+  if (issued === "sending") return problem(429, SENDING_NOW);
   const outcome = await sendClaimCode(c.env, {
     to: address,
     claimId: claim.id,
@@ -551,7 +693,8 @@ domainRoutes.post("/addresses/verify", async (c) => {
   if (!claim) return problem(404, "no such address claim");
   if (claim.state === "verified") return c.json({ address: claim.address, verified: true });
   const proved = await proveByCode(c.env.DB, "org_addresses", org, claim.id, body.code);
-  await attempt(c, "verify-address", claim.id, proved === "verified" ? "verified-code" : proved);
+  if (proved !== "malformed")
+    await attempt(c, "verify-address", claim.id, proved === "verified" ? "verified-code" : proved);
   return codeAnswer(proved, { address: claim.address }, "address");
 });
 

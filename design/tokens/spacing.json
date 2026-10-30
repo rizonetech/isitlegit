@@ -36,7 +36,11 @@
  },
  "layout": {
   "sidebar": 256,
-  "evidence-figure": 152
+  "evidence-figure": 152,
+  "state-art": 152,
+  "empty-art": 200,
+  "signin-column": 440,
+  "signin-headline": 520
  },
  "shadow": {
   "card": "0 1px 2px rgba(24, 21, 25, 0.06), 0 8px 24px rgba(24, 21, 25, 0.06)"

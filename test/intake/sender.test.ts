@@ -113,8 +113,9 @@ describe("senderAuthenticated", () => {
             ["header.d", "a.com"],
             ["header.s", "x"],
           ]),
+          comment: "",
         },
-        { method: "spf", result: "none", props: new Map([["smtp.mailfrom", "b.com"]]) },
+        { method: "spf", result: "none", props: new Map([["smtp.mailfrom", "b.com"]]), comment: "" },
       ],
     });
   });

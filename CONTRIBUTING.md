@@ -42,6 +42,7 @@ pnpm typecheck   # refuses a worker-configuration.d.ts that no longer matches wr
 pnpm lint
 pnpm build:assets   # fonts, tokens, stylesheet and fingerprints; commit what it changes (a changed font needs pip install -r design/tools/requirements.txt)
 pnpm test
+pnpm test:a11y   # axe-core over the component gallery and every shell frame in Chromium (WCAG 2.2 A and AA); see the README for the browser it uses
 pnpm build
 ```
 
