@@ -25,6 +25,8 @@ The IsItLegit brand itself (`design/brand/` outside `rizonetech/`, and `design/t
 
 GPT-6 Astra, OpenAI's model through the Codex CLI, is development tooling in the same sense: it reviews every section, and for the Loupe page screener (D03 T04) it also does dataset collection, downloading licence-checked public page datasets into a local data store outside the repository, and label judging, deciding disputed training labels beside Claude. It writes no product code, and its collections and judgements are verified by Claude before any of them trains Loupe.
 
+Muse Wonder through Muse Code (the operator's own subscription) is development tooling in the same sense when it reviews: the pin names it as the final reviewer after the Astra rounds (`.conclave/reviewers.toml`, `[schedule.final]`). The videos the media lane makes (D10, `media/`) show this review tooling as part of how IsItLegit is built: it is pre-existing development tooling, not a product feature. The product's own use of Muse Wonder, the walkthrough agent driving a contained browser through the Meta Model API (D04 T02), is product work and is listed with the rest of the product, not here.
+
 Changes made to this tooling during the event (the IsItLegit environment needs, the client-name guard in the pre-commit hook) are new work and show in the history.
 
 ## Third-party code and data

@@ -51,6 +51,7 @@ The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/s
 | `checks` | `checks-lane` | `../isitlegit` | D01, D02, D04, D08, D09 |
 | `app` | `app-lane` | `../isitlegit-app` | D05, D06, D07 |
 | `glimmer` | `glimmer-screener` | `../isitlegit-glimmer` | D03 |
+| `media` (uncoordinated) | `claude/trusting-pasteur-umwvqz` | a Claude Code cloud session | D10 |
 
 - The coordinator owns `main`: it merges the lanes, owns CI, deploys, the shared tooling (`scripts/`, `scripts/hooks/`, `.claude/`, `.conclave/reviewers.toml`), migration numbers, the machine and the manual list (`query manual`: every lane's rows waiting on the operator or a paid or attended environment, each prepared to the step only the operator can take). It builds no product section.
 - Claiming: `query lane` names this checkout's lane (it follows the checked-out branch; `TODO_LANE` overrides it). `query ready`, `query blocked` and `query stats` count only the lane's rows (`--all` the whole plan, `--phase N` one phase), and `resolve` gives another lane's ready row exit 4 with a `lane_note`. Which rows are ready, and the generated plan, are the same on every branch.
