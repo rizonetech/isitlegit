@@ -289,6 +289,28 @@ describe("a link request", () => {
     expect(target(done)).toBe("/cases/3");
   });
 
+  it("gives a fresh browser its handle with the form, so two links asked for at once both stay its own", async () => {
+    const smtp = mailed();
+    const fresh = browser();
+    const form = await fresh.get("/signin/link?callbackURL=%2Fcases%2F5");
+    expect(form.status).toBe(200);
+    const handle = fresh.jar.get(CODE_COOKIE);
+    expect(handle).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const [a, b] = [unique("tab-a"), unique("tab-b")];
+    await Promise.all([
+      fresh.post("/signin/link", { email: a, callbackURL: "/cases/5" }),
+      fresh.post("/signin/link", { email: b, callbackURL: "/cases/5" }),
+    ]);
+    expect(fresh.jar.get(CODE_COOKIE)).toBe(handle);
+    const hash = await handleHash(handle ?? "");
+    expect((await rows(a))[0]?.handle_hash).toBe(hash);
+    expect((await rows(b))[0]?.handle_hash).toBe(hash);
+    const mailToA = smtp.sends.find((m) => m.to === a)?.text ?? "";
+    expect(target(await fresh.post("/signin/code", { code: codeIn(mailToA), email: a, callbackURL: "/cases/5" }))).toBe(
+      "/cases/5",
+    );
+  });
+
   it("binds the first code of an invite-code signup to the browser that signed up", async () => {
     const smtp = mailed();
     const code = `code-${crypto.randomUUID()}`;

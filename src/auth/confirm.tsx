@@ -28,7 +28,15 @@ import {
 } from "./confirm-page";
 import { DEFAULT_RETURN, MAX_RETURN_PATH } from "./paths";
 import { APP_RULES, d1RateLimit, LINK_WINDOW_SECONDS } from "./ratelimit";
-import { CODE_COOKIE, CODE_PATH, clearHandleCookie, normaliseCode, readHandle } from "./signin-code";
+import {
+  CODE_COOKIE,
+  CODE_PATH,
+  clearHandleCookie,
+  handleCookie,
+  newHandle,
+  normaliseCode,
+  readHandle,
+} from "./signin-code";
 import { checkCode, giveBack, markUsed } from "./signin-code-store";
 
 // What Better Auth's verify answered, sorted into the confirm page's states (better-auth/dist/plugins/magic-link):
@@ -154,6 +162,17 @@ function signedIn(callbackURL: string, origin: string, cookies: string[]): Respo
 }
 
 export const confirmRoutes = new Hono<{ Bindings: Env }>();
+
+// Every sign-in page gives a browser that has no code handle one (D07 T02 §11, round 2), so the handle exists before
+// any link is asked for: two requests sent at once from a browser with none would otherwise each be given a handle of
+// their own, and the second cookie would orphan the first request's code. A browser that holds one keeps it; a redirect
+// (a sign-in, which clears it) and an answer that sets it already are left alone.
+confirmRoutes.use("/signin/*", async (c, next) => {
+  await next();
+  if (readHandle(c.req.raw.headers) || c.res.status >= 300) return;
+  if (c.res.headers.getSetCookie().some((cookie) => cookie.startsWith(`${CODE_COOKIE}=`))) return;
+  c.res.headers.append("set-cookie", handleCookie(newHandle()));
+});
 
 confirmRoutes.get(CONFIRM_PATH, (c) => {
   const token = c.req.query("token") ?? "";
