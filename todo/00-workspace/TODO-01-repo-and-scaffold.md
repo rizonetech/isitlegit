@@ -58,6 +58,7 @@ track: day-0
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [ ] |
+| 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -727,6 +728,31 @@ Decided 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`): two building 
 - [ ] Commit: `tools: a lane's tools see only its own domains`
 
 **Test checkpoint:** `python3 -m unittest discover -s tests/scripts` passes, including the two-lane tree tests in `test_todo_graph.py` and `test_campaign_guard.py`, and `for l in checks app glimmer main; do TODO_LANE=$l python3 scripts/todo-graph.py query stats; done` prints 70, 75, 22 and 13 open rows (fails if a lane is unlisted or a domain unclaimed).
+
+## 20. Lane run waits on another lane's rows, then resumes
+
+Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/D00-T01-s19.md`, gap 4, out of scope there). Under §19 a lane whose only open rows wait on another lane's rows parks: `end --reason park` deletes its guard and heartbeat, so when the prerequisite is stamped and merged nothing wakes the lane and the operator must prompt it again. Claude Code's agent teams unblock a dependent task by themselves. This section gives a lane a waiting state that keeps its heartbeat, so the lane resumes within one heartbeat of the prerequisite reaching `main`, with every gate, the merge rule and an operator pause unchanged.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Record a wait. Done when: `campaign_guard.py wait` keeps the guard and its heartbeat with the rows waited on, and refuses while the lane has a ready row of its own.
+2. Notice the prerequisite. Done when: `rows` reads `WAITING` while every waited row is open and `READY` once one is stamped in this checkout.
+3. Resume from the heartbeat. Done when: the heartbeat fetches `main`, merges it under the lane's merge rule when it holds a waited row's stamp, and resumes without an operator prompt.
+
+- [ ] Add `wait --session S --on 'DNN TNN §N,...'` to `scripts/campaign_guard.py`: it records `waiting_on` (each ref resolving, each owned by another lane, `todo-graph.py resolve`) and `waiting_since` in the guard, keeps the guard and the heartbeat job, and refuses while the run's lane has a ready row (`rows` ready above 0) or the run file holds a terminal marker of this run. Done when: `tests/scripts/test_campaign_guard.py` reads both fields after `wait`, and each refusal leaves the guard byte for byte unchanged. Cheaper substitute: a `PARKED` line plus a note, which ends the run and is the gap this section closes.
+- [ ] Let the Stop hook end the turn of a waiting run without counting a block, in `stop_decision()`. Done when: a test with `waiting_on` set and nothing ready reads no block and no breaker count, and a ready row of the lane still blocks.
+- [ ] Report the wait in `rows()`: `WAITING on <refs> since <UTC>` (exit 0) while every waited row is open, `READY <ref>` once one is stamped in this checkout, which clears `waiting_on` under the lock. Done when: a real two-lane tree test reads `WAITING`, stamps the prerequisite, and reads `READY` with the field gone.
+- [ ] Have the heartbeat prompt in `.claude/skills/process-plan/SKILL.md` handle `WAITING`: `git fetch origin main`, and when `origin/main` holds a newer commit, merge it into the lane (a merge, never a rebase; on a conflict in `todo/implementation-plan.md`, take either side, then `plan --sync`; any other conflict is reported to the coordinator and the run keeps waiting), then run `rows` again and resume on `READY`. Done when: a skill-file test finds the fetch, the merge rule and the `READY` resume inside the heartbeat block, and no `git rebase` or `--force` in it.
+- [ ] Keep an operator stop and an escalation final while waiting: `end --reason operator-stop` and `escalation` delete a waiting guard and its job as before, and `wait` is refused on a guard handed over with an operator reason until the new owner re-points it. Done when: tests end a waiting run both ways and read no guard.
+- [ ] Report a long wait: `rows` adds `long-wait` when `waiting_since` is more than 24 hours old, and the heartbeat appends it to the run file and tells the coordinator once a day. Done when: a test with `--now` 25 hours on reads `long-wait`.
+- [ ] Describe the waiting state in `.claude/skills/process-plan/SKILL.md` and `.claude/skills/process-phase/SKILL.md` (a phase whose only leftovers wait on another lane's rows waits instead of parking; host-bound and person-bound leftovers still park) and in `AGENTS.md` Parallel lanes. Done when: both skills name `wait` and the park rule for the other leftovers.
+- [ ] Commit: `tools: a lane waits on another lane's rows and resumes by itself`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_campaign_guard` passes, including the two-lane wait-then-resume test, which fails if `rows` reads `READY` before the prerequisite is stamped.
 
 ## Verification
 
