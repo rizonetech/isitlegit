@@ -201,7 +201,8 @@ describe("attachment.html through the checks step", () => {
       ["receipt.html", "medium"],
     ]);
     expect(stored[1]?.summary).toContain("builds a file from a hidden payload and downloads it");
-    for (const item of stored) expect(item.artefacts).toEqual([expect.stringMatching(/^raw\/[0-9A-Z]{26}\/attachments\//)]);
+    for (const item of stored)
+      expect(item.artefacts).toEqual([expect.stringMatching(/^raw\/[0-9A-Z]{26}\/attachments\//)]);
     expect(new Set(stored.map((i) => i.artefacts[0])).size).toBe(3);
   });
 
