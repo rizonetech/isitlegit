@@ -35,6 +35,12 @@ describe("sniff", () => {
       expect(sniff(new TextEncoder().encode(text)), text).toBe("svg");
   });
 
+  it("reads an SVG whose doctype declares entities (round 1)", () => {
+    const svg =
+      '<!DOCTYPE svg [<!ENTITY company "Example">]>\n<svg xmlns="http://www.w3.org/2000/svg"><text>&company;</text></svg>';
+    expect(sniff(new TextEncoder().encode(svg))).toBe("svg");
+  });
+
   it("reads prose that mentions a command as text, not a script (completion review)", () => {
     for (const prose of [
       "In PowerShell, Invoke-Expression runs a string as a command.",
@@ -218,6 +224,39 @@ describe("attachment.type_mismatch through the checks step", () => {
     const read = await attachmentHeadsOf(slow, keys);
     expect(peak).toBe(4);
     expect(read.heads.map((h) => h.key)).toEqual(keys.map((k) => k.key));
+  });
+
+  it("compares at most twenty of fifty identical attachments sharing one key, keeping the findings (round 1)", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-sniff", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nPay.\r\n"));
+    const stored = await putAttachment(store, id, "invoice.pdf", samples.pe, "application/pdf");
+    const one = {
+      key: stored.key,
+      filename: "invoice.pdf",
+      mediaType: "application/pdf",
+      contentId: null,
+      disposition: "attachment",
+      bytes: samples.pe.length,
+    };
+    await putParsed(store, id, {
+      headers: [],
+      text: "Pay.",
+      html: null,
+      attachments: Array.from({ length: 50 }, () => one),
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: "org-sniff", channel: "email" }, async () => []);
+    const items = (await readEvidence(env.DB, id)).filter(
+      (e) => e.check === "attachment.type_mismatch" || e.check === "not_checked",
+    );
+    expect(items.filter((i) => i.severity === "high")).toHaveLength(MAX_SNIFFED);
+    expect(items.find((i) => i.severity === "info")?.detail).toMatchObject({ checked: false, unread: 30 });
+    expect(items.some((i) => i.check === "not_checked")).toBe(false);
   });
 
   it("fails the step on a storage error, so the Workflow retries, rather than counting it as unread", async () => {

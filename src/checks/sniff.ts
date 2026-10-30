@@ -37,14 +37,16 @@ export async function attachmentHeadsOf(
   bucket: R2Bucket,
   attachments: readonly { key: string }[],
 ): Promise<{ heads: { key: string; head: string }[]; unread: number }> {
+  // The first MAX_SNIFFED attachments are compared, each stored key read once: identical attachments share a key
+  // (storage keeps content once), so fifty copies are one read and still only twenty comparisons (round 1).
   const listed = attachments.slice(0, MAX_SNIFFED);
-  let unread = Math.max(0, attachments.length - MAX_SNIFFED);
-  const read: ({ key: string; head: string } | null)[] = new Array(listed.length).fill(null);
+  const keys = [...new Set(listed.map((a) => a.key))];
+  const read: ({ key: string; head: string } | null)[] = new Array(keys.length).fill(null);
   // Four reads at a time (completion review), in order of the attachments however they finish.
   let next = 0;
   const worker = async () => {
-    for (let i = next++; i < listed.length; i = next++) {
-      const key = (listed[i] as { key: string }).key;
+    for (let i = next++; i < keys.length; i = next++) {
+      const key = keys[i] as string;
       // A missing object is counted; any other storage error fails the step, which the Workflow retries (plan review).
       const object = await bucket.get(key, { range: { offset: 0, length: SNIFF_BYTES } });
       if (!object) continue;
@@ -54,9 +56,11 @@ export async function attachmentHeadsOf(
       read[i] = { key, head: btoa(text) };
     }
   };
-  await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, listed.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, keys.length) }, worker));
   const heads = read.filter((h): h is { key: string; head: string } => h !== null);
-  unread += listed.length - heads.length;
+  const found = new Set(heads.map((h) => h.key));
+  // Not compared: every attachment past MAX_SNIFFED, and every one whose stored object is missing.
+  const unread = attachments.length - listed.length + listed.filter((a) => !found.has(a.key)).length;
   return { heads, unread };
 }
 
@@ -104,6 +108,17 @@ function isText(bytes: Uint8Array): boolean {
   return control * 100 <= Math.min(bytes.length, 4096);
 }
 
+// Where a doctype ends: after its internal subset (`[...]`, whose declarations hold their own `>`), at the next `>`
+// (XML 1.0 section 2.8; round 1). Zero when it does not end in the text read.
+function doctypeEnd(text: string): number {
+  const open = text.indexOf("[");
+  const close = text.indexOf(">");
+  if (open < 0 || (close >= 0 && close < open)) return close + 1;
+  const subset = text.indexOf("]", open);
+  if (subset < 0) return 0;
+  return text.indexOf(">", subset) + 1;
+}
+
 // What follows an XML prolog (the declaration, comments, processing instructions and a doctype, in any order), bounded
 // by the text read.
 function prolog(text: string): string {
@@ -115,7 +130,7 @@ function prolog(text: string): string {
       : trimmed.startsWith("<?")
         ? trimmed.indexOf("?>") + 2
         : trimmed.startsWith("<!doctype")
-          ? trimmed.indexOf(">") + 1
+          ? doctypeEnd(trimmed)
           : 0;
     if (end <= 2) return trimmed;
     rest = trimmed.slice(end);

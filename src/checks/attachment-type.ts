@@ -6,7 +6,7 @@ import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import type { CheckRegistry } from "./registry";
-import { type SniffedType, sniff } from "./sniff";
+import { MAX_SNIFFED, type SniffedType, sniff } from "./sniff";
 
 type Family = "document" | "image" | "archive" | "executable" | "script" | "shortcut" | "text" | "web" | "disk";
 
@@ -136,7 +136,8 @@ export function typeMismatchEvidence(view: CaseView): EvidenceDraft[] {
   const heads = view.attachmentHeads;
   if (!heads) return [];
   const items: EvidenceDraft[] = [];
-  for (const attachment of view.attachments) {
+  // The attachments the step read, at most MAX_SNIFFED of them (round 1: fifty copies of one file share a key).
+  for (const attachment of view.attachments.slice(0, MAX_SNIFFED)) {
     const head = heads.heads.find((h) => h.key === attachment.key);
     if (!head) continue;
     const sniffed = sniff(decode(head.head));
