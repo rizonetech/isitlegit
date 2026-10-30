@@ -44,7 +44,7 @@ track: day-6
 | 6 | §7 | Redacted sample mail converted to pages | §3, §6 | [x] |
 | 7 | §8 | Synthetic South African lures | §6, §7 | [x] |
 | 8 | §9 | Spark teacher labels and human check | §5, §6, §7 | [x] |
-| 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [ ] |
+| 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [x] |
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [ ] |
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [ ] |
 | 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
@@ -446,9 +446,12 @@ The store becomes two files: training and held-out evaluation. Duplicates go, no
 - [x] Publish only a version that meets every floor (finding 7): after deduplication, capping and balancing, every minimum (1,000 evaluation pages, 40 to 60 percent lures in each split, 50 of each lure type, 300 South African, the sample-lure floors with "half" meaning half the trusted sample-derived lures admitted after exclusions, rounded up) is checked before anything is published; any shortfall refuses with every shortfall named and leaves the previous version in place. Done when: tests refuse 29 evaluation sample lures and pass 30, refuse one below the training half, and refuse each general shortfall. **Done 2026-10-30:** `test/node/glimmer-dataset.test.ts`, "the floors a version must meet" and "a build at the production floors". **Corrected 2026-10-30:** "admitted after exclusions" is counted on the sample lures the split receives, after deduplication and the brand cap, since a copy deduplication dropped can be in neither split.
 - [x] Publish with read-back and recovery (finding 8): the version is written to a staging folder, each file read back from disk, its lines parsed and its meta lines aligned, its SHA-256 taken from disk, the leak scan run over those exact bytes, and only then renamed into place; a version already published is never replaced (a new version number is required). Done when: tests inject a failed write and a failed rename and find the earlier version intact and the staging folder recoverable. **Done 2026-10-30:** `test/node/glimmer-dataset.test.ts`, "staged publication with read-back" and "summary.json is read back": a failed write and a failed rename leave the earlier version intact and the staging folder recoverable.
 - [x] Correct the line validation (finding 9): each line's messages are checked for structure and the assistant's answer parsed with `PageAnswer` (no runtime `screener` field). Done when: a test rejects a line whose answer carries `screener`. **Done 2026-10-30:** `test/node/glimmer-dataset.test.ts`: "rejects a line whose answer carries a runtime `screener` field".
-- [ ] Commit: `glimmer: deduplicated, balanced, seed-disjoint training set`
+- [x] Commit: `glimmer: deduplicated, balanced, seed-disjoint training set`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-dataset.test.ts` passes and fails if a brand or near-duplicate appears in both splits.
+
+> **Verified:** 2026-10-31 | §10 | 582aa41791c81d313465984f9495df74506c6a75
+> **Review:** `docs/reviews/d03-t04-s10.json`
 
 ## 11. Serverless LoRA training of Loupe
 
