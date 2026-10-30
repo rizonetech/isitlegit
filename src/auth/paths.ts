@@ -18,7 +18,10 @@ export function sameSitePath(value: unknown): value is string {
     value.length > MAX_RETURN_PATH ||
     !/^\/(?!\/)/.test(value) ||
     /[\\\s]/.test(value) ||
-    value.includes("://")
+    value.includes("://") ||
+    // A slash or backslash written encoded in the path (not the query, where a report link's signature may hold one),
+    // which a server or proxy that decodes paths would read as `//host` (D07 T02 §7).
+    /%(2f|5c)/i.test(value.split(/[?#]/, 1)[0] ?? "")
   )
     return false;
   const resolved = new URL(value, BASE);

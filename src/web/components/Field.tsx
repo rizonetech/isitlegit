@@ -66,8 +66,9 @@ export function Field(props: FieldProps) {
         aria-describedby={describedBy}
         class={INPUT}
       />
+      {/* Announced as the page that carries it arrives (a refused code, a wrong address), and the field's description. */}
       {error && (
-        <p id={errorId} class="text-13 text-mal weight-text-strong">
+        <p id={errorId} role="alert" class="text-13 text-mal weight-text-strong">
           {error}
         </p>
       )}

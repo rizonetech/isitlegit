@@ -163,21 +163,21 @@ describe.skipIf(!chromiumPath())("the sign-in code in Chromium", () => {
         .join(" "),
     );
     expect(description).toContain("That code is not right. 2 tries left.");
-    expect(await refused.getAttribute("maxlength")).toBe("7");
+    expect(await refused.getAttribute("maxlength")).toBe("16");
     expect(await refused.getAttribute("inputmode")).toBe("numeric");
     expect(await refused.getAttribute("autocomplete")).toBe("one-time-code");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
     // The refused field has focus again, for the next try with no click or Tab; from it, Tab reaches its button, then
-    // the two recoveries.
+    // the recovery not held (Send another link waits 30 seconds after the page is shown, D07 T02 §7).
     await expect
       .poll(() => page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name))
       .toBe("code");
     const order: string[] = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       await page.keyboard.press("Tab");
       order.push(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? ""));
     }
-    expect(order).toEqual(["Sign in", "Send another link", "Use a different email"]);
+    expect(order).toEqual(["Sign in", "Use a different email"]);
     await context.close();
   });
 });

@@ -78,6 +78,9 @@ describe.skipIf(!chromiumPath())("the confirm page in Chromium", () => {
     expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toContain("Exo 2");
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width).toBeLessThanOrEqual(375);
+    // A1's frame: the logo's home link first, then the page's own button (D07 T02 §7).
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement?.getAttribute("href"))).toBe("https://isitlegit.co.za");
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => document.activeElement?.textContent?.trim())).toBe("Sign in to IsItLegit");
     await page.keyboard.press("Enter");
@@ -92,6 +95,8 @@ describe.skipIf(!chromiumPath())("the confirm page in Chromium", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
     const email = page.getByRole("textbox", { name: "Email" });
     expect(await email.inputValue()).toBe("member@example.org");
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement?.getAttribute("href"))).toBe("https://isitlegit.co.za");
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name)).toBe("email");
     await page.keyboard.press("Tab");

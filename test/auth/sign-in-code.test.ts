@@ -457,7 +457,7 @@ describe("signing in by code", () => {
     ).toBe(303);
     const link = await redeem(byCode.link);
     expect(sessionCookie(link)).toBe("");
-    expect(await link.text()).toContain("This link has expired or was used");
+    expect(await link.text()).toContain("That link no longer works");
   });
 
   it("gives the attempt back when verify is throttled, so the same code works once the window passes", async () => {

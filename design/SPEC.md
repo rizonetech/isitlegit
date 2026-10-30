@@ -491,6 +491,10 @@ Sign-in code (D07 T02 §11, 2026-10-30, operator decision "Code sign-in: yes"; b
 
 Checked at 375 px with no sideways scroll, and by keyboard (the button and the Email field reachable and labelled). D07 T02 §7 draws these on A1's frame.
 
+- Deviation (D07 T02 §7): the check-your-inbox state says "If that address can sign in, a new link is on its way. It works once, for 15 minutes." where the board names the address a link went to, because every request is answered alike so the page never tells a stranger who can sign in (D01 T02 §2).
+- Deviation (D07 T02 §7): the rate-limited state says "Too many sign-in links from here" and "New links can be sent from here again at 14:32 SAST", where the board counts links sent to the address, because the limit the page answers is this client's own (D07 T02 §6); counting an address's links would say whether it can sign in.
+- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button above no passkey button; the passkey button and the "or" divider are D07 T02 §16's.
+
 ### A2 Sign up
 
 Boards: [PNG](mockups/png/Signup.png) · [source](mockups/source/Signup.dc.html)
@@ -924,6 +928,7 @@ States:
 Boards: [PNG](mockups/png/Error-403.png) · [source](mockups/source/Error-403.dc.html)
 
 - Deviation (D07 T04 §1): the Cases list answers its own 403 (no active organisation, or a membership just removed) with Sign out alone, because the board's "Go to your own cases" is that page and would answer the same 403 again.
+- Deviation (D07 T02 §15): a member of the organisation who is not an owner or admin, asking for an owner's page (the domain verification page), gets a 403 of its own: "Only an owner or admin verifies domains.", "An owner or admin of <organisation> verifies its domains. Ask one of them to do it." and Go to your cases. The board draws only the not-a-member case, whose sentence (ask an owner to invite this address) would be wrong for someone already a member.
 
 Controls:
 

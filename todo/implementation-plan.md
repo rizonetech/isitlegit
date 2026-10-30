@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 60 | Checklist items: 372
+Sections: 60 | Checklist items: 386
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -138,7 +138,7 @@ Sections: 60 | Checklist items: 372
 | [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
-| [ ]    | D07 T02 §15 | Domain verification page                              | none     | 2     |
+| [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -148,7 +148,7 @@ Sections: 60 | Checklist items: 372
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
-| [ ]    | D07 T02 §7  | Sign-in page                                          | none     | 12    |
+| [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
 | [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
@@ -205,7 +205,7 @@ Sections: 11 | Checklist items: 48
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 114
+Sections: 23 | Checklist items: 115
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -222,7 +222,7 @@ Sections: 23 | Checklist items: 114
 | [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
 | [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
 | [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 5     |
-| [ ]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 4     |
+| [ ]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 5     |
 | [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
@@ -308,7 +308,7 @@ Sections: 66 | Checklist items: 275
 
 ### Phase 7: After the event
 
-Sections: 33 | Checklist items: 180
+Sections: 34 | Checklist items: 183
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -344,6 +344,7 @@ Sections: 33 | Checklist items: 180
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §9  | Next and previous case from a report             | owner-decision | 3     |
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
+| [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -368,6 +369,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 104/299 verified sections, 69 ready to run now.
+Progress: 106/300 verified sections, 71 ready to run now.
 
-Checklist: 1044/1892 items completed (includes Commit items).
+Checklist: 1073/1910 items completed (includes Commit items).
