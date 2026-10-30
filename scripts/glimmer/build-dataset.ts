@@ -9,7 +9,7 @@
 // or near duplicate with training and holds only labels known to be true.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import sharp from "sharp";
 import { getDomain } from "tldts";
 import {
@@ -250,13 +250,19 @@ type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Set<nu
 // within 6 bits and the texts share 80 percent of their shingles. Screenshots alone are not enough: renders of dataset
 // HTML carry no styles, so different pages often look alike at 9 by 8 pixels. Bands of the hash find candidates
 // without comparing every pair (two hashes within 6 bits agree on at least one of 7 bands).
-export function dedupe(entries: Entry[]): { kept: Entry[]; exact: number; near: number } {
+export function dedupe(
+  entries: Entry[],
+  prefer: Set<string> = new Set(),
+): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
   const bands = Array.from({ length: 7 }, () => new Map<number, Entry[]>());
   let exact = 0;
   let near = 0;
-  for (const entry of [...entries].sort((a, b) => a.page.id.localeCompare(b.page.id))) {
+  // The pages `prefer` names come first, so a twin is dropped in their place, never they in its.
+  const order = (a: Entry, b: Entry) =>
+    Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) || a.page.id.localeCompare(b.page.id);
+  for (const entry of [...entries].sort(order)) {
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
     if (seen.has(key)) {
       exact++;
@@ -421,7 +427,7 @@ export type Split = { train: Entry[]; evaluation: Entry[]; heldOut: string[]; te
 export function split(
   entries: Entry[],
   random: () => number,
-  options: { admit?: (entry: Entry) => boolean; floors?: Floors } = {},
+  options: { admit?: (entry: Entry) => boolean; floors?: Floors; reserved?: Set<string> } = {},
 ): Split {
   const admit = options.admit ?? ((entry: Entry) => trusted(entry.page));
   const floors = options.floors ?? FLOORS;
@@ -433,6 +439,9 @@ export function split(
     random,
   );
   const held = new Set(brands.slice(0, Math.ceil(brands.length * 0.1)));
+  // Every group holding a page of §13's reference set stays out of training (plan review finding 6).
+  const reserved = options.reserved ?? new Set<string>();
+  for (const [group, members] of groups) if (members.some((e) => reserved.has(e.page.id))) held.add(group);
   const evaluation: Entry[] = [];
   const counts = () => ({
     total: evaluation.length,
@@ -548,6 +557,38 @@ export function freezeDigest(frozen: Set<string>): string {
     .digest("hex");
 }
 
+// §13's independent reference set: how many pages are drawn the first time, and the seed of the draw. The draw is
+// seeded by these alone, never by the build's seed or any label the teacher touched, so every build finds it unchanged.
+export const REFERENCE_SIZE = 500;
+const REFERENCE_SEED = "glimmer-reference-2026-10-30";
+export const referenceFile = (dir: string) => join(dir, "raw", "dataset", "reference.json");
+
+// The reference set: the saved membership when `raw/dataset/reference.json` exists, else a seeded draw from `pool`,
+// saved temp-then-replace before it is used. Its pages and every group and near duplicate they have are kept out of
+// training (`split`, `dedupe`).
+export function reserveReference(
+  dir: string,
+  pool: StoredPage[],
+  size = REFERENCE_SIZE,
+): { ids: Set<string>; sha256: string } {
+  const file = referenceFile(dir);
+  if (!existsSync(file)) {
+    const order = (id: string) => createHash("sha256").update(`${REFERENCE_SEED}\n${id}`).digest("hex");
+    const pages = pool
+      .map((page) => page.id)
+      .sort((a, b) => order(a).localeCompare(order(b)))
+      .slice(0, size)
+      .sort();
+    mkdirSync(dirname(file), { recursive: true });
+    writeAtomic(file, `${JSON.stringify({ seed: REFERENCE_SEED, size, drawn_from: pool.length, pages }, null, 2)}\n`);
+  }
+  const bytes = readFileSync(file);
+  const saved = JSON.parse(bytes.toString("utf-8")) as { pages?: unknown };
+  if (!Array.isArray(saved.pages) || !saved.pages.every((id) => typeof id === "string"))
+    throw new Error(`${file} does not name its pages`);
+  return { ids: new Set(saved.pages as string[]), sha256: createHash("sha256").update(bytes).digest("hex") };
+}
+
 export async function buildDataset(options: {
   store: ReturnType<typeof openStore>;
   version: string;
@@ -558,6 +599,8 @@ export async function buildDataset(options: {
   frozen?: Set<string>;
   // The floors a version must meet to be published; `FLOORS` unless a test of something else lowers them.
   floors?: Floors;
+  // How many pages the reference set holds when it is first drawn (`REFERENCE_SIZE`); a set already saved is kept.
+  referenceSize?: number;
 }): Promise<Built> {
   const { store, version, mode } = options;
   const floors = options.floors ?? FLOORS;
@@ -574,14 +617,6 @@ export async function buildDataset(options: {
     afterFreeze: 0,
     excluded: 0,
   };
-  // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
-  // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
-  // known only to its state (plan review finding 5). The queue's own entries count too.
-  const teacher = readTeacherState(store.dir);
-  const disputed = new Set([
-    ...readQueue(store.dir).map((entry) => entry.id),
-    ...[...teacher].filter(([, outcome]) => outcome.status === "disputed").map(([id]) => id),
-  ]);
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
   if (options.frozen) {
@@ -619,7 +654,32 @@ export async function buildDataset(options: {
     }
     return true;
   };
-  for (const page of store.manifest()) {
+  // §13's reference set is reserved before any teacher outcome is read (plan review finding 6): a seeded draw from the
+  // frozen, usable pages whose `lure` has a trusted source, whatever the teacher answered, kept in
+  // `raw/dataset/reference.json` so every later version holds out the same pages. The pool does not consult the
+  // exclusions either: those include pages the teacher lost, which would let its outcomes move the draw.
+  const pages = store.manifest();
+  const reference = reserveReference(
+    store.dir,
+    pages.filter(
+      (page) =>
+        (!options.frozen || options.frozen.has(page.id)) &&
+        page.labels.lure !== undefined &&
+        TRUSTED.has(page.label_source.lure ?? "") &&
+        !(page.origin === "samples" && !page.redacted) &&
+        usable(page),
+    ),
+    options.referenceSize,
+  );
+  // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
+  // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
+  // known only to its state (plan review finding 5). The queue's own entries count too.
+  const teacher = readTeacherState(store.dir);
+  const disputed = new Set([
+    ...readQueue(store.dir).map((entry) => entry.id),
+    ...[...teacher].filter(([, outcome]) => outcome.status === "disputed").map(([id]) => id),
+  ]);
+  for (const page of pages) {
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
       dropped.afterFreeze++;
@@ -633,7 +693,8 @@ export async function buildDataset(options: {
       dropped.incomplete++;
       continue;
     }
-    if (disputed.has(page.id)) {
+    // A disputed page in the reference set stays an entry, so its groups are held out; it is never admitted anywhere.
+    if (disputed.has(page.id) && !reference.ids.has(page.id)) {
       dropped.disputed++;
       continue;
     }
@@ -668,7 +729,7 @@ export async function buildDataset(options: {
     );
   // The trusted sample-derived lures admitted after every exclusion: the denominator of training's half.
   const admittedSampleLures = entries.filter((e) => sampleLure(e.page)).length;
-  const deduped = dedupe(entries);
+  const deduped = dedupe(entries, reference.ids);
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
   const capped = capBrands(deduped.kept, random);
@@ -680,7 +741,7 @@ export async function buildDataset(options: {
   // each shortfall, instead of splitting a pool that was never enough.
   const pool = evaluationPool(capped, teacher, floors);
   if (pool.shortfalls.length) throw new ShortfallError(pool.shortfalls);
-  const parts = split(capped, random, { admit, floors });
+  const parts = split(capped, random, { admit, floors, reserved: reference.ids });
   const train = balance(parts.train, random);
   const evaluation = balance(parts.evaluation, random);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
@@ -749,7 +810,7 @@ export async function buildDataset(options: {
   });
   writeAtomic(
     join(dir, "summary.json"),
-    `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, floors, pool, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
+    `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
   );
   const previous = `${final}.previous-${process.pid}`;
   if (existsSync(final)) renameSync(final, previous);

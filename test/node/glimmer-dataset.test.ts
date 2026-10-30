@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -20,6 +20,7 @@ import {
   hamming,
   jaccard,
   NO_FLOORS,
+  referenceFile,
   ShortfallError,
   shingles,
   siteOf,
@@ -309,7 +310,14 @@ describe("buildDataset", () => {
     // The sample set's redaction key is recorded, so its pages reach the redaction check.
     mkdirSync(join(dir, "store", "raw", "samples"), { recursive: true });
     writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: "k", building: null }));
-    const built = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
+    const built = await buildDataset({
+      store,
+      version: "1.0",
+      mode: "image",
+      seed: 3,
+      floors: NO_FLOORS,
+      referenceSize: 0,
+    });
     expect(built.dropped.unredacted).toBe(1);
     expect(built.dropped.unlabelled).toBe(1);
     expect(built.dropped.disputed).toBe(1);
@@ -324,7 +332,14 @@ describe("buildDataset", () => {
       expect(messages[1].content.some((p: { type: string }) => p.type === "image_url")).toBe(true);
     }
     // A second build replaces the version whole: no building or previous folder is left beside it.
-    const rebuilt = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
+    const rebuilt = await buildDataset({
+      store,
+      version: "1.0",
+      mode: "image",
+      seed: 3,
+      floors: NO_FLOORS,
+      referenceSize: 0,
+    });
     expect(rebuilt.dir).toBe(built.dir);
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual(["1.0"]);
     const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
@@ -334,7 +349,14 @@ describe("buildDataset", () => {
       join(dir, "store", "raw", "samples", "REDACTION.json"),
       JSON.stringify({ key: null, building: "k2" }),
     );
-    const unset = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
+    const unset = await buildDataset({
+      store,
+      version: "1.0",
+      mode: "image",
+      seed: 3,
+      floors: NO_FLOORS,
+      referenceSize: 0,
+    });
     expect([unset.dropped.unredacted, unset.dropped.incomplete]).toEqual([0, 2]);
     // Built from a freeze (§18): a page the freeze does not name (stored after it) is left out, and counted.
     const named = store.manifest().map((p) => p.id);
@@ -343,6 +365,7 @@ describe("buildDataset", () => {
       version: "1.0",
       mode: "image",
       floors: NO_FLOORS,
+      referenceSize: 0,
       seed: 3,
       frozen: new Set(named.slice(1)),
     });
@@ -354,6 +377,7 @@ describe("buildDataset", () => {
         version: "1.0",
         mode: "image",
         floors: NO_FLOORS,
+        referenceSize: 0,
         seed: 3,
         frozen: new Set([...named, "set-ffffffffffffffff"]),
       }),
@@ -366,7 +390,14 @@ describe("buildDataset", () => {
       join(dir, "store", "raw", "labels", "excluded.jsonl"),
       `${JSON.stringify({ id: named[0], reason: "the capture is a parked, suspended or taken-down page" })}\n`,
     );
-    const ruled = await buildDataset({ store, version: "1.0", mode: "image", seed: 3, floors: NO_FLOORS });
+    const ruled = await buildDataset({
+      store,
+      version: "1.0",
+      mode: "image",
+      seed: 3,
+      floors: NO_FLOORS,
+      referenceSize: 0,
+    });
     expect(ruled.dropped.excluded).toBe(1);
     const ids = [
       ...readFileSync(join(ruled.dir, "train.meta.jsonl"), "utf-8").split("\n"),
@@ -404,6 +435,7 @@ type Spec = {
   text?: string;
   redacted?: boolean;
   source?: string;
+  image?: Uint8Array;
 };
 async function fill(root: string, specs: Spec[]) {
   const store = openStore(join(root, "store"));
@@ -420,7 +452,7 @@ async function fill(root: string, specs: Spec[]) {
     const source = spec.source ?? "set";
     ids.push(
       await store.putPage(source, {
-        screenshot: await shot(spec.seed),
+        screenshot: spec.image ?? (await shot(spec.seed)),
         text: spec.text ?? `Page ${spec.seed}: ${"distinct words ".repeat(3)}${spec.seed * 7919}`,
         origin: spec.origin ?? "public",
         licence: "CC0",
@@ -452,7 +484,15 @@ function teach(root: string, outcomes: Record<string, unknown>) {
 const AGREED = { status: "agreed" as const, answer: null, applied: true };
 let versions = 0;
 const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<typeof buildDataset>[0]> = {}) =>
-  buildDataset({ store, version: `2.${++versions}`, mode: "image", seed: 3, floors: NO_FLOORS, ...extra });
+  buildDataset({
+    store,
+    version: `2.${++versions}`,
+    mode: "image",
+    seed: 3,
+    floors: NO_FLOORS,
+    referenceSize: 0,
+    ...extra,
+  });
 const idsIn = (folder: string, name: string) =>
   readFileSync(join(folder, `${name}.meta.jsonl`), "utf-8")
     .split("\n")
@@ -706,6 +746,88 @@ describe("the floors a version must meet", () => {
     expect(check([], [])).toEqual(
       expect.arrayContaining(["evaluation 0 of 20", "training holds no lines", "evaluation holds no lines"]),
     );
+  });
+});
+
+describe("the reference set reserved for §13", () => {
+  const referenceIds = () =>
+    (JSON.parse(readFileSync(referenceFile(join(dir, "store")), "utf-8")) as { pages: string[] }).pages;
+
+  it("does not move when the teacher's outcomes change", async () => {
+    const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({ seed: i, lure: i % 3 !== 0 }));
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    await build(store, { referenceSize: 5 });
+    const first = referenceIds();
+    expect(first).toHaveLength(5);
+    // Drawn again from nothing, with every outcome changed (agreed pages disputed, the rest agreed), it is the same.
+    rmSync(referenceFile(join(dir, "store")));
+    teach(
+      dir,
+      Object.fromEntries(
+        ids.map((id, i) => [id, i % 2 ? { status: "disputed", answer: null, applied: false } : AGREED]),
+      ),
+    );
+    await build(store, { referenceSize: 5 });
+    expect(referenceIds()).toEqual(first);
+  });
+
+  it("is kept once saved, whatever a later build is asked for", async () => {
+    const { store } = await fill(
+      dir,
+      Array.from({ length: 12 }, (_, i) => ({ seed: i })),
+    );
+    await build(store, { referenceSize: 3 });
+    const first = readFileSync(referenceFile(join(dir, "store")), "utf-8");
+    const built = await build(store, { referenceSize: 6, seed: 99 });
+    expect(readFileSync(referenceFile(join(dir, "store")), "utf-8")).toBe(first);
+    const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
+    expect(summary.reference.pages).toBe(3);
+  });
+
+  it("keeps every group it holds out of training", async () => {
+    // Twelve brands of two pages on two subdomains of one site, one of them unbranded.
+    const specs: Spec[] = [];
+    for (let b = 0; b < 12; b++) {
+      specs.push({ seed: b * 2, brand: `Brand ${b}`, host: `a.brand${b}.co.za` });
+      specs.push({ seed: b * 2 + 1, brand: null, host: `b.brand${b}.co.za`, lure: false });
+    }
+    const { store } = await fill(dir, specs);
+    const built = await build(store, { referenceSize: 3 });
+    const reference = new Set(referenceIds());
+    const byId = new Map(store.manifest().map((p) => [p.id, p]));
+    const sites = (ids: string[]) => new Set(ids.map((id) => siteOf(byId.get(id)?.host as string)));
+    const train = idsIn(built.dir, "train");
+    expect(train.length).toBeGreaterThan(0);
+    for (const site of sites([...reference])) expect(sites(train).has(site)).toBe(false);
+    for (const id of train) expect(reference.has(id)).toBe(false);
+  });
+
+  it("keeps a near duplicate of a reference page out of training, whichever page is the reference", async () => {
+    const original = await shot(1, 1280, 1600);
+    const resized = new Uint8Array(await sharp(original).resize(640).jpeg({ quality: 60 }).toBuffer());
+    const text = "Sign in to your bank account to verify a payment of R4,999 before it is released today";
+    for (const [which, other] of [
+      [0, 1],
+      [1, 0],
+    ] as const) {
+      rmSync(join(dir, "store"), { recursive: true, force: true });
+      const pair: Spec[] = [
+        { seed: 1, brand: "Twin A", host: "login.twin-a.co.za", text, image: original },
+        { seed: 2, brand: "Twin B", host: "login.twin-b.co.za", text, image: resized },
+        { seed: 3, brand: "Twin A", host: "www.twin-a.co.za", lure: false },
+        { seed: 4, brand: "Twin B", host: "www.twin-b.co.za", lure: false },
+      ];
+      const { store, ids } = await fill(dir, [...pair, ...Array.from({ length: 10 }, (_, i) => ({ seed: 20 + i }))]);
+      teach(dir, Object.fromEntries(ids.slice(0, 4).map((id) => [id, AGREED])));
+      mkdirSync(dirname(referenceFile(join(dir, "store"))), { recursive: true });
+      writeFileSync(referenceFile(join(dir, "store")), JSON.stringify({ pages: [ids[which]] }));
+      const built = await build(store);
+      // The reference page is the one kept (its group is held out and, agreed, evaluated); its twin is gone.
+      expect(idsIn(built.dir, "eval")).toContain(ids[which]);
+      expect(idsIn(built.dir, "train")).not.toContain(ids[other]);
+      expect(built.dropped.near).toBe(1);
+    }
   });
 });
 
