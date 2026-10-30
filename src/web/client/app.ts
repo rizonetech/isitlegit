@@ -138,19 +138,98 @@ document.addEventListener("submit", (event) => {
   const button = form.querySelector<HTMLButtonElement>("button[type=submit][data-busy-label]");
   if (!button) return;
   const label = button.textContent;
+  // The busy words are also said in a polite status region of the form's own, since a button's new words alone are
+  // not announced (D07 T02 §7).
+  let status = form.querySelector<HTMLElement>("[data-busy-status]");
+  if (!status) {
+    status = document.createElement("p");
+    status.setAttribute("role", "status");
+    status.dataset.busyStatus = "";
+    status.className = "sr-only";
+    form.append(status);
+  }
   setTimeout(() => {
     button.textContent = button.dataset.busyLabel ?? label;
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
+    if (status) status.textContent = button.dataset.busyLabel ?? "";
   }, 0);
   // A request the reader stops (or that never answers) does not leave the form dead: once the slowest action can have
   // answered, the button is itself again and the form can be sent.
   setTimeout(() => {
     delete form.dataset.sent;
+    if (status) status.textContent = "";
     button.textContent = label;
     button.disabled = false;
     button.removeAttribute("aria-busy");
   }, Number(form.dataset.busyMs) || BUSY_MS);
 });
+
+// A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
+// (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.
+// Without this script the button is never held, and a press before then is refused again by the server.
+for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-retry-at]")) {
+  const wait = Number(button.dataset.retryAt) * 1000 - Date.now();
+  const ready = () => {
+    button.disabled = false;
+    button.textContent = button.dataset.readyLabel ?? button.textContent;
+  };
+  if (wait <= 0) ready();
+  else {
+    button.disabled = true;
+    setTimeout(ready, wait);
+  }
+}
+
+// Signing in by a link (or code) lands with `#signed-in` (src/auth/confirm.tsx): the marker is removed from the address,
+// and the tabs of this browser are told which address is now signed in, so the tab that asked for the link can go on
+// (below). The address is read from the session, never from the page.
+const AUTH_CHANNEL = "isitlegit-auth";
+type SessionAnswer = { user?: { email?: string } } | null;
+const sessionEmail = async (): Promise<string | null> => {
+  const answer = await fetch("/api/auth/get-session", { credentials: "same-origin", cache: "no-store" });
+  if (!answer.ok) throw new Error(`session ${answer.status}`);
+  return ((await answer.json()) as SessionAnswer)?.user?.email?.toLowerCase() ?? null;
+};
+if (location.hash === "#signed-in") {
+  history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+  sessionEmail()
+    .then((email) => {
+      if (email) new BroadcastChannel(AUTH_CHANNEL).postMessage({ signedIn: email });
+    })
+    .catch(() => {});
+}
+
+// The "check your inbox" state (`data-signin-wait`, the address it asked for) goes on to the page asked for once this
+// browser is signed in as that address: told by the tab the link opened, or found by asking for the session at once
+// when the page is shown again and every 5 seconds while it is visible. Another address's session, already there or
+// signed in elsewhere, leaves the page as it is.
+const waiting = document.querySelector<HTMLElement>("[data-signin-wait]");
+if (waiting) {
+  const wanted = (waiting.dataset.signinWait ?? "").toLowerCase();
+  const next = waiting.dataset.signinNext ?? "/cases";
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    const status = waiting.querySelector<HTMLElement>("[data-signin-status]");
+    if (status) status.textContent = "Signed in. Opening your page.";
+    location.assign(next);
+  };
+  new BroadcastChannel(AUTH_CHANNEL).addEventListener("message", (event: MessageEvent) => {
+    const email = (event.data as { signedIn?: unknown })?.signedIn;
+    if (typeof email === "string" && email.toLowerCase() === wanted) finish();
+  });
+  const check = () => {
+    if (done || document.visibilityState !== "visible") return;
+    sessionEmail()
+      .then((email) => {
+        if (email === wanted) finish();
+      })
+      .catch(() => {});
+  };
+  setInterval(check, 5000);
+  document.addEventListener("visibilitychange", check);
+}
 
 export {};
