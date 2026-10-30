@@ -381,7 +381,11 @@ Evidence 2026-10-30 15:20 SAST. `src/web/components/States.tsx` holds `EmptyStat
 
 ## 9. htmx and the app script as fingerprinted assets
 
+> **Started:** 2026-10-30T14:38:26Z
+
 The browser-side behaviour the pages need, served like the stylesheet.
+
+**Corrected 2026-10-30** (validation before build): htmx 2.0.11 is 0BSD (its `package.json` and `LICENSE`), not BSD 2-Clause; the app script is built by `scripts/hash-asset.ts` with Node's own `module.stripTypeScriptTypes`, so no bundler or build dependency is added (the shared-tooling change and the one `htmx.org` lockfile entry approved by the coordinator, 2026-10-30); the script is browser code, which the Worker's TypeScript project cannot check (the DOM library conflicts with the Workers runtime types), so it is checked in the DOM project `test/node/tsconfig.json` and the root project leaves it out; `Document` (§3) names a `scripts` slot "§9 fills", and the shell's copy button (`data-copy`, §3) does nothing until a page loads the script, so `Document` loads both by default; the refusal path selects the address shown beside the button, which carries `data-copy-source`.
 
 **Phase:** 2
 **Needs:** none
@@ -390,12 +394,16 @@ The browser-side behaviour the pages need, served like the stylesheet.
 **Build order:**
 
 1. Serve htmx and one small app script as fingerprinted static assets. Done when: both are under `/static/` with hashed names and named in `src/web/assets.ts`.
+2. Load them on every page and make the copy buttons work. Done when: a page's copy button copies in Chromium, or says why not and selects the address.
 
-- [ ] Add htmx 2.0.11 as an exact dependency and copy its minified build through `scripts/hash-asset.ts` to `public/static/htmx.<hash>.js`, named in `src/web/assets.ts` and added to the set `hashAssets` keeps, since its prune deletes every fingerprinted file outside that set (**Corrected 2026-10-27**, D07 T01 §3 final review). Done when: `test/node/assets.test.ts` and `test/node/serve.test.ts` cover it (fingerprinted, immutable cache, `application/javascript`), and `NOTICE.md` lists it (BSD 2-Clause). Moved here from §3 (its D07 T01 §5 plan-review correction stands: an unhashed htmx under the immutable cache would keep visitors on an old version).
-- [ ] Write `src/web/client/app.ts`, built to `public/static/app.<hash>.js` by the same step: `[data-copy]` buttons copy their value and announce "Copied" in a live region; when the clipboard refuses (no permission, an insecure context, no Clipboard API) they announce "Copy failed: select the address to copy it" and select the address's text, so it can be copied by hand. Done when: `test/node/app-script.test.ts` exercises the copy, the announcement and the refusal path (clipboard permission denied) in headless Chromium. (**Corrected 2026-10-27:** the phone Menu needs no script, since D07 T01 §3 made it a `popovertarget` popover whose button the browser keeps in step; the refusal path is D07 T01 §3's completion review, gap 4.)
+- [ ] Add `htmx.org` 2.0.11 as an exact dependency (`package.json`, `pnpm-lock.yaml`: that package and its integrity line only) and copy `node_modules/htmx.org/dist/htmx.min.js` through `scripts/hash-asset.ts` to `public/static/htmx.<hash>.js`, exported from `src/web/assets.ts` as `HTMX` and kept by `hashAssets`'s prune, and list it in `NOTICE.md` (0BSD). Done when: `test/node/hash-asset.test.ts`, `test/node/assets.test.ts` and `test/node/serve.test.ts` cover it (fingerprinted, kept by the prune, `application/javascript`, immutable cache), and the served file's bytes equal the package's. Cheaper substitute: an unhashed `/static/htmx.js` under the immutable cache, which would keep visitors on an old version (D07 T01 §5 plan review).
+- [ ] Write `src/web/client/app.ts` and build it in `scripts/hash-asset.ts` with `stripTypeScriptTypes` to `public/static/app.<hash>.js`, exported as `APP_JS` and kept by the prune; check it in `test/node/tsconfig.json` (DOM) and leave it out of the root `tsconfig.json`. Done when: `pnpm typecheck` checks it and refuses a planted type error in it, and `test/node/hash-asset.test.ts` finds the built file free of type syntax and fingerprinted by its content. Cheaper substitute: a hand-written `.js` beside the sources, unchecked.
+- [ ] Copy on `[data-copy]` buttons in `src/web/client/app.ts`: a click writes the button's value with `navigator.clipboard.writeText` and announces "Copied" in one polite live region the script adds (`sr-only`, `role="status"`); when the clipboard refuses (permission denied, an insecure context, no Clipboard API) it announces "Copy failed: select the address to copy it" and selects the text of the `[data-copy-source]` beside the button, so it can be copied by hand. Done when: `test/node/app-script.test.ts` in Chromium copies with permission (the clipboard read back), announces each outcome, and on a denied permission and with the Clipboard API removed selects exactly the address. Cheaper substitute: a silent copy with no announcement or fallback. (Refusal path: D07 T01 §3's completion review, gap 4.)
+- [ ] Mark the shell's address `data-copy-source` beside its copy button (`src/web/components/AppShell.tsx`). Done when: `test/node/app-script.test.ts` runs the copy on the rendered member shell, not a fixture of its own.
+- [ ] Load both on every page: `Document` (`src/web/components/Document.tsx`) renders `<script src={HTMX} defer>` and `<script src={APP_JS} defer>` at the end of the body by default, a page's own `scripts` after them. Done when: `test/node/document.test.tsx` finds both, in that order, with `defer`, on a page that passes no scripts. Cheaper substitute: each page adding its own script tags.
 - [ ] Commit: `web: htmx and the app script as fingerprinted assets`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/assets.test.ts test/node/serve.test.ts test/node/app-script.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/node/hash-asset.test.ts test/node/assets.test.ts test/node/serve.test.ts test/node/document.test.tsx test/node/app-script.test.ts` passes: both files fingerprinted and served with the immutable cache, loaded on every page, and the copy, its announcement and its refusal path working in Chromium.
 
 ## 10. Component gallery with accessibility checks
 
