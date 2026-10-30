@@ -18,10 +18,14 @@ Continues run bb75ca0ee0fb from `docs/phase-runs/2026-10-28-phase-0.md` (that fi
 
 ## Sections
 
-- D03 T04 §10 (open): code complete; rounds 1 to 4 (round 4 approve, 24179bc). The 1.0 build started 13:16 SAST, read 129,892 pages, admitted 127,890, and is deduplicating (pinned to cores 4 and 5). Remaining: its leak scan, the figures in `docs/glimmer/training.md`, the stamp.
-- D03 T04 §11 (blocked on §10): probe bill reconciled at US$0.00 (71ba752); resume from the newest checkpoint (08492a0); the version line at job start (ebbfb09). Remaining: the run itself and its records.
-- D03 T04 §27 (open): items 1 and 2 (per-version freeze ca51c66, held-out reservation c8cae5e), the brief item, the lure accounting (b2c1e6b), and the exact size cut in deduplication (051ce1f). Remaining: item 4 after §22, the sweep, its converters and figures.
-- D03 T04 §22 (open): rounds 1 and 2 done; remaining gap 9, the measured two-source bench run on a quiet host (during training).
+- D03 T04 §10 (stamped ce93b5e, merged to main as 5bce406): five 1.0 builds. The first refused on the sample floor (shared hosts chained 28,334 pages, the common brands' group held out whole, the split blind to training's floor); the second 3 evaluation pages short (agreed pages dropped for unchecked twins); the third stopped by the out-of-memory guard while publishing (line files joined in memory); the fourth refused on 8 public lines naming the client. Each fixed at its layer with a test and reviewed (rounds 5 to 10). The fifth published: training 52,019 lines, evaluation 1,000 (545 South African), files 13.7 GB and 257 MB; leak checks clean.
+- D03 T04 §11 (open): training started 2026-10-30 23:58 SAST, job ts-026d14227a0042128f9dd410c648d329, all 52,019 lines, about 9 s a step of 8, due about 16:30 SAST on 2026-10-31; detached, pinned to cores 4 and 5, resumable from its checkpoints (08492a0). Its progress lines land in `docs/glimmer/training.md` and are committed with each push.
+- D03 T04 §13 (open): the evaluation runner `scripts/glimmer/evaluate.ts` is being built (Loupe and Spark answers, resumable, metrics.json for the version gate and the model card).
+- D03 T04 §22 (open): items 18 to 21 and 23 ticked; the bench exits 1 (two-sources raw ratio 1.040, start-up the larger part; gigabyte refetch varies with the cut). Recorded in the section.
+- D03 T04 §27 (open): per-version freeze, held-out by id and by source item (1.0's list written from the store), lure accounting, exact size cut; the sweep and its figures remain.
+- D03 T04 §28 (open): plan review gaps 1 to 7 folded in; item 1 (converter limits) being built.
+- D03 T04 §19 (open): the redaction-key change ordered after held-out-by-item, now built.
+- D03 T03 §2 (leftover here): needs Cloudflare (R2), a host this session does not use.
 
 ## Critical events
 
