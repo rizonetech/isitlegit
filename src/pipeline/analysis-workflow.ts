@@ -4,6 +4,7 @@ import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
+import { hiddenTextOf } from "../checks/hidden-text";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecks } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
@@ -23,7 +24,7 @@ import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
 import { NO_HEADER, originalHeaderOf } from "../intake/original-header";
 import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
-import { artefactsOf, parsedKey, putParsed, rawKey, readArtefact, type Store } from "../intake/store";
+import { artefactsOf, parsedKey, putParsed, putVisible, rawKey, readArtefact, type Store } from "../intake/store";
 import {
   buildReply,
   HEADER_RANGE,
@@ -393,6 +394,11 @@ export async function checks(
   );
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
+  const scanned =
+    read.source.kind === "message" && (read.html !== null || read.truncated.length)
+      ? await hiddenTextOf(store.bucket, read)
+      : null;
+  if (read.source.kind === "message") await putVisible(store, caseId, scanned?.visible ?? read.text ?? "");
   const view = {
     ...read,
     senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
@@ -400,6 +406,8 @@ export async function checks(
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,
     // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
     attachmentHeads: read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null,
+    // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
+    hiddenText: scanned?.hidden ?? null,
   };
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };

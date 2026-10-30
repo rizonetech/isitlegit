@@ -94,6 +94,7 @@ function view(attachments: { filename: string; mediaType: string; sample: Uint8A
       heads: attachments.map((a, i) => ({ key: `attachments/case-x/${i}`, head: b64(a.sample) })),
       unread,
     },
+    hiddenText: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers: [],
     text: null,
