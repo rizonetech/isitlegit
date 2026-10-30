@@ -111,6 +111,7 @@ function viewOf(features: Partial<HtmlFeatures>): CaseView {
             builds: false,
             downloads: false,
             smuggling: false,
+            smugglingBy: null,
             truncated: false,
             ...features,
           },
@@ -154,6 +155,36 @@ async function caseWith(files: [string, string, string][]) {
 const run = (id: string) => checks(store, id, parsedKey(id), { orgId: "org-html", channel: "email" }, async () => []);
 const items = async (id: string) => (await readEvidence(env.DB, id)).filter((e) => e.check === "attachment.html");
 
+describe("after the completion review", () => {
+  it("finds a card field named by its label, by `for` or by wrapping", async () => {
+    expect((await analyseHtml(`<label for="n">Card number</label><input id="n">`)).cardField).toBe(true);
+    expect((await analyseHtml(`<label>Expiry date <input name="x1"></label>`)).cardField).toBe(true);
+    expect((await analyseHtml(`<label>Your name <input name="x2"></label>`)).cardField).toBe(false);
+  });
+
+  it("reads a page declaring UTF-16, or a commented declaration, as a browser would", () => {
+    const page = '<meta charset="utf-16"><input type="password">';
+    expect(decodeHtml(new TextEncoder().encode(page))).toContain('type="password"');
+    expect(decodeHtml(new TextEncoder().encode(`<!-- <meta charset="utf-16"> -->${page.slice(22)}`))).toContain(
+      'type="password"',
+    );
+  });
+
+  it("finds a loader whose navigation sits far from its object URL", async () => {
+    const script = `var b="${"A".repeat(LONG_BASE64 + 4)}"; var u = URL.createObjectURL(new Blob([atob(b)]));${" ".repeat(2_000)}location.href = u;`;
+    expect((await analyseHtml(`<script>${script}</script>`)).smuggling).toBe(true);
+  });
+
+  it("describes a downloading data link as a link, and says when a high finding was read in part", () => {
+    const link = htmlAttachmentEvidence(viewOf({ smuggling: true, smugglingBy: "link" }))[0];
+    expect(link?.summary).toContain("a link that downloads a file hidden inside the page");
+    expect(link?.summary).not.toContain("script");
+    const big = htmlAttachmentEvidence(viewOf({ passwordField: true, truncated: true }))[0];
+    expect(big).toMatchObject({ severity: "high" });
+    expect(big?.summary).toContain("only its first 5 MB were read");
+  });
+});
+
 describe("attachment.html through the checks step", () => {
   it("stores a login page and a loader as high, a receipt as medium, citing each attachment", async () => {
     const id = await caseWith([
@@ -170,6 +201,8 @@ describe("attachment.html through the checks step", () => {
       ["receipt.html", "medium"],
     ]);
     expect(stored[1]?.summary).toContain("builds a file from a hidden payload and downloads it");
+    for (const item of stored) expect(item.artefacts).toEqual([expect.stringMatching(/^raw\/[0-9A-Z]{26}\/attachments\//)]);
+    expect(new Set(stored.map((i) => i.artefacts[0])).size).toBe(3);
   });
 
   it("finds an HTML attachment by its bytes, its extension or its declared type", async () => {
@@ -190,7 +223,10 @@ describe("attachment.html through the checks step", () => {
     expect(decodeHtml(latin('<meta charset="windows-1252"><p>Caf\u00e9</p>'))).toContain("Caf\u00e9");
     expect(decodeHtml(latin("<p>Caf\u00e9</p>"))).toContain("Caf\u00e9");
     expect(decodeHtml(new TextEncoder().encode("<p>Caf\u00e9</p>"))).toContain("Caf\u00e9");
-    const id = await caseWith([["big.html", "text/html", `${receipt}${" ".repeat(MAX_HTML_BYTES)}`]]);
+    // A password field past the cut is never read: the range read stops at MAX_HTML_BYTES.
+    const id = await caseWith([
+      ["big.html", "text/html", `${receipt}${" ".repeat(MAX_HTML_BYTES)}<input type="password">`],
+    ]);
     await run(id);
     expect((await items(id))[0]).toMatchObject({ severity: "medium", detail: { truncated: true } });
   });

@@ -22,6 +22,9 @@ export type HtmlFeatures = {
   builds: boolean;
   downloads: boolean;
   smuggling: boolean;
+  // How the loader works, for an honest summary (completion review): script that builds the file, or a link that
+  // downloads its own data.
+  smugglingBy: "script" | "link" | null;
   // Whether the file was longer than MAX_HTML_BYTES, so only its start was read.
   truncated: boolean;
 };
@@ -29,8 +32,12 @@ export type HtmlAttachment = { key: string; filename: string; kind: "html" | "sv
 
 const CARD = /card.?num|cardnumber|cc.?num|\bcvv\b|\bcvc\b|security.?code|expir|exp.?date|exp.?month|exp.?year/i;
 const BUILDS = /new\s+Blob\s*\(|\batob\s*\(|data:[a-z0-9.+/-]*;base64,|Uint8Array\s*\.\s*from\s*\(/i;
-const DOWNLOADS =
-  /\.download\s*=|msSaveOrOpenBlob|msSaveBlob|createObjectURL[\s\S]{0,400}?(?:\.click\s*\(|location(?:\.href)?\s*=|window\.open\s*\()/i;
+// A download in script: a download attribute set, a save call, or an object URL with a click or a navigation anywhere
+// in the script (completion review: no proximity limit between them).
+const DOWNLOAD_DIRECT = /\.download\s*=|msSaveOrOpenBlob|msSaveBlob/i;
+const OBJECT_URL = /createObjectURL/i;
+const OPENS = /\.click\s*\(|location(?:\.href)?\s*=|location\.(?:assign|replace)\s*\(|window\.open\s*\(/i;
+const downloadsIn = (script: string) => DOWNLOAD_DIRECT.test(script) || (OBJECT_URL.test(script) && OPENS.test(script));
 
 // The longest run of base64 characters in a text, found in one pass.
 function longestBase64(text: string): number {
@@ -54,14 +61,37 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
   const formActions: string[] = [];
   let script = "";
   let dataBase64 = 0;
+  // Labels name fields too (completion review): a label's text for an input's id, and the open label an input sits in.
+  const labelFor = new Map<string, string>();
+  const inputIds: string[] = [];
+  const openLabels: { text: string; for: string | null; wraps: boolean }[] = [];
   await new HTMLRewriter()
-    .on("input", {
+    .on("label", {
+      element(e) {
+        const label = { text: "", for: e.getAttribute("for"), wraps: false };
+        openLabels.push(label);
+        e.onEndTag(() => {
+          openLabels.splice(openLabels.lastIndexOf(label), 1);
+          if (label.for) labelFor.set(label.for, `${labelFor.get(label.for) ?? ""} ${label.text}`);
+          if (label.wraps && CARD.test(label.text)) cardField = true;
+        });
+      },
+      text(chunk) {
+        const label = openLabels[openLabels.length - 1];
+        if (label && label.text.length < 1024) label.text += chunk.text;
+      },
+    })
+    .on("input, select", {
       element(e) {
         const type = (e.getAttribute("type") ?? "").toLowerCase();
         if (type === "password") passwordField = true;
         const hints = ["name", "id", "placeholder", "aria-label", "autocomplete"].map((a) => e.getAttribute(a) ?? "");
         if ((e.getAttribute("autocomplete") ?? "").toLowerCase().startsWith("cc-") || hints.some((h) => CARD.test(h)))
           cardField = true;
+        const id = e.getAttribute("id");
+        if (id && inputIds.length < 10_000) inputIds.push(id);
+        const wrapping = openLabels[openLabels.length - 1];
+        if (wrapping) wrapping.wraps = true;
       },
     })
     .on("form", {
@@ -88,14 +118,15 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
     })
     .transform(new Response(html, { headers: { "content-type": "text/html" } }))
     .body?.pipeTo(new WritableStream());
+  if (inputIds.some((id) => CARD.test(labelFor.get(id) ?? ""))) cardField = true;
   // A loader in script: its own long payload, built into a file and downloaded, all in script (plan review: a large
   // inline image beside an ordinary download link is no loader).
   const longBase64 = longestBase64(script) > LONG_BASE64 || dataBase64 > LONG_BASE64;
   const builds = BUILDS.test(script) || dataDownload;
-  const downloads = DOWNLOADS.test(script) || dataDownload;
-  const smuggling =
-    dataDownload || (longestBase64(script) > LONG_BASE64 && BUILDS.test(script) && DOWNLOADS.test(script));
-  return { passwordField, cardField, formActions, longBase64, builds, downloads, smuggling, truncated };
+  const downloads = downloadsIn(script) || dataDownload;
+  const smuggling = dataDownload || (longestBase64(script) > LONG_BASE64 && BUILDS.test(script) && downloadsIn(script));
+  const smugglingBy = dataDownload ? "link" : smuggling ? "script" : null;
+  return { passwordField, cardField, formActions, longBase64, builds, downloads, smuggling, smugglingBy, truncated };
 }
 
 // An attachment's bytes as text, by HTML's own encoding sniffing (simplified; plan review: an attachment's MIME charset
@@ -105,8 +136,11 @@ export function decodeHtml(bytes: Uint8Array): string {
   if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder("utf-8").decode(bytes);
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes);
   if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes);
-  const head = String.fromCharCode(...bytes.subarray(0, 1024));
-  const declared = /<meta[^>]+charset\s*=\s*["']?([a-z0-9_.:-]+)/i.exec(head)?.[1];
+  // The declaration outside comments; a declared UTF-16 is read as UTF-8, as browsers do (WHATWG HTML, prescan), since
+  // bytes that reached this point carry no UTF-16 byte order mark (completion review).
+  const head = String.fromCharCode(...bytes.subarray(0, 1024)).replace(/<!--[\s\S]*?(?:-->|$)/g, "");
+  let declared = /<meta[^>]+charset\s*=\s*["']?([a-z0-9_.:-]+)/i.exec(head)?.[1];
+  if (declared && /^utf-?16/i.test(declared)) declared = "utf-8";
   if (declared) {
     try {
       return new TextDecoder(declared).decode(bytes);
@@ -175,7 +209,8 @@ const WHAT = (f: HtmlFeatures) =>
     f.passwordField ? "a password field" : "",
     f.cardField ? "a card field" : "",
     f.formActions.length ? "a form that sends what is typed to a website" : "",
-    f.smuggling ? "script that builds a file from a hidden payload and downloads it" : "",
+    f.smugglingBy === "script" ? "script that builds a file from a hidden payload and downloads it" : "",
+    f.smugglingBy === "link" ? "a link that downloads a file hidden inside the page" : "",
   ].filter(Boolean);
 
 export function htmlAttachmentEvidence(view: CaseView): EvidenceDraft[] {
@@ -189,7 +224,7 @@ export function htmlAttachmentEvidence(view: CaseView): EvidenceDraft[] {
       severity: found.length ? "high" : "medium",
       summary: bounded(
         found.length
-          ? `${name} is a web page that opens from your computer, with ${found.join(", ")}.`
+          ? `${name} is a web page that opens from your computer, with ${found.join(", ")}${features.truncated ? "; only its first 5 MB were read" : ""}.`
           : `${name} is ${kind === "svg" ? "an SVG image, which can hold a web page" : "a web page"} that opens from your computer, where link checks do not reach${features.truncated ? "; only its first 5 MB were read" : ""}.`,
       ),
       detail: fittedDetail({ filename, kind, ...features }) as EvidenceDraft["detail"],

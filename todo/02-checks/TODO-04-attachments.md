@@ -35,6 +35,7 @@ track: day-2
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [ ] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
+| 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -142,6 +143,24 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the
 - [ ] Commit: `checks: RTF and further formats in the type check`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts` passes.
+
+## 6. Obfuscated HTML attachments, measured
+
+Filed 2026-10-31 from §2's completion review (out of scope): §2 reads an HTML attachment's literal features, so a payload split across strings, encoded twice, or a login form written by script at load time can show none of them. Finding those needs more than signatures, and is judged on a labelled set, not on examples.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Measure, then widen the analysis. Done when: on a labelled set of HTML attachments, detection is at least 95% and false positives at most 2% (the project's targets), with each obfuscation family represented.
+
+- [ ] Build a labelled set of synthetic HTML attachments in `test/fixtures/attachments/obfuscated/`: split and twice-encoded payloads, script-written login forms, and as many benign pages that use script, base64 images and forms honestly. Done when: each family has at least 20 cases and the benign set at least 60.
+- [ ] Measure `analyseHtml` on the set and record the result in `docs/frontier-log.md`, then add analysis (for example, joining string literals before the base64 run is measured, reading the inputs a script writes into markup) until the targets hold. Done when: the log records detection and false positives per family, both within target.
+- [ ] Commit: `checks: obfuscated HTML attachments, measured`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/html-attachment.test.ts` passes with the labelled set.
 
 ## Verification
 
