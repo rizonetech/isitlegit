@@ -34,7 +34,7 @@ track: day-2
 | 1 | §1 | Trusted Authentication-Results parsing | D02 T01 §2 | [x] |
 | 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [x] |
 | 3 | §3 | ARC chain evidence | §1 | [x] |
-| 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [ ] |
+| 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [x] |
 | 5 | §5 | First-time sender per organisation | §4 | [ ] |
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
 
@@ -155,6 +155,9 @@ Business email compromise often keeps a real-looking display name over a differe
 - [x] Commit: `checks: display name, Reply-To and Return-Path` Done 2026-10-30: d99a8d2, then the review fixes to 9ae22b3.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sender.test.ts test/pipeline/analysis-workflow.test.ts` passes and fails if a same-domain Reply-To is flagged.
+
+> **Verified:** 2026-10-30 | §4 | 1f1785094afd92ae9c2f567d856e5d548fd36b1e
+> **Review:** `docs/reviews/d02-t02-s4.json`
 
 ## 5. First-time sender per organisation
 
