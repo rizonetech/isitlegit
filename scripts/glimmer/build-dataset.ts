@@ -277,14 +277,21 @@ export function dedupe(
   // The pages `prefer` names come first, so a twin is dropped in their place, never they in its.
   const order = (a: Entry, b: Entry) =>
     Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) || a.page.id.localeCompare(b.page.id);
+  const index = (entry: Entry, keys: number[]) =>
+    keys.forEach((value, band) => {
+      append(bands[band] as Map<number, Entry[]>, value, entry);
+    });
   for (const entry of [...entries].sort(order)) {
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
+    const reserved = prefer.has(entry.page.id);
+    const keys = Array.from({ length: 7 }, (_, band) => Number((entry.hash >> BigInt(band * 9)) & 0x1ffn));
     if (seen.has(key)) {
       exact++;
+      // A reserved page dropped as a copy still guards its near duplicates (completion review G3).
+      if (reserved) index(entry, keys);
       continue;
     }
     seen.add(key);
-    const keys = Array.from({ length: 7 }, (_, band) => Number((entry.hash >> BigInt(band * 9)) & 0x1ffn));
     const candidates = new Set<Entry>();
     keys.forEach((value, band) => {
       for (const other of bands[band]?.get(value) ?? []) candidates.add(other);
@@ -294,13 +301,11 @@ export function dedupe(
     );
     if (twin) {
       near++;
+      if (reserved) index(entry, keys);
       continue;
     }
     kept.push(entry);
-    keys.forEach((value, band) => {
-      const bucket = bands[band] as Map<number, Entry[]>;
-      append(bucket, value, entry);
-    });
+    index(entry, keys);
   }
   return { kept, exact, near };
 }
@@ -435,42 +440,74 @@ export function checkFloors(
 
 export type Split = { train: Entry[]; evaluation: Entry[]; heldOut: string[]; template: string | null };
 
-// Whole groups go to evaluation: 10 percent of brands, every page of one synthetic template, and further groups until
-// the floors hold; only pages `admit` accepts (by default those with trusted labels; `buildDataset` also requires the
+// The evaluation set as it is published: its lures balanced with a seed of its own, so the split can count the
+// balanced pages it is choosing and the build then publishes exactly those (completion review G2).
+const EVALUATION_BALANCE_SEED = 20261030;
+export function balanceEvaluation(entries: Entry[]): Entry[] {
+  return balance(entries, seeded(EVALUATION_BALANCE_SEED));
+}
+
+// Whole groups go to evaluation: 10 percent of the distinct canonical brands (the groups holding them), every page of
+// one synthetic template, and further groups until the floors hold on the evaluation set as it will be published, after
+// balancing; only pages `admit` accepts (by default those with trusted labels; `buildDataset` also requires the
 // teacher's agreement). A held-out group's other pages are dropped, never trained on, so no brand, site or template is
-// on both sides.
+// on both sides. `protect` are entries that are no longer candidates (a reference page excluded, deduplicated or capped
+// away) and still join their groups, so their brand, site and template stay out of training (completion review G3).
 export function split(
   entries: Entry[],
   random: () => number,
-  options: { admit?: (entry: Entry) => boolean; floors?: Floors; reserved?: Set<string> } = {},
+  options: {
+    admit?: (entry: Entry) => boolean;
+    floors?: Floors;
+    reserved?: Set<string>;
+    protect?: Entry[];
+  } = {},
 ): Split {
   const admit = options.admit ?? ((entry: Entry) => trusted(entry.page));
   const floors = options.floors ?? FLOORS;
-  const groups = groupEntries(entries);
+  const reserved = options.reserved ?? new Set<string>();
+  const phantoms = new Set(options.protect ?? []);
+  const groups = new Map<string, Entry[]>();
+  for (const [key, members] of groupEntries([...entries, ...phantoms])) groups.set(key, members);
+  const real = (group: string) => (groups.get(group) ?? []).filter((e) => !phantoms.has(e));
   const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
-  const brands = shuffle(
-    [...groups.keys()].filter((g) => g.startsWith("brand:")),
-    random,
-  );
-  const held = new Set(brands.slice(0, Math.ceil(brands.length * 0.1)));
+  // Ten percent of the distinct canonical brands, not of the joined groups: a group can hold many brands.
+  const brandsOf = (group: string) =>
+    new Set(
+      (groups.get(group) ?? []).flatMap((e) => (e.page.labels.brand ? [brandIdentity(e.page.labels.brand)] : [])),
+    );
+  const allBrands = new Set([...groups.keys()].flatMap((g) => [...brandsOf(g)]));
+  const wanted = Math.ceil(allBrands.size * 0.1);
+  const held = new Set<string>();
   // Every group holding a page of §13's reference set stays out of training (plan review finding 6).
-  const reserved = options.reserved ?? new Set<string>();
   for (const [group, members] of groups) if (members.some((e) => reserved.has(e.page.id))) held.add(group);
+  const heldBrands = () => new Set([...held].flatMap((g) => [...brandsOf(g)]));
+  const candidates = shuffle([...allBrands].sort(), random);
+  const groupOfBrand = new Map<string, string>();
+  for (const group of [...groups.keys()].sort()) for (const brand of brandsOf(group)) groupOfBrand.set(brand, group);
+  for (const brand of candidates) {
+    if (heldBrands().size >= wanted) break;
+    held.add(groupOfBrand.get(brand) as string);
+  }
   const evaluation: Entry[] = [];
-  const counts = () => ({
-    total: evaluation.length,
-    southAfrica: evaluation.filter((e) => e.page.south_africa).length,
-    sampleLures: evaluation.filter((e) => sampleLure(e.page)).length,
-    lureTypes: Object.fromEntries(
-      LURE_TYPES.map((t) => [t, evaluation.filter((e) => e.answer.lure_type === t).length]),
-    ),
-  });
+  // The counts the published evaluation set would have: balanced as `balanceEvaluation` balances it.
+  const counts = () => {
+    const shown = balanceEvaluation(evaluation);
+    return {
+      total: shown.length,
+      southAfrica: shown.filter((e) => e.page.south_africa).length,
+      sampleLures: shown.filter((e) => sampleLure(e.page)).length,
+      lureTypes: Object.fromEntries(LURE_TYPES.map((t) => [t, shown.filter((e) => e.answer.lure_type === t).length])),
+      lures: evaluation.filter((e) => e.answer.lure).length,
+      benign: evaluation.filter((e) => !e.answer.lure).length,
+    };
+  };
   const take = (group: string) => {
     held.add(group);
-    evaluation.push(...(groups.get(group) ?? []).filter((e) => admit(e)));
+    evaluation.push(...real(group).filter((e) => admit(e)));
   };
-  for (const group of held) evaluation.push(...(groups.get(group) ?? []).filter((e) => admit(e)));
+  for (const group of held) evaluation.push(...real(group).filter((e) => admit(e)));
   if (template)
     for (const [group, members] of groups)
       if (!held.has(group) && members.some((e) => e.page.template === template)) take(group);
@@ -483,25 +520,31 @@ export function split(
       LURE_TYPES.some((t) => (now.lureTypes[t] ?? 0) < floors.perLureType)
     );
   };
-  // Further groups, the ones that fill the scarcest shortfall first, until every floor holds or none is left. At most a
-  // third of the pages go to evaluation.
+  // Further groups, the ones that fill the scarcest shortfall first, until every floor holds on the balanced set or none
+  // is left. At most a third of the pages go to evaluation.
   const rest = shuffle(
     [...groups.keys()].filter((g) => !held.has(g)),
     random,
   );
   while (short() && rest.length && evaluation.length < entries.length / 3) {
     const now = counts();
+    const share = floors.lureShare ?? LURE_SHARE;
+    // Balancing cuts the larger side, so once one side is in excess only the other side adds to the published set.
+    const needsBenign = now.lures > (now.benign * share.max) / (1 - share.max);
+    const needsLures = now.benign > (now.lures * (1 - share.min)) / share.min;
     const needs = (e: Entry) =>
       (now.southAfrica < floors.southAfrica && e.page.south_africa) ||
       (now.sampleLures < floors.sampleEvaluation && sampleLure(e.page)) ||
-      (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType;
-    const wanted = rest.findIndex((g) => (groups.get(g) ?? []).some((e) => admit(e) && needs(e)));
-    const index = wanted >= 0 ? wanted : rest.findIndex((g) => (groups.get(g) ?? []).some(admit));
+      (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType ||
+      (needsBenign && !e.answer.lure) ||
+      (needsLures && e.answer.lure);
+    const preferred = rest.findIndex((g) => real(g).some((e) => admit(e) && needs(e)));
+    const index = preferred >= 0 ? preferred : rest.findIndex((g) => real(g).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
     if (index < 0) break;
     take(rest.splice(index, 1)[0] as string);
   }
-  const train = [...groups.entries()].filter(([group]) => !held.has(group)).flatMap(([, members]) => members);
+  const train = [...groups.keys()].filter((group) => !held.has(group)).flatMap((group) => real(group));
   return { train, evaluation, heldOut: [...held].sort(), template };
 }
 
@@ -563,10 +606,12 @@ export function validateLine(line: string, mode: ScreenMode): { answer: PageAnsw
   return { answer, text: text.text };
 }
 
-// Where a protected term, or an address, phone or long number, shows in the lines made from sample pages (§7, filed from
-// its completion review, gap 12): the page text as the line states it and the answer, never the screenshot (the import
-// read those by OCR). The problems name the line's page and the kind of detail, never the detail. The nonce is left out
-// of what is read: a run of hex digits is no phone number.
+// Where a protected term shows in any line, and where an address, phone or long number shows in a line made from a
+// sample page (§7, filed from its completion review, gap 12; review G4): the page text as the line states it and the
+// answer, never the screenshot (the import read those by OCR). A client's name can reach a public page's line as well,
+// so the terms are looked for in every line; the generic personal-detail patterns would fire on any public page's
+// phone numbers, so they read sample lines only. The problems name the line's page and the kind of detail, never the
+// detail. The nonce is left out of what is read: a run of hex digits is no phone number.
 export function scanSampleLines(
   lines: { id: string; origin: string; line: string }[],
   terms: string[],
@@ -574,11 +619,11 @@ export function scanSampleLines(
 ): string[] {
   const problems: string[] = [];
   for (const { id, origin, line } of lines) {
-    if (origin !== "samples") continue;
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
     const shown = `${text.split(nonce).join("")}\n${answer.brand ?? ""}`;
     if (leaks([{ id, text: shown }], terms).length) problems.push(`${id}: a protected sample term`);
+    if (origin !== "samples") continue;
     const kind = personalDetail(shown);
     if (kind) problems.push(`${id}: ${kind}`);
   }
@@ -629,17 +674,24 @@ function readBack(dir: string, name: string, mode: ScreenMode, terms: string[]):
       origin: string;
       lure_type: string;
       brand: string | null;
+      brand_identity: string | null;
     };
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(meta.id).digest("hex").slice(0, 32);
-    if (!text.includes(nonce) || answer.lure_type !== meta.lure_type || answer.brand !== meta.brand)
+    const identity = answer.brand ? brandIdentity(answer.brand) : null;
+    if (
+      !text.includes(nonce) ||
+      answer.lure_type !== meta.lure_type ||
+      answer.brand !== meta.brand ||
+      identity !== meta.brand_identity
+    )
       throw new PublicationRefused(`${name}: line ${index + 1} is not the page its meta line names`);
     return { id: meta.id, origin: meta.origin, line };
   });
   const problems = scanSampleLines(checked, terms, mode);
   if (problems.length)
     throw new PublicationRefused(
-      `${name}: ${problems.length} sample-derived lines hold protected details (${problems.slice(0, 5).join("; ")})`,
+      `${name}: ${problems.length} lines hold protected details (${problems.slice(0, 5).join("; ")})`,
     );
   return { sha256: createHash("sha256").update(body).digest("hex"), lines: lines.length };
 }
@@ -844,6 +896,21 @@ export async function buildDataset(options: {
     ...readQueue(store.dir).map((entry) => entry.id),
     ...[...teacher].filter(([, outcome]) => outcome.status === "disputed").map(([id]) => id),
   ]);
+  // The inputs the split read, kept with the version as digests (review G11): the labels and label sources of every
+  // frozen page, the teacher's outcomes, the review queue and the exclusions. A rebuild from the same store state, seed
+  // and freeze reproduces the version exactly when each digest still matches.
+  const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  const byKey = (a: [string, unknown], b: [string, unknown]) => a[0].localeCompare(b[0]);
+  const queued = [...new Set(readQueue(store.dir).map((entry) => entry.id))].sort();
+  const labelled = pages
+    .filter((page) => !options.frozen || options.frozen.has(page.id))
+    .map((page): [string, unknown] => [page.id, [page.labels, page.label_source, page.sha256]]);
+  const inputs = {
+    labels: { pages: labelled.length, sha256: digest(labelled.sort(byKey)) },
+    teacher: { pages: teacher.size, sha256: digest([...teacher].sort(byKey)) },
+    queue: { pages: queued.length, sha256: digest(queued) },
+    excluded: { pages: excluded.size, sha256: digest([...excluded].sort(byKey)) },
+  };
   for (const page of pages) {
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
@@ -906,9 +973,22 @@ export async function buildDataset(options: {
   // each shortfall, instead of splitting a pool that was never enough.
   const pool = evaluationPool(capped, teacher, floors);
   if (pool.shortfalls.length) throw new ShortfallError(pool.shortfalls);
-  const parts = split(capped, random, { admit, floors, reserved: reference.ids });
+  // A reference page that is no candidate any more (excluded, deduplicated or capped away) still holds its brand, site
+  // and template out of training, and its near duplicates were dropped above (completion review G3).
+  const candidateIds = new Set(capped.map((e) => e.page.id));
+  const byId = new Map(entries.map((e) => [e.page.id, e]));
+  const recordOf = new Map(pages.map((p) => [p.id, p]));
+  const protect: Entry[] = [...reference.ids].flatMap((id) => {
+    if (candidateIds.has(id)) return [];
+    const entry = byId.get(id);
+    const record = recordOf.get(id);
+    if (entry) return [entry];
+    // No entry was made of it (excluded, unlabelled): its record alone gives its identities.
+    return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Set<number>() }] : [];
+  });
+  const parts = split(capped, random, { admit, floors, reserved: reference.ids, protect });
   const train = balance(parts.train, random);
-  const evaluation = balance(parts.evaluation, random);
+  const evaluation = balanceEvaluation(parts.evaluation);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
   // Every floor, checked on the finished splits before anything is written: a version short of one is never published
   // and the previous version stays in place (plan review finding 7).
@@ -961,6 +1041,7 @@ export async function buildDataset(options: {
             origin: entry.page.origin,
             lure_type: entry.answer.lure_type,
             brand: entry.answer.brand,
+            brand_identity: entry.answer.brand ? brandIdentity(entry.answer.brand) : null,
             south_africa: entry.page.south_africa,
             screenshot: entry.page.sha256.screenshot,
           }),
@@ -996,10 +1077,26 @@ export async function buildDataset(options: {
       southAfrica: chosen.filter((e) => e.page.south_africa).length,
       brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
     });
-    write(
-      join(staging, "summary.json"),
-      `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
-    );
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    write(join(staging, "summary.json"), summary);
+    // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
+    // in them are the figures of the files that were just read back.
+    const onDisk = readFileSync(join(staging, "summary.json"), "utf-8");
+    if (onDisk !== summary) throw new PublicationRefused("summary.json read back differs from what was written");
+    const recorded = JSON.parse(onDisk) as {
+      version: string;
+      sha256: typeof sha256;
+      train: { lines: number };
+      evaluation: { lines: number };
+    };
+    if (
+      recorded.version !== version ||
+      recorded.sha256.train !== sha256.train ||
+      recorded.sha256.evaluation !== sha256.evaluation ||
+      recorded.train.lines !== written.get("train") ||
+      recorded.evaluation.lines !== written.get("eval")
+    )
+      throw new PublicationRefused("summary.json does not match the files it describes");
     // Checked once more at the last moment: a version that appeared while this one was built is not replaced either.
     if (existsSync(final))
       throw new Error(`dataset version ${version} was published meanwhile; use a new version number`);

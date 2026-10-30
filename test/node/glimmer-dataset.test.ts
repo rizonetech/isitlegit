@@ -3,10 +3,12 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
+import { getDomain } from "tldts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   answerOf,
   balance,
+  balanceEvaluation,
   brandIdentity,
   buildDataset,
   capBrands,
@@ -552,6 +554,57 @@ describe("teacher admission to evaluation", () => {
   });
 });
 
+const lcg = (seed: number) => {
+  let state = seed;
+  return () => {
+    state = (state * 48271) % 2147483647;
+    return state / 2147483647;
+  };
+};
+
+describe("the split's targets are counted on what is published", () => {
+  it("holds out ten percent of the distinct canonical brands, not of the joined groups", () => {
+    const entries = [];
+    // One site hosts 91 brands (one joined group); nine other brands stand alone: 100 brands, ten groups.
+    for (let b = 0; b < 91; b++)
+      entries.push(
+        entryOf(
+          page(`big${b}`, { host: "www.hub.co.za" }, { brand: `Hub Brand ${b}`, lure: true, lure_type: "credential" }),
+        ),
+      );
+    for (let b = 0; b < 9; b++)
+      entries.push(
+        entryOf(
+          page(`one${b}`, { host: `www.solo${b}.co.za` }, { brand: `Solo ${b}`, lure: true, lure_type: "credential" }),
+        ),
+      );
+    for (const seed of [3, 5, 7, 11, 13, 17]) {
+      const parts = split(entries, lcg(seed), { floors: NO_FLOORS });
+      const held = new Set(parts.evaluation.map((e) => brandIdentity(e.page.labels.brand as string)));
+      expect(held.size).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("keeps meeting the floors after balancing when lures are in excess", () => {
+    const entries = Array.from({ length: 300 }, (_, i) =>
+      entryOf(
+        i % 10 < 7
+          ? page(`l${i}`, { host: `www.l${i}.co.za` }, { brand: `L${i}`, lure: true, lure_type: "credential" })
+          : page(`n${i}`, { host: `www.n${i}.co.za` }, { brand: `N${i}`, lure: false }),
+      ),
+    );
+    const floors = { ...NO_FLOORS, evaluation: 60, lureShare: FLOORS.lureShare };
+    for (const seed of [3, 5, 7, 11]) {
+      const parts = split(entries, lcg(seed), { floors });
+      const published = balanceEvaluation(parts.evaluation);
+      expect(published.length).toBeGreaterThanOrEqual(60);
+      expect(
+        checkFloors({ train: balance(parts.train, lcg(1)), evaluation: published, admittedSampleLures: 0 }, floors),
+      ).toEqual([]);
+    }
+  });
+});
+
 describe("the split without admissible pages", () => {
   it("does not hold training groups out for an evaluation nothing can enter", () => {
     const entries = Array.from({ length: 40 }, (_, b) =>
@@ -839,6 +892,165 @@ describe("the reference set reserved for §13", () => {
   });
 });
 
+describe("reference protection outlives the reference page's candidacy", () => {
+  const words = new Set([1, 2, 3, 4, 5]);
+  const at = (id: string, hash: bigint) => ({
+    ...entryOf(page(id, { host: `www.${id}.co.za` }, { brand: `Brand ${id}`, lure: true, lure_type: "credential" })),
+    hash,
+    words,
+  });
+
+  it("drops a near duplicate of a reserved page that was itself dropped as a near duplicate", () => {
+    // B is six bits from A, C six bits from B and twelve from A: only B's index entry catches C.
+    const a = at("a", 0n);
+    const b = at("b", 0b111111n);
+    const c = at("c", 0b111111111111n);
+    const { kept } = dedupe([c, b, a], new Set(["a", "b"]));
+    expect(kept.map((e) => e.page.id)).toEqual(["a"]);
+  });
+
+  it("holds the site of a protected entry out of training though it is no candidate", () => {
+    const protectedEntry = entryOf(
+      page("gone", { host: "a.shared.co.za" }, { brand: "Gone", lure: true, lure_type: "credential" }),
+    );
+    const sibling = entryOf(
+      page("sib", { host: "b.shared.co.za" }, { brand: "Sibling", lure: true, lure_type: "credential" }),
+    );
+    const others = Array.from({ length: 12 }, (_, i) =>
+      entryOf(page(`o${i}`, { host: `www.o${i}.co.za` }, { brand: `Other ${i}`, lure: true, lure_type: "credential" })),
+    );
+    for (const seed of [101, 2027, 86421, 1234567, 99991, 31337]) {
+      const parts = split([sibling, ...others], lcg(seed), {
+        floors: NO_FLOORS,
+        reserved: new Set(["gone"]),
+        protect: [protectedEntry],
+      });
+      expect(parts.train.map((e) => e.page.id)).not.toContain("sib");
+      expect(parts.train.map((e) => e.page.id)).not.toContain("gone");
+    }
+  });
+
+  it("holds out the site of a reference page the label rules excluded", async () => {
+    const specs: Spec[] = [
+      { seed: 1, brand: "Brand X", host: "a.shared.co.za" },
+      { seed: 2, brand: "Brand Y", host: "b.shared.co.za" },
+      ...Array.from({ length: 14 }, (_, i) => ({ seed: 20 + i, lure: i % 2 === 0 })),
+    ];
+    const { store, ids } = await fill(dir, specs);
+    mkdirSync(dirname(referenceFile(join(dir, "store"))), { recursive: true });
+    writeFileSync(referenceFile(join(dir, "store")), JSON.stringify({ pages: [ids[0]] }));
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: ids[0], reason: "a parked capture" })}\n`,
+    );
+    for (const seed of [101, 2027, 86421, 1234567, 99991, 31337]) {
+      const built = await build(store, { seed });
+      expect(idsIn(built.dir, "train")).not.toContain(ids[1]);
+    }
+  });
+});
+
+// The finished output audited without the builder's own grouping: no brand, site, template or near duplicate in both
+// files, and no reference page, nor a brand or site of one, in training (completion review G6).
+async function assertIndependent(store: ReturnType<typeof openStore>, folder: string) {
+  const byId = new Map(store.manifest().map((p) => [p.id, p]));
+  const reference = (JSON.parse(readFileSync(referenceFile(store.dir), "utf-8")) as { pages: string[] }).pages;
+  const train = idsIn(folder, "train");
+  const evaluation = idsIn(folder, "eval");
+  const site = (id: string) => getDomain(byId.get(id)?.host ?? "") ?? `none:${id}`;
+  const brand = (id: string) =>
+    byId
+      .get(id)
+      ?.labels.brand?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") ?? `none:${id}`;
+  const template = (id: string) => byId.get(id)?.template ?? `none:${id}`;
+  for (const [name, key] of [
+    ["brand", brand],
+    ["site", site],
+    ["template", template],
+  ] as const) {
+    const inTrain = new Set(train.map(key));
+    expect(evaluation.filter((id) => inTrain.has(key(id))).map((id) => `${name}:${key(id)}`)).toEqual([]);
+  }
+  const inReference = new Set(reference.filter((id) => byId.has(id)));
+  for (const id of train) expect(inReference.has(id)).toBe(false);
+  const referenceBrands = new Set([...inReference].map(brand));
+  const referenceSites = new Set([...inReference].map(site));
+  expect(train.filter((id) => referenceBrands.has(brand(id)) || referenceSites.has(site(id)))).toEqual([]);
+  // Near duplicates: pages whose screenshots are within 6 bits and whose texts share 80 percent of their shingles.
+  const measure = async (ids: string[]) =>
+    Promise.all(
+      ids.map(async (id) => {
+        const { screenshot, text } = store.readPage(id);
+        return { id, hash: await dhash(screenshot), words: shingles(text) };
+      }),
+    );
+  const [a, b] = [await measure(train), await measure(evaluation)];
+  const pairs = [];
+  for (const x of a)
+    for (const y of b) if (hamming(x.hash, y.hash) <= 6 && jaccard(x.words, y.words) >= 0.8) pairs.push([x.id, y.id]);
+  expect(pairs).toEqual([]);
+}
+
+describe("the finished output, audited independently", () => {
+  it("holds no brand, site, template, near duplicate or reference group on both sides", async () => {
+    const specs: Spec[] = [];
+    for (let b = 0; b < 14; b++) {
+      specs.push({ seed: b * 4, brand: `Brand ${b}`, host: `a.brand${b}.co.za`, lure: true });
+      specs.push({ seed: b * 4 + 1, brand: null, host: `b.brand${b}.co.za`, lure: false });
+      specs.push({ seed: b * 4 + 2, brand: `Brand ${b}`, host: `c.other${b}.com`, lure: false });
+      specs.push({ seed: b * 4 + 3, brand: `Spare ${b}`, host: `www.spare${b}.com`, lure: b % 2 === 0 });
+    }
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const built = await build(store, { referenceSize: 6 });
+    expect(idsIn(built.dir, "eval").length).toBeGreaterThan(0);
+    await assertIndependent(store, built.dir);
+  });
+});
+
+describe("a build at the production floors", () => {
+  // Words of letters only, so no page text can read as a phone or a long number, unique to the page.
+  const wordsFor = (n: number) => {
+    const random = lcg(n * 7919 + 13);
+    return Array.from({ length: 12 }, () =>
+      Array.from({ length: 6 }, () => String.fromCharCode(97 + Math.floor(random() * 26))).join(""),
+    ).join(" ");
+  };
+
+  it("publishes a version that meets every floor, and the output audits clean", async () => {
+    const images = await Promise.all(Array.from({ length: 12 }, (_, i) => shot(i + 1)));
+    const types = ["credential", "payment", "fake_shop", "impersonation"] as const;
+    const specs: Spec[] = [];
+    for (let i = 0; i < 4200; i++) {
+      // Lures are 65 percent of the pool, so balancing must cut evaluation's lures (review G2).
+      const lure = i % 20 < 13;
+      const sample = lure && i % 36 === 0;
+      specs.push({
+        seed: i,
+        image: images[i % images.length] as Uint8Array,
+        text: wordsFor(i),
+        lure,
+        type: types[i % 4] as (typeof types)[number],
+        southAfrica: i % 3 === 0 || sample,
+        brand: `Brand ${i}`,
+        host: `www.site${i}.com`,
+        ...(sample ? { origin: "samples" as const, source: "samples-body", host: null } : {}),
+      });
+    }
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const built = await build(store, { floors: FLOORS, referenceSize: 500 });
+    const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
+    expect(summary.evaluation.lines).toBeGreaterThanOrEqual(FLOORS.evaluation);
+    expect(summary.sampleLures.evaluation).toBeGreaterThanOrEqual(FLOORS.sampleEvaluation);
+    expect(summary.sampleLures.training).toBeGreaterThanOrEqual(Math.ceil(summary.sampleLures.admitted / 2));
+    expect(summary.reference.pages).toBe(500);
+    await assertIndependent(store, built.dir);
+  }, 240_000);
+});
+
 describe("a build short of a floor", () => {
   it("is refused with the shortfalls named and nothing published", async () => {
     const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2 }, { seed: 3, lure: false }]);
@@ -1002,9 +1214,21 @@ describe("the scan of the built files for protected sample details", () => {
     expect(problems.join()).not.toMatch(/Kestrel|clientco|555|4012/);
   });
 
-  it("reads only the lines made from sample pages", async () => {
+  it("reads the generic details of sample lines only, and the protected terms of every line", async () => {
     const line = await sampleLine("p-1", "Call 082 555 1234 now");
     expect(scanSampleLines([{ id: "p-1", origin: "public", line }], ["Kestrel"], "image")).toEqual([]);
+    const named = await sampleLine("p-2", "Pay Kestrel Holdings today");
+    expect(scanSampleLines([{ id: "p-2", origin: "public", line: named }], ["Kestrel Holdings"], "image")).toEqual([
+      "p-2: a protected sample term",
+    ]);
+  });
+
+  it("refuses a version whose public-origin line names a protected client", async () => {
+    const { store } = await fill(dir, [
+      ...Array.from({ length: 3 }, (_, i) => ({ seed: i + 1, text: `Invoice from Kestrel Holdings ${i}` })),
+      ...Array.from({ length: 4 }, (_, i) => ({ seed: 10 + i, lure: false })),
+    ]);
+    await expect(build(store, { protectedTerms: ["Kestrel Holdings"] })).rejects.toThrow(/a protected sample term/);
   });
 
   const planted = (text: string) =>
@@ -1019,9 +1243,7 @@ describe("the scan of the built files for protected sample details", () => {
     const { store } = await fill(dir, [...planted("Call 082 555 1234 about invoice"), { seed: 30, lure: false }]);
     const refusal = build(store);
     await expect(refusal).rejects.toBeInstanceOf(PublicationRefused);
-    await expect(refusal).rejects.toThrow(
-      /sample-derived lines hold protected details \(samples-body-[0-9a-f]+: a phone number/,
-    );
+    await expect(refusal).rejects.toThrow(/lines hold protected details \(samples-body-[0-9a-f]+: a phone number/);
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
   });
 
@@ -1062,6 +1284,72 @@ describe("the scan of the built files for protected sample details", () => {
     // Without the consent section nothing is read.
     writeFileSync(join(samples, "pilot-consent.md"), "# Consent\n");
     await expect(sampleTerms(samples)).rejects.toThrow(/no sample is read without it/);
+  });
+});
+
+describe("summary.json is read back, and records the inputs the version was built from", () => {
+  const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));
+  const summaryOf = (built: { dir: string }) =>
+    JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8")) as {
+      inputs: Record<string, { pages: number; sha256: string }>;
+    };
+
+  it("refuses a summary whose bytes on disk are not the ones written, and removes the staging folder", async () => {
+    const { store } = await fill(dir, specs);
+    const crooked = {
+      write: (path: string, text: string) => writeFileSync(path, path.endsWith("summary.json") ? `${text} ` : text),
+    };
+    await expect(build(store, { io: crooked })).rejects.toThrow(/summary.json read back differs/);
+    expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
+  });
+
+  it("carries a digest of the labels, the teacher's state, the queue and the exclusions", async () => {
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, { [ids[0] as string]: AGREED });
+    const first = summaryOf(await build(store));
+    expect(first.inputs.labels?.pages).toBe(10);
+    expect(first.inputs.teacher?.pages).toBe(1);
+    // The same inputs give the same digests under another version number.
+    expect(summaryOf(await build(store)).inputs).toEqual(first.inputs);
+    // A changed label moves the labels digest alone.
+    const page = store.manifest()[2] as StoredPage;
+    store.setLabels(page.id, { ...page.labels, brand: "Changed Brand" }, page.label_source);
+    const relabelled = summaryOf(await build(store));
+    expect(relabelled.inputs.labels?.sha256).not.toBe(first.inputs.labels?.sha256);
+    expect(relabelled.inputs.teacher).toEqual(first.inputs.teacher);
+    // A changed teacher outcome moves the teacher digest, a new exclusion the exclusion digest.
+    teach(dir, { [ids[0] as string]: AGREED, [ids[1] as string]: { status: "failed", reason: "no answer" } });
+    const retaught = summaryOf(await build(store));
+    expect(retaught.inputs.teacher?.sha256).not.toBe(relabelled.inputs.teacher?.sha256);
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: ids[3], reason: "parked" })}\n`,
+    );
+    const excluded = summaryOf(await build(store));
+    expect(excluded.inputs.excluded?.sha256).not.toBe(retaught.inputs.excluded?.sha256);
+    expect(excluded.inputs.excluded?.pages).toBe(1);
+  });
+
+  it("names a brand once in the meta lines and the brand counts, whatever its spelling", async () => {
+    const { store } = await fill(dir, [
+      { seed: 1, brand: "FNB" },
+      { seed: 2, brand: "First National Bank" },
+      { seed: 3, brand: "First National Bank" },
+      ...Array.from({ length: 6 }, (_, i) => ({ seed: 10 + i, lure: false })),
+    ]);
+    const built = await build(store);
+    const metas = [...idsIn(built.dir, "train"), ...idsIn(built.dir, "eval")];
+    expect(metas.length).toBeGreaterThan(0);
+    const lines = ["train", "eval"].flatMap((name) =>
+      readFileSync(join(built.dir, `${name}.meta.jsonl`), "utf-8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { brand: string | null; brand_identity: string | null }),
+    );
+    for (const meta of lines.filter((m) => m.brand === "FNB" || m.brand === "First National Bank"))
+      expect(meta.brand_identity).toBe(brandIdentity("FNB"));
+    expect(lines.filter((m) => m.brand === null).every((m) => m.brand_identity === null)).toBe(true);
   });
 });
 

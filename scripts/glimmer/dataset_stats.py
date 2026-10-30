@@ -70,7 +70,9 @@ def split_stats(folder, name, renderer, train_on):
         "by_source": dict(Counter(m.get("source") for m in metas)),
         "by_lure_type": dict(Counter(m.get("lure_type") for m in metas)),
         "south_africa": sum(1 for m in metas if m.get("south_africa")),
-        "brands": len({str(m["brand"]).lower() for m in metas if m.get("brand")}),
+        # The builder's canonical brand identity (`FNB` and `First National Bank` are one); a version built before it kept
+        # none, so its raw name is folded instead.
+        "brands": len({m.get("brand_identity") or str(m["brand"]).lower() for m in metas if m.get("brand")}),
         "screenshots": screenshots,
         "tokens": {
             "total": text_total + image_total,
