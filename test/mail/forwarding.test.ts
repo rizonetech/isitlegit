@@ -5,6 +5,7 @@ import {
   checkForwarding,
   type ForwardingDeps,
   GRAPHQL_URL,
+  MATCH_GRACE_MS,
   RECOVERY_MS,
   type RoutingEvent,
 } from "../../src/mail/forwarding";
@@ -96,6 +97,8 @@ const deps = (fetcher: typeof fetch, now: Date, over: Partial<ForwardingDeps> = 
   operators: OPERATORS,
   fetch: fetcher,
   now: () => now,
+  // No grace, so a refusal is tied to its forward in the run that reads it; the ordering tests pass the real one.
+  graceMs: 0,
   ...over,
 });
 
@@ -155,9 +158,11 @@ describe("a forward the destination refused", () => {
 describe("completion review", () => {
   it("makes reports read before their forward, and replayed after it, one incident and one alert per mailbox", async () => {
     const reports = [report(), report({ sessionId: "s-r2", messageId: "<ndr-2@x>" })];
-    const w = world([reports, [forward(), ...reports]]);
-    expect(await checkForwarding(deps(w.fetcher, at(1)))).toMatchObject({ incidents: 1, alerted: 0 });
-    await checkForwarding(deps(w.fetcher, at(16)));
+    const w = world([reports, [forward(), ...reports], []]);
+    const grace = { graceMs: MATCH_GRACE_MS };
+    expect(await checkForwarding(deps(w.fetcher, at(1), grace))).toMatchObject({ incidents: 1, alerted: 0 });
+    await checkForwarding(deps(w.fetcher, at(16), grace));
+    await checkForwarding(deps(w.fetcher, at(22), grace));
     const rows = await db.prepare("SELECT alias, alert FROM forward_incidents").all<{ alias: string; alert: string }>();
     expect(rows.results).toEqual([{ alias: "hello@isitlegit.co.za", alert: "sent" }]);
     expect(w.sends).toHaveLength(2);
@@ -165,10 +170,11 @@ describe("completion review", () => {
 
   it("alerts a report whose forward never appears once the grace has passed, naming no alias", async () => {
     const w = world([[report()], [], []]);
-    await checkForwarding(deps(w.fetcher, at(1)));
-    await checkForwarding(deps(w.fetcher, at(10)));
+    const grace = { graceMs: MATCH_GRACE_MS };
+    await checkForwarding(deps(w.fetcher, at(1), grace));
+    await checkForwarding(deps(w.fetcher, at(10), grace));
     expect(w.sends).toEqual([]);
-    await checkForwarding(deps(w.fetcher, at(25)));
+    await checkForwarding(deps(w.fetcher, at(25), grace));
     expect(w.sends[0]?.text).toContain("an alias (its forward was not found)");
   });
 
@@ -305,24 +311,73 @@ describe("round 1", () => {
           datetime: at(1).toISOString(),
         }),
       ],
+      [],
     ]);
-    await checkForwarding(deps(w.fetcher, at(6)));
+    const grace = { graceMs: MATCH_GRACE_MS };
+    await checkForwarding(deps(w.fetcher, at(6), grace));
     expect(w.sends).toEqual([]);
-    await checkForwarding(deps(w.fetcher, at(10)));
+    await checkForwarding(deps(w.fetcher, at(10), grace));
+    await checkForwarding(deps(w.fetcher, at(27), grace));
     expect(w.sends[0]?.text).toContain("one of hello@isitlegit.co.za, conduct@isitlegit.co.za");
   });
 
-  it("recognises the retry of a failure that carried no Message-ID by its sender and alias", async () => {
+  it("never takes a later delivery as the retry of a failure with no Message-ID, but notes it (round 2)", async () => {
     const failed = worker("deliveryFailed", { messageId: null });
-    const retry = worker("delivered", { messageId: null, sessionId: "s-retry", datetime: at(20).toISOString() });
-    const w = world([[failed], [retry], []]);
+    const later = worker("delivered", {
+      messageId: "<another@member.example>",
+      sessionId: "s-later",
+      datetime: at(20).toISOString(),
+    });
+    const w = world([[failed], [later], []]);
     await checkForwarding(deps(w.fetcher, at(1)));
     await checkForwarding(deps(w.fetcher, at(25)));
     await checkForwarding(deps(w.fetcher, new Date(at(0).getTime() + RECOVERY_MS + 60_000)));
-    expect(w.sends).toEqual([]);
-    expect((await db.prepare("SELECT state FROM forward_incidents").first<{ state: string }>())?.state).toBe(
-      "recovered",
+    expect(w.sends).toHaveLength(2);
+    expect(w.sends[0]?.text).toContain(
+      `arrived at ${at(20).toISOString()}; the failed message carried no Message-ID, so it may or may not be its retry`,
     );
+    expect((await db.prepare("SELECT state FROM forward_incidents").first<{ state: string }>())?.state).toBe(
+      "unresolved",
+    );
+  });
+
+  it("keeps two refused messages of the same subject a minute apart as two incidents (round 2)", async () => {
+    const w = world([
+      [
+        forward(),
+        forward({
+          messageId: "<second@x>",
+          sessionId: "s-second",
+          to: "conduct@isitlegit.co.za",
+          datetime: at(1).toISOString(),
+        }),
+        report(),
+        report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: at(1.2).toISOString() }),
+      ],
+    ]);
+    expect(await checkForwarding(deps(w.fetcher, at(5)))).toMatchObject({ incidents: 2 });
+  });
+
+  it("counts a refusal's same-second notices and says how many came (round 2)", async () => {
+    const w = world([[forward(), report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    expect(w.sends[0]?.text).toContain("Cloudflare dropped the 2 refusal notices");
+  });
+
+  it("never names an unrelated forward read early as the refused one (round 2)", async () => {
+    const refused = forward({
+      messageId: "<refused@x>",
+      sessionId: "s-ref",
+      to: "conduct@isitlegit.co.za",
+      datetime: at(1).toISOString(),
+    });
+    const w = world([[forward(), report({ datetime: at(1.5).toISOString() })], [refused], []]);
+    const grace = { graceMs: MATCH_GRACE_MS };
+    await checkForwarding(deps(w.fetcher, at(3), grace));
+    await checkForwarding(deps(w.fetcher, at(12), grace));
+    expect(w.sends).toEqual([]);
+    await checkForwarding(deps(w.fetcher, at(24), grace));
+    expect(w.sends[0]?.text).toContain("one of hello@isitlegit.co.za, conduct@isitlegit.co.za");
   });
 
   it("sends a new incident's alert even when a hundred older ones are still retrying", async () => {

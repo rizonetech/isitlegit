@@ -33,6 +33,11 @@ CREATE TABLE forward_incidents (
   destination_domain TEXT,
   -- The forward a refusal was tied to, so no other refusal claims it.
   forward_hash TEXT,
+  -- How many refusal notices arrived for it (a destination can send several for one message), said in the alert.
+  reports INTEGER NOT NULL DEFAULT 1,
+  -- A Worker failure with no Message-ID cannot be matched to its retry; a later delivery from the same sender to the
+  -- same alias is only noted, as a possible retry, never taken as recovery.
+  possible_retry_at TEXT,
   -- When the original was received (the forward, when known) and when it failed (the report, or the Worker's failure).
   received_at TEXT,
   occurred_at TEXT NOT NULL,

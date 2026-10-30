@@ -87,7 +87,14 @@ describe("the scheduled entrypoint", () => {
 
 describe("the forwarding check (D01 T02 §6)", () => {
   it("reads Email Routing's events when the cron fires with the analytics token set", async () => {
-    await env.DB.batch([env.DB.prepare("DELETE FROM forward_scan"), env.DB.prepare("DELETE FROM forward_incidents")]);
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM forward_scan"),
+      env.DB.prepare("DELETE FROM forward_incidents"),
+      // An incident already resolved and waiting for its alert: the cron sends it to both of the Worker's mailboxes.
+      env.DB.prepare(
+        "INSERT INTO forward_incidents (key, kind, alias, occurred_at, detected_at, state, alert) VALUES (?, 'refused', 'hello@isitlegit.co.za', ?, ?, 'open', 'pending')",
+      ).bind("c".repeat(64), new Date().toISOString(), new Date().toISOString()),
+    ]);
     const calls: string[] = [];
     const to: string[] = [];
     const now = new Date().toISOString();
