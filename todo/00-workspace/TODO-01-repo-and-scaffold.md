@@ -67,6 +67,8 @@ track: day-0
 | 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [ ] |
+| 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
+| 30 | §30 | Plan candidate check before the review runs | §28 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -956,12 +958,49 @@ Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan r
 2. Record the evidence in the receipt and prove it again at every validation. Done when: a receipt with `plan.after_started` validates, and one whose evidence was edited refuses.
 3. State the rule where the stamp's consumers read it. Done when: both skills, `todo/README.md` and `docs/todo-workflow.md` describe the same boundary.
 
-- [x] In `stamp` (`scripts/lib/todo_graph.py`), accept a plan review whose candidate descends from the Started commit when, across every commit from the Started commit to the candidate, the section's own body is byte for byte unchanged and every changed path sits under `test/`, `tests/`, `todo/` or `docs/reviews/`; refuse otherwise, naming the first commit and path that broke the condition. Done when: `tests/scripts/test_todo_graph.py` stamps a section whose plan candidate follows its Started commit by a fixture-formatting commit, and refuses one after a commit that edits the section's checklist and one after a commit that touches `src/`. **Corrected 2026-10-30:** said the refusing paths were `src/`, `site/`, `media/` and `scripts/` outside `scripts/tests/`; the repository has no `site/`, and product also lives in `wrangler.jsonc`, `package.json`, `public/`, `native/` and `infra/`, so the rule names the paths a commit may touch instead (tests, the TODO tree, review records) and refuses every other path. **Corrected 2026-10-30 (plan review, gaps 1, 2, 4, 5, 6):** a change under `test/` or `tests/` passes only when it modifies an existing file and the old and new contents are equal once every whitespace character is removed (a formatting change; an added, deleted or reworded test refuses, so test-only work cannot land before the review); the contract compared is the section's text plus its TODO file's preamble (frontmatter, Goal, Inputs, Outcome, the Implementation Order with every other section's row left out); every parent of every commit in the range is compared, so a merge, a merge resolution, a deletion and a rename (both paths) are each named; the exception holds only for a section with an explicit `> **Started:**` line, never the fallback build start. The tests add an empty-commit acceptance, a section edit put back by a later commit, a changed Outcome, a changed test assertion, an added test file, a product file deleted, a rename from `src/` into `test/`, a merge bringing product work, and a section without a Started line; the old refusal test commits real product work instead of an empty commit.
-- [x] Keep the receipt honest: record `plan.after_started` with the commits between when the candidate is later than the Started commit. Done when: the test reads that field in the receipt, and its absence when the candidate is the Started commit or earlier. **Corrected 2026-10-30 (plan review, gap 3):** the field is `{"start": <the Started commit>, "commits": [<every commit after it up to the candidate, oldest first>]}`, and receipt validation rebuilds it from the repository (`build_start` and the same range check) and refuses a receipt whose field differs; receipts without the field validate as before.
+- [x] In `stamp` (`scripts/lib/todo_graph.py`), accept a plan review whose candidate descends from the Started commit when, across every commit from the Started commit to the candidate, the section's own body is byte for byte unchanged and every changed path sits under `test/`, `tests/`, `todo/` or `docs/reviews/`; refuse otherwise, naming the first commit and path that broke the condition. Done when: `tests/scripts/test_todo_graph.py` stamps a section whose plan candidate follows its Started commit by a fixture-formatting commit, and refuses one after a commit that edits the section's checklist and one after a commit that touches `src/`. **Corrected 2026-10-30:** said the refusing paths were `src/`, `site/`, `media/` and `scripts/` outside `scripts/tests/`; the repository has no `site/`, and product also lives in `wrangler.jsonc`, `package.json`, `public/`, `native/` and `infra/`, so the rule names the paths a commit may touch instead (tests, the TODO tree, review records) and refuses every other path. **Corrected 2026-10-30 (plan review, gaps 1, 2, 4, 5, 6):** a change under `test/` or `tests/` passes only when it modifies an existing file and the old and new contents are equal once every whitespace character is removed (a formatting change; an added, deleted or reworded test refuses, so test-only work cannot land before the review); the contract compared is the section's text plus its TODO file's preamble (frontmatter, Goal, Inputs, Outcome, the Implementation Order with every other section's row left out); every parent of every commit in the range is compared, so a merge, a merge resolution, a deletion and a rename (both paths) are each named; the exception holds only for a section with an explicit `> **Started:**` line, never the fallback build start. The tests add an empty-commit acceptance, a section edit put back by a later commit, a changed Outcome, a changed test assertion, an added test file, a product file deleted, a rename from `src/` into `test/`, a merge bringing product work, and a section without a Started line; the old refusal test commits real product work instead of an empty commit. **Corrected 2026-10-30 (completion review, gaps C1, C2, C4):** whitespace alone was too loose (it accepts `"Red Oak"` turned `"RedOak"` and a Python dedent), so a test change passes only as an existing JSON file reformatted to the same parsed value (`same_json`); the section's own Implementation Order row is found by its `§N` column, not its order number; and the range is every commit that descends from the Started commit (`git rev-list --ancestry-path`), so a branch forked after Started is read commit by commit, each against its first parent (a merge's first-parent diff carries what it brought in from work that never held the Started line; the other parent would show the lane's own work from before the start).
+- [x] Keep the receipt honest: record `plan.after_started` with the commits between when the candidate is later than the Started commit. Done when: the test reads that field in the receipt, and its absence when the candidate is the Started commit or earlier. **Corrected 2026-10-30 (plan review, gap 3):** the field is `{"start": <the Started commit>, "commits": [<every commit after it up to the candidate, oldest first>]}`, and receipt validation rebuilds it from the repository (`build_start` and the same range check) and refuses a receipt whose field differs; receipts without the field validate as before. **Corrected 2026-10-30 (completion review, gap C3):** a receipt without the field, or with it null, is refused when its plan candidate and that candidate's first parent both hold the section's Started line (the candidate follows the Started commit); one `git cat-file --batch` per repository keeps that check off the validate time.
 - [x] State the rule in `.claude/skills/process-todo-section/SKILL.md` (step 3a), `.claude/skills/review-todo-section/SKILL.md` (step 7 and the receipt fields), `todo/README.md` and `docs/todo-workflow.md` where they say the plan candidate is the Started commit or earlier. Done when: `grep -n "after_started" ` finds the boundary in each, worded the same way. (Added 2026-10-30, plan review gap 7.)
 - [ ] Commit: `tools: a plan review just after Started, when nothing built moved`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including the acceptance cases (a fixture formatted, an empty commit) and the refusal cases (a section edit, a reverted section edit, a changed Outcome, a changed assertion, an added test, a `src/` change, a deletion, a rename into `test/`, a merge, no Started line).
+
+## 29. Stamp recovery after a killed process
+
+Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there). `stamp` writes three files (the receipt, the TODO file, the regenerated plan), each temp-then-replace, and rolls back on an exception or interrupt (`scripts/lib/todo_graph.py` `stamp`, the `except BaseException` block). A process killed outright (SIGKILL, a closed terminal, a crashed session) runs no rollback: the receipt can exist while the TODO file is unstamped, and a second `stamp` refuses with `receipt already exists`, so the writer has to find and delete the receipt by hand. The fix lets the stamp recover its own half-written state without weakening any check.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Recover a half-written stamp on the next run. Done when: after a stamp killed between its receipt write and its TODO write, the same `stamp` command completes, and a different stamp for that section still refuses.
+
+- [ ] In `stamp` (`scripts/lib/todo_graph.py`), when the receipt already exists and the section is still unstamped in its TODO file, compare the existing receipt with the one this call builds (every field but none rewritten) and, when they are equal, carry on to the TODO and plan writes; refuse as now when they differ, naming the receipt and the first differing field. Done when: `tests/scripts/test_todo_graph.py` kills a stamp after its receipt write (a child process with a hook that exits hard) and the rerun stamps, while a rerun with another `--check` refuses.
+- [ ] Make `validate` name the state: an orphan receipt (a receipt whose section is unstamped) refuses with the recovery command (`stamp` again with the same arguments, or delete the receipt). Done when: the test reads that refusal text.
+- [ ] Commit: `tools: a stamp killed mid-write recovers on the next run`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including the killed-stamp rerun and the differing-rerun refusal.
+
+## 30. Plan candidate check before the review runs
+
+Filed 2026-10-30 from D00 T01 §28's completion review (E2, out of scope there). Whether a plan review will be accepted is only known at `stamp`, after the build and every review round: D02 T03 §4 found out there that its plan candidate came one commit after Started. A check the writer runs before dispatching the plan review catches it while the cost of a fix is one command.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Check a plan candidate before the review runs. Done when: `todo-graph.py plan-candidate '<ref>' <sha>` exits 0 for a candidate `stamp` would accept and 1 with `stamp`'s own refusal text for one it would refuse.
+
+- [ ] Add `plan-candidate` to `scripts/todo-graph.py`, calling `plan_after_started` in `scripts/lib/todo_graph.py` (the same code `stamp` runs) and printing `ok` (with the `after_started` evidence when there is some) or the refusal. Done when: `tests/scripts/test_todo_graph.py` runs it on the Started commit, on a commit after a fixture reformat, and on one after a `src/` change, with exits 0, 0 and 1.
+- [ ] Have `review-dispatch.py --kind plan` run the same check before it calls the reviewer, refusing to spend a review on a candidate `stamp` would refuse. Done when: `tests/scripts/test_review_dispatch.py` shows the dispatcher refusing such a candidate without starting the reviewer.
+- [ ] Name the check in `.claude/skills/process-todo-section/SKILL.md` step 3a. Done when: the step names `plan-candidate` before the dispatch command.
+- [ ] Commit: `tools: a plan candidate is checked before the review runs`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph tests.scripts.test_review_dispatch` passes, including the three `plan-candidate` exits and the dispatcher's refusal.
 
 ## Verification
 

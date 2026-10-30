@@ -74,7 +74,8 @@ POST_FINAL_CAP = 3
 PIN = ".conclave/reviewers.toml"
 PLAN_KEYS = {"report", "candidate", "reviewer", "model", "effort", "lenses"}
 # The paths a commit between the build start and a later plan candidate may change: the TODO tree and the review
-# records, and, as a formatting change only, an existing test file (D00 T01 §28).
+# records, and, as a formatting change only (the same parsed value), an existing JSON file under the tests
+# (D00 T01 §28).
 QUIET_AFTER_START = ("todo/", "docs/reviews/")
 FORMAT_ONLY_AFTER_START = ("test/", "tests/")
 STARTED = re.compile(r"^> \*\*Started:\*\* .+$", re.M)
@@ -490,15 +491,24 @@ def contract_text(text, number):
     Outcome, the Implementation Order without any other section's row) and the section's own text."""
     first = re.search(r"^## [1-9]\d*\. ", text, re.M)
     preamble = text[:first.start()] if first else text
+    # An Implementation Order row is `| Order | §N | ...`: kept by its section column, whatever its order.
     preamble = "".join(line for line in preamble.splitlines(True)
-                       if not (m := re.match(r"\| *([1-9]\d*) *\|", line)) or m[1] == str(number))
+                       if not (m := re.match(r"\| *[0-9]+ *\| *§ *([1-9]\d*) *\|", line)) or m[1] == str(number))
     return preamble + (section_text(text, number) or "")
 
 
+def same_json(old, new):
+    """Two versions of a JSON file hold the same value: a reformat, not a change to what a test reads."""
+    try:
+        return old is not None and new is not None and json.loads(old) == json.loads(new)
+    except ValueError:
+        return False
+
+
 def quiet_since_start(root, todo, ref, start, candidate):
-    """The commits on the first-parent line from the build start (exclusive) to a plan candidate that follows it, oldest
-    first, when none of them moved what defines or builds the feature: against its first parent, each changes only
-    QUIET_AFTER_START paths or makes a whitespace-only change to an existing FORMAT_ONLY_AFTER_START file, and the
+    """The commits that descend from the build start and lead to a plan candidate that follows it, oldest first, when
+    none of them moved what defines or builds the feature: against its first parent, each changes only
+    QUIET_AFTER_START paths or reformats an existing FORMAT_ONLY_AFTER_START JSON file to the same parsed value, and the
     section's contract in its TODO file (`contract_text`) is byte for byte what it was at the start. Refuses naming the
     first commit and path that broke the condition."""
     def git(*args):
@@ -517,9 +527,9 @@ def quiet_since_start(root, todo, ref, start, candidate):
         text = blob(sha, todo)
         return contract_text(text.decode("utf-8", "replace"), number) if text is not None else None
     expected = contract(start)
-    # The lane's own line: a merge's first-parent diff holds everything it brought in and what its resolution changed,
-    # while the merged commits themselves come from a branch that never held the lane's Started line.
-    listed = git("rev-list", "--reverse", "--first-parent", f"{start}..{candidate}")
+    # Every commit built on the start, a branch forked after it included; a merge's first-parent diff holds what it
+    # brought in from work that never held the Started line, and what its resolution changed.
+    listed = git("rev-list", "--reverse", "--topo-order", "--ancestry-path", f"{start}..{candidate}")
     require(listed.returncode == 0, f"cannot list the commits from {start} to {candidate}: {ref}")
     between = listed.stdout.decode("ascii", "replace").split()
     moved = f"the plan review's candidate {candidate} follows the build start {start}, and"
@@ -533,12 +543,11 @@ def quiet_since_start(root, todo, ref, start, candidate):
         for status, name in zip(fields[0::2], fields[1::2]):
             if name.startswith(QUIET_AFTER_START):
                 continue
-            old, new = (blob(parent, name), blob(sha, name)) if status == "M" else (None, None)
-            formatted = name.startswith(FORMAT_ONLY_AFTER_START) and old is not None and new is not None \
-                and re.sub(rb"\s+", b"", old) == re.sub(rb"\s+", b"", new)
+            formatted = status == "M" and name.startswith(FORMAT_ONLY_AFTER_START) and name.endswith(".json") \
+                and same_json(blob(parent, name), blob(sha, name))
             require(formatted, f"{moved} {sha} changed {name} in between: after Started and before the plan "
-                               f"review only {', '.join(QUIET_AFTER_START)} may change, and "
-                               f"{', '.join(FORMAT_ONLY_AFTER_START)} only by whitespace: {ref}")
+                               f"review only {', '.join(QUIET_AFTER_START)} may change, and a JSON file under "
+                               f"{', '.join(FORMAT_ONLY_AFTER_START)} only to the same parsed value: {ref}")
         require(contract(sha) == expected,
                 f"{moved} {sha} changed the section's contract in {todo}: review the plan as it will be built: {ref}")
     return between
@@ -583,6 +592,41 @@ def plan_record(root, report, ref, commits=None):
         commit_ok(root, candidate)
     return {"report": report, "candidate": candidate, "reviewer": entry["reviewer"], "model": entry["model"],
             "effort": entry["effort"], "lenses": entry["lenses"] or []}
+
+
+_CAT_FILE = {}
+
+
+def _blob_at(root, spec):
+    """The bytes of `<rev>:<path>` through one `git cat-file --batch` per repository, or None when there is none."""
+    key = str(root)
+    proc = _CAT_FILE.get(key)
+    if proc is None or proc.poll() is not None:
+        proc = _CAT_FILE[key] = subprocess.Popen(["git", "-C", key, "cat-file", "--batch"], stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    proc.stdin.write(spec.encode("utf-8") + b"\n")
+    proc.stdin.flush()
+    header = proc.stdout.readline().split()
+    if len(header) != 3 or header[1] != b"blob":
+        return None
+    data = proc.stdout.read(int(header[2]))
+    proc.stdout.read(1)
+    return data
+
+
+def _after_started_line(root, todo, body, ref, candidate):
+    """The plan candidate and its first parent both hold the section's Started line in `todo`, so the candidate is a
+    commit after the one that recorded it."""
+    started = STARTED.search(body or "")
+    if started is None:
+        return False
+    line, number = started[0].rstrip("\r"), ref.rsplit("§", 1)[1]
+
+    def holds(spec):
+        data = _blob_at(root, spec)
+        section = section_text(data.decode("utf-8", "replace"), number) if data is not None else None
+        return section is not None and line in section.splitlines()
+    return holds(f"{candidate}:{todo}") and holds(f"{candidate}^1:{todo}")
 
 
 def plan_after_started(root, todo, body, ref, candidate):
@@ -867,6 +911,12 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                 require(final_record(root, data["final"], ref, stamp_sha, commits if commits is not None else set())
                         == data["final"], f"receipt final does not match its findings file {data['final']['report']}: {ref}")
         if root is not None:
+            # A receipt whose plan candidate follows the Started commit must carry the evidence; this cheap test (the
+            # candidate and its first parent both hold the section's Started line) catches it dropped or nulled.
+            require(after is not None or todo is None or not _after_started_line(root, todo, body, ref,
+                                                                                    recorded["candidate"]),
+                    f"receipt plan after_started is missing, but its candidate {recorded['candidate']} follows the "
+                    f"commit that records the section's Started line: {ref}")
             # The evidence for a plan review after Started is rebuilt from the repository, never taken on trust.
             if after is not None:
                 require(todo is not None, f"a receipt plan with after_started is checked against its section: {ref}")

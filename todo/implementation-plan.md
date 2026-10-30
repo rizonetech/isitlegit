@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 58 | Checklist items: 365
+Sections: 60 | Checklist items: 372
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -107,6 +107,8 @@ Sections: 58 | Checklist items: 365
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [ ]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
+| [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
+| [ ]    | D00 T01 §30 | Plan candidate check before the review runs           | none     | 4     |
 | [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
@@ -366,6 +368,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 103/297 verified sections, 68 ready to run now.
+Progress: 103/299 verified sections, 68 ready to run now.
 
-Checklist: 1043/1885 items completed (includes Commit items).
+Checklist: 1043/1892 items completed (includes Commit items).

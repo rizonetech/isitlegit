@@ -1615,6 +1615,69 @@ class Stamp(Tree):
         self.assertEqual(receipt["plan"]["after_started"]["start"], self.start)
         self.assertEqual(receipt["plan"]["after_started"]["commits"], [merged])  # the lane's own line
 
+    def test_whitespace_inside_a_json_string_is_a_change(self):
+        self.assertTrue(tg.same_json(b'{"a": [1, 2]}', b'{\n  "a": [1,\n 2]\n}\n'))
+        self.assertFalse(tg.same_json(b'{"name": "Red Oak"}', b'{"name": "RedOak"}'))
+        self.assertFalse(tg.same_json(b'{"a": 1}', b'{"a": 1'))
+        self.assertFalse(tg.same_json(None, b"{}"))
+
+    def test_a_non_json_test_file_reformatted_refuses(self):
+        helper = self.root / "test/helper.py"
+        helper.write_text("if True:\n    x = 1\n    y = 2\n", encoding="utf-8")
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, "> **Started:** 2026-10-30T00:00Z\n\n"),
+                        encoding="utf-8")
+        self.start = self.commit("todo: start §1, the helper already there")
+        helper.write_text("if True:\n    x = 1\ny = 2\n", encoding="utf-8")  # whitespace alone, a different program
+        dedented = self.commit("test: the helper dedented")
+        self.write_plan(candidate=dedented)
+        self.stamp_refuses(f"{dedented} changed test/helper.py in between")
+
+    def test_the_contract_keeps_the_sections_row_by_its_section_column(self):
+        text = todo_file([(1, "A", 0, "none", "--"), (2, "B", 0, "none", "--")],
+                         table_override="| 1 | §2 | B | -- | [ ] |\n| 2 | §1 | A | §2 | [ ] |")
+        kept = tg.contract_text(text, 1)
+        self.assertIn("| 2 | §1 | A | §2 | [ ] |", kept)
+        self.assertNotIn("| 1 | §2 |", kept)
+        self.assertNotEqual(kept, tg.contract_text(text.replace("| 2 | §1 | A | §2 |", "| 2 | §1 | A | -- |"), 1))
+        self.assertEqual(kept, tg.contract_text(text.replace("| 1 | §2 | B | -- |", "| 1 | §2 | B | §1 |"), 1))
+
+    def test_a_plan_review_after_the_sections_dependency_changed_refuses(self):
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("| 1 | §1 | A | -- |", text)
+        path.write_text(text.replace("| 1 | §1 | A | -- |", "| 1 | §1 | A | §2 |"), encoding="utf-8")
+        edited = self.commit("todo: §1 waits on §2")
+        path.write_text(text, encoding="utf-8")  # put back, so the stamp is not refused for an open prerequisite
+        self.commit("todo: §1 waits on nothing again")
+        self.write_plan(candidate=self.fixture_commit())
+        self.stamp_refuses(f"{edited} changed the section's contract")
+
+    def test_a_contract_edit_on_a_branch_forked_after_started_refuses(self):
+        lane = subprocess.run(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-b", "fork"], check=True)
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace(STARTED, STARTED + "A step the plan review never read.\n\n", 1), encoding="utf-8")
+        edited = self.commit("todo: a step on the fork")
+        path.write_text(text, encoding="utf-8")
+        self.commit("todo: the step taken out on the fork")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", lane], check=True)
+        self.fixture_commit()
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "--no-ff", "fork"], check=True)
+        self.write_plan(candidate=self.head())
+        self.stamp_refuses(f"{edited} changed the section's contract")
+
+    def test_a_receipt_that_drops_its_after_started_evidence_refuses(self):
+        later = self.fixture_commit()
+        path, receipt = self.stamp_after_started(later)
+        for plan in ({k: v for k, v in receipt["plan"].items() if k != "after_started"},
+                     dict(receipt["plan"], after_started=None)):
+            with self.subTest(after_started=plan.get("after_started", "absent")):
+                path.write_text(json.dumps(dict(receipt, plan=plan)), encoding="utf-8")
+                self.refuses(f"receipt plan after_started is missing, but its candidate {later} follows")
+
     def test_a_plan_review_after_a_fallback_start_refuses(self):
         # No Started line: the build start is the first commit naming the section, so nothing after it is quiet.
         path = self.root / "todo/00-workspace/TODO-01-a.md"
@@ -2448,6 +2511,15 @@ class Repository(unittest.TestCase):
         for bad in ("docs/reviews/x.md", "docs/reviews/x.md:", ":complete"):
             with self.subTest(bad=bad), self.assertRaises(tg.Refused):
                 cli.completion_review(bad)
+
+    def test_the_readme_stamp_examples_name_every_required_argument(self):
+        # D00 T01 §28, completion review E1: a documented stamp, filled in, runs without a missing-argument retry.
+        readme = (REPO / "todo/README.md").read_text(encoding="utf-8")
+        examples = [line for line in readme.splitlines() if "todo-graph.py stamp " in line]
+        self.assertEqual(len(examples), 2)
+        for line in examples:
+            for flag in ("--sha ", "--plan ", "--completion ", "--review ", "--check "):
+                self.assertIn(flag, line)
 
     def test_the_repository_graph_validates_and_its_plan_is_current(self):
         # IsItLegit plans its own work with this graph; CI runs the same check.
