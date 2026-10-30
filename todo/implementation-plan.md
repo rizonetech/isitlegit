@@ -91,11 +91,12 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 36 | Checklist items: 195
+Sections: 37 | Checklist items: 199
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [ ]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
+| [ ]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
@@ -330,6 +331,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 78/261 verified sections, 41 ready to run now.
+Progress: 78/262 verified sections, 42 ready to run now.
 
-Checklist: 833/1650 items completed (includes Commit items).
+Checklist: 833/1654 items completed (includes Commit items).

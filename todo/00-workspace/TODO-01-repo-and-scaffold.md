@@ -56,6 +56,7 @@ track: day-0
 | 15 | §15 | Review schedule by section risk | §4 | [x] |
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
+| 18 | §18 | Each round held to the schedule it ran under | §4 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -640,6 +641,26 @@ Filed 2026-10-30 from D00 T01 §15's completion review (Part 2, item 2): the lig
 - [ ] Commit: `docs: light against full review, measured`
 
 **Test checkpoint:** `docs/evals/review-schedules.md` holds the table with time, usage and missed findings for both schedules.
+
+## 18. Each round held to the schedule it ran under
+
+Filed 2026-10-30 from the Glimmer lane's report on D03 T04 §18: the stamp replays every recorded pass against the review schedule in `.conclave/reviewers.toml` at the stamped commit (`schedule_ok` in `scripts/lib/todo_graph.py`), so a section whose rounds ran before a schedule change (round 1 at xhigh until 2026-10-30 00:30 SAST, high after) is refused at a later commit, and one whose rounds straddle the change has no commit to stamp at. The lane stamped at its last reviewed candidate, which works only when every round ran under one schedule.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find the schedule each pass ran under. Done when: each recorded pass maps to the pin at the commit that recorded it.
+2. Replay each pass against its own schedule. Done when: a section whose rounds straddle a schedule change stamps at its tip.
+
+- [ ] Write `pass_schedules(root, report)` in `scripts/lib/todo_graph.py`: for each pass a findings file records, the commit that added it (`git log` on the file, oldest first, matched by its heading) and the `[schedule]` in `.conclave/reviewers.toml` at that commit. Done when: `tests/scripts/test_todo_graph.py` maps each round of a file built across two commits to its commit's pin.
+- [ ] Have `schedule_ok` replay each pass against the schedule it ran under, the position still counted across all rounds, and keep the stamped commit's schedule for the final mode and the receipt. Done when: a section with round 1 under an xhigh pin and round 2 under a high one stamps at its tip, and a round whose recorded effort matches neither its own pin nor the stamped one is refused.
+- [ ] Refuse a pass whose adding commit cannot be found (an uncommitted round), naming it. Done when: a test with an uncommitted round shows the refusal.
+- [ ] Commit: `tools: each round held to the schedule it ran under`
+
+**Test checkpoint:** `python3 -m pytest tests/scripts/test_todo_graph.py` passes, including a section stamped across a schedule change.
 
 ## Verification
 
