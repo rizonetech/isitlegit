@@ -233,13 +233,15 @@ def acquire(root: str, session: str, phase: int | None, run_file: str, cron_id: 
         previous = read_guard(root) or {}
     except GuardError:
         previous = {}
-    lane = graph_lane(root) if not _continues(previous, session, run_file, handover) else None
+    carried = _continues(previous, session, run_file, handover)
+    lane = graph_lane(root) if not carried else None
     with _Lock(root):
-        return _acquire_locked(root, session, phase, run_file, cron_id, handover, generation, scope, lane)
+        return _acquire_locked(root, session, phase, run_file, cron_id, handover, generation, scope, lane, carried)
 
 
 def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, cron_id: str,
-                    handover: str | None, generation: str | None, scope: str | None, lane: str | None) -> str:
+                    handover: str | None, generation: str | None, scope: str | None, lane: str | None,
+                    carried: bool = False) -> str:
     guard, state_path = _paths(root)
     os.makedirs(os.path.dirname(guard), exist_ok=True)
     exists = os.path.exists(guard)
@@ -249,6 +251,9 @@ def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, c
         previous = {}  # a torn or unreadable guard: only an operator handover may replace it (below)
     same_run = previous.get("run_file") == run_file and previous.get("session_id") == session
     continues = _continues(previous, session, run_file, handover)
+    if carried and not continues:
+        # The guard changed between the read before the lock and this one, so no lane was read for this new run.
+        raise GuardError("the guard changed while acquire waited for the lock; run acquire again")
     if phase is None:
         if not (previous.get("session_id") == session and isinstance(previous.get("phase"), int)):
             raise GuardError("acquire needs --phase for a new guard (a re-point of your own guard keeps its phase)")

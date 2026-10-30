@@ -656,6 +656,21 @@ class LanePin(Workspace):
         self.assertNotIn("lane", guard.read_guard(self.root), "a re-point does not invent a lane")
         self.assertNotIn("lane=", guard.whoami(self.root, SESSION))
 
+    def test_a_guard_that_changes_before_the_lock_refuses_a_lane_less_new_run(self):
+        self.lane("checks")
+        self.acquire()
+        before = self.guard_bytes()
+        real = guard._acquire_locked
+
+        def replaced_meanwhile(root, session, *rest):
+            os.unlink(os.path.join(root, "build", "claude-campaign-guard.json"))  # another session ended the run
+            return real(root, session, *rest)
+        with mock.patch.object(guard, "_acquire_locked", replaced_meanwhile), self.assertRaises(guard.GuardError) as ctx:
+            self.acquire(cron_id="job-2")
+        self.assertIn("the guard changed while acquire waited", str(ctx.exception))
+        self.assertIsNone(guard.read_guard(self.root), "nothing was written for the lane-less run")
+        self.assertTrue(before)
+
     def test_only_a_graph_without_the_query_records_no_lane(self):
         self.acquire()
         self.assertNotIn("lane", guard.read_guard(self.root))
