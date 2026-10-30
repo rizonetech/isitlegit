@@ -51,6 +51,7 @@ track: day-1
 | 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
 | 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
+| 16 | §16 | Original's subject and sender stored on the case | -- | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -507,6 +508,25 @@ A forward near Email Routing's 25 MiB limit must finish on the deployed Worker a
 - [ ] Commit: `intake: a second inbound route, so the zone can leave Cloudflare`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/inbound-http.test.ts` passes, and `python3 -m pytest tests/scripts/test_check_domain.py` passes.
+
+## 16. Original's subject and sender stored on the case
+
+Filed 2026-10-30 at the app lane's request, through the coordinator: the report header (design spec M3; the app lane's D07 T03 §9, "Report header") shows the checked message's subject and its sender, so the case carries them from intake. They come from the original the case was opened for (the attached message of a forward, or an uploaded `.eml` or `.msg`), never the forward around it: a forward's own subject and From are the member's.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Store the fields when the original is parsed. Done when: a case from a forward, an uploaded `.eml` and an uploaded `.msg` each carries the original's subject and From, and a document, image or audio upload carries nulls.
+
+- [ ] Add the columns to `cases` (`original_subject`, `original_from_name`, `original_from_address`) in `src/db/migrations/0038_case_original_header.sql` (0038 reserved by the coordinator, 2026-10-30). Done when: the migration applies locally and the columns read null for existing cases.
+- [ ] Write them in the Workflow's `parse` step (`parse` in `src/pipeline/analysis-workflow.ts`), from the parsed original: the subject decoded (RFC 2047) and made one line, at most 300 characters; the From's display name decoded and bounded likewise, and its address only when it is one valid mailbox (`mailbox` in `src/checks/sender.ts`), else null; a write repeated by a retried step leaves the same values. Done when: `test/pipeline/analysis-workflow.test.ts` reads them back for an attached forward, an uploaded `.eml` and an uploaded `.msg`, nulls for a document upload and for an inline forward's original without headers, a bounded value for an oversized subject, and an encoded-word subject decoded.
+- [ ] Read them through the case accessor the report uses (`src/db/cases.ts`). Done when: `test/db/cases.test.ts` reads the three fields from a stored case, and an organisation never reads another's.
+- [ ] Commit: `intake: the original's subject and sender stored on the case`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts test/db/cases.test.ts` passes.
 
 ## Verification
 

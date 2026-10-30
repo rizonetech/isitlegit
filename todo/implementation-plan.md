@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 40 | Checklist items: 234
+Sections: 41 | Checklist items: 238
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -101,6 +101,7 @@ Sections: 40 | Checklist items: 234
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
 | [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
+| [ ]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -336,6 +337,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 89/267 verified sections, 46 ready to run now.
+Progress: 89/268 verified sections, 47 ready to run now.
 
-Checklist: 906/1712 items completed (includes Commit items).
+Checklist: 906/1716 items completed (includes Commit items).
