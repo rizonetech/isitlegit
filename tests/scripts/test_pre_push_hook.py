@@ -46,6 +46,18 @@ exit 0
 """
 
 
+class TrackedHooks(unittest.TestCase):
+    """git skips a hook that is not executable with only a hint, so a hook committed without its mode bit stops
+    guarding every worktree silently (D00 T01 §21: an atomic rewrite of pre-push dropped it in 0374ad7)."""
+
+    def test_every_hook_is_tracked_as_executable(self):
+        listed = subprocess.run(["git", "-C", str(REPO), "ls-files", "-s", "scripts/hooks"], capture_output=True,
+                                text=True, check=True).stdout.splitlines()
+        modes = {line.split("\t", 1)[1]: line.split()[0] for line in listed}
+        self.assertIn("scripts/hooks/pre-push", modes)
+        self.assertEqual({path: mode for path, mode in modes.items() if mode != "100755"}, {})
+
+
 @unittest.skipUnless(shutil.which("git") and shutil.which("sh"), "needs git and a shell")
 class PrePushHook(unittest.TestCase):
     def setUp(self):
