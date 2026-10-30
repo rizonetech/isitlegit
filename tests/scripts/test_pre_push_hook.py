@@ -9,10 +9,16 @@ import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 HOOK = "scripts/hooks/pre-push"
-# A pnpm that records each command and the folder it ran in, and fails the one named in PNPM_FAIL.
+# A pnpm that records each command and the folder it ran in, and fails the one named in PNPM_FAIL, after PNPM_NOISE
+# warning lines. With PUSH_ERR (the push's stderr, a file), it also records whether the hook had already announced it.
 FAKE_PNPM = """#!/bin/sh
 echo "$1 $(pwd)" >> "$PNPM_LOG"
+if [ -n "$PUSH_ERR" ]; then
+    grep -c "running pnpm $1" "$PUSH_ERR" >> "$PNPM_LOG.announced"
+fi
 if [ "$1" = "$PNPM_FAIL" ]; then
+    i=0
+    while [ "$i" -lt "${PNPM_NOISE:-0}" ]; do echo "warning: preliminary line $i"; i=$((i + 1)); done
     echo "src/x.ts(3,7): error TS2339: the $1 failure"
     exit 2
 fi
@@ -80,6 +86,46 @@ class PrePushHook(unittest.TestCase):
         self.assertEqual([c.split()[0] for c in self.calls()], ["typecheck", "lint"])
         self.assertEqual(self.remote_main(), sha)
 
+    def test_each_check_is_announced_before_it_runs_and_reported_when_it_passes(self):
+        self.commit()
+        err = pathlib.Path(self.tmp) / "push.err"
+        with err.open("w") as sink:
+            done = subprocess.run(["git", "push", "origin", "main"], cwd=self.root, stdout=subprocess.DEVNULL,
+                                  stderr=sink, env=self.env(PUSH_ERR=str(err)), timeout=60)
+        text = err.read_text(encoding="utf-8")
+        self.assertEqual(done.returncode, 0, text)
+        self.assertEqual(pathlib.Path(f"{self.log}.announced").read_text().split(), ["1", "1"],
+                         "each check was announced before it began")
+        order = [text.index(line) for line in ("running pnpm typecheck", "pnpm typecheck passed", "running pnpm lint",
+                                               "pnpm lint passed")]
+        self.assertEqual(order, sorted(order))
+
+    def test_the_error_is_shown_even_after_many_warning_lines(self):
+        self.commit()
+        done = self.git("push", "origin", "main", env={"PNPM_FAIL": "typecheck", "PNPM_NOISE": "25"}, check=False)
+        self.refused(done, "error TS2339: the typecheck failure")
+        self.assertNotIn("preliminary line", done.stderr)
+
+    def test_a_status_that_cannot_be_read_is_refused_with_no_check(self):
+        before = self.remote_main()
+        self.commit()
+        (self.root / ".git" / "index").write_bytes(b"not an index")
+        done = self.push()
+        self.refused(done, "git status failed")
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(self.remote_main(), before)
+
+    def test_the_escape_is_gits_own_no_verify_and_nothing_the_hook_reads(self):
+        # The repository's rules forbid skipping hooks; this proves, in a scratch clone, that the only way past the hook
+        # is git's documented option, so no variable can quietly turn the check off.
+        sha = self.commit()
+        for name in ("SKIP", "SKIP_PRE_PUSH", "NO_VERIFY", "HUSKY"):
+            done = self.git("push", "origin", "main", env={"PNPM_FAIL": "typecheck", name: "1"}, check=False)
+            self.refused(done, "'pnpm typecheck' failed")
+        done = self.git("push", "--no-verify", "origin", "main", env={"PNPM_FAIL": "typecheck"}, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.remote_main(), sha)
+
     def test_a_type_error_is_refused_with_its_first_lines_and_the_remote_unchanged(self):
         before = self.remote_main()
         self.commit()
@@ -99,6 +145,7 @@ class PrePushHook(unittest.TestCase):
         self.assertEqual(self.remote_main(), before)
 
     def test_a_missing_pnpm_or_node_modules_refuses_naming_what_to_install(self):
+        before = self.remote_main()
         self.commit()
         (self.bin / "pnpm").unlink()
         done = self.git("push", "origin", "main", env={"PATH": "/usr/bin:/bin"}, check=False)
@@ -107,6 +154,7 @@ class PrePushHook(unittest.TestCase):
         (self.bin / "pnpm").chmod(0o755)
         shutil.rmtree(self.root / "node_modules")
         self.refused(self.push(), "node_modules is missing")
+        self.assertEqual(self.remote_main(), before)
 
     def test_a_tree_that_differs_from_head_is_refused_naming_its_files(self):
         before = self.remote_main()
@@ -128,6 +176,7 @@ class PrePushHook(unittest.TestCase):
         self.assertEqual(self.calls(), [], "no check runs on a tree it cannot judge")
 
     def test_another_branchs_tip_or_a_second_ref_is_refused(self):
+        before = self.remote_main()
         self.git("checkout", "-qb", "lane")
         lane = self.commit("lane.txt")
         self.git("checkout", "-q", "main")
@@ -139,6 +188,7 @@ class PrePushHook(unittest.TestCase):
         lanes = subprocess.run(["git", "--git-dir", str(self.remote), "branch", "--list", "lane"], capture_output=True,
                                text=True).stdout
         self.assertEqual(lanes, "", "nothing of either ref reached the remote")
+        self.assertEqual(self.remote_main(), before)
 
     def test_a_deletion_or_an_empty_push_passes_without_any_check_and_a_mixed_one_is_checked(self):
         self.git("checkout", "-qb", "old")
@@ -155,10 +205,15 @@ class PrePushHook(unittest.TestCase):
         self.git("checkout", "-qb", "gone")
         self.git("push", "-q", "origin", "gone", env={"PNPM_FAIL": ""})
         self.git("checkout", "-q", "main")
+        before = self.remote_main()
         self.commit("d.txt")
         self.log.unlink(missing_ok=True)
         done = self.push("main", ":gone", fail="typecheck")
         self.refused(done, "'pnpm typecheck' failed")
+        self.assertEqual(self.remote_main(), before)
+        gone = subprocess.run(["git", "--git-dir", str(self.remote), "branch", "--list", "gone"], capture_output=True,
+                              text=True).stdout
+        self.assertIn("gone", gone, "the deletion did not go through either")
 
     def test_a_linked_worktree_is_checked_in_its_own_folder(self):
         other = pathlib.Path(self.tmp) / "other"

@@ -26,7 +26,12 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 [ "$updates" -gt 0 ] || exit 0
 
-changed=$(git status --porcelain --untracked-files=normal)
+# A status that cannot be read (a damaged index, a lock) is not a clean tree: the push waits until it can be.
+if ! changed=$(git status --porcelain --untracked-files=normal); then
+    echo "pre-push: git status failed, so whether the tree is the commit pushed is not known; fix the repository" \
+        "(git status shows why) and push again" >&2
+    exit 1
+fi
 if [ -n "$changed" ]; then
     echo "pre-push: the working tree differs from HEAD, so the type check would judge files the push does not send;" \
         "commit or stash these first:" >&2
@@ -43,13 +48,21 @@ if [ ! -d node_modules ]; then
     exit 1
 fi
 for check in typecheck lint; do
+    echo "pre-push: running pnpm $check" >&2
     out=$(pnpm "$check" 2>&1)
     status=$?
     if [ "$status" -ne 0 ]; then
-        echo "pre-push: 'pnpm $check' failed (exit $status), so nothing was pushed; its first lines:" >&2
-        printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | head -20 >&2
+        # The errors first, wherever they fall in the output (warnings can fill the first lines), then its opening.
+        echo "pre-push: 'pnpm $check' failed (exit $status), so nothing was pushed; its errors:" >&2
+        errors=$(printf '%s\n' "$out" | grep -iE 'error|✖|×|failed' | head -20)
+        if [ -n "$errors" ]; then
+            printf '%s\n' "$errors" >&2
+        else
+            printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | head -20 >&2
+        fi
         echo "pre-push: fix it and push again; 'pnpm $check' shows the whole output" >&2
         exit 1
     fi
+    echo "pre-push: pnpm $check passed" >&2
 done
 exit 0
