@@ -1767,7 +1767,9 @@ if (import.meta.filename === process.argv[1]) {
       unfinished: receipt.unfinished.length,
       missing_pages: receipt.missing_pages.length,
     };
-    console.log(JSON.stringify(short));
+    // Written out before the exit: a summary over 64 KB (thousands of distinct exclusion reasons) piped to another
+    // program is otherwise cut off when the process exits with the write still queued.
+    await new Promise((resolve) => process.stdout.write(`${JSON.stringify(short)}\n`, resolve));
     // Complete only when every listed URL has its terminal outcome and every stored one its page.
     process.exit(receipt.unfinished.length || receipt.missing_pages.length ? 1 : 0);
   }

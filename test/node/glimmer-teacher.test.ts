@@ -692,6 +692,52 @@ describe("the teacher's accounting and coverage", () => {
     expect(clock.guard()).toBe(next);
   });
 
+  it("lets the lure types take turns within each region, so a short run still holds every type (§10)", () => {
+    const page = (id: string, lure: boolean, type: string, sa = false) =>
+      ({
+        id,
+        south_africa: sa,
+        labels: { lure, lure_type: type },
+        label_source: { lure: "ground-truth" },
+      }) as unknown as StoredPage;
+    const pool = [
+      ...Array.from({ length: 50 }, (_, i) => page(`imp-${i}`, true, "impersonation")),
+      ...Array.from({ length: 30 }, (_, i) => page(`ben-${i}`, false, "none")),
+      page("pay-0", true, "payment"),
+      page("shop-0", true, "fake_shop"),
+      page("sa-0", false, "none", true),
+    ];
+    const order = candidates(pool, new Set());
+    expect(order[0]?.id).toBe("sa-0");
+    // Four types outside South Africa: the first four after it are one of each, rare types included.
+    expect(new Set(order.slice(1, 5).map((p) => p.labels.lure_type))).toEqual(
+      new Set(["impersonation", "none", "payment", "fake_shop"]),
+    );
+    expect(order).toHaveLength(pool.length);
+  });
+
+  it("checks only frozen pages once the collection is frozen (§10)", async () => {
+    const kept = await stored(1, true);
+    await stored(3, true);
+    mkdirSync(join(dir, "store", "raw"), { recursive: true });
+    writeFileSync(join(dir, "store", "raw", "FROZEN.json"), JSON.stringify({ pages: [kept] }));
+    const asked: string[] = [];
+    await teach({
+      store: openStore(join(dir, "store")),
+      ask: answering(
+        () => answer(true),
+        0.004,
+        () => asked.push("x"),
+      ),
+      ledgerFile: join(dir, "ledger", "meta-spend.json"),
+      run: "teacher-frozen",
+      max: 5,
+      now: NOW,
+    });
+    expect(asked).toHaveLength(1);
+    expect(statusOf(kept)).toBe("agreed");
+  });
+
   it("orders candidates South African first, then by a seeded shuffle rather than by id", () => {
     const page = (id: string, sa: boolean) =>
       ({

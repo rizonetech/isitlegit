@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shutil
 import socketserver
 import subprocess
 import tempfile
@@ -13,6 +14,14 @@ import unittest
 import urllib.request
 from pathlib import Path
 from unittest import mock
+
+def scratch(case, prefix="tmp"):
+    """A temporary folder removed when the test ends, passed or not: the bench writes 40 to 100 MB a run, and folders
+    left behind piled up gigabytes in /tmp, which on this host is memory."""
+    folder = Path(tempfile.mkdtemp(prefix=prefix))
+    case.addCleanup(shutil.rmtree, folder, True)
+    return folder
+
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "glimmer" / "fetch_bench.py"
 spec = importlib.util.spec_from_file_location("fetch_bench", SCRIPT)
@@ -26,7 +35,7 @@ class Harness(unittest.TestCase):
         self.assertEqual(len(bench.payload(100_000)), 100_000)
 
     def test_a_small_run_records_fetch_py_recovering_intact(self):
-        out = Path(tempfile.mkdtemp(prefix="bench-")) / "bench.json"
+        out = scratch(self, prefix="bench-") / "bench.json"
         # Without aria2c the harness measures fetch.py alone and says so; with it, every tool.
         with mock.patch.object(bench, "aria2c", return_value=None), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
             # The figures are written, and the exit says the bar was not met (aria2c not measured, one run).
@@ -92,7 +101,7 @@ class Harness(unittest.TestCase):
                 raise KeyboardInterrupt
             return real_wait(process, *args, **kwargs)
 
-        folder = Path(tempfile.mkdtemp())
+        folder = scratch(self)
         with mock.patch.object(subprocess.Popen, "wait", interrupted), self.assertRaises(KeyboardInterrupt):
             bench.run_bounded(["sh", "-c", "sleep 30 & sleep 30"], folder, deadline=60)
         # The tool's own process group is gone: nothing of it is left running.
@@ -112,14 +121,14 @@ class Harness(unittest.TestCase):
             self.skipTest("aria2c is not installed here")
         body = bench.payload(40 * 1024 * 1024)
         sha = hashlib.sha256(body).hexdigest()
-        folder = Path(tempfile.mkdtemp(prefix="bench-tls-"))
+        folder = scratch(self, prefix="bench-tls-")
         tls = bench.make_certificate(folder)
         # Slow enough that the kill (a quarter in, about 1.3 seconds) comes after aria2c's first save (each second).
         server = bench.Bench(body, 2 * 1024 * 1024, tls=tls)
         server.dropped = True
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(lambda: (server.shutdown(), server.server_close()))
-        work = Path(tempfile.mkdtemp(prefix="bench-work-"))
+        work = scratch(self, prefix="bench-work-")
         (work / "src").mkdir()
         command = bench.tools([f"https://127.0.0.1:{server.server_address[1]}/x"], sha, work, ca=tls[0])["aria2c (four connections)"]
         run = bench.killed_and_resumed(command, work, server, len(body) // 4, 120)
@@ -143,7 +152,7 @@ class Harness(unittest.TestCase):
         return server
 
     def test_a_tool_that_never_saves_is_a_failed_measurement_with_no_second_run(self):
-        work = Path(tempfile.mkdtemp(prefix="bench-unsaved-"))
+        work = scratch(self, prefix="bench-unsaved-")
         server = self.held_server()
         started = []
         with mock.patch.object(bench, "tool_saved", return_value=False), \
@@ -154,7 +163,7 @@ class Harness(unittest.TestCase):
         self.assertEqual(started, [], "no second run")
 
     def test_connections_that_never_close_are_a_failed_measurement_with_no_second_run(self):
-        work = Path(tempfile.mkdtemp(prefix="bench-open-"))
+        work = scratch(self, prefix="bench-open-")
         server = self.held_server(open_connections=1)
         started = []
         with mock.patch.object(bench, "tool_saved", return_value=True), \
@@ -165,7 +174,7 @@ class Harness(unittest.TestCase):
         self.assertEqual(started, [], "no second run")
 
     def test_the_kill_waits_for_the_save_and_the_second_run_for_the_close(self):
-        work = Path(tempfile.mkdtemp(prefix="bench-late-"))
+        work = scratch(self, prefix="bench-late-")
         server = self.held_server(open_connections=1)
         answers = iter([False, False, True])
         order = []
@@ -198,7 +207,7 @@ class Harness(unittest.TestCase):
         self.assertIsNone(run["failed"])
 
     def test_a_range_saved_short_of_what_it_was_sent_is_not_saved(self):
-        work = Path(tempfile.mkdtemp(prefix="bench-ranges-"))
+        work = scratch(self, prefix="bench-ranges-")
         state = work / "src" / ".partial" / "data.bin.state.json"
         state.parent.mkdir(parents=True)
         mib = 1 << 20
@@ -216,7 +225,7 @@ class Harness(unittest.TestCase):
         self.assertFalse(bench.tool_saved(work, 0, {}))
 
     def test_aria2c_counts_as_saved_only_on_a_control_file_written_since_the_hold(self):
-        work = Path(tempfile.mkdtemp(prefix="bench-aria2c-"))
+        work = scratch(self, prefix="bench-aria2c-")
         (work / "src").mkdir()
         control = work / "src" / "data.bin.aria2"
         control.write_bytes(b"\0")
@@ -227,7 +236,7 @@ class Harness(unittest.TestCase):
 
     def test_a_tool_past_its_deadline_is_ended_with_its_process_group(self):
         started = time.monotonic()
-        code = bench.run_bounded(["sh", "-c", "sleep 30 & sleep 30"], Path(tempfile.mkdtemp()), deadline=0.5)
+        code = bench.run_bounded(["sh", "-c", "sleep 30 & sleep 30"], scratch(self), deadline=0.5)
         self.assertIsNone(code)
         self.assertLess(time.monotonic() - started, 5)
 
@@ -283,7 +292,7 @@ class Harness(unittest.TestCase):
 
     def test_https_is_verified_and_every_request_waits(self):
         # The run's certificate is trusted only through each tool's own option: without it, the fetch is refused.
-        folder = Path(tempfile.mkdtemp(prefix="bench-tls-"))
+        folder = scratch(self, prefix="bench-tls-")
         tls = bench.make_certificate(folder)
         body = bench.payload(2 * 1024 * 1024)
         sha = hashlib.sha256(body).hexdigest()
@@ -293,7 +302,7 @@ class Harness(unittest.TestCase):
                 server.dropped = True  # no cut here: this test is about trust and latency
                 threading.Thread(target=server.serve_forever, daemon=True).start()
                 self.addCleanup(lambda s=server: (s.shutdown(), s.server_close()))
-                work = Path(tempfile.mkdtemp(prefix="bench-work-"))
+                work = scratch(self, prefix="bench-work-")
                 (work / "src").mkdir()
                 url = f"https://127.0.0.1:{server.server_address[1]}/x"
                 with mock.patch.object(bench, "aria2c", return_value=None):
@@ -315,7 +324,7 @@ class Harness(unittest.TestCase):
             server.dropped = True
             threading.Thread(target=server.serve_forever, daemon=True).start()
             self.addCleanup(lambda: (server.shutdown(), server.server_close()))
-            work = Path(tempfile.mkdtemp(prefix="bench-work-"))
+            work = scratch(self, prefix="bench-work-")
             (work / "src").mkdir()
             command = bench.tools([f"https://127.0.0.1:{server.server_address[1]}/x"], sha, work)["aria2c (four connections)"]
             self.assertNotEqual(subprocess.run(command, cwd=work, capture_output=True, check=False).returncode, 0)
@@ -405,7 +414,7 @@ class Harness(unittest.TestCase):
         self.assertFalse(bench.both_hosts_busy([[], [(101.0, 105.0, 0, 1000)]], launched)[0])  # one host served nothing
 
     def run_two_sources(self, name):
-        folder = Path(tempfile.mkdtemp(prefix="bench-tls-"))
+        folder = scratch(self, prefix="bench-tls-")
         tls = bench.make_certificate(folder)
         body = bench.payload(8 * 1024 * 1024)
         spec = {"size": len(body), "servers": (False, False), "interrupt": None, "tools": bench.FOUR, "hosts": True}

@@ -323,7 +323,7 @@ export function candidates(
   seed = "glimmer-teacher",
   excluded: Map<string, string> = new Map(),
 ): StoredPage[] {
-  return pages
+  const ordered = pages
     .filter(
       (p) =>
         TRUSTED.has(p.label_source.lure ?? "") &&
@@ -334,6 +334,21 @@ export function candidates(
     .map((page) => ({ page, order: seededOrder(page.id, seed) }))
     .sort((a, b) => Number(b.page.south_africa) - Number(a.page.south_africa) || a.order.localeCompare(b.order))
     .map(({ page }) => page);
+  // Within each region, the lure types take turns (§10, plan review finding 1): a run the cap ends early still holds
+  // every type evaluation needs, rare ones (payment, fake shops) included, instead of the commonest type alone.
+  const interleave = (region: StoredPage[]) => {
+    const byType = new Map<string, StoredPage[]>();
+    for (const page of region) {
+      const type = page.labels.lure ? (page.labels.lure_type ?? "unknown") : "none";
+      byType.set(type, [...(byType.get(type) ?? []), page]);
+    }
+    const queues = [...byType.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, queue]) => queue);
+    const out: StoredPage[] = [];
+    for (let i = 0; out.length < region.length; i++)
+      for (const queue of queues) if (queue[i]) out.push(queue[i] as StoredPage);
+    return out;
+  };
+  return [...interleave(ordered.filter((p) => p.south_africa)), ...interleave(ordered.filter((p) => !p.south_africa))];
 }
 
 export type TeacherResult = {
@@ -404,7 +419,12 @@ export async function teach(options: {
     recovered: 0,
     damaged: [],
   };
-  const pages = store.manifest({ tolerant: true });
+  // Once the collection is frozen (§18), only its pages can enter the version, so only they are worth a check (§10).
+  const frozenFile = join(store.dir, "raw", "FROZEN.json");
+  const frozen = existsSync(frozenFile)
+    ? new Set((JSON.parse(readFileSync(frozenFile, "utf-8")) as { pages: string[] }).pages)
+    : null;
+  const pages = store.manifest({ tolerant: true }).filter((page) => !frozen || frozen.has(page.id));
   const byId = new Map(pages.map((page) => [page.id, page]));
   // A stopped run's pages first: an answer already kept is applied without another call, and an attempt that was out
   // when the run stopped is failed, its spend left uncertain in the ledger, never sent twice.

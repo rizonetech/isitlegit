@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 27 | Checklist items: 360
+Sections: 27 | Checklist items: 371
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -29,12 +29,12 @@ Sections: 27 | Checklist items: 360
 | [x]    | D03 T04 §7  | Redacted sample mail converted to pages    | none                 | 28    |
 | [x]    | D03 T04 §8  | Synthetic South African lures              | meta-api             | 10    |
 | [x]    | D03 T04 §9  | Spark teacher labels and human check       | meta-api             | 18    |
-| [ ]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
-| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 13    |
+| [x]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
+| [x]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
+| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 16    |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 18    |
 | [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
@@ -277,7 +277,7 @@ Sections: 61 | Checklist items: 257
 
 ### Phase 7: After the event
 
-Sections: 27 | Checklist items: 156
+Sections: 27 | Checklist items: 162
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -298,7 +298,7 @@ Sections: 27 | Checklist items: 156
 | [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 7     |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none     | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api | 7     |
-| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none     | 4     |
+| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none     | 10    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none     | 7     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
@@ -331,6 +331,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 79/262 verified sections, 41 ready to run now.
+Progress: 81/262 verified sections, 43 ready to run now.
 
-Checklist: 834/1654 items completed (includes Commit items).
+Checklist: 845/1671 items completed (includes Commit items).
