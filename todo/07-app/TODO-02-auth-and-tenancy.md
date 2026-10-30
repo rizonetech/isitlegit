@@ -389,7 +389,7 @@ Evidence 2026-10-29: `src/auth/confirm.tsx` (the routes) and `src/auth/confirm-p
 A sign-in link signs in whichever browser opens it, so a member who asked on a laptop and reads the mail on a phone ends up signed in on the phone (D07 T02 §10 completion review, 2026-10-29: Okta's email authenticator offers a code to type into the browser that asked). Whether IsItLegit offers a code beside the link, and how it looks, is a design decision for the operator, then built here.
 
 **Phase:** 2
-**Needs:** operator
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A1 Sign in (a code state is not drawn yet)
 **Job:** a member who asked for a sign-in link on one device and opened the mail on another finishes signing in where they asked.
@@ -398,12 +398,16 @@ A sign-in link signs in whichever browser opens it, so a member who asked on a l
 
 **Operator decision (open):** offer a one-time code in the sign-in mail beside the link, or keep the link alone. Recording `Code sign-in: <yes|no> (YYYY-MM-DD)` here releases the section.
 
+Code sign-in: yes (2026-10-30)
+
+**Operator decision (2026-10-30 14:58 SAST):** yes, a 6-digit code in the sign-in mail beside the link (asked by the coordinator in operator batch 1, `docs/coordinator.md`); `operator` removed from Needs (was `operator`).
+
 **Build order:**
 
 1. Decide and record. Done when: the `Code sign-in:` line is recorded.
 2. If yes, sign in by code in the browser that asked. Done when: a code typed into the asking browser signs it in once, within the link's lifetime, and a guessed code is locked out.
 
-- [ ] Record the operator's decision. Done when: the `Code sign-in:` line is recorded.
+- [x] Record the operator's decision. Done when: the `Code sign-in:` line is recorded. Done 2026-10-30: `Code sign-in: yes (2026-10-30)`.
 - [ ] If yes: mail a 6-digit code with the link (one per link, stored hashed, the link's 15 minutes), show a code field on the "check your inbox" state, and sign in the browser that submits it, three wrong codes ending that code. Done when: `test/auth/sign-in-code.test.ts` signs in by code once, refuses a used, expired or guessed code, and locks the code after three wrong tries.
 - [ ] Commit: `auth: sign in by code on another device`
 

@@ -11,10 +11,30 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 HOOK = "scripts/hooks/pre-push"
 # A pnpm that records each command and the folder it ran in, and fails the one named in PNPM_FAIL, after PNPM_NOISE
 # warning lines. With PUSH_ERR (the push's stderr, a file), it also records whether the hook had already announced it.
+# A failing lint with PNPM_BIOME set prints Biome-like warning blocks (whose words a word search matches) before its
+# one error; its error-level rerun (`lint --diagnostic-level=error`) then does what PNPM_ERRLEVEL says: `errors`
+# prints only the error and exits 1, `pass` exits 0 silently, `launch` fails to start (exit 127, a shell's message).
 FAKE_PNPM = """#!/bin/sh
-echo "$1 $(pwd)" >> "$PNPM_LOG"
-if [ -n "$PUSH_ERR" ]; then
+echo "$1 $(pwd)${2:+ $2}" >> "$PNPM_LOG"
+if [ -n "$PUSH_ERR" ] && [ -z "$2" ]; then
     grep -c "running pnpm $1" "$PUSH_ERR" >> "$PNPM_LOG.announced"
+fi
+if [ "$1" = lint ] && [ "$2" = "--diagnostic-level=error" ] && [ -n "$PNPM_ERRLEVEL" ]; then
+    case "$PNPM_ERRLEVEL" in
+        errors) echo "test/a.test.ts format ━━━━━━━━━━"; echo "  × Formatter would have printed the following content"
+                exit 1 ;;
+        pass) exit 0 ;;
+        launch) echo "sh: 1: biome: not found" >&2; exit 127 ;;
+    esac
+fi
+if [ "$1" = lint ] && [ "$1" = "$PNPM_FAIL" ] && [ -n "$PNPM_BIOME" ]; then
+    echo "scripts/glimmer/source-pages.ts:9:3 lint/complexity/noCommaOperator ━━━━━━━━━━"
+    echo "  ! The comma operator is disallowed: an error-prone pattern that failed review."
+    echo "  × Warning block one, whose words match a search for error."
+    echo "test/a.test.ts format ━━━━━━━━━━"
+    echo "  × Formatter would have printed the following content"
+    echo "Checked 266 files. Found 1 error. Found 13 warnings."
+    exit 1
 fi
 if [ "$1" = "$PNPM_FAIL" ]; then
     i=0
@@ -24,6 +44,18 @@ if [ "$1" = "$PNPM_FAIL" ]; then
 fi
 exit 0
 """
+
+
+class TrackedHooks(unittest.TestCase):
+    """git skips a hook that is not executable with only a hint, so a hook committed without its mode bit stops
+    guarding every worktree silently (D00 T01 §21: an atomic rewrite of pre-push dropped it in 0374ad7)."""
+
+    def test_every_hook_is_tracked_as_executable(self):
+        listed = subprocess.run(["git", "-C", str(REPO), "ls-files", "-s", "scripts/hooks"], capture_output=True,
+                                text=True, check=True).stdout.splitlines()
+        modes = {line.split("\t", 1)[1]: line.split()[0] for line in listed}
+        self.assertIn("scripts/hooks/pre-push", modes)
+        self.assertEqual({path: mode for path, mode in modes.items() if mode != "100755"}, {})
 
 
 @unittest.skipUnless(shutil.which("git") and shutil.which("sh"), "needs git and a shell")
@@ -141,8 +173,44 @@ class PrePushHook(unittest.TestCase):
         self.refused(done, "'pnpm lint' failed")
         self.assertIn("the lint failure", done.stderr)
         self.assertIn("'pnpm lint' shows the whole output", done.stderr)
-        self.assertEqual([c.split()[0] for c in self.calls()], ["typecheck", "lint"])
+        self.assertEqual([c.split()[0] for c in self.calls()], ["typecheck", "lint", "lint"])
+        self.assertTrue(self.calls()[2].endswith(" --diagnostic-level=error"), "the excerpt asks Biome for errors")
         self.assertEqual(self.remote_main(), before)
+
+    def lint(self, errlevel):
+        self.commit(name=f"{errlevel}.txt")
+        return self.git("push", "origin", "main", env={"PNPM_FAIL": "lint", "PNPM_BIOME": "1",
+                                                      "PNPM_ERRLEVEL": errlevel}, check=False)
+
+    def test_a_lint_excerpt_shows_biomes_errors_and_none_of_its_warnings(self):
+        before = self.remote_main()
+        done = self.lint("errors")
+        self.refused(done, "'pnpm lint' failed (exit 1)")
+        excerpt = done.stderr.split("its errors:", 1)[1]
+        self.assertIn("Formatter would have printed", excerpt)
+        self.assertNotIn("noCommaOperator", excerpt)
+        self.assertNotIn("Warning block one", excerpt)
+        self.assertEqual(self.remote_main(), before)
+
+    def test_an_error_level_run_that_names_no_error_falls_back_to_the_opening_lines(self):
+        for errlevel in ("pass", "launch"):
+            with self.subTest(errlevel):
+                before = self.remote_main()
+                done = self.lint(errlevel)
+                self.refused(done, "'pnpm lint' failed (exit 1)")
+                self.assertIn("Biome's error-level run named no errors; the lint's opening lines:", done.stderr)
+                self.assertIn("noCommaOperator", done.stderr, "the first run's opening lines")
+                self.assertNotIn("biome: not found", done.stderr, "a launch failure is not the lint's errors")
+                self.assertEqual(self.remote_main(), before, "refused on the first run's status")
+
+    def test_a_typecheck_failure_without_a_ts_code_shows_its_opening_lines(self):
+        self.commit()
+        (self.bin / "pnpm").write_text(FAKE_PNPM.replace(
+            'echo "src/x.ts(3,7): error TS2339: the $1 failure"',
+            'echo "✘ [ERROR] worker-configuration.d.ts is out of date: run wrangler types"'), encoding="utf-8")
+        done = self.push(fail="typecheck")
+        self.refused(done, "'pnpm typecheck' failed (exit 2)")
+        self.assertIn("worker-configuration.d.ts is out of date", done.stderr)
 
     def test_a_missing_pnpm_or_node_modules_refuses_naming_what_to_install(self):
         before = self.remote_main()
