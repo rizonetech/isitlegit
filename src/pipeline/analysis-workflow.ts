@@ -1,6 +1,7 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
+import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { runChecks } from "../checks/runner";
@@ -187,7 +188,10 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     try {
       const key = await timed("parse", () => parse(store, caseId, { channel, sourceKind, headersAvailable }));
       current = "checks";
-      await timed("checks", () => checks(store, caseId, key, { orgId, channel }));
+      // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
+      await timed("checks", async () =>
+        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env)),
+      );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
       current = "store";
@@ -339,11 +343,17 @@ export async function checks(
   key: string,
   tenant: Omit<Tenant, "receivers">,
   lookup: LookupMx = lookupMx,
+  brands: BrandTable = bundled,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
-  const view = caseViewOf(JSON.parse(new TextDecoder().decode(summary.body)), { ...tenant, receivers }, rawKey(caseId));
+  const view = caseViewOf(
+    JSON.parse(new TextDecoder().decode(summary.body)),
+    { ...tenant, receivers },
+    rawKey(caseId),
+    brands,
+  );
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };
 }

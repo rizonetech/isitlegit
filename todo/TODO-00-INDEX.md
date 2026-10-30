@@ -14,6 +14,7 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 | `07-app` | Auth and tenancy, report page, dashboards, admin console, marketing site |
 | `08-eval` | Eval datasets, runner, metrics, results |
 | `09-launch` | README, CONTRIBUTIONS, demo video, submission |
+| `10-media` | Promo and explainer videos for YouTube (Remotion in `media/`), the uncoordinated media lane |
 | `99-manual` | Operator-only work: accounts, keys, DNS, consents |
 
 ## Active TODOs

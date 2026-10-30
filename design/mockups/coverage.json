@@ -716,6 +716,12 @@
     "evidence": "Sign in with a passkey"
    },
    {
+    "name": "sign-in code",
+    "kind": "control",
+    "deferred": "D07 T02 §11",
+    "reason": "built from A1's controls, not drawn: the code field and Sign in on the check your inbox state"
+   },
+   {
     "name": "check your inbox",
     "kind": "state",
     "board": "Signin-States",
@@ -738,6 +744,12 @@
     "kind": "state",
     "board": "Signin-States",
     "evidence": "Confirm it is you"
+   },
+   {
+    "name": "code refused",
+    "kind": "state",
+    "deferred": "D07 T02 §11",
+    "reason": "built from A1's controls, not drawn: the refusal on the code field, with Send another link"
    },
    {
     "name": "loading",
@@ -2092,6 +2104,12 @@
     "kind": "control",
     "board": "Email-Signin",
     "evidence": "Sign in to IsItLegit"
+   },
+   {
+    "name": "sign-in code",
+    "kind": "control",
+    "deferred": "D07 T02 §11",
+    "reason": "built from N2's text, not drawn: the 6-digit code beside the link"
    },
    {
     "name": "loading",

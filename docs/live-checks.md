@@ -65,6 +65,15 @@ The topmost Authentication-Results header Email Routing added to that case's sto
 
 Raw-store fault, 2026-10-29 (D01 T01 §9): with `INTAKE_FAULT_SENDER` naming the test sender, a forward at 02:19:47 UTC was taken by Email Routing, the Worker undid its admission and threw `RetryDelivery` (outcome `exception`), and Email Routing answered a temporary failure: Microsoft 365 retried the delivery 32 minutes later (02:52:14 UTC), which made exactly one case (`01M62S51XXVFCWAEJ541S0XPW8`) and its reply. A refusal (`setReject`), tried in between, reaches the sender as `555 5.7.1 <reason>` within seconds (02:50:56). The thrown retry is kept (`c949a42`). The variable is empty again (deploy of `c949a42`, read back), and the switch was removed from the handler after the final review. The intake logs `{"event":"intake","outcome":"retry","error":"RetryDelivery"}` for such a delivery, and Workers Logs marks that invocation's outcome `exception`, since the handler throws so Email Routing answers a temporary failure.
 
+## Forwarding failures (D01 T02 §6)
+
+The Worker reads Cloudflare's Email Routing events every 15 minutes (`src/mail/forwarding.ts`) and alerts the operator, at `OPERATOR_EMAIL` and the fallback `OPERATOR_FALLBACK_EMAIL`, in two cases.
+
+- **"Mail to <alias> was refused after forwarding":** Cloudflare handed the message to the alias's destination, which then refused it; Cloudflare drops the refusal notice, so the sender was not told. Check the destination mailbox's health first: its quota, its mail flow rules, its spam filtering. Then ask the sender to send again; the alert names the sender's domain, never the address.
+- **"The Worker could not take mail to <alias>":** the Worker failed a delivery to `check@` and the sender's server has not retried successfully within an hour. Check the Worker's logs in Workers Logs (`event: intake` lines around the time given) and the intake sweep's line (`event: intake-sweep`); a deploy or an exception at that time is the usual cause. The sender's server may still retry; if the member asks, they can forward again.
+
+A run logs one line, `event: forwarding`, with `disabled` when `CF_ANALYTICS_TOKEN` (the vault item "IsItLegit Cloudflare analytics token") or `EMAIL_ZONE_ID` is not set, `degraded` when Cloudflare's API failed (the next run catches up) or an alert was not handed over (tried again next run).
+
 ## Sign-in rate limits and the audit trail (D07 T02 §6)
 
 - Run: 2026-10-29, after the deploy of `f946261` with migration `0027_audit_trail.sql` applied and read back.

@@ -1,0 +1,114 @@
+{
+  "ref": "D07 T01 \u00a79",
+  "title": "htmx and the app script as fingerprinted assets",
+  "implementation_sha": "354ddcfbc7bba7fec884d5c7e268dc91bafeb367",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/hash-asset.test.ts test/node/assets.test.ts test/node/serve.test.ts test/node/document.test.tsx test/node/app-script.test.tsx -> 5 files, 40 passed (8 in Chromium)",
+    "pnpm typecheck and pnpm lint -> clean",
+    "pnpm build:assets -> nothing uncommitted under src/web and public"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s9.md",
+    "verdict": "filed",
+    "candidate": "8d5502a2fd59a0a89c131397c10b17cd8bc83a2a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T01 \u00a713",
+      "D07 T01 \u00a714"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s9.md",
+    "candidate": "1242d5009e3185d236fa0c1689639dcc229769e8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

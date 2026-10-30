@@ -20,11 +20,17 @@ export const RATE_RULES = {
   "/sign-up/invite-code": { window: LINK_WINDOW_SECONDS, max: SIGNUP_MAX },
 } as const;
 
+// The app's own sign-in routes, counted in the same table by the same rule (D07 T02 §11): the code form, 20 posts per
+// IP per 10 minutes, counted before a code is read, so refusals cannot be sent faster than that or fill the audit trail.
+export const APP_RULES = {
+  "/signin/code": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
+} as const;
+
 // The paths counted are the ones with a rule here; every other path passes without a write, as it did when Better Auth's
 // limiter was off (it is off outside production by default). A request without Cloudflare's client address is not counted
 // per IP: Cloudflare sets `cf-connecting-ip` on every request from the internet, so only the Worker's own calls (the
 // signup's first link) lack it, and the per-address limit still holds for them.
-const COUNTED = new Set<string>(Object.keys(RATE_RULES));
+const COUNTED = new Set<string>([...Object.keys(RATE_RULES), ...Object.keys(APP_RULES)]);
 
 type Rule = { window: number; max: number };
 type CustomStorage = NonNullable<NonNullable<BetterAuthOptions["rateLimit"]>["customStorage"]>;

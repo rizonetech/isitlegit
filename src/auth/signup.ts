@@ -11,6 +11,7 @@ import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { z } from "zod";
 import { validOrganisationName } from "./schema";
+import { CODE_COOKIE, HANDLE_COOKIE, newHandle, readHandle } from "./signin-code";
 
 const SignUp = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -32,7 +33,8 @@ type Redemption = { id: string; status: string; user_id: string | null; org_id: 
 
 // The member's first link: true only when SMTP2GO confirmed it, false when it failed, is unknown, or was held back
 // (the sign-in limit), which the magic-link endpoint does not tell apart from a send.
-export type SendFirstLink = (email: string) => Promise<boolean>;
+// The first link's sender, given the signup browser's code handle (D07 T02 §11).
+export type SendFirstLink = (email: string, handle: string) => Promise<boolean>;
 
 export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirstLink) {
   return {
@@ -160,7 +162,10 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
           .run();
 
         // 3. The first link, now that the membership admits the address (D01 T02 §2).
-        const linkSent = await sendFirstLink(email).catch(() => false);
+        // Its code is bound to this browser: the handle it holds, or a new one, set on this answer either way.
+        const handle = readHandle(ctx.headers ?? ctx.request?.headers ?? new Headers()) ?? newHandle();
+        const linkSent = await sendFirstLink(email, handle).catch(() => false);
+        ctx.setCookie(CODE_COOKIE, handle, HANDLE_COOKIE);
         ctx.setStatus(201);
         return ctx.json({
           registered: true,

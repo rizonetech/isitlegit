@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Receiver } from "../../src/auth/receivers";
 import { alignmentEvidence, dmarcEvidence, registerAuthChecks } from "../../src/checks/auth";
+import { bundled } from "../../src/checks/brands";
 import type { CaseView } from "../../src/checks/case-view";
 import { checks } from "../../src/checks/index";
 import { CheckRegistry } from "../../src/checks/registry";
@@ -35,6 +36,7 @@ function view(headers: { name: string; value: string }[], receivers: Receiver[] 
   return {
     tenant: { orgId: "org-auth", channel: "email", receivers, headersAvailable: true },
     raw: RAW,
+    brands: bundled,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

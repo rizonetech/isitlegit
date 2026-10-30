@@ -64,8 +64,19 @@ export default defineConfig({
       {
         // Build scripts and source checks, which read the repository, in Node.
         // 15 seconds as for the Worker tests: the memory tests start Node processes that load the machine meanwhile.
-        test: { name: "node", include: ["test/node/**/*.test.{ts,tsx}"], environment: "node", testTimeout: 15_000 },
+        test: {
+          name: "node",
+          include: ["test/node/**/*.test.{ts,tsx}"],
+          // The accessibility run is its own gate, `pnpm test:a11y` (D07 T01 §10), so a full run does not repeat it.
+          exclude: ["test/node/a11y.test.tsx"],
+          environment: "node",
+          testTimeout: 15_000,
+        },
       },
+      // `pnpm test:a11y`: axe-core over the component gallery in Chromium (D07 T01 §10), only when asked for by name.
+      ...(process.env.A11Y
+        ? [{ test: { name: "a11y", include: ["test/node/a11y.test.tsx"], environment: "node", testTimeout: 120_000 } }]
+        : []),
     ],
   },
 });

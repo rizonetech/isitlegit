@@ -1,0 +1,186 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import type { Browser, BrowserContext, Page } from "playwright-core";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { AppShell, CHECK_ADDRESS } from "../../src/web/components/AppShell.tsx";
+import { Document } from "../../src/web/components/Document.tsx";
+import { chromiumPath, launch } from "./browser";
+import { member } from "./shell-fixtures";
+
+// htmx and the app script in a real browser (D07 T01 §9), loaded by `Document`'s own tags from the fingerprinted files
+// the Worker serves: an `hx-get` swaps its answer in, and the member shell's copy button copies the check address,
+// says so on its status line (visible and announced), resets, and when the clipboard refuses says how to copy by hand
+// and selects the address. At desktop width and at 360 px (behind the phone Menu), in both themes, by mouse and keys.
+const APP = "http://localhost";
+const PUBLIC = join(import.meta.dirname, "../../public");
+
+function page(theme: "light" | "dark"): string {
+  const body = String(
+    <Document title="Cases">
+      <AppShell {...member()}>
+        <h1>Cases</h1>
+        <button type="button" hx-get="/fragment" hx-target="#target" hx-swap="innerHTML">
+          Load
+        </button>
+        <div id="target">
+          <p id="old">Not loaded yet</p>
+        </div>
+      </AppShell>
+    </Document>,
+  );
+  return body.replace('<html lang="en">', `<html lang="en" data-theme="${theme}">`);
+}
+
+let browser: Browser;
+beforeAll(async () => {
+  browser = await launch();
+}, 120_000);
+afterAll(async () => {
+  await browser?.close();
+});
+
+type Clipboard = "granted" | "denied" | "absent";
+
+// The page on the app's own origin (localhost is a secure context): the document, the built files from public/static/
+// and the htmx fragment. `clipboard` decides what the browser's clipboard does.
+async function open(options: { theme?: "light" | "dark"; width?: number; clipboard?: Clipboard } = {}) {
+  const { theme = "light", width = 1280, clipboard = "granted" } = options;
+  const context: BrowserContext = await browser.newContext({ viewport: { width, height: 900 } });
+  if (clipboard === "granted") await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP });
+  const p: Page = await context.newPage();
+  if (clipboard === "denied")
+    await p.addInitScript(() => {
+      navigator.clipboard.writeText = () =>
+        Promise.reject(new DOMException("Write permission denied.", "NotAllowedError"));
+    });
+  if (clipboard === "absent")
+    await p.addInitScript(() => Object.defineProperty(Navigator.prototype, "clipboard", { get: () => undefined }));
+  await p.clock.install();
+  await p.route(`${APP}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/cases") return route.fulfill({ status: 200, contentType: "text/html", body: page(theme) });
+    if (path === "/fragment")
+      return route.fulfill({ status: 200, contentType: "text/html", body: '<p id="swapped">Loaded by htmx</p>' });
+    const file = join(PUBLIC, path);
+    if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
+    return route.fulfill({ status: 404 });
+  });
+  await p.goto(`${APP}/cases`);
+  // The scripts run once the page is parsed: htmx sets `window.htmx`, and the app script is a deferred module.
+  await p.waitForFunction(() => "htmx" in window);
+  if (width < 768) await p.getByRole("button", { name: "Menu" }).click();
+  return { p, context };
+}
+
+const copyButton = (p: Page) => p.getByRole("button", { name: "Copy the check address" });
+const status = (p: Page) => p.locator("[data-copy-status]");
+// The status line's text once a press has had its moment: the outcome is written 100 ms after the line is emptied, on
+// the page's installed clock, which the poll moves on.
+const settled = (p: Page) => async () => {
+  await p.clock.runFor(50);
+  return status(p).textContent();
+};
+
+// The WCAG ratio of the status line's text against what is painted behind it.
+function contrast(p: Page): Promise<number> {
+  return p.evaluate(() => {
+    const el = document.querySelector("[data-copy-status]") as HTMLElement;
+    const pixel = (fill: string[]) => {
+      const ctx = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d");
+      if (!ctx) throw new Error("no canvas");
+      for (const colour of fill) {
+        ctx.fillStyle = colour;
+        ctx.fillRect(0, 0, 1, 1);
+      }
+      return [...ctx.getImageData(0, 0, 1, 1).data];
+    };
+    const luminance = (rgb: number[]) => {
+      const [r, g, b] = rgb.map((v) => {
+        const c = v / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
+    };
+    const behind: string[] = [];
+    for (let node: HTMLElement | null = el; node; node = node.parentElement)
+      behind.unshift(getComputedStyle(node).backgroundColor);
+    const back = luminance(pixel(behind));
+    const fore = luminance(pixel([...behind, getComputedStyle(el).color]));
+    const [hi, lo] = fore > back ? [fore, back] : [back, fore];
+    return (hi + 0.05) / (lo + 0.05);
+  });
+}
+
+describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in Chromium", { timeout: 60_000 }, () => {
+  it("runs htmx from Document's own tag: a click swaps the answer into its target", async () => {
+    const { p, context } = await open();
+    await p.getByRole("button", { name: "Load" }).click();
+    await expect.poll(() => p.locator("#swapped").count()).toBe(1);
+    expect(await p.locator("#old").count()).toBe(0);
+    await context.close();
+  });
+
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [1280, 360])
+      it(`copies the check address and says so, visibly and announced, by mouse and keys (${theme}, ${width} px)`, async () => {
+        const { p, context } = await open({ theme, width });
+        expect(await status(p).getAttribute("role")).toBe("status");
+        expect(await status(p).getAttribute("aria-live")).toBe("polite");
+        await copyButton(p).click();
+        await expect.poll(settled(p)).toBe("Copied");
+        expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
+        expect(await status(p).isVisible()).toBe(true);
+        expect(await contrast(p)).toBeGreaterThanOrEqual(4.5);
+        // It clears after 4 seconds.
+        await p.clock.runFor(4_000);
+        await expect.poll(settled(p)).toBe("");
+        // From the keyboard: Enter, then Space.
+        await p.evaluate(() => navigator.clipboard.writeText("something else"));
+        await copyButton(p).focus();
+        await p.keyboard.press("Enter");
+        await expect.poll(settled(p)).toBe("Copied");
+        expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
+        await p.keyboard.press("Space");
+        await expect.poll(settled(p)).toBe("Copied");
+        await context.close();
+      });
+
+  for (const clipboard of ["denied", "absent"] as const)
+    it(`says how to copy by hand and selects the address when the clipboard is ${clipboard}`, async () => {
+      const { p, context } = await open({ clipboard });
+      await copyButton(p).click();
+      await expect.poll(settled(p)).toBe("Copy failed: select the address to copy it");
+      expect(await p.evaluate(() => window.getSelection()?.toString())).toBe(CHECK_ADDRESS);
+      expect(await status(p).isVisible()).toBe(true);
+      // The message stays until the next press, which starts again.
+      await p.clock.runFor(10_000);
+      expect(await status(p).textContent()).toBe("Copy failed: select the address to copy it");
+      await p.evaluate(() => window.getSelection()?.removeAllRanges());
+      await copyButton(p).click();
+      await expect.poll(() => p.evaluate(() => window.getSelection()?.toString())).toBe(CHECK_ADDRESS);
+      await context.close();
+    });
+  // The clearing and the outcome reach a screen reader as two changes, so the same message twice running is announced
+  // twice: a MutationObserver's batches stand in for what assistive technology is told. A screen reader itself is not run.
+  it("announces a repeated outcome afresh: each press empties the line, then writes it in a later batch", async () => {
+    const { p, context } = await open({ clipboard: "absent" });
+    await p.evaluate(() => {
+      const seen: string[] = [];
+      (window as unknown as { seen: string[] }).seen = seen;
+      const line = document.querySelector("[data-copy-status]") as HTMLElement;
+      new MutationObserver(() => seen.push(line.textContent ?? "")).observe(line, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+    const failed = "Copy failed: select the address to copy it";
+    for (let i = 0; i < 2; i++) {
+      await copyButton(p).click();
+      await expect.poll(settled(p)).toBe(failed);
+    }
+    // The first press finds the line empty already; the second empties it, and its words follow in a batch of their own.
+    expect(await p.evaluate(() => (window as unknown as { seen: string[] }).seen)).toEqual([failed, "", failed]);
+    await context.close();
+  });
+});

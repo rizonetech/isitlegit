@@ -90,7 +90,14 @@ export function brandForUrl(table: BrandTable, url: string): BrandMatch | null {
   return brandAt(table, parsed.hostname, parsed.pathname);
 }
 
-function brandAt(table: BrandTable, host: string, path: string | null): BrandMatch | null {
+// The brand a mail domain belongs to (D02 T02 §4, round 1): as `brandForDomain`, except that a path-scoped
+// `user_content` entry (`paypal.com/invoice/`) never applies, since a mailbox has no path: `service@paypal.com` is
+// PayPal's own. A host-level entry (`icloud.com`, a consumer mailbox the brand runs) and a community label still do.
+export function brandForMailbox(table: BrandTable, host: string): BrandMatch | null {
+  return brandAt(table, host, null, true);
+}
+
+function brandAt(table: BrandTable, host: string, path: string | null, mailbox = false): BrandMatch | null {
   const lower = host.toLowerCase().replace(/\.$/, "");
   const domain = registrable(lower);
   if (!domain) return null;
@@ -105,6 +112,7 @@ function brandAt(table: BrandTable, host: string, path: string | null): BrandMat
     const exact = spec.startsWith("=");
     const entryHost = exact ? spec.slice(1) : spec;
     if (lower !== entryHost && (exact || !lower.endsWith(`.${entryHost}`))) return false;
+    if (mailbox) return slash < 0;
     // A host alone cannot say which path it serves, so a host with other people's content on some paths is not
     // answered as official without one (round 1): only a web address's own path clears it.
     return slash < 0 || path === null || pathUnder(path, entry.slice(slash));

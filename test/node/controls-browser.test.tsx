@@ -215,4 +215,43 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", { ti
       expect(await after("dark", "backgroundColor")).toBe(rgb(t["dark-active"]));
       await page.close();
     });
+  // D07 T01 §8: a button was `whitespace-nowrap` at a fixed height, so at 200% text "Go to your own cases" ran past a
+  // 360 px window. It keeps the control height on one line and wraps, growing taller, only when its words cannot fit.
+  it("keeps one line at the control heights and wraps long words inside a narrow container", async () => {
+    const page = await browser.newPage();
+    await page.setContent(
+      `<!doctype html><html data-theme="light"><head><style>${css}</style></head><body class="bg-surface text-ink">${String(
+        <div>
+          <Button id="one">Go</Button>
+          <Button id="small" size="small">
+            Go
+          </Button>
+          <div style="width: 200px">
+            <Button id="long" variant="dark">
+              Go to your own cases
+            </Button>
+          </div>
+        </div>,
+      )}</body></html>`,
+    );
+    const size = (id: string) =>
+      page.evaluate((sel) => {
+        const r = (document.getElementById(sel) as HTMLElement).getBoundingClientRect();
+        return { width: r.width, height: r.height };
+      }, id);
+    expect((await size("one")).height).toBe(48);
+    expect((await size("small")).height).toBe(36);
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    const long = await size("long");
+    expect(long.width, "never wider than its container").toBeLessThanOrEqual(200);
+    expect(long.height, "taller, with its words wrapped").toBeGreaterThan(48);
+    const fits = await page.evaluate(() => {
+      const el = document.getElementById("long") as HTMLElement;
+      return el.scrollWidth <= el.clientWidth;
+    });
+    expect(fits, "its words stay inside it").toBe(true);
+    await page.close();
+  });
 });

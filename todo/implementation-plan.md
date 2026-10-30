@@ -42,7 +42,7 @@ Sections: 27 | Checklist items: 371
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 42 | Checklist items: 368
+Sections: 43 | Checklist items: 370
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -52,8 +52,9 @@ Sections: 42 | Checklist items: 368
 | [x]    | D01 T02 §1  | SMTP2GO client with retries and send log  | none                  | 7     |
 | [x]    | D01 T02 §4  | Test and demo mail aliases                | cloudflare            | 6     |
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
-| [ ]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 6     |
+| [x]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
+| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 3     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
 | [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
 | [x]    | D01 T03 §8  | M4A decoding                              | none                  | 5     |
@@ -91,7 +92,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 40 | Checklist items: 233
+Sections: 45 | Checklist items: 295
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -100,14 +101,19 @@ Sections: 40 | Checklist items: 233
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
 | [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
+| [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
+| [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
+| [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
+| [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
+| [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
 | [x]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 7     |
-| [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
+| [x]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
 | [x]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
-| [ ]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 5     |
+| [x]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 6     |
 | [ ]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [ ]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
 | [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
@@ -119,16 +125,16 @@ Sections: 40 | Checklist items: 233
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
-| [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
-| [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
-| [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
+| [x]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 12    |
+| [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
+| [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
-| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 8     |
-| [ ]    | D07 T02 §11 | Sign-in code for another device                       | none     | 3     |
+| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
+| [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
-| [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 4     |
+| [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
@@ -213,7 +219,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 61 | Checklist items: 257
+Sections: 64 | Checklist items: 268
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -238,8 +244,11 @@ Sections: 61 | Checklist items: 257
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
+| [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
+| [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
+| [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -281,7 +290,7 @@ Sections: 61 | Checklist items: 257
 
 ### Phase 7: After the event
 
-Sections: 27 | Checklist items: 162
+Sections: 28 | Checklist items: 165
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -308,6 +317,7 @@ Sections: 27 | Checklist items: 162
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
+| [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none     | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 8     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none     | 4     |
@@ -335,6 +345,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 86/266 verified sections, 48 ready to run now.
+Progress: 95/276 verified sections, 57 ready to run now.
 
-Checklist: 890/1709 items completed (includes Commit items).
+Checklist: 970/1787 items completed (includes Commit items).

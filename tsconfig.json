@@ -23,5 +23,8 @@
     // declarations are not checked, while every file of ours still is, against them.
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "worker-configuration.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "worker-configuration.d.ts"],
+  // The browser's own script (D07 T01 §9) needs the DOM library, which the Workers runtime types conflict with: it is
+  // checked in the DOM project, test/node/tsconfig.json.
+  "exclude": ["src/web/client/**"]
 }
