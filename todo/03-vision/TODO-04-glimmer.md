@@ -820,6 +820,8 @@ Filed 2026-10-29, split out of D03 T04 §21 by its plan review (completion revie
 
 Filed 2026-10-29 from D03 T04 §21's completion review (items 9 to 12). §21 beat aria2c 1.37.0 with each tool's own start-up taken off its time (cut 0.998, mirror 0.70, gigabyte 0.99), a choice recorded in §21 with its reversal cost. The review's point stands: a user pays the start-up, and a Python interpreter's start (about 0.12 seconds: imports, argument checks) against a C program's (about 0.01) leaves `fetch.py` about 3 percent slower raw on the 96 MiB cut scenario; §21's breakdown shows no more than 0.02 seconds of that can be cut inside the script. A narrow median win is also not a repeatable one: the gigabyte runs' times overlap.
 
+> **Started:** 2026-10-30T23:47:37Z
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
