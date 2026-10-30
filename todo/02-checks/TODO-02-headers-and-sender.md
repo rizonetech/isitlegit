@@ -35,7 +35,7 @@ track: day-2
 | 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [x] |
 | 3 | §3 | ARC chain evidence | §1 | [x] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [x] |
-| 5 | §5 | First-time sender per organisation | §4 | [ ] |
+| 5 | §5 | First-time sender per organisation | §4 | [x] |
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
 | 7 | §7 | First-time sender per recipient | §5 | [ ] |
 | 8 | §8 | Familiarity from consented mail | §5 | [ ] |
@@ -184,6 +184,9 @@ A sender this organisation has never had mail from is a weak but useful signal, 
 - [x] Commit: `checks: first-time sender per organisation` Done 2026-10-30: 0386377.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/first-time.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §5 | 915bbb712e2d57297767bdeda462a49948189bcf
+> **Review:** `docs/reviews/d02-t02-s5.json`
 
 ## 6. Receiving chains behind a filtering gateway
 
