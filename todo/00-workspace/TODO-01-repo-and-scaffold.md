@@ -66,6 +66,7 @@ track: day-0
 | 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
 | 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
+| 28 | §28 | Plan review just after Started, nothing built moved | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -938,6 +939,24 @@ Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there).
 - [ ] Commit: `tools: waiting lanes are woken when main moves`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes, including the push that wakes only the lane waiting on the ref it stamped.
+
+## 28. Plan review just after Started, nothing built moved
+
+Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan review whose candidate is later than the commit that records the section's `Started:` line, so that the reviewer always reads the contract before the build. §4's plan review ran on `eaa665b`, one commit after its Started commit `dd17122`; `eaa665b` only re-formatted two JSON test fixtures that the pre-push lint refused, and the section's text is the same in both. The rule's intent held; its test is too blunt. A second plan review on `dd17122` is refused too (one per findings file), so the section cannot stamp at all. The fix keeps the rule's purpose: a later candidate is accepted only when nothing that defines or builds the feature changed between the two commits.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Accept a plan candidate after Started when the contract and the product are untouched between. Done when: `stamp` accepts §4's shape and still refuses a candidate after a commit that changed the section's text or any product file.
+
+- [ ] In `stamp` (`scripts/lib/todo_graph.py`), accept a plan review whose candidate descends from the Started commit when, across every commit from the Started commit to the candidate, the section's own body is byte for byte unchanged and no file under `src/`, `site/`, `media/` or `scripts/` (outside `scripts/tests/`) changed; refuse otherwise, naming the first commit and path that broke the condition. Done when: `tests/scripts/test_todo_graph.py` stamps a section whose plan candidate follows its Started commit by a fixture-formatting commit, and refuses one after a commit that edits the section's checklist and one after a commit that touches `src/`.
+- [ ] Keep the receipt honest: record `plan.after_started` with the commits between when the candidate is later than the Started commit. Done when: the test reads that field in the receipt, and its absence when the candidate is the Started commit or earlier.
+- [ ] Commit: `tools: a plan review just after Started, when nothing built moved`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including the three cases (a fixture commit between accepted; a section edit or a `src/` change between refused).
 
 ## Verification
 
