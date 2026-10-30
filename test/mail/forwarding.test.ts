@@ -108,8 +108,10 @@ describe("a forward the destination refused", () => {
     const [first] = w.sends;
     expect(first?.subject).toBe("IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding");
     expect(first?.text).toContain("from supplier.example to hello@isitlegit.co.za");
-    expect(first?.text).toContain(`received at ${report().datetime}`);
-    expect(first?.text).toContain("refused by rizonetech.com");
+    // When the original came in (the forward) and when it was refused (the report), each labelled as what it is.
+    expect(first?.text).toContain(`received at ${forward().datetime},`);
+    expect(first?.text).toContain(`refused by rizonetech.com at ${report().datetime}`);
+    expect(first?.text).toMatch(/Incident [0-9a-f]{12}\./);
     expect(first?.text).not.toContain("billing@");
     expect(first?.text).not.toContain("Invoice 42");
   });
@@ -147,6 +149,126 @@ describe("a forward the destination refused", () => {
     const w = world([[forward(), worker("dropped")]]);
     expect(await checkForwarding(deps(w.fetcher, at(5)))).toMatchObject({ incidents: 0, alerted: 0 });
     expect(w.sends).toEqual([]);
+  });
+});
+
+describe("completion review", () => {
+  it("makes reports read before their forward, and replayed after it, one incident and one alert per mailbox", async () => {
+    const reports = [report(), report({ sessionId: "s-r2", messageId: "<ndr-2@x>" })];
+    const w = world([reports, [forward(), ...reports]]);
+    expect(await checkForwarding(deps(w.fetcher, at(1)))).toMatchObject({ incidents: 1, alerted: 0 });
+    await checkForwarding(deps(w.fetcher, at(16)));
+    const rows = await db.prepare("SELECT alias, alert FROM forward_incidents").all<{ alias: string; alert: string }>();
+    expect(rows.results).toEqual([{ alias: "hello@isitlegit.co.za", alert: "sent" }]);
+    expect(w.sends).toHaveLength(2);
+  });
+
+  it("alerts a report whose forward never appears once the grace has passed, naming no alias", async () => {
+    const w = world([[report()], [], []]);
+    await checkForwarding(deps(w.fetcher, at(1)));
+    await checkForwarding(deps(w.fetcher, at(10)));
+    expect(w.sends).toEqual([]);
+    await checkForwarding(deps(w.fetcher, at(25)));
+    expect(w.sends[0]?.text).toContain("an alias (its forward was not found)");
+  });
+
+  it("names every forward of the same subject as uncertain, never the latest alone", async () => {
+    const w = world([
+      [
+        forward(),
+        forward({
+          messageId: "<other@x>",
+          sessionId: "s2",
+          to: "conduct@isitlegit.co.za",
+          datetime: at(0.1).toISOString(),
+        }),
+        report(),
+      ],
+    ]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    expect(w.sends[0]?.subject).toBe("IsItLegit: mail to an alias was refused after forwarding");
+    expect(w.sends[0]?.text).toContain("one of hello@isitlegit.co.za, conduct@isitlegit.co.za");
+  });
+
+  it("counts an alert sent only once SMTP2GO confirmed it, keeping an uncertain hand-over pending", async () => {
+    const sends: string[] = [];
+    let answer: "timeout" | "ok" = "timeout";
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url === GRAPHQL_URL)
+        return Response.json({ data: { viewer: { zones: [{ emailRoutingAdaptive: [forward(), report()] }] } } });
+      if (answer === "timeout") throw new DOMException("timed out", "TimeoutError");
+      sends.push(JSON.parse(String(init?.body ?? "{}")).to[0]);
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `e-${sends.length}` } });
+    }) as typeof fetch;
+    expect(await checkForwarding(deps(fetcher, at(5)))).toMatchObject({ alerted: 0 });
+    expect((await db.prepare("SELECT alert FROM forward_incidents").first<{ alert: string }>())?.alert).toBe("pending");
+    // The reconciler settles the uncertain sends as sent (SMTP2GO's record); the next run then counts the alert sent.
+    await db
+      .prepare("UPDATE mail_sends SET status = 'sent', provider_id = 'settled' WHERE send_key LIKE 'forward-failure:%'")
+      .run();
+    answer = "ok";
+    expect(await checkForwarding(deps(fetcher, at(6)))).toMatchObject({ alerted: 1 });
+    expect(sends).toEqual([]);
+  });
+
+  it("resumes from its last event when the page budget runs out, losing nothing", async () => {
+    const full = (start: number) =>
+      Array.from({ length: 1000 }, (_, i) =>
+        forward({
+          messageId: `<m-${start + i}@x>`,
+          sessionId: `s${start + i}`,
+          subject: `Bulk ${start + i}`,
+          datetime: at(171 + (start + i) / 1000).toISOString(),
+        }),
+      );
+    const pages = Array.from({ length: 10 }, (_, p) => full(p * 1000));
+    const w = world([
+      ...pages,
+      [report({ datetime: at(185).toISOString(), subject: "Undeliverable: Bulk 9999" })],
+    ]);
+    expect(await checkForwarding(deps(w.fetcher, at(200)))).toMatchObject({ state: "partial", events: 10_000 });
+    const next = await checkForwarding(deps(w.fetcher, at(201)));
+    expect(next.state).toBe("ok");
+    // The next run reads from the last event the budget reached, not from its own last 30 minutes.
+    expect(w.queries[10]?.from).toBe(full(9000)[999]?.datetime);
+  });
+
+  it("carries a Worker failure's reason with addresses removed, and settles a retry that arrives after the hour", async () => {
+    const failed = worker("deliveryFailed", {
+      errorDetail: "upstream (worker:isitlegit) temporary error: rejected accounts@member.example",
+    });
+    const w = world([[failed], [], [worker("delivered", { datetime: at(70).toISOString() })]]);
+    await checkForwarding(deps(w.fetcher, at(1)));
+    const unsent = world([[]], "fail");
+    await checkForwarding(deps(unsent.fetcher, new Date(at(0).getTime() + RECOVERY_MS + 60_000)));
+    const pending = await db
+      .prepare("SELECT state, alert, reason FROM forward_incidents")
+      .first<Record<string, string>>();
+    expect(pending).toMatchObject({ state: "unresolved", alert: "pending" });
+    expect(pending?.reason).toBe("upstream (worker:isitlegit) temporary error: rejected [address]");
+    // The retry arrives late, during the alert provider's outage: the incident settles and its alert is dropped.
+    await checkForwarding(deps(world([[worker("delivered", { datetime: at(70).toISOString() })]]).fetcher, at(75)));
+    expect(await db.prepare("SELECT state, alert FROM forward_incidents").first()).toEqual({
+      state: "recovered",
+      alert: "none",
+    });
+  });
+
+  it("deletes settled incidents after 90 days and keeps pending ones", async () => {
+    const w = world([[forward(), report()], []]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    await db
+      .prepare(
+        "INSERT INTO forward_incidents (key, kind, occurred_at, detected_at, state, alert) VALUES (?, 'refused', ?, ?, 'open', 'pending')",
+      )
+      .bind("p".repeat(64), at(0).toISOString(), at(0).toISOString())
+      .run();
+    await checkForwarding(deps(world([[]], "fail").fetcher, new Date(at(0).getTime() + 91 * 24 * 60 * 60 * 1000)));
+    const keys = (await db.prepare("SELECT key FROM forward_incidents").all<{ key: string }>()).results.map(
+      (r) => r.key,
+    );
+    expect(keys).toEqual(["p".repeat(64)]);
   });
 });
 
