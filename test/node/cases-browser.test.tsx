@@ -39,7 +39,7 @@ type State = {
   org: keyof typeof ORGS;
   removed: boolean;
   fail: null | "session" | "removed" | "outage" | "network";
-  delay: (f: CaseFilters) => number;
+  delay: (f: CaseFilters & { pageAsked?: boolean }) => number;
   seen: { path: string; htmx: boolean }[];
 };
 const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [] };
@@ -69,7 +69,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
   if (url.pathname === "/cases") {
     state.seen.push({ path: `${url.pathname}${url.search}`, htmx });
     const filters = filtersFrom(url.searchParams);
-    await new Promise((done) => setTimeout(done, state.delay(filters)));
+    await new Promise((done) => setTimeout(done, state.delay({ ...filters, pageAsked: url.searchParams.has("page") })));
     // As src/auth/gate.ts answers: a browser page to sign in, anything else 401.
     if (state.fail === "session")
       return (req.headers.accept ?? "").includes("text/html")
@@ -232,6 +232,16 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
+  it("loads a page restored from the back/forward cache again, so a removed member sees the 403 page", async () => {
+    const { p, context } = await open();
+    const before = state.seen.length;
+    state.removed = true;
+    await p.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+    await expect.poll(() => p.getByText("You're not a member of this organisation.").isVisible()).toBe(true);
+    expect(state.seen.slice(before)).toContainEqual({ path: "/cases", htmx: false });
+    await context.close();
+  });
+
   it("lets the newest results request win, from the pager or the filters, in either order", async () => {
     // A slow Next, then a quick verdict: the verdict's rows and address stay.
     state.delay = (f) => (f.page === 2 ? 1500 : 0);
@@ -243,16 +253,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     expect(await ids(one.p)).toEqual(expected("A", { verdict: "safe" }));
     expect(one.p.url()).toContain("verdict=safe");
     expect(one.p.url()).not.toContain("page=2");
+    expect(await one.p.locator('input[name="verdict"]:checked').getAttribute("value")).toBe("safe");
     await one.context.close();
-    // A slow verdict, then a quick Next: the next page's rows and address stay.
-    state.delay = (f) => (f.verdict === "malicious" ? 1500 : 0);
+    // A slow verdict, then a quick Next: Next pages the verdict now chosen (one page of it, so the first), and the
+    // chosen radio, the address and the rows agree.
+    state.delay = (f) => (f.verdict === "malicious" && f.page === 1 && !f.pageAsked ? 1500 : 0);
     const two = await open();
     await segment(two.p, "Malicious").click();
     await two.p.getByRole("link", { name: "Next" }).click();
-    await expect.poll(() => ids(two.p)).toEqual(expected("A", { page: 2 }));
+    await expect.poll(() => two.p.url()).toContain("page=2");
+    await expect.poll(() => ids(two.p)).toEqual(expected("A", { verdict: "malicious" }));
     await two.p.waitForTimeout(1700);
-    expect(await ids(two.p)).toEqual(expected("A", { page: 2 }));
-    expect(two.p.url()).toContain("page=2");
+    expect(await ids(two.p)).toEqual(expected("A", { verdict: "malicious" }));
+    expect(two.p.url()).toContain("verdict=malicious");
+    expect(await two.p.locator('input[name="verdict"]:checked').getAttribute("value")).toBe("malicious");
     await two.context.close();
   });
 

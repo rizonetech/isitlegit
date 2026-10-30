@@ -114,4 +114,11 @@ document.addEventListener("htmx:afterSettle", () => {
   enabled?.focus();
 });
 
+// Every page of the app is private (`no-store`), yet a browser may restore one from its back/forward cache without
+// asking the server (Chrome does while the cookies are unchanged, which a membership removed elsewhere does not change).
+// A page so restored is loaded again, through the session and organisation checks (D07 T04 §1).
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) location.reload();
+});
+
 export {};

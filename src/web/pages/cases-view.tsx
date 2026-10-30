@@ -211,9 +211,20 @@ function PagerLink(props: { id: string; to: CaseFilters | null; children: string
         {props.children}
       </button>
     );
+  // With htmx the page goes with the form's filters as they are now, not as they were when these rows were drawn, so a
+  // pager press during a pending filter change pages that filter's list, and the controls, address and rows agree. The
+  // `href` keeps the drawn filters for a reader without JavaScript, whose form only changes on Apply.
   const href = casesHref(props.to);
   return (
-    <a id={props.id} href={href} hx-get={href} {...RESULTS} class={buttonClass("ghost", "small")}>
+    <a
+      id={props.id}
+      href={href}
+      hx-get="/cases"
+      hx-include="#case-filters"
+      hx-vals={JSON.stringify({ page: props.to.page })}
+      {...RESULTS}
+      class={buttonClass("ghost", "small")}
+    >
       {props.children}
     </a>
   );
