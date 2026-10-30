@@ -13,7 +13,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Cloudflare API token, Zone Analytics Read on `isitlegit.co.za`, vault "IsItLegit Cloudflare analytics token" | D01 T02 §6 (checks) | asked |
 | Google service account with API Keys Viewer only, JSON key in vault "IsItLegit Google API keys viewer" | D99 T01 §10 (main) | asked |
 | SMTP2GO account-level read-only key with API keys view, vault "IsItLegit SMTP2GO admin" | D99 T01 §11 (main) | asked |
-| Decision: a sign-in code beside the link, `Code sign-in: yes or no` | D07 T02 §11 (app) | asked |
+| Decision: a sign-in code beside the link, `Code sign-in: yes or no` | D07 T02 §11 (app) | done: yes (2026-10-30 14:58) |
 
 ### Waiting on a lane first
 
