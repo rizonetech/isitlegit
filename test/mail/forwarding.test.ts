@@ -231,7 +231,47 @@ describe("completion review", () => {
       );
     const pages = Array.from({ length: 10 }, (_, p) => full(p * 1000));
     const w = world([...pages, [report({ datetime: at(185).toISOString(), subject: "Undeliverable: Bulk 9999" })]]);
-    expect(await checkForwarding(deps(w.fetcher, at(200)))).toMatchObject({ state: "partial", events: 10_000 });
+    // Counting what reaches D1: 10,000 forwards are written in batches, never one statement each (CI timed out on that).
+    let batches = 0;
+    let single = 0;
+    const counted = new Proxy(db, {
+      get(target, name) {
+        if (name === "batch")
+          return (statements: D1PreparedStatement[]) => {
+            batches++;
+            return target.batch(statements);
+          };
+        if (name === "prepare")
+          return (query: string) => {
+            const statement = target.prepare(query);
+            return new Proxy(statement, {
+              get(s, key) {
+                const value = Reflect.get(s, key);
+                if (key === "bind")
+                  return (...args: unknown[]) => {
+                    const bound = statement.bind(...args);
+                    return new Proxy(bound, {
+                      get(b, k) {
+                        const v = Reflect.get(b, k);
+                        if (k === "run" || k === "first" || k === "all") single++;
+                        return typeof v === "function" ? v.bind(b) : v;
+                      },
+                    });
+                  };
+                return typeof value === "function" ? value.bind(s) : value;
+              },
+            });
+          };
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    expect(await checkForwarding(deps(w.fetcher, at(200), { db: counted }))).toMatchObject({
+      state: "partial",
+      events: 10_000,
+    });
+    expect(batches).toBeLessThanOrEqual(110);
+    expect(single).toBeLessThan(20);
     const next = await checkForwarding(deps(w.fetcher, at(201)));
     expect(next.state).toBe("ok");
     // The next run reads from the last event the budget reached, not from its own last 30 minutes.

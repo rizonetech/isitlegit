@@ -25,6 +25,7 @@ export const MAX_SPAN_MS = 30 * 24 * 60 * 60 * 1000;
 // Settled incidents are kept this long, past any replay window, then deleted.
 export const INCIDENTS_KEPT_MS = 90 * 24 * 60 * 60 * 1000;
 export const PAGE = 1000;
+const FORWARD_BATCH = 100;
 export const MAX_PAGES = 10;
 // Alerts sent per run, the least-tried first, so a new incident is never starved by older ones still retrying (round 1).
 export const ALERTS_PER_RUN = 100;
@@ -167,7 +168,39 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
   const events = read?.events ?? [];
   outcome.events = events.length;
   let recorded = true;
-  for (const event of events) {
+  // Forwards, the bulk of the events, are written in batches of FORWARD_BATCH statements, so a long backlog stays
+  // within what one scheduled run may ask of D1 (the CI run that read 10,000 one at a time timed out, round 4); the
+  // rest, which open or settle incidents, one by one, after the forwards they may refer to.
+  const isForward = (e: RoutingEvent) => e.action === "forward" && e.isNDR === 0;
+  const forwards = events.filter(isForward);
+  for (let i = 0; i < forwards.length; i += FORWARD_BATCH) {
+    try {
+      await db.batch(
+        await Promise.all(
+          forwards
+            .slice(i, i + FORWARD_BATCH)
+            .map(async (event) =>
+              db
+                .prepare(
+                  "INSERT INTO forward_seen (message_hash, subject_hash, alias, sender_domain, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (message_hash) DO NOTHING",
+                )
+                .bind(
+                  await eventKey(event),
+                  await subjectKey(event.subject),
+                  (event.to ?? "").toLowerCase(),
+                  domainOf(event.from),
+                  event.datetime,
+                ),
+            ),
+        ),
+      );
+    } catch (error) {
+      recorded = false;
+      outcome.state = "degraded";
+      outcome.errors.push(`recording forwards: ${(error as Error).name}`);
+    }
+  }
+  for (const event of events.filter((e) => !isForward(e))) {
     try {
       outcome.incidents += await record(db, event, now);
     } catch (error) {
@@ -231,21 +264,6 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
 // One event recorded; returns 1 when it opened an incident.
 async function record(db: D1Database, event: RoutingEvent, now: Date): Promise<number> {
   const at = event.datetime;
-  if (event.action === "forward" && event.isNDR === 0) {
-    await db
-      .prepare(
-        "INSERT INTO forward_seen (message_hash, subject_hash, alias, sender_domain, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (message_hash) DO NOTHING",
-      )
-      .bind(
-        await eventKey(event),
-        await subjectKey(event.subject),
-        (event.to ?? "").toLowerCase(),
-        domainOf(event.from),
-        at,
-      )
-      .run();
-    return 0;
-  }
   if (event.isNDR === 1 && (event.to ?? "").toLowerCase().startsWith("cfbounces+")) {
     const subject = await subjectKey(event.subject);
     const destination = domainOf(event.from);
