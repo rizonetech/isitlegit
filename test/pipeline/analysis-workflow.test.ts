@@ -657,6 +657,48 @@ describe("the checks step and the event writer", () => {
     }
   });
 
+  it("stores auth.arc through the step with its earlier context, headers and raw key (D02 T02 §3)", async () => {
+    const org = "org-arc-step";
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+    )
+      .bind("claim-arc-step", org, "arc-step.co.za", "t".repeat(16), now, now)
+      .run();
+    await putRaw(store, id, new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay.\r\n"));
+    const verdict =
+      "mx.google.com; arc=pass (i=1 spf=pass spfdomain=bank.example); spf=fail smtp.mailfrom=lists.example";
+    const earlier = "i=1; mx.lists.example; spf=pass smtp.mailfrom=bank.example";
+    const seal = "i=1; a=rsa-sha256; cv=none; d=lists.example; s=arc; b=x";
+    await putParsed(store, id, {
+      headers: [
+        { name: "Received", value: "from lists.example (lists.example. [203.0.113.7]) by mx.google.com" },
+        { name: "Authentication-Results", value: verdict },
+        { name: "Received", value: "from client by lists.example" },
+        { name: "ARC-Authentication-Results", value: earlier },
+        { name: "ARC-Seal", value: seal },
+        { name: "From", value: "billing@bank.example" },
+      ],
+      text: "Pay.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]);
+    const arc = (await readEvidence(env.DB, id)).find((e) => e.check === "auth.arc");
+    expect(arc).toMatchObject({
+      severity: "info",
+      artefacts: [rawKey(id)],
+      detail: { verdict: "pass", sealer: "lists.example", headers: [verdict, earlier, seal] },
+    });
+    expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
+  });
+
   it("stores one list however often the step runs, and returns only its count", async () => {
     const id = await caseWith(forwards["attached-rfc822"]);
     await parse(store, id, MAIL);

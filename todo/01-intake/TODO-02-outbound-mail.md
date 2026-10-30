@@ -240,6 +240,8 @@ Cloudflare accepts mail for an alias and then forwards it; a failure after that 
 
 **Operator action (open, 2026-10-30):** the Exchange Online mail flow rule rejecting the test subject, set for the probe of correction 6 and removed after; the coordinator schedules it with the operator.
 
+**Operator decisions (2026-10-30, through the coordinator):** `OPERATOR_FALLBACK_EMAIL` is `rizonetech@gmail.com`, confirmed. Every operator mailbox, Gmail included, also forwards to `derick@rizonetech.com`, so the fallback is not fully independent of Microsoft 365; it still survives a broken `hostmaster@` route because Gmail keeps its own copy. The probe: an Exchange mail flow rule, "IsItLegit forward probe (delete after test)", rejects any message whose subject contains `ILPROBE-7Q4K9X` with "IsItLegit forward probe: rejected on purpose"; the test message goes to `hello@isitlegit.co.za` once the coordinator says the rule is live, about 15 minutes after it is enabled; the coordinator has the rule removed once the event is recorded here.
+
 **Build order:**
 
 1. Find where Cloudflare reports a forwarding failure. Done when: the source, its fields and the permission it needs are recorded here.

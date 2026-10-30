@@ -142,7 +142,7 @@ export function policyOf(r: Result, from: string | null): Policy {
 }
 
 // Plain words on one line, bounded, for a value copied from a header into a summary.
-const plain = (value: string, max = 80) => {
+export const plain = (value: string, max = 80) => {
   const text = Array.from(value.replace(/[<>\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, "").trim());
   return text.length <= max ? text.join("") : `${text.slice(0, max - 1).join("")}…`;
 };
@@ -156,7 +156,7 @@ const MAX_RESULTS = 20;
 // Every string and list in an item's detail bounded, wherever it came from (round 3: a 66 KB result token): the header
 // excerpts to MAX_HEADER, any other string to MAX_VALUE, any list to MAX_RESULTS (MAX_SOURCES for the excerpts). One
 // place for all, so a field added later cannot overflow the schema either.
-function boundedDetail(value: unknown, key = ""): unknown {
+export function boundedDetail(value: unknown, key = ""): unknown {
   if (typeof value === "string") return clip(value, key === "headers" ? MAX_HEADER : MAX_VALUE);
   if (Array.isArray(value))
     return value.slice(0, key === "headers" ? MAX_SOURCES : MAX_RESULTS).map((v) => boundedDetail(v, key));
@@ -172,7 +172,7 @@ function clip(value: string | null, max = MAX_VALUE): string | null {
 }
 // The evidence schema's limit for a summary (at most 200 characters): a long one is cut, its detail keeping every result,
 // so an item is never refused and replaced by `not_checked` (round 1).
-const bounded = (summary: string) => {
+export const bounded = (summary: string) => {
   const text = Array.from(summary);
   return text.length <= 200 ? summary : `${text.slice(0, 199).join("")}…`;
 };
