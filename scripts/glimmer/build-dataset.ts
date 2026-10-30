@@ -866,6 +866,9 @@ export async function buildDataset(options: {
   // The two writes publication makes, replaceable so a test can fail one: a file's write (temp then rename) and the
   // rename of the staged folder into place.
   io?: { write?: (path: string, text: string) => void; rename?: (from: string, to: string) => void };
+  // Where the build says how far it has come (each stage, and every 10,000 pages read): the command passes stderr, since
+  // a build of the whole collection runs for over an hour.
+  progress?: (line: string) => void;
 }): Promise<Built> {
   const { store, version, mode } = options;
   // A published version is never replaced: a new number is required, so a model trained on one never finds its files
@@ -966,7 +969,9 @@ export async function buildDataset(options: {
     queue: { pages: queued.length, sha256: digest(queued) },
     excluded: { pages: excluded.size, sha256: digest([...excluded].sort(byKey)) },
   };
+  let read = 0;
   for (const page of pages) {
+    if (++read % 10_000 === 0) options.progress?.(`build-dataset: ${read} of ${pages.length} pages read`);
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
       dropped.afterFreeze++;
@@ -1029,6 +1034,7 @@ export async function buildDataset(options: {
       words: shingles(verified.text),
     });
   }
+  options.progress?.(`build-dataset: ${entries.length} pages admitted; removing duplicates`);
   const deduped = dedupe(entries, reference.ids, protectors);
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
@@ -1054,6 +1060,7 @@ export async function buildDataset(options: {
     // No entry was made of it (excluded, unlabelled): its record alone gives its identities.
     return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Uint32Array(0) }] : [];
   });
+  options.progress?.(`build-dataset: ${capped.length} pages after duplicates and caps; splitting`);
   const parts = split(capped, random, { admit, floors, reserved: reference.ids, protect });
   const train = balance(parts.train, random);
   const evaluation = balanceEvaluation(parts.evaluation);
@@ -1219,6 +1226,7 @@ if (import.meta.filename === process.argv[1]) {
       mode: recorded,
       frozen,
       protectedTerms,
+      progress: (line) => console.error(line),
       ...(seed ? { seed: Number(seed) } : {}),
     });
     console.log(JSON.stringify(built, null, 2));

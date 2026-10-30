@@ -1358,6 +1358,32 @@ describe("the scan of the built files for protected sample details", () => {
   });
 });
 
+describe("progress", () => {
+  it("says each stage as the build reaches it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-progress-"));
+    try {
+      const { store } = await fill(
+        dir,
+        Array.from({ length: 6 }, (_, i) => ({ seed: i, lure: i % 2 === 0 })),
+      );
+      const lines: string[] = [];
+      await buildDataset({
+        store,
+        version: "1.0",
+        mode: "image",
+        seed: 3,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        progress: (line) => lines.push(line),
+      });
+      expect(lines.some((line) => /pages admitted; removing duplicates/.test(line))).toBe(true);
+      expect(lines.some((line) => /after duplicates and caps; splitting/.test(line))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("summary.json is read back, and records the inputs the version was built from", () => {
   const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));
   const summaryOf = (built: { dir: string }) =>
