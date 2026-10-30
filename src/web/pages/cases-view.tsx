@@ -85,9 +85,15 @@ function caseName(c: ListedCase): string {
   return `Uploaded ${TYPE_WORDS[c.sourceKind].toLowerCase()}`;
 }
 
+// The header a results request carries naming the organisation the page was drawn for: the route reloads the whole page
+// when the active one has changed since (switched in another tab), so the heading and switcher never mislabel the rows.
+export const ORG_HEADER = "x-cases-org";
+
 // The results region's htmx wiring, shared by the form and the pager: fetch the address, keep only the results, push
-// the address, and let the newest request replace one still in flight.
+// the address, and let the newest request, from the form or the pager alike, replace one still in flight (the form is
+// the one queue every results request joins).
 const RESULTS = {
+  "hx-sync": "#case-filters:replace",
   "hx-target": "#case-results",
   "hx-select": "#case-results",
   "hx-swap": "outerHTML",
@@ -195,17 +201,19 @@ function Rows(props: { list: CasePage; now: Date }) {
   );
 }
 
-function PagerLink(props: { to: CaseFilters | null; children: string }) {
+// Each end keeps its id across a swap, so htmx returns focus to the link pressed; when that end is now disabled the app
+// script moves focus to the other (src/web/client/app.ts).
+function PagerLink(props: { id: string; to: CaseFilters | null; children: string }) {
   if (!props.to)
     return (
       // No page that way: a disabled button, announced as dimmed, never a link to nowhere.
-      <button type="button" disabled class={cx(buttonClass("ghost", "small"), "opacity-50")}>
+      <button id={props.id} type="button" disabled class={cx(buttonClass("ghost", "small"), "opacity-50")}>
         {props.children}
       </button>
     );
   const href = casesHref(props.to);
   return (
-    <a href={href} hx-get={href} {...RESULTS} class={buttonClass("ghost", "small")}>
+    <a id={props.id} href={href} hx-get={href} {...RESULTS} class={buttonClass("ghost", "small")}>
       {props.children}
     </a>
   );
@@ -255,8 +263,12 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date }) {
       >
         <p class="type-small text-muted">{countLine(list)}</p>
         <div class="flex gap-8">
-          <PagerLink to={list.page > 1 ? { ...at, page: list.page - 1 } : null}>Previous</PagerLink>
-          <PagerLink to={list.page < list.pages ? { ...at, page: list.page + 1 } : null}>Next</PagerLink>
+          <PagerLink id="case-previous" to={list.page > 1 ? { ...at, page: list.page - 1 } : null}>
+            Previous
+          </PagerLink>
+          <PagerLink id="case-next" to={list.page < list.pages ? { ...at, page: list.page + 1 } : null}>
+            Next
+          </PagerLink>
         </div>
       </nav>
     </div>
@@ -278,8 +290,8 @@ function Filters(props: { filters: CaseFilters }) {
       method="get"
       action="/cases"
       hx-get="/cases"
+      id="case-filters"
       hx-trigger="change"
-      hx-sync="this:replace"
       {...RESULTS}
       class="flex flex-wrap items-center gap-12"
     >
@@ -376,7 +388,7 @@ function AcceptedSenders(props: { domains: string[]; addresses: string[] }) {
 const HOW_TO = [
   ["Outlook desktop", "Select the email, then Home, More, Forward as attachment."],
   ["Outlook on the web", "Open the email, then More actions, Forward as attachment."],
-  ["Gmail", "Open the email, then More, Forward as attachment."],
+  ["Gmail", "Tick the email in your inbox, then More at the top, Forward as attachment."],
 ] as const;
 
 function FirstRun(props: { domains: string[]; addresses: string[] }) {
@@ -440,13 +452,13 @@ export function CasesPage(props: {
           {list.total === 0 ? (
             <FirstRun {...senders} />
           ) : (
-            <>
+            <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
               <Filters filters={filters} />
               <p id="case-count" role="status" class="sr-only">
                 {list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list)}
               </p>
               <Results list={list} filters={filters} now={now} />
-            </>
+            </div>
           )}
         </div>
       </AppShell>

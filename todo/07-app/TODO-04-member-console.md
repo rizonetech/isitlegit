@@ -36,6 +36,8 @@ track: day-6
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 | 7 | §7 | Subject, sender and search in the Cases list | §1 | [ ] |
+| 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
+| 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -76,6 +78,7 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 - [x] Draw each row's state as the report does (`shownState`): received and running as Checking, partial with a verdict as Partial beside nothing hidden, partial or done without one as Could not be checked, and done as its verdict; All lists them all, and a verdict filter lists only cases with that verdict. Done when: the page test renders a fixture of each and reads its pill and its place under All. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: `test/web/cases-page.test.ts` renders received and running (Checking), partial with a verdict (Partial), partial without one (Partial with "Could not be checked"), done (Malicious), all five under All in order and only the partial under Suspicious; hiding the words fails it.
 - [x] Answer a member with no active organisation, or one just removed, with the E3 403 page (`ErrorState` 403), and a read that fails with the E5 page (503, its reference logged as the report's is, Try again keeping the filters). The active organisation and membership are read through one function `src/auth/org.ts` exports, which `requireOrg` also uses, so the page and the API agree. Done when: the page test covers each. Evidence 2026-10-30: `activeMembership` in `src/auth/org.ts` (requireOrg uses it, `test/auth/org.test.ts` 19 passed); `test/web/cases-page.test.ts` reads the 403 page with the address and Sign out for a removed member and for no active organisation (a Deviation in `design/SPEC.md` E3), and the 503 page with its logged reference and Try again keeping the filters. The error pages moved to `src/web/pages/errors.tsx`, shared with the report.
 - [x] Pass the accessibility gate's rules at 360 and 1280 px in both themes, the table a real table with its caption and column headers, the segmented filter a labelled radio group, on a phone the table reflowing to one card per case with no sideways scroll. Done when: the browser test scans each and measures the width. Evidence 2026-10-30: `test/node/cases-browser.test.tsx` scans the list, the filtered-empty and the first-run states at 360 and 1280 px in both themes with no problem and no sideways scroll (a captioned table on desktop, one card per case on phones, the verdict filter a fieldset of radios). It found a body shorter than the viewport leaving the sidebar's text over two backgrounds: `Document` now gives the body `min-h-screen`.
+- [x] Close the completion review's in-scope gaps: every results request (the filters and the pager) joins one queue so the newest wins in either order; a results request from a page drawn for another organisation (switched in another tab) reloads the whole page (`x-cases-org`, answered `HX-Redirect`); the Gmail tile says to tick the email and use More at the top (a Deviation in `design/SPEC.md` M1); a session store that cannot be read answers the E5 page (`sessionGate` in `src/auth/gate.ts`, the API keeping JSON); focus stays on a pager end through each redraw; and the list is timed at 10,000 cases. Done when: `test/node/cases-browser.test.tsx` (15) drives both queue orders, the switched organisation, and Tab and Enter through filtering, paging to the last page and back and opening a case with no programmatic focus; `test/web/cases-page.test.ts` (15) reads the session-store outage's E5 page with its logged reference and the stale organisation's 204 `HX-Redirect`; `test/db/case-list.test.ts` (5) reads 10,000 cases at p95 6 ms on the local SQLite through `cases_org_created` (production D1 adds its network time). Each fix's removal fails its test. **Added 2026-10-30 (completion review).**
 - [ ] Commit: `web: cases list with filters and search`
 
 > **Deferred:** the row's subject and original sender, the search box that searches them, the uploader's name and the invoice words in Type (boards `Cases`) -> XREF: D07 T04 §7
@@ -232,6 +235,52 @@ Each row named as the board names it: the original's subject over its sender, th
 - [ ] Commit: `web: subject, sender and search in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search returns another organisation's case.
+
+## 8. A chosen date range in the Cases list
+
+A member looking for a check from a known week picks its dates instead of paging through a fixed period. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 2): the board `Cases` offers only fixed periods, so the control is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the date range
+**Job:** a member finds the checks of a known week or month in one step
+**Treatment:** a From and To date beside the period filter, in the query string with the other filters
+**Chrome:** §1's filters
+
+**Build order:**
+
+1. Draw the date range on the board `Cases` and have the operator approve it. Done when: `design/SPEC.md` M1 lists the control.
+2. Build it into §1's filters and `src/db/case-list.ts`. Done when: `test/web/cases-page.test.ts` filters by a range.
+
+- [ ] Add the date range to the board and SPEC M1 with the operator's approval. Done when: `design/SPEC.md` M1 names it.
+- [ ] Filter `listCases` by a From and To date (SAST days, inclusive) and draw the control. Done when: `test/web/cases-page.test.ts` reads a range's cases only.
+- [ ] Commit: `web: a chosen date range in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
+
+## 9. Next and previous case from a report
+
+A member reviewing a filtered run of cases steps from one report to the next without going back to the list. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 3): the board `Main` (M3) has no such control, so the control is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 Report, once the operator approves a board change adding the step controls
+**Job:** a member works through a filtered list of reports in order
+**Treatment:** Previous and Next on the report, keeping the list's filters
+**Chrome:** D07 T03 §1's report
+
+**Build order:**
+
+1. Draw the controls on the report board and have the operator approve them. Done when: `design/SPEC.md` M3 lists them.
+2. Carry the list's filters to the report and step through them. Done when: `test/web/report-access.test.ts` steps to the next case under a filter.
+
+- [ ] Add Previous and Next to the report board and SPEC M3 with the operator's approval. Done when: `design/SPEC.md` M3 names them.
+- [ ] Carry the filters from `/cases` to `/r/<id>` and answer Previous and Next within them, scoped by the organisation. Done when: `test/web/report-access.test.ts` steps to the next filtered case and never to another organisation's.
+- [ ] Commit: `web: next and previous case from a report`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if a step leaves the filter or the organisation.
 
 ## Verification
 

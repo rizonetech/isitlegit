@@ -578,6 +578,8 @@ Every member page sits in the app layout: the app navigation (P1) at left, conte
 
 Boards: [PNG](mockups/png/Cases.png) · [source](mockups/source/Cases.dc.html) · [PNG](mockups/png/Cases-Empty.png) · [source](mockups/source/Cases-Empty.dc.html)
 
+- Deviation (D07 T04 §1): the Gmail tile reads "Tick the email in your inbox, then More at the top, Forward as attachment." where the board says "Open the email, then More, Forward as attachment.", because Gmail offers Forward as attachment from the inbox toolbar's More menu with the message ticked (Gmail Help, "Forward emails as attachments"), not from an opened message's menu.
+
 Controls:
 
 - stats panel: Four tiles with Export counts as CSV. (Cases)

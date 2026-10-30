@@ -160,12 +160,12 @@ describe("the cases list", () => {
     expect(listed(first)).toEqual(ids.slice(0, 25));
     expect(first).toContain("Showing 1 to 25 of 30");
     expect(first).toContain('href="/cases?verdict=malicious&amp;page=2"');
-    expect(first).toMatch(/<button type="button" disabled[^>]*>Previous<\/button>/);
+    expect(first).toMatch(/<button id="case-previous" type="button" disabled[^>]*>Previous<\/button>/);
     const second = await page("/cases?verdict=malicious&page=2", cookie);
     expect(listed(second)).toEqual(ids.slice(25));
     expect(second).toContain("Showing 26 to 30 of 30");
     expect(second).toContain('href="/cases?verdict=malicious"');
-    expect(second).toMatch(/<button type="button" disabled[^>]*>Next<\/button>/);
+    expect(second).toMatch(/<button id="case-next" type="button" disabled[^>]*>Next<\/button>/);
     // Past the end: the last page. A filter change carries no page, so it starts at page 1.
     expect(listed(await page("/cases?verdict=malicious&page=9", cookie))).toEqual(ids.slice(25));
     expect(second).not.toMatch(/<input[^>]*name="page"/);
@@ -225,6 +225,7 @@ describe("the cases list", () => {
     expect(first).toContain("Check your first suspicious email.");
     expect(first).toContain("Copy address");
     expect(first).toContain("Outlook on the web");
+    expect(first).toContain("Tick the email in your inbox, then More at the top, Forward as attachment.");
     expect(first).toContain(
       `<strong class="text-ink">karoo-${tag}.example</strong>, your verified domain, is accepted.`,
     );
@@ -281,6 +282,44 @@ describe("the cases list", () => {
     const shown = /Reference (500-[0-9A-F]{6})/.exec(html)?.[1];
     expect(lines.map((l) => JSON.parse(l)).find((e) => e.event === "cases")).toMatchObject({ reference: shown });
     expect(html).toContain('href="/cases?verdict=safe&amp;period=all"');
+  });
+
+  it("answers a session store it cannot read with the 503 page, Try again keeping the filters", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const lines: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((line: unknown) => void lines.push(String(line)));
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/from "session"/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await get("/cases?verdict=malicious", cookie);
+    vi.restoreAllMocks();
+    expect(res.status).toBe(503);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("Sorry, something broke on our side.");
+    expect(html).toContain('href="/cases?verdict=malicious"');
+    const shown = /Reference (500-[0-9A-F]{6})/.exec(html)?.[1];
+    expect(lines.map((l) => JSON.parse(l)).find((e) => e.event === "cases")).toMatchObject({
+      reference: shown,
+      error: "session",
+    });
+  });
+
+  it("reloads the whole page for a results request drawn for another organisation than the active one", async () => {
+    const a = await org("Karoo Couriers");
+    await made(a);
+    const { cookie } = await member(a);
+    const stale = await call("/cases?verdict=safe", {
+      headers: { cookie, "hx-request": "true", "x-cases-org": "org-somewhere-else" },
+    });
+    expect(stale.status).toBe(204);
+    expect(stale.headers.get("hx-redirect")).toMatch(/\/cases\?verdict=safe$/);
+    const fresh = await call("/cases?verdict=safe", { headers: { cookie, "hx-request": "true", "x-cases-org": a } });
+    expect(fresh.status).toBe(200);
+    expect(await fresh.text()).toContain(`&quot;x-cases-org&quot;:&quot;${a}&quot;`);
   });
 });
 

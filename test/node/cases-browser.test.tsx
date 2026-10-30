@@ -79,6 +79,10 @@ async function answer(req: IncomingMessage): Promise<Response> {
           })
         : Response.json({ error: "sign in first" }, { status: 401 });
     if (state.fail === "removed" || state.removed) return errorPage(403, "", { email: "thandi@karoo.example" });
+    // As the route answers a results request drawn for another organisation than the active one.
+    const drawnFor = req.headers["x-cases-org"];
+    if (htmx && drawnFor && drawnFor !== state.org)
+      return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     if (state.fail === "outage") return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
     const org = ORGS[state.org];
     const { children: _, ...shell } = member({ organization: { id: state.org, name: org.name } });
@@ -188,23 +192,78 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
-  it("filters, pages and opens a report by keyboard alone", async () => {
+  it("filters, pages and opens a report by keyboard alone, focus kept through each redraw", async () => {
     const { p, context } = await open();
-    await p.locator('input[name="verdict"][value="all"]').focus();
+    const focusedId = () => p.evaluate(() => document.activeElement?.id ?? "");
+    const focusedText = () => p.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
+    // Tab from the top of the page to the verdict filter, then choose with the arrows.
+    for (
+      let i = 0;
+      i < 40 && (await p.evaluate(() => (document.activeElement as HTMLInputElement)?.name)) !== "verdict";
+      i++
+    )
+      await p.keyboard.press("Tab");
     await p.keyboard.press("ArrowRight");
     await expect.poll(() => p.url()).toContain("verdict=malicious");
     await expect.poll(() => ids(p)).toEqual(expected("A", { verdict: "malicious" }));
-    await segment(p, "All").click();
+    await p.keyboard.press("ArrowLeft");
     await expect.poll(() => ids(p)).toEqual(expected("A", {}));
-    const next = p.getByRole("link", { name: "Next" });
-    await next.focus();
+    // On to Next by Tab alone; Enter pages, and focus stays on a pager end through the redraw.
+    for (let i = 0; i < 80 && (await focusedId()) !== "case-next"; i++) await p.keyboard.press("Tab");
+    expect(await focusedId()).toBe("case-next");
     await p.keyboard.press("Enter");
-    await expect.poll(() => p.url()).toContain("page=2");
     await expect.poll(() => ids(p)).toEqual(expected("A", { page: 2 }));
-    const row = p.locator("table a[href^='/r/']").first();
-    await row.focus();
+    // The last page: Next is disabled, so focus is on Previous, and Enter goes back.
+    await expect.poll(focusedId).toBe("case-previous");
     await p.keyboard.press("Enter");
-    await expect.poll(() => p.locator("h1").textContent()).toContain("Report");
+    await expect.poll(() => ids(p)).toEqual(expected("A", {}));
+    await expect.poll(focusedId).toBe("case-next");
+    // Back up to the first case by Shift+Tab, and open it.
+    const first = expected("A", {})[0] ?? "";
+    for (
+      let i = 0;
+      i < 200 && !(await p.evaluate(() => document.activeElement?.getAttribute("href") ?? "")).endsWith(first);
+      i++
+    )
+      await p.keyboard.press("Shift+Tab");
+    expect(await focusedText()).toBe("Forwarded email");
+    await p.keyboard.press("Enter");
+    await expect.poll(() => p.locator("h1").textContent()).toContain(`Report ${first}`);
+    await context.close();
+  });
+
+  it("lets the newest results request win, from the pager or the filters, in either order", async () => {
+    // A slow Next, then a quick verdict: the verdict's rows and address stay.
+    state.delay = (f) => (f.page === 2 ? 1500 : 0);
+    const one = await open();
+    await one.p.getByRole("link", { name: "Next" }).click();
+    await segment(one.p, "Safe").click();
+    await expect.poll(() => ids(one.p)).toEqual(expected("A", { verdict: "safe" }));
+    await one.p.waitForTimeout(1700);
+    expect(await ids(one.p)).toEqual(expected("A", { verdict: "safe" }));
+    expect(one.p.url()).toContain("verdict=safe");
+    expect(one.p.url()).not.toContain("page=2");
+    await one.context.close();
+    // A slow verdict, then a quick Next: the next page's rows and address stay.
+    state.delay = (f) => (f.verdict === "malicious" ? 1500 : 0);
+    const two = await open();
+    await segment(two.p, "Malicious").click();
+    await two.p.getByRole("link", { name: "Next" }).click();
+    await expect.poll(() => ids(two.p)).toEqual(expected("A", { page: 2 }));
+    await two.p.waitForTimeout(1700);
+    expect(await ids(two.p)).toEqual(expected("A", { page: 2 }));
+    expect(two.p.url()).toContain("page=2");
+    await two.context.close();
+  });
+
+  it("reloads the whole page when the organisation was switched in another tab, so the heading never mislabels the rows", async () => {
+    const { p, context } = await open();
+    expect(await p.getByText("Everything Karoo Couriers has checked").isVisible()).toBe(true);
+    state.org = "B";
+    await segment(p, "Malicious").click();
+    await expect.poll(() => p.getByText("Everything Bravo Couriers has checked").isVisible()).toBe(true);
+    expect(await ids(p)).toEqual(expected("B", { verdict: "malicious" }));
+    expect(p.url()).toContain("verdict=malicious");
     await context.close();
   });
 

@@ -53,4 +53,52 @@ describe("listCases", () => {
       error: { code: "database" },
     });
   });
+
+  // The list at a realistic history (D07 T04 §1, completion review): 10,000 cases in one organisation and 2,000 in
+  // another, every filter's page read within the target (a second at p95) through the organisation's index.
+  it("reads a page of 10,000 cases quickly, through the organisation's index", async () => {
+    const org = `org-big-${crypto.randomUUID().slice(0, 8)}`;
+    const seed = (o: string, count: number) =>
+      db
+        .prepare(
+          `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < ? - 1)
+           INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, forwarded_by, source_kind)
+           SELECT printf('%s%020d', substr(?, 1, 6), i), ?, CASE WHEN i % 4 = 3 THEN 'upload' ELSE 'email' END, 'done',
+             CASE i % 3 WHEN 0 THEN 'malicious' WHEN 1 THEN 'suspicious' ELSE 'safe' END, 1,
+             strftime('%Y-%m-%dT%H:%M:%fZ', 'now', printf('-%d minutes', i * 13)),
+             strftime('%Y-%m-%dT%H:%M:%fZ', 'now', printf('-%d minutes', i * 13)),
+             CASE WHEN i % 4 = 3 THEN NULL ELSE 'someone@demo.isitlegit.co.za' END,
+             CASE WHEN i % 4 = 3 THEN 'document' ELSE 'mail' END
+           FROM n`,
+        )
+        .bind(count, crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase(), o)
+        .run();
+    await seed(org, 10_000);
+    await seed(`${org}-x`, 2_000);
+    const timings: number[] = [];
+    for (const f of [
+      DEFAULT_FILTERS,
+      { ...DEFAULT_FILTERS, period: "all" as const },
+      { ...DEFAULT_FILTERS, period: "all" as const, verdict: "malicious" as const, page: 40 },
+      { ...DEFAULT_FILTERS, period: "90" as const, channel: "upload" as const },
+    ])
+      for (let run = 0; run < 5; run++) {
+        const started = performance.now();
+        const read = await listCases(db, org, f);
+        timings.push(performance.now() - started);
+        if (!read.ok) throw new Error(read.error.message);
+        expect(read.value.total).toBe(10_000);
+      }
+    timings.sort((x, y) => x - y);
+    const p95 = timings[Math.ceil(timings.length * 0.95) - 1] ?? Number.NaN;
+    console.log(JSON.stringify({ event: "case-list-timing", cases: 10_000, p95Ms: Math.round(p95) }));
+    expect(p95).toBeLessThan(1000);
+    const plan = await db
+      .prepare(
+        "EXPLAIN QUERY PLAN SELECT id FROM cases c WHERE c.org_id = ? ORDER BY c.created_at DESC, c.id DESC LIMIT 25",
+      )
+      .bind(org)
+      .all<{ detail: string }>();
+    expect(plan.results.map((r) => r.detail).join(" ")).toContain("cases_org_created");
+  });
 });

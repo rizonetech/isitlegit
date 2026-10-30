@@ -105,4 +105,13 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   location.assign(landed);
 });
 
+// After the Cases list's pager redraws the results (D07 T04 §1), focus stays where the reader was: htmx returns it to the
+// end pressed, by its id; when that end is now disabled (the first or last page), to the other end.
+document.addEventListener("htmx:afterSettle", () => {
+  if (document.activeElement && document.activeElement !== document.body) return;
+  const ends = ["case-next", "case-previous"].map((id) => document.getElementById(id));
+  const enabled = ends.find((end) => end instanceof HTMLAnchorElement);
+  enabled?.focus();
+});
+
 export {};
