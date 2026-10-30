@@ -37,9 +37,11 @@ export const Scene: React.FC<{ children: React.ReactNode; label?: string; center
     extrapolateRight: "clamp",
   });
   return (
-    <AbsoluteFill style={{ background: BG, opacity }}>
+    // Only the content fades; the ground and the corner label stay put, so scene changes never dip to black.
+    <AbsoluteFill style={{ background: BG }}>
       <AbsoluteFill
         style={{
+          opacity,
           padding: "110px 150px",
           display: "flex",
           flexDirection: "column",
