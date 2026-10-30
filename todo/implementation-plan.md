@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 45 | Checklist items: 295
+Sections: 46 | Checklist items: 299
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -106,6 +106,7 @@ Sections: 45 | Checklist items: 295
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
+| [ ]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -114,7 +115,7 @@ Sections: 45 | Checklist items: 295
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
 | [x]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
 | [x]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 6     |
-| [ ]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
+| [x]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [ ]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
 | [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
 | [ ]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
@@ -219,11 +220,12 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 64 | Checklist items: 268
+Sections: 65 | Checklist items: 271
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
 | [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
+| [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
@@ -290,7 +292,7 @@ Sections: 64 | Checklist items: 268
 
 ### Phase 7: After the event
 
-Sections: 28 | Checklist items: 165
+Sections: 29 | Checklist items: 168
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -303,6 +305,7 @@ Sections: 28 | Checklist items: 165
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator | 7     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
+| [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none     | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 7     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
@@ -345,6 +348,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 95/276 verified sections, 57 ready to run now.
+Progress: 96/279 verified sections, 59 ready to run now.
 
-Checklist: 970/1787 items completed (includes Commit items).
+Checklist: 973/1797 items completed (includes Commit items).

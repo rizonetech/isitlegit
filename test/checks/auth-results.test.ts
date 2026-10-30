@@ -351,6 +351,7 @@ function view(headers: { name: string; value: string }[], tenant: Partial<CaseVi
     tenant: { orgId: "org-auth", channel: "email", receivers: GOOGLE, headersAvailable: true, ...tenant },
     raw: "raw/case-auth/message.eml",
     brands: bundled,
+    senderHistory: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: "Pay the invoice.",

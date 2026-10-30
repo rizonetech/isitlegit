@@ -5,6 +5,7 @@ import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { runChecks } from "../checks/runner";
+import { observeSender, originalSender } from "../checks/senders-seen";
 import {
   type CaseResult,
   getCaseForPipeline,
@@ -348,12 +349,15 @@ export async function checks(
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
-  const view = caseViewOf(
+  const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
     { ...tenant, receivers },
     rawKey(caseId),
     brands,
   );
+  // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
+  const sender = originalSender(read);
+  const view = { ...read, senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null };
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };
 }
