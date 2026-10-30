@@ -193,6 +193,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     const wide = await open("/signin");
     expect(await wide.p.getByRole("complementary", { name: "IsItLegit" }).isVisible()).toBe(true);
     expect(await wide.p.getByRole("main").isVisible()).toBe(true);
+    // The column keeps the board's 440 px measure (a class that styles nothing would let it run the half's width).
+    const column = await wide.p.evaluate(
+      () => document.querySelector("main > div")?.getBoundingClientRect().width ?? 0,
+    );
+    expect(column).toBeGreaterThan(300);
+    expect(column).toBeLessThanOrEqual(440);
     await wide.context.close();
     const phone = await open("/signin", { width: 360 });
     expect(await phone.p.getByRole("complementary", { name: "IsItLegit" }).isVisible()).toBe(false);
