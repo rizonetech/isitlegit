@@ -520,7 +520,10 @@ def rows(root: str, session: str) -> tuple[int, str]:
         return 1, "NOT THE OWNER"
     pinned = guard.get("lane")
     if pinned:
-        here = graph_lane(root)
+        try:
+            here = graph_lane(root)
+        except GuardError as exc:  # acquire refuses on this; the heartbeat waits and asks again
+            return 1, f"ROWS UNKNOWN: {exc} (lane {pinned}); the guard is unchanged"
         if here is not None and here != pinned:
             return 1, f"LANE MISMATCH guard={pinned} checkout={here}"
     phase = guard.get("phase") if guard.get("scope") == "phase" else None

@@ -720,6 +720,10 @@ class LanePin(Workspace):
         with mock.patch.object(guard, "ready_rows", lambda root, **kw: READY_ROWS(root, timeout=1, **kw)):
             code, line = guard.rows(self.root, SESSION)
         self.assertEqual((code, line.split(":")[0]), (1, "ROWS UNKNOWN"))
+        self.lane("refuse")  # the lane query itself fails
+        code, line = guard.rows(self.root, SESSION)
+        self.assertEqual(code, 1)
+        self.assertTrue(line.startswith("ROWS UNKNOWN: query lane failed"), line)
         self.assertEqual(self.guard_bytes(), before)
 
     def test_rows_of_a_phase_run_counts_only_its_phase(self):
