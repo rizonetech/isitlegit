@@ -125,6 +125,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             first, last = (int(n) for n in ranged.split("=")[1].split("-"))
             with self.server.lock:
                 self.server.segment_requests += 1
+                self.range_number = self.server.segment_requests  # this request's place in the order they arrived
                 self.server.active += 1
                 self.server.peak = max(self.server.peak, self.server.active)
                 self.server.ranges.append((first, last, time.monotonic()))
@@ -198,6 +199,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Retry-After", self.date_time_string(time.time() + 20))
             if "429-asctime" in modes:
                 self.send_header("Retry-After", time.strftime("%a %b %d %H:%M:%S %Y", time.gmtime(time.time() + 20)))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if "segment-404-after-first" in modes and re.fullmatch(r"bytes=\d+-\d+", self.headers.get("Range") or "") \
+                and getattr(self, "range_number", 0) > 1:
+            deadline = time.monotonic() + 10
+            while not server.served and time.monotonic() < deadline:
+                time.sleep(0.01)
+            time.sleep(0.3)  # the first answer is whole and written before this one refuses
+            self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -2027,6 +2038,18 @@ class Fetch(unittest.TestCase):
                 self.assertEqual((code, line["status"], line["urls"]), (0, "fetched", [good]), line)
                 self.assert_whole()
                 self.assertFalse((self.dir / "src/.partial/data.bin.trial").exists())
+
+    def test_losing_the_corrupt_source_mid_run_still_recovers_from_the_healthy_one(self):
+        healthy, base = self.mirror()
+        # This host gives one damaged range, then a 404 for the next and is dropped; the healthy host finishes the file.
+        self.server.damaged = {100, 5_500_000}
+        self.server.modes = {"segment-404-after-first"}
+        logged = []
+        result = self.mixed(base, attempts=5, log=logged.append)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(self.trials(healthy), 1, logged)  # the isolated trial of the one source left
+        self.assertTrue(any("trying each source alone" in line for line in logged), logged)
 
     def test_a_state_from_before_provenance_existed_starts_the_trials(self):
         mirror, base = self.mirror()

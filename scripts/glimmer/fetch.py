@@ -1562,9 +1562,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 kept = {key: state.get(key) for key in ("validator", "encoding", "total")}
                 state = {}
                 one_stream = segments == 1
-                if len(live) == 1 or len(suppliers) == 1:
-                    # The file was one URL's bytes alone (or there is only one URL): it serves other bytes, and is
-                    # ruled out; with no other URL left, that is the answer.
+                if len(suppliers) == 1 or (len(live) == 1 and len(suppliers) < 2):
+                    # The file was one URL's bytes alone (or one URL is all there is and nothing says another wrote
+                    # any of it): it serves other bytes, and is ruled out; with no other URL left, that is the answer.
+                    # Bytes from several URLs stay a mixed file even when only one of them is live now: a source
+                    # dropped mid-run (a 404) may be the one that served the bad bytes, and the one left may be good.
                     if len(live) > 1:
                         exclude(suppliers[0])
                         forget()
