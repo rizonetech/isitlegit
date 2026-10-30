@@ -392,6 +392,8 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the cases l
 
 **Corrected 2026-10-30** (at start, checked against the repository): (1) the member reaches `admitCase` through `admitDelivery`'s `Delivery` (`src/intake/admit.ts`), which gains `uploadedBy`, as `forwardedBy` came; both case inserts in `src/db/cases.ts` (`admitCase`, `createCase`) name the column; (2) the id is Better Auth's user id from `c.get("signedIn").user.id`, kept as given: a member who later leaves the organisation or deletes their account leaves an id the list cannot resolve, which D07 T04 shows as a former member, so no foreign key ties the case to the user row (the closure purge, D07 T02 §9, deletes whole case rows, so the column needs no purge entry of its own); (3) `NewCase` refuses `uploadedBy` on an email case and requires it on an upload case.
 
+**Corrected 2026-10-30** (plan review): (4) the repeat proof uses two members of one organisation: A uploads, B uploads the same file, one case, its uploader still A; (5) the refusals are tested on both inserts: an upload without an uploader and an email case with one are `invalid` from `admitCase` and `createCase` alike, and no case is stored.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -400,9 +402,9 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the cases l
 
 1. Record and read the uploader. Done when: a case admitted through `POST /api/upload` carries the signed-in member's user id, an email case carries null, and it reads back only within the organisation.
 
-- [ ] Add `uploaded_by` (nullable, the user id) to `cases` in `src/db/migrations/0039_case_uploaded_by.sql` (0039 offered by the coordinator, 2026-10-30). Done when: the migration applies locally and existing cases read null.
-- [ ] Accept `uploadedBy` in `NewCase` and `admitCase` (`src/db/cases.ts`), refused on an email case, and pass the signed-in member's id from `uploadRoutes` (`src/intake/upload.ts`, `c.get("signedIn")`) through `admitDelivery` (`src/intake/admit.ts`). Done when: `test/intake/upload.test.ts` reads the uploader on a new upload case; a repeat of the same file within the day answers the first case and keeps its first uploader (the claim answers the case, it does not re-admit it).
-- [ ] Return it as `Case.uploadedBy` through `getCase`. Done when: `test/db/cases.test.ts` reads it back for its organisation and refuses another organisation; an email case reads null.
+- [x] Add `uploaded_by` (nullable, the user id) to `cases` in `src/db/migrations/0039_case_uploaded_by.sql` (0039 offered by the coordinator, 2026-10-30). Done when: the migration applies locally and existing cases read null. Done 2026-10-30: `src/db/migrations/0039_case_uploaded_by.sql`.
+- [x] Accept `uploadedBy` in `NewCase` and `admitCase` (`src/db/cases.ts`), refused on an email case, and pass the signed-in member's id from `uploadRoutes` (`src/intake/upload.ts`, `c.get("signedIn")`) through `admitDelivery` (`src/intake/admit.ts`). Done when: `test/intake/upload.test.ts` reads the uploader on a new upload case; a repeat of the same file within the day answers the first case and keeps its first uploader (the claim answers the case, it does not re-admit it). Done 2026-10-30: `test/intake/upload.test.ts` ("records the uploading member", "keeps the first uploader when another member uploads the same file again"); three mutations (the uploader not passed, `admitDelivery` dropping it, no rule in `NewCase`) each fail a test.
+- [x] Return it as `Case.uploadedBy` through `getCase`. Done when: `test/db/cases.test.ts` reads it back for its organisation and refuses another organisation; an email case reads null. Done 2026-10-30: `test/db/cases.test.ts` (the uploader read back in its organisation, not_found elsewhere, refusals on both inserts storing nothing); 746 tests across intake, pipeline, db, checks, auth, mail and scheduled pass.
 - [x] Name `uploaded_by` in the closure purge's reckoning if the purge lists columns (D07 T02 §9 deletes whole case rows, so likely none). Done 2026-10-30: none needed; D07 T02 §9 deletes whole case rows (correction 2).
 - [ ] Commit: `intake: the uploading member stored on the case`
 

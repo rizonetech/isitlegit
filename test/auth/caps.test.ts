@@ -4,7 +4,12 @@ import { admitCase, sastDayStart } from "../../src/db/cases";
 
 // D07 T02 §4: the daily case cap, applied in the statement that creates the case.
 const db = (env as unknown as Env).DB;
-const newCase = (orgId: string) => ({ orgId, channel: "upload" as const, headersAvailable: false });
+const newCase = (orgId: string) => ({
+  orgId,
+  channel: "upload" as const,
+  headersAvailable: false,
+  uploadedBy: "user-cap",
+});
 // 10:00 SAST on 28 October 2026 (08:00 UTC).
 const MORNING = new Date("2026-10-28T08:00:00Z");
 

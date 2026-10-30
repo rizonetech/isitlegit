@@ -297,8 +297,41 @@ describe("the case store", () => {
       ok: true,
       value: { forwardedBy: "boss@member.co.za", messageId: "<abc@member.co.za>" },
     });
-    const upload = await createCase(db, { orgId: "org-forward", channel: "upload", headersAvailable: true });
-    expect(upload).toMatchObject({ ok: true, value: { forwardedBy: null, messageId: null } });
+    const upload = await createCase(db, {
+      orgId: "org-forward",
+      channel: "upload",
+      headersAvailable: true,
+      uploadedBy: "user-forward",
+    });
+    expect(upload).toMatchObject({
+      ok: true,
+      value: { forwardedBy: null, messageId: null, uploadedBy: "user-forward" },
+    });
+    // The uploader is required on an upload and refused on an email case, by both inserts, storing nothing (D01 T03 §11).
+    const before = await db
+      .prepare("SELECT COUNT(*) AS n FROM cases WHERE org_id = 'org-uploader'")
+      .first<{ n: number }>();
+    for (const input of [
+      { orgId: "org-uploader", channel: "upload" as const, headersAvailable: false },
+      { orgId: "org-uploader", channel: "email" as const, headersAvailable: false, uploadedBy: "user-x" },
+    ]) {
+      expect(await createCase(db, input)).toMatchObject({ ok: false, error: { code: "invalid" } });
+      expect(await admitCase(db, input)).toMatchObject({ ok: false, error: { code: "invalid" } });
+    }
+    const after = await db
+      .prepare("SELECT COUNT(*) AS n FROM cases WHERE org_id = 'org-uploader'")
+      .first<{ n: number }>();
+    expect(after?.n).toBe(before?.n);
+    // Read back within its organisation only; an email case reads none.
+    if (!upload.ok) throw new Error("no upload case");
+    expect(await getCase(db, "org-forward", upload.value.id)).toMatchObject({
+      ok: true,
+      value: { uploadedBy: "user-forward" },
+    });
+    expect(await getCase(db, "org-elsewhere", upload.value.id)).toMatchObject({
+      ok: false,
+      error: { code: "not_found" },
+    });
     expect(
       await admitCase(db, {
         orgId: "org-forward",

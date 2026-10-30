@@ -35,6 +35,8 @@ export type Case = {
   // (D01 T01 §3); null for an upload.
   forwardedBy: string | null;
   messageId: string | null;
+  // The member who uploaded an upload case (D01 T03 §11), their user id; null on an email case.
+  uploadedBy: string | null;
   sourceKind: SourceKind;
   // The checked original's subject and sender for the report header (D01 T01 §16), decoded, one line and bounded by
   // `originalHeaderOf`; null for a document, image or audio upload, an inline forward, or a case not yet parsed.
@@ -65,6 +67,7 @@ type Row = {
   headers_available: number;
   forwarded_by: string | null;
   message_id: string | null;
+  uploaded_by: string | null;
   source_kind: SourceKind;
   original_subject: string | null;
   original_from_name: string | null;
@@ -81,6 +84,7 @@ const toCase = (row: Row): Case => ({
   headersAvailable: row.headers_available === 1,
   forwardedBy: row.forwarded_by,
   messageId: row.message_id,
+  uploadedBy: row.uploaded_by,
   sourceKind: row.source_kind,
   originalSubject: row.original_subject,
   originalFromName: row.original_from_name,
@@ -91,17 +95,23 @@ const toCase = (row: Row): Case => ({
 
 const Id = z.string().min(1).max(200);
 const Ids = z.object({ orgId: Id, id: Id });
-const NewCase = z.object({
-  orgId: Id,
-  channel: Channel,
-  headersAvailable: z.boolean(),
-  forwardedBy: z.string().trim().toLowerCase().email().max(254).nullish(),
-  // RFC 5322 caps a header line at 998 characters.
-  messageId: z.string().min(1).max(998).nullish(),
-  sourceKind: SourceKind.default("mail"),
-  // A caller that must record the id before the case exists (the email intake's claim, D01 T01 §3) chooses it.
-  id: z.string().refine(isUlid, "a case id is a ULID").optional(),
-});
+const NewCase = z
+  .object({
+    orgId: Id,
+    channel: Channel,
+    headersAvailable: z.boolean(),
+    forwardedBy: z.string().trim().toLowerCase().email().max(254).nullish(),
+    // RFC 5322 caps a header line at 998 characters.
+    messageId: z.string().min(1).max(998).nullish(),
+    sourceKind: SourceKind.default("mail"),
+    // The uploading member's user id: required on an upload case, refused on an email case (D01 T03 §11).
+    uploadedBy: Id.nullish(),
+    // A caller that must record the id before the case exists (the email intake's claim, D01 T01 §3) chooses it.
+    id: z.string().refine(isUlid, "a case id is a ULID").optional(),
+  })
+  .refine((c) => (c.channel === "upload") === !!c.uploadedBy, {
+    message: "an upload case names its uploader, and an email case none",
+  });
 const fail = (code: CaseError["code"], message: string): { ok: false; error: CaseError } => ({
   ok: false,
   error: { code, message },
@@ -146,6 +156,7 @@ export async function admitCase(
       headers_available: parsed.data.headersAvailable ? 1 : 0,
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
+      uploaded_by: parsed.data.uploadedBy ?? null,
       source_kind: parsed.data.sourceKind,
       original_subject: null,
       original_from_name: null,
@@ -155,7 +166,7 @@ export async function admitCase(
     };
     const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
       )
       .bind(
         row.id,
@@ -166,6 +177,7 @@ export async function admitCase(
         row.headers_available,
         row.forwarded_by,
         row.message_id,
+        row.uploaded_by,
         row.source_kind,
         row.created_at,
         row.updated_at,
@@ -204,6 +216,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
       headers_available: parsed.data.headersAvailable ? 1 : 0,
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
+      uploaded_by: parsed.data.uploadedBy ?? null,
       source_kind: parsed.data.sourceKind,
       original_subject: null,
       original_from_name: null,
@@ -213,7 +226,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
     };
     await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         row.id,
@@ -224,6 +237,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
         row.headers_available,
         row.forwarded_by,
         row.message_id,
+        row.uploaded_by,
         row.source_kind,
         row.created_at,
         row.updated_at,

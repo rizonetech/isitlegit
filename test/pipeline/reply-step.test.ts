@@ -46,6 +46,7 @@ async function caseFrom(raw: Uint8Array | null, forwardedBy: string | null = FOR
     channel: forwardedBy ? "email" : "upload",
     headersAvailable: false,
     forwardedBy,
+    uploadedBy: forwardedBy ? null : "user-reply",
     messageId: forwardedBy ? "<forward-77@fictional-recipient.example>" : null,
   });
   if (!made.ok) throw new Error(made.error.message);

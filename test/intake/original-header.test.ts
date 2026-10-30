@@ -133,7 +133,13 @@ describe("originalHeaderOf", () => {
 });
 
 async function caseOf(channel: "email" | "upload", sourceKind: "mail" | "document" = "mail") {
-  const made = await createCase(env.DB, { orgId: "org-header", channel, headersAvailable: false, sourceKind });
+  const made = await createCase(env.DB, {
+    orgId: "org-header",
+    channel,
+    headersAvailable: false,
+    sourceKind,
+    uploadedBy: channel === "upload" ? "user-header" : null,
+  });
   if (!made.ok) throw new Error(made.error.message);
   return made.value.id;
 }
