@@ -891,6 +891,65 @@ describe("the reference set reserved for §13", () => {
   });
 });
 
+describe("reference protection outlives the reference page's candidacy", () => {
+  const words = new Set([1, 2, 3, 4, 5]);
+  const at = (id: string, hash: bigint) => ({
+    ...entryOf(page(id, { host: `www.${id}.co.za` }, { brand: `Brand ${id}`, lure: true, lure_type: "credential" })),
+    hash,
+    words,
+  });
+
+  it("drops a near duplicate of a reserved page that was itself dropped as a near duplicate", () => {
+    // B is six bits from A, C six bits from B and twelve from A: only B's index entry catches C.
+    const a = at("a", 0n);
+    const b = at("b", 0b111111n);
+    const c = at("c", 0b111111111111n);
+    const { kept } = dedupe([c, b, a], new Set(["a", "b"]));
+    expect(kept.map((e) => e.page.id)).toEqual(["a"]);
+  });
+
+  it("holds the site of a protected entry out of training though it is no candidate", () => {
+    const protectedEntry = entryOf(
+      page("gone", { host: "a.shared.co.za" }, { brand: "Gone", lure: true, lure_type: "credential" }),
+    );
+    const sibling = entryOf(
+      page("sib", { host: "b.shared.co.za" }, { brand: "Sibling", lure: true, lure_type: "credential" }),
+    );
+    const others = Array.from({ length: 12 }, (_, i) =>
+      entryOf(page(`o${i}`, { host: `www.o${i}.co.za` }, { brand: `Other ${i}`, lure: true, lure_type: "credential" })),
+    );
+    for (const seed of [101, 2027, 86421, 1234567, 99991, 31337]) {
+      const parts = split([sibling, ...others], lcg(seed), {
+        floors: NO_FLOORS,
+        reserved: new Set(["gone"]),
+        protect: [protectedEntry],
+      });
+      expect(parts.train.map((e) => e.page.id)).not.toContain("sib");
+      expect(parts.train.map((e) => e.page.id)).not.toContain("gone");
+    }
+  });
+
+  it("holds out the site of a reference page the label rules excluded", async () => {
+    const specs: Spec[] = [
+      { seed: 1, brand: "Brand X", host: "a.shared.co.za" },
+      { seed: 2, brand: "Brand Y", host: "b.shared.co.za" },
+      ...Array.from({ length: 14 }, (_, i) => ({ seed: 20 + i, lure: i % 2 === 0 })),
+    ];
+    const { store, ids } = await fill(dir, specs);
+    mkdirSync(dirname(referenceFile(join(dir, "store"))), { recursive: true });
+    writeFileSync(referenceFile(join(dir, "store")), JSON.stringify({ pages: [ids[0]] }));
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: ids[0], reason: "a parked capture" })}\n`,
+    );
+    for (const seed of [101, 2027, 86421, 1234567, 99991, 31337]) {
+      const built = await build(store, { seed });
+      expect(idsIn(built.dir, "train")).not.toContain(ids[1]);
+    }
+  });
+});
+
 describe("a build short of a floor", () => {
   it("is refused with the shortfalls named and nothing published", async () => {
     const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2 }, { seed: 3, lure: false }]);

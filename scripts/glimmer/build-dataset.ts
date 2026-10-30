@@ -277,14 +277,21 @@ export function dedupe(
   // The pages `prefer` names come first, so a twin is dropped in their place, never they in its.
   const order = (a: Entry, b: Entry) =>
     Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) || a.page.id.localeCompare(b.page.id);
+  const index = (entry: Entry, keys: number[]) =>
+    keys.forEach((value, band) => {
+      append(bands[band] as Map<number, Entry[]>, value, entry);
+    });
   for (const entry of [...entries].sort(order)) {
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
+    const reserved = prefer.has(entry.page.id);
+    const keys = Array.from({ length: 7 }, (_, band) => Number((entry.hash >> BigInt(band * 9)) & 0x1ffn));
     if (seen.has(key)) {
       exact++;
+      // A reserved page dropped as a copy still guards its near duplicates (completion review G3).
+      if (reserved) index(entry, keys);
       continue;
     }
     seen.add(key);
-    const keys = Array.from({ length: 7 }, (_, band) => Number((entry.hash >> BigInt(band * 9)) & 0x1ffn));
     const candidates = new Set<Entry>();
     keys.forEach((value, band) => {
       for (const other of bands[band]?.get(value) ?? []) candidates.add(other);
@@ -294,13 +301,11 @@ export function dedupe(
     );
     if (twin) {
       near++;
+      if (reserved) index(entry, keys);
       continue;
     }
     kept.push(entry);
-    keys.forEach((value, band) => {
-      const bucket = bands[band] as Map<number, Entry[]>;
-      append(bucket, value, entry);
-    });
+    index(entry, keys);
   }
   return { kept, exact, near };
 }
@@ -944,7 +949,20 @@ export async function buildDataset(options: {
   // each shortfall, instead of splitting a pool that was never enough.
   const pool = evaluationPool(capped, teacher, floors);
   if (pool.shortfalls.length) throw new ShortfallError(pool.shortfalls);
-  const parts = split(capped, random, { admit, floors, reserved: reference.ids });
+  // A reference page that is no candidate any more (excluded, deduplicated or capped away) still holds its brand, site
+  // and template out of training, and its near duplicates were dropped above (completion review G3).
+  const candidateIds = new Set(capped.map((e) => e.page.id));
+  const byId = new Map(entries.map((e) => [e.page.id, e]));
+  const recordOf = new Map(pages.map((p) => [p.id, p]));
+  const protect: Entry[] = [...reference.ids].flatMap((id) => {
+    if (candidateIds.has(id)) return [];
+    const entry = byId.get(id);
+    const record = recordOf.get(id);
+    if (entry) return [entry];
+    // No entry was made of it (excluded, unlabelled): its record alone gives its identities.
+    return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Set<number>() }] : [];
+  });
+  const parts = split(capped, random, { admit, floors, reserved: reference.ids, protect });
   const train = balance(parts.train, random);
   const evaluation = balanceEvaluation(parts.evaluation);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
