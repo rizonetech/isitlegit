@@ -462,6 +462,7 @@ Controls:
 - email field: Email input. (Signin)
 - magic-link button: Primary submit. (Signin)
 - passkey button: Starts WebAuthn; Create an account opens A2. (Signin)
+- sign-in code: The code field and Sign in on the check your inbox state. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 
 States:
 
@@ -469,11 +470,14 @@ States:
 - link expired or used: With Email me a new link. (Signin-States)
 - rate limited: With the time new links resume. (Signin-States)
 - passkey prompt: With Try the passkey again and Email me a link instead. (Signin-States)
+- code refused: The refusal on the code field, with Send another link. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 - loading: Busy submit. Deferred to D07 T02 §7: the submit button shows a busy state while the request runs; not drawn.
 - empty: No empty state. Not applicable: a form page; the empty form is the default state.
 - error: App error page (E5). (Error-500)
 
 Confirm step (D07 T02 §10, 2026-10-29; built from A1's controls, not drawn): the mailed link opens `/signin/confirm`, which only shows the heading "Sign in to IsItLegit", one line ("Press the button to finish signing in. The link works once.") and one primary "Sign in to IsItLegit" button; nothing happens until it is pressed, because mail systems open links before the member does. Its states:
+
+Sign-in code (D07 T02 §11, 2026-10-30, operator decision "Code sign-in: yes"; built from A1's controls, not drawn): every sign-in mail carries a 6-digit code beside the link ("Or type this code in the browser where you asked for the link", shown "123 456"), and the "check your inbox" state leads with a "Code from the email" field (hint: "Reading the mail on another device? Type its 6-digit code here to sign in on this one.") and a primary "Sign in" button; Send another link and Use a different email follow as ghost buttons, as the board draws them. The code signs in only the browser that asked, once, within the link's 15 minutes, and spends the link with it. Its refusals sit on the field: "That code is not right. 2 tries left." (then "1 try left."), "That code no longer works after three wrong tries. Send another link.", "That code has run out: codes work for 15 minutes. Send another link.", "This code works only in the browser where you asked for the link, while the link is new. Send another link from here.", "That code no longer works: its link was already used. Send another link.", "Enter the 6-digit code from the email." for anything but six digits, and the confirm step's own rate-limited, no-account and did-not-finish answers.
 
 - confirm, signed in: The member lands on the page the link named.
 - confirm, link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
@@ -994,6 +998,7 @@ Boards: [PNG](mockups/png/Email-Signin.png) · [source](mockups/source/Email-Sig
 Controls:
 
 - sign-in link: Button and plain link, 15-minute expiry. (Email-Signin)
+- sign-in code: The 6-digit code beside the link. Deferred to D07 T02 §11: built from N2's text, not drawn.
 
 States:
 

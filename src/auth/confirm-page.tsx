@@ -5,6 +5,7 @@ import { Button } from "../web/components/Button";
 import { Document } from "../web/components/Document";
 import { Field } from "../web/components/Field";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
+import { CODE_PATH } from "./signin-code";
 
 export const CONFIRM_PATH = "/signin/confirm";
 export const LINK_PATH = "/signin/link";
@@ -119,19 +120,41 @@ export function LinkRequestPage(props: LinkRequestProps) {
   );
 }
 
-// A1's "check your inbox" state: the neutral answer, then Send another link (the same address again) and Use a
-// different email (the request form with this address to correct).
-export function InboxPage(props: { email: string; callbackURL: string }) {
+// A1's "check your inbox" state: the neutral answer, the code from the mail (D07 T02 §11: it signs in this browser,
+// the one that asked), then Send another link (the same address again) and Use a different email (the request form
+// with this address to correct). A refused code comes back here with its message tied to the field; the address and
+// return path ride in every form only to draw these controls again, never to decide a sign-in.
+export type InboxProps = { email: string; callbackURL: string; codeError?: string };
+
+export function InboxPage(props: InboxProps) {
   return (
     <Frame title="Check your inbox">
       <h1 class="font-display text-28 weight-display">Check your inbox</h1>
       <p class="text-16 text-muted">
         If that address can sign in, a new link is on its way. It works once, for 15 minutes.
       </p>
+      <form method="post" action={CODE_PATH} class="flex flex-col gap-16">
+        <input type="hidden" name="email" value={props.email} />
+        <input type="hidden" name="callbackURL" value={props.callbackURL} />
+        <Field
+          id="signin-code"
+          label="Code from the email"
+          name="code"
+          hint="Reading the mail on another device? Type its 6-digit code here to sign in on this one."
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength={7}
+          required
+          {...(props.codeError ? { error: props.codeError } : {})}
+        />
+        <Button type="submit" variant="primary">
+          Sign in
+        </Button>
+      </form>
       <form method="post" action={LINK_PATH}>
         <input type="hidden" name="email" value={props.email} />
         <input type="hidden" name="callbackURL" value={props.callbackURL} />
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="ghost">
           Send another link
         </Button>
       </form>

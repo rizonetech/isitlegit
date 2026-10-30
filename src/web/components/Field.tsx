@@ -14,6 +14,9 @@ export type FieldProps = PassThrough & {
   required?: boolean;
   autocomplete?: string;
   inputmode?: "text" | "email" | "numeric" | "decimal" | "tel" | "url" | "search";
+  // Length and pattern limits the browser enforces before submitting (a sign-in code's 7 characters, D07 T02 §11).
+  maxlength?: number;
+  pattern?: string;
   class?: string;
 };
 
@@ -26,6 +29,7 @@ const INPUT = cx(
 
 export function Field(props: FieldProps) {
   const { id, label, name, type = "text", value, placeholder, hint, error, required, autocomplete, inputmode } = props;
+  const { maxlength, pattern } = props;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const given = passThrough(props as Record<string, unknown>);
@@ -53,6 +57,8 @@ export function Field(props: FieldProps) {
         required={required}
         autocomplete={autocomplete}
         inputmode={inputmode}
+        maxlength={maxlength}
+        pattern={pattern}
         aria-invalid={invalid}
         aria-describedby={describedBy}
         class={INPUT}

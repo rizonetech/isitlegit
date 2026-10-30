@@ -223,6 +223,19 @@ describe("Pill", () => {
 });
 
 describe("Field", () => {
+  // D07 T02 §11: the sign-in code field limits its length ("123 456" is 7 characters) and its characters.
+  it("renders maxlength and pattern on its input only when given", () => {
+    const limited = html(
+      <Field id="code" label="Code from the email" name="code" maxlength={7} pattern="[0-9 \-]*" inputmode="numeric" />,
+    );
+    const input = /<input\b[^>]*>/.exec(limited)?.[0] ?? "";
+    expect(input).toContain('maxlength="7"');
+    expect(input).toContain('pattern="[0-9 \\-]*"');
+    const plain = /<input\b[^>]*>/.exec(html(<Field id="email" label="Email" name="email" />))?.[0] ?? "";
+    expect(plain).not.toContain("maxlength");
+    expect(plain).not.toContain("pattern");
+  });
+
   it("ties the label to its input and forwards the form attributes", () => {
     const markup = html(
       <Field

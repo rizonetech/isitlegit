@@ -7,6 +7,8 @@
 //   GET  /signin/confirm?token=&callbackURL=   the page: one button, nothing created
 //   POST /signin/confirm                       redeem the token, then 303 to the return path with the session cookie
 //   POST /signin/link                          the "link expired or used" state's recovery: mail a new link
+//   POST /signin/code                          the code mailed beside the link (D07 T02 §11): signs in the browser that
+//                                              asked, redeeming the same token
 //   GET  /api/auth/magic-link/verify           a link mailed before this change: 303 to the page, never redeemed
 import { Hono } from "hono";
 import * as z from "zod";
@@ -26,6 +28,8 @@ import {
 } from "./confirm-page";
 import { DEFAULT_RETURN, MAX_RETURN_PATH } from "./paths";
 import { LINK_WINDOW_SECONDS } from "./ratelimit";
+import { CODE_COOKIE, CODE_PATH, clearHandleCookie, normaliseCode, readHandle } from "./signin-code";
+import { checkCode, giveBack, markUsed } from "./signin-code-store";
 
 // What Better Auth's verify answered, sorted into the confirm page's states (better-auth/dist/plugins/magic-link):
 // signed in (a session cookie); rate limited (its limiter's 429, before the token is touched, so the same link works a
@@ -65,7 +69,7 @@ const SERVICE_ERRORS = new Set(["failed_to_create_session", "failed_to_create_us
 // refused before it is read, and each field is bounded before it is checked or drawn back into a page, so a large post
 // can neither fill the isolate's memory nor be echoed into a larger page (D07 T02 §10 round 1).
 const MAX_FORM_BYTES = 8 * 1024;
-const MAX_FIELD = { token: 512, callbackURL: MAX_RETURN_PATH, email: 254 } as const;
+const MAX_FIELD = { token: 512, callbackURL: MAX_RETURN_PATH, email: 254, code: 16 } as const;
 // Better Auth's own rule for the address (better-auth/dist/plugins/magic-link: `z.email()`), so an address it would
 // refuse is a field error here, not a send it then refuses.
 const EMAIL = z.email();
@@ -110,6 +114,9 @@ function forwarded(env: Env, request: Request, extra: Record<string, string> = {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  // The browser's sign-in code handle, and nothing else of its cookies (D07 T02 §11): a new link keeps the handle.
+  const handle = readHandle(request.headers);
+  if (handle) headers.set("cookie", `${CODE_COOKIE}=${handle}`);
   return headers;
 }
 
@@ -120,6 +127,31 @@ const retryAfterOf = (answer: Response) => {
 };
 
 const log = (step: string) => console.log(JSON.stringify({ event: "signin-confirm", step }));
+
+// Redeem a token through Better Auth's own verify, server-side, as the confirm page's button and a right code both do.
+async function askVerify(env: Env, request: Request, token: string, callbackURL: string) {
+  const verify = new URL("/api/auth/magic-link/verify", new URL(env.APP_URL).origin);
+  verify.searchParams.set("token", token);
+  verify.searchParams.set("callbackURL", callbackURL);
+  let answer: Response;
+  try {
+    answer = await createAuth(env).handler(new Request(verify, { headers: forwarded(env, request) }));
+  } catch {
+    answer = new Response(null, { status: 500 });
+  }
+  return { answer, outcome: classifyVerify(answer, verify.origin), origin: verify.origin };
+}
+
+// Signed in: 303 to the return path with the session cookie. Serialised as an absolute URL on the app's own origin: a
+// header carries no raw non-ASCII (round 2), and a path that resolves to `//host` can never become a protocol-relative
+// redirect (round 3).
+function signedIn(callbackURL: string, origin: string, cookies: string[]): Response {
+  const destination = new URL(callbackURL, origin);
+  const to = destination.origin === origin ? destination.href : new URL(DEFAULT_RETURN, origin).href;
+  const out = new Response(null, { status: 303, headers: { location: to, "cache-control": "no-store" } });
+  for (const cookie of cookies) out.headers.append("set-cookie", cookie);
+  return out;
+}
 
 export const confirmRoutes = new Hono<{ Bindings: Env }>();
 
@@ -139,34 +171,19 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   const token = form.token ?? "";
   const callbackURL = returnPath(form.callbackURL);
   if (!token) return pageResponse(<LinkRequestPage callbackURL={callbackURL} />, 400);
-  const verify = new URL("/api/auth/magic-link/verify", new URL(c.env.APP_URL).origin);
-  verify.searchParams.set("token", token);
-  verify.searchParams.set("callbackURL", callbackURL);
-  let answer: Response;
-  try {
-    answer = await createAuth(c.env).handler(new Request(verify, { headers: forwarded(c.env, c.req.raw) }));
-  } catch {
-    answer = new Response(null, { status: 500 });
-  }
-  const outcome = classifyVerify(answer, verify.origin);
+  const { answer, outcome, origin } = await askVerify(c.env, c.req.raw, token, callbackURL);
   const cookies = answer.headers.getSetCookie();
   // A link that did not sign anyone in is the audit trail's failed sign-in (D07 T02 §6), with Better Auth's reason
   // (used or unknown, expired, no account, the service's failure), never the token.
   if (outcome === "used" || outcome === "no-account" || outcome === "failed")
     await recordAuthEvent(c.env.DB, c.env.BETTER_AUTH_SECRET ?? "", {
       kind: "sign-in-failed",
-      outcome: failureReason(answer, verify.origin, outcome),
+      outcome: failureReason(answer, origin, outcome),
       ip: clientIp(c.req.raw.headers),
     });
   if (outcome === "signed-in") {
     log("signed-in");
-    // Serialised as an absolute URL on the app's own origin: a header carries no raw non-ASCII (round 2), and a path
-    // that resolves to `//host` can never become a protocol-relative redirect (round 3).
-    const destination = new URL(callbackURL, verify.origin);
-    const to = destination.origin === verify.origin ? destination.href : new URL(DEFAULT_RETURN, verify.origin).href;
-    const out = new Response(null, { status: 303, headers: { location: to, "cache-control": "no-store" } });
-    for (const cookie of cookies) out.headers.append("set-cookie", cookie);
-    return out;
+    return signedIn(callbackURL, origin, cookies);
   }
   if (outcome === "rate-limited") {
     // The token is untouched: the same button works again once the limiter's window has passed.
@@ -242,7 +259,13 @@ confirmRoutes.post(LINK_PATH, async (c) => {
   // A sent, refused or address-limited request answers alike, so the page never tells a stranger who can sign in (the
   // per-address limit answers as sent, D01 T02 §2). The per-IP limit (D07 T02 §6) is this client's own, so it says when
   // new links resume, the address and return path kept; a failed send (the service's) says to try again.
-  if (asked.ok) return pageResponse(<InboxPage email={email} callbackURL={callbackURL} />);
+  if (asked.ok) {
+    // The code's handle Better Auth set on its answer (D07 T02 §11) goes to the browser with the inbox page.
+    const page = await pageResponse(<InboxPage email={email} callbackURL={callbackURL} />);
+    for (const cookie of asked.headers.getSetCookie())
+      if (cookie.startsWith(`${CODE_COOKIE}=`)) page.headers.append("set-cookie", cookie);
+    return page;
+  }
   if (asked.status === 429)
     return pageResponse(
       <LinkRequestPage
@@ -266,6 +289,69 @@ confirmRoutes.post(LINK_PATH, async (c) => {
     />,
     503,
   );
+});
+
+// The code mailed beside a link (D07 T02 §11; ./signin-code): it signs in only the browser holding the handle the link
+// was asked with, three wrong codes end it, and a right code redeems the link's own token, so the two are one sign-in.
+// Every refusal comes back to the inbox page with its message on the field and the controls to recover.
+const CODE_REFUSED = {
+  "no-request":
+    "This code works only in the browser where you asked for the link, while the link is new. Send another link from here.",
+  expired: "That code has run out: codes work for 15 minutes. Send another link.",
+  locked: "That code no longer works after three wrong tries. Send another link.",
+} as const;
+
+confirmRoutes.post(CODE_PATH, async (c) => {
+  if (!sameOrigin(c.env, c.req.raw)) return new Response("Forbidden", { status: 403 });
+  const form = await readForm(c.req.raw);
+  if (!form) return tooLarge();
+  const email = form.email ?? "";
+  const callbackURL = returnPath(form.callbackURL);
+  const inbox = (codeError: string, status: number) =>
+    pageResponse(<InboxPage email={email} callbackURL={callbackURL} codeError={codeError} />, status);
+  const code = normaliseCode(form.code);
+  // Not six digits: a slip, not a guess, so no attempt is spent.
+  if (!code) return inbox("Enter the 6-digit code from the email.", 400);
+  const secret = c.env.BETTER_AUTH_SECRET ?? "";
+  const refused = (outcome: string) =>
+    recordAuthEvent(c.env.DB, secret, { kind: "sign-in-failed", outcome, ip: clientIp(c.req.raw.headers) });
+  const check = await checkCode(c.env.DB, secret, readHandle(c.req.raw.headers), code);
+  if (check.kind === "wrong") {
+    await refused("code-wrong");
+    return inbox(`That code is not right. ${check.left} ${check.left === 1 ? "try" : "tries"} left.`, 400);
+  }
+  if (check.kind !== "match") {
+    await refused(`code-${check.kind}`);
+    return inbox(CODE_REFUSED[check.kind], 400);
+  }
+  const { answer, outcome, origin } = await askVerify(c.env, c.req.raw, check.token, check.callbackURL);
+  if (outcome === "signed-in") {
+    await markUsed(c.env.DB, check.handleHash);
+    log("code-signed-in");
+    const out = signedIn(check.callbackURL, origin, answer.headers.getSetCookie());
+    out.headers.append("set-cookie", clearHandleCookie());
+    return out;
+  }
+  if (outcome === "rate-limited") {
+    // The token is untouched: the attempt is given back and the same code works once the limiter lets it.
+    await giveBack(c.env.DB, check.handleHash);
+    return inbox(`Too many sign-in tries from here. Type the code again in ${resumesIn(retryAfterOf(answer))}.`, 429);
+  }
+  // Used (the link was spent first), no account, or the service's failure after the token was taken: the code is done.
+  await markUsed(c.env.DB, check.handleHash);
+  await refused(failureReason(answer, origin, outcome));
+  if (outcome === "no-account")
+    return pageResponse(
+      <MessagePage
+        title="No account for this address"
+        heading="This address has no IsItLegit account"
+        text="Ask the owner of your organisation's IsItLegit account to invite you, then sign in from the invitation."
+      />,
+      403,
+    );
+  return outcome === "used"
+    ? inbox("That code no longer works: its link was already used. Send another link.", 400)
+    : inbox("Sign-in did not finish on our side. Send another link and try again.", 503);
 });
 
 // A link mailed before this change named Better Auth's verify URL: it goes to the page with the same token and return
