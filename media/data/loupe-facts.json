@@ -13,43 +13,50 @@
       "value": "image input",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "`supportsImageInput` true"
+      "quote": "`supportsImageInput` true",
+      "label": true
     },
     "loraTunable": {
       "value": "LoRA tunable",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "`supervisedLoraTunable` true"
+      "quote": "`supervisedLoraTunable` true",
+      "label": true
     },
     "visionFrozen": {
       "value": "vision encoder frozen",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "`enableVisionEncoderTuning` false"
+      "quote": "`enableVisionEncoderTuning` false",
+      "label": true
     },
     "context": {
       "value": "131,072",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "`trainingContextLength` 131072"
+      "quote": "`trainingContextLength` 131072",
+      "label": true
     },
     "serverless": {
       "value": "Fireworks Serverless Training API",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "Serverless Training API"
+      "quote": "Serverless Training API",
+      "label": true
     },
     "screenPage": {
       "value": "screenPage",
       "status": "planned",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "through one `screenPage` interface"
+      "quote": "through one `screenPage` interface",
+      "label": true
     },
     "failover": {
       "value": "Muse Spark failover",
       "status": "planned",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "Page Screening on Muse Glimmer with Muse Spark Failover"
+      "quote": "Page Screening on Muse Glimmer with Muse Spark Failover",
+      "label": true
     },
     "phreshphish": {
       "value": "6,780",
@@ -73,7 +80,8 @@
       "value": "15,000 of 83,275",
       "status": "measured",
       "source": "docs/glimmer/sources.md",
-      "quote": "83,275 HTML pages by Subhash Ariyadasa, Shantha Fernando and Subha Fernando"
+      "quote": "83,275 HTML pages by Subhash Ariyadasa, Shantha Fernando and Subha Fernando",
+      "label": true
     },
     "ariyadasaSample": {
       "value": "15,000",
@@ -91,13 +99,15 @@
       "value": "15,000 of 15,902",
       "status": "measured",
       "source": "docs/glimmer/sources.md",
-      "quote": "15,902 pages collected by the uploader from PhishTank and the Majestic Million"
+      "quote": "15,902 pages collected by the uploader from PhishTank and the Majestic Million",
+      "label": true
     },
     "majestic": {
       "value": "top 20,000",
       "status": "measured",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "from the Majestic Million's top 5,000 to its top 20,000"
+      "quote": "from the Majestic Million's top 5,000 to its top 20,000",
+      "label": true
     },
     "collection": {
       "value": "129,892",
@@ -163,7 +173,8 @@
       "value": "346 / 137 / 92",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "346 South African benign renders, 137 redacted sample lures"
+      "quote": "346 South African benign renders, 137 redacted sample lures",
+      "label": true
     },
     "teacherPublicSA": {
       "value": "92",
@@ -175,7 +186,8 @@
       "value": "reasoning.effort: low, 2,000 output tokens",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "fixed with `reasoning.effort: low` and 2,000 output tokens"
+      "quote": "fixed with `reasoning.effort: low` and 2,000 output tokens",
+      "label": true
     },
     "teacherSpend": {
       "value": "US$6.91",
@@ -187,7 +199,8 @@
       "value": "61%",
       "status": "measured",
       "source": "docs/glimmer/training.md",
-      "quote": "base Spark's recall was 61 percent, which is the bar Loupe must beat"
+      "quote": "base Spark's recall was 61 percent, which is the bar Loupe must beat",
+      "label": true
     },
     "evalPages": {
       "value": "1,000",
@@ -199,13 +212,15 @@
       "value": "40%",
       "status": "planned",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "allowing no more at 40 percent"
+      "quote": "allowing no more at 40 percent",
+      "label": true
     },
     "chainHost": {
       "value": "weebly.com 57 brands",
       "status": "measured",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "weebly.com 57 brands, google.com 32"
+      "quote": "weebly.com 57 brands, google.com 32",
+      "label": true
     },
     "chainGroup": {
       "value": "28,334",
@@ -223,19 +238,22 @@
       "value": "2 h 35 min, 2.4 GB",
       "status": "measured",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "the first real 1.0 build (13:16 to 15:51 SAST, 2 h 35 min, 2.4 GB) was refused: training kept 29 of 100 sample-derived lures"
+      "quote": "the first real 1.0 build (13:16 to 15:51 SAST, 2 h 35 min, 2.4 GB) was refused: training kept 29 of 100 sample-derived lures",
+      "label": true
     },
     "build2": {
       "value": "1 h 16 min, 997 of 1,000",
       "status": "measured",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "the second 1.0 build (16:28 to 17:45 SAST, 1 h 16 min, 2.4 GB) was refused by 3 pages: evaluation balanced to 997 of 1,000"
+      "quote": "the second 1.0 build (16:28 to 17:45 SAST, 1 h 16 min, 2.4 GB) was refused by 3 pages: evaluation balanced to 997 of 1,000",
+      "label": true
     },
     "build2Fix": {
       "value": "keep the teacher-verified twin",
       "status": "measured",
       "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "Both now keep the teacher-verified page first (`dedupe`, `capBrands`)"
+      "quote": "Both now keep the teacher-verified page first (`dedupe`, `capBrands`)",
+      "label": true
     },
     "loraRank": {
       "value": "8",
@@ -259,7 +277,8 @@
       "value": "8,192",
       "status": "planned",
       "source": "scripts/glimmer/train_serverless.py",
-      "quote": "MAX_SEQ_LEN = 8192"
+      "quote": "MAX_SEQ_LEN = 8192",
+      "label": true
     },
     "epochs": {
       "value": "1",
@@ -277,13 +296,15 @@
       "value": "promotion gate",
       "status": "planned",
       "source": "scripts/glimmer/version-gate.py",
-      "quote": "lure recall at least the previous one's and a false-alarm rate no higher, overall and on the South African slice"
+      "quote": "lure recall at least the previous one's and a false-alarm rate no higher, overall and on the South African slice",
+      "label": true
     },
     "gateHeldOut": {
       "value": "same held-out file",
       "status": "planned",
       "source": "scripts/glimmer/version-gate.py",
-      "quote": "measured on the same held-out file"
+      "quote": "measured on the same held-out file",
+      "label": true
     },
     "gpu": {
       "value": "one H100 80 GB",
@@ -295,7 +316,8 @@
       "value": "300 s",
       "status": "planned",
       "source": "scripts/glimmer/deploy.ts",
-      "quote": "export const SCALE_TO_ZERO = \"300s\";"
+      "quote": "export const SCALE_TO_ZERO = \"300s\";",
+      "label": true
     },
     "versioning": {
       "value": "isitlegit-loupe-1-0",

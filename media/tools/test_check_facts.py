@@ -55,6 +55,14 @@ class CheckFactsTest(unittest.TestCase):
     def test_a_missing_source_fails(self):
         self.assertTrue(facts.check(self.data(pages={"source": "missing.md"})))
 
+    def test_a_label_need_not_appear_in_its_quote(self):
+        self.assertEqual(facts.check(self.data(pages={"value": "the build", "label": True})), [])
+
+    def test_a_storyboard_naming_an_unknown_fact_fails(self):
+        board = Path(self.tmp.name) / "board.json"
+        board.write_text('{"text": "read {fact.pages} and {fact.missing}"}')
+        self.assertEqual(facts.unknown_refs({"pages"}, [board]), ["board.json: names unknown fact missing"])
+
     def test_an_unknown_status_fails(self):
         self.assertTrue(facts.check(self.data(pages={"status": "guessed"})))
 

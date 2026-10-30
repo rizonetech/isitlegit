@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Prove every figure in media/data/loupe-facts.json against its source at the pinned commit.
+"""Prove every figure in media/data/*-facts.json against its source at that file's pinned commit.
 
-Each fact names a file and either an exact quote, which must appear in `git show <commit>:<file>` and contain
-the displayed value unless it is a label, or a `count` pattern, whose matching lines must number the value. Exit 0 when every fact holds, 1 with each
-failure listed. Run before rendering video 03 so a number on screen always has a source.
+Each fact names a file and either an exact quote, which must appear in `git show <commit>:<file>` and contain the
+displayed value unless the fact is marked `"label": true`, or a `count` pattern, whose matching lines must number the
+value. Every `{fact.key}` a storyboard in media/data/storyboards/ names must be defined. Exit 0 when everything holds,
+1 with each failure listed. The render scripts run it first, so a number on screen always has a source.
 """
 
 import json
@@ -14,15 +15,8 @@ from pathlib import Path
 
 MEDIA = Path(__file__).resolve().parent.parent
 REPO = MEDIA.parent
-FACTS = MEDIA / "data" / "loupe-facts.json"
-
-# Values that are labels or composites rather than a figure copied out of the quote.
-LABELS = {
-    "imageInput", "loraTunable", "visionFrozen", "context", "failover", "ariyadasa",
-    "mallory", "teacherMix", "teacherReasoning", "sparkRecall", "evalLureCap", "chainHost",
-    "build1", "build2", "build2Fix", "maxSeqLen", "gate", "gateHeldOut", "scaleToZero",
-    "screenPage", "serverless", "majestic",
-}
+DATA = MEDIA / "data"
+FACT_REF = re.compile(r"\{fact\.([A-Za-z0-9_]+)\}")
 
 
 def show(commit: str, path: str, cache: dict) -> str | None:
@@ -48,19 +42,30 @@ def check(data: dict) -> list[str]:
             continue
         elif fact["quote"] not in text:
             failures.append(f"{key}: quote not in {fact['source']}: {fact['quote']!r}")
-        if key not in LABELS and fact["value"] not in fact["quote"]:
+        if not fact.get("label") and fact["value"] not in fact["quote"]:
             failures.append(f"{key}: value {fact['value']!r} is not in its quote")
     return failures
 
 
+def unknown_refs(known: set[str], boards: list[Path]) -> list[str]:
+    """Facts a storyboard names that no facts file defines."""
+    return [f"{b.name}: names unknown fact {k}" for b in boards for k in FACT_REF.findall(b.read_text()) if k not in known]
+
+
 def main() -> int:
-    data = json.loads(FACTS.read_text())
-    failures = check(data)
+    files = sorted(DATA.glob("*-facts.json"))
+    failures, known, total = [], set(), 0
+    for path in files:
+        data = json.loads(path.read_text())
+        failures += [f"{path.name}: {f}" for f in check(data)]
+        known |= set(data["facts"])
+        total += len(data["facts"])
+    failures += unknown_refs(known, sorted((DATA / "storyboards").glob("*.json")))
     for f in failures:
         print(f"check-facts: {f}", file=sys.stderr)
     if failures:
         return 1
-    print(f"check-facts: {len(data['facts'])} facts hold at {data['commit'][:10]}")
+    print(f"check-facts: {total} facts in {len(files)} files hold, and every storyboard reference resolves")
     return 0
 
 
