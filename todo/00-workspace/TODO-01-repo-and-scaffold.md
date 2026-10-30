@@ -60,6 +60,7 @@ track: day-0
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
+| 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -780,6 +781,32 @@ Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm 
 - [ ] Commit: `tools: the pre-push excerpt comes from the tools' own error output`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_push_hook` passes, including the warnings-then-one-error lint case, which fails on the word grep.
+
+## 22. Lane merges regenerate the plan, never conflict on it
+
+> **Started:** 2026-10-30T14:05Z
+
+Asked by the operator 2026-10-30 ("can we avoid these conflicts?", then "build it as D00 T01 §22"). Every stamp commits a regenerated `todo/implementation-plan.md`, so with four lanes (§19) every merge between two branches that each stamped conflicts on that one file, and each lane resolves it by hand (take either side, `plan --sync`; `AGENTS.md` Parallel lanes). The file is wholly derived from the TODO files, so git should never merge its lines: it should keep one side and regenerate. Measured in a scratch repository (2026-10-30, coordinator): a `pre-merge-commit` hook that stages a regenerated file does not change the merge commit (git writes the merge's tree before that hook runs), and a `post-merge` hook cannot amend (git keeps `MERGE_HEAD` while it runs); a `pre-merge-commit` hook that stages the regenerated plan and exits non-zero stops the automatic commit, and the next `git commit` (through `pre-commit`) records it, with the merge commit carrying the current plan. Committing the plan stays (`todo/README.md`: the one committed derived artefact); CI's `plan --check` stays the backstop for a clone without the driver.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Keep one side of the plan in a merge. Done when: a merge of two branches that both changed the plan stops on no conflict in it.
+2. Regenerate the plan into the merge commit. Done when: the merge commit's plan equals `plan --sync` over its merged TODO files, whether the merge had other conflicts or none.
+
+- [ ] Add `todo/implementation-plan.md merge=todo-plan` to `.gitattributes` with a comment naming this section, and set the driver in the repository's shared config, `git config merge.todo-plan.driver true` (one setting for every worktree of the clone; `git worktree` shares `.git/config`). Done when: `git check-attr merge todo/implementation-plan.md` prints `todo-plan` and `git config merge.todo-plan.driver` prints `true` in all four worktrees.
+- [ ] Write `scripts/hooks/pre-merge-commit`: when the merge changes nothing under `todo/` but the plan, or the regenerated plan equals the staged one, exit 0; otherwise run `plan --sync`, stage `todo/implementation-plan.md`, print `plan regenerated and staged; run 'git commit --no-edit' to conclude the merge`, and exit 1, so git stops before committing. Done when: `tests/scripts/test_merge_plan.py` merges two branches that each stamped a different section into a merge that stops with that line and no conflict, and one `git commit --no-edit` makes a two-parent merge whose plan equals `plan --sync` over the merged tree. Cheaper substitute: staging the plan and exiting 0, which leaves the stale plan in the merge commit (measured above).
+- [ ] Regenerate in `scripts/hooks/pre-commit` while a merge is open (`MERGE_HEAD` exists): run `plan --sync` and stage the plan before the plan check, instead of refusing it stale. Done when: a test merge with a conflict in another TODO file, resolved and committed, carries the regenerated plan, and an ordinary commit with a stale plan is still refused as before.
+- [ ] Refuse in `pre-merge-commit` and `pre-commit` when `validate` fails over the merged tree, naming the refusal, so a broken graph is never committed as a merge. Done when: a test merge whose two sides number a section twice is refused with the validator's message and no commit.
+- [ ] Track both hooks executable (`100755`) and keep `TrackedHooks` (§21) covering them. Done when: `git ls-files -s scripts/hooks` lists both at `100755`.
+- [ ] Name the setup and the new merge step in `AGENTS.md` (the hooks paragraph and Parallel lanes: "a merge that changes the plan stops with `plan regenerated`; run `git commit --no-edit`") and in `todo/README.md` Commands. Done when: both name the driver line and the step, and no text tells a lane to resolve the plan by hand.
+- [ ] Tell the three lanes, after this lands on `main`, that their next merge of `main` stops with `plan regenerated` instead of a conflict. Done when: each lane is messaged with the commit.
+- [ ] Commit: `tools: lane merges regenerate the plan instead of conflicting on it`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan tests.scripts.test_pre_commit_hook tests.scripts.test_pre_push_hook` passes, including a two-branch merge that, without the driver, conflicts on the plan (the test asserts that first), and with it, does not.
 
 ## Verification
 
