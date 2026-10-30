@@ -52,9 +52,21 @@ for check in typecheck lint; do
     out=$(pnpm "$check" 2>&1)
     status=$?
     if [ "$status" -ne 0 ]; then
-        # The errors first, wherever they fall in the output (warnings can fill the first lines), then its opening.
+        # The errors as the tools themselves classify them (D00 T01 §21), never a word search: Biome's warning blocks
+        # carry "error", "×" and "failed" too. The push's verdict stays this run's status.
         echo "pre-push: 'pnpm $check' failed (exit $status), so nothing was pushed; its errors:" >&2
-        errors=$(printf '%s\n' "$out" | grep -iE 'error|✖|×|failed' | head -20)
+        errors=""
+        if [ "$check" = lint ]; then
+            # Biome prints only its errors at error level, and exits 1 when it found any; any other status (0, or a
+            # run that could not start) names no error, so its output is not shown as the lint's errors.
+            detail=$(pnpm lint --diagnostic-level=error 2>&1)
+            if [ $? -eq 1 ]; then
+                errors=$(printf '%s\n' "$detail" | grep -v '^[[:space:]]*$' | head -40)
+            fi
+            [ -n "$errors" ] || echo "pre-push: Biome's error-level run named no errors; the lint's opening lines:" >&2
+        else
+            errors=$(printf '%s\n' "$out" | grep -E 'error TS[0-9]+' | head -20)
+        fi
         if [ -n "$errors" ]; then
             printf '%s\n' "$errors" >&2
         else
