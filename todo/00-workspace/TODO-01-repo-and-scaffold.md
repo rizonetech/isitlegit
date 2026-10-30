@@ -52,7 +52,7 @@ track: day-0
 | 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [x] |
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
 | 13 | §13 | Type check before every push | §4 | [ ] |
-| 14 | §14 | Timing-free render, import and fetch tests | §4 | [ ] |
+| 14 | §14 | Timing-free render, import and fetch tests | §4 | [x] |
 | 15 | §15 | Review schedule by section risk | §4 | [x] |
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
@@ -571,6 +571,9 @@ Filed 2026-10-29 at the operator's request: most of the red CI runs that are not
 - [x] Commit: `glimmer: render, import and fetch tests wait on events, not time` Done 2026-10-30: 9e1111f, then the review fixes to 2c0a2cd.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-import.test.ts` and `python3 -m pytest tests/scripts/test_fetch_bench.py` pass 20 times in a row under load.
+
+> **Verified:** 2026-10-30 | §14 | 6ad2743880b7b13fc2127debbcd2e58a90b840c9
+> **Review:** `docs/reviews/d00-t01-s14.json`
 
 ## 15. Review schedule by section risk
 

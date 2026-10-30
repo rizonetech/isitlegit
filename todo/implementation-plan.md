@@ -20,7 +20,7 @@ Sections: 27 | Checklist items: 360
 | [x]    | D00 T01 §6  | AI Gateway for the Meta Model API          | cloudflare           | 9     |
 | [x]    | D00 T01 §10 | Deploy rollback and re-verification        | cloudflare           | 11    |
 | [x]    | D00 T01 §12 | Rollback from a split deployment           | cloudflare           | 10    |
-| [ ]    | D00 T01 §14 | Timing-free render, import and fetch tests | none                 | 5     |
+| [x]    | D00 T01 §14 | Timing-free render, import and fetch tests | none                 | 5     |
 | [x]    | D03 T04 §2  | Fireworks account check and image probe    | none                 | 22    |
 | [x]    | D03 T04 §3  | PageScreen contract and training store     | none                 | 15    |
 | [x]    | D03 T04 §4  | Astra as dataset collector                 | none                 | 17    |
@@ -331,6 +331,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 78/262 verified sections, 42 ready to run now.
+Progress: 79/262 verified sections, 41 ready to run now.
 
 Checklist: 834/1654 items completed (includes Commit items).
