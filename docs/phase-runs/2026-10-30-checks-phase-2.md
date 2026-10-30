@@ -11,6 +11,8 @@ Started 2026-10-30 12:15 UTC by `process-plan`, scope plan, on branch `checks-la
 
 ## Sections
 
+- D01 T02 §6 Forwarding failures detected and reported (Phase 1): stamped (plan review 1 P1 + 5 P2 folded in; two live probes, the second reading a refusal as NDR notices; completion 7 gaps fixed, the live proof filed as D01 T02 §9; rounds 1 to 3 fixed (P1 + 3 P2, 2 P1 + P2, P2), round 4 clean). 323 tests across mail, scheduled, intake and pipeline. Migration 0036; needs `CF_ANALYTICS_TOKEN` at deploy (the coordinator's).
+
 - D02 T02 §4 Display name, Reply-To and Return-Path checks: stamped (plan review 1 P1 + 4 P2 fixed; completion 5 gaps fixed, 2 filed to D04 T01 §2 and D07 T03 §3; rounds 1 and 2 fixed (2 P1 + 3 P2, a P1), round 3 clean). 414 tests across the checks, intake, pipeline and auth folders. The brand table now reaches the view from KV through the checks step; `brandForMailbox` answers mail domains.
 
 - D02 T02 §3 ARC chain evidence: stamped (plan review 1 P1 + 3 P2 fixed; completion 2 gaps fixed, 2 filed to their owners D07 T03 §3 and D04 T01 §4; rounds 1 to 3 fixed (2 P2 + a P3, a P2, a P2), round 4 clean). 391 tests across the checks, intake, pipeline and auth folders.

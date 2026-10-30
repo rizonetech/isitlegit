@@ -40,7 +40,7 @@ track: day-1
 | 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §7, D01 T01 §8 | [x] |
 | 4 | §4 | Test and demo mail aliases | §1 | [x] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [x] |
-| 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
+| 6 | §6 | Forwarding failures detected and reported | §1, §4 | [x] |
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [x] |
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
 | 9 | §9 | Forwarding failures proven live | §6 | [ ] |
@@ -267,6 +267,9 @@ Cloudflare accepts mail for an alias and then forwards it; a failure after that 
 - [x] Commit: `mail: forwarding failures detected and reported to the operator` Done 2026-10-30: 6dc1fc1, then the review fixes to the round-3 commit.
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and fails if a failure produces no alert or a repeated check alerts twice.
+
+> **Verified:** 2026-10-30 | §6 | 86f7bcf77bccf3d6df7fc7854190eb1ea2af50ae
+> **Review:** `docs/reviews/d01-t02-s6.json`
 
 ## 7. Automatic recovery of ambiguous sends
 

@@ -52,7 +52,7 @@ Sections: 43 | Checklist items: 370
 | [x]    | D01 T02 §1  | SMTP2GO client with retries and send log  | none                  | 7     |
 | [x]    | D01 T02 §4  | Test and demo mail aliases                | cloudflare            | 6     |
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
-| [ ]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
+| [x]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
 | [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 3     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
@@ -336,6 +336,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 88/267 verified sections, 47 ready to run now.
+Progress: 89/267 verified sections, 46 ready to run now.
 
 Checklist: 904/1712 items completed (includes Commit items).
