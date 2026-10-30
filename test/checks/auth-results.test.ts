@@ -362,6 +362,7 @@ function view(headers: { name: string; value: string }[], tenant: Partial<CaseVi
     domainAges: null,
     attachmentHeads: null,
     hiddenText: null,
+    htmlAttachments: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: "Pay the invoice.",
