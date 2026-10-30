@@ -197,7 +197,7 @@ function MemberNav(props: MemberShellProps) {
       id="nav"
       popover="auto"
       aria-label="Main"
-      class={cx(SIDEBAR, "print:hidden gap-20 bg-subtle md:border-r md:border-line")}
+      class={cx(SIDEBAR, "print:hidden! gap-20 bg-subtle md:border-r md:border-line")}
     >
       <a href="/cases" class={cx("block self-start px-8 rounded-small", FOCUS)}>
         <Brand light={LOGO} dark={LOGO_ON_DARK} alt="IsItLegit, cases" class="h-32" />
@@ -287,7 +287,7 @@ function MemberNav(props: MemberShellProps) {
 function AdminNav(props: AdminShellProps) {
   const { active, feedbackOpen, operator } = props;
   return (
-    <nav id="nav" popover="auto" aria-label="Admin" class={cx(SIDEBAR, "print:hidden gap-24 bg-dark")}>
+    <nav id="nav" popover="auto" aria-label="Admin" class={cx(SIDEBAR, "print:hidden! gap-24 bg-dark")}>
       <div class="flex flex-col gap-12 px-8">
         <a href="/admin" class={cx("self-start rounded-small", FOCUS_ON_DARK)}>
           <img src={LOGO_ON_DARK} alt="IsItLegit admin, overview" class="block h-28" />

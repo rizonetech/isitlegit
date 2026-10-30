@@ -131,9 +131,12 @@ function errorPage(
 
 export const reportRoutes = new Hono<{ Bindings: Env }>();
 
+// A redirect with the report's own privacy headers.
+const redirect = (to: string) => new Response(null, { status: 303, headers: { ...HEADERS, location: to } });
+
 reportRoutes.get("/cases/:caseId", (c) => {
   const id = c.req.param("caseId");
-  return CASE_ID.test(id) ? c.redirect(`/r/${id}`, 303) : errorPage(404, id);
+  return CASE_ID.test(id) ? redirect(`/r/${id}`) : errorPage(404, id);
 });
 
 reportRoutes.get("/r/:caseId", async (c) => {
@@ -141,9 +144,17 @@ reportRoutes.get("/r/:caseId", async (c) => {
   const url = new URL(c.req.url);
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   if (!CASE_ID.test(id)) return errorPage(404, id);
+  // A session the read renewed sends its new cookie with whatever this answers (as `requireSession` does), or the
+  // browser keeps the old one until it expires and the member is signed out though the session lives on.
+  let renewed: string[] = [];
+  const answer = (res: Response) => {
+    for (const cookie of renewed) res.headers.append("set-cookie", cookie);
+    return res;
+  };
   try {
     // 1. A member of the case's organisation.
     const read = await createAuth(c.env).api.getSession({ headers: c.req.raw.headers, returnHeaders: true });
+    renewed = read.headers.getSetCookie();
     const user = read.response?.user;
     if (user) {
       const member = await c.env.DB.prepare(
@@ -152,31 +163,30 @@ reportRoutes.get("/r/:caseId", async (c) => {
         .bind(id, user.id)
         .first<{ orgId: string }>();
       if (member) {
-        const out = await render(c.env.DB, member.orgId, id, "member", user);
-        if (out) {
-          for (const cookie of read.headers.getSetCookie()) out.headers.append("set-cookie", cookie);
-          return out;
-        }
+        const active = (read.response?.session as { activeOrganizationId?: string | null } | undefined)
+          ?.activeOrganizationId;
+        const out = await render(c.env.DB, member.orgId, id, "member", user, undefined, active ?? null);
+        if (out) return answer(out);
       }
     }
     // 2 and 3. A signed link.
     if (hasLink) {
       const link = await verifyReportLink(c.env.REPORT_LINK_SECRET, url);
       if (link.ok && link.caseId === id)
-        return (await render(c.env.DB, link.orgId, id, "public", null, link.expires)) ?? errorPage(404, id);
-      if (!link.ok && link.reason === "expired") return errorPage(410, id);
-      return errorPage(404, id);
+        return answer((await render(c.env.DB, link.orgId, id, "public", null, link.expires)) ?? errorPage(404, id));
+      if (!link.ok && link.reason === "expired") return answer(errorPage(410, id));
+      return answer(errorPage(404, id));
     }
     // 4. Nobody yet: sign in, then back here.
-    if (!user) return c.redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`, 303);
-    return errorPage(404, id);
+    if (!user) return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`));
+    return answer(errorPage(404, id));
   } catch (error) {
     // The reference the page shows is the one logged, so support can find the failure by it.
     const ref = reference(500);
     console.log(
       JSON.stringify({ event: "report", outcome: "unavailable", reference: ref, error: (error as Error).name }),
     );
-    return errorPage(500, id, { ref, retry: `/r/${id}${hasLink ? url.search : ""}` });
+    return answer(errorPage(500, id, { ref, retry: `/r/${id}${hasLink ? url.search : ""}` }));
   }
 });
 
@@ -189,6 +199,7 @@ async function render(
   view: "member" | "public",
   user: { id: string; name: string; email: string } | null,
   linkExpires?: number,
+  activeOrgId: string | null = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -198,7 +209,7 @@ async function render(
   const evidence = await readEvidence(db, id);
   const shell =
     view === "member"
-      ? await memberShell(db, user as { id: string; name: string; email: string }, orgId, "cases")
+      ? await memberShell(db, user as { id: string; name: string; email: string }, activeOrgId ?? orgId, "cases", orgId)
       : null;
   return new Response(
     String(

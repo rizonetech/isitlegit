@@ -308,6 +308,56 @@ describe("the report route", () => {
     expect(reads.filter((q) => /from evidence\b/i.test(q))).toHaveLength(1);
   });
 
+  it("passes a renewed session's cookie through every answer, not only the member view", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const theirs = await stored(a, "RENEW");
+    const { cookie, email } = await member(b);
+    // A session two days old: Better Auth renews it on the next read (its update age is a day) and sends a new cookie.
+    const age = async () =>
+      db
+        .prepare(`UPDATE "session" SET "expiresAt" = ? WHERE "userId" = (SELECT id FROM "user" WHERE lower(email) = ?)`)
+        .bind(new Date(Date.now() + 5 * 86_400_000).toISOString(), email)
+        .run();
+    await age();
+    const viaLink = await get(await signReportLink(SECRET, theirs, a), cookie);
+    expect(viaLink.status).toBe(200);
+    expect(sessionCookie(viaLink)).toMatch(/session_token=/);
+    await age();
+    const refused = await get(`/r/${theirs}`, cookie);
+    expect(refused.status).toBe(404);
+    expect(sessionCookie(refused)).toMatch(/session_token=/);
+  });
+
+  it("frames a report from another of the member's organisations with the session's active one as current", async () => {
+    const [a, b] = [await org("Alpha Freight"), await org("Bravo Couriers")];
+    const id = await stored(b, "OTHER-ORG");
+    const { cookie, email } = await member(a, b);
+    await db
+      .prepare(
+        `UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = (SELECT id FROM "user" WHERE lower(email) = ?)`,
+      )
+      .bind(a, email)
+      .run();
+    const res = await get(`/r/${id}`, cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("OTHER-ORG: the sender");
+    // The switcher's current organisation is the active one, and the report's own is one it can switch to.
+    const switcher = /<details[\s\S]*?<\/details>/.exec(html)?.[0] ?? "";
+    expect(switcher.indexOf("Alpha Freight")).toBeGreaterThan(-1);
+    expect(switcher.indexOf("Alpha Freight")).toBeLessThan(switcher.indexOf("Bravo Couriers"));
+  });
+
+  it("puts the privacy headers on its redirects too", async () => {
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "REDIRECTS");
+    for (const res of [await get(`/cases/${id}`), await get(`/r/${id}`)]) {
+      expect(res.status).toBe(303);
+      expect(res.headers.get("cache-control")).toBe("private, no-store");
+      expect(res.headers.get("x-robots-tag")).toBe("noindex");
+    }
+  });
+
   it("sends private, unindexed headers and keeps the link's query to itself", async () => {
     const a = await org("Karoo Couriers");
     const id = await stored(a, "HEADERS");

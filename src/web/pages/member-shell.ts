@@ -1,7 +1,9 @@
-// The member frame's data (D07 T01 §3's `AppShell`, member variant) for a signed-in member on one organisation's page
-// (first used by the report, D07 T03 §1): the organisation, the member's others for the switcher, the plan words, the
-// member's name and role. Read in one batch; a read that fails is an outage the page answers as one, never a frame with
-// guessed parts.
+// The member frame's data (D07 T01 §3's `AppShell`, member variant) for a signed-in member (first used by the report,
+// D07 T03 §1): the session's active organisation as the current one (the switcher and every organisation-scoped page
+// act on it, `requireOrg`), the member's others for the switcher, the plan words, the member's name and role. A page
+// about another of the member's organisations (a report opened from a link) still shows the active one as current;
+// `fallback` is the frame's organisation when the session has none, or one the member has since left. A read that
+// fails is an outage the page answers as one, never a frame with guessed parts.
 
 import { planOf } from "../../auth/plans";
 import type { MemberPage, MemberShellProps } from "../components/AppShell";
@@ -15,8 +17,9 @@ export class ShellUnavailable extends Error {
 export async function memberShell(
   db: D1Database,
   user: { id: string; name: string; email: string },
-  orgId: string,
+  activeOrgId: string,
   active: MemberPage,
+  fallback: string = activeOrgId,
   now = new Date(),
 ): Promise<Omit<MemberShellProps, "children">> {
   let memberships: Membership[];
@@ -32,8 +35,10 @@ export async function memberShell(
   } catch (error) {
     throw new ShellUnavailable(`the member's organisations could not be read (${(error as Error).name})`);
   }
-  const current = memberships.find((m) => m.organizationId === orgId);
+  const current =
+    memberships.find((m) => m.organizationId === activeOrgId) ?? memberships.find((m) => m.organizationId === fallback);
   if (!current) throw new ShellUnavailable("the member is not in this organisation");
+  const orgId = current.organizationId;
   const plan = await planOf(db, orgId, now).catch((error: Error) => {
     throw new ShellUnavailable(error.message);
   });
