@@ -4,3 +4,19 @@
 
 /* Only the app's own sources decide which utilities ship: tests, fixtures and documentation never do. */
 @source "../";
+
+/* Motion is no design token, and tokens.css resets the whole theme (`--*: initial`), so the one animation the app uses is
+   defined here: the running marker's pulse (D07 T01 §8, board `Report-Running`), used only as `motion-safe:animate-pulse`. */
+@theme {
+  --animate-pulse: pulse 2s ease-in-out infinite;
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+}

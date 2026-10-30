@@ -40,11 +40,13 @@ export type ButtonProps = PassThrough &
 
 const DISABLED =
   "disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+// A button holds its words on one line at the control height, and wraps them (growing taller, never wider than its
+// container) only when they cannot fit, as at 200% text on a phone (WCAG 2.2 1.4.4 and 1.4.10; D07 T01 §8).
 const BOX =
-  "inline-flex items-center justify-center gap-8 border border-transparent font-text weight-text-strong leading-none no-underline cursor-pointer whitespace-nowrap box-border";
+  "inline-flex items-center justify-center gap-8 max-w-full border border-transparent font-text weight-text-strong leading-none text-center text-balance no-underline cursor-pointer box-border";
 const SIZE: Record<ButtonSize, string> = {
-  default: "h-control px-20 rounded-control text-16",
-  small: "h-control-small px-16 rounded-control-small text-14",
+  default: "min-h-control py-8 px-20 rounded-control text-16",
+  small: "min-h-control-small py-4 px-16 rounded-control-small text-14",
   icon: "h-32 w-32 px-0 rounded-control-small text-14",
   "small-icon": "h-control-small w-40 px-0 rounded-control-small text-14",
 };

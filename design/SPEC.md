@@ -127,6 +127,7 @@ Every page is drawn from these parts and from the tokens in `design/tokens/color
 
 - Deviation (D07 T01 §6): every control (button, link, text field, checkbox) shows its keyboard focus as a solid 2 px `orange-text` outline 2 px outside it, at least 4.7:1 in light and 6.1:1 in dark against the surface, subtle, light and orange-wash backgrounds controls sit on (`design/tokens/colors.json`), because WCAG 2.2 asks for 3:1 against the adjacent colours. The boards draw a 3 px ring at 25% orange on a text field (about 1.4:1) and no focus state for buttons or checkboxes. An invalid field keeps its red border under the outline.
 - Deviation (D07 T01 §6): a board value exactly between two steps of the 4 px scale (26, 22, 18, 14, 10, 6 px) is built as the step above (28, 24, 20, 16, 12, 8 px) because "nearest step" leaves the tie open, and the step above keeps touch targets and text room; so the 26 px pill is 28 px, the 22 px navigation pill 24 px, the 18 px checkbox 20 px, the 14 px side padding of the input and of the small button 16 px, and the field's 6 px gap 8 px.
+- Deviation (D07 T01 §8): a button keeps its words on one line at the control height and wraps them, growing taller and never wider than its container, only when they cannot fit, where the boards draw every button on one line (`.btn` is `white-space: nowrap`), because at 200% text on a 360 px phone "Go to your own cases" ran past the window (WCAG 2.2 1.4.4 and 1.4.10).
 
 ### P1 App navigation
 
@@ -461,6 +462,7 @@ Controls:
 - email field: Email input. (Signin)
 - magic-link button: Primary submit. (Signin)
 - passkey button: Starts WebAuthn; Create an account opens A2. (Signin)
+- sign-in code: The code field and Sign in on the check your inbox state. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 
 States:
 
@@ -468,11 +470,14 @@ States:
 - link expired or used: With Email me a new link. (Signin-States)
 - rate limited: With the time new links resume. (Signin-States)
 - passkey prompt: With Try the passkey again and Email me a link instead. (Signin-States)
+- code refused: The refusal on the code field, with Send another link. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 - loading: Busy submit. Deferred to D07 T02 §7: the submit button shows a busy state while the request runs; not drawn.
 - empty: No empty state. Not applicable: a form page; the empty form is the default state.
 - error: App error page (E5). (Error-500)
 
 Confirm step (D07 T02 §10, 2026-10-29; built from A1's controls, not drawn): the mailed link opens `/signin/confirm`, which only shows the heading "Sign in to IsItLegit", one line ("Press the button to finish signing in. The link works once.") and one primary "Sign in to IsItLegit" button; nothing happens until it is pressed, because mail systems open links before the member does. Its states:
+
+Sign-in code (D07 T02 §11, 2026-10-30, operator decision "Code sign-in: yes"; built from A1's controls, not drawn): every sign-in mail carries a 6-digit code beside the link ("Or type this code in the browser where you asked for the link", shown "123 456"), and the "check your inbox" state leads with a "Code from the email" field (hint: "Reading the mail on another device? Type its 6-digit code here to sign in on this one.") and a primary "Sign in" button; Send another link and Use a different email follow as ghost buttons, as the board draws them. The code signs in only the browser that asked, once, within the link's 15 minutes, and spends the link with it. Its refusals sit on the field: "That code is not right. 2 tries left." (then "1 try left."), "That code no longer works after three wrong tries. Send another link.", "That code has run out: codes work for 15 minutes. Send another link.", "This code works only in the browser where you asked for the link, while the link is new. Send another link from here.", "That code no longer works: its link was already used. Send another link.", "Enter the 6-digit code from the email." for anything but six digits, and the confirm step's own rate-limited, no-account and did-not-finish answers.
 
 - confirm, signed in: The member lands on the page the link named.
 - confirm, link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
@@ -876,6 +881,10 @@ States:
 
 App error pages are 960 by 640 cards on subtle grey: the question mark motion frame, an eyebrow with the code, one plain sentence, one way forward, and a reference id with the time. None shows a stack trace or raw error text.
 
+- Deviation (D07 T01 §8): the art tile rounds at 16 px (`card-large`) for the boards' 24 px, because 24 is no radius token and `card-large` is the nearest.
+- Deviation (D07 T01 §8): in the dark theme the art tile is white (`on-band`) and the first-run art of M1 sits on a white tile, because the art is drawn in ink for a light ground and vanishes on the dark theme's `light`; the verdict band's tile (D07 T01 §7) is white in both themes for the same reason.
+- Deviation (D07 T01 §8): below `md` the art tile stacks above the words at 88 px with the art at 72 px, because no phone board draws an error page and the 152 px tile beside the words leaves them under 150 px at 360 px.
+
 ### E1 404 Not found
 
 Boards: [PNG](mockups/png/Error-404.png) · [source](mockups/source/Error-404.dc.html)
@@ -989,6 +998,7 @@ Boards: [PNG](mockups/png/Email-Signin.png) · [source](mockups/source/Email-Sig
 Controls:
 
 - sign-in link: Button and plain link, 15-minute expiry. (Email-Signin)
+- sign-in code: The 6-digit code beside the link. Deferred to D07 T02 §11: built from N2's text, not drawn.
 
 States:
 
