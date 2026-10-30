@@ -3,8 +3,14 @@ import { AbsoluteFill, continueRender, delayRender, Img, interpolate, spring, st
 import tokens from "../../design/tokens/colors.json";
 
 // Light theme tokens from design/tokens/colors.json, unchanged; the videos match the logo animation's light ground.
-export const c = tokens.themes.light;
-export const BG = c.light;
+// The theme comes from design/tokens/colors.json unchanged: light by default, dark when REMOTION_THEME=dark. On dark,
+// the ground is the brand's Ink, cards are raised a step, code sits on the darkest surface, and the logo is the
+// approved on-dark variant.
+export const DARK = process.env.REMOTION_THEME === "dark";
+export const c = DARK ? tokens.themes.dark : tokens.themes.light;
+export const BG = DARK ? tokens.themes.light.ink : c.light;
+export const CARD = DARK ? c["dark-raised"] : c.surface;
+export const CODE_BG = DARK ? c.surface : c.dark;
 
 // Exo for headings, Exo 2 for body (design/brand/README.md "Type"), from design/fonts via --public-dir ../design.
 const fontsReady = delayRender("fonts");
@@ -93,11 +99,11 @@ export const Headline: React.FC<{ text: string; sub?: string; from?: number }> =
 };
 
 export const Logo: React.FC<{ width: number }> = ({ width }) => (
-  <Img src={staticFile("brand/logo-svg/isitlegit-logo.svg")} style={{ width }} />
+  <Img src={staticFile(`brand/logo-svg/isitlegit-logo${DARK ? "-on-dark" : ""}.svg`)} style={{ width }} />
 );
 
 export const Card: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({ children, style }) => (
-  <div style={{ background: c.surface, border: `2px solid ${c.line}`, borderRadius: 20, padding: "32px 40px", ...style }}>{children}</div>
+  <div style={{ background: CARD, border: `2px solid ${c.line}`, borderRadius: 20, padding: "32px 40px", ...style }}>{children}</div>
 );
 
 /** The brand tick, drawn with the mark's geometry so it matches every tick in the family. */

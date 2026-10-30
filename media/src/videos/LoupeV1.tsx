@@ -1,7 +1,7 @@
 import type React from "react";
 import { interpolate, Series, useCurrentFrame } from "remotion";
 import data from "../../data/loupe-facts.json";
-import { body, c, Card, CloseScene, Headline, head, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { body, c, CARD, Card, CloseScene, Headline, head, mono, Scene, Tick, TitleScene, useIn } from "../brand";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
 const F = data.facts;
@@ -19,7 +19,7 @@ const Planned: React.FC = () => (
 );
 
 const Box: React.FC<{ title: string; sub?: string; on?: boolean; dashed?: boolean; style?: React.CSSProperties }> = ({ title, sub, on, dashed, style }) => (
-  <div style={{ background: c.surface, border: `3px ${dashed ? "dashed" : "solid"} ${on ? c.orange : c["line-strong"]}`, borderRadius: 18, padding: "22px 30px", ...style }}>
+  <div style={{ background: CARD, border: `3px ${dashed ? "dashed" : "solid"} ${on ? c.orange : c["line-strong"]}`, borderRadius: 18, padding: "22px 30px", ...style }}>
     <div style={{ ...head, fontSize: 36 }}>{title}</div>
     {sub ? <div style={{ ...body, fontSize: 26, marginTop: 6 }}>{sub}</div> : null}
   </div>
@@ -166,7 +166,7 @@ const Teacher: React.FC = () => {
   return (
     <Scene label={LABEL}>
       <Headline text="A teacher labels the hardest pages first." sub={`Muse Spark checked ${v("teacherChecked")} South African pages: 346 benign renders, 137 redacted sample lures, 92 public pages hosted in South Africa.`} />
-      <div style={{ display: "flex", width: 1500, height: 64, marginTop: 44, borderRadius: 10, overflow: "hidden", background: c.surface }}>
+      <div style={{ display: "flex", width: 1500, height: 64, marginTop: 44, borderRadius: 10, overflow: "hidden", background: CARD }}>
         {parts.map(([name, count, colour]) => (
           <div key={name} style={{ width: `${(100 * count * p) / total}%`, background: colour }} />
         ))}
@@ -210,7 +210,7 @@ const Splits: React.FC = () => {
       </div>
       <div style={{ display: "flex", gap: 12, marginTop: 20, opacity: chain }}>
         {BRANDS.map((b, i) => (
-          <div key={b} style={{ ...body, fontSize: 26, color: c.ink, background: c.surface, border: `2px solid ${fix > 0.5 ? c["line-strong"] : c.orange}`, borderRadius: 999, padding: "8px 20px", whiteSpace: "nowrap", transform: `translateX(${fix * (i - 2) * 16}px)` }}>
+          <div key={b} style={{ ...body, fontSize: 26, color: c.ink, background: CARD, border: `2px solid ${fix > 0.5 ? c["line-strong"] : c.orange}`, borderRadius: 999, padding: "8px 20px", whiteSpace: "nowrap", transform: `translateX(${fix * (i - 2) * 16}px)` }}>
             weebly.com / {b}
           </div>
         ))}

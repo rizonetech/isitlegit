@@ -1,7 +1,7 @@
 import type React from "react";
 import { interpolate, useCurrentFrame } from "remotion";
 import stats from "../data/stats.json";
-import { body, c, Card, Headline, head, mono, Scene, Tick, useIn } from "../brand";
+import { body, c, CARD, CODE_BG, Card, Headline, head, mono, Scene, Tick, useIn } from "../brand";
 import { fill } from "./text";
 
 // The scene types a storyboard (media/data/storyboards/*.json) is written in. Every string passes through fill(), so
@@ -98,7 +98,7 @@ const Flow: React.FC<{ s: Extract<SceneSpec, { type: "flow" }>; label?: string }
           const on = i < lit;
           return (
             <div key={step.title} style={{ position: "relative", opacity: interpolate(frame, [18 + i * 6, 30 + i * 6], [0, 1], clamp) }}>
-              <div style={{ background: c.surface, border: `3px solid ${on ? c.orange : c["line-strong"]}`, borderRadius: 16, padding: "18px 22px", minHeight: 120 }}>
+              <div style={{ background: CARD, border: `3px solid ${on ? c.orange : c["line-strong"]}`, borderRadius: 16, padding: "18px 22px", minHeight: 120 }}>
                 <div style={{ ...mono, fontSize: 20, color: c.muted }}>{String(i + 1).padStart(2, "0")}</div>
                 <div style={{ ...head, fontSize: 30, marginTop: 4 }}>{fill(step.title)}</div>
                 {step.sub ? <div style={{ ...body, fontSize: 23, marginTop: 6, lineHeight: 1.3 }}>{fill(step.sub)}</div> : null}
@@ -120,7 +120,7 @@ const Code: React.FC<{ s: Extract<SceneSpec, { type: "code" }>; label?: string }
   return (
     <Scene label={label}>
       <Headline text={fill(s.title)} sub={s.sub ? fill(s.sub) : undefined} />
-      <Card style={{ background: c.dark, border: "none", marginTop: 36, maxWidth: 1620, padding: "30px 40px" }}>
+      <Card style={{ background: CODE_BG, border: `2px solid ${c.line}`, marginTop: 36, maxWidth: 1620, padding: "30px 40px" }}>
         {s.lines.map((line, i) => (
           <div key={`${i}-${line}`} style={{ ...mono, fontSize: s.lines.length > 9 ? 24 : 28, lineHeight: 1.5, color: line.trim().startsWith("#") ? c["on-dark-muted"] : c["on-dark"], whiteSpace: "pre-wrap", minHeight: "1.5em", opacity: stagger(frame, i, 24, 8) }}>
             {fill(line)}
@@ -167,7 +167,7 @@ const Chart: React.FC<{ s: Extract<SceneSpec, { type: "chart" }>; label?: string
         {stats.domains.map((d) => (
           <div key={d.domain} style={{ display: "flex", alignItems: "center", gap: 20, height: 52 }}>
             <div style={{ ...mono, fontSize: 24, width: 230 }}>{d.domain}</div>
-            <div style={{ position: "relative", height: 30, width: (1100 * d.sections) / max, background: c.surface, border: `2px solid ${c["line-strong"]}`, borderRadius: 6 }}>
+            <div style={{ position: "relative", height: 30, width: (1100 * d.sections) / max, background: CARD, border: `2px solid ${c["line-strong"]}`, borderRadius: 6 }}>
               <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(100 * d.stamped * grow) / d.sections}%`, background: c.orange, borderRadius: 4 }} />
             </div>
             <div style={{ ...body, fontSize: 24, color: c.ink }}>
@@ -214,7 +214,7 @@ const Lanes: React.FC<{ s: Extract<SceneSpec, { type: "lanes" }>; label?: string
           const p = stagger(frame, i, 24, 18);
           const pulse = 0.55 + 0.45 * Math.abs(Math.sin((frame + i * 11) / 9));
           return (
-            <div key={lane.name} style={{ display: "grid", gridTemplateColumns: "40px 300px 420px 1fr", alignItems: "center", gap: 20, background: c.surface, border: `2px solid ${c.line}`, borderRadius: 16, padding: "16px 24px", opacity: p }}>
+            <div key={lane.name} style={{ display: "grid", gridTemplateColumns: "40px 300px 420px 1fr", alignItems: "center", gap: 20, background: CARD, border: `2px solid ${c.line}`, borderRadius: 16, padding: "16px 24px", opacity: p }}>
               <div style={{ width: 22, height: 22, borderRadius: 11, background: c.orange, opacity: pulse }} />
               <div style={{ ...head, fontSize: 34 }}>{fill(lane.name)}</div>
               <div style={{ ...mono, fontSize: 22, color: c.muted }}>{fill(lane.branch)}</div>
