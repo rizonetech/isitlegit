@@ -1710,13 +1710,17 @@ class FinalStamp(Stamp):
         return tg.review_dispatch().pin_blob(text.encode("utf-8"))
 
     def straddle(self, plan=("medium", "a"), completion=("medium", "a"), round1=("low", "a"), round2=("medium", "b"),
-                 final=("high", "b")):
+                 final=("high", "b"), later=True):
         """Plan, completion and round 1 under the first pin, round 2 and the final review under the later one by
-        default; each argument is (effort, pin), the pin "a", "b", None (no Pin line) or a blob id."""
+        default; each argument is (effort, pin), the pin "a", "b", None (no Pin line) or a blob id. later=False
+        commits no later pin: the stamp is at HEAD as it stands."""
         self.assertNotEqual(self.LATER_PIN, FINAL_PIN)
         ids = {"a": self.blob(FINAL_PIN), "b": self.blob(self.LATER_PIN), None: None}
-        (self.root / tg.PIN).write_text(self.LATER_PIN, encoding="utf-8")
-        self.sha = self.commit("the later pin")
+        if later:
+            (self.root / tg.PIN).write_text(self.LATER_PIN, encoding="utf-8")
+            self.sha = self.commit("the later pin")
+        else:
+            self.sha = self.head()
         dispatch = tg.review_dispatch()
         rounds = self.root / self.ROUNDS
         rounds.write_text("# Review findings\n", encoding="utf-8")
@@ -1788,6 +1792,28 @@ class FinalStamp(Stamp):
         reviews = self.straddle(round2=("medium", self.blob(staged)))
         self.refused({"report": self.ROUNDS, "verdict": "clean"},
                      f"round 2 ran under pin {self.blob(staged)}, which no commit in this history holds", reviews)
+
+    def test_a_pin_written_by_a_merge_resolution_counts(self):
+        # Round 1: a merge whose resolution differs from both parents holds a pin no other commit does.
+        def git(*args):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+        pin = self.root / tg.PIN
+        git("checkout", "-qb", "lane")
+        pin.write_text(FINAL_PIN + "# the lane's\n", encoding="utf-8")
+        self.commit("lane pin")
+        git("checkout", "-q", "-")
+        pin.write_text(FINAL_PIN + "# main's\n", encoding="utf-8")
+        self.commit("main pin")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "lane"], capture_output=True)  # conflicts
+        resolved = FINAL_PIN + "# resolved\n"
+        pin.write_text(resolved, encoding="utf-8")
+        git("add", tg.PIN)
+        git("commit", "-q", "--no-edit")
+        self.assertEqual(subprocess.run(["git", "-C", str(self.root), "rev-list", "--parents", "-n1", "HEAD"],
+                                        capture_output=True, text=True).stdout.count(" "), 2, "HEAD is the merge")
+        reviews = self.straddle(round2=("low", self.blob(resolved)), final=("medium", "a"), later=False)
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        tg.graph(self.root)
 
     def test_a_fresh_clone_validates_the_receipt(self):
         reviews = self.straddle()
