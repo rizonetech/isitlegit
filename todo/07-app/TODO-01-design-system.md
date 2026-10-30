@@ -42,7 +42,7 @@ track: day-1
 | 5 | §5 | Hashed static assets and fonts | §2 | [x] |
 | 6 | §6 | Buttons, fields and pills | §2, §5 | [x] |
 | 7 | §7 | Verdict band, evidence card and severity | §6 | [x] |
-| 8 | §8 | Empty, loading, error and partial states | §6 | [ ] |
+| 8 | §8 | Empty, loading, error and partial states | §6 | [x] |
 | 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [ ] |
 | 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [ ] |
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
@@ -370,11 +370,14 @@ The four states every page draws the same way.
 - [x] Put the ink-drawn art on a white `on-band` tile in the dark theme (the error tile `bg-light dark:bg-on-band`; the first-run art `dark:bg-on-band dark:p-16`), recorded as a Deviation in `design/SPEC.md` 7. Done when: `test/node/states-browser.test.tsx` finds every state's art loaded on a ground of `#E0E0E0` or lighter in both themes, and fails when the dark tile is removed. **Added 2026-10-30** (found at build: the dark theme's `light` is `#252128`, where the "?" vanished).
 - [x] Give every heading its type role (`type-h2` first run, `type-h3` filtered, `type-h4` partial, `type-h2 md:text-32` for the error title, the role's 28 px at phone width): size, line height, weight and tracking together. Done when: `test/node/states-browser.test.tsx` reads each heading's computed size, line height, weight, tracking and family against `design/tokens/typography.json`, and fails with the first-run heading back on `font-heading weight-heading text-28`. **Added 2026-10-30 (completion review G1).**
 - [x] Run the phone, 200% text and reduced-motion proofs in both themes, and assert Tab reaches the actions in document order with nothing between them. Done when: `test/node/states-browser.test.tsx` runs each in light and dark and compares the focus sequence to the actions' order. **Added 2026-10-30 (completion review G2).**
-- [ ] Commit: `web: empty, loading, error and partial states`
+- [x] Commit: `web: empty, loading, error and partial states`
 
 Evidence 2026-10-30 15:20 SAST. `src/web/components/States.tsx` holds `EmptyState` (`first-run`, `filtered`), `LoadingState`, `ErrorState` with `referenceLine` and `PartialNotice`; `src/web/styles/app.css` defines the pulse; `design/tokens/spacing.json` adds `state-art` and `empty-art`; the six error compositions live in `test/node/states-fixtures.tsx` for D07 T08 §1 to follow. `pnpm exec vitest run test/node/states.test.tsx test/node/states-browser.test.tsx`: 2 files, 27 passed (22 markup: each board's words, art, eyebrow colour, action variants, note or panel and reference, the refusals, the compiled `motion-safe` rule and keyframes, the SAST reference time across midnight; 5 in Chromium: the polite live region, `animation-name` `pulse` and `none` under reduced motion, every word 4.5:1 or more and every art on a light ground in both themes, and at 360 px with text at 100% and 200% no overflow, every word and action inside its card, nothing spilling, the tiles stacked and every action reached by Tab). Mutations, each failing it: `motion-safe` removed, the error card not stacking, the filtered action not wrapping, the dark tile removed, the button's `whitespace-nowrap` put back. The boards' "Mon 27 Oct 2026" is sample data: 27 October 2026 is a Tuesday, and `referenceLine` writes "Tue". Gates: `pnpm typecheck` and `pnpm lint` clean, 13 targeted Worker test files (136 tests, controls, verdict, shell, colour guard, tokens, stylesheet, assets and serving among them) and `tests.scripts.test_design_tokens` with `test_design_spec` (39) pass; the whole Worker suite is the coordinator's to schedule.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/states.test.tsx test/node/states-browser.test.tsx` passes: every state's words and structure from its board, the refusals, the live region, reduced motion, contrast in both themes and the phone width.
+
+> **Verified:** 2026-10-30 | §8 | 4b5b39631012ee94e33b2b14235460b82b6cac08
+> **Review:** `docs/reviews/d07-t01-s8.json`
 
 ## 9. htmx and the app script as fingerprinted assets
 

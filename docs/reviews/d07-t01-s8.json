@@ -1,0 +1,122 @@
+{
+  "ref": "D07 T01 \u00a78",
+  "title": "Empty, loading, error and partial states",
+  "implementation_sha": "4b5b39631012ee94e33b2b14235460b82b6cac08",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/states.test.tsx test/node/states-browser.test.tsx -> 2 files, 31 passed (Chromium both themes, 360 px at 100% and 200% text, reduced motion)",
+    "pnpm exec vitest run (controls, controls-browser, verdict, verdict-browser, shell-keyboard, no-raw-colours, build-tokens, build-css, assets, serve, hash-asset) -> 11 files, 109 passed",
+    "pnpm build:assets -> nothing uncommitted under src/web and public",
+    "pnpm typecheck and pnpm lint -> clean",
+    "python3 -m unittest tests.scripts.test_design_tokens tests.scripts.test_design_spec -> 39 OK"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s8.md",
+    "verdict": "filed",
+    "candidate": "6a582e1715bf85af9a32dfd55a23221cbc6133d8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T04 \u00a71",
+      "D07 T01 \u00a79",
+      "D07 T03 \u00a74",
+      "D07 T08 \u00a71",
+      "D05 T01 \u00a73",
+      "D05 T04 \u00a75",
+      "D06 T01 \u00a74",
+      "D07 T01 \u00a710"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s8.md",
+    "candidate": "fd1cc8450d59a7678336288d7a80b6e22ffbbd58",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
