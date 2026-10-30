@@ -80,13 +80,14 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
         openLabels.push(label);
         e.onEndTag(() => {
           openLabels.splice(openLabels.lastIndexOf(label), 1);
-          if (label.for) labelFor.set(label.for, `${labelFor.get(label.for) ?? ""} ${label.text}`);
-          if (label.wraps && CARD.test(label.text)) cardField = true;
+          if (label.for) labelFor.set(label.for, `${labelFor.get(label.for) ?? ""} ${decodeEntities(label.text)}`);
+          if (label.wraps && CARD.test(decodeEntities(label.text))) cardField = true;
         });
       },
       text(chunk) {
         const label = openLabels[openLabels.length - 1];
         if (label && label.text.length < 1024) label.text += chunk.text;
+        // (Decoded when it is matched: a reference may span chunks.)
       },
     })
     .on("input, select", {
@@ -129,8 +130,8 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
     .body?.pipeTo(new WritableStream());
   // Labels left open at the end of the document still name what they wrap (round 1: a browser shows them).
   for (const label of openLabels) {
-    if (label.wraps && CARD.test(label.text)) cardField = true;
-    if (label.for) labelFor.set(label.for, `${labelFor.get(label.for) ?? ""} ${label.text}`);
+    if (label.wraps && CARD.test(decodeEntities(label.text))) cardField = true;
+    if (label.for) labelFor.set(label.for, `${labelFor.get(label.for) ?? ""} ${decodeEntities(label.text)}`);
   }
   if (inputIds.some((id) => CARD.test(labelFor.get(id) ?? ""))) cardField = true;
   // A loader in script: its own long payload, built into a file and downloaded, all in script (plan review: a large

@@ -228,6 +228,23 @@ describe("after round 2", () => {
   });
 });
 
+describe("after round 4", () => {
+  it("decodes named references to ASCII in destinations and loaders", async () => {
+    expect(
+      (await analyseHtml(`<form action="https&colon;//collector.example/post"><input name="q"></form>`)).formActions,
+    ).toEqual(["https://collector.example/post"]);
+    const href = `data&colon;application/octet-stream;base64,${"A".repeat(12_000)}`;
+    expect((await analyseHtml(`<a download="x.bin" href="${href}">x</a>`)).smuggling).toBe(true);
+    expect(decodeEntities("&Tab;&sol;&period;&lowbar;&Hat;")).toBe("\t/._^");
+    expect(decodeEntities("&Colon;")).toBe("&Colon;");
+  });
+
+  it("decodes a label's text before matching it", async () => {
+    expect((await analyseHtml(`<label for="x">Card&nbsp;number</label><input id="x">`)).cardField).toBe(true);
+    expect((await analyseHtml(`<label>Card&#32;number <input id="y"></label>`)).cardField).toBe(true);
+  });
+});
+
 describe("attachment.html through the checks step", () => {
   it("stores a login page and a loader as high, a receipt as medium, citing each attachment", async () => {
     const id = await caseWith([

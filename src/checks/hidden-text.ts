@@ -419,12 +419,56 @@ export const hasInstruction = (text: string) => INSTRUCTION.test(text);
 export const isPreheader = (span: HiddenSpan) => span.beforeVisible && span.text.length < 120 && !span.instruction;
 
 // Character references decoded (round 1): numeric ones, and the named ones mail text uses; an unknown name stays as is.
+// Named references, case-sensitive as HTML defines them: every one the WHATWG table maps to an ASCII character (what the
+// checks' signatures are made of: `https:`, `data:`, base64, instruction words; D02 T04 §2's round 4), and the common
+// typographic ones. A name outside this set stays as written.
 const ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
+  Tab: "\t",
+  NewLine: "\n",
+  excl: "!",
   quot: '"',
+  QUOT: '"',
+  num: "#",
+  dollar: "$",
+  percnt: "%",
+  amp: "&",
+  AMP: "&",
   apos: "'",
+  lpar: "(",
+  rpar: ")",
+  ast: "*",
+  midast: "*",
+  plus: "+",
+  comma: ",",
+  period: ".",
+  sol: "/",
+  colon: ":",
+  semi: ";",
+  lt: "<",
+  LT: "<",
+  equals: "=",
+  gt: ">",
+  GT: ">",
+  quest: "?",
+  commat: "@",
+  lsqb: "[",
+  lbrack: "[",
+  bsol: "\\",
+  rsqb: "]",
+  rbrack: "]",
+  Hat: "^",
+  lowbar: "_",
+  UnderBar: "_",
+  grave: "`",
+  DiacriticalGrave: "`",
+  lcub: "{",
+  lbrace: "{",
+  verbar: "|",
+  vert: "|",
+  VerticalLine: "|",
+  rcub: "}",
+  rbrace: "}",
+  fjlig: "fj",
   nbsp: "\u00a0",
   shy: "\u00ad",
   zwnj: "\u200c",
@@ -449,7 +493,7 @@ export function decodeEntities(text: string): string {
   // still decoded), so `pass&#119ord` reads `password`; a named one keeps its semicolon (D02 T04 §2, round 2).
   // A numeric reference takes its whole run of digits, leading zeros and all (round 3: `&#00000119;` is `w`); a value of
   // zero, past U+10FFFF or a surrogate reads as U+FFFD, as HTML reads it.
-  return text.replace(/&(#\d+;?|#x[0-9a-f]+;?|[a-z]{2,8};)/gi, (whole, raw: string) => {
+  return text.replace(/&(#\d+;?|#x[0-9a-f]+;?|[a-z][a-z0-9]{1,31};)/gi, (whole, raw: string) => {
     const ref = raw.replace(/;$/, "");
     if (ref.startsWith("#")) {
       const hex = ref[1] === "x" || ref[1] === "X";
@@ -459,7 +503,7 @@ export function decodeEntities(text: string): string {
         ? String.fromCodePoint(code)
         : "\ufffd";
     }
-    return ENTITIES[ref.toLowerCase()] ?? whole;
+    return Object.hasOwn(ENTITIES, ref) ? (ENTITIES[ref] as string) : whole;
   });
 }
 
