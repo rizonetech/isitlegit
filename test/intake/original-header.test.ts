@@ -80,6 +80,12 @@ describe("originalHeaderOf", () => {
     ])
       expect(originalHeaderOf([h("From", malformed)]), malformed).toMatchObject({ fromName: null, fromAddress: null });
     expect(originalHeaderOf([h("From", '"a b"@x.example (desk)')]).fromAddress).toBe('"a b"@x.example');
+    // An "@" inside a quoted string is not mailbox syntax (round 2).
+    expect(originalHeaderOf([h("From", '"Support@example.com" <a@b.example>')])).toMatchObject({
+      fromName: "Support@example.com",
+      fromAddress: "a@b.example",
+    });
+    expect(originalHeaderOf([h("From", '"pay@desk"@x.example')]).fromAddress).toBe('"pay@desk"@x.example');
     expect(originalHeaderOf([h("From", '"Pay <now>" (via <portal>) <a@b.example>')])).toMatchObject({
       fromName: "Pay <now>",
       fromAddress: "a@b.example",

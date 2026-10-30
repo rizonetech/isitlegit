@@ -53,7 +53,8 @@ function oneMailboxField(field: string): boolean {
     if (c === "\\" && (quoted || depth > 0)) i++;
     else if (quoted) {
       if (c === '"') quoted = false;
-      else bare += c === "@" ? "@" : "q";
+      // A quoted string is one word whatever it holds: an "@" in it is no mailbox syntax (round 2).
+      else bare += "q";
     } else if (c === "(") depth++;
     else if (c === ")" && depth > 0) depth--;
     else if (depth > 0) continue;
