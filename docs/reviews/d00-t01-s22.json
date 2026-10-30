@@ -1,0 +1,113 @@
+{
+  "ref": "D00 T01 \u00a722",
+  "title": "Lane merges regenerate the plan, never conflict on it",
+  "implementation_sha": "9717464b39d8832ef37146331288ee159dd49f39",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s22.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest discover -s tests/scripts -> Ran 819 tests in 323.123s, OK (skipped=2)",
+    "python3 -m unittest discover -s scripts/tests -> Ran 91 tests in 40.323s, OK (skipped=1)",
+    "python3 -m unittest tests.scripts.test_merge_plan -> Ran 12 tests, OK"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s22.md",
+    "verdict": "filed",
+    "candidate": "e02cd0688052527f80d8fad20217fc30112f0ad1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D00 T01 \u00a723"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s22.md",
+    "candidate": "18a54070b1780ca318b18efd7175a3f49cea18ea",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

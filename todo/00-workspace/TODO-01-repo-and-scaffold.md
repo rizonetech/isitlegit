@@ -60,7 +60,7 @@ track: day-0
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
-| 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [ ] |
+| 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -808,9 +808,12 @@ Asked by the operator 2026-10-30 ("can we avoid these conflicts?", then "build i
 - [x] Track both hooks executable (`100755`) and keep `TrackedHooks` (§21) covering them. Done when: `git ls-files -s scripts/hooks` lists both at `100755`.
 - [x] Name the setup and the new merge step in `AGENTS.md` (the hooks paragraph and Parallel lanes: "a merge that changes the plan stops with `plan regenerated`; run `git commit --no-edit`") and in `todo/README.md` Commands. Done when: both name the driver line and the step, and no text tells a lane to resolve the plan by hand.
 - [x] Tell the three lanes, after this lands on `main`, how their merges go from now on: with the shared attribute and driver already set, the first merge of `main` does not conflict on the plan; because their branch's hooks are still the old ones until that merge is concluded, they run it as `git merge --no-commit origin/main` then `git commit --no-edit` (the checked-out new `pre-commit` regenerates the plan); every later merge stops by itself. Done when: a test lane that starts without the attribute line or the new hooks follows that procedure into a merge with no conflict and a current plan, and each lane is messaged with the commit and the procedure. Done 2026-10-30 16:24 SAST: the shared driver and `info/attributes` set (all four worktrees read `todo-plan` and `true`), and each lane told to run merges as `git merge --no-commit`, `plan --sync`, `git add`, `git commit --no-edit` until its branch holds `e02cd06` (that form also holds with its older hooks).
-- [ ] Commit: `tools: lane merges regenerate the plan instead of conflicting on it`
+- [x] Commit: `tools: lane merges regenerate the plan instead of conflicting on it`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan tests.scripts.test_pre_commit_hook tests.scripts.test_pre_push_hook` passes, including a two-branch merge that, without the driver, conflicts on the plan (the test asserts that first), and with it, does not.
+
+> **Verified:** 2026-10-30 | §22 | 9717464b39d8832ef37146331288ee159dd49f39
+> **Review:** `docs/reviews/d00-t01-s22.json`
 
 ## 23. One command for a lane merge through its plan stop
 
