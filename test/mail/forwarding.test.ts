@@ -107,7 +107,8 @@ describe("a forward the destination refused", () => {
   it("alerts both mailboxes once, with the alias, the time, the domains and never the sender's address or subject", async () => {
     const w = world([[forward(), report(), report({ sessionId: "s-report-2", messageId: "<ndr-2@x>" })]]);
     const outcome = await checkForwarding(deps(w.fetcher, at(5)));
-    expect(outcome).toMatchObject({ state: "ok", events: 3, incidents: 1, alerted: 1 });
+    // Each notice is opened as read; the second, with no forward of its own, is folded into the first (D01 T02 §9).
+    expect(outcome).toMatchObject({ state: "ok", events: 3, incidents: 2, folded: 1, alerted: 1 });
     expect(w.sends.map((s) => s.to)).toEqual(OPERATORS);
     const [first] = w.sends;
     expect(first?.subject).toBe("IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding");
@@ -161,7 +162,7 @@ describe("completion review", () => {
     const reports = [report(), report({ sessionId: "s-r2", messageId: "<ndr-2@x>" })];
     const w = world([reports, [forward(), ...reports], []]);
     const grace = { graceMs: MATCH_GRACE_MS };
-    expect(await checkForwarding(deps(w.fetcher, at(1), grace))).toMatchObject({ incidents: 1, alerted: 0 });
+    expect(await checkForwarding(deps(w.fetcher, at(1), grace))).toMatchObject({ incidents: 2, folded: 0, alerted: 0 });
     await checkForwarding(deps(w.fetcher, at(16), grace));
     await checkForwarding(deps(w.fetcher, at(22), grace));
     const rows = await db.prepare("SELECT alias, alert FROM forward_incidents").all<{ alias: string; alert: string }>();
@@ -333,7 +334,7 @@ describe("round 1", () => {
         report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: at(10.2).toISOString() }),
       ],
     ]);
-    expect(await checkForwarding(deps(w.fetcher, at(15)))).toMatchObject({ incidents: 2, alerted: 2 });
+    expect(await checkForwarding(deps(w.fetcher, at(15)))).toMatchObject({ incidents: 3, folded: 1, alerted: 2 });
     const aliases = (
       await db.prepare("SELECT alias FROM forward_incidents ORDER BY occurred_at").all<{ alias: string }>()
     ).results;
@@ -419,6 +420,28 @@ describe("round 1", () => {
       expect(m.text).toContain("Cloudflare dropped the 2 refusal notices");
       expect(m.text).not.toContain("forward was not found");
     }
+  });
+
+  it("keeps two refused messages of one subject seconds apart as two, each with its forward (§9 round 1)", async () => {
+    const second = forward({
+      messageId: "<m-2@x>",
+      sessionId: "s2",
+      to: "conduct@isitlegit.co.za",
+      datetime: new Date(at(0).getTime() + 11_000).toISOString(),
+    });
+    const notices = [
+      report({ datetime: new Date(at(0).getTime() + 10_000).toISOString() }),
+      report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: new Date(at(0).getTime() + 13_000).toISOString() }),
+    ];
+    const w = world([[forward(), second, ...notices]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    const aliases = (
+      await env.DB.prepare("SELECT alias FROM forward_incidents WHERE kind = 'refused' ORDER BY occurred_at").all<{
+        alias: string;
+      }>()
+    ).results.map((r) => r.alias);
+    expect(aliases).toEqual(["hello@isitlegit.co.za", "conduct@isitlegit.co.za"]);
+    expect(w.sends.some((m) => m.subject.includes("conduct@isitlegit.co.za"))).toBe(true);
   });
 
   it("keeps notices minutes apart as separate refusals", async () => {

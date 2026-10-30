@@ -98,7 +98,7 @@ export async function scheduledForwarding(
       fetch: fetcher,
     });
   } catch (error) {
-    outcome = { state: "degraded", events: 0, incidents: 0, alerted: 0, errors: [(error as Error).name] };
+    outcome = { state: "degraded", events: 0, incidents: 0, folded: 0, alerted: 0, errors: [(error as Error).name] };
   }
   log(JSON.stringify({ event: "forwarding", ...outcome }));
   return outcome;
