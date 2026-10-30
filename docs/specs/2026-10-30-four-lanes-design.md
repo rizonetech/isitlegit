@@ -10,8 +10,8 @@ Phases are an ordering, not separate work. On 2026-10-30 the open rows of Phases
 
 | Lane | Worktree | Branch | Owns | Open rows |
 | ---- | -------- | ------ | ---- | --------- |
-| Coordinator | `~/isitlegit` | `main` | `main`, merges, CI, deploys, D00 and D99, shared tooling, the review pin, hooks, migration numbers, the machine, manual and operator work | D00, D99 |
-| Checks lane | `~/isitlegit-checks` | `checks-lane` | D01 intake, D02 checks, D04 agent, D08 eval, D09 launch | 70 |
+| Coordinator | `~/isitlegit-main` | `main` | `main`, merges, CI, deploys, D00 and D99, shared tooling, the review pin, hooks, migration numbers, the machine, manual and operator work | D00, D99 |
+| Checks lane | `~/isitlegit` | `checks-lane` | D01 intake, D02 checks, D04 agent, D08 eval, D09 launch | 70 |
 | App lane | `~/isitlegit-app` | `app-lane` | D05 trust, D06 invoice, D07 app | 75 |
 | Glimmer | `~/isitlegit-glimmer` | `glimmer-screener` | D03 vision | 22 |
 
@@ -49,7 +49,7 @@ The tools see every row: `query ready`, the run guard's stop hook and the heartb
 ## Order of the switch
 
 1. File D00 T01 §19 (lane scoping) and this note on `main`.
-2. Create `checks-lane` from `main` and its worktree, and move the D02 T02 §1 work in progress there; the checks lane continues it.
-3. Start the coordinator session in `~/isitlegit` on `main`; it builds §19 first.
+2. Move the existing worktree `~/isitlegit` (the session that built Phases 0 to 2 so far) onto `checks-lane`, created from `main`; it continues D02 T02 §1. Add the worktree `~/isitlegit-main` on `main` for the coordinator, with its own `pnpm install`.
+3. Start the coordinator session in `~/isitlegit-main`; it builds §19 first.
 4. Create `app-lane` and its worktree once §19 is on `main`, and start the app lane's session.
 5. Tell the Glimmer lane: it now merges into `main` through the coordinator, and asks the coordinator, not main's building session, for tooling.
