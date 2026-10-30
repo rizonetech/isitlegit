@@ -578,6 +578,8 @@ Every member page sits in the app layout: the app navigation (P1) at left, conte
 
 Boards: [PNG](mockups/png/Cases.png) · [source](mockups/source/Cases.dc.html) · [PNG](mockups/png/Cases-Empty.png) · [source](mockups/source/Cases-Empty.dc.html)
 
+- Deviation (D07 T04 §1): the Gmail tile reads "Tick the email in your inbox, then More at the top, Forward as attachment." where the board says "Open the email, then More, Forward as attachment.", because Gmail offers Forward as attachment from the inbox toolbar's More menu with the message ticked (Gmail Help, "Forward emails as attachments"), not from an opened message's menu.
+
 Controls:
 
 - stats panel: Four tiles with Export counts as CSV. (Cases)
@@ -920,6 +922,8 @@ States:
 ### E3 403 No access
 
 Boards: [PNG](mockups/png/Error-403.png) · [source](mockups/source/Error-403.dc.html)
+
+- Deviation (D07 T04 §1): the Cases list answers its own 403 (no active organisation, or a membership just removed) with Sign out alone, because the board's "Go to your own cases" is that page and would answer the same 403 again.
 
 Controls:
 

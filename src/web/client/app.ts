@@ -81,4 +81,44 @@ document.addEventListener("click", (event) => {
   void copy(button);
 });
 
+// A results request (the Cases list's filters and pager, D07 T04 §1) that fails, cannot be sent, or ends somewhere else
+// (an expired session sent to sign in) is not drawn into the page: the address is loaded as a whole page instead, so
+// the reader meets the sign-in, 403 or 503 page as a page, and its Try again keeps the filters.
+type HtmxDetail = {
+  xhr?: XMLHttpRequest;
+  pathInfo?: { requestPath?: string; finalRequestPath?: string };
+  shouldSwap?: boolean;
+};
+const asked = (detail: HtmxDetail) =>
+  detail.pathInfo?.finalRequestPath ?? detail.pathInfo?.requestPath ?? location.href;
+for (const name of ["htmx:responseError", "htmx:sendError"])
+  document.addEventListener(name, (event) => {
+    location.assign(asked((event as CustomEvent<HtmxDetail>).detail));
+  });
+document.addEventListener("htmx:beforeSwap", (event) => {
+  const detail = (event as CustomEvent<HtmxDetail>).detail;
+  const landed = detail.xhr?.responseURL;
+  if (!landed) return;
+  const wanted = new URL(asked(detail), location.href);
+  if (new URL(landed).pathname === wanted.pathname) return;
+  detail.shouldSwap = false;
+  location.assign(landed);
+});
+
+// After the Cases list's pager redraws the results (D07 T04 §1), focus stays where the reader was: htmx returns it to the
+// end pressed, by its id; when that end is now disabled (the first or last page), to the other end.
+document.addEventListener("htmx:afterSettle", () => {
+  if (document.activeElement && document.activeElement !== document.body) return;
+  const ends = ["case-next", "case-previous"].map((id) => document.getElementById(id));
+  const enabled = ends.find((end) => end instanceof HTMLAnchorElement);
+  enabled?.focus();
+});
+
+// Every page of the app is private (`no-store`), yet a browser may restore one from its back/forward cache without
+// asking the server (Chrome does while the cookies are unchanged, which a membership removed elsewhere does not change).
+// A page so restored is loaded again, through the session and organisation checks (D07 T04 §1).
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) location.reload();
+});
+
 export {};

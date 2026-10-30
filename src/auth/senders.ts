@@ -46,3 +46,23 @@ export async function memberOfSender(
 // The organisation alone, for the allowlist and the claim routes.
 export const findMemberBySender = async (db: D1Database, sender: string) =>
   (await memberOfSender(db, sender))?.orgId ?? null;
+
+// What an organisation accepts mail from, for the Cases list's first-run line (D07 T04 §1): its verified domains and
+// its verified addresses, each sorted.
+export async function verifiedSenders(
+  db: D1Database,
+  orgId: string,
+): Promise<{ domains: string[]; addresses: string[] }> {
+  const [domains, addresses] = await db.batch<{ value: string }>([
+    db
+      .prepare("SELECT domain AS value FROM org_domains WHERE org_id = ? AND state = 'verified' ORDER BY domain")
+      .bind(orgId),
+    db
+      .prepare("SELECT address AS value FROM org_addresses WHERE org_id = ? AND state = 'verified' ORDER BY address")
+      .bind(orgId),
+  ]);
+  return {
+    domains: (domains?.results ?? []).map((r) => r.value),
+    addresses: (addresses?.results ?? []).map((r) => r.value),
+  };
+}

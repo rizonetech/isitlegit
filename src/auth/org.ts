@@ -22,26 +22,41 @@ const unavailable = () =>
     { status: 503, headers: { "cache-control": "no-store", "retry-after": "5" } },
   );
 
-export const requireOrg = createMiddleware<OrgEnv>(async (c, next) => {
-  const active = (c.get("signedIn").session as { activeOrganizationId?: string | null }).activeOrganizationId;
-  if (!active) return refused("choose an organisation first");
+// The session's active organisation and the member's role in it, read the one way every route reads it: the API's
+// requireOrg below and the member pages (D07 T04 §1), which answer the same outcomes as pages.
+export type ActiveMembership =
+  | { ok: true; org: ActiveOrg }
+  | { ok: false; reason: "no-organisation" | "not-a-member" | "unavailable" };
+export async function activeMembership(env: Env, signedIn: SignedIn): Promise<ActiveMembership> {
+  const active = (signedIn.session as { activeOrganizationId?: string | null }).activeOrganizationId;
+  if (!active) return { ok: false, reason: "no-organisation" };
   // The membership through Better Auth's adapter for the session the gate already read: a second session read inside
   // the plugin (getActiveMember) would turn a failing store into "not signed in", a refusal instead of an outage.
   let member: { role: string } | null;
   try {
-    const { adapter } = await createAuth(c.env).$context;
+    const { adapter } = await createAuth(env).$context;
     member = await adapter.findOne<{ role: string }>({
       model: "member",
       where: [
-        { field: "userId", value: c.get("signedIn").user.id },
+        { field: "userId", value: signedIn.user.id },
         { field: "organizationId", value: active },
       ],
     });
   } catch {
-    return unavailable();
+    return { ok: false, reason: "unavailable" };
   }
-  if (!member) return refused("you are not a member of this organisation");
-  c.set("org", { id: active, role: member.role });
+  return member ? { ok: true, org: { id: active, role: member.role } } : { ok: false, reason: "not-a-member" };
+}
+
+export const requireOrg = createMiddleware<OrgEnv>(async (c, next) => {
+  const read = await activeMembership(c.env, c.get("signedIn"));
+  if (!read.ok) {
+    if (read.reason === "unavailable") return unavailable();
+    return refused(
+      read.reason === "no-organisation" ? "choose an organisation first" : "you are not a member of this organisation",
+    );
+  }
+  c.set("org", read.org);
   await next();
 });
 
