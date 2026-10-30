@@ -219,7 +219,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 64 | Checklist items: 268
+Sections: 68 | Checklist items: 292
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -287,6 +287,10 @@ Sections: 64 | Checklist items: 268
 | [ ]    | D09 T02 §4  | Remotion title cards and animation        | none                  | 4     |
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot   | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                              | none                  | 5     |
+| [ ]    | D10 T01 §1  | Media package and stats collector         | none                  | 7     |
+| [ ]    | D10 T01 §2  | Remotion licence basis                    | operator              | 3     |
+| [ ]    | D10 T01 §3  | Video 01: development method              | none                  | 7     |
+| [ ]    | D10 T01 §4  | Video 02: tech stack                      | none                  | 7     |
 
 ### Phase 7: After the event
 
@@ -325,10 +329,11 @@ Sections: 28 | Checklist items: 165
 
 ### Phase 99: Manual, operator only
 
-Sections: 15 | Checklist items: 61
+Sections: 16 | Checklist items: 66
 
 | Status | Reference   | Deliverable                                   | Needs    | Items |
 | ------ | ----------- | --------------------------------------------- | -------- | ----- |
+| [ ]    | D10 T01 §5  | Uploads and links recorded                    | operator | 5     |
 | [x]    | D99 T01 §1  | Meta API billing and API key                  | none     | 5     |
 | [x]    | D99 T01 §2  | Domain verification and nameservers           | none     | 15    |
 | [x]    | D99 T01 §3  | Workers Paid plan                             | none     | 3     |
@@ -345,6 +350,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 95/276 verified sections, 57 ready to run now.
+Progress: 95/281 verified sections, 58 ready to run now.
 
-Checklist: 970/1787 items completed (includes Commit items).
+Checklist: 974/1816 items completed (includes Commit items).
