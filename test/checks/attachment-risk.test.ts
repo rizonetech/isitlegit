@@ -434,3 +434,22 @@ describe("after round 1", () => {
     expect(requested).toBeLessThanOrEqual(MAX_RAR_BYTES);
   });
 });
+
+describe("after round 2", () => {
+  it("checks a member's name CRC once, however many Unicode Path fields repeat", async () => {
+    const name = "n".repeat(60_000);
+    const fields = Array.from({ length: 7_000 }, () => unicodePath(1, "x.exe"));
+    const extra = new Uint8Array(fields.reduce((n, f) => n + f.length, 0));
+    let at = 0;
+    for (const f of fields) {
+      extra.set(f, at);
+      at += f.length;
+    }
+    const started = Date.now();
+    expect(
+      await one(["w.zip", "application/zip", zip([{ name, data: pdf, extra: extra.subarray(0, 65_000) }])]),
+    ).toEqual([]);
+    // Once per member this is a fraction of a second; once per field it took 1.5 s here.
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+});

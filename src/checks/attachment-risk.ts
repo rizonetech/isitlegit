@@ -135,12 +135,16 @@ async function zipEntries(
     // The Unicode Path extra field (APPNOTE 4.6.9, 0x7075): another name for the member, which unpackers show; taken
     // when its CRC matches the legacy name, as the note asks (round 1: `invoice.pdf` hiding `invoice.pdf.exe`).
     const extraEnd = at + 46 + nameLength + u16(cd, at + 30);
+    let legacyCrc: number | undefined;
     for (let x = at + 46 + nameLength; x + 4 <= extraEnd; ) {
       const id = u16(cd, x);
       const len = u16(cd, x + 2);
       if (x + 4 + len > extraEnd) break;
-      if (id === 0x7075 && len >= 5 && cd[x + 4] === 1 && u32(cd, x + 5) === crc32(raw))
-        names.push(new TextDecoder().decode(cd.subarray(x + 9, x + 4 + len)));
+      if (id === 0x7075 && len >= 5 && cd[x + 4] === 1) {
+        // The legacy name's CRC once per member, however many fields repeat it (round 2).
+        if (legacyCrc === undefined) legacyCrc = crc32(raw);
+        if (u32(cd, x + 5) === legacyCrc) names.push(new TextDecoder().decode(cd.subarray(x + 9, x + 4 + len)));
+      }
       x += 4 + len;
     }
     entries.push({ names, encrypted: (u16(cd, at + 8) & 1) === 1 });
