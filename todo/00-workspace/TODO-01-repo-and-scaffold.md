@@ -942,6 +942,8 @@ Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there).
 
 ## 28. Plan review just after Started, nothing built moved
 
+> **Started:** 2026-10-30T21:40Z
+
 Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan review whose candidate is later than the commit that records the section's `Started:` line, so that the reviewer always reads the contract before the build. §4's plan review ran on `eaa665b`, one commit after its Started commit `dd17122`; `eaa665b` only re-formatted two JSON test fixtures that the pre-push lint refused, and the section's text is the same in both. The rule's intent held; its test is too blunt. A second plan review on `dd17122` is refused too (one per findings file), so the section cannot stamp at all. The fix keeps the rule's purpose: a later candidate is accepted only when nothing that defines or builds the feature changed between the two commits.
 
 **Phase:** 2
@@ -952,7 +954,7 @@ Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan r
 
 1. Accept a plan candidate after Started when the contract and the product are untouched between. Done when: `stamp` accepts §4's shape and still refuses a candidate after a commit that changed the section's text or any product file.
 
-- [ ] In `stamp` (`scripts/lib/todo_graph.py`), accept a plan review whose candidate descends from the Started commit when, across every commit from the Started commit to the candidate, the section's own body is byte for byte unchanged and no file under `src/`, `site/`, `media/` or `scripts/` (outside `scripts/tests/`) changed; refuse otherwise, naming the first commit and path that broke the condition. Done when: `tests/scripts/test_todo_graph.py` stamps a section whose plan candidate follows its Started commit by a fixture-formatting commit, and refuses one after a commit that edits the section's checklist and one after a commit that touches `src/`.
+- [ ] In `stamp` (`scripts/lib/todo_graph.py`), accept a plan review whose candidate descends from the Started commit when, across every commit from the Started commit to the candidate, the section's own body is byte for byte unchanged and every changed path sits under `test/`, `tests/`, `todo/` or `docs/reviews/`; refuse otherwise, naming the first commit and path that broke the condition. Done when: `tests/scripts/test_todo_graph.py` stamps a section whose plan candidate follows its Started commit by a fixture-formatting commit, and refuses one after a commit that edits the section's checklist and one after a commit that touches `src/`. **Corrected 2026-10-30:** said the refusing paths were `src/`, `site/`, `media/` and `scripts/` outside `scripts/tests/`; the repository has no `site/`, and product also lives in `wrangler.jsonc`, `package.json`, `public/`, `native/` and `infra/`, so the rule names the paths a commit may touch instead (tests, the TODO tree, review records) and refuses every other path.
 - [ ] Keep the receipt honest: record `plan.after_started` with the commits between when the candidate is later than the Started commit. Done when: the test reads that field in the receipt, and its absence when the candidate is the Started commit or earlier.
 - [ ] Commit: `tools: a plan review just after Started, when nothing built moved`
 
