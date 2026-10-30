@@ -2,6 +2,8 @@
 
 Promo and explainer videos for the IsItLegit YouTube channel ([@DerickPayneDev](https://www.youtube.com/@DerickPayneDev)), made with Remotion.
 
+Moving to local VS Code: see [HANDOVER.md](HANDOVER.md).
+
 This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, domain D10 `10-media`), registered by the coordinator on `main` in `b223a08` and not run by it (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane). The work is planned in [todo/10-media/](../todo/10-media/INDEX.md).
 
 ## Rules
