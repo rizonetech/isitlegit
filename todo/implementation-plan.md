@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 372
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 55 | Checklist items: 376
+Sections: 55 | Checklist items: 377
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -144,7 +144,7 @@ Sections: 55 | Checklist items: 376
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
-| [ ]    | D07 T02 §13 | Signup page                                           | none     | 10    |
+| [ ]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
@@ -301,7 +301,7 @@ Sections: 65 | Checklist items: 272
 
 ### Phase 7: After the event
 
-Sections: 34 | Checklist items: 183
+Sections: 35 | Checklist items: 186
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -332,6 +332,7 @@ Sections: 34 | Checklist items: 183
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended       | 3     |
 | [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none           | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none           | 8     |
+| [ ]    | D07 T02 §17 | Correct a mistyped signup address                | owner-decision | 3     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
@@ -362,6 +363,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 103/293 verified sections, 66 ready to run now.
+Progress: 103/294 verified sections, 66 ready to run now.
 
-Checklist: 1063/1894 items completed (includes Commit items).
+Checklist: 1064/1898 items completed (includes Commit items).

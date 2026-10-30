@@ -99,6 +99,9 @@ describe("the signup page", () => {
     expect(foreign.status).toBe(403);
     const huge = await b.post("/signup", fieldsFor("GUARD", email, { organizationName: "x".repeat(20_000) }));
     expect(huge.status).toBe(413);
+    const hugeHtml = await huge.text();
+    expect(hugeHtml).toContain("That was more than the form can take. Check each field and try again.");
+    expect(hugeHtml).toMatch(/<button[^>]*type="submit"[^>]*>Create account<\/button>/);
     expect(await accountOf(email)).toEqual({ users: 0, owners: 0, redemptions: 0 });
     expect(await usesOf(codeId)).toBe(0);
   });
@@ -189,6 +192,24 @@ describe("the signup page", () => {
     expect(await cases.text()).toContain("Everything Karoo Couriers has checked");
     expect(await accountOf(email)).toEqual({ users: 1, owners: 1, redemptions: 1 });
     expect(await usesOf(codeId)).toBe(1);
+  });
+
+  // The server's part of the one-minute goal (the form posted to the inbox page drawn), timed over ten signups.
+  it("creates an organisation within two seconds at p95 on the server", async () => {
+    mailed();
+    const times: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const code = `TIMED-${tag()}`;
+      await addInviteCode(db, code);
+      const started = performance.now();
+      const res = await browser().post("/signup", fieldsFor(code, `timed-${tag()}@example.org`));
+      times.push(performance.now() - started);
+      expect(res.status).toBe(201);
+    }
+    times.sort((a, b) => a - b);
+    const p95 = times[Math.ceil(times.length * 0.95) - 1] ?? Number.NaN;
+    console.log(JSON.stringify({ event: "signup-timing", signups: times.length, p95Ms: Math.round(p95) }));
+    expect(p95).toBeLessThan(2000);
   });
 
   it("says the account is ready when its first link could not be confirmed, with a form for a new one", async () => {

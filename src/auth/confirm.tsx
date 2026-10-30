@@ -474,7 +474,12 @@ confirmRoutes.get(SIGNUP_PATH, (c) =>
 confirmRoutes.post(SIGNUP_PATH, async (c) => {
   if (!sameOrigin(c.env, c.req.raw)) return new Response("Forbidden", { status: 403 });
   const form = await readForm(c.req.raw);
-  if (!form) return tooLarge();
+  // Too large to read: the form again, empty, saying why (the fields' own limits keep a typed form under it).
+  if (!form)
+    return pageResponse(
+      <SignupPage problem={{ text: "That was more than the form can take. Check each field and try again." }} />,
+      413,
+    );
   const values: SignupValues = {
     invite: (form.invite ?? "").trim(),
     email: (form.email ?? "").trim(),

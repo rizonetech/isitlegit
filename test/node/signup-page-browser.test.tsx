@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { InboxPage, pageResponse } from "../../src/auth/confirm-page.tsx";
+import { InboxPage, pageResponse, retryIn } from "../../src/auth/confirm-page.tsx";
 import { Document } from "../../src/web/components/Document.tsx";
 import { SignupNotConfirmedPage, SignupPage, type SignupValues } from "../../src/web/pages/signup.tsx";
 import { AXE, problems, scan } from "./axe";
@@ -33,6 +33,16 @@ const pages: Record<string, () => unknown> = {
         consent: true,
       },
       errors: { invite: UNUSABLE },
+    }),
+  "/signup/limited": () =>
+    SignupPage({
+      values: {
+        invite: "WELCOME",
+        email: "thandi@karoocouriers.example",
+        organizationName: "Karoo Couriers",
+        consent: true,
+      },
+      problem: { text: "Too many signups from here.", retry: retryIn(5) },
     }),
   "/signup/inbox": () => InboxPage({ email: "thandi@karoocouriers.example", callbackURL: "/cases" }),
   "/signup/not-confirmed": () => SignupNotConfirmedPage({ email: "thandi@karoocouriers.example" }),
@@ -82,6 +92,8 @@ beforeAll(async () => {
       return res.end();
     }
     const page = pages[url.pathname];
+    if (url.pathname === "/signup" && url.searchParams.has("code"))
+      return send(res, await pageResponse(SignupPage({ values: { invite: url.searchParams.get("code") ?? "" } })));
     if (page) return send(res, await pageResponse(page()));
     if (url.pathname === "/cases") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -145,6 +157,25 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the signup page in Chromium
     await p.waitForURL(`${origin}/signup`, { waitUntil: "load" });
     await expect.poll(() => p.getByRole("heading", { name: "Check your inbox" }).isVisible()).toBe(true);
     expect(state.posts.filter((x) => x.path === "/signup")).toHaveLength(1);
+    await context.close();
+  });
+
+  it("keeps Create account held when a retry's time comes with consent unticked", async () => {
+    const { p, context } = await open("/signup/limited");
+    const create = p.getByRole("button", { name: /^Create account/ });
+    expect(await create.isDisabled()).toBe(true);
+    await p.getByLabel("I agree to IsItLegit processing mail I forward").uncheck();
+    await p.waitForTimeout(6000);
+    expect(await create.isDisabled()).toBe(true);
+    await p.getByLabel("I agree to IsItLegit processing mail I forward").check();
+    expect(await create.isEnabled()).toBe(true);
+    await context.close();
+  });
+
+  it("takes a shared invite code into the form and out of the address", async () => {
+    const { p, context } = await open("/signup?code=GARDEN-ROUTE-24");
+    expect(await p.getByLabel("Invite code").inputValue()).toBe("GARDEN-ROUTE-24");
+    expect(p.url()).toBe(`${origin}/signup`);
     await context.close();
   });
 

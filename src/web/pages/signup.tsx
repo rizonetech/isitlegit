@@ -45,12 +45,13 @@ export function SignupPage(props: { values?: SignupValues; errors?: SignupErrors
             {problem.text}
           </p>
         )}
-        <form method="post" action={SIGNUP_PATH} class="flex flex-col gap-20" data-busy>
+        <form method="post" action={SIGNUP_PATH} class="flex flex-col gap-20" data-busy data-drop-query>
           <Field
             id="signup-invite"
             label="Invite code"
             name="invite"
             autocomplete="off"
+            maxlength={200}
             required
             {...(values.invite ? { value: values.invite } : {})}
             {...(errors.invite ? { error: errors.invite } : {})}
@@ -63,6 +64,7 @@ export function SignupPage(props: { values?: SignupValues; errors?: SignupErrors
               type="email"
               autocomplete="email"
               inputmode="email"
+              maxlength={254}
               required
               {...(values.email ? { value: values.email } : {})}
               {...(errors.email ? { error: errors.email } : {})}
@@ -78,6 +80,7 @@ export function SignupPage(props: { values?: SignupValues; errors?: SignupErrors
             label="Organisation name"
             name="organizationName"
             autocomplete="organization"
+            maxlength={120}
             required
             {...(values.organizationName ? { value: values.organizationName } : {})}
             {...(errors.organizationName ? { error: errors.organizationName } : {})}

@@ -51,6 +51,7 @@ track: day-1
 | 14 | §14 | Invite acceptance page | §3, §7 | [ ] |
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
+| 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -528,6 +529,7 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 - [x] Draw both answers: `linkSent: true` is the check-your-inbox state with the code field (§11; the page sets the code handle for a browser with none, so the first link's code is this browser's), and `linkSent: false` says the account is ready but the link could not be confirmed, with Email me a new link. Done when: the page test signs up and signs in by the code from the first mail, and reads the second answer with a working new-link form. Evidence 2026-10-30: the page test serves `/signup` to a fresh browser (it now sets the code handle, as `/signin/*` does), signs up, reads the inbox with the code field, signs in by the first code and reads the Cases list for Karoo Couriers; with the mail refused it reads "Your account is ready" with the new-link form; dropping the handle on `/signup` fails it.
 - [x] Hold Create account until the box is ticked, show it busy while it runs (D07 T02 §7's `data-busy`), and pass the accessibility gate's rules at 360 and 1280 px in both themes for the form, a code refusal and both answers. Done when: `test/node/signup-page-browser.test.tsx` finds the button held, ticks the box, sends once for two presses, and scans each state. Evidence 2026-10-30: `data-needs-consent` in `src/web/client/app.ts`; `test/node/signup-page-browser.test.tsx` (7) finds the button held, enabled on ticking and held again on unticking, one post for two presses, and no accessibility problem in four states at 360 and 1280 px in both themes; removing the hold fails it.
 - [x] Work without script and by keyboard alone: with JavaScript off, Create account is usable (only the script holds it) and the signup and the first code go through; by Tab, Space and Enter alone a member fills the form, ticks consent, submits, meets a refusal tied to its field (`aria-describedby`, announced), corrects it, and submits again with the other values kept. Done when: the browser test drives both journeys. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: the browser test with JavaScript off finds the box's own `required` stopping a form without consent (nothing sent), then signs up and signs in by the first code; by keyboard it types each field, ticks with Space, submits with Enter, reads the refused code as the field's description with the other values kept, corrects it and submits.
+- [x] Close the completion review's in-scope gaps: Create account stays held when a retry's time comes with consent unticked; a form too large to read is the signup page again saying why (413), the fields bounded (`maxlength` 200, 254 and 120) so a typed form stays under it; a shared invite code is taken into the form and out of the address (`data-drop-query`, `history.replaceState`); and the server's part of a signup is timed. Done when: `test/node/signup-page-browser.test.tsx` (9) holds the button past an expired retry with the box unticked and finds `/signup` with no code and the field filled; `test/web/signup-page.test.ts` (9) reads the 413 page and times ten signups at p95 207 ms locally (the browser and the mail are the rest of the minute, unmeasured here). Each fix's removal fails its test. **Added 2026-10-31 (completion review).**
 - [ ] Commit: `web: the signup page`
 
 > **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
@@ -626,6 +628,29 @@ The sign-in page's "Sign in with a passkey" (`design/SPEC.md` A1, the passkey bu
 - [ ] Commit: `web: passkey sign-in from the sign-in page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-client.test.ts test/node/passkey-signin-browser.test.tsx` passes: a real passkey sign-in landing on its return path with the session read back, and every recovery state by keyboard.
+
+## 17. Correct a mistyped signup address
+
+An owner who typed their address wrong at signup fixes it without a second invite code and without leaving an organisation stranded under an address nobody reads. Filed 2026-10-31 from D07 T02 §13's completion review (Part 1, the typo recovery Slack's signup offers): today the first link goes to the wrong address, the code is used, and only the operator can recover it.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A2 Sign up, once the operator approves a board change adding the correction
+**Job:** an owner who mistyped their address finishes signing up from the same browser
+**Treatment:** on the inbox answer after signup, "Wrong address?" opens the address to correct; the organisation and its consent move to the corrected address only once that address proves itself, and the mistyped one is removed
+**Chrome:** §13's page
+
+**Build order:**
+
+1. Draw the correction on the board and have the operator approve it (who may correct, for how long, and what proves the new address). Done when: `design/SPEC.md` A2 lists it.
+2. Build the correction against the redemption the browser signed up with. Done when: `test/web/signup-page.test.ts` corrects an address and signs in at the new one, the old address left with nothing.
+
+- [ ] Add the correction to the board and SPEC A2 with the operator's approval, its limits named. Done when: `design/SPEC.md` A2 names it.
+- [ ] Correct the address of a signup not yet signed in to, from the browser that made it (its code handle), moving the redemption, the user and the owner membership to the new address once its first link or code is used. Done when: `test/web/signup-page.test.ts` corrects a mistyped address, signs in at the corrected one, and finds no account and no membership left at the old one, with one use of the code.
+- [ ] Commit: `web: correct a mistyped signup address`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if the mistyped address keeps an account after the correction.
 
 ## Verification
 
