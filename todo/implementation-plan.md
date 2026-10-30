@@ -92,14 +92,14 @@ Sections: 43 | Checklist items: 372
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 54 | Checklist items: 346
+Sections: 54 | Checklist items: 352
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [x]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
 | [x]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
-| [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
+| [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 14    |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
@@ -361,4 +361,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 100/290 verified sections, 63 ready to run now.
 
-Checklist: 1011/1857 items completed (includes Commit items).
+Checklist: 1011/1863 items completed (includes Commit items).
