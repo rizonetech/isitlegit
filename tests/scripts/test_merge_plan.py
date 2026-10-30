@@ -65,8 +65,9 @@ class MergePlan(fixtures.Stamp):
         info.mkdir(exist_ok=True)
         (info / "attributes").write_text("todo/implementation-plan.md merge=todo-plan\n", encoding="utf-8")
 
-    def stamp_section(self, todo, ref, report):
-        """Tick the section's work item and stamp it with a clean round and its own plan and completion reviews."""
+    def stamp_section(self, todo, ref, report, pin=None):
+        """Tick the section's work item and stamp it with a clean round and its own plan and completion reviews, those
+        reviews recording `pin` (a reviewer-pin blob id) when given."""
         path = self.root / todo
         path.write_text(path.read_text(encoding="utf-8").replace("- [ ] Work.", "- [x] Work.", 1), encoding="utf-8")
         target = self.root / report
@@ -74,8 +75,10 @@ class MergePlan(fixtures.Stamp):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("# Review findings\n\n" + fixtures.envelope(1), encoding="utf-8")
             self.write_plan(path=report)
+        if pin:
+            self.write_plan(path=report, pin=pin)
         completion = report.replace(".md", "-completion.md")
-        self.write_completion(path=completion)
+        self.write_completion(path=completion, pin=pin)
         tg.projections(self.root, sync=True)  # the ticked item changes the plan; the real pre-commit holds it current
         sha = self.commit(f"work for {ref}")
         tg.stamp(self.root, ref, sha, [{"round": 1, "report": report, "verdict": "clean"}], ["true -> ok"],
@@ -143,6 +146,75 @@ class MergePlan(fixtures.Stamp):
         self.git("add", "notes.txt")
         self.concluded()
 
+    def test_a_resolved_conflict_in_a_todo_file_concludes_with_a_current_plan(self):
+        self.driver()
+        path = self.root / BRAVO
+        self.git("checkout", "-qb", "lane")
+        self.stamp_alpha()
+        path.write_text(path.read_text(encoding="utf-8").replace("> **Current state:** c.", "> **Current state:** lane."),
+                        encoding="utf-8")
+        self.commit("lane's current state")
+        self.git("checkout", "-q", self.trunk)
+        path.write_text(path.read_text(encoding="utf-8").replace("> **Current state:** c.", "> **Current state:** main."),
+                        encoding="utf-8")
+        self.commit("main's current state")
+        self.stamp_bravo()
+        done = self.git("merge", "--no-edit", "lane", check=False)
+        self.assertIn(f"CONFLICT (content): Merge conflict in {BRAVO}", done.stdout)
+        self.assertNotIn(f"Merge conflict in {PLAN}", done.stdout)
+        text = path.read_text(encoding="utf-8")
+        start, end = text.index("<<<<<<<"), text.index(">>>>>>>")
+        path.write_text(text[:start] + "> **Current state:** both.\n" + text[text.index("\n", end) + 1:],
+                        encoding="utf-8")
+        self.git("add", BRAVO)
+        self.concluded()
+        rows = tg.graph(self.root)
+        self.assertTrue(rows["D00 T01 §1"].done and rows["D00 T02 §1"].done)
+
+    def test_a_receipt_using_a_pin_committed_only_on_the_incoming_side_concludes(self):
+        self.driver()
+        self.git("checkout", "-qb", "lane")
+        lane_pin = fixtures.UNIFORM_PIN + "# the lane's own pin\n"
+        (self.root / tg.PIN).write_text(lane_pin, encoding="utf-8")
+        self.commit("the lane's pin")
+        self.stamp_section(ALPHA, "D00 T01 §1", "docs/reviews/00-workspace/D00-T01-s1.md",
+                           pin=tg.review_dispatch().pin_blob(lane_pin.encode("utf-8")))
+        self.git("checkout", "-q", self.trunk)
+        (self.root / tg.PIN).write_text(fixtures.UNIFORM_PIN, encoding="utf-8")
+        self.stamp_bravo()
+        self.git("merge", "--no-edit", "lane", check=False)
+        tg._COMMITTED_PINS.clear()
+        self.concluded()
+
+    def test_a_stopped_merge_aborts_to_the_commit_it_started_from(self):
+        self.driver()
+        self.diverge()
+        head, plan = self.head(), (self.root / PLAN).read_text(encoding="utf-8")
+        self.git("merge", "--no-edit", "lane", check=False)
+        self.git("merge", "--abort")
+        self.assertEqual(self.head(), head)
+        self.assertEqual(self.git("status", "--porcelain").stdout, "")
+        self.assertEqual((self.root / PLAN).read_text(encoding="utf-8"), plan)
+        self.assertFalse(self.git("rev-parse", "-q", "--verify", "MERGE_HEAD", check=False).stdout.strip())
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root ignores the folder's write bit")
+    def test_a_plan_write_that_fails_refuses_the_merge_commit_until_it_can_write(self):
+        self.driver()
+        self.diverge()
+        head = self.head()
+        self.git("merge", "--no-edit", "lane", check=False)
+        folder = self.root / "todo"
+        mode = folder.stat().st_mode
+        folder.chmod(0o555)  # plan --sync writes a temporary file beside the plan, then replaces it
+        try:
+            refused = self.git("commit", "--no-edit", check=False)
+        finally:
+            folder.chmod(mode)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("plan --sync failed over the merged tree", refused.stderr)
+        self.assertEqual(self.head(), head, "no merge commit")
+        self.concluded()
+
     def test_a_merge_outside_the_plans_inputs_commits_by_itself(self):
         self.driver()
         self.git("checkout", "-qb", "lane")
@@ -188,7 +260,8 @@ class MergePlan(fixtures.Stamp):
         self.assertIn("run 'git commit --no-edit' to validate it", stopped.stderr)
         refused = self.git("commit", "--no-edit", check=False)
         self.assertNotEqual(refused.returncode, 0)
-        self.assertIn("does not validate", refused.stderr)
+        self.assertIn("plan --sync failed over the merged tree", refused.stderr)
+        self.assertIn("TODO refused:", refused.stderr, "the validator's own reason is shown")
         self.assertEqual(self.head(), head, "no merge commit")
 
     def test_a_lane_that_predates_the_change_bootstraps_with_no_commit(self):

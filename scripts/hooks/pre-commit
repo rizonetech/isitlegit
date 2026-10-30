@@ -85,7 +85,9 @@ fi
 # exists by now, so the incoming parent's stamps and pins validate (pre-merge-commit runs before git writes it).
 if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
     if ! "$python" "$root/scripts/todo-graph.py" plan --sync >/dev/null; then
-        echo "pre-commit: the merged TODO graph does not validate, so the merge is not committed; fix the refusal above" >&2
+        echo "pre-commit: plan --sync failed over the merged tree (its refusal is above: an invalid graph, or a write" \
+            "that failed), so the merge is not committed; fix it and run 'git commit --no-edit' again, or" \
+            "'git merge --abort'" >&2
         exit 1
     fi
     git add -- todo/implementation-plan.md || exit 1

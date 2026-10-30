@@ -61,6 +61,7 @@ track: day-0
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [ ] |
+| 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -799,17 +800,35 @@ Asked by the operator 2026-10-30 ("can we avoid these conflicts?", then "build i
 1. Keep one side of the plan in a merge. Done when: a merge of two branches that both changed the plan stops on no conflict in it, including a lane branch whose own `.gitattributes` lacks the attribute.
 2. Regenerate the plan into the merge commit with both parents' stamps. Done when: the merge commit's plan equals `plan --sync` over its merged TODO files, with genuine stamps on both branches validated, whether the merge had other conflicts or none.
 
-- [ ] Add `todo/implementation-plan.md merge=todo-plan` to `.gitattributes` with a comment naming this section, and set the driver and the attribute in the clone's shared files: `git config merge.todo-plan.driver true` and the same attribute line in `$(git rev-parse --git-common-dir)/info/attributes` (both shared by every worktree of the clone). Done when: `git check-attr merge todo/implementation-plan.md` prints `todo-plan` and `git config merge.todo-plan.driver` prints `true` in all four worktrees, `checks-lane` and `app-lane` included before they merge `main`.
+- [x] Add `todo/implementation-plan.md merge=todo-plan` to `.gitattributes` with a comment naming this section, and set the driver and the attribute in the clone's shared files: `git config merge.todo-plan.driver true` and the same attribute line in `$(git rev-parse --git-common-dir)/info/attributes` (both shared by every worktree of the clone). Done when: `git check-attr merge todo/implementation-plan.md` prints `todo-plan` and `git config merge.todo-plan.driver` prints `true` in all four worktrees, `checks-lane` and `app-lane` included before they merge `main`.
 - [x] Write `scripts/hooks/pre-merge-commit`: when the merge changes nothing under `todo/` or `docs/reviews/` relative to `HEAD` (`git diff --cached --quiet HEAD -- todo/ docs/reviews/`), exit 0 (the plan's inputs are unchanged); otherwise print `the merge changes the plan's inputs; run 'git commit --no-edit' to validate it and regenerate the plan` and exit 1, so git stops before committing and writes `MERGE_HEAD`. Done when: `tests/scripts/test_merge_plan.py` merges two branches that each genuinely stamped a different section (real receipts, ancestry checked, nothing stubbed) and the merge stops with that line and no conflict, and a merge touching neither folder commits by itself. Cheaper substitute: regenerating here, where `validate` cannot see the incoming parent (corrected above).
 - [x] Regenerate in `scripts/hooks/pre-commit` while a merge is open (`MERGE_HEAD` exists), after its existing refusal of unstaged or untracked changes under `todo/` and `docs/reviews/`: run `plan --sync` and stage the plan, then the existing `validate` and `plan --check`. Done when: the stopped stamped merge above concludes with one `git commit --no-edit` into a two-parent merge whose plan equals `plan --sync` over the merged tree; a merge with a conflict in another TODO file, resolved and committed, carries the regenerated plan; an unstaged TODO edit during the merge is refused with the plan and index unchanged, and the commit succeeds once it is stashed; an ordinary commit with a stale plan is still refused as before.
 - [x] Read the reviewer-pin history over `HEAD` and `MERGE_HEAD` in `committed_pins()` (`scripts/lib/todo_graph.py`), as `_tips()` does for stamps. Done when: `tests/scripts/test_todo_graph.py` accepts a receipt using a pin committed only on the incoming parent while a merge is open, and still refuses a pin that is only staged.
 - [x] Refuse the merge commit in `pre-commit` when `validate` fails over the merged tree, naming the refusal, evidence-only merges included. Done when: a test merge whose incoming side changes only a referenced receipt in `docs/reviews/` so it no longer validates stops in `pre-merge-commit`, and `git commit --no-edit` is refused with the validator's message and no commit.
 - [x] Track both hooks executable (`100755`) and keep `TrackedHooks` (§21) covering them. Done when: `git ls-files -s scripts/hooks` lists both at `100755`.
 - [x] Name the setup and the new merge step in `AGENTS.md` (the hooks paragraph and Parallel lanes: "a merge that changes the plan stops with `plan regenerated`; run `git commit --no-edit`") and in `todo/README.md` Commands. Done when: both name the driver line and the step, and no text tells a lane to resolve the plan by hand.
-- [ ] Tell the three lanes, after this lands on `main`, how their merges go from now on: with the shared attribute and driver already set, the first merge of `main` does not conflict on the plan; because their branch's hooks are still the old ones until that merge is concluded, they run it as `git merge --no-commit origin/main` then `git commit --no-edit` (the checked-out new `pre-commit` regenerates the plan); every later merge stops by itself. Done when: a test lane that starts without the attribute line or the new hooks follows that procedure into a merge with no conflict and a current plan, and each lane is messaged with the commit and the procedure.
+- [x] Tell the three lanes, after this lands on `main`, how their merges go from now on: with the shared attribute and driver already set, the first merge of `main` does not conflict on the plan; because their branch's hooks are still the old ones until that merge is concluded, they run it as `git merge --no-commit origin/main` then `git commit --no-edit` (the checked-out new `pre-commit` regenerates the plan); every later merge stops by itself. Done when: a test lane that starts without the attribute line or the new hooks follows that procedure into a merge with no conflict and a current plan, and each lane is messaged with the commit and the procedure. Done 2026-10-30 16:24 SAST: the shared driver and `info/attributes` set (all four worktrees read `todo-plan` and `true`), and each lane told to run merges as `git merge --no-commit`, `plan --sync`, `git add`, `git commit --no-edit` until its branch holds `e02cd06` (that form also holds with its older hooks).
 - [ ] Commit: `tools: lane merges regenerate the plan instead of conflicting on it`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan tests.scripts.test_pre_commit_hook tests.scripts.test_pre_push_hook` passes, including a two-branch merge that, without the driver, conflicts on the plan (the test asserts that first), and with it, does not.
+
+## 23. One command for a lane merge through its plan stop
+
+Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope there). Under §22 a merge that changes the plan's inputs takes two commands (`git merge`, then `git commit --no-edit`), where a merge of a project without a committed generated file takes one. A wrapper that runs both, keeping every refusal, brings the common case back to one command.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Merge in one command. Done when: `scripts/merge-lane.sh <ref>` concludes a stamped merge with a current plan, and stops on any conflict or refusal with git's own message.
+
+- [ ] Write `scripts/merge-lane.sh <ref>`: `git merge --no-edit <ref>`; when it stopped only at `pre-merge-commit` (no unmerged paths, `MERGE_HEAD` present), run `git commit --no-edit`; otherwise exit with the merge's status and its message, leaving the merge for the lane to resolve. Done when: `tests/scripts/test_merge_plan.py` concludes a stamped merge with one call and a current plan, leaves a merge with a conflict open with its message, and passes a refusal of `pre-commit` through with no commit.
+- [ ] Name it in `AGENTS.md` Parallel lanes and `todo/README.md` Commands as the way to merge. Done when: both name it.
+- [ ] Commit: `tools: one command for a lane merge through its plan stop`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan` passes, including the one-call stamped merge.
 
 ## Verification
 
