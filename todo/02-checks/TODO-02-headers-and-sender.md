@@ -163,6 +163,10 @@ Business email compromise often keeps a real-looking display name over a differe
 
 A sender this organisation has never had mail from is a weak but useful signal, especially with a payment request. Senders are remembered per organisation as hashes, never as addresses in clear.
 
+> **Started:** 2026-10-30T16:17Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) migration `0008` is long taken; the number comes from the coordinator (asked 2026-10-30), and the tables are `org_senders` (org id, sender hash, the case that first recorded it, first seen, count) and `org_sender_salts` (a random 32-byte salt per organisation, made on first use), so a sender is only ever a salted SHA-256 of its lower-cased address; (2) checks are pure (`src/checks/registry.ts`: a check never reaches the store), so the Workflow's `checks` step reads the sender's history into the view (`senderHistory` on `CaseView`: unknown, first, or seen before) and records the sender after the evidence is stored; the record names the case that first saw the sender, so a retried step reads "first" again for that case and never counts it twice; (3) the sender is the original's single From mailbox as §2 validates it (`fromDomain`'s rules in `src/checks/auth.ts`): no valid From, or no headers, means no item and nothing recorded; (4) `sender.first_time` carries the From header excerpt and the raw message key, its detail fitted to the store, as §2's items do; (5) a closed organisation's senders and salt are purged with it: D07 T02's closure purge item is the app lane's, asked of it through the coordinator (2026-10-30).
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -171,8 +175,8 @@ A sender this organisation has never had mail from is a weak but useful signal, 
 
 1. Add `org_senders` and the check. Done when: the first case from a sender flags it and the second does not.
 
-- [ ] Add migration `0008_senders.sql` with `org_senders` (`org_id`, `sender_hash` SHA-256 of the lower-case address with a per-organisation salt, `first_seen`, `count`). Done when: it applies locally.
-- [ ] Register `sender.first_time` (low) and record the sender after the check. Done when: `test/checks/first-time.test.ts` sees low on the first case and nothing on the second.
+- [ ] Add the migration (its number from the coordinator) with `org_senders` and `org_sender_salts` (correction 1), and `senderHistory(db, orgId, caseId, from)` and `recordSender(db, orgId, caseId, from)` in `src/checks/senders-seen.ts`. Done when: `test/checks/first-time.test.ts` sees `first` for a new sender, `seen` for a known one, `first` again for the case that recorded it, and never the address in clear in D1. (**Corrected 2026-10-30**, at start.)
+- [ ] Register `sender.first_time` (low) over the view's `senderHistory`, and have the Workflow's `checks` step read the history before the checks and record the sender after the evidence is stored (correction 2). Done when: a stored message run through the `checks` step twice reads low both times for its first case, and a second case from the same sender reads nothing. (**Corrected 2026-10-30**, at start.)
 - [ ] Commit: `checks: first-time sender per organisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/first-time.test.ts` passes.
