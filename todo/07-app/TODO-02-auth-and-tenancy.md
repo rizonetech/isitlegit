@@ -532,6 +532,8 @@ The page an invitation's link opens (`/invite/<id>`, `design/SPEC.md` A3). Split
 
 ## 15. Domain verification page
 
+> **Started:** 2026-10-30T18:13:54Z
+
 The page an owner proves a domain on (`design/SPEC.md` A5). Split from §7 on 2026-10-30 (its item moved here unchanged).
 
 **Phase:** 2
@@ -542,11 +544,26 @@ The page an owner proves a domain on (`design/SPEC.md` A5). Split from §7 on 20
 **Treatment:** the record to copy, one check, each state says what to do next
 **Chrome:** `AppShell`, `Field`, `Button`, `ErrorState` from D07 T01 §3 and §6 to §8, the copy group (D07 T01 §9)
 
+**Corrected 2026-10-30** at start, against the code and the board (`Verify-Domain`):
+- The claim, the TXT check, the code, its attempts and its lock already exist as JSON routes (`src/auth/domains.ts`, §5). The page is a server-rendered form page whose actions run that same logic, so the page and the API cannot disagree: the logic each route runs moves into functions both call, and the JSON routes keep their answers.
+- The page is `GET /settings/domains/<domain>` (the board's breadcrumb "Domains and addresses / Verify <domain>"; the list is D07 T04 §4's `/settings/domains`). Its forms post to the same address with an `action` (check, send, verify), from the app's own origin only, and answer 303 back to the page (post, redirect, get), with what happened shown on the page it lands on.
+- The board's failed state names the record found ("holds isitlegit-verify=0b19... which is not your code"), which the lookup does not keep: it now returns the `isitlegit-verify=` values it saw.
+- "Last checked 14:05 SAST" and "2 tries left" read what is stored: the claim's latest check in `auth_events` and the code's `attempts`.
+- Only an owner or admin verifies (as the API, §5); a member gets the E3 page. The `loading` state (Check now busy while the lookup runs), deferred to §7 before the split, is this section's.
+- The other `Verify-*` boards (Protected, NotProtected, Foreign, Mobile) are the public verification page's (`design/SPEC.md` 4), not A5's.
+
 **Build order:**
 
 1. Build the domain verification page. Done when: a test verifies a domain by DNS and by code through the page.
 
-- [ ] Build `src/web/pages/domains.tsx` with the TXT record to copy, a "check now" button, the emailed-code option, and pending, verified and failed states. Done when: each state renders in the test.
+- [ ] Move the logic of §5's check, send and verify routes into functions in `src/auth/domains.ts` (`checkDomain`, `sendDomainCode`, `verifyDomainCode`) that the JSON routes and the page both call, each returning a typed outcome. Done when: `test/auth/domains.test.ts` passes unchanged.
+- [ ] Return the `isitlegit-verify=` values the TXT lookup saw, so a check that finds another value says which. Done when: a test reads "different" with the value found, and "absent" when there is none.
+- [ ] Build `src/web/pages/domains.tsx`: `GET /settings/domains/<domain>` behind the session gate and the active organisation (owner or admin), with the breadcrumb, the heading "Prove you own <domain>", the Pending pill, the DNS card (Type, Name and Value, each value with Copy through D07 T01 §9's copy script) with Check now and the last-checked line, and the email card (admin@ or postmaster@, Send code, Code from the email, Verify). Done when: `test/web/domains-page.test.ts` reads each part for a pending claim.
+- [ ] Run each action through the page: Check now (found: verified; absent: the last-checked line saying the record is not visible yet; another value: the failed panel naming it; a lookup that fails: a retry line), Send code (sent to the chosen address; locked; over a limit, each in words), Verify (right: verified; wrong: "That code is not right. 2 tries left before this is locked for an hour."; the third wrong: locked until a SAST time, the DNS way still open). Done when: the page test verifies one domain by DNS and another by code through the page's own forms, and reads each other outcome.
+- [ ] Show the verified state (verified, how and when, in SAST) for a verified claim, and the E3 page for a member who is not an owner or admin, a 404 page for a domain the organisation has not claimed, and the E5 page for a read that fails. Done when: the page test reads each.
+- [ ] Refuse a form post from another origin, and keep every answer private (`no-store`). Done when: the page test posts with a foreign Origin and gets 403 with nothing changed.
+- [ ] Show Check now busy ("Checking") while its lookup runs, and Send code and Verify likewise, so a second press does nothing. Done when: `test/node/domains-browser.test.tsx` sees the busy label and one request for two presses.
+- [ ] Pass the accessibility gate's rules at 360 and 1280 px in both themes for the pending (with a wrong code), verified, failed and locked states, with no sideways scroll. Done when: the browser test scans each.
 - [ ] Commit: `web: the domain verification page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes: a domain verified by DNS and by code through the page, each state rendered.
