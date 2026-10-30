@@ -39,9 +39,9 @@ const DAY_MS = 24 * HOUR_MS;
 const SENDING_NOW = "the last code is still being sent; check the inbox before asking for another";
 const ORG_LIMIT = `at most ${ORG_CODES_PER_HOUR} codes an hour and ${ORG_CODES_PER_DAY} a day for an organisation; try again later`;
 // How long a claim's code may still be on its way: a mail send's whole life, three attempts of 30 seconds and their
-// backoff (src/mail/smtp2go.ts), with room. No new code is issued while the last one's send is pending and this
-// recent, so a second press cannot replace a code still being mailed (D07 T02 §15); a send stuck pending longer (its
-// Worker gone) no longer holds the claim.
+// backoff (src/mail/smtp2go.ts), with room. No new code is issued while the last one, issued this recently, has not
+// finished being mailed, so a second press cannot replace a code still on its way (D07 T02 §15); a send stuck longer
+// (its Worker gone) no longer holds the claim.
 export const CODE_SEND_WINDOW_MS = 2 * 60_000;
 const PENDING_DOMAINS = 10;
 const PENDING_ADDRESSES = 20;
@@ -102,10 +102,12 @@ const allowanceOf = (claim: { domain?: string; address?: string }) =>
 // Why a code was not issued: the claim is gone, its code is locked (a code sent now would expire before the lock
 // ends), its own hourly allowance is spent, or the organisation's is.
 type NotIssued = "gone" | "locked" | "limit" | "busy" | "sending";
-// A claim's last code still being mailed: its send row pending and recent. Claim mail is keyed `claim:<claim>:<code>`
-// (src/auth/claim-mail.ts), so the claim's sends are one range of the unique key.
+// A claim's last code still on its way: issued within the window (its expiry is CODE_LIFETIME_MS after issue) and its
+// mail not finished, whether the send row is pending or not written yet. Claim mail is keyed `claim:<claim>:<code>`
+// (src/auth/claim-mail.ts). The code row is written in the same transaction that records the send, so two presses at
+// once cannot both pass: the second sees the first's code (round 3).
 const SENDING =
-  "SELECT 1 FROM mail_sends WHERE send_key >= ? AND send_key < ? AND status = 'pending' AND updated_at > ?";
+  "SELECT 1 FROM verification_codes vc WHERE vc.claim_id = ? AND vc.expires_at > ? AND NOT EXISTS (SELECT 1 FROM mail_sends ms WHERE ms.send_key = 'claim:' || vc.claim_id || ':' || vc.code_id AND ms.status <> 'pending')";
 const PENDING_CLAIM =
   "SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending'";
 
@@ -137,9 +139,8 @@ async function issueCode(
         orgId,
         claimId,
         orgId,
-        `claim:${claimId}:`,
-        `claim:${claimId};`,
-        new Date(now - CODE_SEND_WINDOW_MS).toISOString(),
+        claimId,
+        new Date(now + CODE_LIFETIME_MS - CODE_SEND_WINDOW_MS).toISOString(),
         claimId,
         at,
         orgId,
@@ -170,7 +171,7 @@ async function issueCode(
   if (
     await db
       .prepare(SENDING)
-      .bind(`claim:${claimId}:`, `claim:${claimId};`, new Date(now - CODE_SEND_WINDOW_MS).toISOString())
+      .bind(claimId, new Date(now + CODE_LIFETIME_MS - CODE_SEND_WINDOW_MS).toISOString())
       .first()
   )
     return "sending";

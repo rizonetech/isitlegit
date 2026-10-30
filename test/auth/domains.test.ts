@@ -13,12 +13,14 @@ type Doh = Response | Promise<Response> | "throw";
 const world = {
   doh: (_name: string): Doh => Response.json({ Status: 3 }),
   smtp: "sent" as "sent" | "refused" | "silent",
+  smtpDelayMs: 0,
   sends: [] as { to: string; text: string }[],
 };
 let spy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   world.doh = () => Response.json({ Status: 3 });
   world.smtp = "sent";
+  world.smtpDelayMs = 0;
   world.sends = [];
   const real = globalThis.fetch;
   spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -30,6 +32,7 @@ beforeEach(() => {
     }
     if (url === SMTP2GO_URL) {
       const body = JSON.parse(String(init?.body ?? "{}")) as { to: string[]; text_body: string };
+      if (world.smtpDelayMs) await new Promise((done) => setTimeout(done, world.smtpDelayMs));
       if (world.smtp === "silent") throw new DOMException("timed out", "TimeoutError");
       if (world.smtp === "refused")
         return Response.json({ data: { error_code: "E_ApiResponseCodes.API_EXCEPTION" } }, { status: 400 });
@@ -903,7 +906,20 @@ describe("the domain page's needs (D07 T02 §15)", () => {
 });
 
 describe("a code still being mailed (D07 T02 §15)", () => {
-  it("issues no new code while the last one's send is pending, and does once that send is stale", async () => {
+  it("lets one of two presses at once through and refuses the other, the mailer slow", async () => {
+    const { cookie } = await owner("racing@example.org");
+    await json("/domains", cookie, "POST", { domain: "racing.co.za" });
+    const mailed = world.sends.length;
+    world.smtpDelayMs = 300;
+    const answers = await Promise.all([
+      json("/domains/racing.co.za/code", cookie, "POST", { local: "admin" }),
+      json("/domains/racing.co.za/code", cookie, "POST", { local: "postmaster" }),
+    ]);
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 429]);
+    expect(world.sends.length).toBe(mailed + 1);
+  });
+
+  it("issues no new code while the last one's mail is unfinished, and does once it finished or is old", async () => {
     const { cookie, orgId } = await owner("sending@example.org");
     await json("/domains", cookie, "POST", { domain: "sending.co.za" });
     const claimId = (
@@ -912,36 +928,23 @@ describe("a code still being mailed (D07 T02 §15)", () => {
         .bind(orgId, "sending.co.za")
         .first<{ id: string }>()
     )?.id;
-    const pending = (at: Date) =>
-      db
-        .prepare(
-          "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, 'verify', ?, 'pending', 1, ?, ?)",
-        )
-        .bind(
-          crypto.randomUUID(),
-          `claim:${claimId}:${crypto.randomUUID()}`,
-          "a".repeat(64),
-          at.toISOString(),
-          at.toISOString(),
-        )
-        .run();
-    await pending(new Date());
+    expect((await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+    // Its send still pending (the mailer retrying): no new code, no mail.
+    const unfinished = (status: string) =>
+      db.prepare("UPDATE mail_sends SET status = ? WHERE send_key LIKE ?").bind(status, `claim:${claimId}:%`).run();
+    await unfinished("pending");
     const mailed = world.sends.length;
     const refused = await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" });
     expect(refused.status).toBe(429);
     expect(await refused.json()).toMatchObject({ error: expect.stringMatching(/still being sent/) });
     expect(world.sends.length).toBe(mailed);
-    expect(
-      await db
-        .prepare("SELECT COUNT(*) AS n FROM verification_sends WHERE org_id = ?")
-        .bind(orgId)
-        .first<{ n: number }>(),
-    ).toMatchObject({ n: 0 });
-    // A send stuck pending past the window (its Worker gone) no longer holds the claim.
+    // Issued long enough ago (its Worker gone): the claim is free again.
     await db
-      .prepare("UPDATE mail_sends SET updated_at = ? WHERE send_key LIKE ?")
-      .bind(new Date(Date.now() - 3 * 60_000).toISOString(), `claim:${claimId}:%`)
+      .prepare("UPDATE verification_codes SET expires_at = ? WHERE claim_id = ?")
+      .bind(new Date(Date.now() + 25 * 60_000).toISOString(), claimId)
       .run();
+    expect((await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+    // Finished (sent): a resend goes as before.
     expect((await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
   });
 });

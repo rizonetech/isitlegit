@@ -274,16 +274,12 @@ describe("the domain verification page", () => {
     const d = `wait-${tag()}.example`;
     const id = await claim(o, d);
     const { cookie } = await person(o);
-    const now = new Date().toISOString();
-    await db
-      .prepare(
-        "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, 'verify', ?, 'pending', 1, ?, ?)",
-      )
-      .bind(crypto.randomUUID(), `claim:${id}:${crypto.randomUUID()}`, "a".repeat(64), now, now)
-      .run();
+    await act(d, cookie, { org: o, action: "send", local: "admin" });
+    await db.prepare("UPDATE mail_sends SET status = 'pending' WHERE send_key LIKE ?").bind(`claim:${id}:%`).run();
+    const mailed = world.sends.length;
     const res = await act(d, cookie, { org: o, action: "send", local: "admin" });
     expect(res.html).toContain("The last code is still on its way. Check the inbox before asking for another");
-    expect(world.sends).toEqual([]);
+    expect(world.sends.length).toBe(mailed);
   });
 
   it("says when a code has expired or none is waiting", async () => {
