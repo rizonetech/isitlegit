@@ -1665,11 +1665,16 @@ class Fetch(unittest.TestCase):
         healthy, base = self.mirror()
         self.server.modes = {"segment-429"}  # Retry-After: 30
         started = time.monotonic()
-        result = self.mixed(base, attempts=5)
+        logged = []
+        result = self.mixed(base, attempts=5, log=logged.append)
         self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
         self.assert_whole()
         self.assertLess(time.monotonic() - started, 10)  # nobody waited the 30 seconds out
-        self.assertEqual(self.server.segment_requests, 2)  # and the paused host was not asked again
+        self.assertTrue(any("trying again in 30 seconds" in line for line in logged), logged)  # the pause was taken
+        # The paused host was not asked again: it saw only the ranges already in flight when its 429 came back (one
+        # or two, as the healthy mirror's speed decides under load); a client that ignored the pause would keep asking
+        # it until the five attempts were spent, and one that waited it out would take the 30 seconds.
+        self.assertIn(self.server.segment_requests, (1, 2))
 
     def test_a_retry_after_from_a_head_is_kept_until_the_fallback_asks_that_source_again(self):
         refusing, base = self.mirror()
