@@ -760,7 +760,9 @@ Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/
 
 ## 21. Pre-push excerpt from the tools' error output
 
-Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm typecheck` or `pnpm lint` fails, `scripts/hooks/pre-push` (§13) shows "its errors" by grepping the output for `error|✖|×|failed`. Biome's warning blocks carry the same words, so in a run with 13 warnings and 1 error the excerpt showed a `noCommaOperator` warning from `scripts/glimmer/source-pages.ts` and hid the one real error, a formatter diff in a test file. The word grep is a home-made scanner of output the tools already classify: Biome can print errors only (`--diagnostic-level=error`, Biome 2.6 `biome check --help`), and `tsc` marks each error `error TS<code>`. The fix takes the excerpt from those, keeping the push's verdict on the exit codes of the same `pnpm typecheck` and `pnpm lint` CI runs (§13).
+> **Started:** 2026-10-30T13:05Z
+
+Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm typecheck` or `pnpm lint` fails, `scripts/hooks/pre-push` (§13) shows "its errors" by grepping the output for `error|✖|×|failed`. Biome's warning blocks carry the same words, so in a run with 13 warnings and 1 error the excerpt showed a `noCommaOperator` warning from `scripts/glimmer/source-pages.ts` and hid the one real error, a formatter diff in a test file. The word grep is a home-made scanner of output the tools already classify: Biome can print errors only (`--diagnostic-level=error`, Biome 2.6.3 `biome check --help`; `pnpm lint --diagnostic-level=error` passes it through to `biome check .`, measured 2026-10-30: 13 warnings hidden, exit 0 on this tree), and `tsc` marks each error `error TS<code>`. The fix takes the excerpt from those, keeping the push's verdict on the exit codes of the same `pnpm typecheck` and `pnpm lint` CI runs (§13).
 
 **Phase:** 2
 **Needs:** none
