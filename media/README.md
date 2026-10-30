@@ -17,5 +17,18 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`).
 
 | Number | Video | Script | Status |
 | ------ | ----- | ------ | ------ |
-| 01 | How IsItLegit is built (development method) | [scripts/01-how-isitlegit-is-built.md](scripts/01-how-isitlegit-is-built.md) | Draft, awaiting operator approval |
-| 02 | IsItLegit in 60 seconds (tech stack) | [scripts/02-isitlegit-in-60-seconds.md](scripts/02-isitlegit-in-60-seconds.md) | Draft, awaiting operator approval |
+| 01 | How IsItLegit is built (development method) | [scripts/01-how-isitlegit-is-built.md](scripts/01-how-isitlegit-is-built.md) | First render, awaiting operator approval |
+| 02 | IsItLegit in 60 seconds (tech stack) | [scripts/02-isitlegit-in-60-seconds.md](scripts/02-isitlegit-in-60-seconds.md) | First render, awaiting operator approval |
+
+## Render
+
+Needs Node 22 or newer and Python 3.11 or newer. From `media/`:
+
+```bash
+npm ci
+npm run render:01   # out/01-how-isitlegit-is-built.mp4, 65 s, 1920 x 1080
+npm run render:02   # out/02-isitlegit-in-60-seconds.mp4, 60 s, 1920 x 1080
+npm run studio      # preview and scrub in the browser
+```
+
+Each render first runs `tools/collect-stats.py`, which writes the on-screen numbers to `src/data/stats.json` (git-ignored). Set `REMOTION_BROWSER` to an installed Chrome when Remotion cannot download its own; in the cloud session that is `/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell`. Scenes and timings live in `src/videos/`, the shared brand layer in `src/brand.tsx`, and `remotion.config.ts` serves `design/` as the public folder.
