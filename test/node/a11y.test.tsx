@@ -125,6 +125,22 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("accessibility of the compon
             expect(await p.locator("#nav").isVisible(), `${frame.id} menu open`).toBe(true);
             failures.push(...problems(await scan(p)).map((x) => `${frame.id} (menu open): ${x}`));
           }
+          // The sidebar's copy feedback, success then refusal, in the frame's own narrow column.
+          const copy = p.locator("#nav").getByRole("button", { name: "Copy the check address" });
+          if ((await copy.count()) && (await copy.isVisible())) {
+            const line = p.locator("#nav [data-copy-status]");
+            await copy.click();
+            await expect.poll(() => line.textContent()).toBe("Copied");
+            expect(await line.isVisible(), `${frame.id} copied shown`).toBe(true);
+            failures.push(...problems(await scan(p)).map((x) => `${frame.id} (copied): ${x}`));
+            await p.evaluate(() => {
+              navigator.clipboard.writeText = () => Promise.reject(new DOMException("denied", "NotAllowedError"));
+            });
+            await copy.click();
+            await expect.poll(() => line.textContent()).toContain("Copy failed");
+            expect(await line.isVisible(), `${frame.id} refusal shown`).toBe(true);
+            failures.push(...problems(await scan(p)).map((x) => `${frame.id} (copy refused): ${x}`));
+          }
           const switcher = p.locator("nav details > summary");
           if ((await switcher.count()) && (await switcher.isVisible())) {
             await switcher.click();
@@ -135,6 +151,22 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("accessibility of the compon
         }
         expect(failures).toEqual([]);
       });
+
+  it("loads the gallery's frames as they near the screen, not all at once", async () => {
+    const { p, context } = await open("/dev/components", galleryPages(), 1280, "light");
+    const requested = new Set<string>();
+    p.on("request", (r) => {
+      if (r.url().includes("/dev/components/frame/")) requested.add(r.url());
+    });
+    await p.reload();
+    await p.waitForLoadState("networkidle");
+    expect(requested.size).toBeLessThan(GALLERY_FRAMES.length);
+    // Following a frame's index link brings it in.
+    const last = GALLERY_FRAMES.at(-1)?.id ?? "";
+    await p.getByRole("link", { name: `frame ${last}` }).click();
+    await expect.poll(() => [...requested].some((url) => url.endsWith(`/frame/${last}`))).toBe(true);
+    await context.close();
+  });
 
   // Each defect this test exists to catch, planted where a page would have it.
   const planted = (body: string) => String(<Document title="Planted">{raw(body)}</Document>);

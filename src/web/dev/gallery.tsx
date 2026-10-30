@@ -58,55 +58,110 @@ const BANDS: [string, Omit<VerdictBandProps, "children">][] = [
 ];
 const PILLS: PillVariant[] = ["safe", "suspicious", "malicious", "partial", "running", "neutral", "brand", "alert"];
 const LEVELS: Severity[] = ["critical", "high", "medium", "low", "info", "not-checked"];
-const ERRORS: { code: ErrorCode; title: string; actions: Child[] }[] = [
+const FORWARD = (
+  <>
+    Forwarding still works: send suspicious mail to <strong class="font-mono text-ink">{CHECK_ADDRESS}</strong> as
+    usual.
+  </>
+);
+// The error boards' own compositions (design/SPEC.md 7): one or two actions, a note or a panel where the board has one.
+const ERRORS: {
+  code: ErrorCode;
+  title: string;
+  sentence: Child;
+  actions: Child[];
+  note?: Child;
+  panel?: { lead: string; sentence: string };
+}[] = [
   {
     code: 404,
     title: "We can't show you that page.",
+    sentence:
+      "It may not exist, the address may be mistyped, or it may belong to an organisation you are not part of. We don't say which, so case links never reveal anything.",
     actions: [
       <Button variant="dark" href="/cases">
         Go to your cases
       </Button>,
+      <Button variant="ghost" href="/upload">
+        Check a file
+      </Button>,
     ],
+    note: FORWARD,
   },
   {
     code: 403,
     title: "You're not a member of this organisation.",
+    sentence: (
+      <>
+        You are signed in as <strong class="text-ink">ayesha@outeniquapaper.example</strong>, which has no access here.
+        Ask an owner of the organisation to invite this address, or sign in with another one.
+      </>
+    ),
     actions: [
       <Button variant="dark" href="/cases">
         Go to your own cases
+      </Button>,
+      <Button variant="ghost" href="/signin">
+        Sign out
       </Button>,
     ],
   },
   {
     code: 410,
     title: "This report link has expired.",
+    sentence:
+      "Links in our reply emails work for 7 days, so an old email can't be used to read a report. The case itself is still in your account until it reaches 30 days.",
     actions: [
       <Button variant="dark" href="/signin">
         Sign in to see the case
       </Button>,
     ],
+    note: (
+      <>
+        No account? Forward the email again to <strong class="font-mono text-ink">{CHECK_ADDRESS}</strong> for a fresh
+        report.
+      </>
+    ),
   },
   {
     code: 429,
     title: "You've reached today's limit of 50 checks.",
+    sentence:
+      "Karoo Couriers can check 50 emails or files a day during the launch. The limit resets at 00:00 SAST, in 5 h 12 min.",
     actions: [
       <Button variant="dark" href="/settings/plan">
         See your plan
       </Button>,
+      <Button variant="ghost" href="/cases">
+        Back to cases
+      </Button>,
     ],
+    panel: {
+      lead: "Too many requests at once?",
+      sentence:
+        'The same page also covers a short burst limit: then it says "try again in 30 seconds" and counts down.',
+    },
   },
   {
     code: 500,
     title: "Sorry, something broke on our side.",
+    sentence:
+      "This was our fault, not yours, and we have been told about it. Try again in a minute. If it keeps happening, send us the reference below.",
     actions: [
       <Button variant="dark" href="/cases">
         Try again
       </Button>,
+      <Button variant="ghost" href="mailto:support@isitlegit.co.za">
+        Email support
+      </Button>,
     ],
+    note: FORWARD,
   },
   {
     code: "maintenance",
     title: "We're upgrading IsItLegit. Back by 02:30 SAST.",
+    sentence:
+      "The dashboard is offline from 02:00 to 02:30 SAST on Tue 28 Oct 2026. Your cases and settings are safe. Replies to mail forwarded during this window may be late.",
     actions: [
       <Button variant="ghost" href="/cases">
         Reload
@@ -129,6 +184,14 @@ export const GALLERY_STATES: State[] = [
     render: () => (
       <Button id="gallery-remove" variant="danger" disabled disabledReason="An organisation keeps at least one owner.">
         Remove
+      </Button>
+    ),
+  },
+  {
+    id: "button/disabled-link",
+    render: () => (
+      <Button id="gallery-export" href="/cases/export" disabled disabledReason="Exports open once a case is checked.">
+        Export counts as CSV
       </Button>
     ),
   },
@@ -263,18 +326,20 @@ export const GALLERY_STATES: State[] = [
     ),
   },
   { id: "loading", render: () => <LoadingState>Running</LoadingState> },
-  ...ERRORS.map(({ code, title, actions }) => ({
+  ...ERRORS.map(({ code, title, sentence, actions, note, panel }) => ({
     id: `error/${code}`,
     render: () => (
       <ErrorState
         code={code}
         title={title}
         actions={actions}
+        {...(note ? { note } : {})}
+        {...(panel ? { panel } : {})}
         footer={
           code === "maintenance" ? "Started 02:00 SAST · expected back 02:30 SAST" : referenceLine(`${code}-7F3K2Q`, at)
         }
       >
-        One plain sentence on what happened and what to do next.
+        {sentence}
       </ErrorState>
     ),
   })),
@@ -353,30 +418,60 @@ export const GALLERY_FRAMES: { id: string; props: FrameProps }[] = [
   { id: "public", props: { variant: "public" as const } },
 ];
 
+// The anchor of a state or a frame, shareable as /dev/components#<anchor>.
+export const anchorOf = (kind: "state" | "frame", id: string) => `${kind}-${id.replace(/[^a-z0-9]+/gi, "-")}`;
+
 export function GalleryPage() {
   return (
     <Document title="Component gallery">
       <main id="content" class="flex flex-col gap-32 p-16 md:p-48 bg-subtle">
         <h1 class="type-h1">Component gallery</h1>
+        {/* One link per state and frame: any of them is a single activation away, by keyboard too. */}
+        <nav aria-label="Gallery index" class="p-16 bg-surface border border-line rounded-card">
+          <h2 class="type-h4">Index</h2>
+          <ul class="flex flex-wrap gap-x-16 gap-y-8 mt-8 type-small">
+            {GALLERY_STATES.map((state) => (
+              <li>
+                <a href={`#${anchorOf("state", state.id)}`} class="inline-flex items-center min-h-24">
+                  {state.id}
+                </a>
+              </li>
+            ))}
+            {GALLERY_FRAMES.map((frame) => (
+              <li>
+                <a href={`#${anchorOf("frame", frame.id)}`} class="inline-flex items-center min-h-24">
+                  frame {frame.id}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
         {GALLERY_STATES.map((state) => (
           <section
+            id={anchorOf("state", state.id)}
             data-gallery-state={state.id}
-            aria-labelledby={`gallery-${state.id.replace(/\W/g, "-")}`}
-            class="flex flex-col gap-12"
+            aria-labelledby={`${anchorOf("state", state.id)}-title`}
+            class="flex flex-col gap-12 scroll-mt-24"
           >
-            <h2 id={`gallery-${state.id.replace(/\W/g, "-")}`} class="type-h4">
+            <h2 id={`${anchorOf("state", state.id)}-title`} class="type-h4">
               {state.id}
             </h2>
             <div class="p-16 bg-surface border border-line rounded-card">{state.render()}</div>
           </section>
         ))}
         <h2 class="type-h2">Frames</h2>
+        {/* Loaded as they come near the screen: a frame is a whole document with its scripts. */}
         {GALLERY_FRAMES.map((frame) => (
-          <section data-gallery-frame={frame.id} class="flex flex-col gap-12">
+          <section
+            id={anchorOf("frame", frame.id)}
+            data-gallery-frame={frame.id}
+            class="flex flex-col gap-12 scroll-mt-24"
+          >
             <h3 class="type-h4">{frame.id}</h3>
             <iframe
               title={`The ${frame.id} frame`}
               src={`/dev/components/frame/${frame.id}`}
+              loading="lazy"
               height="720"
               class="w-full border border-line rounded-card bg-surface"
             />

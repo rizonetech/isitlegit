@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 42 | Checklist items: 278
+Sections: 42 | Checklist items: 279
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -123,7 +123,7 @@ Sections: 42 | Checklist items: 278
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
 | [x]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 12    |
 | [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
-| [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 7     |
+| [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
@@ -286,7 +286,7 @@ Sections: 64 | Checklist items: 268
 
 ### Phase 7: After the event
 
-Sections: 27 | Checklist items: 162
+Sections: 28 | Checklist items: 165
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -313,6 +313,7 @@ Sections: 27 | Checklist items: 162
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
+| [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none     | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 8     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none     | 4     |
@@ -340,6 +341,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 91/271 verified sections, 47 ready to run now.
+Progress: 91/272 verified sections, 47 ready to run now.
 
-Checklist: 951/1765 items completed (includes Commit items).
+Checklist: 952/1769 items completed (includes Commit items).

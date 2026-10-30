@@ -49,6 +49,7 @@ track: day-1
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 | 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
 | 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [ ] |
+| 15 | §15 | Gallery theme, width and accessibility controls | §10 | [ ] |
 
 ## 1. Attended design session, design/SPEC.md
 
@@ -441,6 +442,7 @@ Every frame and component in every state on one page, checked together, before a
 - [x] Add `test/node/a11y.test.tsx`: axe-core 4.11.4 (an exact dev dependency, `NOTICE.md` row, MPL-2.0) run in headless Chromium over the gallery and every frame variant at 360 px and 1280 px in both themes, with the WCAG 2.2 A and AA rules on (`runOnly` tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`, with `target-size`, off by default in 4.11, enabled), scanning again after each closed region is opened (the phone Menu at 360 px, the organisation switcher, the copy group's success and its refusal, each opened state asserted visible first); a result axe could not decide (`incomplete`) fails unless listed in the file's allow list with its rule, target and the reason a person checked it. Done when: it reports zero violations and no unlisted incomplete result, and fails on each planted defect: an icon-only button without a name, a text colour below 4.5:1, an undersized target with no spacing, a defect placed only inside the closed Menu, and an injected incomplete result. Cheaper substitute: axe's defaults over the page as first drawn. **Corrected 2026-10-30 (plan review P2 x3):** hidden regions, the WCAG 2.2 rules and undecided results were unchecked.
 - [x] Add `test/node/rendered-colours.test.tsx`: render the gallery and every frame variant with Hono's renderer and refuse, property by property, any colour that is not `var(--color-*)`, `transparent` or `currentcolor`, and for `fill` and `stroke` also SVG's `none`, in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: the shared icons and `PartialNotice` (`fill="none"`) pass, and a planted `style={{ color: "red" }}`, `fill="red"` and `stroke="#000"` in a component each fail it. **Corrected 2026-10-30 (plan review P2):** `fill="none"` is SVG's no-paint value, not a colour.
 - [x] Run `pnpm test:a11y` as a CI step of its own and list it in the gates of `AGENTS.md`, `CONTRIBUTING.md` and the README, with `pnpm test` leaving `test/node/a11y.test.tsx` out (the Vitest `node` project's `exclude` in `vitest.config.ts`) so it runs once. **Corrected 2026-10-30** at build: a project filter cannot reach a file its own project excludes, so `pnpm test:a11y` is `A11Y=1 vitest run --project a11y`, an `a11y` project `vitest.config.ts` adds only when `A11Y` is set. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass, and `pnpm test` lists no a11y file. **Corrected 2026-10-30 (plan review P1):** the gate policy needs every gate script run by name in CI. (Shared change: asked of the coordinator, 2026-10-30.)
+- [x] Close the completion review's in-scope gaps: the README gives the gallery's URL, its frame URLs and anchors and the browser `pnpm test:a11y` uses (C1); a disabled link button joins the states (C2); the error states are the boards' compositions, with their second action, note or panel and real sentences (C3); every member frame is scanned with its copy feedback shown both ways (C4); the colour check reads every colour property whole, shorthands and custom properties included, so a hex, a colour function or a named colour anywhere in one fails, however it reached the markup (C5); the gallery test checks what sets each state apart (a variant's class, a field's descriptions, a badge's word) and each frame's one current link by its address (C6); an index links every state and frame to a shareable anchor, its links 24 px targets (E1); and the frames load lazily (E2). Done when: `test/node/gallery.test.tsx`, `test/node/rendered-colours.test.tsx` and `pnpm test:a11y` cover each, the last finding the gallery requests fewer frames than it lists until one is followed. **Added 2026-10-30 (completion review).**
 - [ ] Commit: `web: component gallery with accessibility checks`
 
 Evidence 2026-10-30 17:29 SAST. `src/web/dev/gallery.tsx` (`GALLERY_STATES`, 68 items; `GALLERY_FRAMES`, 16 shell states; `GalleryPage`, `GalleryFrame`), served by `src/index.ts` only when `ENV` is `development` (the routes call the components as functions, `src/index.ts` being a `.ts` file). Shared changes as the coordinator approved, 2026-10-30: `axe-core` 4.11.4 exact (lockfile: that package and its integrity line), `test:a11y`, `--var ENV:development` on `dev`, `"ENV": "production"` in `wrangler.jsonc` with `worker-configuration.d.ts` regenerated, the `node` project's exclude and the `a11y` project in `vitest.config.ts`, the `pnpm test:a11y` CI step, and the gate lines in `AGENTS.md`, `CONTRIBUTING.md` and the README; `NOTICE.md` lists axe-core. `pnpm test:a11y`: 13 passed (the gallery and its copy feedback shown both ways, every frame with the phone Menu and the switcher opened, at 1280 and 360 px in both themes, zero violations and no undecided result; each planted defect failing it: a nameless icon button, text below 4.5:1, an undersized target, a defect inside the closed Menu found only once opened, an undecided contrast). `pnpm exec vitest run test/node/gallery.test.tsx test/node/rendered-colours.test.tsx test/node/serve.test.ts` with the document, colour-guard, stylesheet, asset and app-script tests: 8 files, 44 passed. `vitest list --project node` names no a11y file. `tests.scripts.test_ci_workflow` and `test_worker_gates` pass, and the whole `tests/scripts` suite is OK. Mutations caught: a state dropped from `GALLERY_STATES` (gallery test), the `ENV` check dropped (serve test). The stylesheet changed with the gallery's utilities and is rebuilt.
@@ -552,6 +554,25 @@ Phone copy: cases (2026-10-30)
 - [ ] Commit: `web: one-press copy of the check address on a phone`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
+
+## 15. Gallery theme, width and accessibility controls
+
+The gallery (§10) shows every state, but a developer who wants the dark theme, the phone width or the accessibility findings for one state must use the browser's own tools or read `pnpm test:a11y`'s output in a terminal (D07 T01 §10 completion review E3 and E4, 2026-10-30: Storybook offers theme and viewport toolbars and its accessibility panel beside the selected story).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the controls to the gallery. Done when: theme and width are each chosen in two actions and apply to every preview.
+2. Show the accessibility findings beside each state. Done when: a planted defect is listed under its state and highlighted in one activation.
+
+- [ ] Add a theme switch (light, dark, the system's) and a width switch (360 px, 1280 px, full) to `src/web/dev/gallery.tsx`, applied to the states and to every frame (`data-theme` on each document, the frame's width), remembered for the session only, never touching the app's own theme default. Done when: `test/node/gallery-controls.test.ts` in Chromium switches each and finds every preview changed. Cheaper substitute: telling the developer to use the browser's device toolbar.
+- [ ] Run axe-core in the gallery on demand (`axe.min.js` served only under `ENV=development`) and list each violation and undecided result under its state with its rule's help text, a press highlighting the element. Done when: the test plants a nameless icon button in one state and finds it listed there and highlighted after one press, while `pnpm test:a11y` stays the gate. Cheaper substitute: a link to the terminal output.
+- [ ] Commit: `web: gallery theme, width and accessibility controls`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/gallery-controls.test.ts` passes: theme and width applied to every preview, and a planted defect found and highlighted under its state.
 
 ## Verification
 
