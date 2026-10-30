@@ -1624,6 +1624,19 @@ class Fetch(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 10)  # nobody waited the 30 seconds out
         self.assertEqual(self.server.segment_requests, 2)  # and the paused host was not asked again
 
+    def test_a_retry_after_from_a_head_is_kept_until_the_fallback_asks_that_source_again(self):
+        refusing, base = self.mirror()
+        refusing.modes = {"segment-403"}  # this one qualifies, then refuses every range
+        self.server.modes = {"head-429"}  # Retry-After: 30, to the HEAD only
+        slept = []
+        result = self.mixed(base, attempts=5, sleep=lambda seconds: slept.append((time.monotonic(), seconds)))
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [self.base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(self.server.heads, 1)  # not asked again for a HEAD either
+        waited = [when for when, seconds in slept if 25 <= seconds <= 30]
+        self.assertTrue(waited, slept)  # the 30 seconds were waited out before this source was asked for a range
+        self.assertLess(max(waited), min(when for first, _, when in self.server.ranges))
+
     def test_each_connection_keeps_its_rate_floor_while_the_other_source_writes(self):
         healthy, base = self.mirror()
         self.server.pace = 0.5  # 128 KiB a second on each connection, under the floor

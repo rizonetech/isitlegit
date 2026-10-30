@@ -480,6 +480,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             raise Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
         (partial_dir / f"{target.name}.trial").unlink(missing_ok=True)  # a killed process's trial: not part of any download
         where = {"at": 0}
+        # A source asked to wait (`Retry-After`): when it may be asked again. It is kept for the whole run, so the wait
+        # holds across the HEADs, the segmented passes and the fallback to a single stream or a trial, not just within
+        # the pass that heard it.
+        cooldown: dict[str, float] = {}
 
         def here() -> str:
             return live[where["at"] % len(live)]
@@ -502,7 +506,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             where["at"] = live.index(current) if current != gone else index % len(live)
             log(f"fetch: {error}; trying the next URL ({len(live)} left)")
 
-        def charge(reason: str, retry_after: float | None = None, progressed: bool = False, stay: bool = False) -> float:
+        def charge(reason: str, retry_after: float | None = None, progressed: bool = False, stay: bool = False,
+                   source: str | None = None) -> float:
             """One failure counted against the one budget every stream, segment and source shares; the wait it earns. A
             connection cut after it delivered bytes is tried again at once: the host is answering, so waiting buys
             nothing (aria2c does the same); its wait does not grow."""
@@ -516,6 +521,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     rotate()
                 return 0.0
             pause = min(retry_after, 60.0) if retry_after is not None else wait
+            if retry_after is not None:
+                cooldown[source or here()] = time.monotonic() + pause  # only this source waits
             cut = f" (the server asked for {retry_after:.0f}; waits stop at 60)" if retry_after and retry_after > 60 else ""
             log(f"fetch: {reason}; trying again in {pause:.0f} seconds{cut} ({failures} of {attempts} attempts spent)")
             wait = min(wait * 2, 30.0)
@@ -523,10 +530,18 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 rotate()
             return pause
 
+        def cool(name: str) -> None:
+            """Waits out what `name` was asked to wait before it is asked again."""
+            remaining = cooldown.pop(name, 0.0) - time.monotonic()
+            if remaining > 0:
+                sleep(remaining)
+
         def spend(reason: str, retry_after: float | None = None, progressed: bool = False, stay: bool = False):
-            pause = charge(reason, retry_after, progressed, stay=stay)
+            name = here()  # the source that failed, before a rotation moves on
+            pause = charge(reason, retry_after, progressed, stay=stay, source=name)
             if pause:
                 sleep(pause)
+                cooldown.pop(name, None)  # waited out here
 
         def restart(reason: str):
             nonlocal state
@@ -601,6 +616,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             that hands the run back to its caller."""
             nonlocal state, one_stream, agreed
             order = live[where["at"]:] + live[:where["at"]]
+            # A source still waiting out a Retry-After is not asked: the others are, and it stays live as a fallback.
+            # When every one is waiting, the soonest to be free is waited for.
+            now = time.monotonic()
+            if all(cooldown.get(name, 0.0) > now for name in order):
+                cool(min(order, key=lambda name: cooldown.get(name, 0.0)))
+            now = time.monotonic()
+            order = [name for name in order if cooldown.get(name, 0.0) <= now]
             if resuming and len(order) == 1:
                 agreed = list(order)  # one URL: the ranges check themselves against the saved validator, as they always did
                 return agreed, state["total"], state["validator"]
@@ -633,13 +655,15 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 if results[name]["kind"] == "route":
                     drop(results[name]["error"], name)
                 elif results[name]["kind"] == "failed":
-                    pauses.append(charge(results[name]["reason"], results[name]["wait"], stay=True))
+                    pauses.append(charge(results[name]["reason"], results[name]["wait"], stay=True, source=name))
             answered = [name for name in order if name in live and name not in barred
                         and results[name]["kind"] in ("qualifies", "other")]
             if not answered:
                 if pauses:
                     if max(pauses):
                         sleep(max(pauses))
+                        for name in order:
+                            cooldown.pop(name, None)  # waited out here
                     return "again"
                 one_stream = True
                 return "one-stream"
@@ -747,7 +771,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     _write_json(state_file, claimed)
 
             owner: dict[int, str] = {}  # each range's source: the one its next request goes to
-            hold: dict[str, float] = {}  # a source asked to wait (Retry-After): when it may be asked again
+            hold = cooldown  # a source asked to wait (Retry-After): when it may be asked again
             fails: dict[str, int] = {}  # failures in a row, cleared by the next byte a source delivers
             busy: dict[str, int] = {}  # requests in flight, by source
             speed: dict[str, float] = {}  # a source's pace on its last finished request
@@ -802,10 +826,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             def failed(reason: str, retry_after: float | None = None, progressed: bool = False, source: str | None = None,
                        item: list | None = None):
                 with guard:
-                    pause = charge(reason, retry_after, progressed, stay=True)
+                    pause = charge(reason, retry_after, progressed, stay=True, source=source)
                     fails[source] = fails.get(source, 0) + 1
-                    if retry_after is not None:
-                        hold[source] = time.monotonic() + min(retry_after, 60.0)  # only this source waits
                     other = other_source(avoid=source)
                     if other is not None and item is not None:
                         owner[id(item)] = other  # the failed source's range goes on at another
@@ -1237,6 +1259,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             does not give this file, or its route is refused)."""
             nonlocal fetched
             room(total)
+            cool(candidate)
             watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
                 try:
@@ -1251,8 +1274,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 try:
                     code = response.status
                     if code == 429 or code >= 500:
-                        pause = charge(f"HTTP {code}", _retry_after(response.getheader("Retry-After")), stay=True)
+                        pause = charge(f"HTTP {code}", _retry_after(response.getheader("Retry-After")), stay=True,
+                                       source=candidate)
                         sleep(pause)
+                        cooldown.pop(candidate, None)  # waited out here
                         return "failed"
                     encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
                     if code != 200 or _count(response.getheader("Content-Length")) != total or encoding != "identity":
@@ -1353,6 +1378,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 elif have:
                     restart("no validator to resume against")
                     continue
+                cool(here())
                 watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
                     connection, response, final_url = _request(here(), headers, timeout, allow_loopback, watch,
