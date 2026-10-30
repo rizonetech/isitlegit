@@ -44,7 +44,7 @@ track: day-1
 | 8 | §8 | M4A decoding | §2 | [x] |
 | 9 | §9 | Filtered resampling for WAV | §2 | [x] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
-| 11 | §11 | Uploading member stored on the case | §1 | [ ] |
+| 11 | §11 | Uploading member stored on the case | §1 | [x] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -409,6 +409,9 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the cases l
 - [x] Commit: `intake: the uploading member stored on the case` Done 2026-10-30: 5dc3c11, with 3b003b1 (the completion review's regressions).
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/db/cases.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §11 | 08848553b71c2d274992d43f3e147ed89b6ab9bf
+> **Review:** `docs/reviews/d01-t03-s11.json`
 
 ## Verification
 

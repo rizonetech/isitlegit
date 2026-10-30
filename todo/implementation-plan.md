@@ -102,7 +102,7 @@ Sections: 42 | Checklist items: 243
 | [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
 | [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
-| [ ]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
+| [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -341,6 +341,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 91/272 verified sections, 48 ready to run now.
+Progress: 92/272 verified sections, 47 ready to run now.
 
 Checklist: 918/1734 items completed (includes Commit items).
