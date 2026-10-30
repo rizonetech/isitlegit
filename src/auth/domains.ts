@@ -494,6 +494,7 @@ domainRoutes.delete("/domains/:domain", async (c) => {
     c.env.DB.prepare("DELETE FROM verification_codes WHERE claim_id = ?").bind(claim.id),
     // Its receivers go with it (D02 T02 §1): a removed domain's receiving system is no longer trusted.
     c.env.DB.prepare("DELETE FROM org_receivers WHERE claim_id = ?").bind(claim.id),
+    c.env.DB.prepare("DELETE FROM receiver_lookups WHERE claim_id = ?").bind(claim.id),
   ]);
   return c.body(null, 204);
 });

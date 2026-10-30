@@ -55,6 +55,9 @@ export type Tenant = { orgId: string; channel: "email" | "upload"; receivers: Re
 
 export type CaseView = {
   tenant: Tenant & { headersAvailable: boolean };
+  // The stored raw message the view was read from (`raw/<caseId>/message.eml`): the artefact a header-based item rests
+  // on, since a check cannot store one of its own (D02 T02 §2).
+  raw: string;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -70,12 +73,13 @@ export class SummaryRefused extends TypeError {
   override name = "SummaryRefused";
 }
 
-export function caseViewOf(summary: unknown, tenant: Tenant): CaseView {
+export function caseViewOf(summary: unknown, tenant: Tenant, raw: string): CaseView {
   const message = MessageSummary.safeParse(summary);
   if (message.success) {
     const m = message.data;
     return {
       tenant: { ...tenant, headersAvailable: m.forward.headersAvailable },
+      raw,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -90,6 +94,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant): CaseView {
     const { kind, ...file } = upload.data.source;
     return {
       tenant: { ...tenant, headersAvailable: false },
+      raw,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

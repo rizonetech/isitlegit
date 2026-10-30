@@ -14,7 +14,7 @@ import { available, runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { extractOriginal } from "../../src/intake/forward";
 import { parseMessage, storeParsed } from "../../src/intake/parse";
-import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
+import { parsedKey, rawKey, readArtefact, type Store } from "../../src/intake/store";
 import { forwards } from "../fixtures/forward/load";
 
 // D02 T01 §2: every check whose inputs are there runs at once within its budget; a failure is a not_checked line.
@@ -32,11 +32,15 @@ async function viewOf(message: Uint8Array): Promise<CaseView> {
   await storeParsed(store, caseId, await parseMessage(forward.original), forward);
   const read = await readArtefact(store, caseId, parsedKey(caseId));
   if (!read || !("body" in read)) throw new Error("no summary");
-  return caseViewOf(JSON.parse(new TextDecoder().decode(read.body)), {
-    orgId: "org-runner",
-    channel: "email",
-    receivers: [],
-  });
+  return caseViewOf(
+    JSON.parse(new TextDecoder().decode(read.body)),
+    {
+      orgId: "org-runner",
+      channel: "email",
+      receivers: [],
+    },
+    rawKey(caseId),
+  );
 }
 const said = (check: string, n = 1): EvidenceDraft => ({
   check,
