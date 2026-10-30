@@ -483,12 +483,15 @@ async function sheets(html: ReadableStream | string): Promise<{ text: string; cu
 // `source` gives the HTML afresh each time it is called: it is read twice, once for the rules, once to classify.
 // `extraSheets` are style sheets found elsewhere (the full text of a part the summary's HTML was cut from), applied after
 // the document's own.
+// `ownSheets`, when the caller already read the document's sheets, saves the first pass (round 6: a cut part was read
+// three times).
 export async function scanHtml(
   source: () => ReadableStream | string | Promise<ReadableStream | string>,
   extraSheets = "",
+  ownSheets?: { text: string; cut: boolean },
 ): Promise<Scan> {
   const rules = newRules();
-  const sheet = await sheets(await source());
+  const sheet = ownSheets ?? (await sheets(await source()));
   const unresolvedRules =
     addRules(sheet.text, rules) + (sheet.cut ? 1 : 0) + (extraSheets ? addRules(extraSheets, rules) : 0);
   let unreadColours = 0;
@@ -737,7 +740,7 @@ export async function hiddenTextOf(
     };
     const sheet = await sheets(await open());
     if (partSheets.length + sheet.text.length <= MAX_SHEET_CHARS) partSheets += sheet.text;
-    const scan = await scanHtml(open);
+    const scan = await scanHtml(open, "", sheet);
     unresolvedRules += scan.unresolvedRules;
     unreadColours += scan.unreadColours;
     omittedSpans += scan.omittedSpans;

@@ -540,3 +540,32 @@ describe("scanHtml after round 4", () => {
     expect(parseColor("rgb(1.2.3, 0, 0)")).toBeNull();
   });
 });
+
+describe("hiddenTextOf's reads (round 6)", () => {
+  it("reads a cut part twice: once for its rules, once to classify", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-hidden", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const stored = await putAttachment(
+      store,
+      made.value.id,
+      "part.html",
+      new TextEncoder().encode("<p>Hi</p>"),
+      "text/html",
+    );
+    let gets = 0;
+    const counting = {
+      head: (key: string) => env.ARTEFACTS.head(key),
+      get: (key: string, options?: R2GetOptions) => {
+        gets++;
+        return env.ARTEFACTS.get(key, options);
+      },
+    } as unknown as R2Bucket;
+    await hiddenTextOf(counting, {
+      html: "<p>Hi</p>",
+      text: null,
+      truncated: [{ mediaType: "text/html", charset: "utf-8", key: stored.key }],
+    });
+    expect(gets).toBe(2);
+  });
+});
