@@ -40,6 +40,7 @@ track: day-2
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
 | 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
+| 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -206,6 +207,24 @@ Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header do
 - [ ] Commit: `checks: lookalike link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes.
+
+## 8. Repeated-name lookalikes
+
+Filed 2026-10-30 from §2's completion review (out of scope): §2's techniques miss names that repeat or extend the real one beyond two edits and outside the added-word list, such as Microsoft's own example `contosososo.com` for `contoso.com`. Broader matching risks false positives, so it is added only against a labelled corpus.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the families and measure them. Done when: recall on the repetition and extension families improves on §5's corpus without the false-positive rate passing 2%.
+
+- [ ] Add repetition and extension families (a repeated syllable, a doubled label part, the real name inside a longer label) with benign neighbours to the labelled corpus §5 builds (`test/fixtures/lookalike/`). Done when: the corpus holds at least 20 of each family and 20 benign neighbours.
+- [ ] Add the technique to `techniqueOf` in `src/checks/domain-lookalike.ts` behind the corpus's measurement, recording recall and false positives per technique in `docs/frontier-log.md`. Done when: the measured false-positive rate is at most 2% and the log entry exists.
+- [ ] Commit: `checks: repetition and extension lookalikes`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes with the corpus cases.
 
 ## Verification
 

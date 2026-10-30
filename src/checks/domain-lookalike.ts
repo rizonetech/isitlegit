@@ -5,7 +5,7 @@
 // follow when they are extracted (§7).
 import { addressParser } from "postal-mime";
 import { parse } from "tldts";
-import { bounded, fittedDetail, fromDomain, plain } from "./auth";
+import { asciiDomain, bounded, fittedDetail, fromDomain, plain } from "./auth";
 import { registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
@@ -39,7 +39,10 @@ export function headerDomains(view: CaseView): { domain: string; fields: Field[]
   if (!view.tenant.headersAvailable) return [];
   const found = new Map<string, { domain: string; fields: Field[]; headers: Header[] }>();
   const add = (host: string | null, field: Field, header: Header) => {
-    const domain = host ? registrable(host) : null;
+    // One canonical form, the A-label, before anything is compared or merged: a From in Unicode and a Reply-To in its
+    // A-label are one domain (completion review).
+    const ascii = host ? asciiDomain(host) : null;
+    const domain = ascii ? registrable(ascii) : null;
     if (!domain) return;
     const entry = found.get(domain) ?? { domain, fields: [], headers: [] };
     if (!entry.fields.includes(field)) entry.fields.push(field);
@@ -85,6 +88,11 @@ const KIND_RANK: Record<TargetKind, number> = { own: 0, supplier: 1, brand: 2 };
 // At most this many lookalike items, the strongest first, and one counting the rest, so the check stays well under the
 // runner's MAX_ITEMS_PER_CHECK and a message with many lookalike domains keeps its findings (plan review).
 export const MAX_LOOKALIKES = 20;
+// At most this many of a message's domains are compared (each against every target), so a message naming thousands
+// stays within the check's time; the rest are counted as not compared (completion review). Its notes are bounded too,
+// with one more accounting for every domain and target not compared that is not listed.
+export const MAX_COMPARED = 100;
+export const MAX_NOTES = 10;
 
 // Whether a label can be compared: it has a skeleton (not right-to-left, not refused); §6 owns right-to-left labels.
 const comparable = (s: Split) => labelSkeleton(s.label) !== null;
@@ -94,7 +102,8 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
   const exempt = new Set<string>();
   const uncomparable: string[] = [];
   const push = (domain: string, kind: TargetKind, name: string) => {
-    const s = split(domain);
+    const ascii = asciiDomain(domain);
+    const s = ascii ? split(ascii) : null;
     if (!s) return;
     exempt.add(s.domain);
     if (comparable(s)) targets.push({ split: s, kind, name });
@@ -103,8 +112,11 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
   for (const d of view.tenant.trusted.own) push(d, "own", d);
   for (const d of view.tenant.trusted.suppliers) push(d, "supplier", d);
   for (const brand of view.brands.brands) for (const d of brand.domains) push(d, "brand", brand.name);
-  const found = headerDomains(view);
+  const all = headerDomains(view);
+  const found = all.slice(0, MAX_COMPARED);
+  const unread = all.slice(MAX_COMPARED).map((d) => d.domain);
   const notes: EvidenceDraft[] = [];
+  const skipped: string[] = [];
   const lookalikes: { severity: "high" | "medium"; item: EvidenceDraft }[] = [];
   const cite = (headers: Header[]) => headers.map((h) => `${h.name}: ${h.value}`);
   for (const entry of found) {
@@ -112,20 +124,22 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
     const candidate = split(entry.domain);
     if (!candidate) continue;
     if (!comparable(candidate)) {
-      notes.push({
-        check: "domain.lookalike",
-        severity: "info",
-        summary: bounded(
-          `${plain(entry.domain, 80)} (${entry.fields.join(", ")}) was not compared for lookalikes: its name is written right to left or could not be read.`,
-        ),
-        detail: fittedDetail({
-          domain: entry.domain,
-          compared: false,
-          fields: entry.fields,
-          headers: cite(entry.headers),
-        }) as EvidenceDraft["detail"],
-        artefacts: [view.raw],
-      });
+      skipped.push(entry.domain);
+      if (notes.length < MAX_NOTES)
+        notes.push({
+          check: "domain.lookalike",
+          severity: "info",
+          summary: bounded(
+            `${plain(entry.domain, 80)} (${entry.fields.join(", ")}) was not compared for lookalikes: its name is written right to left or could not be read.`,
+          ),
+          detail: fittedDetail({
+            domain: entry.domain,
+            compared: false,
+            fields: entry.fields,
+            headers: cite(entry.headers),
+          }) as EvidenceDraft["detail"],
+          artefacts: [view.raw],
+        });
       continue;
     }
     let best: { target: (typeof targets)[number]; technique: Technique } | null = null;
@@ -169,7 +183,26 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
       },
     });
   }
-  if (uncomparable.length && found.length)
+  // Every domain and trusted domain not compared is accounted for: those not listed one by one, and those past
+  // MAX_COMPARED, in one item.
+  const unlisted = skipped.slice(MAX_NOTES);
+  if (unlisted.length || unread.length)
+    notes.push({
+      check: "domain.lookalike",
+      severity: "info",
+      summary: bounded(
+        `${unlisted.length + unread.length} more domains in this message were not compared for lookalikes.`,
+      ),
+      detail: fittedDetail({
+        compared: false,
+        unlistedCount: unlisted.length,
+        unreadCount: unread.length,
+        unlisted,
+        unread,
+      }) as EvidenceDraft["detail"],
+      artefacts: [view.raw],
+    });
+  if (uncomparable.length && all.length)
     notes.push({
       check: "domain.lookalike",
       severity: "info",
@@ -196,7 +229,7 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
       }) as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
-  return [...kept, ...notes.slice(0, MAX_LOOKALIKES)];
+  return [...kept, ...notes];
 }
 
 const DESCRIBED: Record<Technique, string> = {

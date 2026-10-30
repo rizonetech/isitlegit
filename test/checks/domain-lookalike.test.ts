@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { BrandTable } from "../../src/checks/brand-schema";
 import type { CaseView } from "../../src/checks/case-view";
-import { headerDomains, lookalikeEvidence, MAX_LOOKALIKES } from "../../src/checks/domain-lookalike";
+import { headerDomains, lookalikeEvidence, MAX_COMPARED, MAX_LOOKALIKES } from "../../src/checks/domain-lookalike";
 import { readEvidence } from "../../src/checks/evidence";
 import { runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
@@ -189,6 +189,49 @@ describe("domain.lookalike's bounds and limits (plan review)", () => {
     expect(ascii.startsWith("xn--")).toBe(true);
     const v = view([h("From", `a@${ascii}`), h("Reply-To", "b@fynb\u043esfreight.co.za")]);
     expect(only(v)).toMatchObject({ detail: { technique: "skeleton", fields: ["From", "Reply-To"] } });
+  });
+
+  it("reads one domain as one in either order of Unicode and A-label (completion review)", () => {
+    const ascii = new URL("http://fynb\u043esfreight.co.za").hostname;
+    for (const [first, second] of [
+      ["fynb\u043esfreight.co.za", ascii],
+      [ascii, "fynb\u043esfreight.co.za"],
+    ]) {
+      const v = view([h("From", `a@${first}`), h("Reply-To", `b@${second}`)]);
+      expect(only(v)).toMatchObject({ detail: { domain: ascii, technique: "skeleton", fields: ["From", "Reply-To"] } });
+    }
+  });
+
+  it("compares at most MAX_COMPARED domains, quickly, and counts the rest as not compared (completion review)", () => {
+    const many = Array.from({ length: 4000 }, (_, i) => `a@d${i}-unrelated.example`).join(", ");
+    const v = view([h("From", "x@fynbosfreight.com"), h("Reply-To", many)]);
+    const started = Date.now();
+    const items = lookalikeEvidence(v);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(items[0]).toMatchObject({ severity: "high", detail: { technique: "different-tld" } });
+    const rest = items.find((i) => Array.isArray(i.detail.unread));
+    expect(rest?.detail.unreadCount).toBe(4001 - MAX_COMPARED);
+  });
+
+  it("compares the From first and leaves a domain past the budget counted, not compared", () => {
+    const filler = Array.from({ length: MAX_COMPARED }, (_, i) => `a@d${i}-unrelated.example`);
+    const v = view([h("From", "x@unrelated.example"), h("Reply-To", [...filler, "z@fynbosfreight.net"].join(", "))]);
+    const items = lookalikeEvidence(v);
+    expect(items.some((i) => i.detail.domain === "fynbosfreight.net")).toBe(false);
+    const rest = items.find((i) => typeof i.detail.unreadCount === "number");
+    expect(rest?.detail.unread).toContain("fynbosfreight.net");
+  });
+
+  it("accounts for every domain and trusted domain not compared, keeping the findings (completion review)", () => {
+    const rtl = Array.from({ length: 21 }, (_, i) => `a@\u05d0\u05d1${"\u05d2".repeat(i + 1)}.co.za`).join(", ");
+    const v = view([h("From", "x@fynbosfreight.com"), h("Reply-To", rtl)]);
+    v.tenant.trusted.own.push("\u05d0\u05d1\u05d3.co.za");
+    const items = lookalikeEvidence(v);
+    expect(items[0]?.severity).toBe("high");
+    const listed = items.filter((i) => typeof i.detail.domain === "string" && i.detail.compared === false);
+    const aggregate = items.find((i) => Array.isArray(i.detail.unlisted));
+    expect(listed.length + Number(aggregate?.detail.unlistedCount ?? 0)).toBe(21);
+    expect(items.some((i) => Array.isArray(i.detail.targets))).toBe(true);
   });
 
   it("names the organisation's own target over a brand both imitate", () => {
