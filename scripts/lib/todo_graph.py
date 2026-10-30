@@ -538,20 +538,42 @@ def pin_schedule(root, sha, ref):
 
 
 _PIN_SCHEDULES = {}
+_COMMITTED_PINS = {}
+
+
+def committed_pins(root):
+    """Every blob a commit in HEAD's history has held at the pin's path: what a fresh clone of this history can read
+    back. A blob that is only in the object store (staged, then replaced before a commit) is not among them."""
+    head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=30)
+    require(head.returncode == 0, f"cannot read HEAD in {root} to find the committed reviewer pins")
+    key = (str(root), head.stdout.strip())
+    if key not in _COMMITTED_PINS:
+        log = subprocess.run(["git", "-C", str(root), "log", "--format=", "--raw", "--no-abbrev", "--no-renames",
+                              "HEAD", "--", PIN], capture_output=True, text=True, timeout=60)
+        require(log.returncode == 0, f"cannot read the history of {PIN} in {root}")
+        blobs = set()
+        for line in log.stdout.splitlines():
+            fields = line.split("\t", 1)[0].split()
+            if line.startswith(":") and len(fields) >= 4:
+                blobs.update(fields[2:4])
+        _COMMITTED_PINS[key] = blobs
+    return _COMMITTED_PINS[key]
 
 
 def pass_schedule(root, entry, stamped, ref, where):
     """The [schedule] a recorded pass ran under (D00 T01 §18): that of the pin blob its `- Pin:` line names, read back
-    from the repository, or the stamped commit's for a pass recorded before the line. A pin that was never committed
-    is no evidence of what the pass was held to, so it is refused."""
+    from the repository, or the stamped commit's for a pass recorded before the line. Only a pin some commit in HEAD's
+    history held counts: one never committed, or only staged, is no evidence a fresh clone could check."""
     blob = entry.get("pin")
     if blob is None:
         return stamped
+    require(blob in committed_pins(root), f"{where} ran under pin {blob}, which no commit in this history holds (a "
+                                          f"pin never committed, or only staged): commit the pin before the review "
+                                          f"runs: {ref}")
     key = (str(root), blob)
     if key not in _PIN_SCHEDULES:
         shown = subprocess.run(["git", "-C", str(root), "cat-file", "blob", blob], capture_output=True, timeout=30)
-        require(shown.returncode == 0, f"{where} ran under pin {blob}, which is not in the repository (a pin never "
-                                       f"committed): commit the pin before the review runs: {ref}")
+        require(shown.returncode == 0, f"{where} ran under pin {blob}, which cannot be read back: {ref}")
         dispatch = review_dispatch()
         try:
             pin = dispatch.load_pin(PIN, data=shown.stdout)

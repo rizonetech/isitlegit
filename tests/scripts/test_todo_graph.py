@@ -1775,7 +1775,28 @@ class FinalStamp(Stamp):
         never = self.blob(FINAL_PIN + "# an edit never committed\n")
         reviews = self.straddle(round2=("medium", never))
         self.refused({"report": self.ROUNDS, "verdict": "clean"},
-                     f"round 2 ran under pin {never}, which is not in the repository", reviews)
+                     f"round 2 ran under pin {never}, which no commit in this history holds", reviews)
+
+    def test_a_pass_under_a_pin_only_staged_is_refused(self):
+        # Completion review: a pin staged (so its blob is in the object store), reviewed under, then replaced before
+        # any commit is readable locally but not in a fresh clone.
+        staged = FINAL_PIN + "# staged, then replaced\n"
+        (self.root / tg.PIN).write_text(staged, encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", tg.PIN], check=True)
+        self.assertEqual(subprocess.run(["git", "-C", str(self.root), "cat-file", "-e", self.blob(staged)]).returncode,
+                         0, "the staged pin's blob is in the object store")
+        reviews = self.straddle(round2=("medium", self.blob(staged)))
+        self.refused({"report": self.ROUNDS, "verdict": "clean"},
+                     f"round 2 ran under pin {self.blob(staged)}, which no commit in this history holds", reviews)
+
+    def test_a_fresh_clone_validates_the_receipt(self):
+        reviews = self.straddle()
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        self.commit("the stamp")
+        clone = pathlib.Path(self.tmp.name + "-clone")
+        self.addCleanup(shutil.rmtree, clone, True)
+        subprocess.run(["git", "clone", "-q", "--no-local", str(self.root), str(clone)], check=True)
+        tg.graph(clone)
 
     def test_a_final_review_switched_off_stamps_without_one_and_refuses_one_given(self):
         self.set_mode("off")
