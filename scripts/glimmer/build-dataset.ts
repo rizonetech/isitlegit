@@ -110,26 +110,41 @@ export function hamming(a: bigint, b: bigint): number {
   return count;
 }
 
-// Word 3-shingles of a page's text, hashed small, for its Jaccard similarity with another page's.
-export function shingles(text: string): Set<number> {
+// Word 3-shingles of a page's text, hashed small, for its Jaccard similarity with another page's: sorted and distinct,
+// in a typed array. A build holds every page's shingles at once, and a Set of numbers held 128,000 pages' in over 5 GB,
+// past what the host's out-of-memory guard allows; the packed array holds the same values in about a tenth.
+export function shingles(text: string): Uint32Array {
   const words = text.toLowerCase().split(/\s+/).filter(Boolean);
-  const out = new Set<number>();
-  if (!words.length) return out;
-  for (let i = 0; i < Math.max(1, words.length - 2); i++)
-    out.add(
-      createHash("sha1")
-        .update(words.slice(i, i + 3).join(" "))
-        .digest()
-        .readUInt32BE(0),
-    );
-  return out;
+  if (!words.length) return new Uint32Array(0);
+  const values = new Uint32Array(Math.max(1, words.length - 2));
+  for (let i = 0; i < values.length; i++)
+    values[i] = createHash("sha1")
+      .update(words.slice(i, i + 3).join(" "))
+      .digest()
+      .readUInt32BE(0);
+  values.sort();
+  // Distinct values only, in place.
+  let kept = 0;
+  for (let i = 0; i < values.length; i++)
+    if (i === 0 || values[i] !== values[i - 1]) values[kept++] = values[i] as number;
+  return values.slice(0, kept);
 }
 
-export function jaccard(a: Set<number>, b: Set<number>): number {
-  if (!a.size && !b.size) return 1;
+// Exact Jaccard similarity of two sorted, distinct shingle arrays, by one merge walk.
+export function jaccard(a: Uint32Array, b: Uint32Array): number {
+  if (!a.length && !b.length) return 1;
   let both = 0;
-  for (const value of a) if (b.has(value)) both++;
-  return both / (a.size + b.size - both);
+  for (let i = 0, j = 0; i < a.length && j < b.length; ) {
+    const x = a[i] as number;
+    const y = b[j] as number;
+    if (x === y) {
+      both++;
+      i++;
+      j++;
+    } else if (x < y) i++;
+    else j++;
+  }
+  return both / (a.length + b.length - both);
 }
 
 // The answer a page teaches, or null while any field is still unknown. A label from a source whose spot check failed
@@ -259,7 +274,7 @@ function samplesFirst(items: Entry[], random: () => number): Entry[] {
   return shuffle(items, random).sort((a, b) => Number(sampleLure(b.page)) - Number(sampleLure(a.page)));
 }
 
-type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Set<number> };
+type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Uint32Array };
 
 // Pages kept after exact and near duplicates go: exact by screenshot and text hash; near when the screenshots are
 // within 6 bits and the texts share 80 percent of their shingles. Screenshots alone are not enough: renders of dataset
@@ -1037,7 +1052,7 @@ export async function buildDataset(options: {
     const record = recordOf.get(id);
     if (entry) return [entry];
     // No entry was made of it (excluded, unlabelled): its record alone gives its identities.
-    return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Set<number>() }] : [];
+    return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Uint32Array(0) }] : [];
   });
   const parts = split(capped, random, { admit, floors, reserved: reference.ids, protect });
   const train = balance(parts.train, random);

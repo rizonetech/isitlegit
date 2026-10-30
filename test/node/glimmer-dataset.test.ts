@@ -117,13 +117,21 @@ describe("near duplicates", () => {
     expect(near).toBe(1);
     expect(kept.map((e) => e.page.id)).toEqual(["a", "c"]);
     expect(jaccard(shingles(text), shingles(text))).toBe(1);
+    // Packed, sorted and distinct, and the merge walk counts exactly what a set intersection would.
+    const words = shingles("one two three one two three four");
+    expect(words).toBeInstanceOf(Uint32Array);
+    expect([...words]).toEqual([...new Set(words)].sort((x, y) => x - y));
+    const a = shingles("the quick brown fox jumps over the lazy dog today");
+    const b = shingles("the quick brown fox jumps over a lazy cat today");
+    const both = [...a].filter((x) => b.includes(x)).length;
+    expect(jaccard(a, b)).toBeCloseTo(both / (a.length + b.length - both), 12);
   });
 });
 
 describe("caps and balance", () => {
   const entry = (id: string, labels: Partial<StoredPage["labels"]>) => {
     const p = page(id, {}, labels);
-    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
   };
   const random = () => 0.5;
 
@@ -151,7 +159,7 @@ describe("caps and balance keep the sample-derived lures", () => {
   const credential = { lure: true, lure_type: "credential" as const };
   const make = (id: string, sample: boolean, labels: Partial<StoredPage["labels"]> = credential) => {
     const p = page(id, { origin: sample ? "samples" : "public" }, labels);
-    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
   };
 
   it("cuts a brand's other pages before a sample-derived lure", () => {
@@ -179,7 +187,7 @@ describe("caps and balance keep the sample-derived lures", () => {
 describe("one brand identity and site-joined groups", () => {
   const entry = (id: string, over: Partial<StoredPage>, labels: Partial<StoredPage["labels"]>) => {
     const p = page(id, over, labels);
-    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
   };
   const credential = { lure: true, lure_type: "credential" as const };
 
@@ -255,7 +263,7 @@ describe("the split", () => {
           page: p,
           answer: answerOf(p) as PageAnswer,
           hash: BigInt(b * 10 + i),
-          words: new Set<number>(),
+          words: new Uint32Array(0),
         });
       }
     let state = 7;
@@ -629,7 +637,7 @@ describe("the split without admissible pages", () => {
 });
 
 function entryOf(p: StoredPage) {
-  return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+  return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
 }
 
 describe("a dispute known only to the teacher's state", () => {
@@ -902,7 +910,7 @@ describe("the reference set reserved for §13", () => {
 });
 
 describe("reference protection outlives the reference page's candidacy", () => {
-  const words = new Set([1, 2, 3, 4, 5]);
+  const words = Uint32Array.from([1, 2, 3, 4, 5]);
   const at = (id: string, hash: bigint) => ({
     ...entryOf(page(id, { host: `www.${id}.co.za` }, { brand: `Brand ${id}`, lure: true, lure_type: "credential" })),
     hash,
