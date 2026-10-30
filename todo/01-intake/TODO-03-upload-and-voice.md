@@ -406,7 +406,7 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the cases l
 - [x] Accept `uploadedBy` in `NewCase` and `admitCase` (`src/db/cases.ts`), refused on an email case, and pass the signed-in member's id from `uploadRoutes` (`src/intake/upload.ts`, `c.get("signedIn")`) through `admitDelivery` (`src/intake/admit.ts`). Done when: `test/intake/upload.test.ts` reads the uploader on a new upload case; a repeat of the same file within the day answers the first case and keeps its first uploader (the claim answers the case, it does not re-admit it). Done 2026-10-30: `test/intake/upload.test.ts` ("records the uploading member", "keeps the first uploader when another member uploads the same file again"); three mutations (the uploader not passed, `admitDelivery` dropping it, no rule in `NewCase`) each fail a test.
 - [x] Return it as `Case.uploadedBy` through `getCase`. Done when: `test/db/cases.test.ts` reads it back for its organisation and refuses another organisation; an email case reads null. Done 2026-10-30: `test/db/cases.test.ts` (the uploader read back in its organisation, not_found elsewhere, refusals on both inserts storing nothing); 746 tests across intake, pipeline, db, checks, auth, mail and scheduled pass.
 - [x] Name `uploaded_by` in the closure purge's reckoning if the purge lists columns (D07 T02 §9 deletes whole case rows, so likely none). Done 2026-10-30: none needed; D07 T02 §9 deletes whole case rows (correction 2).
-- [ ] Commit: `intake: the uploading member stored on the case`
+- [x] Commit: `intake: the uploading member stored on the case` Done 2026-10-30: 5dc3c11, with 3b003b1 (the completion review's regressions).
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/db/cases.test.ts` passes.
 
