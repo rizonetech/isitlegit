@@ -1,8 +1,8 @@
 {
   "id": "DevProcess",
   "title": "How IsItLegit is built",
-  "sub": "One operator, five AI lanes, a team that never sleeps. Our development process, not a product feature.",
-  "label": "Our development process, not a product feature",
+  "sub": "One operator, five AI lanes, a team that never sleeps.",
+  "label": "Development process: figures as of {stats.date}, commit {stats.commit}",
   "close": ["github.com/rizonetech/isitlegit", "Figures read from the repository on {stats.date}, commit {stats.commit}"],
   "coldOpen": [16, 26, 30, 35],
   "scenes": [
