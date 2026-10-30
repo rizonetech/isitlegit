@@ -406,6 +406,8 @@ Public labels say lure or not; the screener also answers brand and form flags. M
 
 ## 10. Deduplicated seed-disjoint training set
 
+> **Started:** 2026-10-30T07:56Z
+
 The store becomes two files: training and held-out evaluation. Duplicates go, no brand dominates, and the held-out set shares no page, near-duplicate or brand group with training, so the numbers in §13 mean something.
 
 **Phase:** 0
