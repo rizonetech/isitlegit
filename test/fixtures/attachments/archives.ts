@@ -20,8 +20,11 @@ const le = (value: number, bytes: number) => {
   return out;
 };
 
-// A stored (uncompressed) ZIP: local headers, data, the central directory and its end record.
-export function zip(entries: { name: string; data?: Uint8Array; encrypted?: boolean }[]): Uint8Array {
+// A stored (uncompressed) ZIP: local headers, data, the central directory and its end record; `extra` is a member's
+// central extra field.
+export function zip(
+  entries: { name: string; data?: Uint8Array; encrypted?: boolean; extra?: Uint8Array }[],
+): Uint8Array {
   const locals: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
@@ -43,6 +46,7 @@ export function zip(entries: { name: string; data?: Uint8Array; encrypted?: bool
       name,
       data,
     );
+    const extra = e.extra ?? new Uint8Array(0);
     central.push(
       join(
         le(0x02014b50, 4),
@@ -55,13 +59,14 @@ export function zip(entries: { name: string; data?: Uint8Array; encrypted?: bool
         le(data.length, 4),
         le(data.length, 4),
         le(name.length, 2),
-        le(0, 2),
+        le(extra.length, 2),
         le(0, 2),
         le(0, 2),
         le(0, 2),
         le(0, 4),
         le(offset, 4),
         name,
+        extra,
       ),
     );
     locals.push(local);
@@ -202,3 +207,21 @@ export const encodedHeader = (coder: Uint8Array) =>
   join(new Uint8Array([0x17]), streamsInfo(coder), new Uint8Array([0x00]));
 // A filename whose UTF-16 bytes hold the AES coder's ID: \u06f1? no; the bytes 06 F1 07 01 as two code units.
 export const AES_IN_NAME = String.fromCharCode(0xf106, 0x0107);
+
+// A Unicode Path extra field (APPNOTE 4.6.9) naming `name` for a member whose legacy name has the given CRC-32.
+export const unicodePath = (legacyCrc: number, name: string) => {
+  const utf8 = enc(name);
+  return join(le(0x7075, 2), le(5 + utf8.length, 2), new Uint8Array([1]), le(legacyCrc, 4), utf8);
+};
+// A 7z plain header with additional streams (one coder) before main streams (another).
+export const plainHeaderWithAdditional = (additional: Uint8Array, main: Uint8Array) =>
+  join(
+    new Uint8Array([0x01, 0x03]),
+    streamsInfo(additional),
+    new Uint8Array([0x00, 0x04]),
+    streamsInfo(main),
+    new Uint8Array([0x00, 0x00]),
+  );
+// A RAR5 file whose first header claims a size in a four-byte number, then `trailing` bytes.
+export const rar5Oversized = (trailing: number) =>
+  join(enc("Rar!\x1a\x07\x01\x00"), le(0, 4), new Uint8Array([0x80, 0x80, 0x80, 0x04]), new Uint8Array(trailing));

@@ -93,7 +93,7 @@ async function zipEntries(
   bucket: R2Bucket,
   key: string,
   size: number,
-): Promise<{ name: string; encrypted: boolean }[]> {
+): Promise<{ names: string[]; encrypted: boolean }[]> {
   if (size < 22) throw new Unreadable("it is too short to be a ZIP archive");
   const tailStart = Math.max(0, size - 65_557);
   const tail = await range(bucket, key, tailStart, size - tailStart);
@@ -123,21 +123,43 @@ async function zipEntries(
   if (cdOffset + cdSize > size) throw new Unreadable("its directory points past its end");
   const cd = cdSize ? await range(bucket, key, cdOffset, cdSize) : new Uint8Array(0);
   if (cd.length !== cdSize) throw new Unreadable("its directory is truncated");
-  const entries: { name: string; encrypted: boolean }[] = [];
+  const entries: { names: string[]; encrypted: boolean }[] = [];
   let at = 0;
   while (at < cd.length) {
     if (at + 46 > cd.length || u32(cd, at) !== 0x02014b50) throw new Unreadable("its directory is malformed");
     const nameLength = u16(cd, at + 28);
     const end = at + 46 + nameLength + u16(cd, at + 30) + u16(cd, at + 32);
     if (end > cd.length) throw new Unreadable("its directory is truncated");
-    entries.push({
-      name: new TextDecoder().decode(cd.subarray(at + 46, at + 46 + nameLength)),
-      encrypted: (u16(cd, at + 8) & 1) === 1,
-    });
+    const raw = cd.subarray(at + 46, at + 46 + nameLength);
+    const names = [new TextDecoder().decode(raw)];
+    // The Unicode Path extra field (APPNOTE 4.6.9, 0x7075): another name for the member, which unpackers show; taken
+    // when its CRC matches the legacy name, as the note asks (round 1: `invoice.pdf` hiding `invoice.pdf.exe`).
+    const extraEnd = at + 46 + nameLength + u16(cd, at + 30);
+    for (let x = at + 46 + nameLength; x + 4 <= extraEnd; ) {
+      const id = u16(cd, x);
+      const len = u16(cd, x + 2);
+      if (x + 4 + len > extraEnd) break;
+      if (id === 0x7075 && len >= 5 && cd[x + 4] === 1 && u32(cd, x + 5) === crc32(raw))
+        names.push(new TextDecoder().decode(cd.subarray(x + 9, x + 4 + len)));
+      x += 4 + len;
+    }
+    entries.push({ names, encrypted: (u16(cd, at + 8) & 1) === 1 });
     at = end;
   }
   if (entries.length !== count) throw new Unreadable("its directory does not hold the entries it counts");
   return entries;
+}
+
+// CRC-32 (ISO-HDLC, as ZIP uses it), for the Unicode Path field's check.
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+export function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const b of bytes) c = (CRC_TABLE[(c ^ b) & 0xff] as number) ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
 }
 
 // An OLE compound file's macro storage or stream (MS-OVBA 2.2): `Macros`, `_VBA_PROJECT_CUR` or `_VBA_PROJECT`.
@@ -180,8 +202,10 @@ class Window {
   async at(at: number, length: number): Promise<Uint8Array | null> {
     const held = at >= this.start && at + length <= this.start + this.bytes.length;
     if (!held) {
-      if (this.reads >= MAX_RAR_READS || this.read >= MAX_RAR_BYTES) return null;
-      const want = Math.min(Math.max(length, 64 * 1024), this.size - at);
+      // Every request within what the budget has left (round 1: a declared 8 MiB header was read whole).
+      const left = MAX_RAR_BYTES - this.read;
+      if (this.reads >= MAX_RAR_READS || length > left) return null;
+      const want = Math.min(Math.max(length, 64 * 1024), this.size - at, left);
       this.bytes = await range(this.bucket, this.key, at, want);
       this.start = at;
       this.reads++;
@@ -207,6 +231,8 @@ async function rarEncrypted(bucket: R2Bucket, key: string, size: number, rar5: b
     if (!head) return null;
     if (rar5) {
       const [headerSize, sizeLength] = vint(head, 4);
+      // The header size is at most three bytes long (RAR 5 technote), so at most 2 MiB.
+      if (sizeLength > 3) throw new Unreadable("a header claims a size RAR does not allow");
       const block = 4 + sizeLength;
       if (at + block + headerSize > size) throw new Unreadable("a header runs past the end of the archive");
       const whole = await window.at(at, block + headerSize);
@@ -285,7 +311,7 @@ function number7z(b: Uint8Array, at: number): [number, number] {
 
 // The coder IDs of a 7z StreamsInfo's folders (7zFormat.txt: PackInfo, then UnPackInfo's folders and their coders),
 // parsed as records, never matched as loose bytes (completion review: a filename holding the AES ID is no coder).
-function coders7z(b: Uint8Array, start: number): string[] {
+function coders7z(b: Uint8Array, start: number): { ids: string[]; end: number | null } {
   const ids: string[] = [];
   let p = start;
   const num = () => {
@@ -305,7 +331,7 @@ function coders7z(b: Uint8Array, start: number): string[] {
   };
   for (;;) {
     const id = byte();
-    if (id === 0x00) return ids;
+    if (id === 0x00) return { ids, end: p };
     if (id === 0x06) {
       // PackInfo: PackPos, NumPackStreams, then optional sizes (0x09) and CRCs (0x0A), ended by 0x00.
       num();
@@ -366,8 +392,8 @@ function coders7z(b: Uint8Array, start: number): string[] {
         } else throw new Unreadable("its header has an unknown folder record");
       }
     } else if (id === 0x08) {
-      // SubStreamsInfo: not needed for the coders; the coders are all read by now.
-      return ids;
+      // SubStreamsInfo: not needed for the coders, which are all read by now; where this streams info ends is not known.
+      return { ids, end: null };
     } else throw new Unreadable("its header has an unknown record");
     if (p > b.length) throw new Unreadable("its header is truncated");
   }
@@ -389,7 +415,7 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
   const header = await range(bucket, key, 32 + offset, length);
   if (header.length < length) throw new Unreadable("its header is truncated");
   if (header[0] === 0x17) {
-    const ids = coders7z(header, 1);
+    const { ids } = coders7z(header, 1);
     if (ids.includes(AES_7Z)) return true;
     throw new Unreadable("its header is compressed, which is not read yet");
   }
@@ -406,12 +432,17 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
     }
     p++;
   }
-  for (const record of [0x03, 0x04])
-    if (header[p] === record) {
-      ids.push(...coders7z(header, p + 1));
-      // The streams info's end is not needed: the coders are what is read.
-      break;
+  // Additional streams, then main streams: both are read (round 1: the additional streams hid the main ones' AES).
+  if (header[p] === 0x03) {
+    const additional = coders7z(header, p + 1);
+    ids.push(...additional.ids);
+    if (additional.end === null) {
+      if (ids.includes(AES_7Z)) return true;
+      throw new Unreadable("its header's additional streams could not be read past");
     }
+    p = additional.end;
+  }
+  if (header[p] === 0x04) ids.push(...coders7z(header, p + 1).ids);
   return ids.includes(AES_7Z);
 }
 
@@ -443,18 +474,20 @@ async function risksOf(
   try {
     const size = attachment.bytes;
     if (sniffed === "zip" || sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml") {
-      for (const entry of await zipEntries(bucket, attachment.key, size)) {
-        const inner = entry.name.split("/").pop() ?? entry.name;
-        const where = `${name} > ${entry.name}`;
-        if (entry.encrypted) add({ kind: "encrypted", where, how: "an encrypted entry", by: "structure" });
-        if (/(^|\/)vbaProject\.bin$/i.test(entry.name))
-          add({ kind: "macro", where, how: "a VBA project", by: "structure" });
-        const innerExt = extensionOf(inner);
-        if (EXECUTABLE_NAMES.has(innerExt))
-          add({ kind: "executable", where, how: `its name (.${innerExt})`, by: "name", type: innerExt });
-        if (MACRO_NAMES.has(innerExt)) add({ kind: "macro", where, how: `its name (.${innerExt})`, by: "name" });
-        if (ARCHIVE_NAMES.has(innerExt) && nested.length < MAX_FINDINGS) nested.push(entry.name);
-      }
+      for (const zipped of await zipEntries(bucket, attachment.key, size))
+        for (const entryName of new Set(zipped.names)) {
+          const entry = { name: entryName, encrypted: zipped.encrypted };
+          const inner = entry.name.split("/").pop() ?? entry.name;
+          const where = `${name} > ${entry.name}`;
+          if (entry.encrypted) add({ kind: "encrypted", where, how: "an encrypted entry", by: "structure" });
+          if (/(^|\/)vbaProject\.bin$/i.test(entry.name))
+            add({ kind: "macro", where, how: "a VBA project", by: "structure" });
+          const innerExt = extensionOf(inner);
+          if (EXECUTABLE_NAMES.has(innerExt))
+            add({ kind: "executable", where, how: `its name (.${innerExt})`, by: "name", type: innerExt });
+          if (MACRO_NAMES.has(innerExt)) add({ kind: "macro", where, how: `its name (.${innerExt})`, by: "name" });
+          if (ARCHIVE_NAMES.has(innerExt) && nested.length < MAX_FINDINGS) nested.push(entry.name);
+        }
     } else if (sniffed === "ole") {
       if (size > MAX_OLE_BYTES) throw new Unreadable("it is larger than is read");
       if (oleMacros(await range(bucket, attachment.key, 0, size)))
@@ -537,7 +570,12 @@ function evidenceFor(kind: RiskKind, view: CaseView): EvidenceDraft[] {
           check,
           severity: "info",
           summary: bounded(`${plain(risk.filename || "An attachment", 80)} was not fully checked: ${risk.notChecked}.`),
-          detail: { checked: false, filename: risk.filename, reason: risk.notChecked },
+          // Fitted like every detail: a filename of 70 KB never makes the item too large to store (round 1).
+          detail: fittedDetail({
+            checked: false,
+            filename: risk.filename,
+            reason: risk.notChecked,
+          }) as EvidenceDraft["detail"],
           artefacts: [risk.key],
         });
       if (risk.nested.length)

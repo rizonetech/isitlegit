@@ -1,7 +1,13 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { makeDecoyCompoundFile, renameEntry } from "../../scripts/fixtures/msg-builder";
-import { attachmentRisksOf, MAX_OLE_BYTES, MAX_RISK_ATTACHMENTS } from "../../src/checks/attachment-risk";
+import {
+  attachmentRisksOf,
+  crc32,
+  MAX_OLE_BYTES,
+  MAX_RAR_BYTES,
+  MAX_RISK_ATTACHMENTS,
+} from "../../src/checks/attachment-risk";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
@@ -13,10 +19,13 @@ import {
   encodedHeader,
   LZMA,
   plainHeader,
+  plainHeaderWithAdditional,
   rar4,
   rar5,
   rar5Many,
+  rar5Oversized,
   sevenZip,
+  unicodePath,
   zip,
 } from "../fixtures/attachments/archives";
 import { samples } from "../fixtures/attachments/samples";
@@ -358,5 +367,70 @@ describe("after the completion review", () => {
       "disk.iso is a disk image, which can carry programs that run when it is opened.",
       "note.vbs is named as a program or script (.vbs).",
     ]);
+  });
+});
+
+describe("after round 1", () => {
+  it("reads a ZIP member's Unicode Path name when its CRC matches, and not otherwise", async () => {
+    const legacy = enc("invoice.pdf");
+    const good = zip([{ name: "invoice.pdf", data: samples.pe, extra: unicodePath(crc32(legacy), "invoice.pdf.exe") }]);
+    expect(await one(["p.zip", "application/zip", good])).toEqual([
+      ["attachment.executable", "critical", "p.zip > invoice.pdf.exe"],
+    ]);
+    const stale = zip([{ name: "invoice.pdf", data: pdf, extra: unicodePath(crc32(legacy) ^ 1, "invoice.pdf.exe") }]);
+    expect(await one(["q.zip", "application/zip", stale])).toEqual([]);
+  });
+
+  it("keeps another attachment's critical finding when a coverage item names a huge file", async () => {
+    const id = await caseWith([
+      [`${"a".repeat(70_000)}.zip`, "application/zip", enc("PK\x03\x04 broken")],
+      ["run.exe", "application/octet-stream", samples.pe],
+    ]);
+    await run(id);
+    const items = (await readEvidence(env.DB, id)).filter(
+      (e) => e.check === "attachment.executable" || e.detail.check === "attachment.executable",
+    );
+    expect(items.map((i) => i.severity).sort()).toEqual(["critical", "info"]);
+    expect(items.some((i) => i.check === "not_checked")).toBe(false);
+  });
+
+  it("reads a 7z's main streams after its additional streams", async () => {
+    expect(await one(["e.7z", "application/x-7z-compressed", sevenZip(plainHeaderWithAdditional(LZMA, AES))])).toEqual([
+      ["attachment.encrypted_archive", "high", "e.7z"],
+    ]);
+    expect(await one(["f.7z", "application/x-7z-compressed", sevenZip(plainHeaderWithAdditional(LZMA, LZMA))])).toEqual(
+      [],
+    );
+  });
+
+  it("refuses a RAR5 header size RAR does not allow, reading within its budget", async () => {
+    const bytes = rar5Oversized(8 * 1024 * 1024);
+    const id = await caseWith([["big.rar", "application/vnd.rar", bytes]]);
+    const key = (await env.ARTEFACTS.list({ prefix: `raw/${id}/attachments/` })).objects[0]?.key as string;
+    let requested = 0;
+    const counting = {
+      get: async (k: string, options?: R2GetOptions) => {
+        const object = await env.ARTEFACTS.get(k, options);
+        requested +=
+          object?.size !== undefined && options?.range && "length" in options.range ? (options.range.length ?? 0) : 0;
+        return object;
+      },
+    } as unknown as R2Bucket;
+    const view = {
+      attachments: [
+        {
+          key,
+          filename: "big.rar",
+          mediaType: "application/vnd.rar",
+          contentId: null,
+          disposition: null,
+          bytes: bytes.length,
+        },
+      ],
+      attachmentHeads: { heads: [{ key, head: btoa(String.fromCharCode(...bytes.subarray(0, 64))) }], unread: 0 },
+    } as unknown as Pick<CaseView, "attachments" | "attachmentHeads">;
+    const risks = await attachmentRisksOf(counting, view);
+    expect(risks?.items[0]?.notChecked).toBe("a header claims a size RAR does not allow");
+    expect(requested).toBeLessThanOrEqual(MAX_RAR_BYTES);
   });
 });
