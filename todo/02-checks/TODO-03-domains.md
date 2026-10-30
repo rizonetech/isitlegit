@@ -34,7 +34,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Confusables skeleton and edit distance module | D02 T01 §1 | [x] |
-| 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [ ] |
+| 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [x] |
 | 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [x] |
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
@@ -97,6 +97,9 @@ For every domain in the case, compare its registrable label with the organisatio
 - [x] Commit: `checks: lookalike domains against own, supplier and brand domains` Done 2026-10-30: 019aee4, with 7c39e5e (completion review) and 93436d8 (round 1).
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes and fails if an exact match is flagged.
+
+> **Verified:** 2026-10-30 | §2 | 7e2c3f1fcec5505304d7b3d72858db77f78dcd88
+> **Review:** `docs/reviews/d02-t03-s2.json`
 
 ## 3. Curated brand domain table in KV
 
