@@ -498,9 +498,13 @@ def contract_text(text, number):
 
 
 def same_json(old, new):
-    """Two versions of a JSON file hold the same value: a reformat, not a change to what a test reads."""
+    """Two versions of a JSON file hold the same value: a reformat, not a change to what a test reads. Compared as the
+    canonical text of each parsed value, so a type change Python's `==` hides (`true` against `1`, `1.0` against `1`)
+    or a reordered object is a change."""
+    def canonical(data):
+        return json.dumps(json.loads(data), ensure_ascii=False, separators=(",", ":"))
     try:
-        return old is not None and new is not None and json.loads(old) == json.loads(new)
+        return old is not None and new is not None and canonical(old) == canonical(new)
     except ValueError:
         return False
 
@@ -597,8 +601,9 @@ def plan_record(root, report, ref, commits=None):
 _CAT_FILE = {}
 
 
-def _blob_at(root, spec):
-    """The bytes of `<rev>:<path>` through one `git cat-file --batch` per repository, or None when there is none."""
+def _object_at(root, spec, kind=b"blob"):
+    """The bytes of the `kind` object `spec` names (`<rev>:<path>` for a blob) through one `git cat-file --batch` per
+    repository, or None when there is none."""
     key = str(root)
     proc = _CAT_FILE.get(key)
     if proc is None or proc.poll() is not None:
@@ -607,26 +612,29 @@ def _blob_at(root, spec):
     proc.stdin.write(spec.encode("utf-8") + b"\n")
     proc.stdin.flush()
     header = proc.stdout.readline().split()
-    if len(header) != 3 or header[1] != b"blob":
+    if len(header) != 3:
         return None
     data = proc.stdout.read(int(header[2]))
     proc.stdout.read(1)
-    return data
+    return data if header[1] == kind else None
 
 
 def _after_started_line(root, todo, body, ref, candidate):
-    """The plan candidate and its first parent both hold the section's Started line in `todo`, so the candidate is a
-    commit after the one that recorded it."""
+    """The plan candidate and one of its parents both hold the section's Started line in `todo`, so the candidate is a
+    commit after the one that recorded it (through any parent: a merge can bring the Started commit in as its second)."""
     started = STARTED.search(body or "")
     if started is None:
         return False
     line, number = started[0].rstrip("\r"), ref.rsplit("§", 1)[1]
 
-    def holds(spec):
-        data = _blob_at(root, spec)
+    def holds(rev):
+        data = _object_at(root, f"{rev}:{todo}")
         section = section_text(data.decode("utf-8", "replace"), number) if data is not None else None
         return section is not None and line in section.splitlines()
-    return holds(f"{candidate}:{todo}") and holds(f"{candidate}^1:{todo}")
+    commit = _object_at(root, candidate, b"commit") or b""
+    head = commit.split(b"\n\n", 1)[0].splitlines()
+    parents = [x.split()[1].decode("ascii") for x in head if x.startswith(b"parent ")]
+    return holds(candidate) and any(holds(parent) for parent in parents)
 
 
 def plan_after_started(root, todo, body, ref, candidate):

@@ -1618,6 +1618,10 @@ class Stamp(Tree):
     def test_whitespace_inside_a_json_string_is_a_change(self):
         self.assertTrue(tg.same_json(b'{"a": [1, 2]}', b'{\n  "a": [1,\n 2]\n}\n'))
         self.assertFalse(tg.same_json(b'{"name": "Red Oak"}', b'{"name": "RedOak"}'))
+        # Types Python's == folds together are changes a test reads (round 1, P1).
+        self.assertFalse(tg.same_json(b'{"delegationSigned": true}', b'{"delegationSigned": 1}'))
+        self.assertFalse(tg.same_json(b'{"n": [false]}', b'{"n": [0]}'))
+        self.assertFalse(tg.same_json(b'{"n": 1.0}', b'{"n": 1}'))
         self.assertFalse(tg.same_json(b'{"a": 1}', b'{"a": 1'))
         self.assertFalse(tg.same_json(None, b"{}"))
 
@@ -1677,6 +1681,30 @@ class Stamp(Tree):
             with self.subTest(after_started=plan.get("after_started", "absent")):
                 path.write_text(json.dumps(dict(receipt, plan=plan)), encoding="utf-8")
                 self.refuses(f"receipt plan after_started is missing, but its candidate {later} follows")
+
+    def test_dropped_evidence_refuses_when_started_came_in_through_a_merge(self):
+        # Round 1, P2: the Started commit is the merge's second parent; its first parent never held the line.
+        lane = subprocess.run(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, ""), encoding="utf-8")
+        self.commit("todo: no Started line yet")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-b", "start-here"], check=True)
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "**Test checkpoint:**", "> **Started:** 2026-10-30T00:00Z\n\n**Test checkpoint:**", 1), encoding="utf-8")
+        self.start = self.sha = self.commit("todo: start §1 on a branch")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", lane], check=True)
+        (self.root / "docs/reviews/note.md").write_text("a note\n", encoding="utf-8")
+        self.commit("a review note on the lane")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "--no-ff", "start-here"], check=True)
+        merged = self.head()
+        self.write_completion()
+        path, receipt = self.stamp_after_started(merged)
+        self.assertEqual(receipt["plan"]["after_started"], {"start": self.start, "commits": [merged]})
+        tg.graph(self.root)
+        path.write_text(json.dumps(dict(receipt, plan={k: v for k, v in receipt["plan"].items()
+                                                       if k != "after_started"})), encoding="utf-8")
+        self.refuses(f"receipt plan after_started is missing, but its candidate {merged} follows")
 
     def test_a_plan_review_after_a_fallback_start_refuses(self):
         # No Started line: the build start is the first commit naming the section, so nothing after it is quiet.
