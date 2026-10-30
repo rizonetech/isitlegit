@@ -110,10 +110,13 @@ export function normaliseCode(typed: unknown): string | null {
 // "123 456", as the mail shows it.
 export const spaced = (code: string) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
-// The handle cookie: the browser that asked, for the link's lifetime, sent only to the sign-in pages. The options are
+// The handle cookie: the browser that asked, for the link's lifetime. The options are
 // Better Auth's endpoint form (`ctx.setCookie`); `handleCookie` is the same cookie as a header, for the app's own routes.
+// Path `/`: the handle goes with every way a link is asked for, the app's `/signin` routes and Better Auth's own
+// `/api/auth/sign-in/magic-link` and `/api/auth/sign-up/invite-code` alike (RFC 6265 5.1.4: a narrower path would keep
+// it from the API, which would then hand out a new handle and orphan the browser's codes; round 1).
 export const HANDLE_COOKIE = {
-  path: "/signin",
+  path: "/",
   maxAge: MAGIC_LINK_SECONDS,
   httpOnly: true,
   secure: true,

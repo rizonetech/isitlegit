@@ -27,7 +27,7 @@ import {
   returnPath,
 } from "./confirm-page";
 import { DEFAULT_RETURN, MAX_RETURN_PATH } from "./paths";
-import { LINK_WINDOW_SECONDS } from "./ratelimit";
+import { APP_RULES, d1RateLimit, LINK_WINDOW_SECONDS } from "./ratelimit";
 import { CODE_COOKIE, CODE_PATH, clearHandleCookie, normaliseCode, readHandle } from "./signin-code";
 import { checkCode, giveBack, markUsed } from "./signin-code-store";
 
@@ -312,10 +312,27 @@ confirmRoutes.post(CODE_PATH, async (c) => {
   const callbackURL = returnPath(form.callbackURL);
   const inbox = (codeError: string, status: number) =>
     pageResponse(<InboxPage email={email} callbackURL={callbackURL} codeError={codeError} />, status);
+  const secret = c.env.BETTER_AUTH_SECRET ?? "";
+  // Counted per IP before anything is read or recorded (D07 T02 §6's limiter, ./ratelimit), so neither guesses nor
+  // refusals can be sent faster than the rule; a limiter that cannot count is the service's fault, as below.
+  try {
+    const limit = await d1RateLimit(
+      () => c.env.DB,
+      secret,
+      (event) => recordAuthEvent(c.env.DB, secret, event),
+    ).consume(`${clientIp(c.req.raw.headers) ?? ""}|${CODE_PATH}`, APP_RULES[CODE_PATH]);
+    if (!limit.allowed)
+      return inbox(
+        `Too many codes tried from here. Try again in ${resumesIn(limit.retryAfter ?? LINK_WINDOW_SECONDS)}.`,
+        429,
+      );
+  } catch (error) {
+    unrecorded("uncounted")(error);
+    return inbox("We could not check the code just now. Type it again in a moment.", 503);
+  }
   const code = normaliseCode(form.code);
   // Not six digits: a slip, not a guess, so no attempt is spent.
   if (!code) return inbox("Enter the 6-digit code from the email.", 400);
-  const secret = c.env.BETTER_AUTH_SECRET ?? "";
   const refused = (outcome: string) =>
     recordAuthEvent(c.env.DB, secret, { kind: "sign-in-failed", outcome, ip: clientIp(c.req.raw.headers) });
   // A row the store cannot read or claim is the service's fault: the member is told to try again, and nothing was spent.
@@ -344,9 +361,22 @@ confirmRoutes.post(CODE_PATH, async (c) => {
     return out;
   }
   if (outcome === "rate-limited") {
-    // The token is untouched: the attempt is given back and the same code works once the limiter lets it.
-    await giveBack(c.env.DB, check.claimed).catch(unrecorded("not-given-back"));
-    return inbox(`Too many sign-in tries from here. Type the code again in ${resumesIn(retryAfterOf(answer))}.`, 429);
+    // The token is untouched: the attempt is given back and the same code works once the limiter lets it. An attempt
+    // that could not be given back may have been the code's last, so the page then points to a new link instead.
+    const wait = resumesIn(retryAfterOf(answer));
+    const kept = await giveBack(c.env.DB, check.claimed).then(
+      () => true,
+      (error) => {
+        unrecorded("not-given-back")(error);
+        return false;
+      },
+    );
+    return inbox(
+      kept
+        ? `Too many sign-in tries from here. Type the code again in ${wait}.`
+        : `Too many sign-in tries from here, and this code could not be kept for later. Send another link in ${wait}.`,
+      429,
+    );
   }
   // Used (the link was spent first), no account, or the service's failure after the token was taken: the code is done.
   await markUsed(c.env.DB, check.id).catch(unrecorded("unmarked"));

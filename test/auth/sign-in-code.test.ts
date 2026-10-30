@@ -37,34 +37,42 @@ const mailed = () => {
 // Each browser has an address of its own, so one test's spent limit (D07 T02 §6) is never another's.
 let nextIp = 1;
 function browser(ip = `198.51.${Math.floor(nextIp / 250)}.${(nextIp++ % 250) + 1}`) {
-  const jar = new Map<string, string>();
+  // Each cookie with its Path, sent only to the paths it matches (RFC 6265 5.1.4), as a browser does.
+  const cookies = new Map<string, { value: string; path: string }>();
   const keep = (answer: Response) => {
     for (const cookie of answer.headers.getSetCookie()) {
       const [pair = "", ...attributes] = cookie.split(";");
       const [name = "", ...value] = pair.trim().split("=");
-      if (attributes.some((a) => /^\s*max-age=0\s*$/i.test(a))) jar.delete(name);
-      else jar.set(name, value.join("="));
+      const path = attributes.map((a) => /^\s*path=(.*)$/i.exec(a)?.[1]?.trim()).find(Boolean) ?? "/";
+      if (attributes.some((a) => /^\s*max-age=0\s*$/i.test(a))) cookies.delete(name);
+      else cookies.set(name, { value: value.join("="), path });
     }
     return answer;
   };
-  const headers = (extra: Record<string, string> = {}) => ({
-    ...extra,
-    "cf-connecting-ip": ip,
-    ...(jar.size ? { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join("; ") } : {}),
-  });
+  const matches = (path: string, cookiePath: string) =>
+    path === cookiePath || path.startsWith(cookiePath.endsWith("/") ? cookiePath : `${cookiePath}/`);
+  const headers = (path: string, extra: Record<string, string> = {}) => {
+    const sent = [...cookies].filter(([, c]) => matches(path.split("?")[0] ?? path, c.path));
+    return {
+      ...extra,
+      "cf-connecting-ip": ip,
+      ...(sent.length ? { cookie: sent.map(([k, c]) => `${k}=${c.value}`).join("; ") } : {}),
+    };
+  };
+  const jar = { get: (name: string) => cookies.get(name)?.value, has: (name: string) => cookies.has(name) };
   return {
     jar,
     post: async (path: string, fields: Record<string, string>) =>
-      keep(await call(path, { method: "POST", body: new URLSearchParams(fields), headers: headers() })),
+      keep(await call(path, { method: "POST", body: new URLSearchParams(fields), headers: headers(path) })),
     json: async (path: string, body: unknown) =>
       keep(
         await call(path, {
           method: "POST",
           body: JSON.stringify(body),
-          headers: headers({ "content-type": "application/json" }),
+          headers: headers(path, { "content-type": "application/json" }),
         }),
       ),
-    get: async (path: string) => keep(await call(path, { headers: headers() })),
+    get: async (path: string) => keep(await call(path, { headers: headers(path) })),
   };
 }
 
@@ -166,7 +174,7 @@ describe("a link request", () => {
     const asked = await laptop.post("/signin/link", { email, callbackURL: "/cases/7" });
     expect(asked.status).toBe(200);
     const cookie = asked.headers.getSetCookie().find((c) => c.startsWith(`${CODE_COOKIE}=`)) ?? "";
-    expect(cookie).toMatch(/; Path=\/signin/);
+    expect(cookie).toMatch(/; Path=\/(;|$)/);
     expect(cookie).toMatch(/; Max-Age=900/);
     expect(cookie).toMatch(/; HttpOnly/);
     expect(cookie).toMatch(/; Secure/);
@@ -259,6 +267,26 @@ describe("a link request", () => {
     });
     expect(signedIn.status).toBe(303);
     expect(target(signedIn)).toBe("/cases/9");
+  });
+
+  it("keeps the browser's handle and its codes when links are asked for through Better Auth's own endpoint", async () => {
+    const smtp = mailed();
+    const laptop = browser();
+    const email = unique("api");
+    for (let i = 0; i < SIGNIN_PER_ADDRESS; i++)
+      await laptop.json("/api/auth/sign-in/magic-link", { email, callbackURL: "/cases/3" });
+    const handle = laptop.jar.get(CODE_COOKIE);
+    expect(handle).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    // The sixth, held back by the address's limit, answers as sent and keeps the same handle.
+    expect((await laptop.json("/api/auth/sign-in/magic-link", { email, callbackURL: "/cases/3" })).status).toBe(200);
+    expect(smtp.sends).toHaveLength(SIGNIN_PER_ADDRESS);
+    expect(laptop.jar.get(CODE_COOKIE)).toBe(handle);
+    const done = await laptop.post("/signin/code", {
+      code: codeIn(smtp.sends.at(-1)?.text ?? ""),
+      email,
+      callbackURL: "/cases/3",
+    });
+    expect(target(done)).toBe("/cases/3");
   });
 
   it("binds the first code of an invite-code signup to the browser that signed up", async () => {
@@ -503,6 +531,38 @@ describe("signing in by code", () => {
     const done = await laptop.post("/signin/code", { code, email, callbackURL });
     expect(done.status).toBe(303);
     expect(sessionCookie(done)).toMatch(/session_token=/);
+  });
+
+  it("counts code posts per IP before reading them, so refusals cannot flood the audit trail", async () => {
+    const since = await mark();
+    const stranger = browser();
+    const answers: number[] = [];
+    for (let i = 0; i < 22; i++)
+      answers.push(
+        (await stranger.post("/signin/code", { code: "111111", email: "x@example.org", callbackURL: "/cases" })).status,
+      );
+    expect(answers.slice(0, 20).every((s) => s === 400)).toBe(true);
+    expect(answers.slice(20)).toEqual([429, 429]);
+    const outcomes = await failures(since);
+    expect(outcomes.filter((o) => o === "code-no-request")).toHaveLength(20);
+    const limited = await db
+      .prepare("SELECT COUNT(*) AS n FROM auth_events WHERE kind = 'rate-limited' AND rowid > ?")
+      .bind(since)
+      .first<{ n: number }>();
+    expect(limited?.n).toBe(1);
+  });
+
+  it("points to a new link when a throttled code's attempt cannot be given back", async () => {
+    const { laptop, email, callbackURL, code } = await asked();
+    for (let i = 0; i < 20; i++) await laptop.post("/signin/confirm", { token: `not-a-token-${i}`, callbackURL });
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/attempts = attempts - 1/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const throttled = await laptop.post("/signin/code", { code, email, callbackURL });
+    expect(throttled.status).toBe(429);
+    expect(await throttled.text()).toContain("this code could not be kept for later. Send another link in");
   });
 
   it("refuses a code posted from another origin", async () => {
