@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 39 | Checklist items: 227
+Sections: 39 | Checklist items: 228
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -102,7 +102,7 @@ Sections: 39 | Checklist items: 227
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
-| [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
+| [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 7     |
 | [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
 | [x]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
@@ -336,4 +336,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 85/265 verified sections, 44 ready to run now.
 
-Checklist: 878/1703 items completed (includes Commit items).
+Checklist: 878/1704 items completed (includes Commit items).

@@ -73,6 +73,10 @@ Anyone can write an `Authentication-Results` header into a message. Only the one
 
 From the trusted results, produce evidence: SPF and DKIM pass or fail, DMARC result, and whether the passing identifier aligns with the visible From domain (RFC 7489 section 3.1, relaxed alignment by registrable domain via `tldts`).
 
+> **Started:** 2026-10-30T13:02Z
+
+**Corrected 2026-10-30** (at start, checked against the repository and Microsoft Learn): (1) checks run side by side on one frozen view and never read each other's output (`src/checks/registry.ts`), so each `auth.*` check calls §1's pure selector, `trustedAuthResults(view.headers, view.tenant.receivers, view.tenant.headersAvailable)`, and returns nothing when it trusts no header (`auth.results` already says why); (2) the From domain's DMARC policy is read where each receiver writes it: Google in the result's comment (`dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=...`), which the parser in `src/intake/sender.ts` drops today, so each result keeps its comment text; Microsoft 365 by its `action` property on a failure (Microsoft Learn, "Anti-spam message headers": `reject`, `oreject`, `quarantine`, `pct.reject`, `pct.quarantine` name the policy applied); a `policy.dmarc` property where a receiver writes one; otherwise the policy is unknown and a failure is medium; (3) checks are pure and cannot write to R2, so no excerpt object exists: each item carries the trusted header's text in its detail (bounded), and its `artefacts` name the stored raw message the header came from (`rawKey` in `src/intake/store.ts`), which the view gains as `raw`; (4) the visible From domain comes from the original's `From` header (postal-mime's `addressParser`); a From naming no single mailbox cannot be aligned and says so; registrable domains come from `registrable` in `src/auth/senders.ts`.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -81,11 +85,12 @@ From the trusted results, produce evidence: SPF and DKIM pass or fail, DMARC res
 
 1. Write the auth checks. Done when: each synthetic fixture yields its expected severity.
 
+- [ ] Keep each result's comment text in `parseAuthenticationResults` (`src/intake/sender.ts`). Done when: `test/checks/auth-results.test.ts` reads Google's `(p=REJECT sp=REJECT dis=NONE)` from its DMARC result. (**Corrected 2026-10-30**, at start.)
 - [ ] Register check `auth.spf` (fail or softfail medium, pass info) in `src/checks/auth.ts`. Done when: `test/checks/auth.test.ts` covers pass, fail and softfail fixtures.
 - [ ] Register check `auth.dkim` (fail medium; pass with signing domain in detail). Done when: the fixtures pass.
-- [ ] Register check `auth.dmarc` (fail high when the From domain publishes `p=reject` or `p=quarantine`, medium otherwise) with the From domain's policy read from the result. Done when: the fixtures pass.
+- [ ] Register check `auth.dmarc` (fail high when the From domain publishes `p=reject` or `p=quarantine`, medium otherwise) with the policy read from the result: Google's comment, Microsoft 365's `action`, a `policy.dmarc` property (correction 2). Done when: the fixtures pass, including Google's commented policy and each Microsoft action. (**Corrected 2026-10-30**, at start.)
 - [ ] Register check `auth.alignment`: high when neither SPF nor DKIM passes aligned with the From registrable domain. Done when: a fixture passing SPF for an unrelated domain yields it.
-- [ ] Attach the trusted header excerpt as the artefact of each item. Done when: each item's `artefacts` holds the excerpt key.
+- [ ] Carry the trusted header's text in each item's detail and the stored raw message's key in its `artefacts` (correction 3), the view gaining `raw` from `caseViewOf`. Done when: each item's `artefacts` holds the raw key and its detail the header text, bounded. (**Corrected 2026-10-30**, at start.)
 - [ ] Commit: `checks: SPF, DKIM and DMARC alignment evidence`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/auth.test.ts` passes and fails if alignment compares full host names instead of registrable domains.
