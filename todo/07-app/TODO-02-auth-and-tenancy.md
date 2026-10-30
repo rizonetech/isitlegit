@@ -543,6 +543,8 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 
 ## 14. Invite acceptance page
 
+> **Started:** 2026-10-30T22:47:37Z
+
 The page an invitation's link opens (`/invite/<id>`, `design/SPEC.md` A3). Split from §7 on 2026-10-30 (its item moved here unchanged).
 
 **Phase:** 2
@@ -553,14 +555,25 @@ The page an invitation's link opens (`/invite/<id>`, `design/SPEC.md` A3). Split
 **Treatment:** who invited them to what, one button, every error says what to do next
 **Chrome:** `Button`, `ErrorState` from D07 T01 §6 to §8 on the sign-in frame (§7)
 
+**Corrected 2026-10-31** at start, against the code and the board (`Invite`):
+- The invitation mail links `/invite/<id>` (`src/auth/auth.ts`), which nothing serves. Accepting is Better Auth's `accept-invitation` for the signed-in recipient, with the use recorded once (`invitation_uses`, migration 0012, §3); a pending invitee can sign in by link (the account gate admits them), so the page takes a signed-out visitor through signing in as the invited address first, never accepting for an address it has not seen sign in.
+- The page has three answers to who is here: signed out (the invitation shown, and "Email me a sign-in link" to the invited address, returning to the invitation; the request is §7's neutral one); signed in as the invited address (the board: who invited them to what, the role in words, "Signing in as", "Invitation expires" in SAST, Accept and join, Not you? Decline); signed in as another address (this invitation is for its address, with Sign out, nothing accepted).
+- Accepting makes the joined organisation the session's active one and lands on the Cases list. Declining (Better Auth's `reject-invitation`) says nothing was shared. Expired, revoked (cancelled), already used and unknown invitations each get their state (the board's Expired and Revoked; the other two in its words), with no form.
+- The frame is §7's `SigninFrame` with A3's panel words ("Your team checks suspicious mail with IsItLegit.", "Join them, and forward anything that looks wrong to check@isitlegit.co.za.").
+
 **Build order:**
 
 1. Build the invitation page. Done when: an invitee lands in the organisation.
 
-- [ ] Build `src/web/pages/invite.tsx` for accepting an invite. Done when: an invitee lands in the organisation.
+- [ ] Serve `GET /invite/<id>` (`src/web/pages/invite.tsx`, the routes beside the sign-in routes in `src/auth/confirm.tsx`): the invitation read with its organisation and inviter, private and unindexed, and the answer for who is here (signed out, the invitee, someone else). Done when: `test/web/invite-page.test.ts` reads each, the invitee's with the inviter, organisation, role, address and expiry in SAST.
+- [ ] Sign a signed-out invitee in as the invited address and back to the invitation: the page's one form asks for a link to that address with `callbackURL=/invite/<id>`. Done when: the page test requests the link from the page, redeems it, and is back on the invitation signed in as the invitee.
+- [ ] Accept by `POST /invite/<id>` (from the app's origin, the signed-in invitee only): the use recorded once, the membership made, the joined organisation made active, and 303 to `/cases`. Done when: the page test accepts and reads the Cases list for the inviting organisation, with one membership and one use; a second accept and someone else's accept change nothing.
+- [ ] Decline by `POST /invite/<id>` with `decline`, the invitee only: the invitation rejected and the page saying nothing was shared. Done when: the page test declines and finds no membership and the invitation rejected.
+- [ ] Answer an expired, revoked, already used or unknown invitation with its state and no form, and someone signed in as another address with Sign out, nothing accepted. Done when: the page test reads each and finds nothing changed.
+- [ ] Pass the accessibility gate's rules at 360 and 1280 px in both themes for each state, and work by keyboard. Done when: `test/node/invite-page-browser.test.tsx` scans each and accepts by keyboard.
 - [ ] Commit: `web: the invitation page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/invite-page.test.ts` passes: an invitee lands in the organisation.
+**Test checkpoint:** `pnpm exec vitest run test/web/invite-page.test.ts` and `pnpm exec vitest run test/node/invite-page-browser.test.tsx` pass: an invitee lands in the organisation, and no one else's acceptance changes anything.
 
 ## 15. Domain verification page
 
