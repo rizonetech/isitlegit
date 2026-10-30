@@ -32,11 +32,18 @@ Batches are asked at a time the operator chooses. Each step names the section it
 
 D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice first), D01 T01 §15 (second inbound route), D07 T01 §11 and §12 (shortcut and switcher boards).
 
+## Deploys
+
+| When (SAST) | Commit | Version | Migrations applied | Verified |
+| ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-10-30 17:05 | `3670dfe` (from `9b6dfc9`, 458 commits) | `86106996-37bb-4388-9cf2-6f37244d4d09` | 0034, 0035 | `/health` reports the commit; `scripts/smoke.ts` passed in 13 s (DB, ARTEFACTS, CACHE, ANALYSIS, BROWSER ok) |
+
 ## Migration numbers
 
 | Number | Lane | For | Handed out |
 | ------ | ---- | --- | ---------- |
-| 0034 | checks | `org_receivers`, `receiver_lookups` (D02 T02 §1; first version on main in c4bc74c, final with the §1 stamp) | 2026-10-30, reserved |
-| 0035 | app | `signin_codes` (D07 T02 §11) | 2026-10-30 |
+| 0034 | checks | `org_receivers`, `receiver_lookups` (D02 T02 §1) | 2026-10-30; live 17:05 |
+| 0035 | app | `signin_codes` (D07 T02 §11) | 2026-10-30; live 17:05 |
+| 0036 | checks | forwarding incidents and scan progress (D01 T02 §6) | 2026-10-30 |
 
-The next free number is 0036.
+The next free number is 0037.
