@@ -48,10 +48,16 @@ export function fromDomain(headers: readonly { name: string; value: string }[]):
   if (mailboxes.length !== 1) return null;
   const address = (mailboxes[0]?.address ?? "").toLowerCase();
   const at = address.lastIndexOf("@");
-  const domain = at > 0 && at < address.length - 1 ? address.slice(at + 1) : null;
-  // A domain that is not a domain name as a whole names no mailbox anyone can align with (round 1).
-  return domain !== null && asciiDomain(domain) !== null ? domain : null;
+  if (at < 1 || at === address.length - 1) return null;
+  // The whole mailbox is checked, not only what follows the last `@` (round 2): a local part is a quoted string or
+  // dot-separated atoms (RFC 5322 section 3.4.1, with RFC 6532's UTF-8), and the domain a domain name as a whole (round
+  // 1). `a@evil.example@bank.example` names no mailbox anyone can align with.
+  const local = address.slice(0, at);
+  const domain = address.slice(at + 1);
+  return LOCAL.test(local) && asciiDomain(domain) !== null ? domain : null;
 }
+const ATOM = "[\\p{L}\\p{N}\\p{M}!#$%&'*+/=?^_`{|}~-]+";
+const LOCAL = new RegExp(`^(?:${ATOM}(?:\\.${ATOM})*|"(?:[^"\\\\]|\\\\.)*")$`, "u");
 
 const domainOf = (value: string) => {
   const v = value.trim().toLowerCase().replace(/^<|>$/g, "");
@@ -140,7 +146,18 @@ const plain = (value: string, max = 80) => {
   const text = Array.from(value.replace(/[<>\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, "").trim());
   return text.length <= max ? text.join("") : `${text.slice(0, max - 1).join("")}…`;
 };
+// Bounds on what an item's detail copies from a header, so it stays inside the schema's 64 KiB whatever the header holds
+// and is never refused and replaced by `not_checked` (round 2): the outcome and the raw message's key always survive.
 const MAX_HEADER = 2_000;
+const MAX_SOURCES = 8;
+const MAX_COMMENT = 256;
+const MAX_VALUE = 255;
+const MAX_RESULTS = 20;
+function clip(value: string | null, max = MAX_VALUE): string | null {
+  if (value === null) return null;
+  const text = Array.from(value);
+  return text.length <= max ? value : `${text.slice(0, max - 1).join("")}…`;
+}
 // The evidence schema's limit for a summary (at most 200 characters): a long one is cut, its detail keeping every result,
 // so an item is never refused and replaced by `not_checked` (round 1).
 const bounded = (summary: string) => {
@@ -155,7 +172,7 @@ function headersOf(trusted: Trusted, results: Result[]): string[] {
   const used = results.length
     ? trusted.sources.filter((s: Source) => s.results.some((r) => results.includes(r)))
     : trusted.sources;
-  return used.map((s) => Array.from(s.header).slice(0, MAX_HEADER).join(""));
+  return used.slice(0, MAX_SOURCES).map((s) => clip(s.header, MAX_HEADER) ?? "");
 }
 
 function item(
@@ -226,10 +243,10 @@ function methodEvidence(method: "spf" | "dkim") {
         `${NAMED[method]} ${said}, as your receiving system recorded.`,
         {
           state,
-          results: results.map((r, i) => ({
+          results: results.slice(0, MAX_RESULTS).map((r, i) => ({
             result: r.result,
-            identifier: identifiers[i] ?? null,
-            comment: r.comment,
+            identifier: clip(identifiers[i] ?? null),
+            comment: clip(r.comment, MAX_COMMENT),
           })),
           ...(method === "spf" ? { helo: results.some((r) => spfIdentifier(r)?.helo === true) } : {}),
         },
@@ -269,7 +286,14 @@ export function dmarcEvidence(view: CaseView): EvidenceDraft[] {
       "auth.dmarc",
       severity,
       `DMARC ${SAID[state]}${domain}, as your receiving system recorded.${why}`,
-      { state, from, policy, results: results.map((r) => ({ result: r.result, comment: r.comment })) },
+      {
+        state,
+        from: clip(from),
+        policy,
+        results: results
+          .slice(0, MAX_RESULTS)
+          .map((r) => ({ result: clip(r.result), comment: clip(r.comment, MAX_COMMENT) })),
+      },
       results,
     ),
   ];
@@ -293,7 +317,10 @@ export function alignmentEvidence(view: CaseView): EvidenceDraft[] {
       .filter((r) => stateOf("dkim", r) === "passed" && aligned(dkimIdentifier(r), from))
       .map((r) => ({ method: "DKIM", identifier: dkimIdentifier(r) })),
   ];
-  const detail = { from, aligned: passing };
+  const detail = {
+    from: clip(from),
+    aligned: passing.slice(0, MAX_RESULTS).map((p) => ({ method: p.method, identifier: clip(p.identifier) })),
+  };
   if (!from)
     return [
       item(

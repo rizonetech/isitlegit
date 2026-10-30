@@ -277,6 +277,26 @@ describe("round 1", () => {
     );
   });
 
+  it("checks the whole mailbox, not only what follows its last @ (round 2)", () => {
+    expect(
+      alignmentEvidence(view(gmail("dkim=pass header.d=bank.example", "a@evil.example@bank.example")))[0],
+    ).toMatchObject({
+      severity: "medium",
+      detail: { from: null },
+    });
+    expect(alignmentEvidence(view(gmail("dkim=pass header.d=bank.example", '"a@b"@bank.example')))[0]).toMatchObject({
+      severity: "info",
+    });
+  });
+
+  it("keeps an item inside the schema however long a comment is, so the failure is stored (round 2)", async () => {
+    const items = await run(view(gmail(`dkim=fail (${"x".repeat(66_000)}) header.d=bank.example`)));
+    expect(items.some((e) => e.check === "not_checked")).toBe(false);
+    const dkim = items.find((e) => e.check === "auth.dkim");
+    expect(dkim).toMatchObject({ severity: "medium", artefacts: [RAW] });
+    expect(new TextEncoder().encode(JSON.stringify(dkim?.detail)).length).toBeLessThanOrEqual(64 * 1024);
+  });
+
   it("reads an internationalised apex as the organisational domain for its policy", () => {
     expect(dmarcEvidence(view(gmail("dmarc=fail (p=REJECT sp=NONE dis=NONE)", "a@bücher.example")))[0]).toMatchObject({
       severity: "high",
