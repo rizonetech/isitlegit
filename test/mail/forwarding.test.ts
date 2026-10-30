@@ -223,10 +223,7 @@ describe("completion review", () => {
         }),
       );
     const pages = Array.from({ length: 10 }, (_, p) => full(p * 1000));
-    const w = world([
-      ...pages,
-      [report({ datetime: at(185).toISOString(), subject: "Undeliverable: Bulk 9999" })],
-    ]);
+    const w = world([...pages, [report({ datetime: at(185).toISOString(), subject: "Undeliverable: Bulk 9999" })]]);
     expect(await checkForwarding(deps(w.fetcher, at(200)))).toMatchObject({ state: "partial", events: 10_000 });
     const next = await checkForwarding(deps(w.fetcher, at(201)));
     expect(next.state).toBe("ok");
