@@ -31,6 +31,7 @@ import {
   groupOf,
   hamming,
   jaccard,
+  NEAR_TEXT,
   NO_FLOORS,
   netNewLures,
   PublicationRefused,
@@ -41,6 +42,7 @@ import {
   scanSampleLines,
   shingles,
   siteOf,
+  sizesAllow,
   split,
   validateLine,
 } from "../../scripts/glimmer/build-dataset.ts";
@@ -1460,6 +1462,20 @@ describe("the lures a sweep adds, after everything that drops pages (§27)", () 
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("the size cut before the shingle merge", () => {
+  it("skips only pairs whose Jaccard cannot reach the bar, agreeing with jaccard at the boundary", () => {
+    const set = (n: number, from = 0) => Uint32Array.from({ length: n }, (_, i) => from + i);
+    // 12 inside 15 is exactly the bar (0.8 * 15 is 12.000000000000002 in floating point, 12 / 15 is not).
+    expect(jaccard(set(12), set(15))).toBeGreaterThanOrEqual(NEAR_TEXT);
+    expect(sizesAllow(12, 15)).toBe(true);
+    for (let small = 0; small <= 60; small++)
+      for (let large = small; large <= 60; large++)
+        if (jaccard(set(small), set(large)) >= NEAR_TEXT) expect(sizesAllow(small, large)).toBe(true);
+    expect(sizesAllow(11, 15)).toBe(false);
+    expect(sizesAllow(0, 0)).toBe(true);
   });
 });
 

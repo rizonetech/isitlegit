@@ -131,6 +131,13 @@ export function shingles(text: string): Uint32Array {
 }
 
 // Exact Jaccard similarity of two sorted, distinct shingle arrays, by one merge walk.
+// Whether two shingle sets of these sizes could reach `NEAR_TEXT`: their Jaccard is at most the smaller size over the
+// larger, computed with the same division `jaccard` makes for a set inside another, so the cut agrees with it exactly.
+export function sizesAllow(a: number, b: number): boolean {
+  const large = Math.max(a, b);
+  return large === 0 || Math.min(a, b) / large >= NEAR_TEXT;
+}
+
 export function jaccard(a: Uint32Array, b: Uint32Array): number {
   if (!a.length && !b.length) return 1;
   let both = 0;
@@ -284,6 +291,7 @@ export function dedupe(
   entries: Entry[],
   prefer: Set<string> = new Set(),
   protectors: Entry[] = [],
+  progress?: (line: string) => void,
 ): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
@@ -306,7 +314,9 @@ export function dedupe(
       Array.from({ length: 7 }, (_, band) => Number((protector.hash >> BigInt(band * 9)) & 0x1ffn)),
     );
   }
+  let done = 0;
   for (const entry of [...entries].sort(order)) {
+    if (++done % 10_000 === 0) progress?.(`build-dataset: ${done} of ${entries.length} pages compared`);
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
     const reserved = prefer.has(entry.page.id);
     const keys = Array.from({ length: 7 }, (_, band) => Number((entry.hash >> BigInt(band * 9)) & 0x1ffn));
@@ -321,8 +331,13 @@ export function dedupe(
     keys.forEach((value, band) => {
       for (const other of bands[band]?.get(value) ?? []) candidates.add(other);
     });
+    // Two texts share at most the smaller one's shingles, so a pair whose sizes differ by more than the bar cannot reach
+    // it: the check skips the merge for such a pair without changing which pages are twins.
     const twin = [...candidates].find(
-      (other) => hamming(other.hash, entry.hash) <= NEAR_BITS && jaccard(other.words, entry.words) >= NEAR_TEXT,
+      (other) =>
+        hamming(other.hash, entry.hash) <= NEAR_BITS &&
+        sizesAllow(other.words.length, entry.words.length) &&
+        jaccard(other.words, entry.words) >= NEAR_TEXT,
     );
     if (twin) {
       near++;
@@ -1087,7 +1102,7 @@ export async function buildDataset(options: {
     });
   }
   options.progress?.(`build-dataset: ${entries.length} pages admitted; removing duplicates`);
-  const deduped = dedupe(entries, reference.ids, protectors);
+  const deduped = dedupe(entries, reference.ids, protectors, options.progress);
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
   const capped = capBrands(deduped.kept, random);
