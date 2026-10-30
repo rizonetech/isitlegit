@@ -80,6 +80,18 @@ if [ -z "$python" ]; then
     echo "pre-commit: Python is needed to check the TODO graph" >&2
     exit 1
 fi
+# A merge being concluded (D00 T01 §22): the todo-plan driver kept this side's plan, so it is regenerated here, after
+# the check above that nothing under todo/ or docs/reviews/ is unstaged, from exactly the merged inputs. MERGE_HEAD
+# exists by now, so the incoming parent's stamps and pins validate (pre-merge-commit runs before git writes it).
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    if ! "$python" "$root/scripts/todo-graph.py" plan --sync >/dev/null; then
+        echo "pre-commit: plan --sync failed over the merged tree (its refusal is above: an invalid graph, or a write" \
+            "that failed), so the merge is not committed; fix it and run 'git commit --no-edit' again, or" \
+            "'git merge --abort'" >&2
+        exit 1
+    fi
+    git add -- todo/implementation-plan.md || exit 1
+fi
 if ! "$python" "$root/scripts/todo-graph.py" validate >/dev/null || ! "$python" "$root/scripts/todo-graph.py" plan --check; then
     echo "pre-commit: run 'python scripts/todo-graph.py plan --sync', stage todo/implementation-plan.md, and commit again" >&2
     exit 1

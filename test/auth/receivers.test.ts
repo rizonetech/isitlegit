@@ -122,6 +122,19 @@ describe("receiversForOrg", () => {
     expect(failing.asked).toEqual(["for.co.za"]);
   });
 
+  it("gives every claim its turn: domains with no MX or a failing lookup do not starve a healthy one (completion review)", async () => {
+    for (const d of ["empty.co.za", "failing.co.za", "healthy.co.za"]) await claim("org-turns", d);
+    const lookup = answering({ "empty.co.za": [], "failing.co.za": null, "healthy.co.za": ["aspmx.l.google.com"] });
+    await receiversForOrg(db, "org-turns", lookup);
+    const second = await receiversForOrg(db, "org-turns", lookup);
+    expect(lookup.asked).toContain("healthy.co.za");
+    expect(second).toEqual([{ kind: "google", pattern: "*.google.com" }]);
+    // The empty and failing claims rest: a third case looks neither up again.
+    const before = lookup.asked.length;
+    await receiversForOrg(db, "org-turns", lookup);
+    expect(lookup.asked.slice(before)).toEqual([]);
+  });
+
   it("trusts only receivers whose claim is still verified, and bounds the lookups one case makes", async () => {
     const domains = Array.from({ length: RELEARN_DOMAINS + 2 }, (_, i) => `bound${i}.co.za`);
     for (const d of domains) await claim("org-bound", d);

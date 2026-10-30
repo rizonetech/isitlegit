@@ -5,7 +5,7 @@ import { SummaryRefused } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
-import { parsedKey, putParsed, putRaw, readArtefact, type Store, StoreError } from "../../src/intake/store";
+import { parsedKey, putParsed, putRaw, rawKey, readArtefact, type Store, StoreError } from "../../src/intake/store";
 import { BudgetExceeded } from "../../src/meta/guard";
 import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
@@ -595,7 +595,8 @@ describe("the checks step and the event writer", () => {
       asked.push(domain);
       return ["member-co-za.mail.protection.outlook.com"];
     };
-    expect(await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, lookup)).toEqual({ evidence: 2 });
+    // intake.forward, auth.results, then the four auth checks (D02 T02 §2).
+    expect(await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, lookup)).toEqual({ evidence: 6 });
     expect(asked).toEqual(["member.co.za"]);
     const item = (await readEvidence(env.DB, id)).find((e) => e.check === "auth.results");
     expect(item?.detail).toMatchObject({
@@ -610,6 +611,50 @@ describe("the checks step and the event writer", () => {
     // Learned once: the next run reads them without a lookup.
     await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, lookup);
     expect(asked).toEqual(["member.co.za"]);
+  });
+
+  it("stores the auth checks' evidence through the step, each item citing its header and the stored raw message (D02 T02 §2)", async () => {
+    const org = "org-auth-step";
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+    )
+      .bind("claim-auth-step", org, "auth-step.co.za", "t".repeat(16), now, now)
+      .run();
+    await putRaw(store, id, new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay.\r\n"));
+    const header =
+      "mx.google.com; spf=pass smtp.mailfrom=bounce@mailer.example; dkim=none; dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=bank.example";
+    await putParsed(store, id, {
+      headers: [
+        { name: "Received", value: "from mail.sender.example (mail.sender.example. [203.0.113.5]) by mx.google.com" },
+        { name: "Authentication-Results", value: header },
+        { name: "Received", value: "from client by mail.sender.example" },
+        { name: "From", value: "billing@bank.example" },
+      ],
+      text: "Pay.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]);
+    const stored = await readEvidence(env.DB, id);
+    const auth = stored.filter((e) => e.check.startsWith("auth.") && e.check !== "auth.results");
+    expect(auth.map((e) => [e.check, e.severity])).toEqual([
+      ["auth.spf", "info"],
+      ["auth.dkim", "info"],
+      ["auth.dmarc", "high"],
+      ["auth.alignment", "high"],
+    ]);
+    for (const e of auth) {
+      expect(e.detail.headers).toEqual([header]);
+      expect(e.artefacts).toEqual([rawKey(id)]);
+      expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
+    }
   });
 
   it("stores one list however often the step runs, and returns only its count", async () => {

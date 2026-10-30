@@ -544,17 +544,18 @@ _COMMITTED_PINS = {}
 
 
 def committed_pins(root):
-    """Every blob a commit in HEAD's history has held at the pin's path, merge resolutions included: what a fresh clone
-    of this history can read back. A blob that is only in the object store (staged, then replaced before a commit) is
-    not among them."""
-    head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=30)
+    """Every blob a commit in the history of HEAD (and MERGE_HEAD while a merge is being concluded, as `_tips` reads
+    it; D00 T01 §22) has held at the pin's path, merge resolutions included: what a fresh clone of this history can
+    read back. A blob that is only in the object store (staged, then replaced before a commit) is not among them."""
+    tips = _tips(root)
+    head = subprocess.run(["git", "-C", str(root), "rev-parse", *tips], capture_output=True, text=True, timeout=30)
     require(head.returncode == 0, f"cannot read HEAD in {root} to find the committed reviewer pins")
-    key = (str(root), head.stdout.strip())
+    key = (str(root), tuple(head.stdout.split()))
     if key not in _COMMITTED_PINS:
         # --full-history -m: a merge whose resolution wrote a pin of its own (differing from both parents) is listed
         # too, against each parent; plain path-limited history simplifies merges away (round 1).
         log = subprocess.run(["git", "-C", str(root), "log", "--format=", "--raw", "--no-abbrev", "--no-renames",
-                              "--full-history", "-m", "HEAD", "--", PIN], capture_output=True, text=True, timeout=60)
+                              "--full-history", "-m", *tips, "--", PIN], capture_output=True, text=True, timeout=60)
         require(log.returncode == 0, f"cannot read the history of {PIN} in {root}")
         blobs = set()
         for line in log.stdout.splitlines():

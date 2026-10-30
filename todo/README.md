@@ -116,6 +116,9 @@ python scripts/todo-graph.py build               # parse todo/ -> build/todo-cac
 python scripts/todo-graph.py render              # mermaid dependency graph
 python scripts/todo-graph.py plan --sync         # regenerate todo/implementation-plan.md after any edit
 python scripts/todo-graph.py plan --check        # fail if the generated plan is stale (CI runs this)
+git config merge.todo-plan.driver true          # once per clone: merges regenerate the plan, never conflict on it
+git commit --no-edit                            # concludes a merge that stopped with 'regenerate the plan' (D00 T01 §22)
+git merge --abort                               # backs out of such a stopped merge instead
 python scripts/todo-graph.py query ready         # sections that can run now (also: blocked, stats, deferred, adjacency, plan)
 python scripts/todo-graph.py resolve 'D01 T01 §1'  # 0 ready, 1 no such section, 2 no reference, 3 verified, 4 waiting
 python scripts/todo-graph.py classify 'D01 T01 §1' 'D02 T01 §1'   # dispositions as JSON

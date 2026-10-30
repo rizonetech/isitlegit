@@ -52,7 +52,7 @@ Sections: 42 | Checklist items: 368
 | [x]    | D01 T02 §1  | SMTP2GO client with retries and send log  | none                  | 7     |
 | [x]    | D01 T02 §4  | Test and demo mail aliases                | cloudflare            | 6     |
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
-| [ ]    | D01 T02 §6  | Forwarding failures detected and reported | operator              | 6     |
+| [ ]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 6     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
 | [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 39 | Checklist items: 253
+Sections: 42 | Checklist items: 271
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -99,10 +99,13 @@ Sections: 39 | Checklist items: 253
 | [x]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
 | [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
+| [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
+| [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
+| [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
-| [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
-| [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
+| [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
+| [x]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 7     |
 | [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
 | [x]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
@@ -137,13 +140,14 @@ Sections: 39 | Checklist items: 253
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 19 | Checklist items: 91
+Sections: 20 | Checklist items: 95
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
+| [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
@@ -325,8 +329,8 @@ Sections: 15 | Checklist items: 61
 | [x]    | D99 T01 §6  | Google Web Risk API key                       | none     | 6     |
 | [x]    | D99 T01 §7  | Partner credits for Glimmer                   | none     | 2     |
 | [x]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 6     |
-| [ ]    | D99 T01 §10 | Web Risk key restriction read from Google     | operator | 2     |
-| [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back | operator | 2     |
+| [ ]    | D99 T01 §10 | Web Risk key restriction read from Google     | none     | 2     |
+| [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back | none     | 2     |
 | [ ]    | D99 T02 §1  | Rizonetech dogfooding from day 2              | operator | 3     |
 | [ ]    | D99 T02 §2  | Pilot client written consent                  | operator | 2     |
 | [ ]    | D99 T02 §3  | Record the demo footage                       | operator | 2     |
@@ -334,6 +338,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 86/265 verified sections, 42 ready to run now.
+Progress: 89/269 verified sections, 48 ready to run now.
 
-Checklist: 905/1729 items completed (includes Commit items).
+Checklist: 931/1751 items completed (includes Commit items).

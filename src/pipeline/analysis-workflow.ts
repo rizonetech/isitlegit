@@ -343,7 +343,7 @@ export async function checks(
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
-  const view = caseViewOf(JSON.parse(new TextDecoder().decode(summary.body)), { ...tenant, receivers });
+  const view = caseViewOf(JSON.parse(new TextDecoder().decode(summary.body)), { ...tenant, receivers }, rawKey(caseId));
   const saved = await saveEvidence(store.db, caseId, await runChecks(view));
   return { evidence: saved.length };
 }

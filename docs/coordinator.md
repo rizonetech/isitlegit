@@ -10,9 +10,9 @@ Batches are asked at a time the operator chooses. Each step names the section it
 
 | Step | Releases | Status |
 | ---- | -------- | ------ |
-| Cloudflare API token, Zone Analytics Read on `isitlegit.co.za`, vault "IsItLegit Cloudflare analytics token" | D01 T02 §6 (checks) | asked |
-| Google service account with API Keys Viewer only, JSON key in vault "IsItLegit Google API keys viewer" | D99 T01 §10 (main) | asked |
-| SMTP2GO account-level read-only key with API keys view, vault "IsItLegit SMTP2GO admin" | D99 T01 §11 (main) | asked |
+| Cloudflare API token, Zone Analytics Read on `isitlegit.co.za`, vault "IsItLegit Cloudflare analytics token" | D01 T02 §6 (checks) | done 15:16, verified; recorded by checks in 4cb39cf |
+| Google service account with API Keys Viewer only, JSON key in vault "IsItLegit Google API keys viewer" | D99 T01 §10 (main) | done 15:31, verified (apiTargets: webrisk only) |
+| SMTP2GO account-level read-only key with API keys view, vault "IsItLegit SMTP2GO admin" | D99 T01 §11 (main) | done 15:50; admin key kept full, sending key narrowed, tracking kept |
 | Decision: a sign-in code beside the link, `Code sign-in: yes or no` | D07 T02 §11 (app) | done: yes (2026-10-30 14:58) |
 
 ### Waiting on a lane first
@@ -37,5 +37,6 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | Number | Lane | For | Handed out |
 | ------ | ---- | --- | ---------- |
 | 0034 | checks | `org_receivers`, `receiver_lookups` (D02 T02 §1; first version on main in c4bc74c, final with the §1 stamp) | 2026-10-30, reserved |
+| 0035 | app | `signin_codes` (D07 T02 §11) | 2026-10-30 |
 
-The next free number is 0035.
+The next free number is 0036.

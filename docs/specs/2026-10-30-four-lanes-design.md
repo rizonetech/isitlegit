@@ -19,7 +19,7 @@ Each building lane works its own domains in phase order, through `process-plan` 
 
 ## How the lanes meet
 
-- **Main is the coordinator's.** A building lane commits and pushes only its own branch. The coordinator merges a lane into `main` at the lane's stamp boundaries, resolving `todo/implementation-plan.md` with `plan --sync`, and runs the gates on the merge before pushing it.
+- **Main is the coordinator's.** A building lane commits and pushes only its own branch. The coordinator merges a lane into `main` at the lane's stamp boundaries, with `todo/implementation-plan.md` regenerated rather than merged (D00 T01 §22: the `todo-plan` merge driver and the `git commit --no-edit` that concludes the stopped merge; it was resolved by hand with `plan --sync` before), and runs the gates on the merge before pushing it.
 - **Lanes take `main` at their own boundaries**, as Glimmer does now, and tell the coordinator when they have.
 - **Cross-lane work is asked for, not done.** A lane that needs a row another lane owns sends it a message; it never edits that lane's TODO, source or tests. XREF lines in a TODO file the other lane owns go through that lane.
 - **Shared tooling is the coordinator's**: `scripts/`, `.conclave/reviewers.toml`, `scripts/hooks/`, `.claude/`. A building lane that finds a tooling gap reports it; the coordinator files and builds it.
