@@ -1,5 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { createSocket } from "node:dgram";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -913,6 +914,42 @@ describe("the batch run", () => {
     expect(assessCapture(page(), "Are you a human? Press & Hold")).toBe("wall");
     // Stored before its structural readings were kept: no words show a CAPTCHA or an image cover.
     expect(assessCapture(page({ title: "Bank", overlays: "" }), "Welcome to the bank")).toBe("unassessed");
+  });
+
+  it("writes a receipt summary of any size whole through a pipe before it exits", () => {
+    const data = join(dir, "data");
+    mkdirSync(join(data, "raw", "majestic"), { recursive: true });
+    mkdirSync(join(data, "raw", "benign"), { recursive: true });
+    const domains = Array.from({ length: 2500 }, (_, i) => `site${i}.example`);
+    writeFileSync(
+      join(data, "raw", "majestic", "top.csv"),
+      `GlobalRank,Domain\n${domains.map((d, i) => `${i + 1},${d}`).join("\n")}\n`,
+    );
+    // A distinct exclusion reason for every URL, as the real run's thousands of reasons make the summary large.
+    writeFileSync(
+      join(data, "raw", "benign", "progress.jsonl"),
+      domains
+        .map((d, i) =>
+          JSON.stringify({
+            url: `https://${d}/`,
+            event: "excluded",
+            reason: `a reason of its own number ${i} for this page`,
+            at: "2026-10-30T08:00:00.000Z",
+          }),
+        )
+        .join("\n"),
+    );
+    // A reader that waits before it reads, as a pipe into another program does: the old exit cut the summary at the
+    // pipe's buffer.
+    const script = join(import.meta.dirname, "../../scripts/glimmer/render.ts");
+    const result = spawnSync("bash", ["-c", `"${process.execPath}" "${script}" receipt majestic | (sleep 1; cat)`], {
+      env: { ...process.env, GLIMMER_DATA_DIR: data },
+      encoding: "utf-8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    expect(result.stdout.length).toBeGreaterThan(65_536);
+    const summary = JSON.parse(result.stdout.trim().split("\n").at(-1) as string);
+    expect(summary).toMatchObject({ urls: 2500, stored: 0, unfinished: 0 });
   });
 
   it("ends a run's time at the next run's start, a recheck's included, not at a later event", () => {
