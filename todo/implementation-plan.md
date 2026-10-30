@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 39 | Checklist items: 244
+Sections: 39 | Checklist items: 248
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -123,7 +123,7 @@ Sections: 39 | Checklist items: 244
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
-| [ ]    | D07 T02 §11 | Sign-in code for another device                       | none     | 11    |
+| [ ]    | D07 T02 §11 | Sign-in code for another device                       | none     | 15    |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -335,4 +335,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 85/264 verified sections, 42 ready to run now.
 
-Checklist: 885/1716 items completed (includes Commit items).
+Checklist: 885/1720 items completed (includes Commit items).
