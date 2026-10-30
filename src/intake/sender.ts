@@ -125,7 +125,7 @@ export function parseAuthenticationResults(value: string): { authservId: string 
   const parts = splitOutsideQuotes(tightenSeparators(stripComments(value)), ";").map((p) => p.trim());
   const first = parts[0]?.split(/\s+/)[0] ?? "";
   if (!first) return null;
-  const authservId = first.indexOf("=") > 0 ? null : first.toLowerCase();
+  const authservId = first.indexOf("=") > 0 ? null : unquote(first).toLowerCase();
   if (authservId !== null) parts.shift();
   const results: Result[] = [];
   for (const part of parts) {
@@ -151,25 +151,45 @@ export function parseAuthenticationResults(value: string): { authservId: string 
 }
 
 // Drops the whitespace RFC 8601 allows around `=`, `.` and `/` (`spf = pass`, `smtp . mailfrom`) outside quoted
-// strings, so each result reads as one token.
+// strings, so each result reads as one token. One pass each way: the next non-space character is found from the end and
+// the previous one is carried, so a long run of folding whitespace costs linear time, never a rescan (D02 T02 §1's
+// completion review: a folded 100 KB header took seconds).
 function tightenSeparators(value: string): string {
-  let out = "";
+  const next: string[] = new Array(value.length + 1).fill("");
+  for (let i = value.length - 1; i >= 0; i--) {
+    const c = value[i] as string;
+    next[i] = /\s/.test(c) ? (next[i + 1] as string) : c;
+  }
+  const out: string[] = [];
+  let previous = "";
   let quoted = false;
   for (let i = 0; i < value.length; i++) {
     const c = value[i] as string;
+    if (quoted && c === "\\") {
+      out.push(c, value[i + 1] ?? "");
+      previous = value[i + 1] ?? previous;
+      i++;
+      continue;
+    }
     if (c === '"') quoted = !quoted;
     if (!quoted && /\s/.test(c)) {
-      const next = value.slice(i).trimStart()[0];
-      const previous = out.trimEnd().at(-1);
-      if (next === "=" || next === "." || next === "/" || previous === "=" || previous === "." || previous === "/")
-        continue;
+      const after = next[i + 1] as string;
+      if (SEPARATORS.has(after) || SEPARATORS.has(previous)) continue;
+      out.push(c);
+      continue;
     }
-    out += c;
+    out.push(c);
+    previous = c;
   }
-  return out;
+  return out.join("");
 }
+const SEPARATORS = new Set(["=", ".", "/"]);
 
-const unquote = (v: string) => (v.length >= 2 && v.startsWith('"') && v.endsWith('"') ? v.slice(1, -1) : v);
+// A value with its quotes removed and its quoted-pairs (`\"`, `\\`) decoded (RFC 5322 section 3.2.4).
+function unquote(v: string): string {
+  if (!(v.length >= 2 && v.startsWith('"') && v.endsWith('"'))) return v;
+  return v.slice(1, -1).replace(/\\(.)/g, "$1");
+}
 
 // Removes (possibly nested) comments outside quoted strings.
 function stripComments(value: string): string {
@@ -191,17 +211,24 @@ function stripComments(value: string): string {
   return out;
 }
 
+// Splits at the separator outside quoted strings; a quoted-pair (`\"`) inside one neither ends it nor splits it.
 function splitOutsideQuotes(value: string, separator: string): string[] {
   const out: string[] = [];
-  let current = "";
+  let current: string[] = [];
   let quoted = false;
-  for (const c of value) {
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i] as string;
+    if (quoted && c === "\\") {
+      current.push(c, value[i + 1] ?? "");
+      i++;
+      continue;
+    }
     if (c === '"') quoted = !quoted;
     if (c === separator && !quoted) {
-      out.push(current);
-      current = "";
-    } else current += c;
+      out.push(current.join(""));
+      current = [];
+    } else current.push(c);
   }
-  out.push(current);
+  out.push(current.join(""));
   return out;
 }

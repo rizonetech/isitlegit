@@ -62,6 +62,14 @@ function kindsOf(parsed: { authservId: string | null; results: Result[] }, recei
   return kinds;
 }
 
+// Microsoft 365 and Google stamp every message they receive (Microsoft Learn: "When an email is received in Microsoft
+// 365, the service adds an Authentication-Results header"; Gmail writes its own below its border hop), so their topmost
+// header in the zone is theirs even where it sits under their hop. Any other receiver promises no such thing: a message
+// sent straight to it with a forged header and no hop of its own would put that header just under the receiver's border
+// hop, so for another receiver only a header above its lowest hop counts, written once the message was inside
+// (completion review).
+const STAMPS_EVERY_MESSAGE: ReadonlySet<ReceiverKind> = new Set(["microsoft", "google"]);
+
 export function trustedAuthResults(
   headers: readonly { name: string; value: string }[],
   receivers: readonly Receiver[],
@@ -69,15 +77,16 @@ export function trustedAuthResults(
 ): Selection {
   if (!headersAvailable || headers.length === 0) return { untrusted: "no-headers" };
   if (receivers.length === 0) return { untrusted: "unknown-receiver" };
-  let opened = false;
-  const found: { kinds: Set<ReceiverKind>; trusted: Trusted }[] = [];
-  for (const { name, value } of headers) {
+  // The receivers' own hops, by position: the lowest is the border, where the message came in.
+  let border = -1;
+  const found: { at: number; kinds: Set<ReceiverKind>; trusted: Trusted }[] = [];
+  for (const [at, { name, value }] of headers.entries()) {
     const field = name.trim().toLowerCase();
     if (field === "received") {
       const host = receivedBy(value);
       if (host === null || literal(host)) continue;
       if (receivers.some((r) => covers(r.pattern, host))) {
-        opened = true;
+        border = at;
         continue;
       }
       break; // a host outside the receiver wrote this: everything below came with the message
@@ -88,12 +97,13 @@ export function trustedAuthResults(
     const kinds = kindsOf(parsed, [...receivers]);
     const [kind] = kinds;
     if (kind !== undefined)
-      found.push({ kinds, trusted: { kind, authservId: parsed.authservId, results: parsed.results } });
+      found.push({ at, kinds, trusted: { kind, authservId: parsed.authservId, results: parsed.results } });
   }
-  if (!opened) return { untrusted: "no-boundary" };
-  const first = found[0];
+  if (border < 0) return { untrusted: "no-boundary" };
+  const inside = found.filter((f) => f.at < border || [...f.kinds].every((k) => STAMPS_EVERY_MESSAGE.has(k)));
+  const first = inside[0];
   if (!first) return { untrusted: "none-in-zone" };
-  const kinds = new Set(found.flatMap((f) => [...f.kinds]));
+  const kinds = new Set(inside.flatMap((f) => [...f.kinds]));
   if (kinds.size > 1) return { untrusted: "ambiguous" };
   return { trusted: first.trusted };
 }

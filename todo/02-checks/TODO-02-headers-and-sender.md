@@ -36,6 +36,7 @@ track: day-2
 | 3 | §3 | ARC chain evidence | §1 | [ ] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [ ] |
 | 5 | §5 | First-time sender per organisation | §4 | [ ] |
+| 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
 
 ## 1. Trusted Authentication-Results parsing
 
@@ -141,6 +142,26 @@ A sender this organisation has never had mail from is a weak but useful signal, 
 - [ ] Commit: `checks: first-time sender per organisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/first-time.test.ts` passes.
+
+## 6. Receiving chains behind a filtering gateway
+
+Filed 2026-10-30 from D02 T02 §1's completion review (Part 1 item 12): receivers are learned from MX, so an organisation whose MX points at a filtering gateway (a security service in front of Microsoft 365 or Google, a configuration Microsoft documents as "enhanced filtering for connectors") has only the gateway learned. The mailbox provider's own hops then sit above the gateway's at the top of the message, outside every learned receiver, so `trustedAuthResults` in `src/checks/auth-results.ts` finds no boundary and neither system's results are used. Widening automatic trust would let a sender's headers through; the chain has to be verified.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Learn a verified receiving chain. Done when: an organisation's chain (gateway, then mailbox provider) is stored only from evidence the organisation's own mail proves, never from a guess.
+2. Select across the chain. Done when: the zone runs through every hop of the chain, the provider's results are trusted, and an injected result is still refused.
+
+- [ ] Decide how a chain is proven, in `docs/specs/`: from a message the organisation forwards from its own domain to `check@` (the hops above Email Routing's are its chain), or from the provider's documented connector settings; record the choice and its reversal cost. Done when: the decision names its evidence and how a stale chain is noticed.
+- [ ] Store the chain beside the receivers (`org_receivers` gains the hop order, or a new table under a number the coordinator gives) and learn it as decided. Done when: `test/auth/receivers.test.ts` stores a gateway-then-Microsoft chain and a gateway-then-Google chain.
+- [ ] Have `trustedAuthResults` run the zone through every hop of a stored chain, trusting the mailbox provider's stamp under the rules of §1. Done when: `test/checks/auth-results.test.ts` trusts the provider's results behind each gateway and refuses an injected result below the gateway's border hop.
+- [ ] Commit: `checks: receiving chains behind a filtering gateway`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/auth-results.test.ts test/auth/receivers.test.ts` passes, with both gateway fixtures.
 
 ## Verification
 
