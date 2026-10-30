@@ -27,11 +27,11 @@ import {
 import {
   addresses,
   assertConsent,
+  clientDomains,
   leaks,
   MAX_MESSAGE_BYTES,
   messageFiles,
   personalDetail,
-  protectedTerms,
   readClientNames,
   recipientNames,
 } from "./import-samples.ts";
@@ -268,6 +268,7 @@ type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Set<nu
 export function dedupe(
   entries: Entry[],
   prefer: Set<string> = new Set(),
+  protectors: Entry[] = [],
 ): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
@@ -281,6 +282,15 @@ export function dedupe(
     keys.forEach((value, band) => {
       append(bands[band] as Map<number, Entry[]>, value, entry);
     });
+  // Pages that are never candidates (a reference page the rules excluded) still guard their exact and near duplicates:
+  // they are in the comparison before any candidate is (completion review round 1).
+  for (const protector of protectors) {
+    seen.add(`${protector.page.sha256.screenshot}:${protector.page.sha256.text}`);
+    index(
+      protector,
+      Array.from({ length: 7 }, (_, band) => Number((protector.hash >> BigInt(band * 9)) & 0x1ffn)),
+    );
+  }
   for (const entry of [...entries].sort(order)) {
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
     const reserved = prefer.has(entry.page.id);
@@ -612,21 +622,29 @@ export function validateLine(line: string, mode: ScreenMode): { answer: PageAnsw
 // so the terms are looked for in every line; the generic personal-detail patterns would fire on any public page's
 // phone numbers, so they read sample lines only. The problems name the line's page and the kind of detail, never the
 // detail. The nonce is left out of what is read: a run of hex digits is no phone number.
+export type ProtectedTerms = { client: string[]; addresses: string[]; domains: string[]; pieces: string[] };
+
+// A plain list is read as client names: every one of them is scanned on every line.
+const termKinds = (terms: string[] | ProtectedTerms): ProtectedTerms =>
+  Array.isArray(terms) ? { client: terms, addresses: [], domains: [], pieces: [] } : terms;
+
 export function scanSampleLines(
   lines: { id: string; origin: string; line: string }[],
-  terms: string[],
+  terms: string[] | ProtectedTerms,
   mode: ScreenMode,
 ): string[] {
   const problems: string[] = [];
   // A public page cannot carry the client's mail, but it can carry an ordinary first name that is also one recipient's
-  // name piece: on a public line only the terms no stranger's page shares by chance are read (a full name, an address,
-  // a domain); a sample line is read for every term.
-  const strong = terms.filter((term) => /[\s@.]/.test(term.trim()));
+  // name piece: on a public line the client's names (every one, of any form), addresses and domains are read, and only
+  // the recipients' single name pieces are left out; a sample line is read for every term.
+  const kinds = termKinds(terms);
+  const publicTerms = [...kinds.client, ...kinds.addresses, ...kinds.domains];
+  const allTerms = [...publicTerms, ...kinds.pieces];
   for (const { id, origin, line } of lines) {
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
     const shown = `${text.split(nonce).join("")}\n${answer.brand ?? ""}`;
-    if (leaks([{ id, text: shown }], origin === "samples" ? terms : strong).length)
+    if (leaks([{ id, text: shown }], origin === "samples" ? allTerms : publicTerms).length)
       problems.push(`${id}: a protected sample term`);
     if (origin !== "samples") continue;
     const kind = personalDetail(shown);
@@ -639,7 +657,7 @@ export function scanSampleLines(
 // client names, every recipient's name pieces and address, and the client's domains. A message over 25 MB or one that
 // does not parse is counted, not read: the import records it as failed and makes no page from it, so it has no
 // recipient to guard on any page.
-export async function sampleTerms(samples: string): Promise<{ terms: string[]; unreadable: number }> {
+export async function sampleTerms(samples: string): Promise<{ terms: ProtectedTerms; unreadable: number }> {
   assertConsent(samples);
   const clientNames = readClientNames(samples);
   const addressesSeen: string[] = [];
@@ -658,13 +676,20 @@ export async function sampleTerms(samples: string): Promise<{ terms: string[]; u
       unreadable++;
     }
   }
-  return { terms: protectedTerms(clientNames, addressesSeen, [...pieces]), unreadable };
+  // The terms `leakCheck()` guards, kept by kind so a scan can tell a company name from a recipient's first name.
+  const domains = clientDomains(addressesSeen);
+  return { terms: { client: clientNames, addresses: addressesSeen, domains, pieces: [...pieces] }, unreadable };
 }
 
 // A staged split read back from disk (plan review finding 8): every line validated, every meta line aligned with its
 // line (the line's own nonce, answer type and brand are the meta line's page's), the sample-derived lines scanned, and
 // the SHA-256 taken from the bytes read, not from the string written.
-function readBack(dir: string, name: string, mode: ScreenMode, terms: string[]): { sha256: string; lines: number } {
+function readBack(
+  dir: string,
+  name: string,
+  mode: ScreenMode,
+  terms: string[] | ProtectedTerms,
+): { sha256: string; lines: number } {
   const body = readFileSync(join(dir, `${name}.jsonl`));
   const lines = body.toString("utf-8").split("\n");
   const metas = readFileSync(join(dir, `${name}.meta.jsonl`), "utf-8").split("\n");
@@ -814,7 +839,7 @@ export async function buildDataset(options: {
   referenceSize?: number;
   // The protected terms of the sample mail (`sampleTerms`), which the lines made from sample pages are scanned for
   // before the version is published. Required once the version holds such a line.
-  protectedTerms?: string[];
+  protectedTerms?: string[] | ProtectedTerms;
   // The two writes publication makes, replaceable so a test can fail one: a file's write (temp then rename) and the
   // rename of the staged folder into place.
   io?: { write?: (path: string, text: string) => void; rename?: (from: string, to: string) => void };
@@ -852,6 +877,8 @@ export async function buildDataset(options: {
   const excluded = readExcluded(store.dir);
   const entries: Entry[] = [];
   const unverified: string[] = [];
+  // Reference pages that are not candidates (excluded, unlabelled), kept to guard their duplicates.
+  const protectorPages: StoredPage[] = [];
   // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
   // is not trained on or evaluated, whatever pages it already stored.
   const importStatus = new Map<string, string>();
@@ -924,6 +951,7 @@ export async function buildDataset(options: {
     }
     if (excluded.has(page.id)) {
       dropped.excluded++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     if (!usable(page)) {
@@ -938,6 +966,7 @@ export async function buildDataset(options: {
     const answer = answerOf(page);
     if (!answer) {
       dropped.unlabelled++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     // A sample-derived page is trained on only once redacted (§7).
@@ -966,7 +995,18 @@ export async function buildDataset(options: {
     );
   // The trusted sample-derived lures admitted after every exclusion: the denominator of training's half.
   const admittedSampleLures = entries.filter((e) => sampleLure(e.page)).length;
-  const deduped = dedupe(entries, reference.ids);
+  const protectors: Entry[] = [];
+  for (const page of protectorPages) {
+    const verified = store.readVerifiedPage(page.id);
+    if (!verified) throw new Error(`reference page ${page.id}'s files do not match its record`);
+    protectors.push({
+      page: verified.page,
+      answer: null as unknown as PageAnswer,
+      hash: await dhash(verified.screenshot),
+      words: shingles(verified.text),
+    });
+  }
+  const deduped = dedupe(entries, reference.ids, protectors);
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
   const capped = capBrands(deduped.kept, random);
@@ -981,7 +1021,7 @@ export async function buildDataset(options: {
   // A reference page that is no candidate any more (excluded, deduplicated or capped away) still holds its brand, site
   // and template out of training, and its near duplicates were dropped above (completion review G3).
   const candidateIds = new Set(capped.map((e) => e.page.id));
-  const byId = new Map(entries.map((e) => [e.page.id, e]));
+  const byId = new Map([...entries, ...protectors].map((e) => [e.page.id, e]));
   const recordOf = new Map(pages.map((p) => [p.id, p]));
   const protect: Entry[] = [...reference.ids].flatMap((id) => {
     if (candidateIds.has(id)) return [];
@@ -1139,11 +1179,12 @@ if (import.meta.filename === process.argv[1]) {
   }
   // The terms the sample-derived lines are scanned for before the version is published, derived from samples/ as the
   // leak check derives them. Without them the scan cannot run, so the build does not either.
-  let protectedTerms: string[];
+  let protectedTerms: ProtectedTerms;
   try {
     const derived = await sampleTerms(join(ROOT, "samples"));
     protectedTerms = derived.terms;
-    console.error(`build-dataset: ${derived.terms.length} protected terms, ${derived.unreadable} messages unreadable`);
+    const count = Object.values(derived.terms).reduce((sum, list) => sum + list.length, 0);
+    console.error(`build-dataset: ${count} protected terms, ${derived.unreadable} messages unreadable`);
   } catch (error) {
     console.error(`build-dataset: the protected terms cannot be derived: ${(error as Error).message}`);
     process.exit(2);
