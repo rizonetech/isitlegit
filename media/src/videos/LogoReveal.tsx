@@ -1,10 +1,15 @@
 import type React from "react";
 import { AbsoluteFill, Audio, Img, interpolate, interpolateColors, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import tokens from "../../../design/tokens/colors.json";
+import { LOGO_GAIN } from "../data/voice";
 
-// Always light, whatever the theme: it rebuilds the original light clip and draws the ink mark.
-const c = tokens.themes.light;
-const BG = c.light;
+// The standalone logo video is always light: it rebuilds the original light clip and draws the ink mark. The
+// explainers open with the dark variant (operator, 2026-10-31): the brand's Ink ground, the on-dark logo and the
+// dark theme's light ink, the same ground the explainers use.
+const THEMES = {
+  light: { c: tokens.themes.light, bg: tokens.themes.light.light, logo: "brand/logo-svg/isitlegit-logo.svg" },
+  dark: { c: tokens.themes.dark, bg: tokens.themes.light.ink, logo: "brand/logo-svg/isitlegit-logo-on-dark.svg" },
+} as const;
 
 // The logo animation rebuilt from the brand geometry (design/brand/logo-svg/isitlegit-logo.svg, mark at
 // translate(-27 0) scale(0.5) in a 338.32 x 100 box), replacing the 720p design/brand/videos/logo_animation.mp4.
@@ -27,7 +32,8 @@ const QUESTION = "M66 68A34 34 0 1 1 124.04 92.04L100 116.08V130";
 const TICK = "M82 152L100 170L138 132";
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-export const LogoReveal: React.FC = () => {
+export const LogoReveal: React.FC<{ theme?: keyof typeof THEMES }> = ({ theme = "light" }) => {
+  const { c, bg, logo } = THEMES[theme];
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -48,15 +54,15 @@ export const LogoReveal: React.FC = () => {
   };
 
   return (
-    <AbsoluteFill style={{ background: BG }}>
-      <Audio src={staticFile("brand/videos/logo_animation.mp4")} />
+    <AbsoluteFill style={{ background: bg }}>
+      <Audio src={staticFile("brand/videos/logo_animation.mp4")} volume={theme === "dark" ? LOGO_GAIN : 1} />
       {final ? (
-        <Img src={staticFile("brand/logo-svg/isitlegit-logo.svg")} style={{ position: "absolute", left: LOGO_X, top: LOGO_Y, width: LOGO_W }} />
+        <Img src={staticFile(logo)} style={{ position: "absolute", left: LOGO_X, top: LOGO_Y, width: LOGO_W }} />
       ) : (
         <>
           <div style={{ position: "absolute", left: LOGO_X + WORDMARK_EDGE, top: LOGO_Y, width: LOGO_W - WORDMARK_EDGE, height: LOGO_H, overflow: "hidden" }}>
             <Img
-              src={staticFile("brand/logo-svg/isitlegit-logo.svg")}
+              src={staticFile(logo)}
               style={{ position: "absolute", left: -WORDMARK_EDGE, top: 0, width: LOGO_W, opacity: words, transform: `translateX(${(1 - words) * -160}px)` }}
             />
           </div>

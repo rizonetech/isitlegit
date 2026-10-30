@@ -1,6 +1,8 @@
 import type React from "react";
-import { Series } from "remotion";
-import { CloseScene, TitleScene } from "../brand";
+import { Sequence, Series } from "remotion";
+import { Backdrop, CloseScene, TitleScene } from "../brand";
+import { DURATION as INTRO, LogoReveal } from "../videos/LogoReveal";
+import { CREDITS, Credits } from "./credits";
 import { RenderScene, type SceneSpec } from "./scenes";
 import { fill, words } from "./text";
 import { MusicBed, Sfx } from "./sound";
@@ -49,15 +51,21 @@ const sequenceFrames = (b: StoryboardSpec, video: string) => {
   return { frames: voicedFrames(seconds, clips), clips };
 };
 
-export const storyboardFrames = (b: StoryboardSpec, video: string) => sequenceFrames(b, video).frames.reduce((a, f) => a + f, 0);
+// The dark logo animation opens the video and the credits close it, around the voiced sequences.
+export const storyboardFrames = (b: StoryboardSpec, video: string) => INTRO + sequenceFrames(b, video).frames.reduce((a, f) => a + f, 0) + CREDITS;
 
 export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({ board, video }) => {
   const chapters = board.scenes.filter((s) => s.type === "chapter").length;
   const { frames, clips } = sequenceFrames(board, video);
   const last = frames.length - 1;
+  const voiced = frames.reduce((a, f) => a + f, 0);
   return (
     <>
+      <Backdrop />
       <Series>
+        <Series.Sequence durationInFrames={INTRO}>
+          <LogoReveal theme="dark" />
+        </Series.Sequence>
         <Series.Sequence durationInFrames={frames[0]}>
           <TitleScene line={fill(board.title)} sub={fill(board.sub)} />
           <Sfx name="swell" />
@@ -74,8 +82,13 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
           <CloseScene lines={board.close.map(fill)} />
           <Voice clip={clips?.[last]} />
         </Series.Sequence>
+        <Series.Sequence durationInFrames={CREDITS}>
+          <Credits />
+        </Series.Sequence>
       </Series>
-      <MusicBed name="bed" frames={frames.reduce((a, f) => a + f, 0)} />
+      <Sequence from={INTRO} layout="none">
+        <MusicBed name="bed" frames={voiced + CREDITS} />
+      </Sequence>
     </>
   );
 };

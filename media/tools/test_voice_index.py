@@ -29,10 +29,12 @@ class VoiceIndexTest(unittest.TestCase):
             mock.patch.object(vi.snd, "OUT", root / "sound"),
             mock.patch.object(vi.snd, "SPEC", root / "sound.json"),
             mock.patch.object(vi, "LEVELS", root / "levels.json"),
+            mock.patch.object(vi, "LOGO", root / "logo.mp4"),
             mock.patch.object(vi, "loudness", side_effect=lambda path: -25.0),
         ]
         for p in self.patches:
             p.start()
+        (root / "logo.mp4").write_bytes(b"logo sound")
         (root / "narration").mkdir()
         (root / "narration" / "01.json").write_text(json.dumps({"segments": [{"text": "One."}, {"text": "Two."}]}))
         (root / "narration" / "02.json").write_text(json.dumps({"segments": [{"text": "Other."}]}))
@@ -71,12 +73,12 @@ class VoiceIndexTest(unittest.TestCase):
     def test_each_file_is_measured_once_until_its_content_changes(self):
         self.voice("01", [{"index": 0, "file": "00.mp3", "seconds": 1.0, "text": "One."}, {"index": 1, "file": "01.mp3", "seconds": 1.0, "text": "Two."}])
         self.run_main()
-        self.assertEqual(vi.loudness.call_count, 1)  # both files hold the same bytes, so one measurement serves both
-        self.run_main()
-        self.assertEqual(vi.loudness.call_count, 1)
-        (self.root / "voice" / "01" / "01.mp3").write_bytes(b"ID3 new take")
+        self.assertEqual(vi.loudness.call_count, 2)  # the logo, and both clips hold the same bytes, so one measurement serves both
         self.run_main()
         self.assertEqual(vi.loudness.call_count, 2)
+        (self.root / "voice" / "01" / "01.mp3").write_bytes(b"ID3 new take")
+        self.run_main()
+        self.assertEqual(vi.loudness.call_count, 3)
 
     def test_a_missing_or_stale_clip_stops_the_render(self):
         self.voice("01", [{"index": 0, "file": "00.mp3", "seconds": 1.0, "text": "One."}, {"index": 1, "file": "01.mp3", "seconds": 1.0, "text": "Old words."}])

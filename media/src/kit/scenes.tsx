@@ -21,13 +21,40 @@ export type SceneSpec =
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const stagger = (frame: number, i: number, from = 24, gap = 14) => interpolate(frame, [from + i * gap, from + 14 + i * gap], [0, 1], clamp);
 
+// A chapter card opens with an orange wipe in time with the whoosh (src/kit/sound.tsx), then the number lands with a
+// scale and a glow and the title rises in behind it.
 const Chapter: React.FC<{ s: Extract<SceneSpec, { type: "chapter" }>; total: number; label?: string }> = ({ s, total, label }) => {
-  const t = useIn(0, 24);
-  const u = useIn(14);
+  const frame = useCurrentFrame();
+  const sweep = interpolate(frame, [0, 9, 20], [0, 1, 2], clamp);
+  const n = useIn(10, 26);
+  const t = useIn(16, 24);
+  const u = useIn(26);
   return (
     <Scene label={label}>
-      <div style={{ ...head, fontSize: 200, color: c.orange, lineHeight: 1, opacity: t }}>{String(s.number).padStart(2, "0")}</div>
-      <div style={{ ...head, fontSize: 92, marginTop: 20, opacity: t, transform: `translateY(${(1 - t) * 20}px)` }}>{fill(s.title)}</div>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: c.orange,
+          transformOrigin: sweep <= 1 ? "left" : "right",
+          transform: `scaleX(${sweep <= 1 ? sweep : 2 - sweep})`,
+        }}
+      />
+      <div
+        style={{
+          ...head,
+          fontSize: 200,
+          color: c.orange,
+          lineHeight: 1,
+          opacity: n,
+          transform: `scale(${1.35 - 0.35 * n})`,
+          transformOrigin: "left center",
+          textShadow: `0 0 ${80 * n}px ${c.orange}88`,
+        }}
+      >
+        {String(s.number).padStart(2, "0")}
+      </div>
+      <div style={{ ...head, fontSize: 92, marginTop: 20, opacity: t, transform: `translateY(${(1 - t) * 30}px)` }}>{fill(s.title)}</div>
       {s.sub ? <div style={{ ...body, fontSize: 40, marginTop: 24, maxWidth: 1500, opacity: u }}>{fill(s.sub)}</div> : null}
       <div style={{ display: "flex", gap: 10, marginTop: 70 }}>
         {Array.from({ length: total }, (_, i) => (

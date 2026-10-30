@@ -34,7 +34,38 @@ export const useIn = (from = 0, frames = 20) => {
   return spring({ frame: frame - from, fps, durationInFrames: frames, config: { damping: 200 } });
 };
 
-/** A scene: light ground, fade in and out, content padded to the title-safe area. */
+/**
+ * The living ground under every scene (operator, 2026-10-31): the theme's ground, two slow orange glows on long
+ * drifting paths and a faint grid easing diagonally, faded towards the edges. A composition draws it once behind its
+ * whole Series, so it flows on across scene changes instead of restarting with each scene.
+ */
+export const Backdrop: React.FC = () => {
+  const t = useCurrentFrame() / 30;
+  const shift = (t * 6) % 80;
+  const a = { x: 50 + 30 * Math.sin(t / 23), y: 40 + 25 * Math.cos(t / 31) };
+  const b = { x: 72 + 22 * Math.cos(t / 27), y: 72 + 18 * Math.sin(t / 19) };
+  const grid = DARK ? `${c.line}` : `${c["line-strong"]}66`;
+  return (
+    <AbsoluteFill style={{ background: BG }}>
+      <AbsoluteFill
+        style={{
+          background: `radial-gradient(circle at ${a.x}% ${a.y}%, ${c.orange}26, transparent 42%), radial-gradient(circle at ${b.x}% ${b.y}%, ${c.orange}17, transparent 38%)`,
+        }}
+      />
+      <AbsoluteFill
+        style={{
+          backgroundImage: `linear-gradient(${grid} 1px, transparent 1px), linear-gradient(90deg, ${grid} 1px, transparent 1px)`,
+          backgroundSize: "80px 80px",
+          backgroundPosition: `${shift}px ${shift}px`,
+          WebkitMaskImage: "radial-gradient(ellipse at center, black 25%, transparent 80%)",
+          maskImage: "radial-gradient(ellipse at center, black 25%, transparent 80%)",
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
+
+/** A scene: fade in and out, content padded to the title-safe area, over the composition's Backdrop. */
 export const Scene: React.FC<{ children: React.ReactNode; label?: string; center?: boolean }> = ({ children, label, center }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
@@ -43,8 +74,8 @@ export const Scene: React.FC<{ children: React.ReactNode; label?: string; center
     extrapolateRight: "clamp",
   });
   return (
-    // Only the content fades; the ground and the corner label stay put, so scene changes never dip to black.
-    <AbsoluteFill style={{ background: BG }}>
+    // Only the content fades; the Backdrop and the corner label stay put, so scene changes never dip to black.
+    <AbsoluteFill>
       <AbsoluteFill
         style={{
           opacity,

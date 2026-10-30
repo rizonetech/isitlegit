@@ -1,9 +1,11 @@
 import type React from "react";
-import { interpolate, Series, useCurrentFrame } from "remotion";
+import { interpolate, Sequence, Series, useCurrentFrame } from "remotion";
 import data from "../../data/loupe-facts.json";
-import { body, c, CARD, Card, CloseScene, Headline, head, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { CREDITS as END_CREDITS, Credits as EndCredits } from "../kit/credits";
 import { MusicBed, Sfx } from "../kit/sound";
 import { Voice, voicedFrames, voiceFor } from "../kit/voice";
+import { DURATION as INTRO, LogoReveal } from "./LogoReveal";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
 const F = data.facts;
@@ -15,7 +17,8 @@ const timing = () => {
   const clips = voiceFor("03", SCENES.length);
   return { frames: voicedFrames(SCENES, clips), clips };
 };
-export const loupeFrames = () => timing().frames.reduce((a, f) => a + f, 0);
+// The dark logo animation opens the video and the credits close it, around the voiced scenes.
+export const loupeFrames = () => INTRO + timing().frames.reduce((a, f) => a + f, 0) + END_CREDITS;
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const n = (s: string) => Number(s.replace(/,/g, ""));
@@ -382,9 +385,14 @@ export const LoupeV1: React.FC = () => {
   ];
   const { frames, clips } = timing();
   const last = parts.length - 1;
+  const voiced = frames.reduce((a, f) => a + f, 0);
   return (
     <>
+      <Backdrop />
       <Series>
+        <Series.Sequence durationInFrames={INTRO}>
+          <LogoReveal theme="dark" />
+        </Series.Sequence>
         {parts.map((part, i) => (
           <Series.Sequence key={part.key} durationInFrames={frames[i]}>
             {part}
@@ -392,8 +400,13 @@ export const LoupeV1: React.FC = () => {
             <Voice clip={clips?.[i]} />
           </Series.Sequence>
         ))}
+        <Series.Sequence durationInFrames={END_CREDITS}>
+          <EndCredits />
+        </Series.Sequence>
       </Series>
-      <MusicBed name="bed" frames={frames.reduce((a, f) => a + f, 0)} />
+      <Sequence from={INTRO} layout="none">
+        <MusicBed name="bed" frames={voiced + END_CREDITS} />
+      </Sequence>
     </>
   );
 };
