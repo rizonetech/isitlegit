@@ -16,6 +16,8 @@ track: day-6
 ## Inputs
 
 - Design spec 4.8 (client dashboard: cases and verdicts, invoice flags and money at risk caught, weekly stats, team, approved domains, supplier ledger), 4.10 (production counts), `design/SPEC.md` member console.
+- -> XREF: D01 T01 §16 -- the original's subject and sender the Cases rows and search read
+- -> XREF: D01 T03 §11 -- the uploading member that Checked by names
 
 ## Outcome
 

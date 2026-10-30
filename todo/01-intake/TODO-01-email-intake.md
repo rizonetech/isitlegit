@@ -21,6 +21,8 @@ track: day-1
 - -> XREF: D07 T02 §5 -- the verified member domains and addresses the email handler admits
 - -> XREF: D01 T02 §3 -- the reply that closes the loop for every accepted case
 - -> XREF: D99 T01 §9 -- the domain recovery runbook whose move off Cloudflare waits on §15
+- -> XREF: D07 T03 §9 -- the report header that draws the stored subject and sender
+- -> XREF: D07 T04 §7 -- the Cases list rows and search that read them
 
 ## Outcome
 
