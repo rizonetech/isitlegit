@@ -54,10 +54,14 @@ class Harness(unittest.TestCase):
         kill_at = giga["payload_bytes"] // 8
         # The server held every connection at exactly the kill byte.
         self.assertEqual(kill["at_kill"], kill_at)
-        # The second process's requests that carried data started past byte 0: it went on from saved ranges.
+        # The second process went on from the ranges the first had saved: each request that carried data starts at or
+        # past its range's saved byte, never before it (the ranges as saved at the kill, plan review of D00 T01 §14).
+        self.assertIsNone(kill["failed"])
         carried = [start for start, sent in kill["second_requests"] if sent >= 65536]
         self.assertTrue(carried)
-        self.assertGreater(min(carried), 0)
+        for start in carried:
+            first, end, saved_to = next(r for r in kill["kept"] if r[0] <= start < r[1])
+            self.assertGreaterEqual(start, saved_to, (start, kill["kept"]))
         self.assertLess(kill["second_bytes"], giga["payload_bytes"])
         self.assertLessEqual(kill["second_bytes"], giga["payload_bytes"] - kill["at_kill"] + bench.RESUME_SLACK)
         # Every kind of request paid the measured latency: the HEAD, the ranges, and the failing URL's refusals.
@@ -126,6 +130,96 @@ class Harness(unittest.TestCase):
         # aria2c's second process too asked for little more than what the first had not received.
         self.assertLessEqual(run["fetched_twice"], bench.RESUME_SLACK)
         self.assertLessEqual(run["second_bytes"], len(body) - run["at_kill"] + bench.RESUME_SLACK)
+
+    # D00 T01 §14's plan review: each wait the kill depends on is an event, and one that never comes is a failed
+    # measurement, with the first process gone and no second run.
+
+    def held_server(self, open_connections=0):
+        server = bench.Bench(b"x" * 1024, 1024)
+        self.addCleanup(server.server_close)
+        server.reached.set()
+        server.sent = server.kill_at = 512
+        server.open = open_connections
+        return server
+
+    def test_a_tool_that_never_saves_is_a_failed_measurement_with_no_second_run(self):
+        work = Path(tempfile.mkdtemp(prefix="bench-unsaved-"))
+        server = self.held_server()
+        started = []
+        with mock.patch.object(bench, "tool_saved", return_value=False), \
+                mock.patch.object(bench, "run_bounded", side_effect=lambda *a, **k: started.append(a)):
+            run = bench.killed_and_resumed(["sleep", "30"], work, server, 512, 1.0)
+        self.assertEqual((run["failed"], run["saved"], run["resumed"], run["code"]),
+                         ("the tool never saved its progress", False, False, None))
+        self.assertEqual(started, [], "no second run")
+
+    def test_connections_that_never_close_are_a_failed_measurement_with_no_second_run(self):
+        work = Path(tempfile.mkdtemp(prefix="bench-open-"))
+        server = self.held_server(open_connections=1)
+        started = []
+        with mock.patch.object(bench, "tool_saved", return_value=True), \
+                mock.patch.object(bench, "run_bounded", side_effect=lambda *a, **k: started.append(a)):
+            run = bench.killed_and_resumed(["sleep", "30"], work, server, 512, 1.0)
+        self.assertEqual((run["failed"], run["closed"], run["resumed"]),
+                         ("the first run's connections never closed", False, False))
+        self.assertEqual(started, [], "no second run")
+
+    def test_the_kill_waits_for_the_save_and_the_second_run_for_the_close(self):
+        work = Path(tempfile.mkdtemp(prefix="bench-late-"))
+        server = self.held_server(open_connections=1)
+        answers = iter([False, False, True])
+        order = []
+
+        def saved(*args):
+            ready = next(answers, True)
+            order.append(f"saved:{ready}")
+            return ready
+
+        def close_later():
+            time.sleep(0.3)
+            with server.lock:
+                order.append("closed")
+                server.open = 0
+                server.closed.notify_all()
+
+        def second(*args, **kwargs):
+            order.append("second run")
+            return 0
+
+        threading.Thread(target=close_later, daemon=True).start()
+        with mock.patch.object(bench, "tool_saved", side_effect=saved), \
+                mock.patch.object(bench, "run_bounded", side_effect=second):
+            run = bench.killed_and_resumed(["sleep", "30"], work, server, 512, 10.0)
+        self.assertEqual(order, ["saved:False", "saved:False", "saved:True", "closed", "second run"])
+        self.assertIsNone(run["failed"])
+
+    def test_a_range_saved_short_of_what_it_was_sent_is_not_saved(self):
+        work = Path(tempfile.mkdtemp(prefix="bench-ranges-"))
+        state = work / "src" / ".partial" / "data.bin.state.json"
+        state.parent.mkdir(parents=True)
+        mib = 1 << 20
+
+        def saved_as(first_saved, second_saved):
+            state.write_text(json.dumps({"segments": [[0, 5 * mib - 1, first_saved], [5 * mib, 10 * mib - 1, second_saved]]}))
+            return bench.tool_saved(work, 0, {0: 2 * mib + 4096, 5 * mib: 3 * mib})
+
+        # The second range far ahead does not cover the first, still more than a MiB short of what it was sent.
+        self.assertFalse(saved_as(0, 3 * mib))
+        self.assertTrue(saved_as(mib + 8192, 3 * mib))
+        self.assertTrue(saved_as(2 * mib, 2 * mib))
+        self.assertFalse(saved_as(2 * mib, mib))
+        state.write_text("{")  # caught mid-replace
+        self.assertFalse(bench.tool_saved(work, 0, {}))
+
+    def test_aria2c_counts_as_saved_only_on_a_control_file_written_since_the_hold(self):
+        work = Path(tempfile.mkdtemp(prefix="bench-aria2c-"))
+        (work / "src").mkdir()
+        control = work / "src" / "data.bin.aria2"
+        control.write_bytes(b"\0")
+        os.utime(control, (1000, 1000))
+        self.assertFalse(bench.tool_saved(work, 2000, {}))
+        os.utime(control, (3000, 3000))
+        self.assertTrue(bench.tool_saved(work, 2000, {}))
 
     def test_a_tool_past_its_deadline_is_ended_with_its_process_group(self):
         started = time.monotonic()
