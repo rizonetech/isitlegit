@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 41 | Checklist items: 241
+Sections: 41 | Checklist items: 242
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -100,7 +100,7 @@ Sections: 41 | Checklist items: 241
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
 | [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
-| [ ]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 8     |
+| [ ]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -338,4 +338,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 86/267 verified sections, 49 ready to run now.
 
-Checklist: 890/1717 items completed (includes Commit items).
+Checklist: 890/1718 items completed (includes Commit items).
