@@ -1175,6 +1175,7 @@ class Fetch(unittest.TestCase):
 
     def test_the_ca_file_is_read_once(self):
         folder = Path(tempfile.mkdtemp(prefix="ca-"))
+        self.addCleanup(shutil.rmtree, folder, True)
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(folder / "k.pem"),
                         "-out", str(folder / "c.pem"), "-days", "1", "-subj", "/CN=test"], check=True, capture_output=True)
         first = fetch._tls_context(str(folder / "c.pem"))
@@ -1183,6 +1184,7 @@ class Fetch(unittest.TestCase):
 
     def test_a_ca_file_adds_to_the_system_authorities(self):
         folder = Path(tempfile.mkdtemp(prefix="ca-"))
+        self.addCleanup(shutil.rmtree, folder, True)
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(folder / "k.pem"),
                         "-out", str(folder / "c.pem"), "-days", "1", "-subj", "/CN=test"], check=True, capture_output=True)
         plain = fetch._tls_context(None).cert_store_stats()["x509_ca"]
