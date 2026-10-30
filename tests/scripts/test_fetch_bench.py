@@ -41,6 +41,11 @@ class Harness(unittest.TestCase):
                 self.assertEqual((row["recovered"], row["intact"], row["cut"], row["latency"], row["runs"]), (1, 1, 1, 1, 1),
                                  (scenario, tool))
             self.assertFalse(figures["acceptance"][scenario]["met"])  # aria2c not measured: not met
+        # The two-sources scenario ran on two hosts, uninterrupted, and was judged on both hosts busy at once.
+        two = figures["scenarios"]["two-sources"]["fetch.py (four segments)"]
+        self.assertEqual((two["recovered"], two["intact"], two["latency"], two["overlap"], two["connections"]), (1, 1, 1, 1, 1))
+        self.assertNotIn("cut", two)  # nothing interrupts it
+        self.assertFalse(figures["acceptance"]["two-sources"]["met"])  # aria2c not measured: not met
         # The gigabyte scenario's first process was killed at the server's byte (one 64 KiB piece per connection of
         # slack) and a second one finished from what the first had saved: none of its requests started at byte 0.
         giga = figures["scenarios"]["gigabyte"]
@@ -254,6 +259,133 @@ class Harness(unittest.TestCase):
             urllib.request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/x", timeout=5).read()
         self.assertEqual(server.drops, 1)
         self.assertEqual(server.sent, 65536)
+
+    # The two-sources scenario (D03 T04 §22).
+    def served(self, body, cap, aggregate, connections=4):
+        """The seconds `connections` concurrent range requests, together asking for the whole body, take from one host."""
+        server = bench.Bench(body, cap, aggregate=aggregate)
+        server.dropped = True
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close()))
+        piece = len(body) // connections
+
+        def get(number):
+            request = urllib.request.Request(f"http://127.0.0.1:{server.server_address[1]}/x",
+                                             headers={"Range": f"bytes={number * piece}-{(number + 1) * piece - 1}"})
+            urllib.request.urlopen(request, timeout=30).read()
+
+        threads = [threading.Thread(target=get, args=(number,)) for number in range(connections)]
+        began = time.monotonic()
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        return time.monotonic() - began
+
+    def test_a_hosts_cap_is_shared_by_all_its_connections_not_held_on_each(self):
+        body = bench.payload(4 * 1024 * 1024)
+        cap = 8 * 1024 * 1024
+        shared = self.served(body, cap, aggregate=True)
+        each = self.served(body, cap, aggregate=False)
+        # Four connections to a host capped as a whole take as long as one would (0.5 seconds for these bytes);
+        # capped on each connection they take a quarter of it. A cap that became per connection fails the first bound.
+        self.assertGreaterEqual(shared, 0.85 * len(body) / cap)
+        self.assertLess(each, 0.6 * shared)
+
+    def test_two_hosts_are_judged_busy_together_only_when_their_transfers_overlap(self):
+        launched = 100.0
+        together = [[(101.0, 105.0, 0, 1000), (106.0, 108.0, 0, 1000)], [(102.0, 107.0, 0, 1000)]]
+        ok, seconds = bench.both_hosts_busy(together, launched)
+        self.assertTrue(ok)
+        self.assertAlmostEqual(seconds, 3.0 + 1.0)  # 102 to 105, and 106 to 107
+        # One host after the other, as a tool that only fails over would use them: no overlap at all.
+        sequential = [[(101.0, 105.0, 0, 1000)], [(105.0, 109.0, 0, 1000)]]
+        self.assertEqual(bench.both_hosts_busy(sequential, launched), (False, 0.0))
+        # A touch of overlap does not make two hosts a pair in use together.
+        brief = [[(101.0, 105.0, 0, 1000)], [(104.9, 109.0, 0, 1000)]]
+        self.assertFalse(bench.both_hosts_busy(brief, launched)[0])
+        self.assertFalse(bench.both_hosts_busy([[], [(101.0, 105.0, 0, 1000)]], launched)[0])  # one host served nothing
+
+    def run_two_sources(self, name):
+        folder = Path(tempfile.mkdtemp(prefix="bench-tls-"))
+        tls = bench.make_certificate(folder)
+        body = bench.payload(8 * 1024 * 1024)
+        spec = {"size": len(body), "servers": (False, False), "interrupt": None, "tools": bench.FOUR, "hosts": True}
+        return bench.one_run(spec, "two-sources", name, body, hashlib.sha256(body).hexdigest(), 8 * 1024 * 1024, 0.005, 120,
+                             tls, {})
+
+    def test_fetch_py_uses_both_hosts_at_once_and_within_four_connections(self):
+        row = self.run_two_sources("fetch.py (four segments)")
+        self.assertTrue(row["recovered"] and row["intact"], row)
+        self.assertEqual(len(row["hosts"]), 2)
+        for host in row["hosts"]:
+            self.assertGreater(sum(count for _, count, _, _ in host), 0)  # each host served bytes
+        # Both were sending at the same time: a tool that fell back to one host after the other fails here.
+        self.assertTrue(row["overlap"], row)
+        self.assertGreater(row["overlap_seconds"], 0)
+        self.assertTrue(row["connections"])
+        self.assertLessEqual(row["peak_connections"], bench.MAX_CONNECTIONS)
+        self.assertEqual(len(row["load"]), 2)
+
+    def test_aria2c_uses_both_hosts_at_once_too(self):
+        if not bench.aria2c():
+            self.skipTest("aria2c is not installed here")
+        row = self.run_two_sources("aria2c (four connections)")
+        self.assertTrue(row["recovered"] and row["intact"], row)
+        self.assertTrue(row["overlap"], row)
+        self.assertLessEqual(row["peak_connections"], bench.MAX_CONNECTIONS)
+
+    def test_the_two_tools_run_turn_about_and_each_run_keeps_its_raw_time_and_load(self):
+        order = []
+
+        def fake_run(spec, scenario, name, *rest):
+            order.append(name)
+            return {"seconds": 1.0, "refetched": 0, "recovered": True, "intact": True, "latency": True, "waits": [],
+                    "overlap": True, "connections": True, "overlap_seconds": 1.0, "peak_connections": 4, "load": [1.0, 2.0],
+                    "hosts": []}
+
+        spec = {"size": 1, "servers": (False, False), "interrupt": None, "tools": bench.FOUR, "hosts": True, "interleave": True}
+        names = {bench.OURS: [], bench.THEIRS: []}
+        with mock.patch.object(bench, "one_run", fake_run), mock.patch.object(bench, "tools", return_value=names), \
+                mock.patch.object(bench, "startup_seconds", return_value=0.0), mock.patch.object(bench, "aria2c", return_value=None), \
+                mock.patch("sys.stderr"):
+            figures = bench._measure({"two-sources": spec}, 3, 8, 0.0, 10, (Path("c"), Path("k")))
+        self.assertEqual(order, [bench.OURS, bench.THEIRS] * 3)
+        ours = figures["scenarios"]["two-sources"][bench.OURS]
+        self.assertEqual((ours["seconds"], ours["load"], ours["overlap"], ours["connections"]), ([1.0] * 3, [[1.0, 2.0]] * 3, 3, 3))
+
+    def test_the_acceptance_requires_the_two_sources_scenario_and_judges_it_on_the_raw_time(self):
+        def row(seconds, runs=5, startup=0.0, **counts):
+            return {"median_seconds": seconds, "median_refetched_bytes": 0, "runs": runs, "startup_seconds": startup,
+                    **{"recovered": runs, "cut": runs, "intact": runs, "latency": runs, "resumed": runs, "overlap": runs,
+                       "connections": runs, **counts}}
+
+        def judged(ours, theirs=None, extra=()):
+            scenarios = {name: {bench.OURS: row(3.0), bench.THEIRS: row(3.31)} for name in extra}
+            scenarios["two-sources"] = {bench.OURS: ours, bench.THEIRS: theirs or row(3.31)}
+            return bench.acceptance(scenarios, required=("two-sources",))
+
+        self.assertTrue(judged(row(3.0))["two-sources"]["met"])
+        self.assertFalse(judged(row(3.31))["two-sources"]["met"])  # a ratio of exactly 1.00 is not under it
+        self.assertFalse(judged(row(3.4))["two-sources"]["met"])  # a slower raw time
+        # Judged raw: its start-up is not taken off (taken off, 3.30 against 3.25 would read 0.98 and pass).
+        started = judged(row(3.30, startup=0.12), row(3.25, startup=0.01))
+        self.assertFalse(started["two-sources"]["met"])
+        self.assertLess(started["two-sources"]["net_ratio"], 1.0)
+        self.assertGreater(started["two-sources"]["time_ratio"], 1.0)
+        self.assertEqual(started["two-sources"]["judged_on"], "raw")
+        for check in ("recovered", "intact", "latency", "overlap", "connections"):
+            self.assertFalse(judged(row(3.0, **{check: 4}))["two-sources"]["met"], check)  # a run short, ours
+            self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["two-sources"]["met"], check)  # and theirs
+        self.assertFalse(judged(row(3.0, runs=1), row(3.31, runs=1))["two-sources"]["met"])
+        # The scenario is required: the other three met and it missing is a bar not met.
+        done = bench.acceptance({name: {bench.OURS: row(3.0), bench.THEIRS: row(3.31)} for name in ("drop", "mirror", "gigabyte")})
+        self.assertFalse(done["two-sources"]["met"])
+        self.assertFalse(done["all"]["met"])
+        self.assertIn("two-sources", done["all"]["required"])
+        everything = bench.acceptance({name: {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}
+                                       for name in ("drop", "mirror", "gigabyte", "two-sources")})
+        self.assertTrue(everything["all"]["met"])
 
     def test_refuses_nonsense_settings(self):
         with mock.patch("sys.stderr"):
