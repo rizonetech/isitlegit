@@ -289,6 +289,7 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
   // A sign-in form two frames down, the first from another origin: the identity provider's frame is the page's form.
   "/xframe-login": (res) =>
     html(res, `<p>${words}</p><iframe src="${frameOrigin}/inner" width=500 height=400></iframe>`),
+  "/xframe-held": (res) => html(res, `<p>${words}</p><iframe src="${frameOrigin}/held" width=500 height=400></iframe>`),
   // A small consent dialog over a full-screen backdrop, and a consent provider's frame over the page.
   "/backdrop-consent": (res) =>
     html(
@@ -366,6 +367,8 @@ let dripOpen = 0;
 let stunPort = 0;
 let stunPackets = 0;
 let frameServer: Server;
+// A frame the test holds: its request waits until the test releases it (D00 T01 §14), and says when it has arrived.
+let frameHold: { arrived: () => void; release: Promise<void> } | undefined;
 let stunSocket: ReturnType<typeof createSocket> | undefined;
 let frameOrigin: string;
 beforeAll(async () => {
@@ -376,8 +379,15 @@ beforeAll(async () => {
   await new Promise<void>((done) => stun.bind(0, "127.0.0.1", done));
   stunPort = stun.address().port;
   stunSocket = stun;
-  frameServer = createServer((req, res) => {
-    const body = framePages[new URL(req.url ?? "/", "http://x").pathname];
+  frameServer = createServer(async (req, res) => {
+    const path = new URL(req.url ?? "/", "http://x").pathname;
+    if (path === "/held" && frameHold) {
+      frameHold.arrived();
+      await frameHold.release;
+      html(res, framePages["/inner"] as string);
+      return;
+    }
+    const body = framePages[path];
     if (body) html(res, body);
     else {
       res.writeHead(404);
@@ -1037,6 +1047,42 @@ describe("the batch run", () => {
     const result = await runBatch({ list: list(["/title-ticker"]), store, journal, render: renderer.render });
     expect(result).toMatchObject({ stored: 0, excluded: 1 });
     expect(readJournal(journal).at(-1)?.reason).toBe("the page kept changing while it was captured");
+  });
+
+  it("reads a frame only once it has arrived: held, then released, the capture still reads it and refuses the page", async () => {
+    let arrived!: () => void;
+    const hasArrived = new Promise<void>((done) => {
+      arrived = done;
+    });
+    let release!: () => void;
+    frameHold = { arrived, release: new Promise<void>((done) => (release = done)) };
+    let faults = 0;
+    const faulty = await openRenderer({
+      allowOrigins: [origin, frameOrigin],
+      readFault: (frame) => {
+        if (frame.main) return null;
+        faults++;
+        return new Error("Execution context was destroyed");
+      },
+    });
+    try {
+      const store = openStore(join(dir, "store"));
+      const journal = join(dir, "progress.jsonl");
+      const running = runBatch({ list: list(["/xframe-held"]), store, journal, render: faulty.render });
+      // The frame's request is in, and held: nothing of it has been read yet.
+      await hasArrived;
+      expect(faults).toBe(0);
+      release();
+      const result = await running;
+      expect(faults).toBeGreaterThan(0);
+      expect(result).toMatchObject({ stored: 0, excluded: 1 });
+      expect(readJournal(journal).at(-1)?.reason).toBe(
+        "part of the page (a frame or a closed shadow root) could not be read",
+      );
+    } finally {
+      frameHold = undefined;
+      await faulty.close();
+    }
   });
 
   it("refuses a capture whose shown frame could not be read, never reading it as an empty frame", async () => {

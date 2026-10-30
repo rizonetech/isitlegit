@@ -169,14 +169,18 @@ class Harness(unittest.TestCase):
         server = self.held_server(open_connections=1)
         answers = iter([False, False, True])
         order = []
+        # The connections close only once the save has been seen: an event, never a pause a slow start could outrun.
+        seen_save = threading.Event()
 
         def saved(*args):
             ready = next(answers, True)
             order.append(f"saved:{ready}")
+            if ready:
+                seen_save.set()
             return ready
 
         def close_later():
-            time.sleep(0.3)
+            seen_save.wait(30)
             with server.lock:
                 order.append("closed")
                 server.open = 0
