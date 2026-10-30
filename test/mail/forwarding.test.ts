@@ -519,6 +519,59 @@ describe("round 1", () => {
     expect(w.sends.some((m) => m.text.includes("possibly conduct@isitlegit.co.za"))).toBe(true);
   });
 
+  it("loses no cluster span when a run is interrupted while resolving it (§9 round 4)", async () => {
+    const t = (seconds: number) => new Date(at(0).getTime() + seconds * 1000).toISOString();
+    const b = forward({ messageId: "<m-b@x>", sessionId: "s-b", to: "conduct@isitlegit.co.za", datetime: t(11) });
+    const notices = [
+      report({ datetime: t(10) }),
+      report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: t(12) }),
+    ];
+    const w = world([[forward(), b, ...notices], [], []]);
+    // The first run's read of the candidate forwards fails, once, as a D1 request may.
+    let failed = false;
+    const flaky = new Proxy(db, {
+      get(target, name) {
+        if (name === "prepare")
+          return (query: string) => {
+            const statement = target.prepare(query);
+            if (failed || !query.startsWith("SELECT message_hash, alias")) return statement;
+            return new Proxy(statement, {
+              get(st, key) {
+                if (key === "bind")
+                  return (...args: unknown[]) => {
+                    const bound = st.bind(...args);
+                    return new Proxy(bound, {
+                      get(bd, k) {
+                        if (k === "all") {
+                          failed = true;
+                          return () => Promise.reject(new Error("D1_ERROR: transient"));
+                        }
+                        const v = Reflect.get(bd, k);
+                        return typeof v === "function" ? v.bind(bd) : v;
+                      },
+                    });
+                  };
+                const v = Reflect.get(st, key);
+                return typeof v === "function" ? v.bind(st) : v;
+              },
+            });
+          };
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    await checkForwarding(deps(w.fetcher, at(5), { db: flaky })).catch(() => undefined);
+    expect(failed).toBe(true);
+    await checkForwarding(deps(w.fetcher, at(6)));
+    const rows = (
+      await env.DB.prepare("SELECT alias, uncertain FROM forward_incidents WHERE kind = 'refused'").all<{
+        alias: string;
+        uncertain: number;
+      }>()
+    ).results;
+    expect(rows).toEqual([{ alias: "hello@isitlegit.co.za, conduct@isitlegit.co.za", uncertain: 1 }]);
+  });
+
   it("counts one refusal's same-second notices once even with two candidate forwards (§9 round 2)", async () => {
     const earlier = forward({ messageId: "<m-0@x>", sessionId: "s0", datetime: at(-1).toISOString() });
     const notices = [report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })];

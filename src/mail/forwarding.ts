@@ -381,18 +381,14 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number): Prom
     }
     for (const member of cluster) done.add(member.key);
     const last = cluster[cluster.length - 1] as Waiting;
-    // One incident per cluster: the other notices are counted on the first.
-    const fold = async (into: string, from: Waiting[]) => {
-      if (!from.length) return;
-      folded += from.length;
-      await db.batch(
-        from.flatMap((m) => [
-          db.prepare("UPDATE forward_notices SET incident_key = ? WHERE incident_key = ?").bind(into, m.key),
-          db.prepare("DELETE FROM forward_incidents WHERE key = ?").bind(m.key),
-        ]),
-      );
-    };
-    await fold(first.key, cluster.slice(1));
+    // Everything is read first and written in one batch: the cluster's folding and its incident's resolution land
+    // together or not at all, so an interrupted run never leaves a folded cluster without the span it was matched over
+    // (§9 round 4); the next run reads the same notices and decides again.
+    const foldInto = (into: string, from: Waiting[]) =>
+      from.flatMap((m) => [
+        db.prepare("UPDATE forward_notices SET incident_key = ? WHERE incident_key = ?").bind(into, m.key),
+        db.prepare("DELETE FROM forward_incidents WHERE key = ?").bind(m.key),
+      ]);
     const forwards = await db
       .prepare(
         "SELECT message_hash, alias, sender_domain, at FROM forward_seen WHERE subject_hash = ? AND at <= ? AND at >= ? AND message_hash NOT IN (SELECT forward_hash FROM forward_incidents WHERE forward_hash IS NOT NULL) ORDER BY at",
@@ -417,28 +413,26 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number): Prom
         NOTICE_SPREAD_MS / 86400000,
       )
       .first<{ key: string }>();
-    if (sibling && !found.length) {
-      await fold(sibling.key, [first]);
-      continue;
-    }
     const only = !sibling && found.length === 1 ? found[0] : undefined;
-    if (only) {
-      await db
-        .prepare(
-          "UPDATE forward_incidents SET alias = ?, sender_domain = ?, received_at = ?, forward_hash = ?, alert = 'pending' WHERE key = ?",
-        )
-        .bind(only.alias, only.sender_domain, only.at, only.message_hash, first.key)
-        .run();
-      continue;
-    }
-    if (found.length >= 1) {
-      await db
-        .prepare("UPDATE forward_incidents SET alias = ?, uncertain = 1, alert = 'pending' WHERE key = ?")
-        .bind([...new Set(found.map((f) => f.alias))].join(", "), first.key)
-        .run();
-      continue;
-    }
-    await db.prepare("UPDATE forward_incidents SET alert = 'pending' WHERE key = ?").bind(first.key).run();
+    const resolution =
+      sibling && !found.length
+        ? foldInto(sibling.key, cluster)
+        : [
+            ...foldInto(first.key, cluster.slice(1)),
+            only
+              ? db
+                  .prepare(
+                    "UPDATE forward_incidents SET alias = ?, sender_domain = ?, received_at = ?, forward_hash = ?, alert = 'pending' WHERE key = ?",
+                  )
+                  .bind(only.alias, only.sender_domain, only.at, only.message_hash, first.key)
+              : found.length
+                ? db
+                    .prepare("UPDATE forward_incidents SET alias = ?, uncertain = 1, alert = 'pending' WHERE key = ?")
+                    .bind([...new Set(found.map((f) => f.alias))].join(", "), first.key)
+                : db.prepare("UPDATE forward_incidents SET alert = 'pending' WHERE key = ?").bind(first.key),
+          ];
+    await db.batch(resolution);
+    folded += sibling && !found.length ? cluster.length : cluster.length - 1;
   }
   return folded;
 }
