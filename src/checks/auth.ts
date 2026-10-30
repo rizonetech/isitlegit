@@ -39,7 +39,8 @@ function overall(states: State[]): State {
   return RANK.find((s) => states.includes(s)) ?? "unavailable";
 }
 
-// The domain of the original's From, when it names exactly one mailbox in exactly one From header; null otherwise.
+// The domain of the original's From, when it names exactly one mailbox, with a valid domain, in exactly one From header;
+// null otherwise.
 export function fromDomain(headers: readonly { name: string; value: string }[]): string | null {
   const from = headers.filter((h) => h.name.trim().toLowerCase() === "from");
   if (from.length !== 1) return null;
@@ -47,7 +48,9 @@ export function fromDomain(headers: readonly { name: string; value: string }[]):
   if (mailboxes.length !== 1) return null;
   const address = (mailboxes[0]?.address ?? "").toLowerCase();
   const at = address.lastIndexOf("@");
-  return at > 0 && at < address.length - 1 ? address.slice(at + 1) : null;
+  const domain = at > 0 && at < address.length - 1 ? address.slice(at + 1) : null;
+  // A domain that is not a domain name as a whole names no mailbox anyone can align with (round 1).
+  return domain !== null && asciiDomain(domain) !== null ? domain : null;
 }
 
 const domainOf = (value: string) => {
@@ -57,11 +60,17 @@ const domainOf = (value: string) => {
 
 // SPF's authenticated identifier: the MAIL FROM domain, or, only on the null path (no or empty `smtp.mailfrom`), the
 // HELO identity SPF then checked (RFC 7208 section 2.4), said so.
-export function spfIdentifier(r: Result): { domain: string; helo: boolean } | null {
-  const mailfrom = domainOf(r.props.get("smtp.mailfrom") ?? "");
-  if (mailfrom) return { domain: mailfrom, helo: false };
+// `alignable` is false for a HELO identity outside the null path: a result that merely omits `smtp.mailfrom` has not
+// shown the reverse path was null, so only an explicitly empty one (`<>`) lets HELO stand in (RFC 7489 section 3.1.2;
+// round 1).
+export function spfIdentifier(r: Result): { domain: string; helo: boolean; alignable: boolean } | null {
+  const given = r.props.get("smtp.mailfrom");
+  const mailfrom = domainOf(given ?? "");
+  if (mailfrom) return { domain: mailfrom, helo: false, alignable: true };
   const helo = domainOf(r.props.get("smtp.helo") ?? "");
-  return helo ? { domain: helo, helo: true } : null;
+  if (!helo) return null;
+  const nullPath = given !== undefined && /^\s*<?\s*>?\s*$/.test(given);
+  return { domain: helo, helo: true, alignable: nullPath };
 }
 
 // DKIM's: the signing domain `d`; when only `i` is given, its domain, which RFC 6376 section 3.5 requires to be `d` or
@@ -77,17 +86,26 @@ export function dkimIdentifier(r: Result): string | null {
 // domain, or one compared by full host name, does not).
 export function aligned(identifier: string | null, from: string | null): boolean {
   if (!identifier || !from) return false;
-  const a = registrable(asciiDomain(identifier));
-  return a !== null && a === registrable(asciiDomain(from));
+  const id = asciiDomain(identifier);
+  const own = asciiDomain(from);
+  const a = id === null ? null : registrable(id);
+  return a !== null && own !== null && a === registrable(own);
 }
 
 // A domain in its A-label form (`bücher.example` is `xn--bcher-kva.example`), as DMARC compares them (RFC 7489 section
 // 6.6.1), by the platform's own IDNA conversion; the input as given when it is not a valid host name.
-export function asciiDomain(domain: string): string {
+// Null for anything that is not a domain name as a whole: dot-separated labels of letters, digits, marks and hyphens. A
+// URL parse alone would drop a path (`bank.example/evil.example` would become `bank.example`; round 1).
+const DOMAIN =
+  /^[\p{L}\p{N}\p{M}](?:[\p{L}\p{N}\p{M}-]*[\p{L}\p{N}\p{M}])?(?:\.[\p{L}\p{N}\p{M}](?:[\p{L}\p{N}\p{M}-]*[\p{L}\p{N}\p{M}])?)+$/u;
+export function asciiDomain(domain: string): string | null {
+  const name = domain.trim().toLowerCase().replace(/\.$/, "");
+  if (!DOMAIN.test(name)) return null;
   try {
-    return new URL(`http://${domain}/`).hostname;
+    const host = new URL(`http://${name}/`).hostname;
+    return /^[a-z0-9.-]+$/.test(host) ? host : null;
   } catch {
-    return domain;
+    return null;
   }
 }
 
@@ -108,7 +126,8 @@ export function policyOf(r: Result, from: string | null): Policy {
   const p = /(?:^|\s)p=([a-z]+)/i.exec(r.comment)?.[1]?.toLowerCase();
   const sp = /(?:^|\s)sp=([a-z]+)/i.exec(r.comment)?.[1]?.toLowerCase();
   if (p) {
-    const subdomain = from !== null && registrable(from) !== from;
+    const own = from === null ? null : asciiDomain(from);
+    const subdomain = own === null || registrable(own) !== own;
     if (!subdomain || !sp || sp === p) return { certain: p };
     return { either: [p, sp] };
   }
@@ -122,6 +141,12 @@ const plain = (value: string, max = 80) => {
   return text.length <= max ? text.join("") : `${text.slice(0, max - 1).join("")}…`;
 };
 const MAX_HEADER = 2_000;
+// The evidence schema's limit for a summary (at most 200 characters): a long one is cut, its detail keeping every result,
+// so an item is never refused and replaced by `not_checked` (round 1).
+const bounded = (summary: string) => {
+  const text = Array.from(summary);
+  return text.length <= 200 ? summary : `${text.slice(0, 199).join("")}…`;
+};
 
 // The headers the given results came from, each once, bounded: an item cites the header its result is in.
 // A method the receiver did not report is explained from every header it wrote, all of which were read (completion
@@ -145,7 +170,7 @@ function item(
   return {
     check,
     severity,
-    summary,
+    summary: bounded(summary),
     detail: { ...detail, receiver: trusted.kind, headers: headersOf(trusted, results) } as EvidenceDraft["detail"],
     artefacts: [view.raw],
   };
@@ -179,14 +204,19 @@ function methodEvidence(method: "spf" | "dkim") {
     const state = overall(results.map((r) => stateOf(method, r)));
     const identifiers = results.map((r) => (method === "spf" ? (spfIdentifier(r)?.domain ?? null) : dkimIdentifier(r)));
     // Each signer with its own outcome: a pass for one never reads as a pass for another (completion review).
+    // Each group by its own state, a result naming no domain as such: an unnamed pass never reads as a named signer's
+    // (round 1).
+    const unnamed = method === "spf" ? "a result naming no domain" : "a signature naming no signer";
     const byState = RANK.map((st) => ({
       st,
-      names: identifiers.filter((d, i): d is string => d !== null && stateOf(method, results[i] as Result) === st),
+      names: results
+        .map((r, i) => (stateOf(method, r) === st ? (identifiers[i] ?? unnamed) : null))
+        .filter((d): d is string => d !== null)
+        .filter((d, i, all) => all.indexOf(d) === i),
     })).filter((g) => g.names.length);
-    const said =
-      byState.length > 1
-        ? byState.map((g) => `${SAID[g.st]} for ${plain(g.names.join(", "), 40)}`).join(" and ")
-        : `${SAID[state]}${byState[0] ? ` for ${plain(byState[0].names.join(", "), 80)}` : ""}`;
+    const said = byState.length
+      ? byState.map((g) => `${SAID[g.st]} for ${plain(g.names.join(", "), 60)}`).join(" and ")
+      : SAID[state];
     return [
       item(
         view,
@@ -254,7 +284,10 @@ export function alignmentEvidence(view: CaseView): EvidenceDraft[] {
   const considered = [...spf, ...dkim];
   const passing = [
     ...spf
-      .filter((r) => stateOf("spf", r) === "passed" && aligned(spfIdentifier(r)?.domain ?? null, from))
+      .filter((r) => {
+        const id = spfIdentifier(r);
+        return stateOf("spf", r) === "passed" && id?.alignable === true && aligned(id.domain, from);
+      })
       .map((r) => ({ method: "SPF", identifier: spfIdentifier(r)?.domain ?? null })),
     ...dkim
       .filter((r) => stateOf("dkim", r) === "passed" && aligned(dkimIdentifier(r), from))
@@ -268,7 +301,7 @@ export function alignmentEvidence(view: CaseView): EvidenceDraft[] {
         trusted,
         "auth.alignment",
         "medium",
-        "The From header names no single mailbox, so alignment could not be checked.",
+        "The From header names no single valid address, so alignment could not be checked.",
         detail,
         considered,
       ),

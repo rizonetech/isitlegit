@@ -195,7 +195,7 @@ describe("auth.alignment", () => {
     });
   });
 
-  it("says when the From names no single mailbox", () => {
+  it("says when the From names no single valid address", () => {
     expect(align("spf=pass smtp.mailfrom=bank.example", "a@bank.example, b@other.example")).toMatchObject({
       severity: "medium",
       detail: { from: null },
@@ -238,6 +238,50 @@ describe("completion review", () => {
     }
     const silent = gmail("iprev=pass policy.iprev=203.0.113.5");
     expect((await one(view(silent), "auth.alignment"))?.detail.headers).toEqual([silent[1]?.value]);
+  });
+});
+
+describe("round 1", () => {
+  it("never aligns a From whose domain is not a domain name, however a URL would read it", () => {
+    expect(
+      alignmentEvidence(view(gmail("dkim=pass header.d=bank.example", "a@bank.example/evil.example")))[0],
+    ).toMatchObject({
+      severity: "medium",
+      detail: { from: null },
+    });
+  });
+
+  it("lets a HELO identity align only on an explicit null path", () => {
+    const helo = "spf=pass smtp.helo=bank.example; spf=fail smtp.mailfrom=other.example; dkim=none";
+    expect(alignmentEvidence(view(gmail(helo)))[0]).toMatchObject({ severity: "high" });
+    expect(alignmentEvidence(view(gmail("spf=pass smtp.mailfrom=<> smtp.helo=bank.example")))[0]).toMatchObject({
+      severity: "info",
+    });
+  });
+
+  it("keeps a long three-signer summary within the schema, so the item is stored", async () => {
+    const d = (c: string) => `${c.repeat(32)}.example`;
+    const items = await run(
+      view(gmail(`dkim=pass header.d=${d("a")}; dkim=fail header.d=${d("b")}; dkim=temperror header.d=${d("c")}`)),
+    );
+    const dkim = items.find((e) => e.check === "auth.dkim");
+    expect(Array.from(dkim?.summary ?? "").length).toBeLessThanOrEqual(200);
+    expect(items.some((e) => e.check === "not_checked")).toBe(false);
+    expect((dkim?.detail as { results: unknown[] } | undefined)?.results).toHaveLength(3);
+  });
+
+  it("never lets an unnamed pass read as a named signer's", async () => {
+    const item = await one(view(gmail("dkim=pass; dkim=fail header.d=bank.example")), "auth.dkim");
+    expect(item?.summary).toBe(
+      "DKIM passed for a signature naming no signer and failed for bank.example, as your receiving system recorded.",
+    );
+  });
+
+  it("reads an internationalised apex as the organisational domain for its policy", () => {
+    expect(dmarcEvidence(view(gmail("dmarc=fail (p=REJECT sp=NONE dis=NONE)", "a@bücher.example")))[0]).toMatchObject({
+      severity: "high",
+      detail: { policy: { certain: "reject" } },
+    });
   });
 });
 
