@@ -152,14 +152,20 @@ export function typeMismatchEvidence(view: CaseView): EvidenceDraft[] {
       ...(byType && !byType.includes(sniffed) ? ["media type"] : []),
     ];
     if (!claims.length) continue;
-    // What the attachment says it is, by the claim that disagrees: its name first.
-    const said = byName && !byName.includes(sniffed) ? (byName[0] as SniffedType) : (byType?.[0] as SniffedType);
-    const hidden = DANGEROUS.includes(FAMILY[sniffed]) && DISGUISE.includes(FAMILY[said]);
+    // Every claim that disagrees weighs on the severity, so a false name cannot soften a false declared type (round 2):
+    // a program behind any document or image claim is high, and the summary names that claim.
+    const disagreeing = [
+      ...(byName && !byName.includes(sniffed) ? [byName[0] as SniffedType] : []),
+      ...(byType && !byType.includes(sniffed) ? [byType[0] as SniffedType] : []),
+    ];
+    const disguise = disagreeing.find((claim) => DISGUISE.includes(FAMILY[claim]));
+    const hidden = DANGEROUS.includes(FAMILY[sniffed]) && disguise !== undefined;
+    const said = (hidden ? disguise : disagreeing[0]) as SniffedType;
     items.push({
       check: "attachment.type_mismatch",
       severity: hidden ? "high" : "medium",
       summary: bounded(
-        `${plain(attachment.filename || "An attachment", 80)} is ${claims.includes("extension") ? "named" : "declared"} as ${NAMES[said]}, but contains ${NAMES[sniffed]}.`,
+        `${plain(attachment.filename || "An attachment", 80)} is ${byName && !byName.includes(sniffed) && byName[0] === said ? "named" : "declared"} as ${NAMES[said]}, but contains ${NAMES[sniffed]}.`,
       ),
       detail: fittedDetail({
         filename: attachment.filename,

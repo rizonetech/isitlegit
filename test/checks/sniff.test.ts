@@ -41,6 +41,12 @@ describe("sniff", () => {
     expect(sniff(new TextEncoder().encode(svg))).toBe("svg");
   });
 
+  it("reads an SVG whose quoted entity holds a bracket (round 2)", () => {
+    const svg =
+      '<!DOCTYPE svg [<!ENTITY company "Example ] Ltd">]>\n<svg xmlns="http://www.w3.org/2000/svg"><text>&company;</text></svg>';
+    expect(sniff(new TextEncoder().encode(svg))).toBe("svg");
+  });
+
   it("reads prose that mentions a command as text, not a script (completion review)", () => {
     for (const prose of [
       "In PowerShell, Invoke-Expression runs a string as a command.",
@@ -197,6 +203,14 @@ describe("attachment.type_mismatch", () => {
         items.map((i) => i.severity),
         odd,
       ).toEqual(["high"]);
+    }
+  });
+
+  it("stays high when a false name hides a false document type (round 2)", () => {
+    for (const filename of ["invoice.bin", "invoice.zip", "invoice.txt"]) {
+      const [item] = typeMismatchEvidence(view([{ filename, mediaType: "application/pdf", sample: samples.pe }]));
+      expect(item?.severity, filename).toBe("high");
+      expect(item?.summary, filename).toContain("as a PDF, but contains a Windows program");
     }
   });
 

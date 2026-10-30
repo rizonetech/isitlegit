@@ -111,12 +111,19 @@ function isText(bytes: Uint8Array): boolean {
 // Where a doctype ends: after its internal subset (`[...]`, whose declarations hold their own `>`), at the next `>`
 // (XML 1.0 section 2.8; round 1). Zero when it does not end in the text read.
 function doctypeEnd(text: string): number {
-  const open = text.indexOf("[");
-  const close = text.indexOf(">");
-  if (open < 0 || (close >= 0 && close < open)) return close + 1;
-  const subset = text.indexOf("]", open);
-  if (subset < 0) return 0;
-  return text.indexOf(">", subset) + 1;
+  // Quoted values (an entity's, a public identifier's) may hold `]` or `>`: only those outside quotes count (round 2).
+  let quote = "";
+  let subset = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "[") subset = true;
+    else if (c === "]") subset = false;
+    else if (c === ">" && !subset) return i + 1;
+  }
+  return 0;
 }
 
 // What follows an XML prolog (the declaration, comments, processing instructions and a doctype, in any order), bounded
