@@ -13,6 +13,8 @@ import { Field } from "../components/Field";
 import { ClockIcon, KeyIcon, MailIcon, StopIcon } from "../components/icons";
 
 export const SIGNIN_PATH = "/signin";
+// The public site the logo goes home to (board `Signin`'s "IsItLegit home"), as the app shell's footer links it.
+const HOME = "https://isitlegit.co.za";
 const LINK_PATH = "/signin/link";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 
@@ -24,7 +26,9 @@ export function SigninFrame(props: { title: string; children: Child }) {
           aria-label="IsItLegit"
           class="hidden md:flex flex-col justify-between gap-48 bg-dark text-on-dark px-80 py-64"
         >
-          <img src={LOGO_ON_DARK} alt="IsItLegit" class="h-28 self-start" />
+          <a href={HOME} class={cx("self-start rounded-small", FOCUS)}>
+            <img src={LOGO_ON_DARK} alt="IsItLegit home" class="h-28" />
+          </a>
           <div class="flex flex-col gap-24">
             <img src={LOGO_MARK_ON_DARK} alt="" class="w-72 h-72" />
             <p class="type-h1 max-w-signin-headline">Every suspicious email, investigated. Every reason, cited.</p>
@@ -35,7 +39,9 @@ export function SigninFrame(props: { title: string; children: Child }) {
           <p class="text-14 text-on-dark-muted">IsItLegit by Rizonetech · George, South Africa</p>
         </aside>
         <main id="content" class="flex flex-col px-16 py-24 md:px-80 md:py-64 md:justify-center">
-          <img src={LOGO} alt="IsItLegit" class="md:hidden h-24 self-start mb-40" />
+          <a href={HOME} class={cx("md:hidden self-start mb-40 rounded-small", FOCUS)}>
+            <img src={LOGO} alt="IsItLegit home" class="h-24" />
+          </a>
           <div class="w-full max-w-signin-column flex flex-col gap-24 md:mx-auto">{props.children}</div>
         </main>
       </div>
@@ -103,8 +109,10 @@ const LINK_ERRORS: Record<string, string> = {
   EXPIRED_TOKEN: "Sign-in links work for 15 minutes, and this one has run out.",
   ATTEMPTS_EXCEEDED: "This link was tried too many times, so it no longer works.",
 };
+// Only the map's own codes: a name like `constructor` or `__proto__` from the address is no code of ours.
 export const linkErrorText = (code: string) =>
-  LINK_ERRORS[code] ?? "This sign-in link did not work. Ask for a new one below.";
+  (Object.hasOwn(LINK_ERRORS, code) ? LINK_ERRORS[code] : undefined) ??
+  "This sign-in link did not work. Ask for a new one below.";
 
 export function SigninPage(props: { next: string; error?: string | null }) {
   if (props.error)

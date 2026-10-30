@@ -78,6 +78,22 @@ describe("the sign-in page", () => {
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>Email me a sign-in link<\/button>/);
     expect(html).toMatch(/<a href="\/signup"[^>]*>Create an account<\/a>/);
     expect(field(html, "callbackURL")).toBe("/cases");
+    // The logo goes home, by its name, on both layouts.
+    expect(html.match(/<a href="https:\/\/isitlegit.co.za"[^>]*><img[^>]*alt="IsItLegit home"/g)).toHaveLength(2);
+  });
+
+  it("keeps a requested fragment (a report's evidence anchor) through a sign-in by code", async () => {
+    const email = await member();
+    const smtp = mailed();
+    const b = browser();
+    await b.post("/signin/link", { email, callbackURL: "/cases/42#e1" });
+    const landed = await b.post("/signin/code", {
+      email,
+      code: codeIn(smtp.sends.at(-1)?.text ?? ""),
+      callbackURL: "/cases/42#e1",
+    });
+    expect(landed.status).toBe(303);
+    expect(landed.headers.get("location")).toMatch(/\/cases\/42#e1$/);
   });
 
   it("normalises next once: anything off this site is the default, a path here is kept whole", async () => {
@@ -113,9 +129,11 @@ describe("the sign-in page", () => {
     // A new link from it returns to the same page.
     await b.post("/signin/link", { email, callbackURL: field(html, "callbackURL") });
     expect(new URL(linkIn(smtp.sends.at(-1)?.text ?? "")).searchParams.get("callbackURL")).toBe("/cases/42");
-    const odd = await (await b.get("/signin?error=WEIRD_%3Cscript%3E")).text();
-    expect(odd).toContain("This sign-in link did not work.");
-    expect(odd).not.toContain("WEIRD");
+    for (const code of ["WEIRD_%3Cscript%3E", "constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      const odd = await (await b.get(`/signin?error=${code}`)).text();
+      expect(odd, code).toContain("This sign-in link did not work.");
+      expect(odd, code).not.toContain("WEIRD");
+    }
   });
 
   it("gives a fresh browser its code handle when it is served, so links asked at once share it", async () => {
@@ -157,7 +175,8 @@ describe("the sign-in page", () => {
         landed = await b.post("/signin/code", { email, code: codeIn(mail), callbackURL: "/cases" });
       }
       expect(landed.status).toBe(303);
-      expect(landed.headers.get("location")).toMatch(/\/cases#signed-in$/);
+      expect(landed.headers.get("location")).toMatch(/\/cases$/);
+      expect(landed.headers.getSetCookie().some((c) => c.startsWith("isitlegit_signed_in=1;"))).toBe(true);
       expect(target(landed)).toBe("/cases");
       const cases = await b.get("/cases");
       expect(cases.status).toBe(200);

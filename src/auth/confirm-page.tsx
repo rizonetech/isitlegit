@@ -162,7 +162,11 @@ export function LinkRequestPage(props: LinkRequestProps) {
 // request form with this address to correct). A refused code comes back here with its message tied to the field;
 // `retry` holds Sign in until a rate limit lifts. The page waits for the sign-in to finish in another tab (the app
 // script, D07 T02 §7) for this address only (`data-signin-wait`).
-export type InboxProps = { email: string; callbackURL: string; codeError?: string; retry?: Retry };
+export type InboxProps = { email: string; callbackURL: string; codeError?: string; retry?: Retry; code?: string };
+// Send another link waits this long after the page is shown, the same for every answer (it says nothing about the
+// address): a link is usually there in under a minute, and each press spends one of the address's five links (D07 T02
+// §7, completion review). Code entry is never held by it.
+const RESEND_WAIT_SECONDS = 30;
 
 export function InboxPage(props: InboxProps) {
   return (
@@ -183,9 +187,10 @@ export function InboxPage(props: InboxProps) {
               hint="Reading the mail on another device? Type its 6-digit code here to sign in on this one."
               inputmode="numeric"
               autocomplete="one-time-code"
-              maxlength={7}
+              maxlength={16}
               autofocus
               required
+              {...(props.code ? { value: props.code } : {})}
               {...(props.codeError ? { error: props.codeError } : {})}
             />
             <Button type="submit" variant="primary" data-busy-label="Signing in…" {...held(props.retry, "Sign in")}>
@@ -199,8 +204,14 @@ export function InboxPage(props: InboxProps) {
           <form method="post" action={LINK_PATH} data-busy>
             <input type="hidden" name="email" value={props.email} />
             <input type="hidden" name="callbackURL" value={props.callbackURL} />
-            <Button type="submit" variant="ghost" class="w-full" data-busy-label="Sending…">
-              Send another link
+            <Button
+              type="submit"
+              variant="ghost"
+              class="w-full"
+              data-busy-label="Sending…"
+              {...held(retryIn(RESEND_WAIT_SECONDS), "Send another link")}
+            >
+              Send another link in 30 seconds
             </Button>
           </form>
           <a

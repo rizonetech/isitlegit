@@ -158,15 +158,16 @@ async function askVerify(env: Env, request: Request, token: string, callbackURL:
 // redirect (round 3).
 function signedIn(callbackURL: string, origin: string, cookies: string[]): Response {
   const destination = new URL(callbackURL, origin);
-  // `#signed-in` lets the page landed on tell this browser's other tabs (the one that asked for the link) that the
-  // sign-in finished (D07 T02 §7, src/web/client/app.ts); the app script removes it from the address.
-  const landed = destination.origin === origin ? destination : new URL(DEFAULT_RETURN, origin);
-  landed.hash = "signed-in";
-  const to = landed.href;
+  const to = destination.origin === origin ? destination.href : new URL(DEFAULT_RETURN, origin).href;
   const out = new Response(null, { status: 303, headers: { location: to, "cache-control": "no-store" } });
   for (const cookie of cookies) out.headers.append("set-cookie", cookie);
+  // The page landed on tells this browser's other tabs (the one that asked for the link) that the sign-in finished
+  // (D07 T02 §7, src/web/client/app.ts), by a short-lived cookie it reads and clears: the address, its fragment
+  // included (a report's evidence anchor), is left as asked.
+  out.headers.append("set-cookie", `${SIGNED_IN_COOKIE}=1; Path=/; Max-Age=60; SameSite=Lax; Secure`);
   return out;
 }
+export const SIGNED_IN_COOKIE = "isitlegit_signed_in";
 
 export const confirmRoutes = new Hono<{ Bindings: Env }>();
 
@@ -341,9 +342,15 @@ confirmRoutes.post(CODE_PATH, async (c) => {
   if (!form) return tooLarge();
   const email = form.email ?? "";
   const callbackURL = returnPath(form.callbackURL);
+  // A rate limit's retry keeps the code it stopped, so pressing Sign in again needs nothing typed (completion review).
   const inbox = (codeError: string, status: number, retry?: Retry) =>
     pageResponse(
-      <InboxPage email={email} callbackURL={callbackURL} codeError={codeError} {...(retry ? { retry } : {})} />,
+      <InboxPage
+        email={email}
+        callbackURL={callbackURL}
+        codeError={codeError}
+        {...(retry ? { retry, code: (form.code ?? "").slice(0, 16) } : {})}
+      />,
       status,
     );
   const secret = c.env.BETTER_AUTH_SECRET ?? "";

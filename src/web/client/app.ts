@@ -181,21 +181,29 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-r
   }
 }
 
-// Signing in by a link (or code) lands with `#signed-in` (src/auth/confirm.tsx): the marker is removed from the address,
-// and the tabs of this browser are told which address is now signed in, so the tab that asked for the link can go on
-// (below). The address is read from the session, never from the page.
+// Signing in by a link (or code) lands with a short-lived `isitlegit_signed_in` cookie (src/auth/confirm.tsx): it is
+// cleared, and the tabs of this browser are told which address is now signed in, so the tab that asked for the link can
+// go on (below). The address is read from the session, never from the page. A browser without BroadcastChannel (Safari
+// before 15.4) has none of this, and the tab that asked finds the session by asking instead.
 const AUTH_CHANNEL = "isitlegit-auth";
+const channel = (): BroadcastChannel | null => {
+  try {
+    return typeof BroadcastChannel === "function" ? new BroadcastChannel(AUTH_CHANNEL) : null;
+  } catch {
+    return null;
+  }
+};
 type SessionAnswer = { user?: { email?: string } } | null;
 const sessionEmail = async (): Promise<string | null> => {
   const answer = await fetch("/api/auth/get-session", { credentials: "same-origin", cache: "no-store" });
   if (!answer.ok) throw new Error(`session ${answer.status}`);
   return ((await answer.json()) as SessionAnswer)?.user?.email?.toLowerCase() ?? null;
 };
-if (location.hash === "#signed-in") {
-  history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+if (/(?:^|;\s*)isitlegit_signed_in=1/.test(document.cookie)) {
+  document.cookie = "isitlegit_signed_in=; Path=/; Max-Age=0; SameSite=Lax; Secure";
   sessionEmail()
     .then((email) => {
-      if (email) new BroadcastChannel(AUTH_CHANNEL).postMessage({ signedIn: email });
+      if (email) channel()?.postMessage({ signedIn: email });
     })
     .catch(() => {});
 }
@@ -216,7 +224,7 @@ if (waiting) {
     if (status) status.textContent = "Signed in. Opening your page.";
     location.assign(next);
   };
-  new BroadcastChannel(AUTH_CHANNEL).addEventListener("message", (event: MessageEvent) => {
+  channel()?.addEventListener("message", (event: MessageEvent) => {
     const email = (event.data as { signedIn?: unknown })?.signedIn;
     if (typeof email === "string" && email.toLowerCase() === wanted) finish();
   });
