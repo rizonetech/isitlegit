@@ -50,8 +50,15 @@ class Server(http.server.ThreadingHTTPServer):
         self.flip_after = None  # after this many ranged requests the server's file has another validator
         self.ranges = []  # (first, last, when) of every ranged request, in arrival order
         self.heads = 0
+        self.trial_bodies = 0  # whole-file bodies begun and left waiting (`trial-stall`)
+        self.head_pause = 0.0  # seconds each HEAD is held open, so concurrent HEADs are seen to overlap
         self.flip_etag = '"v2"'  # what the validator becomes at the flip (None: it stays)
         self.flip_body = None  # what the file becomes at the flip (None: it stays)
+
+
+    def handle_error(self, request, client_address):
+        if not isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError)):
+            super().handle_error(request, client_address)  # a killed fetcher resets its connection, as it must
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -62,9 +69,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # `do_HEAD` is the name BaseHTTPRequestHandler dispatches a HEAD to.
     def do_HEAD(self):  # noqa: N802
-        server, modes = self.server, self.server.modes
+        server = self.server
         with server.lock:
             server.heads += 1
+            if server.group is not None:
+                server.group["active"] += 1
+                server.group["peak"] = max(server.group["peak"], server.group["active"])
+        try:
+            time.sleep(server.head_pause)
+            return self.answer_head()
+        finally:
+            with server.lock:
+                if server.group is not None:
+                    server.group["active"] -= 1
+
+    def answer_head(self):
+        server, modes = self.server, self.server.modes
+        if "head-429" in modes:
+            self.send_response(429)
+            self.send_header("Retry-After", "30")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if "head-trickle" in modes:
             # Headers a byte at a time, each well inside the socket timeout: only a rate check ends it.
             try:
@@ -241,11 +267,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if "encoding" in modes:
                 self.send_header("Content-Encoding", "gzip")
         else:
+            if "whole-404" in modes:
+                self.send_response(404)  # a whole-file request this source cannot answer, whatever its ranges give
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             self.send_response(200)
             chunk = body
             for offset in server.damaged:
                 chunk = chunk[:offset] + bytes([chunk[offset] ^ 0xFF]) + chunk[offset + 1:]
-            length = len(chunk)
+            length = len(chunk) - 1 if "whole-length" in modes else len(chunk)
+            if "whole-gzip" in modes:
+                self.send_header("Content-Encoding", "gzip")
         if "no-validator-on-range" in modes and honour:
             pass  # a 206 that names no representation
         elif "weak-etag" in modes or ("weak-etag-on-range" in modes and honour):
@@ -267,6 +300,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         cut = len(chunk)
         if "drop-once" in modes and n == 1:
             cut = int(len(chunk) * 0.9)
+        if "drop-empty" in modes and n == 1:
+            cut = 0  # the valid headers, then the connection closes before any byte
         if "corrupt-drop-once" in modes and n == 1:
             # Wrong bytes for the first half, then the connection drops: a host serving a damaged copy.
             chunk = bytes(len(chunk))
@@ -296,6 +331,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     time.sleep(server.pace or 0.05)
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the fetcher was killed mid-download, as the test means it to be
+            return
+        if "trial-stall" in modes and not ranged:
+            try:
+                self.wfile.write(chunk[:1 << 16])  # the first block of a whole-file body, then nothing for a while
+                self.wfile.flush()
+                with server.lock:
+                    server.trial_bodies += 1
+                time.sleep(8)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the fetcher was killed mid-body, as the test means it to be
             return
         if "stall" in modes:
             time.sleep(3)
@@ -1476,6 +1521,19 @@ class Fetch(unittest.TestCase):
         self.assertGreaterEqual(group["peak"], 3)
         self.assertLessEqual(group["peak"], 4)
 
+    def test_five_sources_never_hold_more_than_four_connections_across_the_heads_and_the_ranges(self):
+        others = [self.mirror() for _ in range(4)]
+        servers = [self.server, *(other for other, _ in others)]
+        group = self.share_peak(*servers)
+        for server in servers:
+            server.head_pause = 0.3  # held open, so five HEADs started together would be seen at once
+            server.pace = 0.01
+        result = self.mixed(*(base for _, base in others), min_rate=0)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertEqual([server.heads for server in servers], [1] * 5)  # every source was asked
+        self.assertEqual(group["peak"], 4)  # the HEADs reached four at once, and nothing went past it
+
     def test_a_host_that_disagrees_on_the_file_serves_no_range_while_the_others_are_healthy(self):
         agreeing, first = self.mirror()
         disagreeing, second = self.mirror()
@@ -1545,7 +1603,14 @@ class Fetch(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 20)
         self.assertLessEqual(group["peak"], 4)
         quarter = -(-SIZE // 4)
-        self.assertTrue([1 for first, _, _ in healthy.ranges if 0 < first < quarter or 2 * quarter < first < 3 * quarter])
+        slow_ranges = [(0, quarter - 1), (2 * quarter, 3 * quarter - 1)]
+        taken = [first for first, _, _ in healthy.ranges if any(low < first <= high for low, high in slow_ranges)]
+        self.assertTrue(taken, healthy.ranges)  # the healthy host was asked for the tail of a range the stalled one began
+        middle = taken[0]
+        low, high = next((low, high) for low, high in slow_ranges if low < middle <= high)
+        tail_done = max(when for when, offset, _ in writes if middle <= offset <= high)
+        kept_done = max(when for when, offset, _ in writes if low <= offset < middle)
+        self.assertLess(tail_done, kept_done)  # the taken tail was finished before the stalled host's kept half
         self.assertIn(base + "/file", result["urls"])
 
     def test_a_host_that_disconnects_hands_its_unfinished_range_to_the_other(self):
@@ -1591,6 +1656,19 @@ class Fetch(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 10)  # nobody waited the 30 seconds out
         self.assertEqual(self.server.segment_requests, 2)  # and the paused host was not asked again
 
+    def test_a_retry_after_from_a_head_is_kept_until_the_fallback_asks_that_source_again(self):
+        refusing, base = self.mirror()
+        refusing.modes = {"segment-403"}  # this one qualifies, then refuses every range
+        self.server.modes = {"head-429"}  # Retry-After: 30, to the HEAD only
+        slept = []
+        result = self.mixed(base, attempts=5, sleep=lambda seconds: slept.append((time.monotonic(), seconds)))
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [self.base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(self.server.heads, 1)  # not asked again for a HEAD either
+        waited = [when for when, seconds in slept if 25 <= seconds <= 30]
+        self.assertTrue(waited, slept)  # the 30 seconds were waited out before this source was asked for a range
+        self.assertLess(max(waited), min(when for first, _, when in self.server.ranges))
+
     def test_each_connection_keeps_its_rate_floor_while_the_other_source_writes(self):
         healthy, base = self.mirror()
         self.server.pace = 0.5  # 128 KiB a second on each connection, under the floor
@@ -1627,6 +1705,29 @@ class Fetch(unittest.TestCase):
             self.mixed(base)
         runner.join()
         self.assertEqual(outcome["status"], "fetched")
+
+    def test_the_free_space_floor_is_held_while_both_sources_are_writing(self):
+        healthy, base = self.mirror()
+        self.server.pace = healthy.pace = 0.02  # both are mid-body when the floor is crossed
+        real, written = shutil.disk_usage, [0]
+        real_pwrite = os.pwrite
+
+        def pwrite(descriptor, data, offset):
+            written[0] += len(data)
+            return real_pwrite(descriptor, data, offset)
+
+        def shrinking(path):
+            usage = real(path)
+            # Room for the whole file at the start (the preflight passes), then every byte written takes two.
+            return type(usage)(usage.total, usage.used, 10**6 + SIZE + 1000 - 2 * written[0])
+
+        with mock.patch.object(fetch.shutil, "disk_usage", shrinking), mock.patch.object(fetch.os, "pwrite", pwrite), \
+                self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+            self.mixed(base, min_free=10**6, min_rate=0)
+        self.assertGreater(sum(self.server.served), 0)  # both sources had been writing
+        self.assertGreater(sum(healthy.served), 0)
+        self.assertFalse(Path("src/data.bin").exists())
+        self.assertTrue(Path("src/.partial/data.bin.state.json").exists())  # the partial is kept for a rerun
 
     def test_an_ignored_range_a_malformed_answer_or_a_refused_redirect_fails_only_that_source(self):
         for modes in ({"ignore-range"}, {"segment-wrong-offset"}, {"segment-private"}, {"segment-bad-length"}):
@@ -1689,6 +1790,34 @@ class Fetch(unittest.TestCase):
                     and all(span[2] != state_["sources"].index(self.base + "/file") for span in state_["provenance"])
                     for state_ in saved), saved)  # the cut was saved before the first replacement byte
 
+    def test_a_changed_source_loses_every_range_its_one_provenance_span_covers(self):
+        healthy, base = self.mirror()
+        mine = self.base + "/file"
+        quarter = -(-SIZE // 4)
+        # An earlier process left the first two ranges whole from this host alone, so the provenance holds the one
+        # span [0, 2 quarters) that runs across the boundary between them; the bytes are wrong, so any range left
+        # behind would fail the digest.
+        Path("src/.partial").mkdir(parents=True)
+        with open("src/.partial/data.bin", "wb") as handle:
+            handle.truncate(SIZE)
+            handle.write(bytes(2 * quarter))
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": mine, "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity", "total": SIZE,
+            "segments": [[0, quarter - 1, quarter], [quarter, 2 * quarter - 1, quarter],
+                         [2 * quarter, 3 * quarter - 1, 0], [3 * quarter, SIZE - 1, 0]],
+            "sources": [mine], "provenance": [[0, 2 * quarter - 1, 0]]}))
+        self.server.flip_after = 0  # the first range it is asked for comes from another file
+        events, (patch_state, patch_writes) = self.snapshots()
+        with patch_state, patch_writes:
+            result = self.mixed(base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(healthy.requests, healthy.segment_requests)  # nothing started again whole
+        cut = [event[1] for event in events if event[0] == "state" and event[1]["segments"][0][2] == 0
+               and event[1]["segments"][1][2] == 0 and "provenance" in event[1]
+               and all(span[2] != event[1]["sources"].index(mine) for span in event[1]["provenance"])]
+        self.assertTrue(cut, "the cut of both ranges was never saved")
+
     def test_a_stop_during_a_replacement_is_resumed_by_a_fresh_process(self):
         for where in ("before the first replacement byte", "after some replacement bytes"):
             with self.subTest(where):
@@ -1726,8 +1855,8 @@ class Fetch(unittest.TestCase):
                 names = saved["sources"]
                 self.assertTrue(all(span[2] != names.index(mine) for span in saved["provenance"]))
                 self.assertFalse(Path("src/data.bin").exists())
-                result = self.mixed(base, attempts=5)  # a fresh call: the host has the other file now
-                self.assertEqual((result["status"], result["resumed"]), ("fetched", True))
+                code, result = self.cli_run("--mirror", base + "/file", "--attempts", "5")  # a fresh process
+                self.assertEqual((code, result["status"], result["resumed"]), (0, "fetched", True), result)
                 self.assertEqual(result["urls"], [base + "/file"])
                 self.assert_whole()
 
@@ -1780,38 +1909,80 @@ class Fetch(unittest.TestCase):
                 else:
                     self.assertEqual((self.trials(corrupt), ruled), (0, []))  # the healthy one verified first
 
+    MATRIX = ((True, 100), (True, 5_500_000), (False, 3_000_000), (False, 8_000_000))  # the corrupt one first, then second
+
     def test_the_search_is_kept_in_the_state_and_a_fresh_process_goes_on_from_it(self):
-        corrupt, healthy, (bad, good), base = self.one_corrupt(True, 100)
+        for corrupt_first, offset in self.MATRIX:
+            with self.subTest(corrupt_first=corrupt_first, offset=offset):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.damaged, self.server.requests, self.server.segment_requests = set(), 0, 0
+                corrupt, healthy, (bad, good), base = self.one_corrupt(corrupt_first, offset)
 
-        def just_started(value):
-            return bool(value.get("recovery")) and not value["recovery"]["ruled_out"]
+                def just_started(value):
+                    return bool(value.get("recovery")) and not value["recovery"]["ruled_out"]
 
-        with self.stopping_after(just_started), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
-            self.mixed(base, attempts=5)
-        saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
-        self.assertEqual((saved["recovery"]["candidates"], saved["recovery"]["ruled_out"]), ([bad, good], []))
-        self.assertFalse(Path("src/.partial/data.bin").exists())  # the mixed bytes are gone: no trial reads them
-        self.assertFalse(Path("src/data.bin").exists())
-        result = self.mixed(base, attempts=5)  # a fresh call, as a fresh process would be
-        self.assertEqual((result["status"], result["urls"]), ("fetched", [good]))
-        self.assert_whole()
-        self.assertEqual((self.trials(corrupt), self.trials(healthy)), (1, 1))
+                with self.stopping_after(just_started), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
+                    self.mixed(base, attempts=5)
+                saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+                self.assertEqual((saved["recovery"]["candidates"], saved["recovery"]["ruled_out"]),
+                                 ([self.base + "/file", base + "/file"], []))
+                self.assertFalse(Path("src/.partial/data.bin").exists())  # the mixed bytes are gone: no trial reads them
+                self.assertFalse(Path("src/data.bin").exists())
+                code, line = self.cli_run("--mirror", base + "/file", "--attempts", "5")  # a fresh process
+                self.assertEqual((code, line["status"], line["urls"]), (0, "fetched", [good]), line)
+                self.assert_whole()
+                self.assertEqual(self.trials(healthy), 1)
+                self.assertEqual(self.trials(corrupt), 1 if corrupt_first else 0)  # the healthy one verified first
 
     def test_a_source_named_bad_is_never_readmitted_by_a_fresh_process(self):
-        corrupt, healthy, (bad, good), base = self.one_corrupt(True, 100)
+        for offset in (100, 5_500_000):
+            with self.subTest(offset=offset):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.damaged, self.server.requests, self.server.segment_requests = set(), 0, 0
+                corrupt, healthy, (bad, good), base = self.one_corrupt(True, offset)
 
-        def bad_named(value):
-            return (value.get("recovery") or {}).get("ruled_out") == [bad]
+                def bad_named(value):
+                    return (value.get("recovery") or {}).get("ruled_out") == [bad]
 
-        with self.stopping_after(bad_named), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
-            self.mixed(base, attempts=5)
-        saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
-        self.assertEqual(saved["recovery"]["ruled_out"], [bad])
-        before = (corrupt.heads, corrupt.requests)
-        result = self.mixed(base, attempts=5)
-        self.assertEqual((result["status"], result["urls"]), ("fetched", [good]))
-        self.assert_whole()
-        self.assertEqual((corrupt.heads, corrupt.requests), before)  # not asked again, not even for a HEAD
+                with self.stopping_after(bad_named), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
+                    self.mixed(base, attempts=5)
+                saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+                self.assertEqual(saved["recovery"]["ruled_out"], [bad])
+                before = (corrupt.heads, corrupt.requests)
+                code, line = self.cli_run("--mirror", base + "/file", "--attempts", "5")  # a fresh process
+                self.assertEqual((code, line["status"], line["urls"]), (0, "fetched", [good]), line)
+                self.assert_whole()
+                self.assertEqual((corrupt.heads, corrupt.requests), before)  # not asked again, not even for a HEAD
+
+    def test_a_process_killed_during_a_trial_body_is_resumed_by_a_fresh_one(self):
+        for corrupt_first, offset in self.MATRIX:
+            with self.subTest(corrupt_first=corrupt_first, offset=offset):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.damaged, self.server.requests, self.server.segment_requests = set(), 0, 0
+                corrupt, healthy, (bad, good), base = self.one_corrupt(corrupt_first, offset)
+                self.server.trial_bodies = 0
+                self.server.modes = {"trial-stall"}  # the first source tried gives a block of its whole file, then waits
+                process = subprocess.Popen(self.cli_command("--mirror", base + "/file", "--attempts", "5"), cwd=self.dir,
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                try:
+                    deadline = time.monotonic() + 30
+                    while time.monotonic() < deadline and process.poll() is None and not self.server.trial_bodies:
+                        time.sleep(0.02)
+                    time.sleep(0.3)  # the block it was sent has reached the trial
+                    ended = process.poll()
+                    process.kill()  # killed with the trial's body half arrived
+                finally:
+                    out, err = process.communicate()
+                self.assertIsNone(ended, f"the run ended before its trial began: {out} {err[-600:]}")
+                saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+                self.assertEqual((saved["recovery"]["candidates"], saved["recovery"]["ruled_out"]),
+                                 ([self.base + "/file", base + "/file"], []))
+                self.assertFalse(Path("src/data.bin").exists())
+                self.server.modes = set()
+                code, line = self.cli_run("--mirror", base + "/file", "--attempts", "5")  # a fresh process
+                self.assertEqual((code, line["status"], line["urls"]), (0, "fetched", [good]), line)
+                self.assert_whole()
+                self.assertFalse((self.dir / "src/.partial/data.bin.trial").exists())
 
     def test_a_state_from_before_provenance_existed_starts_the_trials(self):
         mirror, base = self.mirror()
@@ -1852,11 +2023,76 @@ class Fetch(unittest.TestCase):
         self.assertFalse(Path("src/.partial/data.bin.state.json").exists())
 
 
+    WHOLE_FILE_UNUSABLE = ({"whole-404"}, {"whole-length"}, {"whole-gzip"})  # a wrong status, length and coding
+
+    def corrupt_pair_and_an_outsider(self, whole_modes):
+        """This server and a mirror that agree on the file and give a damaged byte in their ranges (and, unless
+        `whole_modes` make the whole file unusable, in the whole file too), and an outsider with another validator and
+        the true bytes: (the mirror, its base URL, the outsider, its base URL)."""
+        second, second_base = self.mirror()
+        outsider, outsider_base = self.mirror()
+        outsider.etag = '"v2"'
+        for server in (self.server, second):
+            server.damaged = {100}
+            server.modes = set(whole_modes)
+        return second, second_base, outsider, outsider_base
+
+    def test_a_search_whose_whole_file_answers_are_unusable_ends_refused_instead_of_repeating(self):
+        for modes in ({"whole-404"}, {"whole-length"}, {"whole-gzip"}, set()):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.requests = self.server.segment_requests = 0
+                second, second_base, _, _ = self.corrupt_pair_and_an_outsider(modes)
+                second.requests = second.segment_requests = 0
+                real, calls = fetch._request, []
+
+                class Runaway(BaseException):
+                    pass
+
+                def counted(*args, **kwargs):
+                    calls.append(1)
+                    if len(calls) > 60 and threading.current_thread() is threading.main_thread():
+                        raise Runaway("the same download and recovery went round again")
+                    return real(*args, **kwargs)
+
+                with mock.patch.object(fetch, "_request", counted), self.assertRaisesRegex(fetch.Refused, "does not match"):
+                    self.mixed(second_base, attempts=5)
+                self.assertEqual((self.trials(self.server), self.trials(second)), (1, 1))  # each asked once, then out
+                self.assertFalse(Path("src/data.bin").exists())
+                self.assertFalse(Path("src/.partial/data.bin").exists())
+                self.assertFalse(Path("src/.partial/data.bin.state.json").exists())
+
+    def test_ruled_out_sources_stay_ruled_out_through_the_fallback_and_a_fresh_process(self):
+        for modes in ({"whole-404"}, {"whole-length"}, {"whole-gzip"}, set()):  # unusable answers, and wrong bytes
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.requests = self.server.segment_requests = self.server.heads = 0
+                second, second_base, outsider, outsider_base = self.corrupt_pair_and_an_outsider(modes)
+                second.requests = second.segment_requests = second.heads = 0
+                mine, theirs, last = self.base + "/file", second_base + "/file", outsider_base + "/file"
+
+                def fallback_begun(value):
+                    # Both agreeing sources are out and the outsider's own download has its state saved.
+                    return bool(value.get("segments")) and value.get("ruled_out") == [mine, theirs]
+
+                with self.stopping_after(fallback_begun), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
+                    self.mixed(second_base, outsider_base, attempts=5)
+                saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+                self.assertEqual(saved["ruled_out"], [mine, theirs])  # kept beside the fallback's own progress
+                before = [(server.heads, server.requests) for server in (self.server, second)]
+                code, line = self.cli_run("--mirror", theirs, "--mirror", last)  # a fresh process
+                self.assertEqual((code, line["status"], line["urls"]), (0, "fetched", [last]), line)
+                self.assert_whole()
+                self.assertEqual([(server.heads, server.requests) for server in (self.server, second)], before)
+
     # The JSON line's `urls` (D03 T04 §22).
+    def cli_command(self, *args, dest="src/data.bin", sha=SHA):
+        return [sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", dest, "--sha256", sha,
+                "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE), "--timeout", "2",
+                "--segment-threshold", str(1 << 20), *args]
+
     def cli_run(self, *args, dest="src/data.bin", sha=SHA):
-        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", dest, "--sha256", sha,
-                               "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE), "--timeout", "2",
-                               "--segment-threshold", str(1 << 20), *args], capture_output=True, text=True, cwd=self.dir,
+        done = subprocess.run(self.cli_command(*args, dest=dest, sha=sha), capture_output=True, text=True, cwd=self.dir,
                               check=False)
         return done.returncode, json.loads(done.stdout)
 
@@ -1897,6 +2133,53 @@ class Fetch(unittest.TestCase):
         self.assertEqual((line["resumed"], line["urls"], line["url"]), (True, [mine, theirs], mine))
         self.assert_whole()
 
+    def test_a_resume_after_a_killed_process_names_what_that_process_wrote_and_the_new_source(self):
+        other, base = self.mirror()
+        mine, theirs = self.base + "/file", base + "/file"
+        self.server.pace = 0.05  # slow enough to be killed part way
+        process = subprocess.Popen(self.cli_command("--min-rate", "0"), cwd=self.dir, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True)
+        saved_file = self.dir / "src/.partial/data.bin.state.json"
+        try:
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline and process.poll() is None:
+                try:
+                    saved = json.loads(saved_file.read_text())
+                except (OSError, ValueError):
+                    saved = {}
+                if sum(item[2] for item in saved.get("segments", [])) > 0 and saved.get("provenance"):
+                    break
+                time.sleep(0.02)
+            self.assertIsNone(process.poll(), "the run ended before it could be killed")
+            process.kill()
+        finally:
+            process.communicate()
+        self.server.pace = 0.0
+        self.server.modes = {"fail"}  # the first host is down now: only the mirror gives the rest
+        code, line = self.cli_run("--mirror", theirs)
+        self.assertEqual(code, 0, line)
+        self.assertEqual((line["resumed"], line["urls"], line["url"]), (True, [mine, theirs], mine))
+        self.assert_whole()
+
+    def test_a_url_that_answered_and_sent_no_byte_is_not_named_as_a_supplier(self):
+        empty, second = self.mirror()
+        finisher, third = self.mirror()
+        mine = self.base + "/file"
+        half = SIZE // 2
+        # An earlier process left half the file from this host alone, in one stream.
+        Path("src/.partial").mkdir(parents=True)
+        Path("src/.partial/data.bin").write_bytes(BODY[:half])
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": mine, "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity", "total": SIZE,
+            "sources": [mine]}))
+        self.server.modes = {"fail"}  # down now
+        empty.modes = {"drop-empty"}  # valid 206 headers for the rest, then nothing
+        result = self.run_fetch(mirrors=[second + "/file", third + "/file"], attempts=5)
+        self.assertEqual((result["status"], result["resumed"]), ("fetched", True))
+        self.assertEqual(Path("src/data.bin").read_bytes(), BODY)
+        self.assertGreater(empty.requests, 0)  # it was asked, and answered
+        self.assertEqual((result["urls"], result["url"]), ([mine, third + "/file"], mine))
+
     def test_the_mirror_wording_is_in_the_help_and_the_guide(self):
         guide = (SCRIPT.parents[2] / "docs" / "glimmer" / "importing.md").read_text(encoding="utf-8")
         helped = subprocess.run([sys.executable, "-I", str(SCRIPT), "--help"], capture_output=True, text=True, check=False).stdout
@@ -1906,6 +2189,54 @@ class Fetch(unittest.TestCase):
         self.assertIn("--mirror", helped)
         for words in ("`urls`", "serves ranges together"):
             self.assertIn(words, " ".join(fetch.__doc__.split()))
+
+
+class InOrderDigest(unittest.TestCase):
+    """The digest a segmented run reads in file order while ranges can still be cut back (D03 T04 §22)."""
+
+    def setUp(self):
+        self.file = tempfile.TemporaryFile()
+        self.addCleanup(self.file.close)
+        self.fd = self.file.fileno()
+        self.old, self.new = bytes(range(16)), bytes(range(100, 108))
+        os.pwrite(self.fd, self.old, 0)
+        self.progress = {"end": 16}
+        self.guard = threading.Lock()
+        self.digest = fetch._InOrderDigest("sha256", self.fd, self.guard, lambda: self.progress["end"])
+
+    def cut_back_to(self, end):
+        with self.guard:
+            self.progress["end"] = end
+            self.digest.invalidate()
+
+    def test_an_invalidation_between_reading_the_frontier_and_hashing_never_lets_old_bytes_in(self):
+        stale = 16  # the frontier the hasher read, before the cut
+        self.cut_back_to(8)  # bytes 8 to 15 now wait for their replacements
+        self.digest.hash_up_to(stale)
+        self.assertEqual(self.digest.at, 8)  # only what the cut left, not the stale frontier
+        self.assertEqual(self.digest.hash.hexdigest(), hashlib.sha256(self.old[:8]).hexdigest())
+        os.pwrite(self.fd, self.new, 8)  # the replacements arrive and the frontier moves on
+        self.progress["end"] = 16
+        self.digest.hash_up_to(16)
+        self.assertEqual((self.digest.at, self.digest.hash.hexdigest()),
+                         (16, hashlib.sha256(self.old[:8] + self.new).hexdigest()))  # every replacement byte is in it
+
+    def test_a_cut_while_a_block_is_read_drops_the_block_and_goes_on_from_the_new_frontier(self):
+        real, fired = os.pread, []
+
+        def pread(descriptor, count, offset):
+            block = real(descriptor, count, offset)
+            if not fired:
+                fired.append(True)  # the cut lands after the old bytes were read, before they were counted
+                self.cut_back_to(4)
+                os.pwrite(self.fd, self.new, 4)
+                self.progress["end"] = 12
+            return block
+
+        with mock.patch.object(fetch.os, "pread", pread):
+            self.digest.hash_up_to(16)
+        self.assertEqual((self.digest.at, self.digest.hash.hexdigest()),
+                         (12, hashlib.sha256(self.old[:4] + self.new).hexdigest()))
 
 
 if __name__ == "__main__":
