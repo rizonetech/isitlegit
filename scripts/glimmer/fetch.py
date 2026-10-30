@@ -75,6 +75,7 @@ CHUNK = 64 * 1024
 SEGMENT_THRESHOLD = 64 * 1024 * 1024
 MIN_SPLIT = 2 * 1024 * 1024  # the least a range's rest must hold for a free connection to take half of it
 MAX_RANGES = 64
+CONNECTIONS = 4  # the most connections one fetch holds open at once, its HEADs and its transfers together
 SHORT_ANSWER = 64 * 1024  # a range answer under this, when at least twice it was asked, spends an attempt (one-byte answers)
 IDLE_WAIT = 0.25  # the longest an idle connection waits before looking for work again, when nothing rings it
 HASH_WAIT = 0.05  # the longest the hasher waits before reading on, when nothing rings it
@@ -554,7 +555,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             return {"kind": "qualifies" if qualifies else "other", "total": length, "validator": validator,
                     "no_head": status == 501}
 
-        def choose(resuming: bool):
+        def choose(resuming: bool, limit: int = CONNECTIONS):
             """The URLs that serve ranges together: every live URL whose `HEAD` gives the same length and the same strong
             validator as the first to answer (on a resume, as the saved ranges). One that answers otherwise stays in
             `live` for the ordered fallback and is kept out of the mix. Returns (URLs, length, validator), or the status
@@ -575,7 +576,15 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if len(order) == 1:
                 ask(order[0])
             else:
-                threads = [threading.Thread(target=ask, args=(name,), daemon=True) for name in order]
+                # No more HEADs at once than the run may hold connections: the transfers have not begun, so these are
+                # all of the run's connections, and a fifth source waits for a place.
+                places = threading.BoundedSemaphore(min(limit, CONNECTIONS))
+
+                def ask_in_turn(name: str):
+                    with places:
+                        ask(name)
+
+                threads = [threading.Thread(target=ask_in_turn, args=(name,), daemon=True) for name in order]
                 for thread in threads:
                     thread.start()
                 for thread in threads:
@@ -638,7 +647,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if not resuming and (one_stream or state):
                 return "one-stream"
             count = segments if segments > 0 else 4
-            chosen = choose(resuming)
+            chosen = choose(resuming, count)
             if isinstance(chosen, str):
                 return chosen
             sources_agreeing, total, validator = chosen

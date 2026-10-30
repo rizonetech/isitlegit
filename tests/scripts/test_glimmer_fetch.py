@@ -50,6 +50,7 @@ class Server(http.server.ThreadingHTTPServer):
         self.flip_after = None  # after this many ranged requests the server's file has another validator
         self.ranges = []  # (first, last, when) of every ranged request, in arrival order
         self.heads = 0
+        self.head_pause = 0.0  # seconds each HEAD is held open, so concurrent HEADs are seen to overlap
         self.flip_etag = '"v2"'  # what the validator becomes at the flip (None: it stays)
         self.flip_body = None  # what the file becomes at the flip (None: it stays)
 
@@ -62,9 +63,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     # `do_HEAD` is the name BaseHTTPRequestHandler dispatches a HEAD to.
     def do_HEAD(self):  # noqa: N802
-        server, modes = self.server, self.server.modes
+        server = self.server
         with server.lock:
             server.heads += 1
+            if server.group is not None:
+                server.group["active"] += 1
+                server.group["peak"] = max(server.group["peak"], server.group["active"])
+        try:
+            time.sleep(server.head_pause)
+            return self.answer_head()
+        finally:
+            with server.lock:
+                if server.group is not None:
+                    server.group["active"] -= 1
+
+    def answer_head(self):
+        server, modes = self.server, self.server.modes
+        if "head-429" in modes:
+            self.send_response(429)
+            self.send_header("Retry-After", "30")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if "head-trickle" in modes:
             # Headers a byte at a time, each well inside the socket timeout: only a rate check ends it.
             try:
@@ -1475,6 +1495,19 @@ class Fetch(unittest.TestCase):
         self.assertEqual(result["url"], result["urls"][0])
         self.assertGreaterEqual(group["peak"], 3)
         self.assertLessEqual(group["peak"], 4)
+
+    def test_five_sources_never_hold_more_than_four_connections_across_the_heads_and_the_ranges(self):
+        others = [self.mirror() for _ in range(4)]
+        servers = [self.server, *(other for other, _ in others)]
+        group = self.share_peak(*servers)
+        for server in servers:
+            server.head_pause = 0.3  # held open, so five HEADs started together would be seen at once
+            server.pace = 0.01
+        result = self.mixed(*(base for _, base in others), min_rate=0)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertEqual([server.heads for server in servers], [1] * 5)  # every source was asked
+        self.assertEqual(group["peak"], 4)  # the HEADs reached four at once, and nothing went past it
 
     def test_a_host_that_disagrees_on_the_file_serves_no_range_while_the_others_are_healthy(self):
         agreeing, first = self.mirror()
