@@ -121,7 +121,9 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted) location.reload();
 });
 
-const BUSY_MS = 20_000;
+// Longer than the slowest action can take on the server (a mail send's 30-second deadline, src/mail/smtp2go.ts, after
+// the code is issued), so the form only comes back once its request can no longer be running.
+const BUSY_MS = 45_000;
 // A form marked `data-busy` (the domain page's Check now, Send code and Verify, D07 T02 §15) shows its button busy
 // while the request runs, and a second press does nothing: the button says what is happening (`data-busy-label`) and
 // is disabled once the form has gone. The action travels in a hidden field, so disabling the button loses nothing.
@@ -142,7 +144,7 @@ document.addEventListener("submit", (event) => {
     button.setAttribute("aria-busy", "true");
   }, 0);
   // A request the reader stops (or that never answers) does not leave the form dead: once the slowest action can have
-  // answered (the DNS lookup's 10 seconds and the mail's), the button is itself again and the form can be sent.
+  // answered, the button is itself again and the form can be sent.
   setTimeout(() => {
     delete form.dataset.sent;
     button.textContent = label;

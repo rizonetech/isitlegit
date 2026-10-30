@@ -120,6 +120,22 @@ const tabTo = async (p: Page, test: () => Promise<boolean>, limit = 80) => {
 };
 const focusedText = (p: Page) => p.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
 
+// The form only comes back once its request can no longer be running: the app script's wait must outlast the slowest
+// action on the server, a mail send's deadline (round 1: at 20 seconds a second Send code could replace a code still
+// being mailed).
+describe("the busy form's wait", () => {
+  it("outlasts the mail send's deadline", () => {
+    const number = (file: string, pattern: RegExp) =>
+      Number(
+        (pattern.exec(readFileSync(join(import.meta.dirname, "../..", file), "utf8"))?.[1] ?? "").replace(/_/g, ""),
+      );
+    const wait = number("src/web/client/app.ts", /const BUSY_MS = ([\d_]+);/);
+    const mail = number("src/mail/smtp2go.ts", /deps\.timeoutMs \?\? ([\d_]+)/);
+    expect(mail).toBeGreaterThan(0);
+    expect(wait).toBeGreaterThan(mail + 10_000);
+  });
+});
+
 describe.skipIf(!chromiumPath() && !process.env.CI)("the domain page in Chromium", { timeout: 120_000 }, () => {
   it("shows Check now busy while it runs and sends it once for two presses", async () => {
     state.delayMs = 1500;
@@ -147,7 +163,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domain page in Chromium
       disabled: true,
       busy: "true",
     });
-    expect(state.posts).toEqual([{ org: "org-karoo", action: "check" }]);
+    expect(state.posts).toEqual([{ org: "org-karoo", action: "check", local: "admin" }]);
     await context.close();
   });
 
@@ -182,7 +198,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domain page in Chromium
     await p.keyboard.type("48 21 07");
     await p.keyboard.press("Enter");
     await expect.poll(() => state.posts.length).toBe(1);
-    expect(state.posts[0]).toEqual({ org: "org-karoo", action: "verify", code: "48 21 07" });
+    expect(state.posts[0]).toEqual({ org: "org-karoo", action: "verify", local: "admin", code: "48 21 07" });
     await context.close();
   });
 
@@ -247,7 +263,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domain page in Chromium
     await p.waitForLoadState("load");
     expect(state.posts).toEqual([
       { org: "org-karoo", action: "send", local: "postmaster" },
-      { org: "org-karoo", action: "check" },
+      { org: "org-karoo", action: "check", local: "admin" },
     ]);
     await context.close();
   });

@@ -192,11 +192,15 @@ describe("the domain verification page", () => {
     expect(sent.html).toContain("Code from the email");
     const code = lastCode();
     const wrong = code === "000000" ? "111111" : "000000";
-    const first = await act(d, cookie, { org: o, action: "verify", code: wrong });
+    const first = await act(d, cookie, { org: o, action: "verify", code: wrong, local: "postmaster" });
     expect(first.html).toContain("That code is not right. 2 tries left before this is locked for an hour.");
-    const second = await act(d, cookie, { org: o, action: "verify", code: wrong });
+    const second = await act(d, cookie, { org: o, action: "verify", code: wrong, local: "postmaster" });
     expect(second.html).toContain("That code is not right. 1 try left before this is locked for an hour.");
     // A plain visit still says how many tries are left, and keeps postmaster@ chosen after the send.
+    // The wrong code's answer keeps postmaster@ chosen, so a resend goes where the first code went.
+    expect(second.html).toMatch(/value="postmaster" checked/);
+    const checked = await act(d, cookie, { org: o, action: "check", local: "postmaster" });
+    expect(checked.html).toMatch(/value="postmaster" checked/);
     const plain = await (await page(d, cookie)).text();
     expect(plain).toContain("1 try left before this is locked for an hour.");
     expect(sent.html).toMatch(/value="postmaster" checked/);

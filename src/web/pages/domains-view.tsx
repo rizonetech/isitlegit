@@ -97,7 +97,8 @@ function lastCheckLine(check: DomainClaimView["lastCheck"]): string | null {
   return `Last checked ${at(check.at)}: ${what}`;
 }
 
-function DnsCard(props: { view: DomainClaimView; org: string; result: Result | null }) {
+// `local` is the recipient last chosen, carried by every form so no answer quietly changes it (D07 T02 §15).
+function DnsCard(props: { view: DomainClaimView; org: string; result: Result | null; local: "admin" | "postmaster" }) {
   const { view, result } = props;
   const last = lastCheckLine(view.lastCheck);
   return (
@@ -123,6 +124,7 @@ function DnsCard(props: { view: DomainClaimView; org: string; result: Result | n
       <form method="post" class="flex flex-wrap items-center gap-16" data-busy>
         <input type="hidden" name="org" value={props.org} />
         <input type="hidden" name="action" value="check" />
+        <input type="hidden" name="local" value={props.local} />
         <Button type="submit" variant="dark" data-busy-label="Checking">
           Check now
         </Button>
@@ -275,6 +277,7 @@ function EmailCard(props: {
             <form method="post" class="flex flex-col gap-12" data-busy>
               <input type="hidden" name="org" value={props.org} />
               <input type="hidden" name="action" value="verify" />
+              <input type="hidden" name="local" value={props.local} />
               <Field
                 id="claim-code"
                 name="code"
@@ -386,7 +389,7 @@ export function DomainPage(props: {
             <VerifiedPanel view={view} />
           ) : (
             <div class="grid gap-24 lg:grid-cols-[3fr_2fr] items-start">
-              <DnsCard view={view} org={org.id} result={result} />
+              <DnsCard view={view} org={org.id} result={result} local={props.local ?? "admin"} />
               <EmailCard view={view} org={org.id} result={result} local={props.local ?? "admin"} now={now} />
             </div>
           )}
