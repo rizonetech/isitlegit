@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 27 | Checklist items: 369
+Sections: 27 | Checklist items: 371
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -34,7 +34,7 @@ Sections: 27 | Checklist items: 369
 | [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 16    |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 18    |
 | [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
@@ -332,4 +332,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 80/261 verified sections, 43 ready to run now.
 
-Checklist: 844/1665 items completed (includes Commit items).
+Checklist: 844/1667 items completed (includes Commit items).
