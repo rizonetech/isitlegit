@@ -169,17 +169,66 @@ describe("trustedAuthResults", () => {
   });
 
   it("refuses ambiguous provenance: two receiving systems' results in one zone, or a top the receiver did not write", () => {
-    const both = gmail(
-      "mx.google.com; spf=pass smtp.mailfrom=sender.example",
+    // Two systems' results above the entry hop: which one wrote what cannot be told.
+    const both = [
+      h("Received", "from AM6PR01.eurprd01.prod.outlook.com by AM6PR02.eurprd01.prod.outlook.com with HTTPS"),
+      h("Authentication-Results", "mx.google.com; spf=pass smtp.mailfrom=sender.example"),
+      h("Authentication-Results", M365),
+      h("Received", "from mail.sender.example (203.0.113.5) by AM5EUR01FT001.mail.protection.outlook.com with ESMTP"),
+    ];
+    expect(trustedAuthResults(both, [...MICROSOFT, ...GOOGLE])).toEqual({ untrusted: "ambiguous" });
+    // Under Google's entry hop only Google's own stamp counts: a Microsoft-shaped one beside it is the sender's.
+    const underGoogle = gmail(
+      "mx.google.com; spf=fail smtp.mailfrom=sender.example",
       h("Authentication-Results", FORGED_M365),
     );
-    expect(trustedAuthResults(both, [...MICROSOFT, ...GOOGLE])).toEqual({ untrusted: "ambiguous" });
+    expect(trustedAuthResults(underGoogle, [...MICROSOFT, ...GOOGLE])).toMatchObject({ trusted: { kind: "google" } });
+    expect(results(trustedAuthResults(underGoogle, [...MICROSOFT, ...GOOGLE]))).toEqual(["spf=fail"]);
     expect(trustedAuthResults([SENDER_HOP, h("Authentication-Results", "mx.google.com; spf=pass")], GOOGLE)).toEqual({
       untrusted: "no-boundary",
     });
     expect(trustedAuthResults([h("Authentication-Results", "mx.google.com; spf=pass")], GOOGLE)).toEqual({
       untrusted: "no-boundary",
     });
+  });
+
+  it("keeps the boundary at the entry hop: a sender's forged hop below it moves nothing (round 1)", () => {
+    const other: Receiver[] = [{ kind: "other", pattern: "*.mailhost.example" }];
+    const forged = [
+      h("Received", "from attacker.example (203.0.113.9) by mx.mailhost.example with ESMTP"),
+      h(
+        "Authentication-Results",
+        "mx.mailhost.example; spf=pass smtp.mailfrom=bank.example; dmarc=pass header.from=bank.example",
+      ),
+      h("Received", "from attacker.example by mx.mailhost.example with ESMTP"),
+    ];
+    expect(trustedAuthResults(forged, other)).toEqual({ untrusted: "none-in-zone" });
+  });
+
+  it("lets a provider's stamp vouch only under its own entry hop (round 1)", () => {
+    const mixed: Receiver[] = [...GOOGLE, { kind: "other", pattern: "*.mailhost.example" }];
+    const viaOther = [
+      h("Received", "from attacker.example (203.0.113.9) by mx.mailhost.example with ESMTP"),
+      h("Authentication-Results", "mx.google.com; spf=pass smtp.mailfrom=bank.example"),
+    ];
+    expect(trustedAuthResults(viaOther, mixed)).toEqual({ untrusted: "none-in-zone" });
+  });
+
+  it("reports every proven header above the entry hop, not only the first (round 1, RFC 8601 appendix B.4)", () => {
+    const other: Receiver[] = [{ kind: "other", pattern: "*.mailhost.example" }];
+    const headers = [
+      h("Received", "from mx1.mailhost.example by store.mailhost.example with LMTP"),
+      h("Authentication-Results", "filter.mailhost.example; spf=pass smtp.mailfrom=sender.example"),
+      h("Authentication-Results", "filter.mailhost.example; dkim=fail header.d=sender.example; dmarc=fail"),
+      h("Received", "from mail.sender.example (203.0.113.5) by mx1.mailhost.example with ESMTPS"),
+      SENDER_HOP,
+    ];
+    expect(results(trustedAuthResults(headers, other))).toEqual(["spf=pass", "dkim=fail", "dmarc=fail"]);
+  });
+
+  it("reads a comment between tokens as the space it stands for (round 1)", () => {
+    const parsed = parseAuthenticationResults("mx.google.com; spf=fail(no match)smtp.mailfrom=bank.example");
+    expect(parsed?.results.map((r) => [r.result, r.props.get("smtp.mailfrom")])).toEqual([["fail", "bank.example"]]);
   });
 
   it("names each other limit: no headers, no known receiver, nothing in the zone", () => {

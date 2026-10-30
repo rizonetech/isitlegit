@@ -205,8 +205,11 @@ function stripComments(value: string): string {
       quoted = !quoted;
       out += c;
     } else if (c === "(" && !quoted) depth++;
-    else if (c === ")" && !quoted && depth > 0) depth--;
-    else if (depth === 0) out += c;
+    else if (c === ")" && !quoted && depth > 0) {
+      depth--;
+      // A comment separates what is on either side of it, as whitespace does (`spf=fail(why)smtp.mailfrom=...`).
+      if (depth === 0) out += " ";
+    } else if (depth === 0) out += c;
   }
   return out;
 }
