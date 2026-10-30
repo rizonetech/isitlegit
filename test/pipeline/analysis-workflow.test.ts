@@ -135,6 +135,7 @@ function forwardWithMsg(bytes: Uint8Array) {
 
 describe("AnalysisWorkflow", () => {
   it("stores the checks' evidence, passes on its count, and the verdict reads it back", async () => {
+    await env.DB.prepare("DELETE FROM sender_observations WHERE org_id = ?").bind(ORG).run();
     const id = await caseWith(forwards["attached-rfc822"]);
     const instance = await introspectWorkflowInstance(env.ANALYSIS, id);
     try {
@@ -144,12 +145,13 @@ describe("AnalysisWorkflow", () => {
       });
       await env.ANALYSIS.create({ id, params: { caseId: id } });
       await instance.waitForStatus("complete");
-      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 2 });
+      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 3 });
       expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
         view: STUB_VERDICT,
         evidence: [
           { id: "E1", check: "intake.forward" },
           { id: "E2", check: "auth.results" },
+          { id: "E3", check: "sender.first_time" },
         ],
       });
     } finally {
@@ -159,6 +161,8 @@ describe("AnalysisWorkflow", () => {
       { id: "E1", check: "intake.forward", severity: "info", detail: { path: "rfc822", otherOriginals: 0 } },
       // The organisation verified no domain, so its receiving system is not known (D02 T02 §1).
       { id: "E2", check: "auth.results", severity: "info", detail: { trusted: false, reason: "unknown-receiver" } },
+      // The organisation's first case from this sender (D02 T02 §5).
+      { id: "E3", check: "sender.first_time", severity: "low" },
     ]);
   });
 
@@ -802,6 +806,7 @@ describe("the checks step and the event writer", () => {
         ["sender.display_brand", "medium", [from]],
         ["sender.reply_to", "medium", ["Reply-To: pay@elsewhere.example"]],
         ["sender.return_path", "low", ["Return-Path: <bounce@elsewhere.example>"]],
+        ["sender.first_time", "low", [from]],
       ]);
       expect(sender[1]?.detail).toMatchObject({ brand: "Fynbos Bank" });
       for (const e of sender) expect(e.artefacts).toEqual([rawKey(id)]);
@@ -813,13 +818,16 @@ describe("the checks step and the event writer", () => {
   });
 
   it("stores one list however often the step runs, and returns only its count", async () => {
+    await env.DB.prepare("DELETE FROM sender_observations WHERE org_id = ?").bind(ORG).run();
     const id = await caseWith(forwards["attached-rfc822"]);
     await parse(store, id, MAIL);
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 2 });
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 2 });
+    // The sender is first for this case on both runs: a retried step reads its own observation (D02 T02 §5).
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 3 });
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 3 });
     expect((await readEvidence(env.DB, id)).map((e) => [e.id, e.check])).toEqual([
       ["E1", "intake.forward"],
       ["E2", "auth.results"],
+      ["E3", "sender.first_time"],
     ]);
   });
 
