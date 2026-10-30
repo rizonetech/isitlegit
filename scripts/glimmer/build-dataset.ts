@@ -36,7 +36,7 @@ import {
   recipientNames,
 } from "./import-samples.ts";
 import { canonicalBrand, readExcluded } from "./label-rules.ts";
-import { openStore, type StoredPage, storeDir } from "./store.ts";
+import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -780,10 +780,12 @@ export type Built = {
 // The pages a version is built from: those `sources.ts freeze` named, once each frozen source's import record is still
 // the one it recorded (an import run since would put other pages or labels behind the same ids) and both benign lists
 // were rendered. Throws with the reason otherwise.
-export function readFreeze(dir: string): Set<string> {
-  const file = join(dir, "raw", "FROZEN.json");
+export function readFreeze(dir: string, version = "1.0"): Set<string> {
+  const file = freezeFile(dir, version);
   if (!existsSync(file))
-    throw new Error("no raw/FROZEN.json: freeze the collection first (node scripts/glimmer/sources.ts freeze)");
+    throw new Error(
+      `no ${file}: freeze the collection for ${version} first (node scripts/glimmer/sources.ts freeze --version ${version})`,
+    );
   const record = JSON.parse(readFileSync(file, "utf-8")) as {
     pages?: string[];
     sources?: Record<string, { import_sha256?: string }>;
@@ -1202,7 +1204,7 @@ if (import.meta.filename === process.argv[1]) {
   const store = openStore(storeDir());
   let frozen: Set<string>;
   try {
-    frozen = readFreeze(store.dir);
+    frozen = readFreeze(store.dir, version);
   } catch (error) {
     console.error(`build-dataset: ${(error as Error).message}`);
     process.exit(2);

@@ -23,7 +23,7 @@ import { existsSync, linkSync, readdirSync, readFileSync, rmSync, statSync, writ
 import { join, relative, resolve } from "node:path";
 import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
 import { assessCapture, majesticList, renderReceipt, saList } from "./render.ts";
-import { openStore, type StoredPage, storeDir } from "./store.ts";
+import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const MAX_LABEL_ERRORS = 10;
@@ -404,8 +404,8 @@ export function freezeCollection(dir: string, root = ROOT, at = new Date()): { p
 
 // Writes the freeze once: the file is claimed by an exclusive link, so two freezes started together can never both
 // land (the second finds it there), and it is read back whole.
-export function writeFreeze(dir: string, frozen: Frozen): void {
-  const file = join(dir, "raw", "FROZEN.json");
+export function writeFreeze(dir: string, frozen: Frozen, version = "1.0"): void {
+  const file = freezeFile(dir, version);
   const written = `${JSON.stringify(frozen)}\n`;
   const temporary = `${file}.${process.pid}.tmp`;
   writeFileSync(temporary, written);
@@ -502,11 +502,13 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(0);
   }
   if (command === "freeze") {
-    // The collection as it stands, once (§18): see freezeCollection() and writeFreeze().
-    if (existsSync(join(dir, "raw", "FROZEN.json"))) {
-      console.error(
-        "sources: raw/FROZEN.json already exists: a freeze is never replaced (move it aside by hand to redo)",
-      );
+    // The collection as it stands, once a version (§18, §27): see freezeCollection() and writeFreeze().
+    // `freeze --version 1.1` writes 1.1's own freeze; with no version, 1.0's.
+    const at = process.argv.indexOf("--version");
+    const version = at >= 0 ? (process.argv[at + 1] ?? "") : "1.0";
+    const target = freezeFile(dir, version);
+    if (existsSync(target)) {
+      console.error(`sources: ${target} already exists: a freeze is never replaced (move it aside by hand to redo)`);
       process.exit(1);
     }
     const { problems, frozen } = freezeCollection(dir);
@@ -516,7 +518,7 @@ if (import.meta.filename === process.argv[1]) {
       process.exit(1);
     }
     try {
-      writeFreeze(dir, frozen);
+      writeFreeze(dir, frozen, version);
     } catch (error) {
       console.error(`sources: ${(error as Error).message}`);
       process.exit(1);

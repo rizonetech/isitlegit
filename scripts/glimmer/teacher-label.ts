@@ -37,7 +37,7 @@ import {
   tokenCost,
 } from "../meta-smoke.ts";
 import { applyRules, canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
-import { openStore, type StoredPage, storeDir } from "./store.ts";
+import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
 export const GLIMMER_CAP_USD = 20;
@@ -420,7 +420,7 @@ export async function teach(options: {
     damaged: [],
   };
   // Once the collection is frozen (§18), only its pages can enter the version, so only they are worth a check (§10).
-  const frozenFile = join(store.dir, "raw", "FROZEN.json");
+  const frozenFile = freezeFile(store.dir);
   const frozen = existsSync(frozenFile)
     ? new Set((JSON.parse(readFileSync(frozenFile, "utf-8")) as { pages: string[] }).pages)
     : null;
