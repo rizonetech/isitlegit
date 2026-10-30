@@ -10,7 +10,7 @@
 // near duplicate with training and holds only pages the teacher agreed with, and a version short of any floor, or
 // whose sample-derived lines hold a protected detail, is refused and never published.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import PostalMime from "postal-mime";
 import sharp from "sharp";
@@ -780,6 +780,26 @@ export type Built = {
 // The pages a version is built from: those `sources.ts freeze` named, once each frozen source's import record is still
 // the one it recorded (an import run since would put other pages or labels behind the same ids) and both benign lists
 // were rendered. Throws with the reason otherwise.
+// The evaluation pages of every version published before `version` (their `eval.meta.jsonl`), which a later version
+// holds out of its training (§27). Empty for the first version.
+export function previousHeldOut(dir: string, version: string): Set<string> {
+  const held = new Set<string>();
+  const root = join(dir, "dataset");
+  if (!existsSync(root)) return held;
+  const [major, minor] = version.split(".").map(Number) as [number, number];
+  for (const name of readdirSync(root)) {
+    const match = /^(\d+)\.(\d+)$/.exec(name);
+    if (!match) continue;
+    const [, a, b] = match;
+    if (Number(a) > major || (Number(a) === major && Number(b) >= minor)) continue;
+    const meta = join(root, name, "eval.meta.jsonl");
+    if (!existsSync(meta)) continue;
+    for (const line of readFileSync(meta, "utf-8").split("\n"))
+      if (line.trim()) held.add((JSON.parse(line) as { id: string }).id);
+  }
+  return held;
+}
+
 export function readFreeze(dir: string, version = "1.0"): Set<string> {
   const file = freezeFile(dir, version);
   if (!existsSync(file))
@@ -871,6 +891,10 @@ export async function buildDataset(options: {
   // Where the build says how far it has come (each stage, and every 10,000 pages read): the command passes stderr, since
   // a build of the whole collection runs for over an hour.
   progress?: (line: string) => void;
+  // Every page an earlier version held out (its evaluation pages, `previousHeldOut()`): reserved like the reference set,
+  // so it, its groups and its near duplicates never train this version, and it may sit in this version's evaluation,
+  // which the version gate (§13) compares on (§27, plan review finding 2).
+  heldOut?: Set<string>;
 }): Promise<Built> {
   const { store, version, mode } = options;
   // A published version is never replaced: a new number is required, so a model trained on one never finds its files
@@ -948,6 +972,7 @@ export async function buildDataset(options: {
     ),
     options.referenceSize,
   );
+  for (const id of options.heldOut ?? []) reference.ids.add(id);
   // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
   // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
   // known only to its state (plan review finding 5). The queue's own entries count too.
@@ -1229,6 +1254,7 @@ if (import.meta.filename === process.argv[1]) {
       frozen,
       protectedTerms,
       progress: (line) => console.error(line),
+      heldOut: previousHeldOut(store.dir, version),
       ...(seed ? { seed: Number(seed) } : {}),
     });
     console.log(JSON.stringify(built, null, 2));

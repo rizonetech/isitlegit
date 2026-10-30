@@ -33,6 +33,7 @@ import {
   jaccard,
   NO_FLOORS,
   PublicationRefused,
+  previousHeldOut,
   referenceFile,
   ShortfallError,
   sampleTerms,
@@ -1355,6 +1356,61 @@ describe("the scan of the built files for protected sample details", () => {
     // Without the consent section nothing is read.
     writeFileSync(join(samples, "pilot-consent.md"), "# Consent\n");
     await expect(sampleTerms(samples)).rejects.toThrow(/no sample is read without it/);
+  });
+});
+
+describe("a later version keeps the earlier one's held-out pages out of its training (§27)", () => {
+  it("reserves every page an earlier version evaluated on, so none trains the later version", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-heldout-"));
+    try {
+      const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({
+        seed: i,
+        lure: i % 2 === 0,
+        brand: `Brand ${i}`,
+        host: `site${i}.example`,
+      }));
+      const { store, ids } = await fill(dir, specs);
+      teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+      const first = await buildDataset({
+        store,
+        version: "1.0",
+        mode: "image",
+        seed: 3,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        protectedTerms: [],
+      });
+      const held = idsIn(first.dir, "eval");
+      expect(held.length).toBeGreaterThan(0);
+      expect([...previousHeldOut(store.dir, "1.1")].sort()).toEqual([...held].sort());
+      expect(previousHeldOut(store.dir, "1.0").size).toBe(0);
+      // Another seed would hold out other pages; the earlier version's held-out pages still never train.
+      const second = await buildDataset({
+        store,
+        version: "1.1",
+        mode: "image",
+        seed: 11,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        protectedTerms: [],
+        heldOut: previousHeldOut(store.dir, "1.1"),
+      });
+      const trained = new Set(idsIn(second.dir, "train"));
+      for (const id of held) expect(trained.has(id)).toBe(false);
+      // Without the earlier version's pages reserved, the other seed does train some of them.
+      const unguarded = await buildDataset({
+        store,
+        version: "1.2",
+        mode: "image",
+        seed: 11,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        protectedTerms: [],
+      });
+      expect(held.some((id) => idsIn(unguarded.dir, "train").includes(id))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
