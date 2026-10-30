@@ -8,7 +8,6 @@
 # own worktree). git hands the hook one line per ref on stdin: `<local ref> <local sha> <remote ref> <remote sha>`, a
 # local sha of zeros for a deletion. A push of deletions only, or of nothing, needs no check. A missing pnpm or
 # node_modules refuses the push, naming what to install, never a silent pass.
-zero=0000000000000000000000000000000000000000
 root="$(git rev-parse --show-toplevel)" || exit 1
 cd "$root" || exit 1
 head="$(git rev-parse HEAD)" || exit 1
@@ -16,7 +15,8 @@ head="$(git rev-parse HEAD)" || exit 1
 updates=0
 while read -r local_ref local_sha remote_ref remote_sha; do
     [ -n "$local_sha" ] || continue
-    case "$local_sha" in "$zero" | 00000000*) continue ;; esac
+    # A deletion's id is all zeros (40 for SHA-1, 64 for SHA-256); a real id that merely starts with zeros is checked.
+    case "$local_sha" in *[!0]*) ;; *) continue ;; esac
     updates=$((updates + 1))
     if [ "$local_sha" != "$head" ]; then
         echo "pre-push: $local_ref ($local_sha) is not this worktree's HEAD ($head), so this check cannot judge it;" \

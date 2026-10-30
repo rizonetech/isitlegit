@@ -215,6 +215,19 @@ class PrePushHook(unittest.TestCase):
                               text=True).stdout
         self.assertIn("gone", gone, "the deletion did not go through either")
 
+    def test_only_an_all_zero_id_is_a_deletion(self):
+        # Round 1: an id that merely starts with zeros is an update to check, never a deletion skipped.
+        head = self.git("rev-parse", "HEAD").stdout.strip()
+        cases = {"0" * 40: 0, "0" * 64: 0, "00000000" + head[8:]: 1}
+        for sha, code in cases.items():
+            with self.subTest(sha=sha[:12]):
+                done = subprocess.run(["sh", HOOK, "origin", str(self.remote)], cwd=self.root, env=self.env(),
+                                      input=f"(delete) {sha} refs/heads/x {head}\n", capture_output=True, text=True,
+                                      timeout=60)
+                self.assertEqual(done.returncode, code, done.stderr)
+                if code:
+                    self.assertIn("is not this worktree's HEAD", done.stderr)
+
     def test_a_linked_worktree_is_checked_in_its_own_folder(self):
         other = pathlib.Path(self.tmp) / "other"
         self.git("worktree", "add", "-q", "-b", "side", str(other))
