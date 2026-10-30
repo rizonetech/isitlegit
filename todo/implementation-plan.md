@@ -276,7 +276,7 @@ Sections: 61 | Checklist items: 257
 
 ### Phase 7: After the event
 
-Sections: 27 | Checklist items: 156
+Sections: 27 | Checklist items: 162
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -297,7 +297,7 @@ Sections: 27 | Checklist items: 156
 | [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 7     |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none     | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api | 7     |
-| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none     | 4     |
+| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none     | 10    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none     | 7     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
@@ -332,4 +332,4 @@ Sections: 15 | Checklist items: 61
 
 Progress: 80/261 verified sections, 43 ready to run now.
 
-Checklist: 842/1659 items completed (includes Commit items).
+Checklist: 842/1665 items completed (includes Commit items).
