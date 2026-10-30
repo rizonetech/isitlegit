@@ -135,6 +135,36 @@ describe("near duplicates", () => {
   });
 });
 
+describe("which copy of a duplicate is kept", () => {
+  it("keeps the copy whose label the teacher verified, whatever its id, and a reserved copy before either", () => {
+    const twin = (id: string) => ({ ...entryOf(page(id, {}, { lure: true, lure_type: "credential" })), hash: 7n });
+    const [a, b, c] = [twin("a"), twin("b"), twin("c")];
+    for (const e of [a, b, c]) e.page.sha256 = { screenshot: "s".repeat(64), text: "t".repeat(64) };
+    const checked = (e: { page: StoredPage }) => e.page.id === "c";
+    expect(dedupe([a, b, c], new Set(), [], undefined, checked).kept.map((e) => e.page.id)).toEqual(["c"]);
+    expect(dedupe([a, b, c], new Set(["b"]), [], undefined, checked).kept.map((e) => e.page.id)).toEqual(["b"]);
+    // Caught: without the teacher's verdict the lowest id survives.
+    expect(dedupe([a, b, c]).kept.map((e) => e.page.id)).toEqual(["a"]);
+  });
+  it("keeps a brand's teacher-verified pages within its cap of 300", () => {
+    const many = Array.from({ length: 320 }, (_, i) =>
+      entryOf(page(`p${String(i).padStart(3, "0")}`, {}, { brand: "Big", lure: true, lure_type: "credential" })),
+    );
+    const checked = new Set(Array.from({ length: 10 }, (_, i) => `p${310 + i}`));
+    const verified = (e: { page: StoredPage }) => checked.has(e.page.id);
+    let lostBefore = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const kept = new Set(capBrands(many, lcg(seed), verified).map((e) => e.page.id));
+      expect(kept.size).toBe(300);
+      for (const id of checked) expect(kept.has(id)).toBe(true);
+      // Caught: a cut that ignores the teacher drops some verified page.
+      const blind = new Set(capBrands(many, lcg(seed)).map((e) => e.page.id));
+      if ([...checked].some((id) => !blind.has(id))) lostBefore++;
+    }
+    expect(lostBefore).toBeGreaterThan(0);
+  });
+});
+
 describe("caps and balance", () => {
   const entry = (id: string, labels: Partial<StoredPage["labels"]>) => {
     const p = page(id, {}, labels);

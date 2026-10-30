@@ -323,15 +323,20 @@ export function dedupe(
   prefer: Set<string> = new Set(),
   protectors: Entry[] = [],
   progress?: (line: string) => void,
+  verified: (entry: Entry) => boolean = () => false,
 ): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
   const bands = Array.from({ length: 7 }, () => new Map<number, Entry[]>());
   let exact = 0;
   let near = 0;
-  // The pages `prefer` names come first, so a twin is dropped in their place, never they in its.
+  // The pages `prefer` names come first, so a twin is dropped in their place, never they in its; then the pages whose
+  // label the teacher verified, so the copy kept is one evaluation may use (the 1.0 build fell 3 evaluation pages short
+  // with agreed pages dropped for unchecked twins). One copy survives either way.
   const order = (a: Entry, b: Entry) =>
-    Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) || a.page.id.localeCompare(b.page.id);
+    Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) ||
+    Number(verified(b)) - Number(verified(a)) ||
+    a.page.id.localeCompare(b.page.id);
   const index = (entry: Entry, keys: number[]) =>
     keys.forEach((value, band) => {
       append(bands[band] as Map<number, Entry[]>, value, entry);
@@ -383,7 +388,13 @@ export function dedupe(
 
 // At most 300 pages a brand, chosen with the seed, by the one brand identity (`FNB` and `First National Bank` share
 // their 300).
-export function capBrands(entries: Entry[], random: () => number): Entry[] {
+// Within the cap, the trusted sample-derived lures are kept first, then the pages whose label the teacher verified (the
+// pages evaluation may use), then a seeded draw.
+export function capBrands(
+  entries: Entry[],
+  random: () => number,
+  verified: (entry: Entry) => boolean = () => false,
+): Entry[] {
   const byBrand = new Map<string, Entry[]>();
   const out: Entry[] = [];
   for (const entry of entries) {
@@ -391,7 +402,11 @@ export function capBrands(entries: Entry[], random: () => number): Entry[] {
     if (!brand) out.push(entry);
     else append(byBrand, brand, entry);
   }
-  for (const group of byBrand.values()) out.push(...samplesFirst(group, random).slice(0, BRAND_CAP));
+  for (const group of byBrand.values()) {
+    const ordered = samplesFirst(group, random);
+    const rank = (e: Entry) => (sampleLure(e.page) ? 0 : verified(e) ? 1 : 2);
+    out.push(...ordered.sort((a, b) => rank(a) - rank(b)).slice(0, BRAND_CAP));
+  }
   return out;
 }
 
@@ -1159,10 +1174,16 @@ export async function buildDataset(options: {
     });
   }
   options.progress?.(`build-dataset: ${entries.length} pages admitted; removing duplicates`);
-  const deduped = dedupe(entries, reference.ids, protectors, options.progress);
+  const deduped = dedupe(
+    entries,
+    reference.ids,
+    protectors,
+    options.progress,
+    (entry) => teacherState(teacher, entry.page) === "agreed",
+  );
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
-  const capped = capBrands(deduped.kept, random);
+  const capped = capBrands(deduped.kept, random, (entry) => teacherState(teacher, entry.page) === "agreed");
   dropped.capped = deduped.kept.length - capped.length;
   // The trusted sample-derived lures the split receives, after every exclusion, deduplication and the brand cap: the
   // denominator of training's half. A copy deduplication dropped can be in neither split, so it does not count against
