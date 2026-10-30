@@ -31,6 +31,15 @@ def lines_of(path):
         return [line for line in handle if line.strip()]
 
 
+def iter_lines(path):
+    """A file's non-blank lines one at a time: a version's training file carries its screenshots (Loupe 1.0's is
+    13.7 GB), so it is never read whole."""
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                yield line
+
+
 def renderer_messages(messages):
     """A training line's messages as the cookbook renderer reads them: an `image_url` part becomes an `image` part."""
     return [{"role": m["role"], "content": [
@@ -48,12 +57,11 @@ def count(messages, renderer, train_on):
 
 
 def split_stats(folder, name, renderer, train_on):
-    lines = lines_of(folder / f"{name}.jsonl")
     metas = [json.loads(line) for line in lines_of(folder / f"{name}.meta.jsonl")]
-    if len(lines) != len(metas):
-        raise ValueError(f"{name}.jsonl has {len(lines)} lines and its meta {len(metas)}")
     per_line, text_total, image_total, trained_total, screenshots = [], 0, 0, 0, 0
-    for line in lines:
+    hashed = hashlib.sha256()
+    for line in iter_lines(folder / f"{name}.jsonl"):
+        hashed.update(line.encode("utf-8"))
         messages = json.loads(line)["messages"]
         screenshots += sum(1 for m in messages if isinstance(m["content"], list)
                            for part in m["content"] if part.get("type") == "image_url")
@@ -62,9 +70,11 @@ def split_stats(folder, name, renderer, train_on):
         text_total += text
         image_total += image
         trained_total += trained
-    digest = hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
+    if len(per_line) != len(metas):
+        raise ValueError(f"{name}.jsonl has {len(per_line)} lines and its meta {len(metas)}")
+    digest = hashed.hexdigest()
     return {
-        "lines": len(lines),
+        "lines": len(per_line),
         "sha256": digest,
         "by_origin": dict(Counter(m.get("origin") for m in metas)),
         "by_source": dict(Counter(m.get("source") for m in metas)),

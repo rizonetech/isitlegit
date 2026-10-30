@@ -18,7 +18,15 @@ const HOME = "https://isitlegit.co.za";
 const LINK_PATH = "/signin/link";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 
-export function SigninFrame(props: { title: string; children: Child }) {
+// The brand panel's words: A1's by default, A2's on the signup page (D07 T02 §13).
+export type PanelWords = { headline: string; sentence: string };
+const SIGNIN_PANEL: PanelWords = {
+  headline: "Every suspicious email, investigated. Every reason, cited.",
+  sentence: "Sign in to see your cases, protect your business name and keep your supplier list honest.",
+};
+
+export function SigninFrame(props: { title: string; panel?: PanelWords; children: Child }) {
+  const panel = props.panel ?? SIGNIN_PANEL;
   return (
     <Document title={props.title}>
       <div class="min-h-screen grid md:grid-cols-2">
@@ -31,10 +39,8 @@ export function SigninFrame(props: { title: string; children: Child }) {
           </a>
           <div class="flex flex-col gap-24">
             <img src={LOGO_MARK_ON_DARK} alt="" class="w-72 h-72" />
-            <p class="type-h1 max-w-signin-headline">Every suspicious email, investigated. Every reason, cited.</p>
-            <p class="text-18 text-on-dark-soft">
-              Sign in to see your cases, protect your business name and keep your supplier list honest.
-            </p>
+            <p class="type-h1 max-w-signin-headline">{panel.headline}</p>
+            <p class="text-18 text-on-dark-soft">{panel.sentence}</p>
           </div>
           <p class="text-14 text-on-dark-muted">IsItLegit by Rizonetech · George, South Africa</p>
         </aside>

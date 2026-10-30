@@ -31,7 +31,7 @@ Sections: 27 | Checklist items: 371
 | [x]    | D03 T04 §9  | Spark teacher labels and human check       | meta-api             | 18    |
 | [x]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
 | [x]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
+| [x]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
 | [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 18    |
@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 389
+Sections: 61 | Checklist items: 397
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -150,7 +150,7 @@ Sections: 61 | Checklist items: 389
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
-| [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
+| [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
@@ -312,7 +312,7 @@ Sections: 67 | Checklist items: 278
 
 ### Phase 7: After the event
 
-Sections: 34 | Checklist items: 183
+Sections: 35 | Checklist items: 186
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -343,6 +343,7 @@ Sections: 34 | Checklist items: 183
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended       | 3     |
 | [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none           | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none           | 8     |
+| [ ]    | D07 T02 §17 | Correct a mistyped signup address                | owner-decision | 3     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
@@ -373,6 +374,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 109/304 verified sections, 72 ready to run now.
+Progress: 111/305 verified sections, 72 ready to run now.
 
-Checklist: 1085/1923 items completed (includes Commit items).
+Checklist: 1118/1934 items completed (includes Commit items).
