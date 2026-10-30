@@ -309,7 +309,7 @@ Sections: 66 | Checklist items: 275
 
 ### Phase 7: After the event
 
-Sections: 34 | Checklist items: 187
+Sections: 34 | Checklist items: 192
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -329,7 +329,7 @@ Sections: 34 | Checklist items: 187
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none           | 11    |
 | [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none           | 9     |
 | [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none           | 7     |
-| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 7     |
+| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 12    |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none           | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api       | 7     |
 | [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
@@ -372,4 +372,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 108/301 verified sections, 72 ready to run now.
 
-Checklist: 1108/1917 items completed (includes Commit items).
+Checklist: 1108/1922 items completed (includes Commit items).
