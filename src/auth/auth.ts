@@ -27,7 +27,7 @@ import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { d1RateLimit, RATE_RULES } from "./ratelimit";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { CODE_COOKIE, drawCode, HANDLE_COOKIE, newHandle, readHandle, spaced } from "./signin-code";
-import { issueSignInCode } from "./signin-code-store";
+import { decoy, issueSignInCode, withdraw } from "./signin-code-store";
 import { inviteSignup, type SendFirstLink } from "./signup";
 
 export { DEFAULT_RETURN, MAGIC_LINK_SECONDS, sameSitePath };
@@ -73,6 +73,26 @@ export function authOptions(
         const handle = held ?? newHandle();
         const keepHandle = () => ctx?.setCookie(CODE_COOKIE, handle, HANDLE_COOKIE);
         const code = drawCode();
+        const db = mail().db;
+        const secret = env.BETTER_AUTH_SECRET ?? "";
+        const unrecorded = (step: string) => (error: unknown) =>
+          console.log(JSON.stringify({ event: "signin-code", outcome: step, error: (error as Error).name }));
+        // The code's row is written before the mail goes, so a code in a member's inbox always has one behind it; one
+        // that cannot be written sends nothing and answers as a failed send.
+        let row: string;
+        try {
+          row = await issueSignInCode(
+            db,
+            secret,
+            { email, token, callbackURL: returnPath(new URL(url).searchParams.get("callbackURL")), handle },
+            code,
+          );
+        } catch (error) {
+          unrecorded("unissued")(error);
+          throw new APIError("BAD_GATEWAY", {
+            message: "the sign-in link could not be sent; try again in a few minutes",
+          });
+        }
         const outcome = await sendMail(mail(), {
           sendKey: `signin:${await sha256Hex(token)}`,
           kind: "signin",
@@ -87,28 +107,20 @@ export function authOptions(
         if (outcome.status === "refused" && /too many sign-in links/.test(outcome.reason))
           await audit({ kind: "rate-limited", outcome: "per-address", ip: clientIp(ctx?.request?.headers) });
         // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
-        // never tells a stranger who is registered; a failed or unknown send is still an error. The handle cookie is set
-        // either way, the one the browser already holds kept (its value unchanged, so a code it was mailed before keeps
-        // working), so whether a cookie comes back never tells a refused address from a sent one.
+        // never tells a stranger who is registered; a failed or unknown send is still an error. A refused request keeps
+        // its row with a decoy token and gets the browser's handle like a sent one (./signin-code-store), so nothing the
+        // browser can see afterwards tells the two apart.
         if (outcome.status === "refused") {
+          await decoy(db, secret, row).catch(unrecorded("undecoyed"));
           keepHandle();
           return;
         }
         const delivered = outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
-        if (!delivered)
+        if (!delivered) {
+          await withdraw(db, row).catch(unrecorded("unwithdrawn"));
           throw new APIError("BAD_GATEWAY", {
             message: "the sign-in link could not be sent; try again in a few minutes",
           });
-        // A row that cannot be written leaves the link working and the code refused: logged, never a failed request.
-        try {
-          await issueSignInCode(
-            mail().db,
-            env.BETTER_AUTH_SECRET ?? "",
-            { email, token, callbackURL: returnPath(new URL(url).searchParams.get("callbackURL")), handle },
-            code,
-          );
-        } catch (error) {
-          console.log(JSON.stringify({ event: "signin-code", outcome: "unissued", error: (error as Error).name }));
         }
         keepHandle();
       },

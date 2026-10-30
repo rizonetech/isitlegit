@@ -224,7 +224,7 @@ describe("Pill", () => {
 
 describe("Field", () => {
   // D07 T02 §11: the sign-in code field limits its length ("123 456" is 7 characters) and its characters.
-  it("renders maxlength and pattern on its input only when given", () => {
+  it("renders maxlength, pattern and autofocus on its input only when given", () => {
     const limited = html(
       <Field id="code" label="Code from the email" name="code" maxlength={7} pattern="[0-9 \-]*" inputmode="numeric" />,
     );
@@ -234,6 +234,9 @@ describe("Field", () => {
     const plain = /<input\b[^>]*>/.exec(html(<Field id="email" label="Email" name="email" />))?.[0] ?? "";
     expect(plain).not.toContain("maxlength");
     expect(plain).not.toContain("pattern");
+    expect(input).not.toContain("autofocus");
+    const focused = /<input\b[^>]*>/.exec(html(<Field id="c2" label="Code" name="c2" autofocus />))?.[0] ?? "";
+    expect(focused).toContain("autofocus");
   });
 
   it("ties the label to its input and forwards the form attributes", () => {

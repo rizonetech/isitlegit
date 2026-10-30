@@ -91,7 +91,7 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 39 | Checklist items: 248
+Sections: 39 | Checklist items: 251
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -123,7 +123,7 @@ Sections: 39 | Checklist items: 248
 | [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
-| [ ]    | D07 T02 §11 | Sign-in code for another device                       | none     | 15    |
+| [ ]    | D07 T02 §11 | Sign-in code for another device                       | none     | 18    |
 | [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -211,7 +211,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 61 | Checklist items: 257
+Sections: 62 | Checklist items: 261
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -236,6 +236,7 @@ Sections: 61 | Checklist items: 257
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
+| [ ]    | D07 T02 §12 | Sign-in link opened on another device     | owner-decision        | 4     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
@@ -333,6 +334,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 85/264 verified sections, 42 ready to run now.
+Progress: 85/265 verified sections, 42 ready to run now.
 
-Checklist: 898/1720 items completed (includes Commit items).
+Checklist: 901/1727 items completed (includes Commit items).

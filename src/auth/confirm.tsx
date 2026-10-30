@@ -294,6 +294,9 @@ confirmRoutes.post(LINK_PATH, async (c) => {
 // The code mailed beside a link (D07 T02 §11; ./signin-code): it signs in only the browser holding the handle the link
 // was asked with, three wrong codes end it, and a right code redeems the link's own token, so the two are one sign-in.
 // Every refusal comes back to the inbox page with its message on the field and the controls to recover.
+const unrecorded = (step: string) => (error: unknown) =>
+  console.log(JSON.stringify({ event: "signin-code", outcome: step, error: (error as Error).name }));
+
 const CODE_REFUSED = {
   "no-request":
     "This code works only in the browser where you asked for the link, while the link is new. Send another link from here.",
@@ -315,7 +318,14 @@ confirmRoutes.post(CODE_PATH, async (c) => {
   const secret = c.env.BETTER_AUTH_SECRET ?? "";
   const refused = (outcome: string) =>
     recordAuthEvent(c.env.DB, secret, { kind: "sign-in-failed", outcome, ip: clientIp(c.req.raw.headers) });
-  const check = await checkCode(c.env.DB, secret, readHandle(c.req.raw.headers), code);
+  // A row the store cannot read or claim is the service's fault: the member is told to try again, and nothing was spent.
+  let check: Awaited<ReturnType<typeof checkCode>>;
+  try {
+    check = await checkCode(c.env.DB, secret, readHandle(c.req.raw.headers), code);
+  } catch (error) {
+    unrecorded("unchecked")(error);
+    return inbox("We could not check the code just now. Type it again in a moment.", 503);
+  }
   if (check.kind === "wrong") {
     await refused("code-wrong");
     return inbox(`That code is not right. ${check.left} ${check.left === 1 ? "try" : "tries"} left.`, 400);
@@ -326,7 +336,8 @@ confirmRoutes.post(CODE_PATH, async (c) => {
   }
   const { answer, outcome, origin } = await askVerify(c.env, c.req.raw, check.token, check.callbackURL);
   if (outcome === "signed-in") {
-    await markUsed(c.env.DB, check.handleHash);
+    // Signed in: the session goes to the browser whatever happens to the row, whose token is spent anyway.
+    await markUsed(c.env.DB, check.id).catch(unrecorded("unmarked"));
     log("code-signed-in");
     const out = signedIn(check.callbackURL, origin, answer.headers.getSetCookie());
     out.headers.append("set-cookie", clearHandleCookie());
@@ -334,11 +345,11 @@ confirmRoutes.post(CODE_PATH, async (c) => {
   }
   if (outcome === "rate-limited") {
     // The token is untouched: the attempt is given back and the same code works once the limiter lets it.
-    await giveBack(c.env.DB, check.handleHash);
+    await giveBack(c.env.DB, check.claimed).catch(unrecorded("not-given-back"));
     return inbox(`Too many sign-in tries from here. Type the code again in ${resumesIn(retryAfterOf(answer))}.`, 429);
   }
   // Used (the link was spent first), no account, or the service's failure after the token was taken: the code is done.
-  await markUsed(c.env.DB, check.handleHash);
+  await markUsed(c.env.DB, check.id).catch(unrecorded("unmarked"));
   await refused(failureReason(answer, origin, outcome));
   if (outcome === "no-account")
     return pageResponse(

@@ -144,6 +144,7 @@ export function InboxPage(props: InboxProps) {
           inputmode="numeric"
           autocomplete="one-time-code"
           maxlength={7}
+          autofocus
           required
           {...(props.codeError ? { error: props.codeError } : {})}
         />

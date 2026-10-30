@@ -17,6 +17,8 @@ export type FieldProps = PassThrough & {
   // Length and pattern limits the browser enforces before submitting (a sign-in code's 7 characters, D07 T02 §11).
   maxlength?: number;
   pattern?: string;
+  // The one field a single-task page is for (a sign-in code, D07 T02 §11): focused when the page opens.
+  autofocus?: boolean;
   class?: string;
 };
 
@@ -29,7 +31,7 @@ const INPUT = cx(
 
 export function Field(props: FieldProps) {
   const { id, label, name, type = "text", value, placeholder, hint, error, required, autocomplete, inputmode } = props;
-  const { maxlength, pattern } = props;
+  const { maxlength, pattern, autofocus } = props;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const given = passThrough(props as Record<string, unknown>);
@@ -59,6 +61,7 @@ export function Field(props: FieldProps) {
         inputmode={inputmode}
         maxlength={maxlength}
         pattern={pattern}
+        autofocus={autofocus}
         aria-invalid={invalid}
         aria-describedby={describedBy}
         class={INPUT}

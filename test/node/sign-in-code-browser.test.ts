@@ -93,9 +93,13 @@ describe.skipIf(!chromiumPath())("the sign-in code in Chromium", () => {
   it("signs in the browser that asked with the code typed as mailed and Enter, the handle cookie sent along", async () => {
     const { page, posts, context } = await open();
     await ask(page);
-    const field = page.getByRole("textbox", { name: "Code from the email" });
-    await field.fill("012 345");
-    await field.press("Enter");
+    // The code field has focus as the page opens: the code and Enter are the only keys pressed, seven in all.
+    // Chromium runs autofocus at its next rendering update after load.
+    await expect
+      .poll(() => page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name))
+      .toBe("code");
+    await page.keyboard.type("012 345");
+    await page.keyboard.press("Enter");
     await page.waitForURL(`${APP}/cases/12`);
     const sent = posts.find((p) => p.path === "/signin/code");
     expect(sent?.cookie).toContain(`${CODE_COOKIE}=`);
@@ -138,9 +142,11 @@ describe.skipIf(!chromiumPath())("the sign-in code in Chromium", () => {
     const { page, context } = await open({ width: 360, height: 740 });
     await ask(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
-    const field = page.getByRole("textbox", { name: "Code from the email" });
-    await field.fill("999 999");
-    await field.press("Enter");
+    await expect
+      .poll(() => page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name))
+      .toBe("code");
+    await page.keyboard.type("999 999");
+    await page.keyboard.press("Enter");
     await page.waitForLoadState();
     const refused = page.getByRole("textbox", { name: "Code from the email" });
     expect(await refused.getAttribute("aria-invalid")).toBe("true");
@@ -155,9 +161,11 @@ describe.skipIf(!chromiumPath())("the sign-in code in Chromium", () => {
     expect(await refused.getAttribute("inputmode")).toBe("numeric");
     expect(await refused.getAttribute("autocomplete")).toBe("one-time-code");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
-    // Tab from the top reaches the code field first, then its button, then the two recoveries.
-    await page.keyboard.press("Tab");
-    expect(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name)).toBe("code");
+    // The refused field has focus again, for the next try with no click or Tab; from it, Tab reaches its button, then
+    // the two recoveries.
+    await expect
+      .poll(() => page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name))
+      .toBe("code");
     const order: string[] = [];
     for (let i = 0; i < 3; i++) {
       await page.keyboard.press("Tab");

@@ -74,9 +74,10 @@ const unique = (name: string) => `${name}-${crypto.randomUUID().slice(0, 8)}@dem
 const rows = async (email: string) =>
   (await db.prepare("SELECT * FROM signin_codes WHERE email = ?").bind(email).all<Record<string, unknown>>())
     .results as Record<string, unknown>[];
+// The latest row a browser's handle holds.
 const rowOf = async (handle: string) =>
   db
-    .prepare("SELECT * FROM signin_codes WHERE handle_hash = ?")
+    .prepare("SELECT * FROM signin_codes WHERE handle_hash = ? ORDER BY issued_at DESC, rowid DESC LIMIT 1")
     .bind(await handleHash(handle))
     .first<{ attempts: number; used_at: number | null; email: string; callback_url: string }>();
 // The sign-in failures recorded since `after` (a rowid from `mark`).
@@ -96,11 +97,13 @@ describe("the code itself", () => {
       (c) => c.name,
     );
     expect(columns).toEqual([
+      "id",
       "handle_hash",
       "email",
       "token_box",
       "code_mac",
       "callback_url",
+      "issued_at",
       "expires_at",
       "attempts",
       "used_at",
@@ -180,7 +183,7 @@ describe("a link request", () => {
     expect(html).toContain('autocomplete="one-time-code"');
   });
 
-  it("gives an address that cannot sign in the same cookie and no code", async () => {
+  it("gives an address that cannot sign in the same cookie and a row whose token opens nothing", async () => {
     const smtp = mailed();
     const stranger = browser();
     const email = `nobody-${crypto.randomUUID().slice(0, 8)}@example.org`;
@@ -188,7 +191,34 @@ describe("a link request", () => {
     expect(asked.status).toBe(200);
     expect(stranger.jar.get(CODE_COOKIE)).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(smtp.sends).toHaveLength(0);
-    expect(await rows(email)).toHaveLength(0);
+    // The row a sent link leaves, with a decoy token: the browser cannot tell the two apart.
+    const [row] = await rows(email);
+    expect(await unsealToken(SECRET, String(row?.token_box))).toMatch(/^decoy-/);
+  });
+
+  it("sends nothing and says so when the code cannot be stored, for a link request and for signup", async () => {
+    const smtp = mailed();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/insert into signin_codes/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const asker = browser();
+    const asked = await asker.post("/signin/link", { email: unique("unstored"), callbackURL: "/cases" });
+    expect(asked.status).toBe(503);
+    expect(await asked.text()).toContain("The link could not be sent");
+    expect(smtp.sends).toHaveLength(0);
+    const code = `code-${crypto.randomUUID()}`;
+    await addInviteCode(db, code);
+    const signedUp = await asker.json("/api/auth/sign-up/invite-code", {
+      code,
+      email: `unstored-${crypto.randomUUID().slice(0, 8)}@karoo-signup.example`,
+      organizationName: "Karoo Unstored",
+      consent: true,
+    });
+    expect(signedUp.status).toBe(201);
+    expect(((await signedUp.json()) as { linkSent: boolean }).linkSent).toBe(false);
+    expect(smtp.sends).toHaveLength(0);
   });
 
   it("answers a browser that holds a handle the same for a refused address as for a sent one", async () => {
@@ -429,6 +459,50 @@ describe("signing in by code", () => {
     expect(await failed.text()).toContain("Sign-in did not finish on our side");
     vi.restoreAllMocks();
     expect((await rowOf(laptop.jar.get(CODE_COOKIE) ?? ""))?.used_at).not.toBeNull();
+  });
+
+  it("tells a browser nothing about a later request's address through its own code", async () => {
+    // Its own code, one wrong try, then a link asked for someone else's address: one that may sign in, one that may
+    // not. What the browser sees of its own code afterwards is the same in both.
+    const seen: string[][] = [];
+    for (const other of [unique("target"), `outsider-${crypto.randomUUID().slice(0, 8)}@example.org`]) {
+      const { laptop, email, callbackURL, code } = await asked();
+      const wrong = code === "000000" ? "000001" : "000000";
+      await laptop.post("/signin/code", { code: wrong, email, callbackURL });
+      await laptop.post("/signin/link", { email: other, callbackURL: "/cases" });
+      const again = await (await laptop.post("/signin/code", { code: wrong, email, callbackURL })).text();
+      const done = await laptop.post("/signin/code", { code, email, callbackURL });
+      seen.push([/That code[^<]*/.exec(again)?.[0] ?? "", String(done.status), target(done) ?? ""]);
+      restore?.();
+    }
+    expect(seen[0]).toEqual(seen[1]);
+    expect(seen[0]?.[1]).toBe("303");
+  });
+
+  it("says to try again when the code cannot be checked, spending nothing", async () => {
+    const { laptop, email, callbackURL, code } = await asked();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/set attempts = attempts \+ 1/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const failed = await laptop.post("/signin/code", { code, email, callbackURL });
+    expect(failed.status).toBe(503);
+    expect(await failed.text()).toContain("We could not check the code just now");
+    vi.restoreAllMocks();
+    expect(target(await laptop.post("/signin/code", { code, email, callbackURL }))).toBe("/cases/12");
+  });
+
+  it("still signs in when the row cannot be marked used after verify", async () => {
+    const { laptop, email, callbackURL, code } = await asked();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/set used_at = /i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const done = await laptop.post("/signin/code", { code, email, callbackURL });
+    expect(done.status).toBe(303);
+    expect(sessionCookie(done)).toMatch(/session_token=/);
   });
 
   it("refuses a code posted from another origin", async () => {
