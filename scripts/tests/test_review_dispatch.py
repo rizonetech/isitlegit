@@ -1,5 +1,6 @@
 """scripts/review-dispatch.py: the one route, read-only invocation, refusals and records, with fake reviewer CLIs."""
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -1171,6 +1172,27 @@ class FinalReview(Harness):
         self.log.unlink(missing_ok=True)
         return self.dispatch("--kind", "final", "--candidate", self.CANDIDATE, "--writer", "claude", "--prompt",
                              str(self.prompt), "--record", str(self.findings), muse="say", say=say)
+
+    def test_every_pass_records_the_pin_it_ran_under(self):
+        # D00 T01 §18: the git blob id of the pin bytes each pass loaded, so the stamp can hold it to that pin.
+        blob = hashlib.sha1(b"blob %d\0" % len(FINAL_PIN.encode()) + FINAL_PIN.encode()).hexdigest()
+        for kind, say in (("plan", "1. ok.\n\nPLAN: complete\nOVERALL: approve"), ("completion", "COMPLETION: complete")):
+            result, summary = self.dispatch("--kind", kind, "--candidate", self.CANDIDATE, "--writer", "claude",
+                                            "--prompt", str(self.prompt), "--record", str(self.findings), codex="say",
+                                            say=say)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(summary["pin"], blob)
+        self.round(self.CLEAN)
+        result, _ = self.final()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        text = self.findings.read_text(encoding="utf-8")
+        self.assertEqual(text.count(f"- Pin: {blob}"), 4)
+        found = self.module().read_findings(text)
+        self.assertEqual([e["pin"] for key in ("plans", "completions", "rounds", "finals") for e in found[key]],
+                         [blob] * 4)
+        for bad in ("abc", blob.upper(), blob + "0"):
+            with self.subTest(bad=bad):
+                self.assertIsNone(self.module().read_findings(text.replace(f"- Pin: {blob}", f"- Pin: {bad}", 1)))
 
     def test_it_waits_until_the_rounds_have_stopped(self):
         result, _ = self.final()
