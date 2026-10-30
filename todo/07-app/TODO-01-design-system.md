@@ -48,7 +48,7 @@ track: day-1
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 | 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
-| 14 | §14 | One-press copy on a phone | §9 | [ ] |
+| 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [ ] |
 
 ## 1. Attended design session, design/SPEC.md
 
@@ -497,21 +497,26 @@ A member of many organisations (a managed-service provider looking after 50 busi
 An icon-only button (the shell's copy button, the phone Menu) has its accessible name only as `aria-label`, so a sighted member must recognise the icon (D07 T01 §9 completion review, 2026-10-30: GitHub's Primer shows an icon button's name as a tooltip on hover and focus). The boards draw no tooltip, so showing one is a design amendment the operator approves first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` 1 (shared parts; boards `AppNav`, `Report-Mobile`), with the amendment the operator approves
 **Job:** a member who does not know an icon still knows what its button does before pressing it
 **Treatment:** the button's own name shown on hover and keyboard focus, dismissed with Escape, readable in both themes
 **Chrome:** `Button` (§6)
 
-**Operator decision (open):** show icon-only buttons' names as a tooltip on hover and focus, or not. Recording `Icon button labels: <yes|no> (YYYY-MM-DD)` here releases the section.
+**Operator decision (2026-10-30 17:15 SAST, through the coordinator):** yes: the name shown as a tooltip on hover and keyboard focus. `owner-decision` removed from Needs (was `owner-decision`).
+
+Icon button labels: yes (2026-10-30)
+
+**Options as asked:** show icon-only buttons' names as a tooltip on hover and focus, or not. Recording `Icon button labels: <yes|no> (YYYY-MM-DD)` here releases the section.
 
 **Build order:**
 
 1. Record the decision. Done when: the `Icon button labels:` line is recorded.
 2. Show the label from `Button`. Done when: every icon-only button shows its name on hover and focus in Chromium.
 
-- [ ] Record the operator's decision and its board change through `design/tools/export-mockups.py` (AGENTS.md, Interface rules). Done when: the `Icon button labels:` line is recorded and `owner-decision` removed from Needs.
+- [x] Record the operator's decision. Done when: the `Icon button labels:` line is recorded and `owner-decision` removed from Needs. Done 2026-10-30: `Icon button labels: yes (2026-10-30)`.
+- [ ] Draw the tooltip on the affected boards and re-export them through `design/tools/export-mockups.py` (AGENTS.md, Interface rules), with the operator's approval of the drawn change. Done when: `python3 design/tools/check-design.py` passes with the tooltip state in `design/mockups/coverage.json`.
 - [ ] Render the label for an icon-only `Button` (`src/web/components/Button.tsx`) as a tooltip tied by `aria-describedby`, shown on `:hover` and `:focus-visible`, hidden with Escape, never covering the button. Done when: `test/node/controls-browser.test.tsx` finds the label visible on hover and on Tab, 4.5:1 or more in both themes, gone after Escape, and absent on a button with visible words. Cheaper substitute: a `title` attribute, which keyboard users never see.
 - [ ] Commit: `web: visible labels for icon-only buttons`
 
@@ -522,22 +527,26 @@ An icon-only button (the shell's copy button, the phone Menu) has its accessible
 On a phone the check address and its copy button sit in the sidebar behind Menu, so copying takes two presses where the desktop takes one (D07 T01 §9 completion review, 2026-10-30). Bringing the copy onto the phone page itself changes the approved phone shell (`Report-Mobile`, P1), so it is a design amendment the operator approves first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` P1 and the phone boards (`Report-Mobile`), with the amendment the operator approves
 **Job:** a member on a phone copies the check address with one press from the page they are on
 **Treatment:** the address and its copy group (§9) where a phone reaches them without opening Menu
 **Chrome:** `AppShell` (§3), the copy group (§9)
 
-**Operator decision (open):** where the phone shows the check address and its copy button outside Menu (the phone header, the Cases page's own empty state, or nowhere new). Recording `Phone copy: <header|cases|none> (YYYY-MM-DD)` here releases the section.
+**Operator decision (2026-10-30 17:15 SAST, through the coordinator):** cases: the Cases page's own empty state carries the copy group. `owner-decision` removed from Needs (was `owner-decision`).
+
+Phone copy: cases (2026-10-30)
+
+**Options as asked:** where the phone shows the check address and its copy button outside Menu (the phone header, the Cases page's own empty state, or nowhere new). Recording `Phone copy: <header|cases|none> (YYYY-MM-DD)` here releases the section.
 
 **Build order:**
 
 1. Record the decision. Done when: the `Phone copy:` line is recorded.
 2. Build the chosen placement. Done when: one press copies the address at 360 px.
 
-- [ ] Record the operator's decision and its board change through `design/tools/export-mockups.py`. Done when: the `Phone copy:` line is recorded and `owner-decision` removed from Needs.
-- [ ] Place the copy group where the decision says (`src/web/components/AppShell.tsx` or the Cases page), reusing §9's `data-copy-group`. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced. Cheaper substitute: a second copy script for the phone.
+- [x] Record the operator's decision. Done when: the `Phone copy:` line is recorded and `owner-decision` removed from Needs. Done 2026-10-30: `Phone copy: cases (2026-10-30)`.
+- [ ] Place the copy group on the Cases page's first-run empty state (D07 T04 §1's page, inside its `EmptyState` children beside the forward box), reusing §9's `data-copy-group`, as the decision says. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced. Cheaper substitute: a second copy script for the phone.
 - [ ] Commit: `web: one-press copy of the check address on a phone`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
