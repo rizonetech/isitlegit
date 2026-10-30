@@ -11,6 +11,8 @@ Started 2026-10-30 12:15 UTC by `process-plan`, scope plan, on branch `checks-la
 
 ## Sections
 
+- D02 T02 §4 Display name, Reply-To and Return-Path checks: stamped (plan review 1 P1 + 4 P2 fixed; completion 5 gaps fixed, 2 filed to D04 T01 §2 and D07 T03 §3; rounds 1 and 2 fixed (2 P1 + 3 P2, a P1), round 3 clean). 414 tests across the checks, intake, pipeline and auth folders. The brand table now reaches the view from KV through the checks step; `brandForMailbox` answers mail domains.
+
 - D02 T02 §3 ARC chain evidence: stamped (plan review 1 P1 + 3 P2 fixed; completion 2 gaps fixed, 2 filed to their owners D07 T03 §3 and D04 T01 §4; rounds 1 to 3 fixed (2 P2 + a P3, a P2, a P2), round 4 clean). 391 tests across the checks, intake, pipeline and auth folders.
 
 - D02 T02 §2 SPF, DKIM and DMARC alignment evidence: stamped (plan review 2 P1 + 3 P2 fixed; completion 3 gaps fixed, 2 filed to their owners D04 T01 §2 and D07 T03 §3; rounds 1 to 3 fixed (2 P1 + 3 P2, a P1 + a P2, a P2), round 4 clean). 374 tests across the checks, intake, pipeline and auth folders; the whole Worker suite waits for the coordinator's slot.

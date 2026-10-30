@@ -56,8 +56,8 @@ export function fromDomain(headers: readonly { name: string; value: string }[]):
   const domain = address.slice(at + 1);
   return LOCAL.test(local) && asciiDomain(domain) !== null ? domain : null;
 }
-const ATOM = "[\\p{L}\\p{N}\\p{M}!#$%&'*+/=?^_`{|}~-]+";
-const LOCAL = new RegExp(`^(?:${ATOM}(?:\\.${ATOM})*|"(?:[^"\\\\]|\\\\.)*")$`, "u");
+export const ATOM = "[\\p{L}\\p{N}\\p{M}!#$%&'*+/=?^_`{|}~-]+";
+export const LOCAL = new RegExp(`^(?:${ATOM}(?:\\.${ATOM})*|"(?:[^"\\\\]|\\\\.)*")$`, "u");
 
 const domainOf = (value: string) => {
   const v = value.trim().toLowerCase().replace(/^<|>$/g, "");
@@ -173,6 +173,18 @@ export function fittedDetail(detail: Record<string, unknown>): Record<string, un
       list.pop();
       fitted.trimmed = true;
     }
+  }
+  // Then any other list a caller added, the header excerpts last, down to one excerpt (D02 T02 §4's round 1: Reply-To
+  // destinations): whatever a check puts in its detail, the item is stored.
+  const lists = () =>
+    Object.entries(fitted)
+      .filter(([key, value]) => Array.isArray(value) && value.length > (key === "headers" ? 1 : 0))
+      .sort(([a], [b]) => Number(a === "headers") - Number(b === "headers"));
+  while (size(fitted) > DETAIL_BUDGET) {
+    const [entry] = lists();
+    if (!entry) break;
+    (entry[1] as unknown[]).pop();
+    fitted.trimmed = true;
   }
   return fitted;
 }

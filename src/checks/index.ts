@@ -5,10 +5,12 @@ import { registerAuthChecks } from "./auth";
 import { registerAuthResultsCheck } from "./auth-results";
 import { registerIntakeChecks } from "./intake";
 import { checks } from "./registry";
+import { registerSenderChecks } from "./sender";
 
 registerIntakeChecks(checks);
 registerAuthResultsCheck(checks);
 registerAuthChecks(checks);
 registerArcCheck(checks);
+registerSenderChecks(checks);
 
 export { allChecks, checks } from "./registry";

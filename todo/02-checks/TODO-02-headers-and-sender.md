@@ -34,7 +34,7 @@ track: day-2
 | 1 | §1 | Trusted Authentication-Results parsing | D02 T01 §2 | [x] |
 | 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [x] |
 | 3 | §3 | ARC chain evidence | §1 | [x] |
-| 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [ ] |
+| 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [x] |
 | 5 | §5 | First-time sender per organisation | §4 | [ ] |
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
 
@@ -133,6 +133,12 @@ Forwarders and mailing lists break SPF and DKIM; ARC (RFC 8617) carries the earl
 
 Business email compromise often keeps a real-looking display name over a different address, or sends replies elsewhere (spec 4.3 Sender).
 
+> **Started:** 2026-10-30T14:34Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) the brand table is read from KV with the bundled copy as fallback (`brandTable(env)` in `src/checks/brands.ts`), and checks are pure (`src/checks/registry.ts`), so the Workflow's `checks` step reads it and puts it in the view (`brands` on `CaseView`), as it does the receivers; a check never reads KV; (2) the From domain is §2's validated `fromDomain` (`src/checks/auth.ts`), and From, Reply-To and the display name come from postal-mime's `addressParser`; a brand is named in a display name when one of its `display_names` appears in it as whole words, compared case-folded after NFKC; a brand's own domains are its registrable domains, never its `user_content` hosts; (3) `Return-Path` is the topmost one, which the receiving system writes at final delivery; (4) the checks read the original's headers only: with none (an inline forward, a file without them) they say nothing, `auth.results` already saying why; each item carries the header it rests on and the raw message key, its detail fitted to the store as §2's are (`fittedDetail`).
+
+**Corrected 2026-10-30** (plan review): (5) the four checks are registered in `src/checks/index.ts`, and a stored synthetic message run through the Workflow's `checks` entry point and `readEvidence` asserts all four names, severities, header excerpts and an existing raw key; a brand added to KV's table reaches `sender.display_brand` there; hostile and oversized display names keep their items; (6) `sender.display_address` compares a mailbox shown in the display name with the From mailbox as a whole (local part and A-label domain, case-folded), and a bare domain shown with the From's registrable domain: a different mailbox at the same domain is a finding, a matching mailbox or domain is not; (7) brand matching: whole words only (a brand name inside a longer word is not named), NFKC and case-folded; an official domain or its subdomain is the brand's, and a `user_content` host (a consumer mailbox the brand runs) never is; (8) Reply-To: every destination is checked, groups included, so a same-domain first address cannot hide an external second one; when the From domain is unavailable, or a destination cannot be read, `sender.reply_to` says the comparison could not be made (info), never a mismatch and never silence; (9) Return-Path: absent says nothing, `<>` (empty, a valid bounce path) says nothing, an unreadable one says it could not be compared (info); a same-registrable path says nothing; an unrelated one is low, except under a known service's domain (SMTP2GO, Microsoft, Google, Mailchimp: their own registrable domains, so a lookalike such as `smtp2go.com.evil.example` stays flagged); only the topmost Return-Path is read.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -141,13 +147,17 @@ Business email compromise often keeps a real-looking display name over a differe
 
 1. Register the sender checks in `src/checks/sender.ts`. Done when: each fixture yields its item and a normal mail yields none.
 
-- [ ] Register `sender.display_address`: medium when the display name contains an email address or domain different from the actual From address. Done when: `"debtors@fynbosfreight.example" <x@freemail.example>` yields it.
-- [ ] Register `sender.display_brand`: medium when the display name names a brand from the brand table (D02 T03 §3) and the From domain is not one of that brand's domains. Done when: a fixture naming a fictional bank from a free mailbox yields it.
-- [ ] Register `sender.reply_to`: medium when `Reply-To` has a different registrable domain from From. Done when: the fixture yields it and a same-domain Reply-To does not.
-- [ ] Register `sender.return_path`: low when `Return-Path` differs from From's registrable domain and the domain is not a known mail service (SMTP2GO, Microsoft, Google, Mailchimp list in code). Done when: both fixtures behave.
-- [ ] Commit: `checks: display name, Reply-To and Return-Path`
+- [x] Register `sender.display_address` (correction 6) in `src/checks/sender.ts`. Done when: `test/checks/sender.test.ts` flags `"debtors@fynbosfreight.example" <x@freemail.example>`, a domain-only display (`"fynbosfreight.example" <x@freemail.example>`) and a different mailbox at the same domain, and passes a matching mailbox and a matching domain. (**Corrected 2026-10-30**, plan review.) Done 2026-10-30: `src/checks/sender.ts`; fails when mailboxes are compared by domain only.
+- [x] Register `sender.display_brand` (corrections 1, 2 and 7) over the view's `brands`. Done when: a fictional bank named from a free mailbox is flagged, the bank's official subdomain is not, a brand name inside a longer word is not, an NFKC and case variant is, and a `user_content` mailbox host is flagged. (**Corrected 2026-10-30**, plan review.) Done 2026-10-30: fails with a substring match or with `user_content` trusted.
+- [x] Register `sender.reply_to` (correction 8). Done when: an external Reply-To is flagged, a same-domain one is not, an external address after a same-domain one (and inside a group) is flagged in either order, and an unavailable From or an unreadable destination says the comparison could not be made. (**Corrected 2026-10-30**, plan review.) Done 2026-10-30: fails when only the first destination is read.
+- [x] Register `sender.return_path` (correction 9). Done when: absent and `<>` say nothing, unreadable says it could not be compared, same-domain says nothing, an unrelated domain is low, each of the four services' domains says nothing, a lookalike of one is low, and a lower forged Return-Path below the topmost is not read. (**Corrected 2026-10-30**, plan review.) Done 2026-10-30: `MAIL_SERVICES` (SMTP2GO, Microsoft, Google, Mailchimp's own registrable domains); fails without the service exceptions.
+- [x] Register the four in `src/checks/index.ts`, read the brand table into the view in the Workflow's `checks` step, and test the stored path (correction 5). Done when: the Workflow `checks` test reads all four back with their excerpts and raw key, a KV brand reaches the check, and a hostile oversized display name keeps its item. (**Corrected 2026-10-30**, plan review.) Done 2026-10-30: `brands` on `CaseView` from `brandTable(this.env)` in the Workflow's `checks` step; the Workflow run test reads a KV-only brand (fails with the bundled table passed instead), and 366 tests across the checks, pipeline and intake folders pass.
+- [x] Commit: `checks: display name, Reply-To and Return-Path` Done 2026-10-30: d99a8d2, then the review fixes to 9ae22b3.
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/sender.test.ts` passes and fails if a same-domain Reply-To is flagged.
+**Test checkpoint:** `pnpm exec vitest run test/checks/sender.test.ts test/pipeline/analysis-workflow.test.ts` passes and fails if a same-domain Reply-To is flagged.
+
+> **Verified:** 2026-10-30 | §4 | 1f1785094afd92ae9c2f567d856e5d548fd36b1e
+> **Review:** `docs/reviews/d02-t02-s4.json`
 
 ## 5. First-time sender per organisation
 

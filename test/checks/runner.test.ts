@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { bundled } from "../../src/checks/brands";
 import { type CaseView, caseViewOf } from "../../src/checks/case-view";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import {
@@ -40,6 +41,7 @@ async function viewOf(message: Uint8Array): Promise<CaseView> {
       receivers: [],
     },
     rawKey(caseId),
+    bundled,
   );
 }
 const said = (check: string, n = 1): EvidenceDraft => ({

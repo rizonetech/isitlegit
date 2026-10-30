@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { bundled } from "../../src/checks/brands";
 import { type CaseView, caseViewOf, SummaryRefused } from "../../src/checks/case-view";
 import {
   Evidence,
@@ -56,7 +57,12 @@ async function forwardView(message: Uint8Array, channel: "email" | "upload" = "e
   const caseId = await newCase(channel);
   const forward = await extractOriginal(message);
   await storeParsed(store, caseId, await parseMessage(forward.original), forward);
-  return caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel, receivers: [] }, rawKey(caseId));
+  return caseViewOf(
+    await summaryOf(caseId),
+    { orgId: "org-evidence", channel, receivers: [] },
+    rawKey(caseId),
+    bundled,
+  );
 }
 const item = (n: number, check = "test.one"): EvidenceDraft => ({
   check,
@@ -280,7 +286,12 @@ describe("caseViewOf", () => {
     const forward = await extractOriginal(message);
     await storeParsed(store, caseId, await parseMessage(forward.original), forward);
     const summary = (await summaryOf(caseId)) as Record<string, unknown>;
-    const view = caseViewOf(summary, { orgId: "org-evidence", channel: "upload", receivers: [] }, rawKey(caseId));
+    const view = caseViewOf(
+      summary,
+      { orgId: "org-evidence", channel: "upload", receivers: [] },
+      rawKey(caseId),
+      bundled,
+    );
     expect(view.headers).toEqual(summary.headers);
     expect(view.text).toBe(summary.text);
     expect(view.html).toBe(summary.html);
@@ -308,6 +319,7 @@ describe("caseViewOf", () => {
       await summaryOf(caseId),
       { orgId: "org-evidence", channel: "upload", receivers: [] },
       rawKey(caseId),
+      bundled,
     );
     expect(view.source).toMatchObject({ kind: "upload", fileKind: "document", mediaType: "application/pdf" });
     expect(view.tenant.headersAvailable).toBe(false);
@@ -321,9 +333,9 @@ describe("caseViewOf", () => {
       { forward: {} },
       { source: { kind: "mail" }, forward: { headersAvailable: false } },
     ])
-      expect(() => caseViewOf(summary, { orgId: "o", channel: "email", receivers: [] }, "raw/x/message.eml")).toThrow(
-        SummaryRefused,
-      );
+      expect(() =>
+        caseViewOf(summary, { orgId: "o", channel: "email", receivers: [] }, "raw/x/message.eml", bundled),
+      ).toThrow(SummaryRefused);
   });
 });
 
@@ -356,6 +368,7 @@ describe("the intake items", () => {
       await summaryOf(caseId),
       { orgId: "org-evidence", channel: "upload", receivers: [] },
       rawKey(caseId),
+      bundled,
     );
     const items = (await Promise.all(allChecks().map((c) => c.run(view, new AbortController().signal)))).flat();
     const [first, ...rest] = await saveEvidence(db, caseId, items);

@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import type { Receiver } from "../../src/auth/receivers";
 import { authResultsEvidence, receivedBy, trustedAuthResults } from "../../src/checks/auth-results";
+import { bundled } from "../../src/checks/brands";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { checks } from "../../src/checks/index";
@@ -349,6 +350,7 @@ function view(headers: { name: string; value: string }[], tenant: Partial<CaseVi
   return {
     tenant: { orgId: "org-auth", channel: "email", receivers: GOOGLE, headersAvailable: true, ...tenant },
     raw: "raw/case-auth/message.eml",
+    brands: bundled,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: "Pay the invoice.",
