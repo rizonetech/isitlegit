@@ -326,7 +326,7 @@ Sections: 15 | Checklist items: 61
 | [x]    | D99 T01 §7  | Partner credits for Glimmer                   | none     | 2     |
 | [x]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 6     |
 | [ ]    | D99 T01 §10 | Web Risk key restriction read from Google     | none     | 2     |
-| [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back | operator | 2     |
+| [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back | none     | 2     |
 | [ ]    | D99 T02 §1  | Rizonetech dogfooding from day 2              | operator | 3     |
 | [ ]    | D99 T02 §2  | Pilot client written consent                  | operator | 2     |
 | [ ]    | D99 T02 §3  | Record the demo footage                       | operator | 2     |
@@ -334,6 +334,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 84/265 verified sections, 45 ready to run now.
+Progress: 84/265 verified sections, 46 ready to run now.
 
 Checklist: 877/1704 items completed (includes Commit items).
