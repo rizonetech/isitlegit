@@ -644,26 +644,36 @@ describe("a site names an operator; a verified shared platform names none (1.0 b
     page("form1", { host: "forms.gle" }, { brand: "Eta", ...lure }),
     page("form2", { host: "forms.gle" }, { brand: "Theta", ...lure }),
     page("form3", { host: "www.eta.example" }, { brand: "Eta", ...lure }),
+    // An account's own subdomain on a form platform is one operator (review round 6): one site, one group.
+    page("acct1", { host: "kestrel.formstack.com" }, { brand: "Iota", ...lure }),
+    page("acct2", { host: "kestrel.formstack.com" }, { brand: "Kappa", ...lure }),
+    page("acct3", { host: "kestrel.formstack.com" }, { brand: "Lambda", ...lure }),
   ];
   it("keeps one operator's brands together and parts a platform's tenants", () => {
     const groupOfId = new Map<string, string>();
     for (const [key, members] of groupEntries(pages.map(entryOf)))
       for (const e of members) groupOfId.set(e.page.id, key);
     expect(new Set(["op1", "op2", "op3"].map((id) => groupOfId.get(id))).size).toBe(1);
+    expect(new Set(["acct1", "acct2", "acct3"].map((id) => groupOfId.get(id))).size).toBe(1);
     expect(new Set(["free1", "free2", "free3"].map((id) => groupOfId.get(id))).size).toBe(3);
     expect(groupOfId.get("form1")).not.toBe(groupOfId.get("form2"));
     expect(groupOfId.get("form1")).toBe(groupOfId.get("form3")); // the brand still joins them
-    expect(["secure.kestrel-pay.shop", "One.Weebly.com", "forms.gle"].map(siteKey)).toEqual([
-      "kestrel-pay.shop",
-      "one.weebly.com",
-      null,
-    ]);
+    expect(
+      ["secure.kestrel-pay.shop", "One.Weebly.com", "forms.gle", "kestrel.formstack.com", "www.formstack.com"].map(
+        siteKey,
+      ),
+    ).toEqual(["kestrel-pay.shop", "one.weebly.com", null, "kestrel.formstack.com", null]);
   });
   it("never lets the operator cross the split when one of its pages is reserved", () => {
     for (const seed of [1, 2, 3, 5, 8]) {
-      const parts = split(pages.map(entryOf), lcg(seed), { floors: NO_FLOORS, reserved: new Set(["op1"]) });
-      const training = new Set(parts.train.map((e) => e.page.id));
-      for (const id of ["op1", "op2", "op3"]) expect(training.has(id)).toBe(false);
+      for (const [reserved, operator] of [
+        ["op1", ["op1", "op2", "op3"]],
+        ["acct1", ["acct1", "acct2", "acct3"]],
+      ] as const) {
+        const parts = split(pages.map(entryOf), lcg(seed), { floors: NO_FLOORS, reserved: new Set([reserved]) });
+        const training = new Set(parts.train.map((e) => e.page.id));
+        for (const id of operator) expect(training.has(id)).toBe(false);
+      }
     }
   });
 });

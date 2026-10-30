@@ -36,7 +36,7 @@ import {
   recipientNames,
 } from "./import-samples.ts";
 import { canonicalBrand, readExcluded } from "./label-rules.ts";
-import { PATH_TENANTS, SUBDOMAIN_TENANTS } from "./shared-platforms.ts";
+import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
 
@@ -212,12 +212,14 @@ export function siteOf(host: string): string {
 }
 
 // The site a host names (`shared-platforms.ts`): its registrable domain, except on a platform whose tenants are separate
-// parties, where it is the full host (a tenant's subdomain) or none (tenants told apart by path or link). Joined by
-// registrable domain alone, shared hosts chained unrelated brands into one group of 28,334 pages in the 1.0 collection.
+// parties, where it is the full host (a tenant's or account's subdomain) or, on a shared service host where tenants
+// are told apart by path or link, none. Joined by registrable domain alone, shared hosts chained unrelated brands into
+// one group of 28,334 pages in the 1.0 collection.
 export function siteKey(host: string): string | null {
-  const domain = siteOf(host);
-  if (PATH_TENANTS.has(domain)) return null;
-  return SUBDOMAIN_TENANTS.has(domain) ? host.toLowerCase() : domain;
+  const full = host.toLowerCase();
+  if (SHARED_HOSTS.has(full)) return null;
+  const domain = siteOf(full);
+  return PLATFORM_DOMAINS.has(domain) ? full : domain;
 }
 
 // Every identity a page shares with others: its canonical brand, its site and its template (plan review finding 3).
