@@ -5,7 +5,7 @@
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
-import { hasInstruction, isPreheader } from "./hidden-text";
+import { isPreheader } from "./hidden-text";
 import type { CheckRegistry } from "./registry";
 
 export const MAX_HIDDEN_ITEMS = 20;
@@ -29,7 +29,7 @@ export function hiddenTextEvidence(view: CaseView): EvidenceDraft[] {
   const ranked = read.spans
     .map((span) => ({ span, severity: isPreheader(span) ? ("medium" as const) : ("high" as const) }))
     // Instruction words first, then the other high spans, then preheaders, so the strongest are listed (plan review).
-    .map((r) => ({ ...r, rank: hasInstruction(r.span.text) ? 0 : r.severity === "high" ? 1 : 2 }))
+    .map((r) => ({ ...r, rank: r.span.instruction ? 0 : r.severity === "high" ? 1 : 2 }))
     .sort((a, b) => a.rank - b.rank);
   const items: EvidenceDraft[] = ranked.slice(0, MAX_HIDDEN_ITEMS).map(({ span, severity }) => ({
     check: "content.hidden_text",
@@ -45,18 +45,20 @@ export function hiddenTextEvidence(view: CaseView): EvidenceDraft[] {
     artefacts: [view.raw],
   }));
   const rest = ranked.slice(MAX_HIDDEN_ITEMS);
-  if (rest.length) {
+  // Spans the scan found but could not keep are counted with those not listed (completion review).
+  const omitted = read.omittedSpans;
+  if (rest.length || omitted) {
     const byReason: Record<string, number> = {};
     for (const { span } of rest) byReason[span.reason] = (byReason[span.reason] ?? 0) + 1;
     items.push({
       check: "content.hidden_text",
-      severity: rest.some((r) => r.severity === "high") ? "high" : "medium",
-      summary: bounded(`${rest.length} more pieces of hidden text are not listed one by one.`),
-      detail: { more: rest.length, byReason },
+      severity: rest.some((r) => r.severity === "high") || omitted ? "high" : "medium",
+      summary: bounded(`${rest.length + omitted} more pieces of hidden text are not listed one by one.`),
+      detail: { more: rest.length + omitted, byReason, omitted },
       artefacts: [view.raw],
     });
   }
-  if (read.unresolvedRules > 0 || read.notScanned.length)
+  if (read.unresolvedRules > 0 || read.unreadColours > 0 || read.notScanned.length)
     items.push({
       check: "content.hidden_text",
       severity: "info",
@@ -66,6 +68,7 @@ export function hiddenTextEvidence(view: CaseView): EvidenceDraft[] {
       detail: fittedDetail({
         complete: false,
         unresolvedRules: read.unresolvedRules,
+        unreadColours: read.unreadColours,
         notScanned: read.notScanned,
       }) as EvidenceDraft["detail"],
       artefacts: [view.raw],

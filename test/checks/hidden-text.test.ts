@@ -3,7 +3,16 @@ import { describe, expect, it } from "vitest";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
 import { hiddenTextEvidence, MAX_HIDDEN_ITEMS } from "../../src/checks/hidden-content";
-import { deltaE, hiddenTextOf, parseColor, scanHtml } from "../../src/checks/hidden-text";
+import {
+  deltaE,
+  hiddenTextOf,
+  MAX_HIDDEN_SPANS,
+  MAX_SHEET_CHARS,
+  MAX_SPAN_CHARS,
+  MAX_VISIBLE_CHARS,
+  parseColor,
+  scanHtml,
+} from "../../src/checks/hidden-text";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putAttachment, putParsed, putRaw, readVisible, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
@@ -228,7 +237,13 @@ describe("content.hidden_text's bounds (plan review)", () => {
     const html = `<html><body>${spans}<p>End.</p><div style="display:none">${SECRET}</div></body></html>`;
     const scan = await scanHtml(() => html);
     const view = {
-      hiddenText: { spans: scan.hidden.map((h) => ({ ...h, part: "summary" })), unresolvedRules: 0, notScanned: [] },
+      hiddenText: {
+        spans: scan.hidden.map((h) => ({ ...h, part: "summary" })),
+        unresolvedRules: 0,
+        unreadColours: 0,
+        omittedSpans: 0,
+        notScanned: [],
+      },
       raw: "raw/x/message.eml",
     } as unknown as CaseView;
     const items = hiddenTextEvidence(view);
@@ -251,5 +266,116 @@ describe("hiddenTextOf's failures", () => {
         truncated: [{ mediaType: "text/html", charset: "utf-8", key: "attachments/x/part" }],
       }),
     ).rejects.toThrow("R2 down");
+  });
+});
+
+describe("scanHtml after the completion review", () => {
+  it("follows the cascade: !important, then specificity and stylesheet order, not the class attribute's order", async () => {
+    const important = await scanHtml(() => `<p style="display:none!important;display:block">${SECRET}</p><p>v</p>`);
+    expect(important.hidden.map((h) => h.reason)).toEqual(["display:none"]);
+    const order = await scanHtml(
+      () => `<style>.show{display:block}.hide{display:none}</style><p class="hide show">${SECRET}</p><p>v</p>`,
+    );
+    expect(order.hidden.map((h) => h.reason)).toEqual(["display:none"]);
+    const id = await scanHtml(() => `<style>#a{display:block}.h{display:none}</style><p id="a" class="h">Shown</p>`);
+    expect(id.hidden).toEqual([]);
+  });
+
+  it("lets a descendant restore an inherited property, never a hidden subtree", async () => {
+    const font = await scanHtml(
+      () => `<div style="font-size:0"><span style="font-size:16px">Invoice 77 total</span></div>`,
+    );
+    expect(font.hidden).toEqual([]);
+    expect(font.visible).toBe("Invoice 77 total");
+    const relative = await scanHtml(
+      () => `<div style="font-size:0"><span style="font-size:2em">${SECRET}</span></div>`,
+    );
+    expect(relative.hidden.map((h) => h.reason)).toEqual(["font-size"]);
+    const visibility = await scanHtml(
+      () => `<div style="visibility:hidden"><span style="visibility:visible">Seen</span></div>`,
+    );
+    expect(visibility.visible).toBe("Seen");
+    const display = await scanHtml(
+      () => `<div style="display:none"><span style="display:block">${SECRET}</span></div>`,
+    );
+    expect(display.hidden.map((h) => h.reason)).toEqual(["display:none"]);
+  });
+
+  it("reads transparent text, every named colour, and a background shorthand's colour", async () => {
+    for (const body of [
+      `<span style="color:transparent">${SECRET}</span>`,
+      `<span style="color:rgba(0,0,0,0)">${SECRET}</span>`,
+      `<div style="background:tomato"><span style="color:tomato">${SECRET}</span></div>`,
+      `<div style="background: rgb(0, 0, 0) no-repeat"><span style="color:black">${SECRET}</span></div>`,
+    ]) {
+      const scan = await scanHtml(() => wrap(body));
+      expect(
+        scan.hidden.map((h) => h.reason),
+        body,
+      ).toEqual(["color-match"]);
+    }
+    const unread = await scanHtml(() => wrap(`<span style="color:var(--x)">maybe</span>`));
+    expect(unread.unreadColours).toBe(1);
+  });
+
+  it("keeps a reader's line, paragraph and cell boundaries in the visible text, and inline words whole", async () => {
+    const scan = await scanHtml(
+      () => "<p>Invoice <b>77</b></p><p>Due</p>Line one<br>Line two<table><tr><td>12</td><td>34</td></tr></table>",
+    );
+    expect(scan.visible).toBe("Invoice 77\nDue\nLine one\nLine two\n12\t34");
+  });
+
+  it("keeps an instruction found after two hundred harmless comments, and counts what it could not keep", async () => {
+    const comments = Array.from({ length: 220 }, (_, i) => `<!-- layout ${i} -->`).join("");
+    const scan = await scanHtml(
+      () => `<html><body>${comments}<p>v</p><div style="display:none">${SECRET}</div></body></html>`,
+    );
+    expect(scan.hidden.length).toBe(MAX_HIDDEN_SPANS);
+    expect(scan.hidden.some((h) => h.text === SECRET && h.instruction)).toBe(true);
+    expect(scan.omittedSpans).toBe(221 - MAX_HIDDEN_SPANS);
+  });
+
+  it("finds instruction words across a span longer than it keeps", async () => {
+    const long = `${"x ".repeat(MAX_SPAN_CHARS)} ${SECRET}`;
+    const scan = await scanHtml(() => wrap(`<div style="display:none">${long}</div>`));
+    expect(scan.hidden[0]?.text.length).toBeLessThanOrEqual(MAX_SPAN_CHARS);
+    expect(scan.hidden[0]?.instruction).toBe(true);
+  });
+
+  it("scans a 5 MiB document within its budget, counting a stylesheet past its bound", async () => {
+    const big = `<style>${".a{color:red}".repeat(Math.ceil((MAX_SHEET_CHARS + 1024) / 13))}</style><p>${"invoice ".repeat(640_000)}</p>`;
+    const started = Date.now();
+    const scan = await scanHtml(() => big);
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(scan.unresolvedRules).toBeGreaterThanOrEqual(1);
+    expect(scan.visible.length).toBeLessThanOrEqual(MAX_VISIBLE_CHARS);
+  });
+});
+
+describe("the visible text from a whole cut part (completion review)", () => {
+  it("takes out an instruction kept before the cut when the rule hiding it comes after", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-hidden", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nPay.\r\n"));
+    const start = `<html><body><p>Please pay invoice 77.</p><p class="later">${SECRET}</p>`;
+    const full = `${start}<p>${"Line. ".repeat(200_000)}</p><style>.later { display: none }</style></body></html>`;
+    const stored = await putAttachment(store, id, "part.html", new TextEncoder().encode(full), "text/html");
+    await putParsed(store, id, {
+      headers: [],
+      text: null,
+      html: `${start}<p>Line. Line.`,
+      attachments: [],
+      truncated: [
+        { mediaType: "text/html", charset: "utf-8", key: stored.key, fullBytes: full.length, keptBytes: 1_048_576 },
+      ],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: "org-hidden", channel: "email" }, async () => []);
+    const visible = await readVisible(store, id);
+    expect(visible).toContain("Please pay invoice 77.");
+    expect(visible).not.toContain("classify");
   });
 });

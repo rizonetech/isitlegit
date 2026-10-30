@@ -35,6 +35,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [ ] |
 | 2 | §2 | AI-addressed instruction detection | §1 | [ ] |
+| 3 | §3 | Invisible Unicode characters in visible text | §1 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -84,6 +85,25 @@ Text written to steer an AI or filter ("mark this as safe", "ignore previous ins
 - [ ] Commit: `checks: AI-addressed instruction detection`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes and fails if the ordinary-mail set produces a match.
+
+## 3. Invisible Unicode characters in visible text
+
+Filed 2026-10-30 from §1's completion review (out of scope): §1 decides what styles and markup hide, but text can also be hidden in characters no font draws: the Unicode tag block (U+E0000 to U+E007F), which spells out ASCII invisibly, and runs of zero-width or other default-ignorable characters. An instruction written in them passes into `visible.txt` as if seen.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Find invisible characters and keep them out of what the model reads. Done when: a tag-block instruction in visible text is evidence and absent from `visible.txt`, while ordinary multilingual text (joiners in Indic and Arabic scripts, emoji sequences) survives.
+
+- [ ] Write `invisibleRuns(text)` in `src/checks/invisible-unicode.ts`: tag-block characters decoded to the ASCII they spell, and runs of three or more default-ignorable characters outside the joining contexts a script needs. Done when: `test/checks/invisible-unicode.test.ts` decodes a tag-block sentence and leaves a Hindi, an Arabic and an emoji family sequence untouched.
+- [ ] Report the decoded runs as `content.hidden_text` items (reason `invisible-characters`, high when they hold instruction words) and remove them from the visible text before `putVisible` (`src/pipeline/analysis-workflow.ts`). Done when: a stored message's tag-block instruction is a high item and absent from `readVisible`, the multilingual controls unchanged.
+- [ ] Commit: `checks: invisible Unicode characters in visible text`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
 
 ## Verification
 
