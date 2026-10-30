@@ -8,6 +8,9 @@ interface Env {
   REPORT_LINK_SECRET?: string;
   // SMTP2GO's API key for outbound mail (src/mail/smtp2go.ts), sender restricted to isitlegit.co.za; kept in the vault.
   SMTP2GO_API_KEY?: string;
+  // Cloudflare's Zone Analytics Read token for isitlegit.co.za (src/mail/forwarding.ts), kept in the vault as "IsItLegit
+  // Cloudflare analytics token": reads Email Routing's events for forwarding failures (D01 T02 §6).
+  CF_ANALYTICS_TOKEN?: string;
   // Better Auth's secret for signing session cookies (src/auth/auth.ts): 32 random bytes as base64url, kept in the vault
   // as "IsItLegit Better Auth secret". Replacing it signs every member out but leaves sent magic links valid; voiding
   // those is a D1 delete (docs/operations.md, Better Auth secret).

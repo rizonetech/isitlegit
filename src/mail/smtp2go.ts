@@ -52,7 +52,7 @@ export type MailDeps = {
   now?: () => Date;
   timeoutMs?: number;
   // OPERATOR_EMAIL, the one outside address the allowlist admits.
-  operator?: string | undefined;
+  operator?: string | readonly string[] | undefined;
 };
 
 const encoder = new TextEncoder();

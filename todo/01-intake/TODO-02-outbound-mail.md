@@ -40,9 +40,10 @@ track: day-1
 | 3 | §3 | Threaded reply with a signed report link | §2, D01 T01 §7, D01 T01 §8 | [x] |
 | 4 | §4 | Test and demo mail aliases | §1 | [x] |
 | 5 | §5 | Reconcile uncertain sends | §1 | [x] |
-| 6 | §6 | Forwarding failures detected and reported | §1, §4 | [ ] |
+| 6 | §6 | Forwarding failures detected and reported | §1, §4 | [x] |
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [x] |
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
+| 9 | §9 | Forwarding failures proven live | §6 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -171,7 +172,7 @@ The fictional demo businesses need registered contacts that reach a real inbox, 
 
 Evidence 2026-10-27 21:25 SAST (operator's go-ahead, 21:18 SAST). Email Routing for `demo.isitlegit.co.za` reads `ready` (19:19:10 UTC) with MX `route1` (56), `route2` (9) and `route3` (32) `.mx.cloudflare.net` and SPF `v=spf1 include:_spf.mx.cloudflare.net ~all`, resolving on 1.1.1.1; the apex keeps its three MX records. The rules read back enabled, each forwarding to `hostmaster@rizonetech.com`: `finance@demo` (`53c50578`), `alerts@demo` (`f76e3ed2`), `owner@demo` (`0eecf0c7`), beside `conduct@`, `hello@` and `dmarc@`. A first test sent 15 s after the rules were created was refused `550 5.1.1 Address does not exist` for all three (the rules were not live yet); the second, sent from `rizonetech@gmail.com` about a minute later, arrived in `derick@rizonetech.com`: `IsItLegit routing test 2 (finance@demo) 2026-10-27T19:24Z`, sent 19:20:11 UTC, received 19:20:22 UTC, `<CA+OCnvmKmcQ_BE=jkmo6Vi2qfR-ymniCp-4pHA1BbBr4UnEOug@mail.gmail.com>`; `IsItLegit routing test 2 (alerts@demo) 2026-10-27T19:24Z`, sent 19:20:12 UTC, received 19:20:21 UTC, `<CA+OCnvm4HsE0R7rSXBoLAFHgXK2bM+FUYRQTeCOO3Yp5=MYX0w@mail.gmail.com>`; `IsItLegit routing test 2 (owner@demo) 2026-10-27T19:24Z`, sent 19:20:13 UTC, received 19:20:22 UTC, `<CA+OCnvkzByH6ZX4-jeZTS6vKAqO_Zuaw+PyacfuWd08o8w09eA@mail.gmail.com>`. The subjects' timestamp was written before sending and is not the send time. `docs/live-checks.md` lists the three aliases with their proof times and the propagation note.
 
-> **Deferred:** detecting a forward that fails after Cloudflare accepted it, and telling the operator -> XREF: D01 T02 §6
+> **Resolved:** detecting a forward that fails after Cloudflare accepted it, and telling the operator -> XREF: D01 T02 §6. Resolved 2026-10-30 by D01 T02 §6: refusals read from Email Routing's events as NDR notices, alerted to both operator mailboxes; its live proof is D01 T02 §9.
 
 **Test checkpoint:** the Email Routing rules and the subdomain's MX records, read back through the Cloudflare API (`GET /zones/88aeec6df134bc59bfa16a25751241ef/email/routing/rules` and the zone's MX records), show the four aliases enabled, each forwarding to the verified operator destination, and `demo.isitlegit.co.za` routed to Cloudflare; the read-back is quoted in `docs/live-checks.md`, and each of the three demo aliases has a recorded arrival in `derick@rizonetech.com` (subject, sender, time, `internetMessageId`).
 
@@ -221,7 +222,7 @@ Evidence after review rounds 1 to 4, 2026-10-27 22:03 SAST. Round 1 (`5cc220d`):
 Cloudflare accepts mail for an alias and then forwards it; a failure after that acceptance (the destination refusing it, a quota, a policy) is not reported to the original sender, because Cloudflare does not forward non-delivery reports (https://developers.cloudflare.com/email-service/reference/postmaster/#non-delivery-reports-ndrs). A judge or a demo contact's mail could then vanish with nobody told. Filed from §4's completion review (out-of-scope gap, 2026-10-27), which compared it with Exchange Online aliases, whose failures come back with a reason.
 
 **Phase:** 1
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Corrected 2026-10-27** (Needs was `none`): the section cannot run unattended. Cloudflare's Email Routing events are in the GraphQL Analytics API (`emailRoutingAdaptive`, per zone, fields `datetime`, `sessionId`, `messageId`, `from`, `to`, `subject`, `status`, `action`, `errorDetail`, `isNDR`, `isSpam` and the authentication results; https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-email-routing/, read 2026-10-27), which publishes no list of `status` values and shows only `delivered`, so the failure values must be read from real events. Reading it needs an API token with Analytics Read; Wrangler's login has `email_routing (write)` but no analytics scope, and the Conclave vault holds no such token for this account. The live check also needs an Exchange Online mail flow rule set up by the operator.
@@ -248,19 +249,27 @@ Cloudflare accepts mail for an alias and then forwards it; a failure after that 
 
 **Credential exposure (2026-10-30):** while reading probe 1's events, the checks lane passed the analytics token to a polling script as a command-line argument, and a process listing it then ran printed that argument into the session's transcript (local only). Fixed in practice: secrets go to a script through its environment or stdin only, never its arguments. **Operator decision (2026-10-30):** keep the token (read-only, `isitlegit.co.za` analytics only).
 
+**Probe 2 (2026-10-30), the failure read:** one message, subject `ILPROBE-7Q4K9X forward probe 2 (D01 T02 section 6)`, sent at 15:20:07 UTC from `alerts@isitlegit.co.za` through SMTP2GO (email id `1xMoOk-FnQW0hPzqTe-BPBx`) to `hello@isitlegit.co.za`, with the operator's rule saved in the `rizonetech.com` tenant at 14:50 UTC. Email Routing recorded three events, all visible to the GraphQL query within 3.2 minutes: the forward at 15:20:12, `status` `delivered`, `action` `forward`, `isNDR` 0, `messageId` `<E1xMoOk-FnQW0hPzqTe-BPBx@message-id.smtpcorp.com>`; then, at 15:20:22, two non-delivery reports from the destination's domain (`rizonetech.com`) to Cloudflare's drop address `cfbounces+ndrdrop@isitlegit.co.za`, each `status` `dropped`, `action` `drop`, `isNDR` 1, `errorDetail` empty, subject `Undeliverable: ` and the original subject, each with its own `messageId` and session. The message did not reach `derick@rizonetech.com`.
+
+**Corrected 2026-10-30** (probe 2): (12) a forward refused after acceptance is not a failed forward event: the forward stays `delivered`, and the refusal arrives as `isNDR` 1 events to `cfbounces+ndrdrop@isitlegit.co.za` from the destination's domain, so the detector reads those NDR events and ties each to its forward by the subject with its `Undeliverable: ` prefix removed, the destination's domain and a window of 30 minutes after the forward; several reports for one forward are one failure (the forward's message id is the incident); an NDR tied to no forward is still an incident, keyed by its own message id, with what it names; analytics carries no reason (`errorDetail` empty), so the alert says the destination refused it after Cloudflare handed it over and names the destination's domain; (13) a refusal is visible within minutes (probe 2: 3.2), a delivered forward within about 14 (probe 1), so the scan's catch-up covers at least 30 minutes; (14) correction 6's probe is done: the section is released, Needs `none`; the live proof item needs the rule again, which the coordinator keeps or recreates with the operator.
+
+**Corrected 2026-10-30** (completion review): (15) the live proof of the deployed detector moves to §9: it needs §6 merged, migration 0036 applied, `CF_ANALYTICS_TOKEN` set and the Worker deployed, which the coordinator does after §6's stamp, so §6 cannot wait for it; probe 2 already proves the event shape the detector reads, and the module's exact query ran against the live API (2026-10-30: accepted, probe 2's three events read with `errorDetail`); (16) a refusal read before its forward waits `MATCH_GRACE_MS` (20 minutes) for it, and reports replayed later join the same incident (subject and destination within the window), so one refusal is one incident and one alert per mailbox; several forwards of the same subject are all named and the incident marked uncertain, never pinned to the latest; (17) an alert counts as sent only once SMTP2GO confirmed it (`sent`, or a duplicate of a `sent`), so an uncertain hand-over stays pending until the reconciler settles it; (18) a Worker retry that arrives after the hour still settles the incident, dropping an alert not yet sent; (19) the scan resumes from the last event it read when its page budget runs out (or a full page does not advance), and says `partial`; (20) the alert names when the original was received (the forward) and when it was refused (the report), a stable incident reference (the first 12 hex digits of its key), and a Worker failure's `errorDetail` with addresses removed; (21) settled incidents are deleted after 90 days, past any replay window; pending ones are kept.
+
 **Build order:**
 
 1. Find where Cloudflare reports a forwarding failure. Done when: the source, its fields and the permission it needs are recorded here.
 2. Detect and report each failure. Done when: a failed forward produces one operator alert naming the alias and the message within five minutes of its detection.
 
 - [x] Read Cloudflare's Email Routing analytics (its GraphQL dataset for routing events, or the dashboard's activity log API) and record here how a forward that failed after acceptance appears (status, the alias, the message id, the time), the token permission that reads it, and the delay before an event is visible, with the reference URL and the date read. Done when: the finding is recorded, and a vault item for that read-only token is named (created by the operator if none exists, D99 T01). Done 2026-10-30: correction 1; the failure status and delay of a real forward failure are read at the live check below.
-- [ ] Write `checkForwarding(deps, now)` in `src/mail/forwarding.ts` that reads the zone's Email Routing events of the last 6 hours (corrections 2 and 5: a `forward` event not `delivered`, a `worker` event `deliveryFailed`) and sends the operator one `alert` through `sendMail` per failed message, with the alias, the time, the status, the reason and the sender's domain (never the body or the sender's address), under the send key `forward-failure:<message id>` so a repeated check alerts once. Done when: `test/mail/forwarding.test.ts` turns a stubbed failure into one alert, sends nothing for a delivered forward or a Worker's deliberate drop, alerts once when checked twice, and reports `disabled` with no token and `degraded` when the query fails. (**Corrected 2026-10-30**, at start.)
-- [ ] Run it from the Worker's scheduled handler (every 15 minutes, correction 3), declaring `CF_ANALYTICS_TOKEN` and `EMAIL_ZONE_ID` (correction 4). Done when: a test of the scheduled handler calls it, and `pnpm typecheck` passes with the new bindings. (**Corrected 2026-10-30**, at start.)
-- [ ] Prove it live once with a failure after acceptance: an active rule to the verified destination, whose mailbox refuses one marked test message after Cloudflare hands it over (an Exchange Online mail flow rule rejecting a unique test subject, set up by the operator for the test and removed after). Send that message from `rizonetech@gmail.com` and confirm the alert arrives in `derick@rizonetech.com`, recording its time and `internetMessageId`. Done when: the alert is recorded and the mail flow rule is gone. (**Corrected 2026-10-27**, D01 T02 §4's round 1: a rule to an unverified destination stays disabled in Cloudflare, so it can never produce a failure after acceptance.)
-- [ ] Add to `docs/live-checks.md` what the operator does with such an alert: check the destination's mailbox health, then ask the sender to resend. Done when: the page holds the steps.
-- [ ] Commit: `mail: forwarding failures detected and reported to the operator`
+- [x] Write `checkForwarding(deps, now)` in `src/mail/forwarding.ts` that reads the zone's Email Routing events of the last 6 hours (corrections 2 and 5: a `forward` event not `delivered`, a `worker` event `deliveryFailed`) and sends the operator one `alert` through `sendMail` per failed message, with the alias, the time, the status, the reason and the sender's domain (never the body or the sender's address), under the send key `forward-failure:<message id>` so a repeated check alerts once. Done when: `test/mail/forwarding.test.ts` turns a stubbed failure into one alert, sends nothing for a delivered forward or a Worker's deliberate drop, alerts once when checked twice, and reports `disabled` with no token and `degraded` when the query fails. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `src/mail/forwarding.ts` with migration `0036_forward_incidents.sql`, refusals tied to forwards by subject hash (correction 12), Worker failures recovered or unresolved after an hour, both mailboxes (`OPERATOR_FALLBACK_EMAIL`, admitted by `src/mail/allowlist.ts` from a list); `test/mail/forwarding.test.ts` (11 tests); five mutations (reports untied, an unstable send key, a retry that never recovers, no fallback, not scheduled) each fail a test.
+- [x] Run it from the Worker's scheduled handler (every 15 minutes, correction 3), declaring `CF_ANALYTICS_TOKEN` and `EMAIL_ZONE_ID` (correction 4). Done when: a test of the scheduled handler calls it, and `pnpm typecheck` passes with the new bindings. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `scheduledForwarding` in `src/index.ts`, `CF_ANALYTICS_TOKEN` in `src/types/secrets.d.ts`, `EMAIL_ZONE_ID` and `OPERATOR_FALLBACK_EMAIL` in `wrangler.jsonc`; `test/scheduled.test.ts` reads the events and alerts both mailboxes from the cron.
+- [x] Add to `docs/live-checks.md` what the operator does with such an alert: check the destination's mailbox health, then ask the sender to resend. Done when: the page holds the steps. Done 2026-10-30: "Forwarding failures (D01 T02 §6)", both alerts' steps and the run's log states.
+- [x] Commit: `mail: forwarding failures detected and reported to the operator` Done 2026-10-30: 6dc1fc1, then the review fixes to the round-3 commit.
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and fails if a failure produces no alert or a repeated check alerts twice.
+
+> **Verified:** 2026-10-30 | §6 | 86f7bcf77bccf3d6df7fc7854190eb1ea2af50ae
+> **Review:** `docs/reviews/d01-t02-s6.json`
 
 ## 7. Automatic recovery of ambiguous sends
 
@@ -324,6 +333,24 @@ When the operator settles an uncertain send `failed` (§5, `scripts/mail-settle.
 
 > **Verified:** 2026-10-29 | §8 | 04ef8f271bd5d91b741dfbd587ee0f06c6cd89b2
 > **Review:** `docs/reviews/d01-t02-s8.json`
+
+## 9. Forwarding failures proven live
+
+Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven end to end once. It waits on the coordinator's deploy of §6 (migration 0036 applied, `CF_ANALYTICS_TOKEN` set from the vault, the Worker deployed with the operator's go) and on the operator's Exchange mail flow rule, kept since probe 2 for this proof.
+
+**Phase:** 1
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Prove the deployed detector alerts on a real refusal. Done when: both alerts are recorded and the rule is gone.
+
+- [ ] Once the coordinator says §6 is deployed with the token set, send probe 3 (subject containing `ILPROBE-7Q4K9X`) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, and confirm within two scheduled runs that the alert reaches `derick@rizonetech.com` and `rizonetech@gmail.com`, recording each alert's time and `internetMessageId`, and the `event: forwarding` log line. Done when: both alerts are recorded here.
+- [ ] Ask the coordinator to have the operator delete the Exchange mail flow rule "IsItLegit forward probe (delete after test)", and record its removal. Done when: the removal is recorded here.
+- [ ] Commit: `mail: forwarding failures proven live`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and both alerts of probe 3 are recorded above.
 
 ## Verification
 

@@ -154,6 +154,15 @@ describe("isAllowedRecipient", () => {
     }
   });
 
+  it("admits each of the operator's mailboxes when given a list, for alerts, and no one else (D01 T02 §6)", async () => {
+    const both = [OPERATOR, "rizonetech@gmail.com"];
+    expect(await isAllowedRecipient(db, "rizonetech@gmail.com", "alert", both)).toBe(true);
+    expect(await isAllowedRecipient(db, OPERATOR, "alert", both)).toBe(true);
+    expect(await isAllowedRecipient(db, "someone@gmail.com", "alert", both)).toBe(false);
+    // A single operator address, as every other sender passes it, does not admit the fallback.
+    expect(await isAllowedRecipient(db, "rizonetech@gmail.com", "alert", OPERATOR)).toBe(false);
+  });
+
   it("admits no operator when none is configured", async () => {
     expect(await isAllowedRecipient(db, OPERATOR, "alert", undefined)).toBe(false);
     expect(await isAllowedRecipient(db, OPERATOR, "alert", "")).toBe(false);
