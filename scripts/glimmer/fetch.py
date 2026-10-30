@@ -346,6 +346,42 @@ def _folder_bytes(folder: Path) -> int:
     return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file()) if folder.exists() else 0
 
 
+class _InOrderDigest:
+    """The digest of a partial file, read back in file order as its leading bytes arrive (D03 T04 §22). `frontier()` is
+    the end of the unbroken written run from the first byte, read with `guard` held; an invalidation (`invalidate`,
+    also with `guard` held) says some of those bytes are to be replaced, and the digest starts over from the first."""
+
+    def __init__(self, kind: str, descriptor: int, guard, frontier):
+        self.kind, self.descriptor, self.guard, self.frontier = kind, descriptor, guard, frontier
+        self.hash = hashlib.new(kind)
+        self.at = 0
+        self.failed = False
+        self.gen = 0  # moves at every invalidation
+        self.seen = 0  # the generation `hash` was begun in
+
+    def invalidate(self) -> None:
+        self.gen += 1
+
+    def hash_up_to(self, end: int) -> None:
+        """Reads on to `end`. An invalidation (the generation moved) starts it over from the first byte; it is then
+        left to the caller to ask again for the frontier, which the invalidation lowered."""
+        while True:
+            with self.guard:
+                if self.seen != self.gen:
+                    self.hash, self.at, self.seen = hashlib.new(self.kind), 0, self.gen
+                generation, at = self.gen, self.at
+            if at >= end:
+                return
+            block = os.pread(self.descriptor, min(1 << 20, end - at), at)
+            if not block:
+                raise OSError(errno.EIO, "the partial file ended early")
+            with self.guard:
+                if self.gen != generation:
+                    return
+                self.hash.update(block)
+                self.at = at + len(block)
+
+
 def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int = 5 * 10**9, min_free: int = 10 * 10**9,
           timeout: float = 30.0, attempts: int = 3, min_rate: float = 16 * 1024, rate_window: float = RATE_WINDOW,
           segments: int = 0, segment_threshold: int = SEGMENT_THRESHOLD, mirrors: tuple[str, ...] | list[str] = (),
@@ -777,7 +813,6 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             def rest(item: list) -> int:
                 return item[1] - (item[0] + item[2]) + 1
 
-            hashed = {"at": 0, "failed": False, "gen": 0, "seen": 0, "hash": hashlib.new(kind)}
 
             def save_or_stop():
                 # A state that cannot be written ends the run as such: the partial is kept for a rerun.
@@ -835,7 +870,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         return
                     ends.clear()
                     ends.update({span[1]: span for span in prov or []})
-                    hashed["gen"] += 1
+                    hashed.invalidate()
                     for item in cut_ranges:
                         parked.add(id(item))
                         if id(item) not in working:
@@ -1113,32 +1148,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             return item[0] + item[2]
                     return state["total"]
 
-            def hash_up_to(end: int):
-                """The digest read on to `end`, in file order, from the file. An invalidation (the generation moved) starts
-                it over from the first byte; it is then left to the caller to ask again for the frontier, which the
-                invalidation lowered."""
-                while True:
-                    with guard:
-                        if hashed["seen"] != hashed["gen"]:
-                            hashed.update(hash=hashlib.new(kind), at=0, seen=hashed["gen"])
-                        generation, at = hashed["gen"], hashed["at"]
-                    if at >= end:
-                        return
-                    block = os.pread(fd, min(1 << 20, end - at), at)
-                    if not block:
-                        raise OSError(errno.EIO, "the partial file ended early")
-                    with guard:
-                        if hashed["gen"] != generation:
-                            return
-                        hashed["hash"].update(block)
-                        hashed["at"] = at + len(block)
+            hashed = _InOrderDigest(kind, fd, guard, frontier)
 
             def hash_along():
                 # The digest is computed in file order as the leading ranges fill, read back from the file, so only
                 # the last stretch is left to hash when the transfer ends (aria2c hashes the whole file after it).
                 try:
                     while not stop.is_set():
-                        hash_up_to(frontier())
+                        hashed.hash_up_to(frontier())
                         with guard:
                             due = counted["since"] >= STATE_EVERY
                             if due:
@@ -1153,7 +1170,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                     continue  # more came while saving: save again before waiting
                             changed.wait(HASH_WAIT)
                 except OSError:
-                    hashed["failed"] = True  # the whole-file pass after the transfer judges it instead
+                    hashed.failed = True  # the whole-file pass after the transfer judges it instead
 
             try:
                 threads = [threading.Thread(target=worker, daemon=True) for _ in range(count)]
@@ -1174,11 +1191,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     for thread in (*threads, along):
                         thread.join()
                     raise
-                if not errors and not hashed["failed"] and frontier() == state["total"]:
+                if not errors and not hashed.failed and frontier() == state["total"]:
                     try:
-                        hash_up_to(state["total"])
-                        if hashed["at"] == state["total"]:
-                            streamed["digest"] = hashed["hash"].hexdigest()
+                        hashed.hash_up_to(state["total"])
+                        if hashed.at == state["total"]:
+                            streamed["digest"] = hashed.hash.hexdigest()
                     except OSError:
                         pass  # the whole-file pass after the transfer judges it instead
                 try:
