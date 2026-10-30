@@ -9,7 +9,7 @@ track: day-6
 
 # TODO-01 -- Channel Videos: Development Method and Tech Stack
 
-> **Goal:** The IsItLegit YouTube channel (@DerickPayneDev) carries two short explainers made in Remotion from the repository: "How IsItLegit is built" (the development method, including the Muse Wonder final review through Muse Code, labelled as tooling) and "IsItLegit in 60 seconds" (the tech stack as an architecture diagram), each with an approved script, a licence basis on file, numbers read from the repository, and a public link recorded here.
+> **Goal:** The IsItLegit YouTube channel (@DerickPayneDev) carries three short explainers made in Remotion from the repository: "How IsItLegit is built" (the development method, including the Muse Wonder final review through Muse Code, labelled as tooling) "IsItLegit in 60 seconds" (the tech stack as an architecture diagram) and "Loupe 1.0" (a technical deep dive on the page screener, figures pinned to the glimmer lane), each with an approved script, a licence basis on file, numbers read from the repository, and a public link recorded here.
 
 > **Current state:** Measured 2026-10-30. `media/` exists on branch `claude/trusting-pasteur-umwvqz` (commits `cc4d49c`, `0b45c62`, `6aed7c0`): its own pnpm root (`media/pnpm-workspace.yaml`, `media/pnpm-lock.yaml`), Remotion 4.0.539 pinned, the brand layer `media/src/brand.tsx` reading `design/` unchanged, the compositions `media/src/videos/HowItIsBuilt.tsx` (65 s) and `media/src/videos/InSixtySeconds.tsx` (60 s), and `media/tools/collect-stats.py` writing the on-screen numbers (278 sections, 95 stamped, 355 rounds, 65 final reviews at `5c92ba8`). Both render to 1920 x 1080 MP4 and were sent to the operator as first drafts; neither script is approved, the Remotion licence basis is not recorded, and nothing is uploaded. The lane is registered but uncoordinated (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane); its stamps carry the review waiver once D00 T01 §26 ships.
 
@@ -26,7 +26,7 @@ track: day-6
 
 ## Outcome
 
-- Both videos are public on @DerickPayneDev, play logged out, and their links are recorded here.
+- All three videos are public on @DerickPayneDev, play logged out, and their links are recorded here.
 - Every number on screen matches `media/tools/collect-stats.py` run on the rendered commit, which the closing frame names.
 - The Remotion licence basis for Rizonetech is recorded here before the final renders.
 
@@ -43,6 +43,8 @@ track: day-6
 | 3 | §3 | Video 01: development method | §1, §2 | [ ] |
 | 4 | §4 | Video 02: tech stack | §1, §2 | [ ] |
 | 5 | §5 | Uploads and links recorded | §3, §4 | [ ] |
+| 6 | §6 | Video 03: Loupe 1.0 technical deep dive | §1, §2 | [ ] |
+| 7 | §7 | Video 03 upload and link recorded | §6 | [ ] |
 
 ## 1. Media package and stats collector
 
@@ -150,6 +152,51 @@ The operator uploads the two approved renders to @DerickPayneDev as public video
 - [ ] Commit: `todo: record the channel video links (D10 T01 §5)`
 
 **Test checkpoint:** `grep -cE '^Video 0[12]: https://www\.youtube\.com/watch\?v=' todo/10-media/TODO-01-channel-videos.md` prints `2`.
+
+## 6. Video 03: Loupe 1.0 technical deep dive
+
+A 132-second technical video on Loupe, the page screener of D03 T04: the job behind `screenPage`, the Muse Glimmer 30B base model, the seven licensed sources and the benign renders, the 129,892-page collection, the Muse Spark teacher and its 61 percent bar, the split and its leakage controls, the two refused builds, the LoRA recipe, the promotion gate and the serving plan. Loupe 1.0 is not trained yet (measured 2026-10-30 at glimmer `3be0168e`), so every scene says so, planned values are tagged, and no result is claimed. Requested by the operator 2026-10-30 for technical depth.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Pin every figure in `media/data/loupe-facts.json` to the glimmer commit with a quote or a counted pattern, proven by `media/tools/check-facts.py`. Done when: `pnpm check:facts` passes and fails on a changed figure.
+2. Build `media/src/videos/LoupeV1.tsx` from `media/scripts/03-loupe-1-0.md` and render it. Done when: `media/out/03-loupe-1-0.mp4` is 1920 x 1080 and 132 seconds.
+
+- [x] Write `media/data/loupe-facts.json`: 52 facts, each `measured` or `planned`, pinned to `3be0168e0ffc03d72534ba756bf534a1ed72eca9`, with no client content, account names, keys, store paths or budgets (sources: `docs/glimmer/training.md`, `docs/glimmer/sources.md`, `docs/phase-runs/2026-10-30-glimmer-phase-0.md`, `todo/03-vision/TODO-04-glimmer.md`, `scripts/glimmer/`). Done when: `python3 media/tools/check-facts.py` prints `52 facts hold`. Cheaper substitute: figures typed into the scenes fail the lane rule that every number has a source.
+- [x] Write `media/tools/check-facts.py` (quote and count facts) and `media/tools/test_check_facts.py`. Done when: the six tests pass, and changing a value, a quote, a count, a source or a status fails.
+- [x] Write `media/scripts/03-loupe-1-0.md` with 13 scenes, the "not shown, on purpose" list and the open questions. Done when: the script names every scene's figures and their source file.
+- [x] Build `media/src/videos/LoupeV1.tsx` and register `LoupeV1` in `media/src/Root.tsx`, with the status label on every scene and a `planned` tag on the recipe, gate, serving and `screenPage` lines. Done when: `pnpm exec tsc -p .` exits 0 and stills of all 13 scenes show the label.
+- [x] Add `render:03` (after `check:facts`) to `media/package.json`. Done when: `pnpm render:03` writes `media/out/03-loupe-1-0.mp4` at 1920 x 1080, 132 s.
+- [ ] Operator: answer the script's open questions (teacher spend, the 61 percent bar, voiceover, a results re-render). Done when: the answers are written into `media/scripts/03-loupe-1-0.md`.
+- [ ] Record `Script approved: 03, YYYY-MM-DD` in `media/scripts/03-loupe-1-0.md`. Done when: the line is written.
+- [ ] Re-pin `commit` and refresh the facts to the glimmer lane's latest before the final render, so the video says what is true on the day. Done when: `pnpm check:facts` passes at the new commit. Cheaper substitute: rendering at the old pin fails once Loupe 1.0 has trained.
+- [ ] Render the final cut with `pnpm render:03` on a committed tree. Done when: the file exists at 1920 x 1080.
+- [ ] Commit: `media: video 03 approved and rendered (D10 T01 §6)`
+
+**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, `python3 media/tools/check-facts.py` exits 0, and `ffprobe -v error -show_entries stream=width,height:format=duration -of csv=p=0 media/out/03-loupe-1-0.mp4` prints `1920,1080` and `132.000000`.
+
+## 7. Video 03 upload and link recorded
+
+The operator uploads the approved video 03 to @DerickPayneDev as public, in the `IsItLegit` playlist, and checks it logged out.
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Upload and record the link. Done when: a `Video 03:` line is written here and the video plays logged out.
+
+- [ ] Operator: upload `media/out/03-loupe-1-0.mp4` as public, in the `IsItLegit` playlist. Done when: it plays in a logged-out window at 1080p.
+- [ ] Record `Video 03: https://www.youtube.com/watch?v=<id>` under this section. Done when: the line is written.
+- [ ] Add the link to the Videos table in `media/README.md`. Done when: the row links its video.
+- [ ] Commit: `todo: record the video 03 link (D10 T01 §7)`
+
+**Test checkpoint:** `grep -cE '^Video 03: https://www\.youtube\.com/watch\?v=' todo/10-media/TODO-01-channel-videos.md` prints `1`.
 
 ## Verification
 

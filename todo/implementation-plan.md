@@ -219,7 +219,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 68 | Checklist items: 292
+Sections: 69 | Checklist items: 302
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -291,6 +291,7 @@ Sections: 68 | Checklist items: 292
 | [ ]    | D10 T01 §2  | Remotion licence basis                    | operator              | 3     |
 | [ ]    | D10 T01 §3  | Video 01: development method              | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: tech stack                      | none                  | 7     |
+| [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive   | none                  | 10    |
 
 ### Phase 7: After the event
 
@@ -329,11 +330,12 @@ Sections: 28 | Checklist items: 165
 
 ### Phase 99: Manual, operator only
 
-Sections: 16 | Checklist items: 66
+Sections: 17 | Checklist items: 70
 
 | Status | Reference   | Deliverable                                   | Needs    | Items |
 | ------ | ----------- | --------------------------------------------- | -------- | ----- |
 | [ ]    | D10 T01 §5  | Uploads and links recorded                    | operator | 5     |
+| [ ]    | D10 T01 §7  | Video 03 upload and link recorded             | operator | 4     |
 | [x]    | D99 T01 §1  | Meta API billing and API key                  | none     | 5     |
 | [x]    | D99 T01 §2  | Domain verification and nameservers           | none     | 15    |
 | [x]    | D99 T01 §3  | Workers Paid plan                             | none     | 3     |
@@ -350,6 +352,6 @@ Sections: 16 | Checklist items: 66
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 95/281 verified sections, 58 ready to run now.
+Progress: 95/283 verified sections, 58 ready to run now.
 
-Checklist: 977/1816 items completed (includes Commit items).
+Checklist: 982/1830 items completed (includes Commit items).

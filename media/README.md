@@ -19,6 +19,7 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, 
 | ------ | ----- | ------ | ------ |
 | 01 | How IsItLegit is built (development method) | [scripts/01-how-isitlegit-is-built.md](scripts/01-how-isitlegit-is-built.md) | First render, awaiting operator approval |
 | 02 | IsItLegit in 60 seconds (tech stack) | [scripts/02-isitlegit-in-60-seconds.md](scripts/02-isitlegit-in-60-seconds.md) | First render, awaiting operator approval |
+| 03 | Loupe 1.0: training a page screener (technical) | [scripts/03-loupe-1-0.md](scripts/03-loupe-1-0.md) | First render, awaiting operator approval; Loupe 1.0 not yet trained |
 
 ## Render
 
@@ -28,7 +29,10 @@ Needs Node 22 or newer and Python 3.11 or newer. From `media/`:
 pnpm install --frozen-lockfile
 pnpm render:01   # out/01-how-isitlegit-is-built.mp4, 65 s, 1920 x 1080
 pnpm render:02   # out/02-isitlegit-in-60-seconds.mp4, 60 s, 1920 x 1080
+pnpm render:03   # out/03-loupe-1-0.mp4, 132 s, 1920 x 1080 (runs check:facts first)
 pnpm studio      # preview and scrub in the browser
 ```
 
 Each render first runs `tools/collect-stats.py`, which writes the on-screen numbers to `src/data/stats.json` (git-ignored). Set `REMOTION_BROWSER` to an installed Chrome when Remotion cannot download its own; in the cloud session that is `/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell`. Scenes and timings live in `src/videos/`, the shared brand layer in `src/brand.tsx`, and `remotion.config.ts` serves `design/` as the public folder.
+
+Video 03 reads its figures from `data/loupe-facts.json`, each pinned to the glimmer lane's commit and an exact quote (or a counted pattern) in its source. `pnpm check:facts` proves them with `git show`, so that commit must be fetched (`git fetch origin glimmer-screener`); a render stops when any figure no longer matches. Tests: `python3 -m unittest discover -s media/tools`.
