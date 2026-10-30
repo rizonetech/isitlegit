@@ -13,6 +13,8 @@
     python scripts/campaign_guard.py health --session S --jobs J1,J2
     python scripts/campaign_guard.py expiry --session S [--now ISO]
     python scripts/campaign_guard.py rows --session S                (the run's lane: ready, open, next row)
+    python scripts/campaign_guard.py wait --session S --on 'DNN TNN §N,...'   (wait on another lane's rows)
+    python scripts/campaign_guard.py wake --session S [--now ISO]    (the heartbeat's waiting step: fetch, merge, rows)
 
 A campaign run has three parts. The guard file (`build/claude-campaign-guard.json`) names the session that owns the
 run, its phase, run file, heartbeat job and run id; it is written and deleted only through this module, under an
@@ -28,6 +30,11 @@ names, a re-point or handover of the same run keeps it, and every query the guar
 `end --reason plan-done`, `rows` for the heartbeat) runs with `TODO_LANE` set to it, so a worktree that switches branch
 under a run never counts another lane's rows. A graph without `query lane` (Isotone's) records no lane, and its
 queries follow the checkout as before.
+
+A run whose lane has nothing runnable but rows that wait on another lane's rows waits instead of ending (D00 T01 §20):
+`wait` records the rows waited on in the guard, the heartbeat keeps running, and each heartbeat's `wake` fetches `main`,
+merges it into the lane (through the plan's merge stop, D00 T01 §22), and reads `READY` once the lane has a runnable row
+in the run's scope. Every git failure is backed out to a state the next heartbeat retries.
 
 The hook fails open on a bad payload, a missing guard or any error, and records the error for the heartbeat to report
 (`hook-error`). Every command takes `--root` to act on a fixture workspace instead of this repository. Ported from
@@ -60,6 +67,9 @@ SCOPES = ("plan", "phase")
 # non-blocking error, so the hook keeps its own deadline well inside it and still has time to record a failure.
 HOOK_BUDGET_SECONDS = 40.0
 UTC_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+# The guard's record of a run waiting on another lane's rows (D00 T01 §20).
+WAIT_KEYS = ("waiting_on", "waiting_since", "notified_at")
+LONG_WAIT = datetime.timedelta(hours=24)
 
 
 class GuardError(ValueError):
@@ -276,6 +286,10 @@ def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, c
     pinned = previous.get("lane") if continues else lane
     if pinned:
         doc["lane"] = pinned
+    # A wait belongs to the run (D00 T01 §20): a re-point, a new heartbeat job or a handover keeps it and its age; a new
+    # run starts without one.
+    if continues:
+        doc.update({k: previous[k] for k in WAIT_KEYS if k in previous})
     what = "created"
     if exists:
         owner = str(previous.get("session_id", ""))
@@ -502,7 +516,8 @@ def whoami(root: str, session: str, generation: str | None = None) -> str:
     scope = guard.get("scope") or "plan"
     lane = f" lane={guard['lane']}" if guard.get("lane") else ""
     run = f" run={guard.get('run_id')}" if guard.get("run_id") else ""
-    return f"OWNER{run} scope={scope}{lane}"
+    waiting = " waiting" if guard.get("waiting_on") else ""
+    return f"OWNER{run} scope={scope}{lane}{waiting}"
 
 
 def rows(root: str, session: str) -> tuple[int, str]:
@@ -532,8 +547,187 @@ def rows(root: str, session: str) -> tuple[int, str]:
     if ready is None or still_open is None:
         failed = " and ".join(q for q, n in (("query ready", ready), ("query stats", still_open)) if n is None)
         return 1, f"ROWS UNKNOWN: {failed} failed or timed out (lane {pinned or 'checkout'}); the guard is unchanged"
+    if guard.get("waiting_on"):
+        return _wait_state(root, guard, ready, next_row, pinned)
     where = f" phase={phase}" if phase is not None else ""
     return 0, f"lane={pinned or 'checkout'}{where} ready={ready} open={still_open} next={next_row or 'none'}"
+
+
+def _classify(root: str, refs: list[str], lane: str | None, timeout: float = 120.0) -> dict | None:
+    """`todo-graph.py classify` for `refs` under the run's lane: each ref's disposition (3 stamped), or None."""
+    try:
+        proc = _graph(root, ["classify", *refs], lane, timeout)
+        out = json.loads(proc.stdout) if proc.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+    return out if isinstance(out, dict) else None
+
+
+def _wait_state(root: str, guard: dict, ready: int, next_row: str, lane: str | None) -> tuple[int, str]:
+    """A waiting run's state: READY once the lane has a runnable row in the run's scope (the wait cleared under the
+    lock), else WAITING on the refs still open. A stamped prerequisite is not enough: its dependent may wait on more."""
+    if ready > 0:
+        with _Lock(root):
+            still = read_guard(root)
+            if _same_run(still, guard):
+                for key in WAIT_KEYS:
+                    still.pop(key, None)
+                _write_json(_paths(root)[0], still)
+        return 0, f"READY {next_row}"
+    refs = list(guard.get("waiting_on") or [])
+    states = _classify(root, refs, lane)
+    if states is None:
+        return 1, f"ROWS UNKNOWN: classify failed for {', '.join(refs)}; the guard is unchanged"
+    open_refs = [ref for ref in refs if states.get(ref) != 3]
+    if not open_refs:
+        return 1, (f"STUCK: every row waited on is stamped ({', '.join(refs)}), but the lane has no runnable row; "
+                   f"its rows wait on something else (`todo-graph.py query blocked`): report it to the coordinator")
+    return 0, f"WAITING on {', '.join(open_refs)} since {guard.get('waiting_since')}"
+
+
+def wait(root: str, session: str, refs: list[str]) -> str:
+    """Record that the run waits on `refs`, each another lane's open row (D00 T01 §20). Refused, with the guard
+    unchanged, while the lane has a runnable row, the run has ended, or a ref is this lane's, unknown or stamped."""
+    if not refs:
+        raise GuardError("wait needs --on with at least one 'DNN TNN §N'")
+    guard = read_guard(root)
+    if guard is None or str(guard.get("session_id", "")) != session:
+        raise GuardError("wait: this session holds no live guard")
+    text = _run_markers_text(root, str(guard.get("run_file", "")), guard)
+    if re.search(r"(?m)^(## Closeout\b|PARKED\b)", text):
+        raise GuardError("wait: the run file already ends this run (a Closeout or PARKED marker)")
+    lane = guard.get("lane")
+    phase = guard.get("phase") if guard.get("scope") == "phase" else None
+    ready, next_row = ready_rows(root, phase=phase, lane=lane)
+    if ready is None:
+        raise GuardError("wait: query ready failed, so whether the lane has work is not known")
+    if ready > 0:
+        raise GuardError(f"wait: the lane has a runnable row ({next_row}); build it instead of waiting")
+    for ref in refs:
+        try:
+            proc = _graph(root, ["resolve", ref], lane, 120.0)
+            doc = json.loads(proc.stdout) if proc.stdout.strip() else {}
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            raise GuardError(f"wait: {ref} could not be resolved") from None
+        if proc.returncode in (1, 2) or not isinstance(doc, dict) or not doc.get("ref"):
+            raise GuardError(f"wait: {ref} is no section ({proc.stderr.strip() or f'exit {proc.returncode}'})")
+        if proc.returncode == 3:
+            raise GuardError(f"wait: {ref} is already stamped here; merge main or build the row it unblocks")
+        if doc.get("lane") == doc.get("this_lane"):
+            raise GuardError(f"wait: {ref} is this lane's own row ({doc.get('lane')}); build it instead of waiting")
+    with _Lock(root):
+        still = read_guard(root)
+        if not _same_run(still, guard):
+            raise GuardError("wait: the guard changed while the rows were read; run wait again")
+        still["waiting_on"] = refs
+        still.setdefault("waiting_since", _utc_now())
+        _write_json(_paths(root)[0], still)
+    return f"wait: run {guard.get('run_id')} waits on {', '.join(refs)} since {still['waiting_since']}"
+
+
+def _run_git(root: str, *args: str, timeout: float = 120.0) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", timeout=timeout)
+
+
+def _fetch_main(root: str) -> str | None:
+    """`git fetch origin main`; the failure's cause, or None."""
+    try:
+        done = _run_git(root, "fetch", "origin", "main")
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"fetch did not finish: {exc}"
+    return None if done.returncode == 0 else f"fetch failed: {done.stderr.strip()[:300]}"
+
+
+def _abort_merge(root: str) -> None:
+    if _run_git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0:
+        _run_git(root, "merge", "--abort")
+
+
+def _merge_main(root: str) -> str | None:
+    """Merge origin/main into the lane when it holds a commit the lane lacks: `git merge --no-edit`, and when the
+    plan's merge stop (D00 T01 §22) halts it with nothing unmerged, `git commit --no-edit` through the hooks. Any
+    conflict or failed conclusion is backed out with `git merge --abort`. Returns the failure's cause, or None."""
+    if _run_git(root, "merge-base", "--is-ancestor", "origin/main", "HEAD").returncode == 0:
+        return None
+    merged = _run_git(root, "merge", "--no-edit", "origin/main", timeout=600)
+    if merged.returncode == 0:
+        return None
+    if _run_git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode != 0:
+        return f"merge refused: {(merged.stderr or merged.stdout).strip()[:300]}"
+    unmerged = _run_git(root, "diff", "--name-only", "--diff-filter=U").stdout.split()
+    if unmerged:
+        _abort_merge(root)
+        return f"merge conflict in {', '.join(unmerged[:5])}: backed out; the coordinator resolves it"
+    return _conclude(root)
+
+
+def _conclude(root: str) -> str | None:
+    """Conclude a merge the plan's merge stop halted; a failed conclusion is backed out. The cause, or None."""
+    done = _run_git(root, "commit", "--no-edit", timeout=600)
+    if done.returncode == 0:
+        return None
+    _abort_merge(root)
+    return f"the merge's conclusion failed and was backed out: {(done.stderr or done.stdout).strip()[:300]}"
+
+
+def wake(root: str, session: str, now: str | None = None) -> tuple[int, str]:
+    """The heartbeat's waiting step (D00 T01 §20): for a waiting run, fetch main and merge it into the lane, then read
+    the wait (`READY` or `WAITING`), add the once-a-day `long-wait` notice and the job's expiry when due. A run that
+    is not waiting gets `rows`. Exit 1 with the cause when a step failed; the run then stays waiting for a retry."""
+    try:
+        guard = read_guard(root)
+    except GuardError:
+        return 1, "MALFORMED GUARD"
+    if guard is None:
+        return 1, "NO GUARD"
+    if str(guard.get("session_id", "")) != session:
+        return 1, "NOT THE OWNER"
+    if not guard.get("waiting_on"):
+        return rows(root, session)
+    lines, failed = [], None
+    if _run_git(root, "status", "--porcelain", "--untracked-files=normal").stdout.strip():
+        failed = "the working tree has changes, so main was not merged: commit or stash them; the run keeps waiting"
+    if failed is None:
+        failed = _fetch_main(root)
+    if failed is None and guard.get("lane") not in (None, "main"):
+        failed = _merge_main(root)
+    code, line = rows(root, session)
+    lines.append(line)
+    if failed:
+        lines.append(f"wake: {failed}")
+    current = (datetime.datetime.strptime(now, UTC_FORMAT) if now else
+               datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0, tzinfo=None))
+    if line.startswith("WAITING"):
+        lines.extend(_long_wait(root, guard, current))
+    due, notice = expiry(root, session, now=current.strftime(UTC_FORMAT))
+    if due:
+        lines.append(notice)
+    return (1 if failed or code else 0), "\n".join(lines)
+
+
+def _long_wait(root: str, guard: dict, now: datetime.datetime) -> list[str]:
+    """`long-wait` once a day while a wait lasts more than 24 hours, recorded as `notified_at` under the lock."""
+    try:
+        since = datetime.datetime.strptime(str(guard.get("waiting_since")), UTC_FORMAT)
+    except ValueError:
+        return []
+    if now - since <= LONG_WAIT:
+        return []
+    try:
+        last = datetime.datetime.strptime(str(guard.get("notified_at")), UTC_FORMAT)
+    except ValueError:
+        last = None
+    if last is not None and now - last <= LONG_WAIT:
+        return []
+    with _Lock(root):
+        still = read_guard(root)
+        if not _same_run(still, guard):
+            return []
+        still["notified_at"] = now.strftime(UTC_FORMAT)
+        _write_json(_paths(root)[0], still)
+    hours = (now - since).total_seconds() / 3600
+    return [f"long-wait: waiting {hours:.0f}h on {', '.join(guard.get('waiting_on') or [])}: tell the coordinator"]
 
 
 def reset_state(root: str, session: str | None = None, expect_no_guard: bool = False) -> str:
@@ -1054,6 +1248,13 @@ def main(argv: list[str]) -> int:
                 return 0
             code, line = health(root, opts.get("session", ""), jobs)
             print(line, file=sys.stdout if code == 0 else sys.stderr)
+            return code
+        if argv[0] == "wait" and set(opts) == {"session", "on"}:
+            print(wait(root, opts["session"], [r.strip() for r in opts["on"].split(",") if r.strip()]))
+            return 0
+        if argv[0] == "wake" and set(opts) <= {"session", "now"} and "session" in opts:
+            code, line = wake(root, opts["session"], opts.get("now"))
+            print(line)
             return code
         if argv[0] == "rows" and set(opts) == {"session"}:
             code, line = rows(root, opts["session"])

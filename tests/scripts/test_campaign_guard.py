@@ -34,6 +34,18 @@ here = os.path.dirname(__file__)
 # The TODO_LANE each query ran under, logged beside the workspace so it never reads as a change to the tree.
 with open(os.path.join(here, '..', '..', 'lanes-seen.txt'), 'a') as fh:
     fh.write(sys.argv[2] + ' ' + os.environ.get('TODO_LANE', '-') + '\\n')
+if sys.argv[1] in ("resolve", "classify"):  # graph.json: {"<ref>": {"exit": n, "lane": owner}}, this lane "checks"
+    path = os.path.join(here, 'graph.json')
+    table = json.load(open(path)) if os.path.exists(path) else {}
+    if sys.argv[1] == "classify":
+        print(json.dumps({ref: table.get(ref, {}).get("exit", 1) for ref in sys.argv[2:]}))
+        sys.exit(0)
+    row = table.get(sys.argv[2])
+    if row is None:
+        print("TODO refused: no such section: " + sys.argv[2], file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps({"ref": sys.argv[2], "lane": row["lane"], "this_lane": "checks", "exit": row["exit"]}))
+    sys.exit(row["exit"])
 if sys.argv[2:3] == ["lane"]:  # lane.txt: a lane name, 'garbage' or 'refuse'; absent, a graph with no lane query
     path = os.path.join(here, 'lane.txt')
     if not os.path.exists(path):
@@ -80,7 +92,7 @@ class Workspace(unittest.TestCase):
             os.makedirs(os.path.join(self.root, folder))
         shutil.copy(GUARD_PY, os.path.join(self.root, "scripts", "campaign_guard.py"))
         self.write("scripts/todo-graph.py", FAKE_GRAPH)
-        self.write(".gitignore", "build/\nscripts/ready.txt\nscripts/open.txt\nscripts/lane.txt\n")
+        self.write(".gitignore", "build/\nscripts/ready.txt\nscripts/open.txt\nscripts/lane.txt\nscripts/graph.json\n")
         self.ready(3)
         self.write(RUN_FILE, "# Phase run: Phase 0\n\n## Critical events\n")
         # No auto maintenance: newer git detaches it after a commit and it can outlive the test's temporary directory.
@@ -746,6 +758,131 @@ class LanePin(Workspace):
         self.assertEqual((proc.returncode, proc.stdout.split()[0]), (0, "lane=checks"), proc.stderr)
 
 
+
+class Waiting(Workspace):
+    """A run waits on another lane's rows (D00 T01 §20): `wait` records them, the run keeps them across its lifecycle,
+    `rows` and `wake` read the wait, and the heartbeat's long-wait notice fires once a day."""
+
+    OTHER_ROW, OWN_ROW = "D07 T03 §1", "D02 T03 §1"
+
+    def setUp(self):
+        super().setUp()
+        self.write("scripts/lane.txt", "checks")
+        self.graph({self.OTHER_ROW: {"exit": 4, "lane": "app"}, self.OWN_ROW: {"exit": 0, "lane": "checks"},
+                    "D07 T03 §2": {"exit": 3, "lane": "app"}})
+        self.ready(0)
+        self.acquire()
+
+    def graph(self, table):
+        self.write("scripts/graph.json", json.dumps(table))
+
+    def guard_bytes(self):
+        with open(os.path.join(self.root, "build", "claude-campaign-guard.json"), "rb") as fh:
+            return fh.read()
+
+    def test_wait_records_the_rows_and_whoami_shows_it(self):
+        line = guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.assertIn(f"waits on {self.OTHER_ROW}", line)
+        doc = guard.read_guard(self.root)
+        self.assertEqual(doc["waiting_on"], [self.OTHER_ROW])
+        self.assertRegex(doc["waiting_since"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertTrue(guard.whoami(self.root, SESSION).endswith(" waiting"))
+
+    def test_every_refusal_leaves_the_guard_unchanged(self):
+        before = self.guard_bytes()
+        cases = [([self.OWN_ROW], "this lane's own row"), (["D09 T09 §9"], "is no section"),
+                 (["D07 T03 §2"], "already stamped"), ([], "at least one")]
+        for refs, fragment in cases:
+            with self.subTest(refs=refs), self.assertRaises(guard.GuardError) as ctx:
+                guard.wait(self.root, SESSION, refs)
+            self.assertIn(fragment, str(ctx.exception))
+            self.assertEqual(self.guard_bytes(), before)
+        self.ready(1)
+        with self.assertRaises(guard.GuardError) as ctx:
+            guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.assertIn("the lane has a runnable row", str(ctx.exception))
+        self.ready(0)
+        self.write(RUN_FILE, f"PARKED 2026-10-30T00:00Z run={self.run_id()} nothing\n", mode="a")
+        with self.assertRaises(guard.GuardError) as ctx:
+            guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.assertIn("already ends this run", str(ctx.exception))
+        self.assertEqual(self.guard_bytes(), before)
+
+    def test_the_wait_survives_a_re_point_a_new_job_and_a_handover_and_a_new_run_clears_it(self):
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        since = guard.read_guard(self.root)["waiting_since"]
+        self.acquire(cron_id="job-2")  # the heartbeat replaced near its expiry
+        self.assertEqual((guard.read_guard(self.root)["waiting_on"], guard.read_guard(self.root)["waiting_since"]),
+                         ([self.OTHER_ROW], since))
+        self.acquire(session=OTHER, cron_id="job-3", handover="session died")
+        self.assertEqual(guard.read_guard(self.root)["waiting_since"], since, "a handover keeps the wait's age")
+        guard.acquire(self.root, SESSION, 0, "docs/phase-runs/another.md", "job-4", handover="a new run")
+        self.assertNotIn("waiting_on", guard.read_guard(self.root), "a new run starts without a wait")
+
+    def test_a_waiting_run_with_nothing_ready_ends_its_turn_without_a_block(self):
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.assertIsNone(self.hook())
+        self.assertEqual(self.state().get("blocks", 0), 0, "never counted toward the breaker")
+        self.ready(1)
+        self.assertEqual(self.hook()["decision"], "block", "a ready row of the lane still holds the turn")
+
+    def test_rows_reads_the_open_rows_then_ready_only_on_a_runnable_row(self):
+        self.graph({self.OTHER_ROW: {"exit": 4, "lane": "app"}, "D07 T03 §4": {"exit": 4, "lane": "app"}})
+        guard.wait(self.root, SESSION, [self.OTHER_ROW, "D07 T03 §4"])
+        self.assertTrue(guard.rows(self.root, SESSION)[1].startswith(f"WAITING on {self.OTHER_ROW}, D07 T03 §4"))
+        self.graph({self.OTHER_ROW: {"exit": 3, "lane": "app"}, "D07 T03 §4": {"exit": 4, "lane": "app"}})
+        self.assertTrue(guard.rows(self.root, SESSION)[1].startswith("WAITING on D07 T03 §4 since"),
+                        "a stamped prerequisite drops out; its dependent still waits on the other")
+        self.graph({self.OTHER_ROW: {"exit": 3, "lane": "app"}, "D07 T03 §4": {"exit": 3, "lane": "app"}})
+        code, line = guard.rows(self.root, SESSION)
+        self.assertEqual(code, 1)
+        self.assertTrue(line.startswith("STUCK"), "both stamped but nothing runnable: never READY")
+        self.ready(1)
+        self.assertEqual(guard.rows(self.root, SESSION),
+                         (0, "READY D00 T01 §3  Interface SPEC and screenshots"))
+        self.assertNotIn("waiting_on", guard.read_guard(self.root), "READY clears the wait")
+
+    def test_an_independently_ready_row_of_the_lane_ends_the_wait(self):
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.ready(1)  # a row of this lane became runnable while the watched row stays open
+        self.assertTrue(guard.rows(self.root, SESSION)[1].startswith("READY "))
+
+    def test_the_long_wait_notice_fires_once_a_day_and_survives_a_job_replacement(self):
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        doc = guard.read_guard(self.root)
+        doc["waiting_since"] = "2026-10-30T00:00:00Z"
+        doc["job_created_at"] = "2026-10-30T00:00:00Z"
+        guard._write_json(os.path.join(self.root, "build", "claude-campaign-guard.json"), doc)
+        notices = lambda now: [ln for ln in guard.wake(self.root, SESSION, now)[1].splitlines()  # noqa: E731
+                               if ln.startswith("long-wait")]
+        with mock.patch.object(guard, "_fetch_main", return_value=None), \
+                mock.patch.object(guard, "_run_git", return_value=subprocess.CompletedProcess([], 0, "", "")):
+            self.assertEqual(notices("2026-10-30T23:00:00Z"), [], "under a day: nothing")
+            self.assertEqual(len(notices("2026-10-31T01:00:00Z")), 1, "the first heartbeat past a day")
+            self.assertEqual(notices("2026-10-31T01:05:00Z"), [], "the next heartbeat the same day: nothing")
+            self.acquire(cron_id="job-2")  # replaced: the record of the last notice is kept
+            self.assertEqual(notices("2026-10-31T06:00:00Z"), [])
+            self.assertEqual(len(notices("2026-11-01T02:00:00Z")), 1, "the following day, once more")
+
+    def test_wake_reports_the_heartbeat_expiry_a_waiting_run_reaches_no_boundary_for(self):
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        doc = guard.read_guard(self.root)
+        doc["job_created_at"] = "2026-10-30T00:00:00Z"
+        guard._write_json(os.path.join(self.root, "build", "claude-campaign-guard.json"), doc)
+        with mock.patch.object(guard, "_fetch_main", return_value=None):
+            _, text = guard.wake(self.root, SESSION, "2026-11-05T13:00:00Z")
+        self.assertIn("expiry: replace due", text)
+
+    def test_an_operator_stop_or_an_escalation_ends_a_waiting_run(self):
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        guard.end(self.root, SESSION, "operator-stop")
+        self.assertIsNone(guard.read_guard(self.root))
+        self.acquire(cron_id="job-2")
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.write(RUN_FILE, f"PARKED 2026-10-30T00:00Z run={self.run_id()} escalation: a cause\n", mode="a")
+        guard.end(self.root, SESSION, "escalation")
+        self.assertIsNone(guard.read_guard(self.root))
+
 class HeartbeatPrompt(unittest.TestCase):
     """The heartbeat reads its counts through the guard, pinned to the run's lane, never through a bare graph query
     that follows whatever branch the worktree has checked out (D00 T01 §19)."""
@@ -759,6 +896,10 @@ class HeartbeatPrompt(unittest.TestCase):
         self.assertIn("lane=<lane>", prompt)
         self.assertIn("ROWS UNKNOWN", prompt)
         self.assertIn("ci_status.py --branch <branch>", prompt, "a lane reads its own branch's CI")
+        # D00 T01 §20: a waiting run's heartbeat wakes through the guard, never by a hand merge.
+        self.assertIn("campaign_guard.py wake --session", prompt)
+        for forbidden in ("git merge", "git rebase", "--force"):
+            self.assertNotIn(forbidden, prompt)
 
 class RealLanes(unittest.TestCase):
     """The guard over a real two-lane tree and the real scripts/todo-graph.py: a lane's turn ends while only the
