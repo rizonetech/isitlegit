@@ -50,6 +50,7 @@ class Server(http.server.ThreadingHTTPServer):
         self.flip_after = None  # after this many ranged requests the server's file has another validator
         self.ranges = []  # (first, last, when) of every ranged request, in arrival order
         self.heads = 0
+        self.range_pause = 0.0  # seconds a ranged request waits before it is answered
         self.trial_bodies = 0  # whole-file bodies begun and left waiting (`trial-stall`)
         self.head_pause = 0.0  # seconds each HEAD is held open, so concurrent HEADs are seen to overlap
         self.flip_etag = '"v2"'  # what the validator becomes at the flip (None: it stays)
@@ -124,6 +125,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             first, last = (int(n) for n in ranged.split("=")[1].split("-"))
             with self.server.lock:
                 self.server.segment_requests += 1
+                self.range_number = self.server.segment_requests  # this request's place in the order they arrived
                 self.server.active += 1
                 self.server.peak = max(self.server.peak, self.server.active)
                 self.server.ranges.append((first, last, time.monotonic()))
@@ -134,6 +136,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.server.etag = self.server.flip_etag or self.server.etag
                     self.server.body = self.server.flip_body or self.server.body
             try:
+                time.sleep(self.server.range_pause)
                 return self.answer()
             finally:
                 with self.server.lock:
@@ -196,6 +199,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Retry-After", self.date_time_string(time.time() + 20))
             if "429-asctime" in modes:
                 self.send_header("Retry-After", time.strftime("%a %b %d %H:%M:%S %Y", time.gmtime(time.time() + 20)))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if "segment-404-after-first" in modes and re.fullmatch(r"bytes=\d+-\d+", self.headers.get("Range") or "") \
+                and getattr(self, "range_number", 0) > 1:
+            deadline = time.monotonic() + 10
+            while not server.served and time.monotonic() < deadline:
+                time.sleep(0.01)
+            time.sleep(0.3)  # the first answer is whole and written before this one refuses
+            self.send_response(404)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -1818,6 +1831,48 @@ class Fetch(unittest.TestCase):
                and all(span[2] != event[1]["sources"].index(mine) for span in event[1]["provenance"])]
         self.assertTrue(cut, "the cut of both ranges was never saved")
 
+    def test_overlapping_invalidations_keep_a_range_parked_until_the_last_cut_is_saved(self):
+        second, second_base = self.mirror()
+        third, third_base = self.mirror()
+        mine, theirs = self.base + "/file", second_base + "/file"
+        quarter = -(-SIZE // 4)
+        # The first range holds this host's prefix and the second host's suffix (wrong bytes both); each of the two
+        # changes its file at its first ranged answer, this one a moment after the other, so the second host's
+        # invalidation (cutting back to the middle) is saved slowly while this host's (cutting back to the start)
+        # waits behind it.
+        Path("src/.partial").mkdir(parents=True)
+        with open("src/.partial/data.bin", "wb") as handle:
+            handle.truncate(SIZE)
+            handle.write(bytes(quarter))
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": mine, "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity", "total": SIZE,
+            "segments": [[0, quarter - 1, quarter], [quarter, 2 * quarter - 1, 0], [2 * quarter, 3 * quarter - 1, 0],
+                         [3 * quarter, SIZE - 1, 0]],
+            "sources": [mine, theirs], "provenance": [[0, quarter // 2 - 1, 0], [quarter // 2, quarter - 1, 1]]}))
+        self.server.flip_after = second.flip_after = 0
+        self.server.range_pause = 0.3
+        events, real_write, real_pwrite = [], fetch._write_json, os.pwrite
+
+        def write_json(path, value):
+            if path.name.endswith(".state.json") and value["segments"][0][2] < quarter:
+                time.sleep(0.6)  # every save of a cut is slow
+                real_write(path, value)
+                events.append(("saved", value["segments"][0][2]))
+            else:
+                real_write(path, value)
+
+        def pwrite(descriptor, data, offset):
+            if offset < quarter:
+                events.append(("replaced", offset))
+            return real_pwrite(descriptor, data, offset)
+
+        with mock.patch.object(fetch, "_write_json", write_json), mock.patch.object(fetch.os, "pwrite", pwrite):
+            result = self.mixed(second_base, third_base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [third_base + "/file"]))
+        self.assert_whole()
+        first_replacement = next(number for number, event in enumerate(events) if event[0] == "replaced")
+        self.assertIn(("saved", 0), events[:first_replacement])  # the deeper cut was saved before any replacement byte
+
     def test_a_stop_during_a_replacement_is_resumed_by_a_fresh_process(self):
         for where in ("before the first replacement byte", "after some replacement bytes"):
             with self.subTest(where):
@@ -1983,6 +2038,18 @@ class Fetch(unittest.TestCase):
                 self.assertEqual((code, line["status"], line["urls"]), (0, "fetched", [good]), line)
                 self.assert_whole()
                 self.assertFalse((self.dir / "src/.partial/data.bin.trial").exists())
+
+    def test_losing_the_corrupt_source_mid_run_still_recovers_from_the_healthy_one(self):
+        healthy, base = self.mirror()
+        # This host gives one damaged range, then a 404 for the next and is dropped; the healthy host finishes the file.
+        self.server.damaged = {100, 5_500_000}
+        self.server.modes = {"segment-404-after-first"}
+        logged = []
+        result = self.mixed(base, attempts=5, log=logged.append)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(self.trials(healthy), 1, logged)  # the isolated trial of the one source left
+        self.assertTrue(any("trying each source alone" in line for line in logged), logged)
 
     def test_a_state_from_before_provenance_existed_starts_the_trials(self):
         mirror, base = self.mirror()
