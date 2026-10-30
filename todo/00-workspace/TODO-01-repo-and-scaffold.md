@@ -56,7 +56,7 @@ track: day-0
 | 15 | §15 | Review schedule by section risk | §4 | [x] |
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
-| 18 | §18 | Each round held to the schedule it ran under | §4 | [ ] |
+| 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -680,6 +680,9 @@ Filed 2026-10-30 from the Glimmer lane's report on D03 T04 §18: the stamp repla
 - [x] Commit: `tools: each round held to the schedule it ran under` Done 2026-10-30: a8f22ca, then the review fixes to 657b3c5.
 
 **Test checkpoint:** `python3 -m pytest tests/scripts/test_todo_graph.py` passes, including a section stamped across a schedule change.
+
+> **Verified:** 2026-10-30 | §18 | 9460247066d01903554bf1083bfe3a9617ccfaa7
+> **Review:** `docs/reviews/d00-t01-s18.json`
 
 ## Verification
 
