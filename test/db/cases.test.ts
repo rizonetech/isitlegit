@@ -297,8 +297,60 @@ describe("the case store", () => {
       ok: true,
       value: { forwardedBy: "boss@member.co.za", messageId: "<abc@member.co.za>" },
     });
-    const upload = await createCase(db, { orgId: "org-forward", channel: "upload", headersAvailable: true });
-    expect(upload).toMatchObject({ ok: true, value: { forwardedBy: null, messageId: null } });
+    const upload = await createCase(db, {
+      orgId: "org-forward",
+      channel: "upload",
+      headersAvailable: true,
+      uploadedBy: "user-forward",
+    });
+    expect(upload).toMatchObject({
+      ok: true,
+      value: { forwardedBy: null, messageId: null, uploadedBy: "user-forward" },
+    });
+    // The uploader is required on an upload and refused on an email case, by both inserts, storing nothing (D01 T03 §11).
+    const before = await db
+      .prepare("SELECT COUNT(*) AS n FROM cases WHERE org_id = 'org-uploader'")
+      .first<{ n: number }>();
+    for (const input of [
+      { orgId: "org-uploader", channel: "upload" as const, headersAvailable: false },
+      { orgId: "org-uploader", channel: "email" as const, headersAvailable: false, uploadedBy: "user-x" },
+    ]) {
+      expect(await createCase(db, input)).toMatchObject({ ok: false, error: { code: "invalid" } });
+      expect(await admitCase(db, input)).toMatchObject({ ok: false, error: { code: "invalid" } });
+    }
+    const after = await db
+      .prepare("SELECT COUNT(*) AS n FROM cases WHERE org_id = 'org-uploader'")
+      .first<{ n: number }>();
+    expect(after?.n).toBe(before?.n);
+    // A case stored as before migration 0039 (no uploader column named) reads null, and so does an email case from
+    // either insert (completion review).
+    await db
+      .prepare(
+        "INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at) VALUES (?, 'org-forward', 'upload', 'received', 0, ?, ?)",
+      )
+      .bind(ulid(), new Date().toISOString(), new Date().toISOString())
+      .run();
+    const legacy = await db
+      .prepare(
+        "SELECT uploaded_by FROM cases WHERE org_id = 'org-forward' AND channel = 'upload' ORDER BY created_at DESC LIMIT 1",
+      )
+      .first<{ uploaded_by: string | null }>();
+    expect(legacy).toEqual({ uploaded_by: null });
+    for (const insert of [createCase, admitCase]) {
+      const email = await insert(db, { orgId: "org-forward", channel: "email", headersAvailable: false });
+      if (!email.ok) throw new Error(email.error.message);
+      expect(await getCase(db, "org-forward", email.value.id)).toMatchObject({ ok: true, value: { uploadedBy: null } });
+    }
+    // Read back within its organisation only; an email case reads none.
+    if (!upload.ok) throw new Error("no upload case");
+    expect(await getCase(db, "org-forward", upload.value.id)).toMatchObject({
+      ok: true,
+      value: { uploadedBy: "user-forward" },
+    });
+    expect(await getCase(db, "org-elsewhere", upload.value.id)).toMatchObject({
+      ok: false,
+      error: { code: "not_found" },
+    });
     expect(
       await admitCase(db, {
         orgId: "org-forward",

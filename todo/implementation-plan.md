@@ -42,7 +42,7 @@ Sections: 27 | Checklist items: 371
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 43 | Checklist items: 370
+Sections: 43 | Checklist items: 372
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -54,7 +54,7 @@ Sections: 43 | Checklist items: 370
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
 | [x]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
-| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 3     |
+| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 5     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
 | [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
 | [x]    | D01 T03 §8  | M4A decoding                              | none                  | 5     |
@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 52 | Checklist items: 326
+Sections: 53 | Checklist items: 331
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -106,7 +106,8 @@ Sections: 52 | Checklist items: 326
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
-| [ ]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
+| [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
+| [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -226,7 +227,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 64 | Checklist items: 267
+Sections: 65 | Checklist items: 272
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -285,6 +286,7 @@ Sections: 64 | Checklist items: 267
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
+| [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
 | [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
@@ -353,6 +355,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 97/284 verified sections, 61 ready to run now.
+Progress: 99/286 verified sections, 60 ready to run now.
 
-Checklist: 986/1821 items completed (includes Commit items).
+Checklist: 997/1833 items completed (includes Commit items).

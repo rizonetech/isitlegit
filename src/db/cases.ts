@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ADDRESS_LIMIT, HEADER_TEXT_LIMIT } from "../intake/original-header";
 import { isUlid, ulid } from "./ulid";
 
 // The case store's typed queries (D01 T01 §1). Every member-facing read and change names the organisation and matches
@@ -34,7 +35,14 @@ export type Case = {
   // (D01 T01 §3); null for an upload.
   forwardedBy: string | null;
   messageId: string | null;
+  // The member who uploaded an upload case (D01 T03 §11), their user id; null on an email case.
+  uploadedBy: string | null;
   sourceKind: SourceKind;
+  // The checked original's subject and sender for the report header (D01 T01 §16), decoded, one line and bounded by
+  // `originalHeaderOf`; null for a document, image or audio upload, an inline forward, or a case not yet parsed.
+  originalSubject: string | null;
+  originalFromName: string | null;
+  originalFromAddress: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -59,7 +67,11 @@ type Row = {
   headers_available: number;
   forwarded_by: string | null;
   message_id: string | null;
+  uploaded_by: string | null;
   source_kind: SourceKind;
+  original_subject: string | null;
+  original_from_name: string | null;
+  original_from_address: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -72,24 +84,34 @@ const toCase = (row: Row): Case => ({
   headersAvailable: row.headers_available === 1,
   forwardedBy: row.forwarded_by,
   messageId: row.message_id,
+  uploadedBy: row.uploaded_by,
   sourceKind: row.source_kind,
+  originalSubject: row.original_subject,
+  originalFromName: row.original_from_name,
+  originalFromAddress: row.original_from_address,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
 
 const Id = z.string().min(1).max(200);
 const Ids = z.object({ orgId: Id, id: Id });
-const NewCase = z.object({
-  orgId: Id,
-  channel: Channel,
-  headersAvailable: z.boolean(),
-  forwardedBy: z.string().trim().toLowerCase().email().max(254).nullish(),
-  // RFC 5322 caps a header line at 998 characters.
-  messageId: z.string().min(1).max(998).nullish(),
-  sourceKind: SourceKind.default("mail"),
-  // A caller that must record the id before the case exists (the email intake's claim, D01 T01 §3) chooses it.
-  id: z.string().refine(isUlid, "a case id is a ULID").optional(),
-});
+const NewCase = z
+  .object({
+    orgId: Id,
+    channel: Channel,
+    headersAvailable: z.boolean(),
+    forwardedBy: z.string().trim().toLowerCase().email().max(254).nullish(),
+    // RFC 5322 caps a header line at 998 characters.
+    messageId: z.string().min(1).max(998).nullish(),
+    sourceKind: SourceKind.default("mail"),
+    // The uploading member's user id: required on an upload case, refused on an email case (D01 T03 §11).
+    uploadedBy: Id.nullish(),
+    // A caller that must record the id before the case exists (the email intake's claim, D01 T01 §3) chooses it.
+    id: z.string().refine(isUlid, "a case id is a ULID").optional(),
+  })
+  .refine((c) => (c.channel === "upload") === !!c.uploadedBy, {
+    message: "an upload case names its uploader, and an email case none",
+  });
 const fail = (code: CaseError["code"], message: string): { ok: false; error: CaseError } => ({
   ok: false,
   error: { code, message },
@@ -134,13 +156,17 @@ export async function admitCase(
       headers_available: parsed.data.headersAvailable ? 1 : 0,
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
+      uploaded_by: parsed.data.uploadedBy ?? null,
       source_kind: parsed.data.sourceKind,
+      original_subject: null,
+      original_from_name: null,
+      original_from_address: null,
       created_at: at,
       updated_at: at,
     };
     const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
       )
       .bind(
         row.id,
@@ -151,6 +177,7 @@ export async function admitCase(
         row.headers_available,
         row.forwarded_by,
         row.message_id,
+        row.uploaded_by,
         row.source_kind,
         row.created_at,
         row.updated_at,
@@ -189,13 +216,17 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
       headers_available: parsed.data.headersAvailable ? 1 : 0,
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
+      uploaded_by: parsed.data.uploadedBy ?? null,
       source_kind: parsed.data.sourceKind,
+      original_subject: null,
+      original_from_name: null,
+      original_from_address: null,
       created_at: now,
       updated_at: now,
     };
     await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         row.id,
@@ -206,6 +237,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
         row.headers_available,
         row.forwarded_by,
         row.message_id,
+        row.uploaded_by,
         row.source_kind,
         row.created_at,
         row.updated_at,
@@ -299,6 +331,33 @@ export async function setHeadersAvailable(db: D1Database, id: string, available:
     const existing = await db.prepare("SELECT status FROM cases WHERE id = ?").bind(id).first<{ status: string }>();
     return existing
       ? fail("transition", `a ${existing.status} case keeps its header state`)
+      : fail("not_found", "no such case");
+  });
+}
+
+// The original's subject and sender (D01 T01 §16), written by the parse step before the summary is stored, so a re-driven
+// case, which returns early once its summary exists, already has them; only while the case is being analysed.
+export async function setOriginalHeader(
+  db: D1Database,
+  id: string,
+  header: { subject: string | null; fromName: string | null; fromAddress: string | null },
+): Promise<CaseResult<Case>> {
+  const text = z.string().min(1).max(HEADER_TEXT_LIMIT).nullable();
+  const parsed = z
+    .object({ id: Id, subject: text, fromName: text, fromAddress: z.string().min(3).max(ADDRESS_LIMIT).nullable() })
+    .safeParse({ id, ...header });
+  if (!parsed.success) return invalid(parsed.error);
+  return guarded(async () => {
+    const row = await db
+      .prepare(
+        "UPDATE cases SET original_subject = ?, original_from_name = ?, original_from_address = ?, updated_at = ? WHERE id = ? AND status IN ('received', 'running') RETURNING *",
+      )
+      .bind(header.subject, header.fromName, header.fromAddress, new Date().toISOString(), id)
+      .first<Row>();
+    if (row) return { ok: true, value: toCase(row) };
+    const existing = await db.prepare("SELECT status FROM cases WHERE id = ?").bind(id).first<{ status: string }>();
+    return existing
+      ? fail("transition", `a ${existing.status} case keeps its original's header`)
       : fail("not_found", "no such case");
   });
 }
