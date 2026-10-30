@@ -1,7 +1,17 @@
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { unstable_startWorker } from "wrangler";
-import { APP_CSS, FONTS, LOGO, LOGO_MARK, LOGO_MARK_ON_DARK, LOGO_ON_DARK, MOTION } from "../../src/web/assets.ts";
+import {
+  APP_CSS,
+  APP_JS,
+  FONTS,
+  HTMX,
+  LOGO,
+  LOGO_MARK,
+  LOGO_MARK_ON_DARK,
+  LOGO_ON_DARK,
+  MOTION,
+} from "../../src/web/assets.ts";
 
 // The Worker as `wrangler dev` runs it, from wrangler.jsonc with its static assets and public/_headers, answers the
 // fingerprinted files with the year-long immutable cache and the right types, refuses unhashed or missing ones, and
@@ -56,6 +66,17 @@ describe("static assets as wrangler.jsonc serves them", () => {
       expect(res.headers.get("cache-control"), path).toBe(IMMUTABLE);
       expect(await res.text(), path).toContain("<svg");
     }
+  });
+
+  it("serves htmx and the app script as JavaScript with the immutable cache (D07 T01 §9)", async () => {
+    for (const path of [HTMX, APP_JS]) {
+      const res = await get(path);
+      expect(res.status, path).toBe(200);
+      expect(res.headers.get("content-type"), path).toMatch(/^(application|text)\/javascript/);
+      expect(res.headers.get("cache-control"), path).toBe(IMMUTABLE);
+      expect(res.headers.get("x-content-type-options"), path).toBe("nosniff");
+    }
+    expect(await (await get(HTMX)).text()).toContain("htmx");
   });
 
   it("answers 404 for an unhashed or missing static file instead of caching anything", async () => {

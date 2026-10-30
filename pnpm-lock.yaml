@@ -29,6 +29,9 @@ importers:
       hono:
         specifier: 4.13.14
         version: 4.13.14
+      htmx.org:
+        specifier: 2.0.11
+        version: 2.0.11
       opus-decoder:
         specifier: 0.7.12
         version: 0.7.12
@@ -1375,6 +1378,9 @@ packages:
   hono@4.13.14:
     resolution: {integrity: sha512-yhRLQ21U6qa9Hsu2N7Qcbh8tE+WKEcoErjIo56LeSGiGXGp9sA7UpE86Ui9uexb61KakiGwuHMn2QdV7w6i6kQ==}
     engines: {node: '>=16.9.0'}
+
+  htmx.org@2.0.11:
+    resolution: {integrity: sha512-Thx/WtpeOQqSrqBCw/A1cwGJGg4UrVa3+sW0GmrM3p4gJgO89ecH4qtbnyzDDWFvBTqjnIMCgELTNt636dtamA==}
 
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
@@ -2854,6 +2860,8 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   hono@4.13.14: {}
+
+  htmx.org@2.0.11: {}
 
   iconv-lite@0.6.3:
     dependencies:

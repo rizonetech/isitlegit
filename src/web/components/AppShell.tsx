@@ -243,10 +243,14 @@ function MemberNav(props: MemberShellProps) {
           </Pill>
         </NavLink>
       </div>
-      <div class="mt-auto flex flex-col gap-12 p-16 bg-surface border border-line rounded-card">
+      {/* The copy group (D07 T01 §9): the app script copies the address, says so on the status line and, when the
+          clipboard refuses, selects the address for copying by hand. */}
+      <div data-copy-group class="mt-auto flex flex-col gap-12 p-16 bg-surface border border-line rounded-card">
         <p class="text-14 weight-text-strong">Forward suspicious mail as an attachment to</p>
         <div class="flex items-center gap-8">
-          <span class="font-mono text-13 weight-text-strong">{CHECK_ADDRESS}</span>
+          <span data-copy-source class="font-mono text-13 weight-text-strong">
+            {CHECK_ADDRESS}
+          </span>
           <Button
             size="icon"
             label="Copy the check address"
@@ -255,6 +259,7 @@ function MemberNav(props: MemberShellProps) {
             class="ml-auto"
           />
         </div>
+        <p data-copy-status role="status" aria-live="polite" class="text-13 text-muted" />
       </div>
       <div class="flex items-center gap-12 px-8">
         <span class="inline-flex items-center justify-center w-32 h-32 rounded-pill bg-orange-wash text-orange-text text-13 weight-heading">

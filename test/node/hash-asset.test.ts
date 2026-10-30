@@ -27,7 +27,13 @@ const args = () => [
   join(DIR, "brand"),
   "--motion",
   join(DIR, "motion"),
+  "--htmx",
+  join(DIR, "htmx.min.js"),
+  "--app-script",
+  join(DIR, "app.ts"),
 ];
+const APP_TS =
+  'const greeting: string = "hi";\nfunction say(name: string): void {\n  console.log(greeting, name);\n}\nsay("x");\nexport {};\n';
 const MOTION_FILES = ["malicious.svg", "suspicious.svg", "safe.svg", "question.svg", "checking-animated.svg"];
 const LOGO_FILES = [
   "isitlegit-logo.svg",
@@ -51,10 +57,45 @@ beforeAll(() => {
   for (const name of LOGO_FILES) writeFileSync(join(DIR, "brand", name), `<svg>${name}</svg>`);
   mkdirSync(join(DIR, "motion"), { recursive: true });
   for (const name of MOTION_FILES) writeFileSync(join(DIR, "motion", name), `<svg>${name}</svg>`);
+  writeFileSync(join(DIR, "htmx.min.js"), "var htmx={version:'2.0.11'};");
+  writeFileSync(join(DIR, "app.ts"), APP_TS);
 });
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
 
 describe("hash-asset", () => {
+  it("fingerprints htmx as published and the app script with its types stripped, exports both, and keeps them (D07 T01 §9)", () => {
+    writeFileSync(join(DIR, "app.css"), "body{color:var(--color-ink)}");
+    const { scripts } = hashAssets(args());
+    expect(scripts.htmx).toMatch(/^\/static\/htmx\.[0-9a-f]{12}\.js$/);
+    expect(scripts.app).toMatch(/^\/static\/app\.[0-9a-f]{12}\.js$/);
+    expect(readFileSync(join(DIR, "public", scripts.htmx), "utf-8")).toBe("var htmx={version:'2.0.11'};");
+    const built = readFileSync(join(DIR, "public", scripts.app), "utf-8");
+    expect(built).not.toMatch(/:\s*(string|void)\b/);
+    expect(built).toContain("const greeting");
+    expect(built).toContain('say("x");');
+    const module = readFileSync(join(DIR, "assets.ts"), "utf-8");
+    expect(module).toContain(`export const HTMX = "${scripts.htmx}";`);
+    expect(module).toContain(`export const APP_JS = "${scripts.app}";`);
+    // A changed script gets a new name, the old file goes, and the unchanged one stays.
+    writeFileSync(join(DIR, "app.ts"), APP_TS.replace('"hi"', '"hello"'));
+    const next = hashAssets(args()).scripts;
+    expect(next.app).not.toBe(scripts.app);
+    expect(next.htmx).toBe(scripts.htmx);
+    const left = readdirSync(join(DIR, "public/static")).filter((name) => name.endsWith(".js"));
+    expect(left.sort()).toEqual([next.app, next.htmx].map((url) => url.split("/").pop()).sort());
+    writeFileSync(join(DIR, "app.ts"), APP_TS);
+  });
+
+  it("writes nothing when the app script cannot be built", () => {
+    writeFileSync(join(DIR, "app.css"), "body{color:var(--color-ink)}");
+    hashAssets(args());
+    const before = readdirSync(join(DIR, "public/static")).sort();
+    writeFileSync(join(DIR, "app.ts"), "enum Mode { A }\n");
+    expect(() => hashAssets(args())).toThrow();
+    expect(readdirSync(join(DIR, "public/static")).sort()).toEqual(before);
+    writeFileSync(join(DIR, "app.ts"), APP_TS);
+  });
+
   it("names the stylesheet by its content and exports it with the fonts", () => {
     writeFileSync(join(DIR, "app.css"), "a{}");
     const { css, fonts } = hashAssets(args());

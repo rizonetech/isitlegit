@@ -13,5 +13,8 @@
     // Library checks only; this project's own files are still checked, and the Worker's sources keep library checks on.
     "skipLibCheck": true
   },
-  "include": ["./**/*.ts", "./**/*.tsx", "../../scripts/**/*.ts"]
+  // The app script that runs in the browser (D07 T01 §9) is checked here, against the DOM.
+  "include": ["./**/*.ts", "./**/*.tsx", "../../scripts/**/*.ts", "../../src/web/client/**/*.ts"],
+  // The root project's `exclude` (which leaves the client out of the Worker's check) would be inherited: none here.
+  "exclude": []
 }
