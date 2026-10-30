@@ -74,6 +74,12 @@ async function open(options: { theme?: "light" | "dark"; width?: number; clipboa
 
 const copyButton = (p: Page) => p.getByRole("button", { name: "Copy the check address" });
 const status = (p: Page) => p.locator("[data-copy-status]");
+// The status line's text once a press has had its moment: the outcome is written 100 ms after the line is emptied, on
+// the page's installed clock, which the poll moves on.
+const settled = (p: Page) => async () => {
+  await p.clock.runFor(50);
+  return status(p).textContent();
+};
 
 // The WCAG ratio of the status line's text against what is painted behind it.
 function contrast(p: Page): Promise<number> {
@@ -121,21 +127,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
         expect(await status(p).getAttribute("role")).toBe("status");
         expect(await status(p).getAttribute("aria-live")).toBe("polite");
         await copyButton(p).click();
-        await expect.poll(() => status(p).textContent()).toBe("Copied");
+        await expect.poll(settled(p)).toBe("Copied");
         expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
         expect(await status(p).isVisible()).toBe(true);
         expect(await contrast(p)).toBeGreaterThanOrEqual(4.5);
         // It clears after 4 seconds.
         await p.clock.runFor(4_000);
-        await expect.poll(() => status(p).textContent()).toBe("");
+        await expect.poll(settled(p)).toBe("");
         // From the keyboard: Enter, then Space.
         await p.evaluate(() => navigator.clipboard.writeText("something else"));
         await copyButton(p).focus();
         await p.keyboard.press("Enter");
-        await expect.poll(() => status(p).textContent()).toBe("Copied");
+        await expect.poll(settled(p)).toBe("Copied");
         expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
         await p.keyboard.press("Space");
-        await expect.poll(() => status(p).textContent()).toBe("Copied");
+        await expect.poll(settled(p)).toBe("Copied");
         await context.close();
       });
 
@@ -143,7 +149,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
     it(`says how to copy by hand and selects the address when the clipboard is ${clipboard}`, async () => {
       const { p, context } = await open({ clipboard });
       await copyButton(p).click();
-      await expect.poll(() => status(p).textContent()).toBe("Copy failed: select the address to copy it");
+      await expect.poll(settled(p)).toBe("Copy failed: select the address to copy it");
       expect(await p.evaluate(() => window.getSelection()?.toString())).toBe(CHECK_ADDRESS);
       expect(await status(p).isVisible()).toBe(true);
       // The message stays until the next press, which starts again.
@@ -154,4 +160,27 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
       await expect.poll(() => p.evaluate(() => window.getSelection()?.toString())).toBe(CHECK_ADDRESS);
       await context.close();
     });
+  // The clearing and the outcome reach a screen reader as two changes, so the same message twice running is announced
+  // twice: a MutationObserver's batches stand in for what assistive technology is told. A screen reader itself is not run.
+  it("announces a repeated outcome afresh: each press empties the line, then writes it in a later batch", async () => {
+    const { p, context } = await open({ clipboard: "absent" });
+    await p.evaluate(() => {
+      const seen: string[] = [];
+      (window as unknown as { seen: string[] }).seen = seen;
+      const line = document.querySelector("[data-copy-status]") as HTMLElement;
+      new MutationObserver(() => seen.push(line.textContent ?? "")).observe(line, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+    const failed = "Copy failed: select the address to copy it";
+    for (let i = 0; i < 2; i++) {
+      await copyButton(p).click();
+      await expect.poll(settled(p)).toBe(failed);
+    }
+    // The first press finds the line empty already; the second empties it, and its words follow in a batch of their own.
+    expect(await p.evaluate(() => (window as unknown as { seen: string[] }).seen)).toEqual([failed, "", failed]);
+    await context.close();
+  });
 });

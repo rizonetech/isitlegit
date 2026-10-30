@@ -8,6 +8,10 @@
 // beside the button (`[data-copy-source]`). A button with no status line beside it announces through one hidden region.
 
 const CLEAR_AFTER_MS = 4000;
+// How long the line stays empty before a press's outcome is written: long enough that a screen reader sees the clearing
+// and the new words as two changes, so a second press with the same outcome is announced again (WCAG technique ARIA19
+// clears and reinserts the same way).
+const ANNOUNCE_GAP_MS = 100;
 const COPIED = "Copied";
 const FAILED = "Copy failed: select the address to copy it";
 
@@ -54,13 +58,17 @@ function selectSource(button         )       {
 async function copy(button             )                {
   const value = button.dataset.copy ?? "";
   const region = statusFor(button);
-  // A new press starts again: the line is emptied first, so the same message is announced afresh.
+  // A new press starts again: the line is emptied first, and the outcome written in a later task, so the same message
+  // twice running is announced twice.
   say(region, "", false);
+  const emptied = new Promise((done) => window.setTimeout(done, ANNOUNCE_GAP_MS));
   try {
     if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard");
     await navigator.clipboard.writeText(value);
+    await emptied;
     say(region, COPIED, true);
   } catch {
+    await emptied;
     say(region, FAILED, false);
     selectSource(button);
   }

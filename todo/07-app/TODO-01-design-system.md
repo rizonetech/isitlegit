@@ -47,6 +47,8 @@ track: day-1
 | 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [ ] |
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
+| 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
+| 14 | §14 | One-press copy on a phone | §9 | [ ] |
 
 ## 1. Attended design session, design/SPEC.md
 
@@ -402,6 +404,7 @@ The browser-side behaviour the pages need, served like the stylesheet.
 - [x] Mark the shell's copy group (`src/web/components/AppShell.tsx`): the address `data-copy-source` and an empty status line `data-copy-status` (`role="status"`, `aria-live="polite"`, small, `text-muted`) under it, recorded in `design/SPEC.md` P1 as built from the `AppNav` board's controls (the board draws no copy feedback). Done when: `test/node/app-script.test.tsx` runs the copy on the rendered member shell at 1280 px and 360 px in both themes, by mouse and keyboard, with the message readable at 4.5:1. Cheaper substitute: a fixture of the test's own.
 - [x] Load both on every page: `Document` (`src/web/components/Document.tsx`) renders `<script src={HTMX} defer>` and `<script type="module" src={APP_JS}>` at the end of the body by default, a page's own `scripts` after them. **Corrected 2026-10-30** at build: the app script is a module (deferred by being one, and run after htmx in document order), since type stripping keeps its `export {}`, which a classic script refuses. Done when: `test/node/document.test.tsx` finds both, in that order, with `defer`, on a page that passes no scripts. Cheaper substitute: each page adding its own script tags.
 - [x] Prove the scripts run from `Document`'s own tags in Chromium: `test/node/app-script.test.tsx` serves a rendered `Document` page and the built files from `public/static/` (their real fingerprinted names from `src/web/assets.ts`), clicks an `hx-get` button and finds the answered fragment swapped into its target, and runs the shell's copy on the same page. Done when: it passes, and fails with either default tag removed from `Document`. **Added 2026-10-30 (plan review P1):** package bytes, headers and tags passed without htmx ever running.
+- [x] Announce a repeated outcome afresh: each press empties the status line and writes its outcome 100 ms later, in a task of its own (`src/web/client/app.ts`, WCAG technique ARIA19's clear-and-reinsert), so two refusals running are two announcements. Done when: `test/node/app-script.test.tsx` records the line through a MutationObserver over two refused presses as the message, the empty line, the message, and fails with the gap removed; a screen reader itself is not run here. **Added 2026-10-30 (completion review, in scope).**
 - [ ] Commit: `web: htmx and the app script as fingerprinted assets`
 
 Evidence 2026-10-30 16:55 SAST. `htmx.org` 2.0.11 exact (the lockfile gained that package and its integrity line only); `scripts/hash-asset.ts` copies `htmx.min.js` and builds `src/web/client/app.ts` with `stripTypeScriptTypes` (an `enum` refuses the build and nothing is written), exporting `HTMX` and `APP_JS` and keeping both through the prune; the client is checked in `test/node/tsconfig.json` (a planted type error fails `tsc -p test/node`; the root project leaves it out); `Document` loads both; the shell's copy group carries `data-copy-group`, `data-copy-source` and a `data-copy-status` line; `NOTICE.md` lists htmx (0BSD); `design/SPEC.md` 1 records the status line as a Deviation. `pnpm exec vitest run test/node/hash-asset.test.ts test/node/assets.test.ts test/node/serve.test.ts test/node/document.test.tsx test/node/app-script.test.tsx` passes, within 12 files and 104 tests run together with the shell, sign-in, states, controls, colour and stylesheet tests; `app-script.test.tsx` (7 in Chromium): htmx swaps a fragment from `Document`'s own tag; the copy by click, Enter and Space at 1280 and 360 px (behind Menu) in both themes, the clipboard read back, "Copied" visible, announced, 4.5:1 or more and cleared after 4 seconds; a denied permission and a missing Clipboard API each say how to copy by hand, select exactly the address, keep the message and select again on the next press. Mutations caught: either `Document` tag removed (7 and 6 fail), the selection removed (2 fail).
@@ -479,6 +482,56 @@ A member of many organisations (a managed-service provider looking after 50 busi
 - [ ] Commit: `web: searchable organisation switcher`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/shell-switcher.test.tsx` passes and fails if the filtered list hides the match or the script-free list loses a form.
+
+## 13. Labels for icon-only buttons
+
+An icon-only button (the shell's copy button, the phone Menu) has its accessible name only as `aria-label`, so a sighted member must recognise the icon (D07 T01 §9 completion review, 2026-10-30: GitHub's Primer shows an icon button's name as a tooltip on hover and focus). The boards draw no tooltip, so showing one is a design amendment the operator approves first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` 1 (shared parts; boards `AppNav`, `Report-Mobile`), with the amendment the operator approves
+**Job:** a member who does not know an icon still knows what its button does before pressing it
+**Treatment:** the button's own name shown on hover and keyboard focus, dismissed with Escape, readable in both themes
+**Chrome:** `Button` (§6)
+
+**Operator decision (open):** show icon-only buttons' names as a tooltip on hover and focus, or not. Recording `Icon button labels: <yes|no> (YYYY-MM-DD)` here releases the section.
+
+**Build order:**
+
+1. Record the decision. Done when: the `Icon button labels:` line is recorded.
+2. Show the label from `Button`. Done when: every icon-only button shows its name on hover and focus in Chromium.
+
+- [ ] Record the operator's decision and its board change through `design/tools/export-mockups.py` (AGENTS.md, Interface rules). Done when: the `Icon button labels:` line is recorded and `owner-decision` removed from Needs.
+- [ ] Render the label for an icon-only `Button` (`src/web/components/Button.tsx`) as a tooltip tied by `aria-describedby`, shown on `:hover` and `:focus-visible`, hidden with Escape, never covering the button. Done when: `test/node/controls-browser.test.tsx` finds the label visible on hover and on Tab, 4.5:1 or more in both themes, gone after Escape, and absent on a button with visible words. Cheaper substitute: a `title` attribute, which keyboard users never see.
+- [ ] Commit: `web: visible labels for icon-only buttons`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/controls-browser.test.tsx` passes: every icon-only button's name shown on hover and focus, readable in both themes and dismissed with Escape.
+
+## 14. One-press copy on a phone
+
+On a phone the check address and its copy button sit in the sidebar behind Menu, so copying takes two presses where the desktop takes one (D07 T01 §9 completion review, 2026-10-30). Bringing the copy onto the phone page itself changes the approved phone shell (`Report-Mobile`, P1), so it is a design amendment the operator approves first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` P1 and the phone boards (`Report-Mobile`), with the amendment the operator approves
+**Job:** a member on a phone copies the check address with one press from the page they are on
+**Treatment:** the address and its copy group (§9) where a phone reaches them without opening Menu
+**Chrome:** `AppShell` (§3), the copy group (§9)
+
+**Operator decision (open):** where the phone shows the check address and its copy button outside Menu (the phone header, the Cases page's own empty state, or nowhere new). Recording `Phone copy: <header|cases|none> (YYYY-MM-DD)` here releases the section.
+
+**Build order:**
+
+1. Record the decision. Done when: the `Phone copy:` line is recorded.
+2. Build the chosen placement. Done when: one press copies the address at 360 px.
+
+- [ ] Record the operator's decision and its board change through `design/tools/export-mockups.py`. Done when: the `Phone copy:` line is recorded and `owner-decision` removed from Needs.
+- [ ] Place the copy group where the decision says (`src/web/components/AppShell.tsx` or the Cases page), reusing §9's `data-copy-group`. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced. Cheaper substitute: a second copy script for the phone.
+- [ ] Commit: `web: one-press copy of the check address on a phone`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
 
 ## Verification
 
