@@ -108,6 +108,8 @@ A section closes only through `stamp`:
 python scripts/todo-graph.py stamp 'D01 T01 §1' --sha <full 40-char implementation commit> --review '1:docs/reviews/01-intake/D01-T01-s1.md:clean' --check '<command> -> <quoted result>'
 ```
 
+The section's plan review (`--plan`) must have read the contract before the build: its candidate is the commit that records the section's `> **Started:**` line or an earlier one, or a later commit only when the section has an explicit `Started:` line and, on the first-parent line from the Started commit to the candidate, every commit changes only `todo/` and `docs/reviews/`, or an existing file under `test/` or `tests/` by whitespace alone, and leaves the section's contract (its text and its TODO file's preamble, other sections' rows aside) byte for byte as it was; the receipt records that evidence as `plan.after_started` and validation rebuilds it (D00 T01 §28).
+
 ## Commands
 
 ```powershell

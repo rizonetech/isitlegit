@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 58 | Checklist items: 364
+Sections: 58 | Checklist items: 365
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -106,7 +106,7 @@ Sections: 58 | Checklist items: 364
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
-| [ ]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 3     |
+| [ ]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
@@ -368,4 +368,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 103/297 verified sections, 68 ready to run now.
 
-Checklist: 1040/1884 items completed (includes Commit items).
+Checklist: 1040/1885 items completed (includes Commit items).
