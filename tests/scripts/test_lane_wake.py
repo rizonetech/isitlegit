@@ -212,7 +212,8 @@ class LaneWake(fixtures.Stamp):
         self.run_git(self.root, "push", "-q", "origin", "main")
         code, text = guard.wake(str(self.lane), SESSION)
         self.assertEqual(code, 1)
-        self.assertIn("the merge's conclusion failed and was backed out", text)
+        self.assertIn("the merge's conclusion failed", text)
+        self.assertIn(": backed out", text)
         self.assertTrue(self.lane_clean())
         receipt.write_text(good, encoding="utf-8")
         self.run_git(self.root, "add", "-A")
@@ -221,6 +222,73 @@ class LaneWake(fixtures.Stamp):
         code, text = guard.wake(str(self.lane), SESSION)
         self.assertEqual(code, 0, text)
         self.assertTrue(text.startswith("READY"), text)
+
+
+    # Completion review of §20 (docs/reviews/00-workspace/D00-T01-s20.md).
+    def test_heartbeat_bookkeeping_in_the_run_file_never_blocks_the_merge(self):
+        self.start_waiting()
+        for beat in (1, 2):  # two ordinary waiting heartbeats, each writing its line and committing nothing
+            self.assertTrue(guard.wake(str(self.lane), SESSION)[1].startswith("WAITING"))
+            with open(self.lane / RUN_FILE, "a", encoding="utf-8") as fh:
+                fh.write(f"- bookkeeping: waiting 2026-10-30T19:0{beat}Z\n")
+        self.stamp_prerequisite_on_main()
+        code, text = guard.wake(str(self.lane), SESSION)
+        self.assertEqual(code, 0, text)
+        self.assertTrue(text.startswith(f"READY {DEPENDENT}"), text)
+        self.assertIn("bookkeeping: waiting 2026-10-30T19:02Z", (self.lane / RUN_FILE).read_text(encoding="utf-8"))
+
+    def test_a_worktree_on_another_lanes_branch_is_left_untouched(self):
+        self.start_waiting()
+        self.stamp_prerequisite_on_main()
+        self.run_git(self.lane, "checkout", "-qb", "something-else")  # a branch no lane works: the main lane's
+        head = self.run_git(self.lane, "rev-parse", "HEAD").stdout
+        code, text = guard.wake(str(self.lane), SESSION)
+        self.assertEqual(code, 1)
+        self.assertIn("LANE MISMATCH guard=checks checkout=main; nothing fetched or merged", text)
+        self.assertEqual(self.run_git(self.lane, "rev-parse", "HEAD").stdout, head)
+        self.assertTrue(self.lane_clean())
+        self.assertNotEqual(self.run_git(self.lane, "rev-parse", "origin/main").stdout,
+                            self.run_git(self.root, "rev-parse", "main").stdout, "not even fetched")
+
+    def test_an_abort_that_fails_is_reported_open_and_the_next_wake_recovers(self):
+        self.start_waiting()
+        (self.lane / "notes.txt").write_text("the lane's\n", encoding="utf-8")
+        self.commit_lane("lane notes")
+        (self.root / "notes.txt").write_text("main's\n", encoding="utf-8")
+        self.commit("main notes")
+        self.stamp_prerequisite_on_main()
+        real = guard._run_git
+
+        def abort_fails(root, *args, **kw):
+            if args[:2] == ("merge", "--abort"):
+                return subprocess.CompletedProcess(args, 128, "", "fatal: Unable to create index.lock")
+            return real(root, *args, **kw)
+        with mock.patch.object(guard, "_run_git", abort_fails):
+            code, text = guard.wake(str(self.lane), SESSION)
+        self.assertEqual(code, 1)
+        self.assertIn("the merge is STILL OPEN", text)
+        self.assertNotIn(": backed out", text, "a failed abort is never reported as backed out")
+        code, text = guard.wake(str(self.lane), SESSION)  # the lock is gone: the leftover merge is backed out first
+        self.assertIn("an earlier merge left open was backed out", text)
+        self.assertIn("merge conflict in notes.txt", text)
+        self.assertTrue(self.lane_clean())
+
+    def test_a_merge_that_times_out_is_backed_out(self):
+        self.start_waiting()
+        self.stamp_prerequisite_on_main()
+        real = guard._run_git
+
+        def slow_merge(root, *args, **kw):
+            if args[:1] == ("merge",) and "--abort" not in args:
+                real(root, *args, **kw)  # the merge lands in the tree, then the wait for it runs out
+                raise subprocess.TimeoutExpired(["git", *args], 600)
+            return real(root, *args, **kw)
+        with mock.patch.object(guard, "_run_git", slow_merge):
+            code, text = guard.wake(str(self.lane), SESSION)
+        self.assertEqual(code, 1)
+        self.assertIn("the merge did not finish", text)
+        self.assertTrue(self.lane_clean(), "nothing left open after the timeout")
+        self.assertTrue(guard.wake(str(self.lane), SESSION)[1].startswith("READY"))
 
 
 if __name__ == "__main__":

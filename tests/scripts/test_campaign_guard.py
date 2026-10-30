@@ -847,6 +847,25 @@ class Waiting(Workspace):
         self.ready(1)  # a row of this lane became runnable while the watched row stays open
         self.assertTrue(guard.rows(self.root, SESSION)[1].startswith("READY "))
 
+    def test_mixed_leftovers_wait_past_a_ready_row_this_session_cannot_reach(self):
+        self.ready(1)  # D00 T01 §3 is ready, but its Needs name a host this session cannot reach
+        self.graph({self.OTHER_ROW: {"exit": 4, "lane": "app"}, "D00 T01 §3": {"exit": 0, "lane": "checks"},
+                    "D05 T01 §1": {"exit": 0, "lane": "checks"}})
+        with self.assertRaises(guard.GuardError):
+            guard.wait(self.root, SESSION, [self.OTHER_ROW])  # without saying so, the ready row refuses the wait
+        guard.wait(self.root, SESSION, [self.OTHER_ROW], unreachable=["D00 T01 §3"])
+        self.assertEqual(guard.read_guard(self.root)["unreachable"], ["D00 T01 §3"])
+        self.assertTrue(guard.rows(self.root, SESSION)[1].startswith(f"WAITING on {self.OTHER_ROW}"))
+        self.assertIsNone(self.hook(), "the unreachable row does not hold the turn")
+        self.ready(1, "mixed")  # a row the session can take appears
+        self.assertEqual(guard.rows(self.root, SESSION)[1], "READY D05 T01 §1  Kit manager")
+
+    def test_an_unreachable_row_must_be_one_of_the_lanes_ready_rows(self):
+        self.ready(1)
+        with self.assertRaises(guard.GuardError) as ctx:
+            guard.wait(self.root, SESSION, [self.OTHER_ROW], unreachable=[self.OTHER_ROW])
+        self.assertIn("names rows the lane cannot claim as ready", str(ctx.exception))
+
     def test_the_long_wait_notice_fires_once_a_day_and_survives_a_job_replacement(self):
         guard.wait(self.root, SESSION, [self.OTHER_ROW])
         doc = guard.read_guard(self.root)
@@ -856,6 +875,7 @@ class Waiting(Workspace):
         notices = lambda now: [ln for ln in guard.wake(self.root, SESSION, now)[1].splitlines()  # noqa: E731
                                if ln.startswith("long-wait")]
         with mock.patch.object(guard, "_fetch_main", return_value=None), \
+                mock.patch.object(guard, "_merging", return_value=False), \
                 mock.patch.object(guard, "_run_git", return_value=subprocess.CompletedProcess([], 0, "", "")):
             self.assertEqual(notices("2026-10-30T23:00:00Z"), [], "under a day: nothing")
             self.assertEqual(len(notices("2026-10-31T01:00:00Z")), 1, "the first heartbeat past a day")

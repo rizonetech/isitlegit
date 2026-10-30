@@ -65,6 +65,7 @@ track: day-0
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
 | 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
+| 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -773,7 +774,7 @@ Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/
 - [x] Describe the waiting state in `AGENTS.md` Parallel lanes. Done when: it names `wait`, `wake` and the park rule for the other leftovers.
 - [ ] Commit: `tools: a lane waits on another lane's rows and resumes by itself`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_campaign_guard` passes, including the end-to-end resumption over a bare remote, which fails when `wake` skips the fetch, the merge or the conclusion.
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_campaign_guard tests.scripts.test_lane_wake` passes, including the end-to-end resumption over a bare remote (`test_lane_wake`), which fails when `wake` skips the fetch, the merge or the conclusion (**Corrected 2026-10-30**, completion review G6: the checkpoint named only `test_campaign_guard`, which does not load the real-remote tests).
 
 ## 21. Pre-push excerpt from the tools' error output
 
@@ -916,6 +917,24 @@ Operator request, 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`, Amen
 - [ ] Commit: `tools: an uncoordinated lane: no run guard, stamps without review rounds`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph tests.scripts.test_campaign_guard` passes, including the waived D10 stamp that refuses once its lane is coordinated.
+
+## 27. Waiting lanes woken by main's push
+
+Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there). A waiting lane run (§20) notices a prerequisite only at its next heartbeat, every 5 minutes, so a stamp reaching `main` waits up to 300 seconds before anything acts on it. Claude Code's agent teams deliver a teammate's completion at once. The heartbeat stays as the fallback; a wake-up sent when the coordinator pushes `main` brings the common case down to seconds.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Wake waiting lanes when main moves. Done when: after the coordinator pushes `main`, each lane whose run waits on a row that push stamped receives one wake message within 10 seconds, and the heartbeat still resumes a lane the message missed.
+
+- [ ] After each push to `main`, list the lanes whose guards wait on a ref the push stamped (`campaign_guard.py rows` per lane worktree, or a `waiters` command reading each lane's guard), and send each one wake message naming the refs. Done when: a test with two waiting lanes, one of them on a stamped ref, messages only that one.
+- [ ] Keep the heartbeat as the fallback: a lane that never got the message resumes at its next heartbeat. Done when: the §20 end-to-end test still passes with no message sent.
+- [ ] Commit: `tools: waiting lanes are woken when main moves`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes, including the push that wakes only the lane waiting on the ref it stamped.
 
 ## Verification
 

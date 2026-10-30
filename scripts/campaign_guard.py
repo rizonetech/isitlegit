@@ -13,7 +13,7 @@
     python scripts/campaign_guard.py health --session S --jobs J1,J2
     python scripts/campaign_guard.py expiry --session S [--now ISO]
     python scripts/campaign_guard.py rows --session S                (the run's lane: ready, open, next row)
-    python scripts/campaign_guard.py wait --session S --on 'DNN TNN §N,...'   (wait on another lane's rows)
+    python scripts/campaign_guard.py wait --session S --on 'DNN TNN §N,...' [--unreachable 'DNN TNN §N,...']
     python scripts/campaign_guard.py wake --session S [--now ISO]    (the heartbeat's waiting step: fetch, merge, rows)
 
 A campaign run has three parts. The guard file (`build/claude-campaign-guard.json`) names the session that owns the
@@ -68,7 +68,7 @@ SCOPES = ("plan", "phase")
 HOOK_BUDGET_SECONDS = 40.0
 UTC_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 # The guard's record of a run waiting on another lane's rows (D00 T01 §20).
-WAIT_KEYS = ("waiting_on", "waiting_since", "notified_at")
+WAIT_KEYS = ("waiting_on", "waiting_since", "notified_at", "unreachable")
 LONG_WAIT = datetime.timedelta(hours=24)
 
 
@@ -314,14 +314,15 @@ def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, c
 
 
 def ready_rows(root: str, timeout: float = 300.0, phase: int | None = None,
-               lane: str | None = None) -> tuple[int | None, str]:
+               lane: str | None = None, skip: tuple | list = ()) -> tuple[int | None, str]:
     """How many rows `query ready` offers, and the first one, or (None, "") when the query cannot be read.
 
     The SDK's todo-graph prints a JSON list of ready rows; a graph that prints a `N runnable now` summary (Isotone's)
     is read by that line instead. With `phase`, only that phase's rows count. The text summary does not say which
     phase a row is in, so for a phase it is unknown (None, ""): a phase run then ends on its own closeout or park
     marker, never on another phase's count, and is never pointed at another phase's row. With `lane`, the query counts
-    that lane's rows whatever branch is checked out.
+    that lane's rows whatever branch is checked out. `skip` leaves out ready rows the run cannot take (a waiting run's
+    rows bound to a host this session cannot reach, recorded by `wait --unreachable`).
     """
     try:
         proc = _graph(root, ["query", "ready"], lane, timeout)
@@ -337,6 +338,8 @@ def ready_rows(root: str, timeout: float = 300.0, phase: int | None = None,
     if isinstance(rows, list):
         if phase is not None:  # a phase-scoped run: only that phase's rows (the JSON rows name their phase)
             rows = [r for r in rows if isinstance(r, dict) and r.get("phase") == phase]
+        if skip:
+            rows = [r for r in rows if not (isinstance(r, dict) and r.get("ref") in skip)]
         first = rows[0] if rows else {}
         label = f"{first.get('ref', '')}  {first.get('title', '')}".strip() if isinstance(first, dict) else ""
         return len(rows), label
@@ -542,7 +545,8 @@ def rows(root: str, session: str) -> tuple[int, str]:
         if here is not None and here != pinned:
             return 1, f"LANE MISMATCH guard={pinned} checkout={here}"
     phase = guard.get("phase") if guard.get("scope") == "phase" else None
-    ready, next_row = ready_rows(root, phase=phase, lane=pinned)
+    skip = guard.get("unreachable") or () if guard.get("waiting_on") else ()
+    ready, next_row = ready_rows(root, phase=phase, lane=pinned, skip=skip)
     still_open = open_rows(root, lane=pinned)
     if ready is None or still_open is None:
         failed = " and ".join(q for q, n in (("query ready", ready), ("query stats", still_open)) if n is None)
@@ -585,9 +589,11 @@ def _wait_state(root: str, guard: dict, ready: int, next_row: str, lane: str | N
     return 0, f"WAITING on {', '.join(open_refs)} since {guard.get('waiting_since')}"
 
 
-def wait(root: str, session: str, refs: list[str]) -> str:
+def wait(root: str, session: str, refs: list[str], unreachable: list[str] | tuple = ()) -> str:
     """Record that the run waits on `refs`, each another lane's open row (D00 T01 §20). Refused, with the guard
-    unchanged, while the lane has a runnable row, the run has ended, or a ref is this lane's, unknown or stamped."""
+    unchanged, while the lane has a runnable row, the run has ended, or a ref is this lane's, unknown or stamped.
+    `unreachable` names the lane's ready rows this session cannot take (their Needs name a host it cannot reach): they
+    do not count as runnable while the run waits, and each must be one of the lane's ready rows."""
     if not refs:
         raise GuardError("wait needs --on with at least one 'DNN TNN §N'")
     guard = read_guard(root)
@@ -598,7 +604,14 @@ def wait(root: str, session: str, refs: list[str]) -> str:
         raise GuardError("wait: the run file already ends this run (a Closeout or PARKED marker)")
     lane = guard.get("lane")
     phase = guard.get("phase") if guard.get("scope") == "phase" else None
-    ready, next_row = ready_rows(root, phase=phase, lane=lane)
+    unreachable = list(unreachable)
+    if unreachable:
+        all_ready, _ = ready_rows(root, phase=phase, lane=lane)
+        listed = _classify(root, unreachable, lane) or {}
+        strays = [ref for ref in unreachable if listed.get(ref) != 0]
+        if all_ready is None or strays:
+            raise GuardError(f"wait: --unreachable names rows the lane cannot claim as ready: {', '.join(strays)}")
+    ready, next_row = ready_rows(root, phase=phase, lane=lane, skip=unreachable)
     if ready is None:
         raise GuardError("wait: query ready failed, so whether the lane has work is not known")
     if ready > 0:
@@ -621,6 +634,8 @@ def wait(root: str, session: str, refs: list[str]) -> str:
             raise GuardError("wait: the guard changed while the rows were read; run wait again")
         still["waiting_on"] = refs
         still.setdefault("waiting_since", _utc_now())
+        if unreachable:
+            still["unreachable"] = unreachable
         _write_json(_paths(root)[0], still)
     return f"wait: run {guard.get('run_id')} waits on {', '.join(refs)} since {still['waiting_since']}"
 
@@ -639,9 +654,30 @@ def _fetch_main(root: str) -> str | None:
     return None if done.returncode == 0 else f"fetch failed: {done.stderr.strip()[:300]}"
 
 
-def _abort_merge(root: str) -> None:
-    if _run_git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0:
-        _run_git(root, "merge", "--abort")
+def _merging(root: str) -> bool:
+    return _run_git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode == 0
+
+
+def _abort_merge(root: str) -> str | None:
+    """`git merge --abort`, verified: None once no merge is open, else why it is still open (said, never hidden)."""
+    if not _merging(root):
+        return None
+    try:
+        done = _run_git(root, "merge", "--abort")
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"git merge --abort did not finish ({exc})"
+    if _merging(root):
+        return f"git merge --abort failed ({(done.stderr or done.stdout).strip()[:200] or f'exit {done.returncode}'})"
+    return None
+
+
+def _backed_out(root: str, cause: str) -> str:
+    """The cause, and whether the merge was really backed out: a failed abort is reported as still open."""
+    left = _abort_merge(root)
+    if left:
+        return (f"{cause}; and the merge is STILL OPEN: {left}. The next wake tries the abort again; until then the "
+                f"lane holds an unfinished merge (`git merge --abort` once its cause, such as an index.lock, is gone)")
+    return f"{cause}: backed out"
 
 
 def _merge_main(root: str) -> str | None:
@@ -650,25 +686,29 @@ def _merge_main(root: str) -> str | None:
     conflict or failed conclusion is backed out with `git merge --abort`. Returns the failure's cause, or None."""
     if _run_git(root, "merge-base", "--is-ancestor", "origin/main", "HEAD").returncode == 0:
         return None
-    merged = _run_git(root, "merge", "--no-edit", "origin/main", timeout=600)
+    try:
+        merged = _run_git(root, "merge", "--no-edit", "origin/main", timeout=600)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return _backed_out(root, f"the merge did not finish ({exc})")
     if merged.returncode == 0:
         return None
-    if _run_git(root, "rev-parse", "-q", "--verify", "MERGE_HEAD").returncode != 0:
+    if not _merging(root):
         return f"merge refused: {(merged.stderr or merged.stdout).strip()[:300]}"
     unmerged = _run_git(root, "diff", "--name-only", "--diff-filter=U").stdout.split()
     if unmerged:
-        _abort_merge(root)
-        return f"merge conflict in {', '.join(unmerged[:5])}: backed out; the coordinator resolves it"
+        return _backed_out(root, f"merge conflict in {', '.join(unmerged[:5])}") + "; the coordinator resolves it"
     return _conclude(root)
 
 
 def _conclude(root: str) -> str | None:
     """Conclude a merge the plan's merge stop halted; a failed conclusion is backed out. The cause, or None."""
-    done = _run_git(root, "commit", "--no-edit", timeout=600)
+    try:
+        done = _run_git(root, "commit", "--no-edit", timeout=600)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return _backed_out(root, f"the merge's conclusion did not finish ({exc})")
     if done.returncode == 0:
         return None
-    _abort_merge(root)
-    return f"the merge's conclusion failed and was backed out: {(done.stderr or done.stdout).strip()[:300]}"
+    return _backed_out(root, f"the merge's conclusion failed ({(done.stderr or done.stdout).strip()[:300]})")
 
 
 def wake(root: str, session: str, now: str | None = None) -> tuple[int, str]:
@@ -685,13 +725,38 @@ def wake(root: str, session: str, now: str | None = None) -> tuple[int, str]:
         return 1, "NOT THE OWNER"
     if not guard.get("waiting_on"):
         return rows(root, session)
+    pinned = guard.get("lane")
+    if pinned:
+        # The lane is checked before git touches anything: a worktree now on another lane's branch is left as it is.
+        try:
+            here = graph_lane(root)
+        except GuardError as exc:
+            return 1, f"ROWS UNKNOWN: {exc} (lane {pinned}); nothing fetched or merged"
+        if here is not None and here != pinned:
+            return 1, f"LANE MISMATCH guard={pinned} checkout={here}; nothing fetched or merged"
     lines, failed = [], None
-    if _run_git(root, "status", "--porcelain", "--untracked-files=normal").stdout.strip():
+    if _merging(root):
+        # A merge an earlier wake could not back out (an index.lock, a full disk): try again before anything else.
+        left = _abort_merge(root)
+        if left:
+            failed = f"an earlier merge is still open and could not be backed out: {left}"
+        else:
+            lines.append("wake: an earlier merge left open was backed out")
+    # The run file is the heartbeat's own bookkeeping, written between commits: it never blocks the merge.
+    run_rel = str(guard.get("run_file", ""))
+    dirty = _run_git(root, "status", "--porcelain", "--untracked-files=normal", "--", ".", f":!{run_rel}").stdout
+    if failed is None and dirty.strip():
         failed = "the working tree has changes, so main was not merged: commit or stash them; the run keeps waiting"
     if failed is None:
         failed = _fetch_main(root)
-    if failed is None and guard.get("lane") not in (None, "main"):
+    if failed is None and pinned not in (None, "main"):
         failed = _merge_main(root)
+    if _merging(root):
+        # A tree with a merge still open is half one side and half the other: nothing is read from it, so a stamp
+        # that arrived only in the unfinished merge can never end the wait.
+        lines.append(f"WAITING on {', '.join(guard.get('waiting_on') or [])} (a merge is still open)")
+        lines.append(f"wake: {failed}")
+        return 1, "\n".join(lines)
     code, line = rows(root, session)
     lines.append(line)
     if failed:
@@ -1090,7 +1155,8 @@ def stop_decision(root: str, session: str) -> dict | None:
     deadline = time.monotonic() + _env_int("CAMPAIGN_HOOK_BUDGET_SECONDS", int(HOOK_BUDGET_SECONDS))
     phase_only = guard.get("scope") == "phase"
     ready, next_row = ready_rows(root, timeout=_remaining(deadline) / 2,
-                                 phase=guard.get("phase") if phase_only else None, lane=guard.get("lane"))
+                                 phase=guard.get("phase") if phase_only else None, lane=guard.get("lane"),
+                                 skip=(guard.get("unreachable") or ()) if guard.get("waiting_on") else ())
     if ready == 0:
         return None  # nothing runnable here: blocking cannot produce work that does not exist
     print_ = fingerprint(root, run_rel, run_text, deadline)
@@ -1249,8 +1315,9 @@ def main(argv: list[str]) -> int:
             code, line = health(root, opts.get("session", ""), jobs)
             print(line, file=sys.stdout if code == 0 else sys.stderr)
             return code
-        if argv[0] == "wait" and set(opts) == {"session", "on"}:
-            print(wait(root, opts["session"], [r.strip() for r in opts["on"].split(",") if r.strip()]))
+        if argv[0] == "wait" and {"session", "on"} <= set(opts) <= {"session", "on", "unreachable"}:
+            split = lambda v: [r.strip() for r in v.split(",") if r.strip()]  # noqa: E731
+            print(wait(root, opts["session"], split(opts["on"]), split(opts.get("unreachable", ""))))
             return 0
         if argv[0] == "wake" and set(opts) <= {"session", "now"} and "session" in opts:
             code, line = wake(root, opts["session"], opts.get("now"))
