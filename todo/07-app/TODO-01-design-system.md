@@ -43,7 +43,7 @@ track: day-1
 | 6 | §6 | Buttons, fields and pills | §2, §5 | [x] |
 | 7 | §7 | Verdict band, evidence card and severity | §6 | [x] |
 | 8 | §8 | Empty, loading, error and partial states | §6 | [x] |
-| 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [ ] |
+| 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [x] |
 | 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [ ] |
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
@@ -153,7 +153,7 @@ One page frame for every app page (`AGENTS.md`: a second toolbar or panel shape 
 > **Resolved:** switching the active organisation (`POST /orgs/switch`, whose contract and tests D07 T02 §3 owns) -> XREF: D07 T02 §3. Resolved 2026-10-28 by D07 T02 §3 in `8fa3908`, `eabfeb1` and `7603dc0`: `src/auth/org.ts` takes the app's own origin only, reads the session first, refuses an organisation the member does not belong to with the active one kept (a Better Auth hook covering its own endpoint too), answers 503 on an outage and 303 to `/cases` on success.
 > **Resolved:** signing out (`POST /auth/sign-out`, whose contract and tests D07 T02 §1 owns) -> XREF: D07 T02 §1. Resolved 2026-10-28 by D07 T02 §1 in `ed84e5d`, `078b08f` and `3ec9b8c`: `src/auth/sign-out.ts` checks the origin, ends the session (refusing with 503 and keeping the cookie when D1 fails the delete, through a Better Auth hook that also holds `/api/auth/sign-out`), clears the cookie and answers 303 to `/signin`.
 > **Deferred:** the report page's own back link to Cases on phones (`Report-Mobile`) -> XREF: D07 T03 §1
-> **Deferred:** the copy and menu behaviour in the browser (`[data-copy]`, the phone menu) -> XREF: D07 T01 §9
+> **Resolved:** the copy and menu behaviour in the browser (`[data-copy]`, the phone menu) -> XREF: D07 T01 §9. Resolved 2026-10-30 by D07 T01 §9 in `8d5502a` and `38917b3`: `src/web/client/app.ts`, loaded on every page by `Document`, copies the check address with visible and announced feedback and selects it by hand when the clipboard refuses (`test/node/app-script.test.tsx`); the phone menu needs no script, being a `popovertarget` popover (§3).
 
 **Corrected 2026-10-27** (plan review: 3 P1, 4 P2): the section had no JSX configuration, no document that loads the stylesheet and scripts, no served logo, no browser contract for the two forms, no link destinations, a public header unlike its board, one phone rule for all three frames, and no keyboard proof. Each is an item below; the two form contracts are in their owners (D07 T02 §1 and §3).
 
@@ -405,11 +405,14 @@ The browser-side behaviour the pages need, served like the stylesheet.
 - [x] Load both on every page: `Document` (`src/web/components/Document.tsx`) renders `<script src={HTMX} defer>` and `<script type="module" src={APP_JS}>` at the end of the body by default, a page's own `scripts` after them. **Corrected 2026-10-30** at build: the app script is a module (deferred by being one, and run after htmx in document order), since type stripping keeps its `export {}`, which a classic script refuses. Done when: `test/node/document.test.tsx` finds both, in that order, with `defer`, on a page that passes no scripts. Cheaper substitute: each page adding its own script tags.
 - [x] Prove the scripts run from `Document`'s own tags in Chromium: `test/node/app-script.test.tsx` serves a rendered `Document` page and the built files from `public/static/` (their real fingerprinted names from `src/web/assets.ts`), clicks an `hx-get` button and finds the answered fragment swapped into its target, and runs the shell's copy on the same page. Done when: it passes, and fails with either default tag removed from `Document`. **Added 2026-10-30 (plan review P1):** package bytes, headers and tags passed without htmx ever running.
 - [x] Announce a repeated outcome afresh: each press empties the status line and writes its outcome 100 ms later, in a task of its own (`src/web/client/app.ts`, WCAG technique ARIA19's clear-and-reinsert), so two refusals running are two announcements. Done when: `test/node/app-script.test.tsx` records the line through a MutationObserver over two refused presses as the message, the empty line, the message, and fails with the gap removed; a screen reader itself is not run here. **Added 2026-10-30 (completion review, in scope).**
-- [ ] Commit: `web: htmx and the app script as fingerprinted assets`
+- [x] Commit: `web: htmx and the app script as fingerprinted assets`
 
 Evidence 2026-10-30 16:55 SAST. `htmx.org` 2.0.11 exact (the lockfile gained that package and its integrity line only); `scripts/hash-asset.ts` copies `htmx.min.js` and builds `src/web/client/app.ts` with `stripTypeScriptTypes` (an `enum` refuses the build and nothing is written), exporting `HTMX` and `APP_JS` and keeping both through the prune; the client is checked in `test/node/tsconfig.json` (a planted type error fails `tsc -p test/node`; the root project leaves it out); `Document` loads both; the shell's copy group carries `data-copy-group`, `data-copy-source` and a `data-copy-status` line; `NOTICE.md` lists htmx (0BSD); `design/SPEC.md` 1 records the status line as a Deviation. `pnpm exec vitest run test/node/hash-asset.test.ts test/node/assets.test.ts test/node/serve.test.ts test/node/document.test.tsx test/node/app-script.test.tsx` passes, within 12 files and 104 tests run together with the shell, sign-in, states, controls, colour and stylesheet tests; `app-script.test.tsx` (7 in Chromium): htmx swaps a fragment from `Document`'s own tag; the copy by click, Enter and Space at 1280 and 360 px (behind Menu) in both themes, the clipboard read back, "Copied" visible, announced, 4.5:1 or more and cleared after 4 seconds; a denied permission and a missing Clipboard API each say how to copy by hand, select exactly the address, keep the message and select again on the next press. Mutations caught: either `Document` tag removed (7 and 6 fail), the selection removed (2 fail).
 
 **Test checkpoint:** `pnpm exec vitest run test/node/hash-asset.test.ts test/node/assets.test.ts test/node/serve.test.ts test/node/document.test.tsx test/node/app-script.test.tsx` passes: both files fingerprinted and served with the immutable cache, loaded on every page by `Document`, htmx swapping a fragment and the copy, its visible and announced feedback and its refusal path working in Chromium.
+
+> **Verified:** 2026-10-30 | §9 | 354ddcfbc7bba7fec884d5c7e268dc91bafeb367
+> **Review:** `docs/reviews/d07-t01-s9.json`
 
 ## 10. Component gallery with accessibility checks
 
