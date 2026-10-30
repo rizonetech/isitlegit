@@ -123,7 +123,7 @@ Sections: 42 | Checklist items: 279
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
 | [x]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 12    |
 | [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
-| [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
+| [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
@@ -341,6 +341,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 91/272 verified sections, 47 ready to run now.
+Progress: 92/272 verified sections, 55 ready to run now.
 
-Checklist: 952/1769 items completed (includes Commit items).
+Checklist: 953/1769 items completed (includes Commit items).
