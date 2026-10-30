@@ -258,9 +258,9 @@ class ServerlessRun(logging.Handler):
     # init_from_checkpoint='<account>/<run>/<checkpoint>'"), so the handler reads the line's own arguments.
     LOGGER = "training.utils.serverless"
 
-    def __init__(self, run_dir, recorder):
+    def __init__(self, run_dir, recorder, started=None):
         super().__init__()
-        self.path, self.recorder = Path(run_dir) / "serverless.json", recorder
+        self.path, self.recorder, self.started = Path(run_dir) / "serverless.json", recorder, started
 
     def emit(self, record):
         if not str(record.msg).startswith("Serverless training session") or len(record.args or ()) != 4:
@@ -268,6 +268,8 @@ class ServerlessRun(logging.Handler):
         session, run, account, _ = record.args
         self.recorder.session = session
         write_atomic(self.path, json.dumps({"session": session, "run": run, "account": account}) + "\n")
+        if self.started:
+            self.started(session)
 
 
 def resume_reference(run_dir):
@@ -324,7 +326,7 @@ def read_key():
 
 
 def train(loop, train_file, version, run_dir, recorder, examples=None, promote=True, runner_config=None,
-          resume_from=None):
+          resume_from=None, dataset_sha=None):
     """One cookbook SFT run on `train_file`. `loop` is the cookbook's `recipes.sft_loop` module (a fake in tests)."""
     model_id, _checkpoint = names(version)
     lines = examples if examples is not None else len(read_lines(train_file)) if Path(train_file).is_file() else None
@@ -367,7 +369,12 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         return original(metrics, step)
 
     loop.wandb_log = recording
-    ids = ServerlessRun(run_dir, recorder)
+    def started_line(session):
+        # Each version's record under `Training` once its job exists, so a failed one has its line too.
+        append_training(f"Loupe {version}: {model_id}, trained {datetime.now(timezone.utc).date().isoformat()}, "
+                        f"dataset {dataset_sha}, job {session}", recorder.markdown_path)
+
+    ids = ServerlessRun(run_dir, recorder, started_line if promote else None)
     named = logging.getLogger(ServerlessRun.LOGGER)
     level = named.level
     named.setLevel(logging.INFO)  # the line is INFO, which an unconfigured logger drops before any handler
@@ -411,7 +418,8 @@ def main(argv=None, now=None):
         resuming = (run_dir / "cookbook").is_dir() and not args.measure
         resume_from = resume_reference(run_dir) if resuming else None
         # Only a run with a checkpoint to continue from is a resume past the cutoff.
-        check_start(now, sha256(train_file), markdown, resume_from is not None)
+        dataset_sha = sha256(train_file)
+        check_start(now, dataset_sha, markdown, resume_from is not None)
         cap = cap_usd(now, reconciled(markdown))
         cookbook = Path(os.environ.get("FW_COOKBOOK", Path.home() / "src" / "fw-cookbook" / "training")).expanduser()
         sys.path.insert(0, str(cookbook.parent))
@@ -431,7 +439,7 @@ def main(argv=None, now=None):
             write_atomic(subset, "".join(lines[i] for i in chosen))
             append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(lines)} lines "
                             f"({sum(tokens[i] for i in chosen)} tokens, seed {args.seed}, cap "
-                            f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {sha256(train_file)}")
+                            f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {dataset_sha}")
             train_file = subset
         elif resuming:
             train_file = run_dir / "train.subset.jsonl"
@@ -443,7 +451,7 @@ def main(argv=None, now=None):
             append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
         _result, record = train(sft_loop, train_file, args.version, run_dir, recorder,
                                 examples=MEASURE_EXAMPLES if args.measure else None, promote=not args.measure,
-                                resume_from=resume_from)
+                                resume_from=resume_from, dataset_sha=dataset_sha)
     except Refused as refusal:
         print(f"train-serverless: refused: {refusal}", file=sys.stderr)
         return 2

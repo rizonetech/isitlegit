@@ -230,11 +230,14 @@ class Records(unittest.TestCase):
         recorder, _ = self.recorder()
         first = CheckpointingLoop(30, fail_at=25, recorder=recorder)
         with self.assertRaises(RuntimeError):
-            ts.train(first, self.dir / "t.jsonl", "1.0", self.run, recorder, runner_config=dict)
+            ts.train(first, self.dir / "t.jsonl", "1.0", self.run, recorder, runner_config=dict, dataset_sha="d" * 64)
         # The session stays open so its checkpoints outlive the crash, and its ids are kept for the resume.
         self.assertFalse(first.config.close_session_on_exit)
         self.assertEqual(json.loads((self.run / "serverless.json").read_text()),
                          {"session": "ts-session-1", "run": run_id, "account": "acct"})
+        # The version's line exists once its job does, the failed attempt included.
+        self.assertRegex(ts.section(self.md.read_text(), "Training"),
+                         r"Loupe 1\.0: isitlegit-loupe-1-0, trained \d{4}-\d{2}-\d{2}, dataset d{64}, job ts-session-1")
         reference = ts.resume_reference(self.run)
         self.assertEqual(reference, f"acct/{run_id}/step-20")
         again, _ = self.recorder()
@@ -258,6 +261,7 @@ class Records(unittest.TestCase):
         loop = FakeLoop(1, recorder=recorder)
         ts.train(loop, self.dir / "t.jsonl", "1.0", self.run, recorder, runner_config=dict, promote=False)
         self.assertTrue(loop.config.close_session_on_exit)
+        self.assertNotIn("Loupe 1.0: isitlegit-loupe-1-0, trained", self.md.read_text())
 
     def test_the_wrapped_logger_is_put_back(self):
         recorder, _ = self.recorder()
