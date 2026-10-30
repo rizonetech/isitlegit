@@ -62,6 +62,8 @@ track: day-0
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
+| 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
+| 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -832,6 +834,53 @@ Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope the
 - [ ] Commit: `tools: one command for a lane merge through its plan stop`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan` passes, including the one-call stamped merge.
+
+## 24. Pre-commit refuses a missing client list
+
+> **Started:** 2026-10-30T15:30Z
+
+Found 2026-10-30 by the app lane (message to the coordinator) and confirmed by the coordinator: `scripts/hooks/pre-commit` scans the staged tree for client names only `if [ -f samples/client-names.txt ]`, so a worktree without that git-ignored list commits with no scan and no word. The coordinator's worktree `~/isitlegit-main` and the app lane's `~/isitlegit-app`, both made by `git worktree add` (which copies no ignored file), had none; every coordinator commit until 2026-10-30 16:00 SAST went unscanned. `python3 scripts/check-publication.py` over the tree afterwards found no client name in 980 tracked files. `scripts/check-publication.py` already refuses a missing or empty list (exit 2, `scripts/check-publication.py:10`); the hook is the one guard that fails open.
+
+**Corrected 2026-10-30** (the operator asked whether the refusal could block work; plan review P2, `docs/reviews/00-workspace/D00-T01-s24.md`): a refusal alone would stop every new worktree, subagent worktrees under `.claude/worktrees/` included, until someone linked the file. Every worktree of a clone shares one git directory, so the hook now finds the list itself: the worktree's own `samples/client-names.txt` when it has one, else the main checkout's (the parent of `git rev-parse --git-common-dir`), and refuses only when neither holds a list, or when the one it finds is a dangling link or names no one, each with the fix for that state. Before, the section only refused, and named one fix (`ln -s`) that fails on a blank-only list or a dangling link.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find the clone's client list from any worktree. Done when: a worktree without its own list scans with the main checkout's.
+2. Refuse a commit without a usable list, saying how to fix that state. Done when: a missing, blank-only or dangling list is refused with its own fix, and the fix, followed, lets a clean commit through and still refuses a listed name.
+
+- [x] Resolve the list in `scripts/hooks/pre-commit`: the worktree's `samples/client-names.txt` when it exists (a file, or a link that resolves), else `$(git rev-parse --path-format=absolute --git-common-dir)/../samples/client-names.txt`, the main checkout's. Done when: `tests/scripts/test_pre_commit_hook.py`, in a linked worktree (`git worktree add`) without its own list, refuses a staged name from the main checkout's list and accepts a clean commit. Cheaper substitute: linking each worktree by hand, which the next `git worktree add` misses.
+- [x] Refuse a dangling link (`samples/client-names.txt` a symlink whose target is gone), naming the target and the repair (`ln -sfn <main checkout>/samples/client-names.txt samples/client-names.txt`, or removing the link to use the main checkout's list). Done when: a test refuses with that text, follows the repair, and then accepts a clean commit and refuses a listed name.
+- [x] Refuse a list that names no one (only blank lines), naming its path and saying to add the client names, one per line. Done when: a test refuses with that text, adds a name, and then accepts a clean commit and refuses that name.
+- [x] Refuse when no list is found at all, naming the main checkout's path where the operator's private list belongs (git-ignored, never committed), as `scripts/check-publication.py` refuses. Done when: a test refuses with that text, creates the list there, and then accepts a clean commit and refuses a listed name.
+- [x] Keep the unreadable-list refusal and every existing name scan. Done when: the existing `tests/scripts/test_pre_commit_hook.py` cases pass unchanged, and `tests/scripts/test_merge_plan.py` passes with a client list in its fixture.
+- [x] Name the lookup in `AGENTS.md` (Safety: the list in the main checkout serves every worktree of the clone; a new clone needs the operator's list). Done when: `AGENTS.md` names it.
+- [x] Commit: `tools: pre-commit finds the clone's client list and refuses a missing one`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_commit_hook tests.scripts.test_merge_plan` passes, including the linked worktree that scans with the main checkout's list (which commits unscanned on the fail-open hook) and the three refusals, each followed by its repair.
+
+> **Verified:** 2026-10-30 | §24 | e2de849ebd291c810e096ddb46c24393f610ce27
+> **Review:** `docs/reviews/d00-t01-s24.json`
+
+## 25. The publication check reads the clone's client list
+
+Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope there). §24 lets every worktree's commits scan with the main checkout's `samples/client-names.txt`, but `scripts/check-publication.py` still reads only its own checkout's (`NAMES = ROOT / "samples/client-names.txt"`, `scripts/check-publication.py:27`), so a worktree whose commits pass refuses the publication check (exit 2) until the list is linked there. The two guards must find the same list.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. One lookup for both guards. Done when: `check-publication.py` in a linked worktree without its own list scans with the main checkout's, and refuses as the hook does when none is usable.
+
+- [ ] Resolve the list in `scripts/check-publication.py` as `scripts/hooks/pre-commit` does (§24): the checkout's own `samples/client-names.txt`, else the one beside `git rev-parse --git-common-dir`; refuse a dangling link, a list naming no one, and no list, each with the same fix text. Done when: `tests/scripts/test_check_publication.py` passes in a linked worktree without its own list, finds a planted name there, and refuses each unusable state.
+- [ ] Commit: `tools: the publication check reads the clone's client list`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_check_publication` passes, including the linked worktree without its own list (which exits 2 on the current check).
 
 ## Verification
 
