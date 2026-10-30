@@ -5,6 +5,7 @@
 // follow when they are extracted (§7).
 import { addressParser } from "postal-mime";
 import { parse } from "tldts";
+import { stripComments } from "../intake/sender";
 import { asciiDomain, bounded, fittedDetail, fromDomain, plain } from "./auth";
 import { registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
@@ -56,7 +57,8 @@ export function headerDomains(view: CaseView): { domain: string; fields: Field[]
       add(a.address ? domainOf(a.address) : null, "Reply-To", header);
   const returnPath = named(view.headers, "return-path")[0];
   if (returnPath) {
-    const path = returnPath.value
+    // Comments around the angle address are allowed (RFC 5322 3.6.7); they are set aside first (round 1).
+    const path = stripComments(returnPath.value)
       .trim()
       .replace(/^<\s*|\s*>$/g, "")
       .trim();

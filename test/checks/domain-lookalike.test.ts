@@ -222,6 +222,21 @@ describe("domain.lookalike's bounds and limits (plan review)", () => {
     expect(rest?.detail.unread).toContain("fynbosfreight.net");
   });
 
+  it("stays within its budget when every finding cites a header of megabytes (round 1)", () => {
+    const addresses = Array.from({ length: 99 }, (_, i) => `a@fynbosfreight${i}.co.za`).join(", ");
+    const v = view([h("From", "x@unrelated.example"), h("Reply-To", `${addresses} (${"x".repeat(2_000_000)})`)]);
+    const started = Date.now();
+    const items = lookalikeEvidence(v);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(items.filter((i) => i.severity === "high").length).toBeGreaterThan(0);
+    for (const item of items) expect(JSON.stringify(item.detail).length).toBeLessThan(64 * 1024);
+  });
+
+  it("reads a Return-Path with a comment around its address (round 1)", () => {
+    const v = view([h("From", "x@unrelated.example"), h("Return-Path", "<bounce@fynbosfreight.com> (comment)")]);
+    expect(only(v)).toMatchObject({ detail: { domain: "fynbosfreight.com", fields: ["Return-Path"] } });
+  });
+
   it("accounts for every domain and trusted domain not compared, keeping the findings (completion review)", () => {
     const rtl = Array.from({ length: 21 }, (_, i) => `a@\u05d0\u05d1${"\u05d2".repeat(i + 1)}.co.za`).join(", ");
     const v = view([h("From", "x@fynbosfreight.com"), h("Reply-To", rtl)]);
