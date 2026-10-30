@@ -30,6 +30,13 @@ if [ -L "$own" ] && [ ! -e "$own" ]; then
     fi
     exit 1
 fi
+if [ ! -e "$own" ] && [ -L "$main_list" ] && [ ! -e "$main_list" ]; then
+    # The main checkout's list, found from this worktree, is itself a link to nothing.
+    echo "pre-commit: the main checkout's client list $main_list is a link to $(readlink "$main_list"), which does" \
+        "not exist; restore the list at that target, or replace the link with the list itself ('rm $main_list'," \
+        "then write the operator's private list there)" >&2
+    exit 1
+fi
 if [ -e "$own" ]; then
     names_file=$own
 elif [ -e "$main_list" ]; then
@@ -44,13 +51,15 @@ if [ ! -r "$names_file" ]; then
     echo "pre-commit: $names_file exists but cannot be read; fix its permissions" >&2
     exit 1
 fi
-# The patterns are a private copy of the list: removed on every exit, an interrupt or termination included.
-if ! patterns=$(mktemp); then
-    echo "pre-commit: no temporary file could be made (${TMPDIR:-/tmp} full or not writable), so the client-name" \
+# The scan's files (the list's patterns, the tracked paths, the matching lines) hold private text, so they live in
+# one directory only its owner can read (mktemp -d makes it 0700), removed on every exit, an interrupt included.
+if ! scan=$(mktemp -d); then
+    echo "pre-commit: no temporary folder could be made (${TMPDIR:-/tmp} full or not writable), so the client-name" \
         "scan cannot run; free space there and commit again" >&2
     exit 1
 fi
-trap 'rm -f "$patterns" "$patterns.paths" "$patterns.hits"' EXIT
+patterns="$scan/patterns"
+trap 'rm -rf "$scan"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
@@ -85,7 +94,7 @@ if [ "$content" -ne 1 ] || [ "$paths" -ne 1 ]; then
     echo "pre-commit: the client-name scan failed, so the commit is refused unchecked; run it again" >&2
     exit 1
 fi
-rm -f "$patterns" "$patterns.paths" "$patterns.hits"
+rm -rf "$scan"
 trap - EXIT INT TERM HUP
 
 # Private machine paths (a home folder, a Windows or WSL-mounted user folder) never enter the public repository either:

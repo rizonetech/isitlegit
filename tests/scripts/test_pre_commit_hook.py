@@ -312,6 +312,23 @@ class PreCommitHook(unittest.TestCase):
         subprocess.run(["sh", "-c", command[1]], check=True, cwd=tree)  # exactly the repair the message shows
         self.repaired(cwd=tree)
 
+    def test_a_worktree_whose_main_checkout_list_is_a_dangling_link_gets_that_repair(self):
+        tree = self.worktree()
+        main_list = self.root / "samples/client-names.txt"
+        main_list.unlink()
+        main_list.symlink_to(self.root.parent / f"{self.root.name}-removed/client-names.txt")
+        (tree / "x.txt").write_text("anything\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(tree), "add", "x.txt"], check=True, capture_output=True)
+        refused = subprocess.run(["git", "-C", str(tree), "commit", "-qm", "x"], capture_output=True, text=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("the main checkout's client list", refused.stderr)
+        self.assertIn("which does not exist; restore the list at that target, or replace the link", refused.stderr)
+        self.assertNotIn("no client list", refused.stderr)
+        subprocess.run(["git", "-C", str(tree), "reset", "-q"], check=True)
+        main_list.unlink()  # the shown repair: replace the link with the list itself
+        main_list.write_text("Acme Holdings\n", encoding="utf-8")
+        self.repaired(cwd=tree)
+
     def test_a_temporary_folder_that_cannot_be_written_is_named_not_the_list(self):
         self.names("Acme Holdings\n")
         self.stage("anything\n")
@@ -319,7 +336,7 @@ class PreCommitHook(unittest.TestCase):
         refused = subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "x"], capture_output=True, text=True,
                                  env=env)
         self.assertNotEqual(refused.returncode, 0)
-        self.assertIn("no temporary file could be made", refused.stderr)
+        self.assertIn("no temporary folder could be made", refused.stderr)
         self.assertNotIn("fix its permissions", refused.stderr)
 
     def test_an_interrupted_scan_leaves_no_copy_of_the_list_behind(self):
@@ -347,6 +364,11 @@ exec {real_git} "$@"
             time.sleep(0.05)
         self.assertTrue(any(tmp.iterdir()), "the hook made its private copy")
         time.sleep(0.3)
+        # Round 1 (P1): every scan file sits in one owner-only folder, so no other local user reads the matches.
+        made = list(tmp.iterdir())
+        self.assertEqual(len(made), 1)
+        self.assertTrue(made[0].is_dir())
+        self.assertEqual(stat.S_IMODE(made[0].stat().st_mode), 0o700)
         hook.terminate()
         hook.wait(timeout=30)
         for _ in range(100):
