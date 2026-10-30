@@ -49,7 +49,7 @@ track: day-1
 | 12 | §12 | Sign-in link opened on another device | §11 | [ ] |
 | 13 | §13 | Signup page | §4, §7 | [ ] |
 | 14 | §14 | Invite acceptance page | §3, §7 | [ ] |
-| 15 | §15 | Domain verification page | §5, D07 T01 §10 | [ ] |
+| 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
@@ -570,9 +570,12 @@ The page an owner proves a domain on (`design/SPEC.md` A5). Split from §7 on 20
 - [x] Work by keyboard alone and without JavaScript: choose each recipient, send and verify with Enter, recover from an announced wrong code, copy the DNS name and value (and select them when the clipboard refuses), each form sending what it shows. Done when: the browser test drives each with the keyboard, and again with JavaScript off. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: the browser test tabs to the recipients, picks postmaster@ with an arrow and sends with Enter (the post reads `local=postmaster`); reads the wrong code's message as the field's description and verifies with Enter; copies the record's name and value and, with the clipboard refused, finds the value selected; and with JavaScript off posts send and check as shown.
 - [x] Pass the accessibility gate's rules at 360 and 1280 px in both themes for the pending (with a wrong code), verified, failed and locked states, with no sideways scroll. Done when: the browser test scans each. Evidence 2026-10-30: the browser test scans pending, pending with a wrong code, failed, locked and verified at 360 and 1280 px in both themes with no problem and no sideways scroll (9 passed); it found the copy status as a direct child of the record list, now inside its cell.
 - [x] Close the completion review's in-scope gaps: a plain visit says the tries left on the live code and that a sent code has expired (`expired` in `domainClaimView`); the chosen recipient stays chosen after a send (`local` in the redirect); the code field keeps a whole pasted code (`maxlength` 32, the server reading it); what an action did is signed over the organisation, the domain and ten minutes with the auth secret, so a crafted or stale link shows nothing and a verified notice never sits over a pending claim; a stopped or unanswered request gives the form back after 20 seconds; a store failing while naming the organisation for a member's refusal answers the E5 page; and a verification answers without waiting for the MX lookup, which learns the receivers after (`defer`, the Worker's `waitUntil`). Done when: `test/web/domains-page.test.ts` (14) reads the plain-visit tries and expiry, the kept recipient, forged, edited, foreign and stale results ignored, and the refusal's 503 on GET and POST; `test/auth/domains.test.ts` (35) answers verified with the MX lookup stalled and learns the receivers once it answers; `test/node/domains-browser.test.tsx` (11) pastes " 07 21 07 " whole and gets the form back after Stop. Each fix's removal fails its test. **Added 2026-10-30 (completion review).**
-- [ ] Commit: `web: the domain verification page`
+- [x] Commit: `web: the domain verification page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts test/auth/domains.test.ts` and `pnpm exec vitest run test/node/domains-browser.test.tsx` pass: a domain verified by DNS and by code through the page, each state rendered, every refusal changing nothing.
+
+> **Verified:** 2026-10-30 | §15 | 3d354592c74ff2f7da1e972f9db2bc14f5338c18
+> **Review:** `docs/reviews/d07-t02-s15.json`
 
 ## 16. Passkey sign-in from the sign-in page
 

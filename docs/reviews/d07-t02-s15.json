@@ -1,0 +1,133 @@
+{
+  "ref": "D07 T02 \u00a715",
+  "title": "Domain verification page",
+  "implementation_sha": "3d354592c74ff2f7da1e972f9db2bc14f5338c18",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s15.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s15.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T02-s15.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/07-app/D07-T02-s15.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web test/auth test/db -> Tests 309 passed (309)",
+    "pnpm exec vitest run test/node/domains-browser.test.tsx -> Tests 13 passed (13)",
+    "pnpm exec vitest run --project node -> Tests 837 passed | 1 skipped (838) (at 6c6600c)",
+    "pnpm test:a11y -> Tests 14 passed (14) (at 6c6600c)",
+    "pnpm typecheck -> exit 0",
+    "pnpm lint -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s15.md",
+    "verdict": "filed",
+    "candidate": "c5c419ab277c9152bd973cfe446adf3a0dfa971c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T04 \u00a74",
+      "D07 T04 \u00a75",
+      "D07 T04 \u00a711"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s15.md",
+    "candidate": "eb132bbcb30c94ed6905a585f8eb98dec1835518",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
