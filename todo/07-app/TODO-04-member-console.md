@@ -35,8 +35,11 @@ track: day-6
 | 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
+| 7 | §7 | Subject, sender and search in the Cases list | §1 | [ ] |
 
 ## 1. Cases list with filters and search
+
+> **Started:** 2026-10-30T16:54:24Z
 
 Every case of the organisation, newest first, with verdict, channel, sender (display only for members), subject and time; filters by verdict, channel and date; search by sender or subject words; paged 25 at a time.
 
@@ -50,14 +53,29 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 **Treatment:** a scannable table, verdict first, filters that keep their state in the URL
 **Chrome:** `AppShell`, `VerdictBadge`, `EmptyState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
+**Corrected 2026-10-30** at start, against the code and the boards (`Cases`, `Cases-Empty`):
+- The subject and the original's sender are not stored yet: storing them at intake is the checks lane's D01 T01 §16 (migration 0038, filed at this lane's request through the coordinator), not this section's, and is not on main. The row's subject-and-sender cell, and the search box that searches them, move to §7 (filed below), which waits on D01 T01 §16. Until then a row is named by what was checked (`Forwarded email`; `Uploaded document`, `image` or `voice note`) and the search box is not drawn.
+- "Checked by" is the member who forwarded the mail: the case's `forwarded_by` matched to a member of the organisation by address (their name, else the address). An upload stores no uploader (D01 T03 §1 admits it with no forwarder), so its cell reads "Not recorded" until the checks lane stores one; asked of the checks lane through the coordinator, and §7 draws it.
+- The "Type" column's invoice and payment-document words ("Email, invoice") come from the invoice checks (D06), not stored on the case; §7 draws them from the evidence once D06 T01 classifies a case. This section shows the channel and source kind.
+- The stats tiles above the table are §2's. A row's verdict pill reads the case's real state, as the report does (`shownState`, `src/web/pages/report-view.tsx`): Checking, Partial, Could not be checked, or the verdict.
+- `requireOrg` answers any refusal as JSON. A page answers it as a page: a member with no active organisation, or one just removed, gets the E3 403 page, not a JSON body.
+
 **Build order:**
 
 1. Build `GET /cases` behind `requireSession` (D07 T02 §1). Done when: filters, search and paging work in a rendered test, and an anonymous request is sent to `/signin`.
 
-- [ ] Store `subject` and `sender_display` on cases at parse time (members only see their own organisation's). Done when: the parse test stores both.
-- [ ] Build `src/web/pages/cases.tsx` with the table, verdict and channel filters, date range, search box and pager, state in query parameters, updated with htmx. Done when: `test/web/cases-page.test.ts` covers each filter and a search. Cheaper substitute: an unfiltered list.
-- [ ] Show the empty state with how to forward the first mail. Done when: a new organisation sees it.
+- [ ] Read one page of the organisation's cases in `src/db/case-list.ts` (`listCases(db, orgId, { verdict, channel, period, page }, now)`): newest first by `created_at` then `id`, 25 a page, scoped by `org_id`, with the matching count and the organisation's total; the period's start in SAST days (7, 30 or 90, or all time). Done when: `test/db/case-list.test.ts` reads each filter, the page edges and another organisation's cases never appearing, and a bad filter value is refused, not ignored.
+- [ ] Name who checked each email case: the `forwarded_by` address matched to a member of the organisation (`"user".name`, else the address), in the same read. Done when: the test shows a member's name, a former member's address, and "Not recorded" for an upload.
+- [ ] Build `src/web/pages/cases.tsx` (`GET /cases` behind `requireSession` and the active organisation): heading "Cases" and "Everything <organisation> has checked", Check a file (`/upload`, D01 T03 §6), the verdict segmented filter (All, Malicious, Suspicious, Safe), channel (All channels, Email, Upload) and period (Last 7 days, Last 30 days, Last 90 days, All time; Last 30 days by default), the table (Verdict, Case, Type, Checked by, When; every row opens `/r/<id>`), "Showing 1 to 25 of 64" and Previous and Next. Filters and page live in the query string; a bad value answers the default, never a 500. Done when: `test/web/cases-page.test.ts` covers each filter, paging and every row's link.
+- [ ] Keep the filters working without JavaScript (a GET form with its own Apply button) and, with htmx (D07 T01 §9), redraw only the results on each change and push the URL, so Back returns to the previous filters. Done when: `test/node/cases-browser.test.tsx` changes a filter, sees the URL and rows change, presses Back and sees the earlier rows.
+- [ ] Write "When" as SAST: "Just now" under a minute, the time today, "Yesterday", then "Fri 24 Oct", with the full date and time in the cell's `datetime` and title. Done when: unit cases cover each band and the SAST midnight edge.
+- [ ] Show the first-run state (board `Cases-Empty`) when the organisation has no cases: the eyebrow, heading and sentence, the check address with Copy address (D07 T01 §9's copy script), the three how-to tiles, and "Only mail sent from <verified domains>, your verified domain(s), is accepted." with Or upload a file; with no verified domain yet, the line says so and links Domains and addresses (`/settings/domains`, D07 T04 §4). Done when: a new organisation sees it, and a domain-less one sees the domain line.
+- [ ] Show the filtered-empty state when filters match nothing: 'No cases match Malicious, last 7 days.', "64 cases in total. Try a wider date range or another verdict." and Clear filters (`/cases`). Done when: the page test reads it.
+- [ ] Answer a member with no active organisation, or one just removed, with the E3 403 page (`ErrorState` 403), and a read that fails with the E5 page (503, its reference logged as the report's is). Done when: the page test covers both.
+- [ ] Pass the accessibility gate's rules at 360 and 1280 px in both themes, the table a real table with its caption and column headers, the segmented filter a labelled radio group, on a phone the table reflowing to one card per case with no sideways scroll. Done when: the browser test scans each and measures the width.
 - [ ] Commit: `web: cases list with filters and search`
+
+> **Deferred:** the row's subject and original sender, the search box that searches them, the uploader's name and the invoice words in Type (boards `Cases`) -> XREF: D07 T04 §7
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if another organisation's case appears.
 
@@ -186,6 +204,31 @@ Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console,
 - [ ] Commit: `web: MSP console and own branding`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/msp-console.test.ts` passes and fails if an MSP reads a client it does not manage or a non-MSP plan reaches the console.
+
+## 7. Subject, sender and search in the Cases list
+
+Each row named as the board names it: the original's subject over its sender, the search box that finds a case by either, the uploader in Checked by and the invoice and payment-document words in Type. Filed 2026-10-30 from D07 T04 §1's start, where the stored fields did not yet exist.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases (board `Cases`)
+**Job:** a member finds a past check by what it was about or who sent it
+**Treatment:** the board's two-line cell, subject over sender; search as the board's input, in the query string with the filters
+**Chrome:** §1's page
+
+**Build order:**
+
+1. Wait for D01 T01 §16 (the checks lane: the original's subject and sender stored on the case, migration 0038) to reach main and this branch, then add it to this section's Depends with its XREF. Done when: `validate` accepts the edge.
+2. Draw the two-line cell and search; draw the uploader and Type words once their rows exist (asked of the checks and invoice lanes through the coordinator). Done when: `test/web/cases-page.test.ts` reads each.
+
+- [ ] Add D01 T01 §16 to this section's Depends once it is on main and merged here. Done when: `validate` accepts the edge.
+- [ ] Draw the subject over the sender (name and address; "Uploaded PDF" and the like for a document with neither), and Search by sender or subject over both, case-insensitively, in the query string. Done when: `test/web/cases-page.test.ts` finds a case by a subject word and by a sender address, and another organisation's never.
+- [ ] Draw the uploader's name in Checked by for an upload, from the field the checks lane stores. Done when: the page test reads it.
+- [ ] Draw the invoice and payment-document words in Type from the invoice checks' stored classification (D06). Done when: the page test reads "Email, invoice".
+- [ ] Commit: `web: subject, sender and search in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search returns another organisation's case.
 
 ## Verification
 

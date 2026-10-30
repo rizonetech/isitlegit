@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 51 | Checklist items: 322
+Sections: 52 | Checklist items: 333
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -139,11 +139,12 @@ Sections: 51 | Checklist items: 322
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
-| [ ]    | D07 T04 §1  | Cases list with filters and search                    | none     | 4     |
+| [ ]    | D07 T04 §1  | Cases list with filters and search                    | none     | 10    |
 | [ ]    | D07 T02 §7  | Sign-in page                                          | none     | 12    |
 | [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
 | [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
+| [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 | [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
@@ -350,6 +351,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 96/281 verified sections, 59 ready to run now.
+Progress: 96/282 verified sections, 59 ready to run now.
 
-Checklist: 983/1810 items completed (includes Commit items).
+Checklist: 983/1821 items completed (includes Commit items).
