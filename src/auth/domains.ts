@@ -17,6 +17,7 @@ import { clientIp, recordAuthEvent } from "./audit";
 import { type MailOutcome, sendClaimCode } from "./claim-mail";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
+import { learnReceivers } from "./receivers";
 import { findMemberBySender, registrable } from "./senders";
 
 export { findMemberBySender, registrable };
@@ -311,6 +312,16 @@ async function lookTxt(domain: string, token: string): Promise<"found" | "absent
   }
 }
 
+// The verified domain's receiving systems, learned from its MX (D02 T02 §1). The verification stands whatever the lookup
+// does: a failure leaves the receivers to the checks step, which learns them again when a case needs them.
+async function learnedQuietly(db: D1Database, claimId: string): Promise<void> {
+  try {
+    await learnReceivers(db, claimId);
+  } catch {
+    // Nothing to undo: the receivers are learned again when missing.
+  }
+}
+
 export const domainRoutes = new Hono<OrgEnv>();
 domainRoutes.use("*", requireSession, requireOrg, async (c, next) => {
   if (!["owner", "admin"].includes(c.get("org").role)) return problem(403, "only an owner or admin manages domains");
@@ -433,6 +444,7 @@ domainRoutes.post("/domains/:domain/check", async (c) => {
   }
   const verified = await verifyByDns(c.env.DB, claim.id);
   await attempt(c, "verify-domain", claim.id, verified === "verified" ? "verified-dns" : verified);
+  if (verified === "verified") await learnedQuietly(c.env.DB, claim.id);
   return verifiedAnswer(verified, { domain: claim.domain }, "domain");
 });
 
@@ -469,6 +481,7 @@ domainRoutes.post("/domains/:domain/verify", async (c) => {
   if (typeof body?.code !== "string") return problem(400, "send the code you were mailed");
   const proved = await proveByCode(c.env.DB, "org_domains", org, claim.id, body.code);
   await attempt(c, "verify-domain", claim.id, proved === "verified" ? "verified-code" : proved);
+  if (proved === "verified") await learnedQuietly(c.env.DB, claim.id);
   return codeAnswer(proved, { domain: claim.domain }, "domain");
 });
 
@@ -479,6 +492,8 @@ domainRoutes.delete("/domains/:domain", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM org_domains WHERE id = ? AND org_id = ?").bind(claim.id, org),
     c.env.DB.prepare("DELETE FROM verification_codes WHERE claim_id = ?").bind(claim.id),
+    // Its receivers go with it (D02 T02 §1): a removed domain's receiving system is no longer trusted.
+    c.env.DB.prepare("DELETE FROM org_receivers WHERE claim_id = ?").bind(claim.id),
   ]);
   return c.body(null, 204);
 });

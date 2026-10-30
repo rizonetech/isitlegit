@@ -143,16 +143,21 @@ describe("AnalysisWorkflow", () => {
       });
       await env.ANALYSIS.create({ id, params: { caseId: id } });
       await instance.waitForStatus("complete");
-      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 1 });
+      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 2 });
       expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
         view: STUB_VERDICT,
-        evidence: [{ id: "E1", check: "intake.forward" }],
+        evidence: [
+          { id: "E1", check: "intake.forward" },
+          { id: "E2", check: "auth.results" },
+        ],
       });
     } finally {
       await instance.dispose();
     }
     expect(await readEvidence(env.DB, id)).toMatchObject([
       { id: "E1", check: "intake.forward", severity: "info", detail: { path: "rfc822", otherOriginals: 0 } },
+      // The organisation verified no domain, so its receiving system is not known (D02 T02 §1).
+      { id: "E2", check: "auth.results", severity: "info", detail: { trusted: false, reason: "unknown-receiver" } },
     ]);
   });
 
@@ -558,12 +563,64 @@ describe("the checks step and the event writer", () => {
     expect(await readEvidence(env.DB, id)).toEqual([]);
   });
 
+  it("reads the organisation's receivers into the view, learning missing ones, and stores what they wrote (D02 T02 §1)", async () => {
+    const org = "org-receivers";
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+    )
+      .bind("claim-receivers", org, "member.co.za", "t".repeat(16), now, now)
+      .run();
+    const message = (top: string) => ({
+      headers: [
+        { name: "Received", value: "from AM6PR01.eurprd01.prod.outlook.com by AM6PR02.eurprd01.prod.outlook.com" },
+        { name: "Authentication-Results", value: top },
+        { name: "Received", value: "from mail.sender.example by AM5EUR01FT001.mail.protection.outlook.com" },
+        { name: "Received", value: "from client by mail.sender.example" },
+        { name: "Authentication-Results", value: "spf=pass smtp.mailfrom=sender.example; compauth=pass reason=100" },
+      ],
+      text: "Pay.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await putParsed(store, id, message("spf=fail smtp.mailfrom=sender.example; compauth=fail reason=000"));
+    const asked: string[] = [];
+    const lookup = async (domain: string) => {
+      asked.push(domain);
+      return ["member-co-za.mail.protection.outlook.com"];
+    };
+    expect(await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, lookup)).toEqual({ evidence: 2 });
+    expect(asked).toEqual(["member.co.za"]);
+    const item = (await readEvidence(env.DB, id)).find((e) => e.check === "auth.results");
+    expect(item?.detail).toMatchObject({
+      trusted: true,
+      receiver: "microsoft",
+      authservId: null,
+      results: [
+        { method: "spf", result: "fail" },
+        { method: "compauth", result: "fail" },
+      ],
+    });
+    // Learned once: the next run reads them without a lookup.
+    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, lookup);
+    expect(asked).toEqual(["member.co.za"]);
+  });
+
   it("stores one list however often the step runs, and returns only its count", async () => {
     const id = await caseWith(forwards["attached-rfc822"]);
     await parse(store, id, MAIL);
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 1 });
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 1 });
-    expect((await readEvidence(env.DB, id)).map((e) => [e.id, e.check])).toEqual([["E1", "intake.forward"]]);
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 2 });
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 2 });
+    expect((await readEvidence(env.DB, id)).map((e) => [e.id, e.check])).toEqual([
+      ["E1", "intake.forward"],
+      ["E2", "auth.results"],
+    ]);
   });
 
   it("answers a database refusal, and stores only an error class", async () => {

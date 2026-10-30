@@ -56,7 +56,7 @@ async function forwardView(message: Uint8Array, channel: "email" | "upload" = "e
   const caseId = await newCase(channel);
   const forward = await extractOriginal(message);
   await storeParsed(store, caseId, await parseMessage(forward.original), forward);
-  return caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel });
+  return caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel, receivers: [] });
 }
 const item = (n: number, check = "test.one"): EvidenceDraft => ({
   check,
@@ -236,7 +236,7 @@ describe("caseViewOf", () => {
         `Content-Type: text/plain; charset=UTF-16LE\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64(utf16(body))}`,
       ]),
     );
-    expect(view.tenant).toEqual({ orgId: "org-evidence", channel: "email", headersAvailable: false });
+    expect(view.tenant).toEqual({ orgId: "org-evidence", channel: "email", receivers: [], headersAvailable: false });
     expect(view.source).toEqual({ kind: "message", path: "inline", otherOriginals: 0 });
     expect(view.truncated).toHaveLength(1);
     const [part] = view.truncated;
@@ -280,7 +280,7 @@ describe("caseViewOf", () => {
     const forward = await extractOriginal(message);
     await storeParsed(store, caseId, await parseMessage(forward.original), forward);
     const summary = (await summaryOf(caseId)) as Record<string, unknown>;
-    const view = caseViewOf(summary, { orgId: "org-evidence", channel: "upload" });
+    const view = caseViewOf(summary, { orgId: "org-evidence", channel: "upload", receivers: [] });
     expect(view.headers).toEqual(summary.headers);
     expect(view.text).toBe(summary.text);
     expect(view.html).toBe(summary.html);
@@ -304,7 +304,7 @@ describe("caseViewOf", () => {
     const pdf = enc("%PDF-1.4\n% fictional invoice\n%%EOF\n");
     await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
     await parse(store, caseId, { channel: "upload", sourceKind: "document", headersAvailable: false });
-    const view = caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel: "upload" });
+    const view = caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel: "upload", receivers: [] });
     expect(view.source).toMatchObject({ kind: "upload", fileKind: "document", mediaType: "application/pdf" });
     expect(view.tenant.headersAvailable).toBe(false);
     expect([view.headers, view.attachments, view.truncated, view.text]).toEqual([[], [], [], null]);
@@ -317,7 +317,7 @@ describe("caseViewOf", () => {
       { forward: {} },
       { source: { kind: "mail" }, forward: { headersAvailable: false } },
     ])
-      expect(() => caseViewOf(summary, { orgId: "o", channel: "email" })).toThrow(SummaryRefused);
+      expect(() => caseViewOf(summary, { orgId: "o", channel: "email", receivers: [] })).toThrow(SummaryRefused);
   });
 });
 
@@ -346,7 +346,7 @@ describe("the intake items", () => {
     const caseId = await newCase("upload");
     await putAttachment(store, caseId, "photo.png", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2]), "image/png");
     await parse(store, caseId, { channel: "upload", sourceKind: "image", headersAvailable: false });
-    const view = caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel: "upload" });
+    const view = caseViewOf(await summaryOf(caseId), { orgId: "org-evidence", channel: "upload", receivers: [] });
     const items = (await Promise.all(allChecks().map((c) => c.run(view, new AbortController().signal)))).flat();
     const [first, ...rest] = await saveEvidence(db, caseId, items);
     expect(first).toMatchObject({
@@ -355,7 +355,8 @@ describe("the intake items", () => {
       detail: { kind: "image", mediaType: "image/png" },
     });
     expect(first?.artefacts).toHaveLength(1);
-    expect(rest).toEqual([]);
+    // A file without headers: the authentication item says they did not come (D02 T02 §1).
+    expect(rest).toMatchObject([{ id: "E2", check: "auth.results", detail: { trusted: false, reason: "no-headers" } }]);
     expect(forwardEvidence(view)).toEqual([]);
   });
 

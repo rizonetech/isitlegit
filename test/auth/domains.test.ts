@@ -298,6 +298,68 @@ describe("claiming and verifying a domain", () => {
   });
 });
 
+// D02 T02 §1: a verified domain's receiving systems, learned from its MX over the same DNS-over-HTTPS stub.
+const mxAnswer = (...hosts: string[]) =>
+  Response.json({ Status: 0, Answer: hosts.map((h, i) => ({ type: 15, data: `${(i + 1) * 10} ${h}.` })) });
+const receiversOf = async (orgId: string) =>
+  (
+    await db
+      .prepare("SELECT domain, kind, pattern FROM org_receivers WHERE org_id = ? ORDER BY domain, kind, pattern")
+      .bind(orgId)
+      .all<{ domain: string; kind: string; pattern: string }>()
+  ).results;
+
+describe("receiving systems learned at verification (D02 T02 §1)", () => {
+  it("learns them when a domain is verified by DNS, and removes them with the domain; a re-added claim has none", async () => {
+    const { cookie, orgId } = await owner("mxowner@example.org");
+    const domain = "mx-dns.co.za";
+    const added = (await (await json("/domains", cookie, "POST", { domain })).json()) as {
+      txt: { name: string; value: string };
+    };
+    world.doh = (name) =>
+      name === added.txt.name
+        ? txtAnswer(added.txt.value)
+        : name === domain
+          ? mxAnswer("mx-dns-co-za.mail.protection.outlook.com")
+          : Response.json({ Status: 3 });
+    expect(await (await json(`/domains/${domain}/check`, cookie, "POST")).json()).toEqual({ domain, verified: true });
+    expect(await receiversOf(orgId)).toEqual([{ domain, kind: "microsoft", pattern: "*.outlook.com" }]);
+    expect((await json(`/domains/${domain}`, cookie, "DELETE")).status).toBe(204);
+    expect(await receiversOf(orgId)).toEqual([]);
+    // Claimed again but not yet verified: nothing of the old claim is trusted.
+    await json("/domains", cookie, "POST", { domain });
+    expect(await receiversOf(orgId)).toEqual([]);
+  });
+
+  it("learns them when a domain is verified by a code", async () => {
+    const { cookie, orgId } = await owner("mxcode@example.org");
+    await json("/domains", cookie, "POST", { domain: "mx-code.co.za" });
+    world.doh = (name) =>
+      name === "mx-code.co.za"
+        ? mxAnswer("aspmx.l.google.com", "alt1.aspmx.l.google.com")
+        : Response.json({ Status: 3 });
+    await json("/domains/mx-code.co.za/code", cookie, "POST", { local: "admin" });
+    expect(
+      await (await json("/domains/mx-code.co.za/verify", cookie, "POST", { code: lastCode() })).json(),
+    ).toMatchObject({
+      verified: true,
+    });
+    expect(await receiversOf(orgId)).toEqual([{ domain: "mx-code.co.za", kind: "google", pattern: "*.google.com" }]);
+  });
+
+  it("verifies the domain all the same when the MX lookup fails, storing no receivers", async () => {
+    const { cookie, orgId } = await owner("mxfail@example.org");
+    const domain = "mx-fail.co.za";
+    const added = (await (await json("/domains", cookie, "POST", { domain })).json()) as {
+      txt: { name: string; value: string };
+    };
+    world.doh = (name) => (name === added.txt.name ? txtAnswer(added.txt.value) : "throw");
+    expect(await (await json(`/domains/${domain}/check`, cookie, "POST")).json()).toEqual({ domain, verified: true });
+    expect(await stateOf(orgId, domain)).toBe("verified");
+    expect(await receiversOf(orgId)).toEqual([]);
+  });
+});
+
 describe("codes by email", () => {
   it("verifies a domain by a code to admin@, refuses expired, replaced and wrong codes, and locks at three", async () => {
     const { cookie, orgId } = await owner("codeowner@example.org");
