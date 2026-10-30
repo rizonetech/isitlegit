@@ -6,9 +6,11 @@
     python scripts/ci_status.py --workflow build.yml --branch main
 
 For each watched workflow it reads the last 10 runs with `gh run list` and reports the latest completed run (green, red or cancelled), its verdict,
-and how many newer runs are still queued or in progress. A cancelled run carries no verdict (a newer push usually
-superseded it), so the verdict is the latest completed run that was not cancelled; with none in the last 10 runs the
-verdict is `none`. For a red verdict it names the failed jobs from `gh run view <id> --json jobs`.
+and how many newer runs are still queued or in progress. A run stopped by hand or by a newer one carries no verdict, so
+the verdict is the latest completed run that was not cancelled; with none in the last 10 runs the verdict is `none`. A
+cancelled run whose job GitHub stopped at its `timeout-minutes` is a verdict, red: the commit did not pass in the time
+the workflow allows (read from each cancelled job's annotations, `gh api repos/{owner}/{repo}/check-runs/<job>/annotations`).
+For a red verdict it names the failed (or timed-out) jobs from `gh run view <id> --json jobs`.
 
 The watched workflows are the `--workflow` arguments, else the `workflows` list in `.conclave/ci.json` (the ones whose
 results gate main), else every `.yml` and `.yaml` file in `.github/workflows/`.
@@ -34,6 +36,9 @@ GREEN = {"success", "neutral", "skipped"}
 # A run that was stopped before it judged the commit: no verdict either way.
 NO_VERDICT = {"cancelled", "stale"}
 MAX_JOBS = 20
+# GitHub's annotation on a job it stopped at its timeout-minutes ("The job has exceeded the maximum execution time of
+# 10m0s"); a run cancelled by hand or by a newer one has none.
+TIMED_OUT = "has exceeded the maximum execution time"
 MAX_MESSAGE = 300
 
 
@@ -112,14 +117,43 @@ def workflow_status(runner, workflow, branch):
     runs = sorted(runs, key=lambda r: str(r.get("createdAt") or ""), reverse=True)
     completed = [r for r in runs if r.get("status") == "completed"]
     latest = completed[0] if completed else None
-    decisive = next((r for r in completed if verdict_of(r) != "cancelled"), None)
+    decisive, timed_out = None, []
+    for candidate in completed:
+        if verdict_of(candidate) != "cancelled":
+            decisive = candidate
+            break
+        timed_out = timed_out_jobs(runner, candidate.get("databaseId"))
+        if timed_out:  # stopped at its time limit: the commit did not pass
+            decisive = candidate
+            break
     newer = [r for r in runs if r.get("status") != "completed"
              and (latest is None or str(r.get("createdAt") or "") > str(latest.get("createdAt") or ""))]
-    entry = {"workflow": workflow, "verdict": verdict_of(decisive), "latest_completed": brief(latest),
-             "latest_completed_state": verdict_of(latest), "verdict_run": brief(decisive), "in_progress": len(newer)}
+    entry = {"workflow": workflow, "verdict": "red" if timed_out else verdict_of(decisive),
+             "latest_completed": brief(latest), "latest_completed_state": verdict_of(latest),
+             "verdict_run": brief(decisive), "in_progress": len(newer)}
     if entry["verdict"] == "red":
-        entry["failed_jobs"] = failed_jobs(runner, decisive.get("databaseId"))
+        entry["failed_jobs"] = timed_out or failed_jobs(runner, decisive.get("databaseId"))
     return entry
+
+
+def timed_out_jobs(runner, run_id):
+    """The jobs of a cancelled run that GitHub stopped at their timeout-minutes, each as a failed job whose conclusion
+    is `timed out`; empty when every cancelled job was stopped by hand or by a newer run. Unreadable jobs or
+    annotations raise Unavailable: a cancelled run of unknown cause is never taken as no verdict."""
+    view = gh_json(runner, ["run", "view", str(run_id), "--json", "jobs"])
+    jobs = view.get("jobs") if isinstance(view, dict) else None
+    if not isinstance(jobs, list):
+        raise Unavailable(f"gh run view {run_id} returned no job list")
+    found = []
+    for job in jobs:
+        if not isinstance(job, dict) or (job.get("conclusion") or "").lower() != "cancelled":
+            continue
+        notes = gh_json(runner, ["api", f"repos/{{owner}}/{{repo}}/check-runs/{job.get('databaseId')}/annotations"])
+        if not isinstance(notes, list):
+            raise Unavailable(f"the annotations of job {job.get('databaseId')} are not a list")
+        if any(isinstance(n, dict) and TIMED_OUT in str(n.get("message") or "") for n in notes):
+            found.append({"name": job.get("name"), "conclusion": "timed out", "url": job.get("url")})
+    return found[:MAX_JOBS]
 
 
 def failed_jobs(runner, run_id):
