@@ -4,6 +4,7 @@
 // (D02 T07 §1) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
+import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
 import type { HiddenText } from "./hidden-text";
 import type { HtmlAttachment } from "./html-attachment";
@@ -86,6 +87,8 @@ export type CaseView = {
   hiddenText: HiddenText | null;
   // The HTML and SVG attachments the checks step read and analysed (D02 T04 §2); null when there were none.
   htmlAttachments: { items: HtmlAttachment[]; unread: number } | null;
+  // Each attachment's macros, encryption and programs, read by the checks step (D02 T04 §3); null without attachments.
+  attachmentRisks: AttachmentRisks | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -114,6 +117,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       attachmentHeads: null,
       hiddenText: null,
       htmlAttachments: null,
+      attachmentRisks: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -135,6 +139,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       attachmentHeads: null,
       hiddenText: null,
       htmlAttachments: null,
+      attachmentRisks: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

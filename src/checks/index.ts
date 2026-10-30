@@ -1,6 +1,7 @@
 // Every check the pipeline runs, registered into the one registry in the order their evidence appears: the intake items
 // first, so `E1` says how the case arrived (D02 T01 §1). Each later check section registers here, after them.
 import { registerArcCheck } from "./arc";
+import { registerAttachmentRiskChecks } from "./attachment-risk";
 import { registerTypeMismatchCheck } from "./attachment-type";
 import { registerAuthChecks } from "./auth";
 import { registerAuthResultsCheck } from "./auth-results";
@@ -22,5 +23,6 @@ registerDomainAgeCheck(checks);
 registerTypeMismatchCheck(checks);
 registerHiddenTextCheck(checks);
 registerHtmlAttachmentCheck(checks);
+registerAttachmentRiskChecks(checks);
 
 export { allChecks, checks } from "./registry";
