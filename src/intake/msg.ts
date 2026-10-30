@@ -15,9 +15,12 @@ import PostalMime from "postal-mime";
 import { type CfbEntry, type CompoundFile, child, hide, readCompoundFile } from "./cfb";
 import { ParseError } from "./mime";
 import { loadMsgReader, loadMsgreaderConstants } from "./msgreader";
+import type { MsgSender } from "./original-header";
 import { BODY_PART_LIMIT, BODY_TOTAL_LIMIT, KEPT_PARTS_LIMIT, type ParsedMessage } from "./parse";
 
-export async function parseMsg(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headersAvailable: boolean }> {
+export async function parseMsg(
+  bytes: Uint8Array,
+): Promise<{ parsed: ParsedMessage; headersAvailable: boolean; sender: MsgSender }> {
   try {
     return await read(bytes);
   } catch (error) {
@@ -144,7 +147,9 @@ function fixedProperty(file: CompoundFile, storage: CfbEntry, header: number, id
   return null;
 }
 
-async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headersAvailable: boolean }> {
+async function read(
+  bytes: Uint8Array,
+): Promise<{ parsed: ParsedMessage; headersAvailable: boolean; sender: MsgSender }> {
   // The structure is checked before msgreader reads anything (cfb.ts), and a message needs its property stream and
   // message class ([MS-OXMSG] 2.4, [MS-OXCMSG] 2.2.1.3): any other compound file (a Word document renamed .msg) is not
   // one.
@@ -295,6 +300,16 @@ async function read(bytes: Uint8Array): Promise<{ parsed: ParsedMessage; headers
       omitted: 0,
     },
     headersAvailable: transport !== null,
+    // Its own subject and sender, which the report header reads when there are no transport headers (D01 T01 §16): the
+    // SMTP address when the file has one (an Exchange sender's own address is an X.500 name, which reads as none).
+    sender: {
+      subject: subject ?? null,
+      name: optionalString(data.senderName, "sender name") ?? null,
+      address:
+        optionalString(data.senderSmtpAddress, "sender address") ??
+        optionalString(data.senderEmail, "sender address") ??
+        null,
+    },
   };
 }
 

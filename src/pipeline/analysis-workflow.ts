@@ -11,12 +11,14 @@ import {
   getCaseForPipeline,
   type SourceKind,
   setHeadersAvailable,
+  setOriginalHeader,
   setStatus,
   type Verdict,
 } from "../db/cases";
 import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
+import { NO_HEADER, originalHeaderOf } from "../intake/original-header";
 import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
 import { artefactsOf, parsedKey, putParsed, rawKey, readArtefact, type Store } from "../intake/store";
 import {
@@ -306,10 +308,15 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
     // trace gave it at upload, a .msg by its own answer.
     if (source.channel === "upload") {
       const isMsg = raw.stored.mediaType === "application/vnd.ms-outlook";
-      const { parsed, headersAvailable } = isMsg
+      const { parsed, headersAvailable, sender } = isMsg
         ? await parseMsg(raw.body)
-        : { parsed: await parseMessage(raw.body), headersAvailable: source.headersAvailable };
+        : { parsed: await parseMessage(raw.body), headersAvailable: source.headersAvailable, sender: undefined };
       must(await setHeadersAvailable(store.db, caseId, headersAvailable), "storing the header state");
+      // The upload is the original itself, so its Subject and From are taken whatever its header state (D01 T01 §16).
+      must(
+        await setOriginalHeader(store.db, caseId, originalHeaderOf(parsed.headers, sender)),
+        "storing the original's header",
+      );
       await storeParsed(store, caseId, parsed, {
         original: raw.body,
         format: isMsg ? "msg" : "eml",
@@ -320,11 +327,24 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
       return parsedKey(caseId);
     }
     const forward = await extractOriginal(raw.body);
-    const { parsed, headersAvailable } =
+    const { parsed, headersAvailable, sender } =
       forward.format === "msg"
         ? await parseMsg(forward.original)
-        : { parsed: await parseMessage(forward.original), headersAvailable: forward.headersAvailable };
+        : {
+            parsed: await parseMessage(forward.original),
+            headersAvailable: forward.headersAvailable,
+            sender: undefined,
+          };
     must(await setHeadersAvailable(store.db, caseId, headersAvailable), "storing the header state");
+    // An inline forward is the member's own message: its Subject and From are theirs, not the original's (D01 T01 §16).
+    must(
+      await setOriginalHeader(
+        store.db,
+        caseId,
+        forward.path === "inline" ? NO_HEADER : originalHeaderOf(parsed.headers, sender),
+      ),
+      "storing the original's header",
+    );
     await storeParsed(store, caseId, parsed, { ...forward, headersAvailable });
     return parsedKey(caseId);
   } catch (error) {
