@@ -31,6 +31,7 @@ import {
   groupEntries,
   groupOf,
   hamming,
+  heldOutItemsFile,
   holdablePages,
   jaccard,
   NEAR_TEXT,
@@ -38,6 +39,7 @@ import {
   netNewLures,
   PublicationRefused,
   previousHeldOut,
+  previousHeldOutItems,
   referenceFile,
   ShortfallError,
   sampleLure,
@@ -501,6 +503,7 @@ type Spec = {
   redacted?: boolean;
   source?: string;
   image?: Uint8Array;
+  item?: string;
 };
 async function fill(root: string, specs: Spec[]) {
   const store = openStore(join(root, "store"));
@@ -527,6 +530,7 @@ async function fill(root: string, specs: Spec[]) {
         labels,
         label_source: Object.fromEntries(Object.keys(labels).map((k) => [k, "ground-truth"])),
         redacted: spec.redacted ?? spec.origin === "samples",
+        ...(spec.item ? { item: spec.item } : {}),
       }),
     );
     mkdirSync(join(root, "store", "raw", source), { recursive: true });
@@ -1576,6 +1580,80 @@ describe("a later version keeps the earlier one's held-out pages out of its trai
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("a held-out page remade under a new id stays out of later training (§19, §27)", () => {
+  it("is found again by its source item, and each published version writes its list", async () => {
+    const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({
+      seed: i,
+      lure: i % 2 === 0,
+      brand: `Brand ${i}`,
+      host: `site${i}.example`,
+      item: `msg-${i}`,
+    }));
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const base = { store, mode: "image" as const, floors: NO_FLOORS, referenceSize: 0, protectedTerms: [] };
+    const first = await buildDataset({ ...base, version: "1.0", seed: 3 });
+    const held = idsIn(first.dir, "eval");
+    const listed = readFileSync(heldOutItemsFile(store.dir, "1.0"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(listed.map((r) => r.id).sort()).toEqual([...held].sort());
+    // A redaction change remakes one held-out page: same source and item, new text, new id, and nothing else shared.
+    const old = held[0] as string;
+    const n = ids.indexOf(old);
+    const remade = await store.putPage("set", {
+      screenshot: await shot(500),
+      text: `Remade page ${n} with other words entirely ${n * 104729}`,
+      origin: "public",
+      licence: "CC0",
+      host: "remade.example",
+      template: null,
+      south_africa: false,
+      labels: {
+        brand: "Remade",
+        has_login_form: false,
+        has_payment_form: false,
+        lure: n % 2 === 0,
+        lure_type: n % 2 === 0 ? "credential" : "none",
+      },
+      label_source: {
+        brand: "ground-truth",
+        has_login_form: "ground-truth",
+        has_payment_form: "ground-truth",
+        lure: "ground-truth",
+        lure_type: "ground-truth",
+      },
+      redacted: false,
+      item: `msg-${n}`,
+    });
+    teach(dir, Object.fromEntries([...ids, remade].map((id) => [id, AGREED])));
+    expect(previousHeldOutItems(store.dir, "1.1").has(`set\nmsg-${n}`)).toBe(true);
+    for (const seed of [5, 7, 11]) {
+      const later = await buildDataset({
+        ...base,
+        version: `1.${seed}`,
+        seed,
+        heldOut: previousHeldOut(store.dir, "1.1"),
+        heldOutItems: previousHeldOutItems(store.dir, "1.1"),
+      });
+      expect(idsIn(later.dir, "train")).not.toContain(remade);
+    }
+    // Caught: held out by id alone, the remade page trains under some seed.
+    let trained = 0;
+    for (const seed of [5, 7, 11, 13, 17]) {
+      const blind = await buildDataset({
+        ...base,
+        version: `2.${seed}`,
+        seed,
+        heldOut: previousHeldOut(store.dir, "1.1"),
+      });
+      if (idsIn(blind.dir, "train").includes(remade)) trained++;
+    }
+    expect(trained).toBeGreaterThan(0);
   });
 });
 

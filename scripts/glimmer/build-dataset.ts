@@ -980,6 +980,35 @@ export function previousHeldOut(dir: string, version: string): Set<string> {
   return held;
 }
 
+// Each published version's evaluation pages by source item (`<store>/raw/dataset/<version>.heldout-items.jsonl`): a
+// redaction-key change remakes a sample page under a new id with new text but the same source item, so a later
+// version keeps it out of training by its item as well as by id (§19, §27).
+export const heldOutItemsFile = (dir: string, version: string) =>
+  join(dir, "raw", "dataset", `${version}.heldout-items.jsonl`);
+const itemKey = (source: string, item: string) => `${source}\n${item}`;
+
+// The source items of every version published before `version`, from their lists.
+export function previousHeldOutItems(dir: string, version: string): Set<string> {
+  const held = new Set<string>();
+  const root = join(dir, "dataset");
+  if (!existsSync(root)) return held;
+  const [major, minor] = version.split(".").map(Number) as [number, number];
+  for (const name of readdirSync(root)) {
+    const match = /^(\d+)\.(\d+)$/.exec(name);
+    if (!match) continue;
+    const [, a, b] = match;
+    if (Number(a) > major || (Number(a) === major && Number(b) >= minor)) continue;
+    const list = heldOutItemsFile(dir, name);
+    if (!existsSync(list)) continue;
+    for (const line of readFileSync(list, "utf-8").split("\n")) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as { source: string; item: string | null };
+      if (row.item) held.add(itemKey(row.source, row.item));
+    }
+  }
+  return held;
+}
+
 // The pages a version is built from: those `sources.ts freeze` named, once each frozen source's import record is still
 // the one it recorded (an import run since would put other pages or labels behind the same ids) and both benign lists
 // were rendered. Throws with the reason otherwise.
@@ -1103,6 +1132,8 @@ export async function buildDataset(options: {
   // so it, its groups and its near duplicates never train this version, and it may sit in this version's evaluation,
   // which the version gate (§13) compares on (§27, plan review finding 2).
   heldOut?: Set<string>;
+  // The source items of those pages (`previousHeldOutItems`): a page now in the store with one of them is reserved too.
+  heldOutItems?: Set<string>;
 }): Promise<Built> {
   const { store, version, mode } = options;
   // A published version is never replaced: a new number is required, so a model trained on one never finds its files
@@ -1185,6 +1216,9 @@ export async function buildDataset(options: {
     options.referenceSize,
   );
   for (const id of options.heldOut ?? []) reference.ids.add(id);
+  if (options.heldOutItems?.size)
+    for (const page of pages)
+      if (page.item && options.heldOutItems.has(itemKey(page.source, page.item))) reference.ids.add(page.id);
   // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
   // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
   // known only to its state (plan review finding 5). The queue's own entries count too.
@@ -1458,6 +1492,13 @@ export async function buildDataset(options: {
     if (existsSync(final))
       throw new Error(`dataset version ${version} was published meanwhile; use a new version number`);
     rename(staging, final);
+    // The version's evaluation pages by source item, for the versions after it.
+    write(
+      heldOutItemsFile(store.dir, version),
+      evaluation
+        .map((e) => `${JSON.stringify({ id: e.page.id, source: e.page.source, item: e.page.item ?? null })}\n`)
+        .join(""),
+    );
     return built;
   } catch (error) {
     // Lines that fail inspection are removed, never left where they could be uploaded; a failed write or rename leaves
@@ -1510,6 +1551,7 @@ if (import.meta.filename === process.argv[1]) {
       protectedTerms,
       progress: (line) => console.error(line),
       heldOut: previousHeldOut(store.dir, version),
+      heldOutItems: previousHeldOutItems(store.dir, version),
       ...(seed ? { seed: Number(seed) } : {}),
     });
     console.log(JSON.stringify(built, null, 2));
