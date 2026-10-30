@@ -674,10 +674,17 @@ function readBack(dir: string, name: string, mode: ScreenMode, terms: string[]):
       origin: string;
       lure_type: string;
       brand: string | null;
+      brand_identity: string | null;
     };
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(meta.id).digest("hex").slice(0, 32);
-    if (!text.includes(nonce) || answer.lure_type !== meta.lure_type || answer.brand !== meta.brand)
+    const identity = answer.brand ? brandIdentity(answer.brand) : null;
+    if (
+      !text.includes(nonce) ||
+      answer.lure_type !== meta.lure_type ||
+      answer.brand !== meta.brand ||
+      identity !== meta.brand_identity
+    )
       throw new PublicationRefused(`${name}: line ${index + 1} is not the page its meta line names`);
     return { id: meta.id, origin: meta.origin, line };
   });
@@ -889,6 +896,21 @@ export async function buildDataset(options: {
     ...readQueue(store.dir).map((entry) => entry.id),
     ...[...teacher].filter(([, outcome]) => outcome.status === "disputed").map(([id]) => id),
   ]);
+  // The inputs the split read, kept with the version as digests (review G11): the labels and label sources of every
+  // frozen page, the teacher's outcomes, the review queue and the exclusions. A rebuild from the same store state, seed
+  // and freeze reproduces the version exactly when each digest still matches.
+  const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  const byKey = (a: [string, unknown], b: [string, unknown]) => a[0].localeCompare(b[0]);
+  const queued = [...new Set(readQueue(store.dir).map((entry) => entry.id))].sort();
+  const labelled = pages
+    .filter((page) => !options.frozen || options.frozen.has(page.id))
+    .map((page): [string, unknown] => [page.id, [page.labels, page.label_source, page.sha256]]);
+  const inputs = {
+    labels: { pages: labelled.length, sha256: digest(labelled.sort(byKey)) },
+    teacher: { pages: teacher.size, sha256: digest([...teacher].sort(byKey)) },
+    queue: { pages: queued.length, sha256: digest(queued) },
+    excluded: { pages: excluded.size, sha256: digest([...excluded].sort(byKey)) },
+  };
   for (const page of pages) {
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
@@ -1019,6 +1041,7 @@ export async function buildDataset(options: {
             origin: entry.page.origin,
             lure_type: entry.answer.lure_type,
             brand: entry.answer.brand,
+            brand_identity: entry.answer.brand ? brandIdentity(entry.answer.brand) : null,
             south_africa: entry.page.south_africa,
             screenshot: entry.page.sha256.screenshot,
           }),
@@ -1054,10 +1077,26 @@ export async function buildDataset(options: {
       southAfrica: chosen.filter((e) => e.page.south_africa).length,
       brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
     });
-    write(
-      join(staging, "summary.json"),
-      `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
-    );
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    write(join(staging, "summary.json"), summary);
+    // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
+    // in them are the figures of the files that were just read back.
+    const onDisk = readFileSync(join(staging, "summary.json"), "utf-8");
+    if (onDisk !== summary) throw new PublicationRefused("summary.json read back differs from what was written");
+    const recorded = JSON.parse(onDisk) as {
+      version: string;
+      sha256: typeof sha256;
+      train: { lines: number };
+      evaluation: { lines: number };
+    };
+    if (
+      recorded.version !== version ||
+      recorded.sha256.train !== sha256.train ||
+      recorded.sha256.evaluation !== sha256.evaluation ||
+      recorded.train.lines !== written.get("train") ||
+      recorded.evaluation.lines !== written.get("eval")
+    )
+      throw new PublicationRefused("summary.json does not match the files it describes");
     // Checked once more at the last moment: a version that appeared while this one was built is not replaced either.
     if (existsSync(final))
       throw new Error(`dataset version ${version} was published meanwhile; use a new version number`);

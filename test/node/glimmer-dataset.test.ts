@@ -1186,6 +1186,72 @@ describe("the scan of the built files for protected sample details", () => {
   });
 });
 
+describe("summary.json is read back, and records the inputs the version was built from", () => {
+  const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));
+  const summaryOf = (built: { dir: string }) =>
+    JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8")) as {
+      inputs: Record<string, { pages: number; sha256: string }>;
+    };
+
+  it("refuses a summary whose bytes on disk are not the ones written, and removes the staging folder", async () => {
+    const { store } = await fill(dir, specs);
+    const crooked = {
+      write: (path: string, text: string) => writeFileSync(path, path.endsWith("summary.json") ? `${text} ` : text),
+    };
+    await expect(build(store, { io: crooked })).rejects.toThrow(/summary.json read back differs/);
+    expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
+  });
+
+  it("carries a digest of the labels, the teacher's state, the queue and the exclusions", async () => {
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, { [ids[0] as string]: AGREED });
+    const first = summaryOf(await build(store));
+    expect(first.inputs.labels?.pages).toBe(10);
+    expect(first.inputs.teacher?.pages).toBe(1);
+    // The same inputs give the same digests under another version number.
+    expect(summaryOf(await build(store)).inputs).toEqual(first.inputs);
+    // A changed label moves the labels digest alone.
+    const page = store.manifest()[2] as StoredPage;
+    store.setLabels(page.id, { ...page.labels, brand: "Changed Brand" }, page.label_source);
+    const relabelled = summaryOf(await build(store));
+    expect(relabelled.inputs.labels?.sha256).not.toBe(first.inputs.labels?.sha256);
+    expect(relabelled.inputs.teacher).toEqual(first.inputs.teacher);
+    // A changed teacher outcome moves the teacher digest, a new exclusion the exclusion digest.
+    teach(dir, { [ids[0] as string]: AGREED, [ids[1] as string]: { status: "failed", reason: "no answer" } });
+    const retaught = summaryOf(await build(store));
+    expect(retaught.inputs.teacher?.sha256).not.toBe(relabelled.inputs.teacher?.sha256);
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: ids[3], reason: "parked" })}\n`,
+    );
+    const excluded = summaryOf(await build(store));
+    expect(excluded.inputs.excluded?.sha256).not.toBe(retaught.inputs.excluded?.sha256);
+    expect(excluded.inputs.excluded?.pages).toBe(1);
+  });
+
+  it("names a brand once in the meta lines and the brand counts, whatever its spelling", async () => {
+    const { store } = await fill(dir, [
+      { seed: 1, brand: "FNB" },
+      { seed: 2, brand: "First National Bank" },
+      { seed: 3, brand: "First National Bank" },
+      ...Array.from({ length: 6 }, (_, i) => ({ seed: 10 + i, lure: false })),
+    ]);
+    const built = await build(store);
+    const metas = [...idsIn(built.dir, "train"), ...idsIn(built.dir, "eval")];
+    expect(metas.length).toBeGreaterThan(0);
+    const lines = ["train", "eval"].flatMap((name) =>
+      readFileSync(join(built.dir, `${name}.meta.jsonl`), "utf-8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { brand: string | null; brand_identity: string | null }),
+    );
+    for (const meta of lines.filter((m) => m.brand === "FNB" || m.brand === "First National Bank"))
+      expect(meta.brand_identity).toBe(brandIdentity("FNB"));
+    expect(lines.filter((m) => m.brand === null).every((m) => m.brand_identity === null)).toBe(true);
+  });
+});
+
 describe("staged publication with read-back", () => {
   const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));
   const versionDir = (version: string) => join(dir, "store", "dataset", version);

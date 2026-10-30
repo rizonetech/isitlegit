@@ -69,6 +69,25 @@ class Stats(unittest.TestCase):
         self.assertEqual(out["eval"]["lines"], 1)
         self.assertEqual(out["dropped"], {"near": 2})
 
+    def test_brands_are_counted_by_the_builders_canonical_identity(self):
+        root = Path(tempfile.mkdtemp(prefix="stats-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        folder = root / "store" / "dataset" / "1.0"
+        folder.mkdir(parents=True)
+        (folder / "train.jsonl").write_text(line() + "\n" + line() + "\n")
+        meta = {"origin": "public", "source": "phreshphish", "lure_type": "credential", "south_africa": False}
+        (folder / "train.meta.jsonl").write_text(
+            json.dumps({**meta, "brand": "FNB", "brand_identity": "fnb"}) + "\n" +
+            json.dumps({**meta, "brand": "First National Bank", "brand_identity": "fnb"}) + "\n")
+        (folder / "eval.jsonl").write_text(line() + "\n")
+        (folder / "eval.meta.jsonl").write_text(json.dumps({**meta, "brand": None, "brand_identity": None}) + "\n")
+        (folder / "summary.json").write_text(json.dumps({"mode": "image", "seed": 3, "dropped": {}}))
+        with mock.patch.dict(os.environ, {"GLIMMER_DATA_DIR": str(root / "store")}), mock.patch("sys.stdout"):
+            self.assertEqual(ds.main(["1.0"], renderer=FakeRenderer(), train_on=None, out_dir=root / "docs"), 0)
+        out = json.loads((root / "docs" / "dataset-1.0.json").read_text())
+        self.assertEqual(out["train"]["brands"], 1)
+        self.assertEqual(out["eval"]["brands"], 0)
+
     def test_a_meta_file_out_of_step_is_refused(self):
         root = Path(tempfile.mkdtemp(prefix="stats-"))
         self.addCleanup(shutil.rmtree, root, True)
