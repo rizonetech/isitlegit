@@ -61,7 +61,7 @@ track: day-6
 | 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
-| 26 | §26 | Benign render hardening | §6 | [ ] |
+| 26 | §26 | Benign render hardening | §6 | [x] |
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [ ] |
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 
@@ -898,9 +898,12 @@ Filed 2026-10-29 by main's decision on §6's stamp: work added to `scripts/glimm
 - [x] Verify every page before auditing it: `recheck` checks each file's full SHA-256 against its metadata (`store.verify`), accounts for damaged and malformed records by id, and exits non-zero while any is unresolved; zero removals alone is not clean (plan review gap 7). Done when: tests with a mismatched file and a malformed record show both reported and the exit status failing. **Done 2026-10-29:** `recheckStored` lists an altered page and a malformed record as damaged, checks the rest, and the command exits 1 while any is damaged or unassessed (`test/node/glimmer-render.test.ts`).
 - [x] Make removal and its exclusion record recoverable together: `recheck` writes a durable removal intent (the page id, its URL, the reason) before it removes the page, appends the journal's `excluded` line, then clears the intent; a rerun completes any intent it finds (plan review gap 8). Done when: tests stopping the run before removal, after removal and after the journal write each end with the page gone and exactly one `excluded` line for it. **Done 2026-10-29:** a stop after the removal and before the journal write leaves the intent, and the next recheck writes the exclusion once and clears it (`test/node/glimmer-render.test.ts`; the stop before removal is the same path with the page still there).
 - [x] Make `removePage` in `scripts/glimmer/store.ts` durable in order: rename the folder to `.removing-<id>-<pid>`, sync the parent, then delete, and on open finish any `.removing-` folder left by a stop; a failed sync leaves the page whole or renamed for the next open, never half deleted (plan review gap 9). Done when: `test/node/glimmer-store.test.ts` proves one page goes and the rest stay, a bad id is refused, an injected failed sync and a restart each leave the page whole or absent, and unrelated pages survive. **Done 2026-10-29:** `test/node/glimmer-store.test.ts` sees the renamed folder still there at the parent's flush, a failed flush leaving the page out of view and renamed, and the next open finishing it with the other page whole; a bad id is refused (the test failed before the change: the flush found the folder already deleted).
-- [ ] Commit: `glimmer: benign render hardening after §6's final review`
+- [x] Commit: `glimmer: benign render hardening after §6's final review`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-source-pages.test.ts test/node/glimmer-store.test.ts test/node/benign-urls.test.ts` passes, and `node scripts/glimmer/render.ts recheck` on the real store exits 0: every page verified, none refused, none unassessed or damaged.
+
+> **Verified:** 2026-10-30 | §26 | 0553f7d442a8d94e8480032e244becb8d0789119
+> **Review:** `docs/reviews/d03-t04-s26.json`
 
 ## 27. A second source sweep for Loupe 1.1
 

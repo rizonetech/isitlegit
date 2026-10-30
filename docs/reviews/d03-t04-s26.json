@@ -1,0 +1,133 @@
+{
+  "ref": "D03 T04 \u00a726",
+  "title": "Benign render hardening",
+  "implementation_sha": "0553f7d442a8d94e8480032e244becb8d0789119",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s26.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s26.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s26.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s26.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s26.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/03-vision/D03-T04-s26.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-source-pages.test.ts test/node/glimmer-store.test.ts test/node/benign-urls.test.ts -> 4 files, 116 passed",
+    "node scripts/glimmer/render.ts recheck -> exit 0 on the real store: 8,742 benign pages checked, none removed, damaged or unassessed (2026-10-30 09:46 SAST)"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s26.md",
+    "verdict": "filed",
+    "candidate": "00fcd483693d2f76aa51644c2d293bf251e5076a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a713"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s26.md",
+    "candidate": "0b2255712690208f15cdc7023f95f25b49bb57d3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "xhigh",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "optional"
+    }
+  },
+  "final": {
+    "report": "docs/reviews/03-vision/D03-T04-s26.md",
+    "verdict": "fixed",
+    "candidate": "1052e83f10390490add0a06d1a0964ea830dc785",
+    "reviewer": "wonder",
+    "model": "muse-wonder-1.0"
+  }
+}
