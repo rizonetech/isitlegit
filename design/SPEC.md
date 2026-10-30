@@ -499,6 +499,9 @@ Checked at 375 px with no sideways scroll, and by keyboard (the button and the E
 
 Boards: [PNG](mockups/png/Signup.png) · [source](mockups/source/Signup.dc.html)
 
+- Deviation (D07 T02 §13): an unusable invite code is answered in one sentence for every reason ("We do not recognise that code, or it has been used up or has expired. Ask whoever gave it to you for a new one.") where the board draws three, because the signup endpoint answers every unusable code alike so a guess cannot tell a dead code from none (D07 T02 §4, `test/auth/invite.test.ts`); telling them apart is the operator's to decide.
+- Deviation (D07 T02 §13): Read the privacy notice opens the public site's `https://isitlegit.co.za/privacy` (S6), the page being on the app's host.
+
 Controls:
 
 - invite code: Code input. (Signup)

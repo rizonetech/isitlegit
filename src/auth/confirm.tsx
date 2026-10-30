@@ -11,8 +11,16 @@
 //                                              asked, redeeming the same token
 //   GET  /api/auth/magic-link/verify           a link mailed before this change: 303 to the page, never redeemed
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import * as z from "zod";
 import { SIGNIN_PATH, SigninPage } from "../web/pages/signin";
+import {
+  SIGNUP_PATH,
+  type SignupErrors,
+  SignupNotConfirmedPage,
+  SignupPage,
+  type SignupValues,
+} from "../web/pages/signup";
 import { clientIp, recordAuthEvent } from "./audit";
 import { createAuth } from "./auth";
 import {
@@ -31,6 +39,7 @@ import {
 } from "./confirm-page";
 import { DEFAULT_RETURN, MAX_RETURN_PATH } from "./paths";
 import { APP_RULES, d1RateLimit, LINK_WINDOW_SECONDS } from "./ratelimit";
+import { validOrganisationName } from "./schema";
 import {
   CODE_COOKIE,
   CODE_PATH,
@@ -80,7 +89,16 @@ const SERVICE_ERRORS = new Set(["failed_to_create_session", "failed_to_create_us
 // refused before it is read, and each field is bounded before it is checked or drawn back into a page, so a large post
 // can neither fill the isolate's memory nor be echoed into a larger page (D07 T02 §10 round 1).
 const MAX_FORM_BYTES = 8 * 1024;
-const MAX_FIELD = { token: 512, callbackURL: MAX_RETURN_PATH, email: 254, code: 16 } as const;
+const MAX_FIELD = {
+  token: 512,
+  callbackURL: MAX_RETURN_PATH,
+  email: 254,
+  code: 16,
+  // The signup form (D07 T02 §13): an invite code, the organisation's name (its rule allows 120 characters), consent.
+  invite: 200,
+  organizationName: 480,
+  consent: 8,
+} as const;
 // Better Auth's own rule for the address (better-auth/dist/plugins/magic-link: `z.email()`), so an address it would
 // refuse is a field error here, not a send it then refuses.
 const EMAIL = z.email();
@@ -175,12 +193,15 @@ export const confirmRoutes = new Hono<{ Bindings: Env }>();
 // any link is asked for: two requests sent at once from a browser with none would otherwise each be given a handle of
 // their own, and the second cookie would orphan the first request's code. A browser that holds one keeps it; a redirect
 // (a sign-in, which clears it) and an answer that sets it already are left alone.
-confirmRoutes.use("/signin/*", async (c, next) => {
+// The signup page too (D07 T02 §13): its first link's code is bound to the handle the browser signs up with.
+const giveHandle = createMiddleware(async (c, next) => {
   await next();
   if (readHandle(c.req.raw.headers) || c.res.status >= 300) return;
   if (c.res.headers.getSetCookie().some((cookie) => cookie.startsWith(`${CODE_COOKIE}=`))) return;
   c.res.headers.append("set-cookie", handleCookie(newHandle()));
 });
+confirmRoutes.use("/signin/*", giveHandle);
+confirmRoutes.use("/signup", giveHandle);
 
 // The sign-in page (D07 T02 §7): `next` is normalised once, here, and that one value is what every way out of the page
 // carries (the link request, the code form, the automatic finish); an `error` is a used or expired link the session
@@ -436,6 +457,99 @@ confirmRoutes.post(CODE_PATH, async (c) => {
   return outcome === "used"
     ? inbox("That code no longer works: its link was already used. Send another link.", 400)
     : inbox("Sign-in did not finish on our side. Send another link and try again.", 503);
+});
+
+// The signup page (D07 T02 §13): `GET /signup` draws the form, an invite code shared as `/signup?code=<code>` filled in
+// (kept in the form only; the page is no-store and sends no referrer off the site); `POST /signup` checks the form as
+// the endpoint would, then calls the invite-code endpoint (D07 T02 §4) with the browser's own address forwarded, so the
+// endpoint's per-IP limit counts it, and draws its answer. Every unusable code is one answer (§4: a guess learns
+// nothing), said in one sentence that covers each reason (a Deviation in design/SPEC.md A2).
+const UNUSABLE_CODE =
+  "We do not recognise that code, or it has been used up or has expired. Ask whoever gave it to you for a new one.";
+
+confirmRoutes.get(SIGNUP_PATH, (c) =>
+  pageResponse(<SignupPage values={{ invite: (c.req.query("code") ?? "").slice(0, MAX_FIELD.invite) }} />),
+);
+
+confirmRoutes.post(SIGNUP_PATH, async (c) => {
+  if (!sameOrigin(c.env, c.req.raw)) return new Response("Forbidden", { status: 403 });
+  const form = await readForm(c.req.raw);
+  if (!form) return tooLarge();
+  const values: SignupValues = {
+    invite: (form.invite ?? "").trim(),
+    email: (form.email ?? "").trim(),
+    organizationName: (form.organizationName ?? "").trim(),
+    consent: form.consent === "yes",
+  };
+  const refused = (errors: SignupErrors, status = 400) =>
+    pageResponse(<SignupPage values={values} errors={errors} />, status);
+  const errors: SignupErrors = {};
+  if (!values.invite) errors.invite = "Enter the invite code you were given.";
+  if (!EMAIL.safeParse(values.email).success) errors.email = "Enter your work email.";
+  if (!validOrganisationName(values.organizationName))
+    errors.organizationName = "Enter your organisation's name, on one line, up to 120 characters.";
+  if (!values.consent) errors.consent = "Tick the box to agree before creating your account.";
+  if (Object.keys(errors).length) return refused(errors);
+  let answer: Response;
+  try {
+    answer = await createAuth(c.env).handler(
+      new Request(new URL("/api/auth/sign-up/invite-code", new URL(c.env.APP_URL).origin), {
+        method: "POST",
+        headers: forwarded(c.env, c.req.raw, { "content-type": "application/json" }),
+        body: JSON.stringify({
+          email: values.email,
+          code: values.invite,
+          organizationName: values.organizationName,
+          consent: true,
+        }),
+      }),
+    );
+  } catch {
+    answer = new Response(null, { status: 500 });
+  }
+  if (answer.status === 201) {
+    const body = (await answer.json().catch(() => ({}))) as { linkSent?: boolean };
+    const page = await pageResponse(
+      body.linkSent ? (
+        <InboxPage email={values.email ?? ""} callbackURL={DEFAULT_RETURN} />
+      ) : (
+        <SignupNotConfirmedPage email={values.email ?? ""} />
+      ),
+      201,
+    );
+    // The first link's code is bound to this browser's handle, which the endpoint set (D07 T02 §11).
+    for (const cookie of answer.headers.getSetCookie())
+      if (cookie.startsWith(`${CODE_COOKIE}=`)) page.headers.append("set-cookie", cookie);
+    return page;
+  }
+  if (answer.status === 409) return refused({ email: "This address already has an account. Sign in instead." }, 409);
+  if (answer.status === 400) {
+    const message = ((await answer.json().catch(() => ({}))) as { message?: string }).message ?? "";
+    if (/invite code/i.test(message)) return refused({ invite: UNUSABLE_CODE });
+    if (/consent/i.test(message)) return refused({ consent: "Tick the box to agree before creating your account." });
+    if (/organisation name/i.test(message))
+      return refused({ organizationName: "Enter your organisation's name, on one line, up to 120 characters." });
+    return refused({ email: "Enter your work email." });
+  }
+  if (answer.status === 429) {
+    const retry = retryIn(retryAfterOf(answer));
+    return pageResponse(
+      <SignupPage
+        values={values}
+        problem={{ text: `Too many signups from here. You can try again at ${retry.words} SAST.`, retry }}
+      />,
+      429,
+    );
+  }
+  // The endpoint failing (its 503, or anything else): the code may already be used, and the redemption it made is kept,
+  // so the same form sent again resumes this signup (D07 T02 §4).
+  return pageResponse(
+    <SignupPage
+      values={values}
+      problem={{ text: "Your account could not be finished just now. Press Create account again in a moment." }}
+    />,
+    503,
+  );
 });
 
 // A link mailed before this change named Better Auth's verify URL: it goes to the page with the same token and return

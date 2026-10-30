@@ -251,4 +251,18 @@ if (waiting) {
   document.addEventListener("visibilitychange", check);
 }
 
+// A submit that needs a box ticked first (`data-needs-consent`, the box's id: the signup page's POPIA consent, D07 T02
+// §13): held until the box is ticked, and again if it is unticked. Without this script the button is never held, and
+// the server refuses the form without consent. A retry hold on the same button (`data-retry-at`) still holds it.
+for (const button of document.querySelectorAll                   ("button[data-needs-consent]")) {
+  const box = document.getElementById(button.dataset.needsConsent ?? "");
+  if (!(box instanceof HTMLInputElement)) continue;
+  const sync = () => {
+    const retrying = Number(button.dataset.retryAt ?? 0) * 1000 > Date.now();
+    button.disabled = !box.checked || retrying;
+  };
+  sync();
+  box.addEventListener("change", sync);
+}
+
 export {};
