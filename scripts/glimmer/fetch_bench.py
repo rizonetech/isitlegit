@@ -131,6 +131,9 @@ class Bench(http.server.ThreadingHTTPServer):
         # connections have all ended on this side, never after a guessed pause (D00 T01 §14).
         self.open = 0
         self.closed = threading.Condition(self.lock)
+        # Each request's first byte and the bytes sent to it so far, live: what a held tool has received in each range
+        # while no request has ended yet (the log records a request only at its end).
+        self.progress: dict[int, int] = {}
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -265,6 +268,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.body_sent += len(piece)
                 with server.lock:
                     server.sent += len(piece)
+                    server.progress[start] = self.body_sent
                     # Rung only once the bytes up to the kill byte have all been written, never on a promise.
                     if server.kill_at is not None and server.sent >= server.kill_at:
                         server.reached.set()
@@ -351,7 +355,9 @@ def startup_seconds(tool: str) -> float:
 RUN_DEADLINE = 900.0
 # A resume may fetch again at most this much: a save interval's worth (fetch.py saves every MiB, aria2c every second and
 # by 1 MiB pieces) plus the bytes in flight when the first process died. More is a restart, not a resume.
-RESUME_SLACK = 4 * 1024 * 1024  # seconds a tool run may take before it is ended with its process group
+RESUME_SLACK = 4 * 1024 * 1024  # bytes a resumed tool may fetch again: four ranges' unsaved last MiB
+# fetch.py saves a range's progress after each MiB it receives (`STATE_EVERY` in scripts/glimmer/fetch.py).
+STATE_EVERY = 1024 * 1024
 
 
 def run_bounded(command: list[str], cwd: Path, deadline: float = RUN_DEADLINE) -> int | None:
@@ -377,22 +383,35 @@ def file_sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
-def tool_saved(cwd: Path, since: float, at_kill: int) -> bool:
+def saved_ranges(cwd: Path) -> list[tuple[int, int, int]] | None:
+    """fetch.py's ranges from its state file: each one's first byte, the byte after its last, and the byte after its
+    last saved one; None when there is no state file or it cannot be read (caught mid-replace, or another tool's)."""
+    for state in (cwd / "src" / ".partial").glob("*.state.json"):
+        try:
+            return [(int(seg[0]), int(seg[1]) + 1, int(seg[0]) + int(seg[2]))
+                    for seg in json.loads(state.read_text())["segments"]]
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            return None
+    return None
+
+
+def tool_saved(cwd: Path, since: float, progress: dict[int, int]) -> bool:
     """Whether a tool held at the kill byte has saved its progress, so killing it now tests its resume rather than the
-    race with its next save (D00 T01 §14): aria2c rewrites its control file every second it runs, so one written since
-    the hold holds all it had; fetch.py saves its ranges after each MiB, so its state must cover all but
-    `RESUME_SLACK` of what it was sent."""
-    source = cwd / "src"
-    control = list(source.glob("*.aria2"))
+    race with its next save (D00 T01 §14). aria2c rewrites its control file every second it runs, so one written since
+    the hold holds all it had. fetch.py saves each range after every MiB it receives (`STATE_EVERY`), so each range must
+    be saved to within a MiB of the furthest byte the server sent into it (`progress`: each request's first byte and
+    the bytes sent to it), whatever the other ranges hold (plan review)."""
+    control = list((cwd / "src").glob("*.aria2"))
     if control:
         return any(path.stat().st_mtime >= since for path in control)
-    for state in (source / ".partial").glob("*.state.json"):
-        try:
-            segments = json.loads(state.read_text())["segments"]
-            return sum(int(segment[2]) for segment in segments) >= at_kill - RESUME_SLACK
-        except (OSError, ValueError, KeyError, TypeError, IndexError):
-            return False  # caught mid-replace or unreadable: not yet known to be saved
-    return False
+    ranges = saved_ranges(cwd)
+    if ranges is None:
+        return False
+    for first, end, saved_to in ranges:
+        reached = max((start + sent for start, sent in progress.items() if first <= start < end), default=first)
+        if saved_to < reached - STATE_EVERY:
+            return False
+    return True
 
 
 def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: int, deadline: float) -> dict:
@@ -406,14 +425,18 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     first = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              start_new_session=True)
     saved = False
+    kept: list[tuple[int, int, int]] | None = None
     try:
         signalled = server.reached.wait(deadline) and first.poll() is None
         at_kill = server.sent
         # Held at the byte, the tool is killed only once it has saved what it had: polled, within the run's deadline.
         held = time.time()
         while signalled and first.poll() is None and time.monotonic() - began < deadline:
-            if tool_saved(cwd, held, at_kill):
+            with server.lock:
+                progress = dict(server.progress)
+            if tool_saved(cwd, held, progress):
                 saved = True
+                kept = saved_ranges(cwd)
                 break
             time.sleep(0.05)
     finally:
@@ -422,7 +445,14 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     killed = signalled and at_kill == kill_at
     # The dead process's connections end on this side before the second run starts.
     with server.lock:
-        server.closed.wait_for(lambda: server.open == 0, timeout=max(1.0, deadline - (time.monotonic() - began)))
+        closed = server.closed.wait_for(lambda: server.open == 0,
+                                        timeout=max(1.0, deadline - (time.monotonic() - began)))
+    if not (saved and closed):
+        # A wait that never ended is a failed measurement, never a resume measured anyway (plan review): no second run.
+        reason = "the tool never saved its progress" if not saved else "the first run's connections never closed"
+        return {"seconds": time.monotonic() - began, "code": None, "killed": killed, "saved": saved, "closed": closed,
+                "failed": reason, "at_signal": at_kill, "at_kill": at_kill, "kept": kept, "second_bytes": 0,
+                "fetched_twice": 0, "second_requests": [], "resumed": False}
     before = server.sent
     with server.lock:
         server.kill_at = None
@@ -431,8 +461,8 @@ def killed_and_resumed(command: list[str], cwd: Path, server: "Bench", kill_at: 
     after = server.sent - before
     again = max(0, before + after - len(server.body))
     requests = [(start, sent) for phase, start, sent in server.log if phase == 2]
-    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "saved": saved, "at_signal": at_kill,
-            "at_kill": at_kill,
+    return {"seconds": time.monotonic() - began, "code": code, "killed": killed, "saved": saved, "closed": closed,
+            "failed": None, "kept": kept, "at_signal": at_kill, "at_kill": at_kill,
             "second_bytes": after, "fetched_twice": again, "second_requests": sorted(requests)[:16],
             "resumed": killed and code == 0 and again <= RESUME_SLACK}
 
@@ -529,7 +559,8 @@ def one_run(spec: dict, scenario: str, name: str, body: bytes, sha: str, cap: in
         if spec["interrupt"] == "kill":
             run = killed_and_resumed(command, work, servers[-1], spec["size"] // 8, deadline)
             seconds, code, cut, resumed = run["seconds"], run["code"], run["killed"], run["resumed"]
-            kill = {key: run[key] for key in ("at_signal", "at_kill", "second_bytes", "second_requests")}
+            kill = {key: run[key] for key in ("at_signal", "at_kill", "second_bytes", "second_requests", "kept",
+                                          "failed")}
         else:
             code = run_bounded(command, work, deadline)
             seconds, cut = time.monotonic() - launched, sum(s.drops for s in servers) > 0

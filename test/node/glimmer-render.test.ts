@@ -1077,14 +1077,23 @@ describe("the batch run", () => {
   });
 
   it("refuses a capture whose shown frame could not be read, never reading it as an empty frame", async () => {
+    // The fault must actually run on the frame: a capture that never read the frame would pass a stored-nothing check
+    // for the wrong reason (D00 T01 §14's plan review). The one failure, run 40881446236 on b6f4239, was the first
+    // version of this capture, reworked by D03 T04 §26's rounds; 40 loaded runs of the current one each read the frame.
+    let faults = 0;
     const faulty = await openRenderer({
       allowOrigins: [origin, frameOrigin],
-      readFault: (frame) => (frame.main ? null : new Error("Execution context was destroyed")),
+      readFault: (frame) => {
+        if (frame.main) return null;
+        faults++;
+        return new Error("Execution context was destroyed");
+      },
     });
     try {
       const store = openStore(join(dir, "store"));
       const journal = join(dir, "progress.jsonl");
       const result = await runBatch({ list: list(["/xframe-login"]), store, journal, render: faulty.render });
+      expect(faults).toBeGreaterThan(0);
       expect(result).toMatchObject({ stored: 0, excluded: 1 });
       expect(readJournal(journal).at(-1)?.reason).toBe(
         "part of the page (a frame or a closed shadow root) could not be read",
