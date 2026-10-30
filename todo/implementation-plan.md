@@ -106,7 +106,7 @@ Sections: 60 | Checklist items: 372
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
-| [ ]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
+| [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
 | [ ]    | D00 T01 §30 | Plan candidate check before the review runs           | none     | 4     |
 | [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
@@ -368,6 +368,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 103/299 verified sections, 68 ready to run now.
+Progress: 104/299 verified sections, 69 ready to run now.
 
-Checklist: 1043/1892 items completed (includes Commit items).
+Checklist: 1044/1892 items completed (includes Commit items).
