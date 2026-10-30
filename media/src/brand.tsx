@@ -34,33 +34,44 @@ export const useIn = (from = 0, frames = 20) => {
   return spring({ frame: frame - from, fps, durationInFrames: frames, config: { damping: 200 } });
 };
 
-/**
- * The living ground under every scene (operator, 2026-10-31): the theme's ground, two slow orange glows on long
- * drifting paths and a faint grid easing diagonally, faded towards the edges. A composition draws it once behind its
- * whole Series, so it flows on across scene changes instead of restarting with each scene.
- */
+// The living ground under every scene: the darkest brand surface, falling to near-black at the edges (operator,
+// 2026-10-31), faint topographic lines flowing sideways with every fifth line in orange, a soft orange glow, film grain
+// and a vignette (chosen from five mockups, 2026-10-31). A composition draws it once behind its whole Series, so it
+// flows on across scene changes instead of restarting with each scene.
+const GROUND = DARK ? c.surface : c.light;
+const EDGE = DARK ? "#060507" : c.light;
+const alpha = (a: number) => Math.round(a * 255).toString(16).padStart(2, "0");
+
 export const Backdrop: React.FC = () => {
-  const t = useCurrentFrame() / 30;
-  const shift = (t * 6) % 80;
-  const a = { x: 50 + 30 * Math.sin(t / 23), y: 40 + 25 * Math.cos(t / 31) };
-  const b = { x: 72 + 22 * Math.cos(t / 27), y: 72 + 18 * Math.sin(t / 19) };
-  const grid = DARK ? `${c.line}` : `${c["line-strong"]}66`;
+  const frame = useCurrentFrame();
+  const t = frame / 30;
+  const lines = Array.from({ length: 22 }, (_, i) => {
+    const base = 80 + i * 46;
+    const d = Array.from({ length: 49 }, (_, k) => {
+      const x = k * 40;
+      const y = base + 26 * Math.sin(x / 260 + t / 6 + i * 0.45) + 14 * Math.sin(x / 120 - t / 9 + i * 0.8);
+      return `${k ? "L" : "M"}${x} ${y.toFixed(1)}`;
+    }).join(" ");
+    const accent = i % 5 === 0;
+    return <path key={i} d={d} fill="none" stroke={accent ? c.orange : c["line-strong"]} strokeWidth={accent ? 1.6 : 1} opacity={accent ? 0.35 : 0.5} />;
+  });
+  const seed = Math.floor(frame / 2) % 50;
   return (
-    <AbsoluteFill style={{ background: BG }}>
-      <AbsoluteFill
-        style={{
-          background: `radial-gradient(circle at ${a.x}% ${a.y}%, ${c.orange}26, transparent 42%), radial-gradient(circle at ${b.x}% ${b.y}%, ${c.orange}17, transparent 38%)`,
-        }}
-      />
-      <AbsoluteFill
-        style={{
-          backgroundImage: `linear-gradient(${grid} 1px, transparent 1px), linear-gradient(90deg, ${grid} 1px, transparent 1px)`,
-          backgroundSize: "80px 80px",
-          backgroundPosition: `${shift}px ${shift}px`,
-          WebkitMaskImage: "radial-gradient(ellipse at center, black 25%, transparent 80%)",
-          maskImage: "radial-gradient(ellipse at center, black 25%, transparent 80%)",
-        }}
-      />
+    <AbsoluteFill style={{ background: GROUND }}>
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 50% 60% at 78% 70%, ${c.orange}${alpha(0.14)}, transparent 70%)` }} />
+      <svg width={1920} height={1080} style={{ position: "absolute", inset: 0 }} aria-hidden>
+        {lines}
+      </svg>
+      <AbsoluteFill style={{ background: `radial-gradient(ellipse 75% 70% at 50% 45%, transparent 40%, ${EDGE}${alpha(0.8)} 100%)` }} />
+      <AbsoluteFill style={{ opacity: 0.05, mixBlendMode: "overlay" }}>
+        <svg width="100%" height="100%" aria-hidden>
+          <filter id={`grain-${seed}`}>
+            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves={3} seed={seed} stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter={`url(#grain-${seed})`} />
+        </svg>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

@@ -4,11 +4,11 @@ import tokens from "../../../design/tokens/colors.json";
 import { LOGO_GAIN } from "../data/voice";
 
 // The standalone logo video is always light: it rebuilds the original light clip and draws the ink mark. The
-// explainers open with the dark variant (operator, 2026-10-31): the brand's Ink ground, the on-dark logo and the
-// dark theme's light ink, the same ground the explainers use.
+// explainers open with the dark variant (operator, 2026-10-31): the darkest brand surface, the on-dark logo and the
+// dark theme's light ink, the same ground as the explainers' Backdrop.
 const THEMES = {
   light: { c: tokens.themes.light, bg: tokens.themes.light.light, logo: "brand/logo-svg/isitlegit-logo.svg" },
-  dark: { c: tokens.themes.dark, bg: tokens.themes.light.ink, logo: "brand/logo-svg/isitlegit-logo-on-dark.svg" },
+  dark: { c: tokens.themes.dark, bg: tokens.themes.dark.surface, logo: "brand/logo-svg/isitlegit-logo-on-dark.svg" },
 } as const;
 
 // The logo animation rebuilt from the brand geometry (design/brand/logo-svg/isitlegit-logo.svg, mark at
