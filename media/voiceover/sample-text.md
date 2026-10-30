@@ -1,6 +1,6 @@
 # Voice sample text
 
-Read this aloud in your normal presenting voice for the voice clone (about 4 minutes). Steady pace, natural pauses at full stops, no need to be perfect: a stumble you correct naturally is fine.
+Read this aloud in your normal presenting voice for the ElevenLabs voice (about 4 minutes). Steady pace, natural pauses at full stops, no need to be perfect: a stumble you correct naturally is fine.
 
 ---
 

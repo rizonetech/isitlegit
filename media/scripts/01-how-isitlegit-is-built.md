@@ -1,6 +1,6 @@
 # 01 How IsItLegit is built
 
-The development process in full, for learning and for the channel: about 11 and a half minutes, 1920 × 1080, on-screen text, narrated in the operator's cloned voice when `data/narration/01.json` has been voiced (silent otherwise). Long form on the operator's request (2026-10-30): it is not part of the demo video, so it takes the time the material needs. Every scene carries the label "Our development process, not a product feature".
+The development process in full, for learning and for the channel: about 11 and a half minutes, 1920 × 1080, on-screen text, narrated in the operator's ElevenLabs voice when `data/narration/01.json` has been voiced (silent otherwise). Long form on the operator's request (2026-10-30): it is not part of the demo video, so it takes the time the material needs. Every scene carries the label "Our development process, not a product feature".
 
 The script is the storyboard [data/storyboards/01-development-process.json](../data/storyboards/01-development-process.json): every scene's words, in order. Figures are named, never typed: `{stats.x}` is read from git and the plan at render time by `tools/collect-stats.py`, and `{fact.x}` comes from [data/dev-facts.json](../data/dev-facts.json), each pinned to a commit and an exact quote that `tools/check-facts.py` proves before a render.
 
@@ -30,5 +30,5 @@ Client data, account and vault names, keys, budgets, and the model identifier of
 
 ## Operator decisions
 
-- Narration in the operator's ElevenLabs voice clone, one segment per scene in [data/narration/01.json](../data/narration/01.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
+- Narration in the operator's ElevenLabs voice, one segment per scene in [data/narration/01.json](../data/narration/01.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
 - Keep the reviewer model names (GPT-6 Astra, Muse Wonder) on screen, for authenticity (operator, 2026-10-30).

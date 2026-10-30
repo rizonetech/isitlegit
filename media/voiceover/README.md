@@ -1,6 +1,6 @@
-# Voiceover with a cloned voice (ElevenLabs)
+# Voiceover in the operator's voice (ElevenLabs)
 
-The operator's own voice, cloned with ElevenLabs Instant Voice Cloning, narrates videos 01 to 03 (operator, 2026-10-30). Everything here runs on the operator's machine, not in the cloud session: the API key and the voice sample never leave it, and the cloud session cannot reach ElevenLabs.
+The operator's own voice, set up as a custom ElevenLabs voice, narrates videos 01 to 03 (operator, 2026-10-30). Everything here runs on the operator's machine, not in the cloud session: the API key and the voice sample never leave it, and the cloud session cannot reach ElevenLabs.
 
 The API details below come from ElevenLabs' official Python SDK (`elevenlabs` 2.75.0 on PyPI, read 2026-10-30), because the documentation site was not reachable from the cloud session. Check pricing, plan limits and terms on elevenlabs.io yourself before you start.
 
@@ -12,7 +12,7 @@ The API details below come from ElevenLabs' official Python SDK (`elevenlabs` 2.
 
 ## 1. Account and API key
 
-1. Sign in at elevenlabs.io on a plan that includes Instant Voice Cloning (check the current plans; cloning is not on every tier).
+1. Sign in at elevenlabs.io on a plan that includes custom voices made from your own recordings (check the current plans; not every tier has them).
 2. Create an API key in the ElevenLabs dashboard. If it offers per-key permissions, allow only text to speech and voices.
 3. Save the key in the Conclave vault item `ElevenLabs API key (IsItLegit voiceover)`, field `credential`, and the voice ID (step 3) in its `voice_id` field.
 4. In the terminal you will run the steps from, load it without typing it into a file:
@@ -26,13 +26,13 @@ Paste the key and press Enter; nothing is shown and nothing is written to disk o
 ## 2. Record the voice sample
 
 1. A quiet room, a decent USB or headset microphone, 15 to 30 cm from your mouth, no music or fans.
-2. Read [sample-text.md](sample-text.md) aloud in your normal presenting voice: steady pace, natural, not a performance. It takes about 4 minutes and covers the technical words the videos use, so the clone learns how you say them.
+2. Read [sample-text.md](sample-text.md) aloud in your normal presenting voice: steady pace, natural, not a performance. It takes about 4 minutes and covers the technical words the videos use, so the voice learns how you say them.
 3. Save it as MP3 or WAV outside the repository, for example `~/voice/derick-sample-1.mp3`. Two or three separate takes of the same text are fine.
 4. Listen back once: no clipping, no background noise, no long silences.
 
-## 3. Create the cloned voice
+## 3. Create the voice
 
-Either in the dashboard (add a voice, choose instant voice cloning, upload the recordings) or with the API:
+Either in the dashboard (add a voice from your own recordings and upload them) or with the API:
 
 ```bash
 curl -sS -X POST https://api.elevenlabs.io/v1/voices/add -H "xi-api-key: $ELEVENLABS_API_KEY" -F "name=Derick Payne" -F "description=IsItLegit channel narration" -F "remove_background_noise=false" -F "files=@$HOME/voice/derick-sample-1.mp3"
@@ -93,4 +93,4 @@ Every render first runs `tools/voice-index.py`, which writes the git-ignored `sr
 
 ## 8. Upload
 
-On YouTube, answer "Yes" to altered or synthetic content: the voice is realistic and generated, even though it is yours. Say in the description that the narration is an AI clone of the presenter's own voice.
+On YouTube, answer "Yes" to altered or synthetic content: the voice is realistic and generated, even though it is yours. The videos and their descriptions do not describe how the narration was made (operator, 2026-10-31).

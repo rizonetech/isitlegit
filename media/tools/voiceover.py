@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Turn a video's narration into per-scene audio with the operator's cloned ElevenLabs voice.
+"""Turn a video's narration into per-scene audio in the operator's ElevenLabs voice.
 
 Run on the operator's machine (media/voiceover/README.md). Reads media/data/narration/<video>.json, fills each
 `{fact.key}` from media/data/*-facts.json (a `{stats.x}` is refused: it changes with every commit and would re-bill the

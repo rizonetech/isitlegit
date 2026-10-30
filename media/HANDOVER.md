@@ -13,10 +13,10 @@ Written 2026-10-30 by the media lane's cloud session, on the operator's decision
 | Theme | Dark by default (operator, 2026-10-30); `REMOTION_THEME=light` for light |
 | Scene changes | Content fades over a steady ground; no dips to black |
 | Remotion licence | Free tier: Rizonetech has 3 people (D10 T01 §2, recorded 2026-10-30) |
-| Voiceover | Narration in `data/narration/` and the audio wiring done locally (2026-10-30; `src/kit/voice.tsx`, `tools/voice-index.py`, imported clips rather than a second public folder); voice clone `Derick Payne` made 2026-10-30, all 99 clips generated; music bed and effects from `data/sound.json` (`tools/sound.py`); renders mastered to -14 LUFS |
+| Voiceover | Narration in `data/narration/` and the audio wiring done locally (2026-10-30; `src/kit/voice.tsx`, `tools/voice-index.py`, imported clips rather than a second public folder); the operator's ElevenLabs voice `Derick Payne` made 2026-10-30, all 99 clips generated; music bed and effects from `data/sound.json` (`tools/sound.py`); renders mastered to -14 LUFS |
 | D10 TODO | `todo/10-media/TODO-01-channel-videos.md`; nothing stamped yet: stamps wait for D00 T01 §26 (the uncoordinated-lane waiver), which the coordinator owns |
 
-Operator decisions so far: dark theme for the explainers; reviewer model names (GPT-6 Astra, Muse Wonder) stay on screen; text only until the cloned voiceover lands; ElevenLabs hosted cloning; every video 1920 x 1080 at 30 fps.
+Operator decisions so far: dark theme for the explainers; reviewer model names (GPT-6 Astra, Muse Wonder) stay on screen; narration in the operator's ElevenLabs voice; every video 1920 x 1080 at 30 fps.
 
 ## Next work, in order
 
@@ -30,7 +30,7 @@ Operator decisions so far: dark theme for the explainers; reviewer model names (
 4. **Generate the voice**, following steps 5 to 7 of `voiceover/README.md`: a dry run per video, the operator's yes, the real run. Report each clip's length and flag anything over 60 s or under 1 s.
 5. **Render the voiced videos** (`pnpm render:01` to `render:03`), loudness about -14 LUFS (ffmpeg `loudnorm` after the render is fine), check the audio sync on a few scenes, and report the files.
 6. **Before the final renders**, re-pin `data/dev-facts.json` and `data/tech-facts.json` to the current commit and re-run `pnpm check:facts` so the numbers say what is true on the day; re-check video 02's shipped, partly built and planned marks against `src/` and the stamped rows (D10 T01 §4).
-7. **Upload** is the operator's: public, in an `IsItLegit` playlist, altered or synthetic content ticked for the cloned voice; record the links in D10 T01 §5 and §7.
+7. **Upload** is the operator's: public, in an `IsItLegit` playlist, altered or synthetic content ticked; record the links in D10 T01 §5 and §7.
 
 ## Guardrails
 

@@ -1,6 +1,6 @@
 # 02 IsItLegit: how it works
 
-The product's technical specification in full, for learning and for the channel: about 11 minutes, 1920 × 1080, on-screen text, narrated in the operator's cloned voice when `data/narration/02.json` has been voiced (silent otherwise). Long form on the operator's request (2026-10-30), replacing the 60-second tech stack video; it is not part of the demo video.
+The product's technical specification in full, for learning and for the channel: about 11 minutes, 1920 × 1080, on-screen text, narrated in the operator's ElevenLabs voice when `data/narration/02.json` has been voiced (silent otherwise). Long form on the operator's request (2026-10-30), replacing the 60-second tech stack video; it is not part of the demo video.
 
 The script is the storyboard [data/storyboards/02-technical-deep-dive.json](../data/storyboards/02-technical-deep-dive.json). Its figures come from [data/tech-facts.json](../data/tech-facts.json): 92 facts, each pinned to a commit and an exact quote from the design spec, the tech stack spec, `wrangler.jsonc`, `package.json` or `src/`, proven by `tools/check-facts.py` before a render.
 
@@ -30,5 +30,5 @@ Every chapter card says shipped, partly built or planned. Shipped means the code
 
 ## Operator decisions and open questions
 
-- Narration in the operator's ElevenLabs voice clone, one segment per scene in [data/narration/02.json](../data/narration/02.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
+- Narration in the operator's ElevenLabs voice, one segment per scene in [data/narration/02.json](../data/narration/02.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
 - Re-render once the verdict agent ships, to move chapters 6, 7 and 10 from planned to shipped?

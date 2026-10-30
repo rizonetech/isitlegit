@@ -2,7 +2,7 @@ import type React from "react";
 import { Audio, Sequence } from "remotion";
 import { VOICE } from "../data/voice";
 
-// Narration in the operator's cloned voice (media/voiceover/README.md). tools/voice-index.py writes VOICE from the
+// Narration in the operator's ElevenLabs voice (media/voiceover/README.md). tools/voice-index.py writes VOICE from the
 // clips voiceover.py made, one per sequence (title, every scene, close). A video without clips renders silent at its
 // reading pace; with clips, each sequence stays up until its clip has ended.
 // Each clip's gain brings it to the shared reference level (tools/voice-index.py), so narration plays at that level.
