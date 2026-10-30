@@ -70,6 +70,16 @@ describe("originalHeaderOf", () => {
       fromName: null,
       fromAddress: null,
     });
+    for (const malformed of [
+      "Accounts a@b.example x@y.example",
+      "Accounts a@b.example",
+      "<a@b.example> trailing",
+      "Name <a@b.example",
+      "a@b.example <x@y.example>",
+      '"unterminated <a@b.example>',
+    ])
+      expect(originalHeaderOf([h("From", malformed)]), malformed).toMatchObject({ fromName: null, fromAddress: null });
+    expect(originalHeaderOf([h("From", '"a b"@x.example (desk)')]).fromAddress).toBe('"a b"@x.example');
     expect(originalHeaderOf([h("From", '"Pay <now>" (via <portal>) <a@b.example>')])).toMatchObject({
       fromName: "Pay <now>",
       fromAddress: "a@b.example",
@@ -203,6 +213,31 @@ describe("the parse step stores the original's header", () => {
         return header(upload);
       })(),
     );
+  });
+
+  it("reads a .msg's From from its sent-representing properties, not the delegate Sender's (round 1)", async () => {
+    const plain = await caseOf("upload");
+    await putRaw(store, plain, msgs.draft, "application/vnd.ms-outlook");
+    await parse(store, plain, UPLOAD);
+    // The same file with its Sender address stream renamed to the sent-representing one (same length, so the compound
+    // file's directory stays whole): a From address and no From name, so the Sender's name must not be used.
+    const from = (text: string) => new Uint8Array([...text].flatMap((c) => [c.charCodeAt(0), 0]));
+    const bytes = msgs.draft.slice();
+    const [old, renamed] = [from("0C1F001F"), from("0065001F")];
+    let renames = 0;
+    for (let i = 0; i <= bytes.length - old.length; i++)
+      if (old.every((b, j) => bytes[i + j] === b)) {
+        bytes.set(renamed, i);
+        renames++;
+      }
+    expect(renames).toBeGreaterThan(0);
+    const delegated = await caseOf("upload");
+    await putRaw(store, delegated, bytes, "application/vnd.ms-outlook");
+    await parse(store, delegated, UPLOAD);
+    const [before, after] = [await header(plain), await header(delegated)];
+    expect(before.originalFromName).not.toBeNull();
+    expect(after.originalFromName).toBeNull();
+    expect(after.originalFromAddress).toBe(before.originalFromAddress);
   });
 
   it("fails the attempt before the summary when the write is refused, and a retry writes it", async () => {

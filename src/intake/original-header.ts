@@ -40,21 +40,38 @@ const safeMailbox = (address: string | null | undefined) => {
   return HIDDEN.test(canonical) ? null : canonical;
 };
 
-// The `<` that open angle addresses: outside quoted strings (with their quoted pairs) and comments.
-function angleAddresses(field: string): number {
-  let count = 0;
+// Whether a From field is, in shape, one mailbox (RFC 5322 3.4): a bare addr-spec, or a display name and one angle
+// address with nothing after it. The parser recovers from anything else ("Accounts <a@b> <x@y>", "Accounts a@b x@y"),
+// so its one result is not proof (completion review, round 1). Quoted strings (with their quoted pairs) and comments
+// are set aside first; the address itself is validated by `mailbox`.
+function oneMailboxField(field: string): boolean {
+  let bare = "";
   let quoted = false;
   let depth = 0;
   for (let i = 0; i < field.length; i++) {
     const c = field[i];
     if (c === "\\" && (quoted || depth > 0)) i++;
-    else if (quoted) quoted = c !== '"';
-    else if (c === "(") depth++;
+    else if (quoted) {
+      if (c === '"') quoted = false;
+      else bare += c === "@" ? "@" : "q";
+    } else if (c === "(") depth++;
     else if (c === ")" && depth > 0) depth--;
-    else if (depth === 0 && c === '"') quoted = true;
-    else if (depth === 0 && c === "<") count++;
+    else if (depth > 0) continue;
+    else if (c === '"') quoted = true;
+    else bare += c;
   }
-  return count;
+  if (quoted || depth > 0) return false;
+  const open = bare.indexOf("<");
+  if (open < 0) return /^\s*[^\s<>@]+@[^\s<>@]+\s*$/.test(bare);
+  const close = bare.indexOf(">", open);
+  return (
+    close > open &&
+    bare.indexOf("<", open + 1) < 0 &&
+    !bare.slice(0, open).includes("@") &&
+    !bare.slice(0, open).includes(">") &&
+    /^[^\s<>@]+@[^\s<>@]+$/.test(bare.slice(open + 1, close).trim()) &&
+    !bare.slice(close + 1).trim()
+  );
 }
 
 const fieldOf = (headers: ParsedMessage["headers"], name: string) => {
@@ -71,9 +88,8 @@ export function originalHeaderOf(headers: ParsedMessage["headers"], msg?: MsgSen
   if (typeof from === "string") {
     const unfolded = from.replace(/\r?\n[ \t]*/g, " ");
     const parsed = addressParser(unfolded, { flatten: true });
-    // The parser recovers from malformed syntax ("Accounts <a@b> <x@y>" reads as one mailbox), so a field with more
-    // than one angle address is not one sender, whatever it recovered (completion review).
-    if (parsed.length === 1 && parsed[0] && angleAddresses(unfolded) <= 1) {
+    // Only a field shaped as one mailbox, whatever the parser recovered from it.
+    if (parsed.length === 1 && parsed[0] && oneMailboxField(unfolded)) {
       // The parser has decoded the name's encoded words already; decoding again would turn a literal "=?...?=" into
       // another name (completion review).
       fromName = oneLine(parsed[0].name);

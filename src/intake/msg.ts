@@ -118,6 +118,9 @@ function checkRecurrence(bytes: Uint8Array) {
 // The top-level bodies this reads itself ([MS-OXPROPS]: PidTagBody and PidTagHtml as Unicode or 8-bit strings).
 const TEXT_UNICODE = "1000001f";
 const TEXT_8BIT = "1000001e";
+// PidTagSentRepresentingName and PidTagSentRepresentingEmailAddress, the message's From ([MS-OXPROPS]).
+const SENT_REPRESENTING_NAME = "0042";
+const SENT_REPRESENTING_EMAIL = "0065";
 const HTML_UNICODE = "1013001f";
 const HTML_8BIT = "1013001e";
 const PROPERTIES = "__properties_version1.0";
@@ -300,16 +303,38 @@ async function read(
       omitted: 0,
     },
     headersAvailable: transport !== null,
-    // Its own subject and sender, which the report header reads when there are no transport headers (D01 T01 §16): the
-    // SMTP address when the file has one (an Exchange sender's own address is an X.500 name, which reads as none).
-    sender: {
-      subject: subject ?? null,
-      name: optionalString(data.senderName, "sender name") ?? null,
-      address:
-        optionalString(data.senderSmtpAddress, "sender address") ??
-        optionalString(data.senderEmail, "sender address") ??
-        null,
-    },
+    // Its own subject and From identity, which the report header reads when there are no transport headers (D01 T01 §16).
+    sender: { subject: subject ?? null, ...fromIdentity(file, data, ansiLabel) },
+  };
+}
+
+// The message's From as Outlook keeps it: the sent-representing properties ([MS-OXCMAIL] 2.2.3.2.3 maps From to them),
+// which differ from the Sender ones when a delegate sent on another's behalf (round 1); the Sender group only when the
+// file has none of them, as a message sent in its own name may. The SMTP address when there is one (an Exchange
+// mailbox's own address is an X.500 name, which reads as none).
+function fromIdentity(
+  file: CompoundFile,
+  data: Fields,
+  ansiLabel: string,
+): { name: string | null; address: string | null } {
+  const text = (id: string) => {
+    const entry = rootProperty(file, `${id}001f`) ?? rootProperty(file, `${id}001e`);
+    if (!entry) return null;
+    const unicode = keyOf(entry)?.endsWith("001f");
+    const value = new TextDecoder(unicode ? "utf-16le" : ansiLabel).decode(file.read(entry)).replace(/\0+$/, "");
+    return value.trim() ? value : null;
+  };
+  const representing = {
+    name: text(SENT_REPRESENTING_NAME),
+    address: optionalString(data.sentRepresentingSmtpAddress, "From address") ?? text(SENT_REPRESENTING_EMAIL) ?? null,
+  };
+  if (representing.name || representing.address) return representing;
+  return {
+    name: optionalString(data.senderName, "sender name") ?? null,
+    address:
+      optionalString(data.senderSmtpAddress, "sender address") ??
+      optionalString(data.senderEmail, "sender address") ??
+      null,
   };
 }
 
