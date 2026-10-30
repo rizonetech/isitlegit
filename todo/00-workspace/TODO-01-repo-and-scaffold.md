@@ -57,6 +57,7 @@ track: day-0
 | 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
+| 19 | §19 | Lane scoping for parallel building lanes | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -683,6 +684,27 @@ Filed 2026-10-30 from the Glimmer lane's report on D03 T04 §18: the stamp repla
 
 > **Verified:** 2026-10-30 | §18 | 9460247066d01903554bf1083bfe3a9617ccfaa7
 > **Review:** `docs/reviews/d00-t01-s18.json`
+
+## 19. Lane scoping for parallel building lanes
+
+Decided 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`): two building lanes work the plan at once, split by domain, each in its own worktree and branch. The tools see every row: `query ready` in `scripts/todo-graph.py`, the run guard's stop hook and heartbeat in `scripts/campaign_guard.py`, and `process-plan` would each have one lane block on, and resume, the other lane's rows. A lane's domains are named once and every one of them honours it.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Name a lane's domains. Done when: a worktree's lane file names its domains, and a missing or malformed one is refused, never read as every domain.
+2. Scope the tools to it. Done when: `query ready`, the stop hook, the heartbeat and `process-plan` offer, block on and resume only the lane's rows.
+
+- [ ] Add the lane file `build/lane.json` (untracked, per worktree: `{"lane": "<name>", "domains": ["D01", ...]}`) and `lane_scope(root)` in `scripts/lib/todo_graph.py`, returning the domains or None when there is no file (one lane: every domain), and refusing a malformed file, an unknown domain or an empty list. Done when: `tests/scripts/test_todo_graph.py` reads a good file, no file, and refuses each malformed one.
+- [ ] Scope `query ready`, `query blocked` and `query stats` in `scripts/todo-graph.py` to the lane's domains, with `--all` for the whole plan. Done when: a tree with two domains and a lane file for one lists only that domain's rows, and `--all` lists both.
+- [ ] Scope the stop hook and the heartbeat's checks in `scripts/campaign_guard.py` to the lane, and record the lane in the guard file. Done when: `tests/scripts/test_campaign_guard.py` lets a lane's turn end while only the other lane's rows are ready, and blocks it while one of its own is.
+- [ ] Have `process-plan` and `process-phase` in `.claude/skills/` read the lane, end a run as plan-done for the lane when the lane's rows are all stamped, and park on rows that wait for another lane's. Done when: the skills name the lane file and the scoped queries, and a dry run in a scratch tree picks only the lane's rows.
+- [ ] Commit: `tools: a lane's tools see only its own domains`
+
+**Test checkpoint:** `python3 -m unittest discover -s tests/scripts` passes, including two lane files over one tree.
 
 ## Verification
 
