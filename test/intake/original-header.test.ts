@@ -58,6 +58,24 @@ describe("originalHeaderOf", () => {
     expect(fromAddress).toBe("a@b.example");
   });
 
+  it("decodes a display name once, so an encoded literal stays literal (completion review)", () => {
+    const literal = btoa("=?UTF-8?Q?Trusted_Bank?=");
+    expect(originalHeaderOf([h("From", `=?UTF-8?B?${literal}?= <x@y.example>`)]).fromName).toBe(
+      "=?UTF-8?Q?Trusted_Bank?=",
+    );
+  });
+
+  it("gives no sender for a field with two angle addresses, but counts none inside quotes or comments", () => {
+    expect(originalHeaderOf([h("From", "Accounts <a@b.example> <x@y.example>")])).toMatchObject({
+      fromName: null,
+      fromAddress: null,
+    });
+    expect(originalHeaderOf([h("From", '"Pay <now>" (via <portal>) <a@b.example>')])).toMatchObject({
+      fromName: "Pay <now>",
+      fromAddress: "a@b.example",
+    });
+  });
+
   it("drops an address with a hidden character or past 254 characters, never cutting it", () => {
     expect(originalHeaderOf([h("From", '"pay\u202Emoc"@x.example')]).fromAddress).toBeNull();
     expect(originalHeaderOf([h("From", '"a\u0007b"@x.example')]).fromAddress).toBeNull();

@@ -40,6 +40,23 @@ const safeMailbox = (address: string | null | undefined) => {
   return HIDDEN.test(canonical) ? null : canonical;
 };
 
+// The `<` that open angle addresses: outside quoted strings (with their quoted pairs) and comments.
+function angleAddresses(field: string): number {
+  let count = 0;
+  let quoted = false;
+  let depth = 0;
+  for (let i = 0; i < field.length; i++) {
+    const c = field[i];
+    if (c === "\\" && (quoted || depth > 0)) i++;
+    else if (quoted) quoted = c !== '"';
+    else if (c === "(") depth++;
+    else if (c === ")" && depth > 0) depth--;
+    else if (depth === 0 && c === '"') quoted = true;
+    else if (depth === 0 && c === "<") count++;
+  }
+  return count;
+}
+
 const fieldOf = (headers: ParsedMessage["headers"], name: string) => {
   const found = headers.filter((h) => h.name.trim().toLowerCase() === name);
   return found.length === 1 ? (found[0]?.value ?? null) : found.length ? undefined : null;
@@ -54,8 +71,12 @@ export function originalHeaderOf(headers: ParsedMessage["headers"], msg?: MsgSen
   if (typeof from === "string") {
     const unfolded = from.replace(/\r?\n[ \t]*/g, " ");
     const parsed = addressParser(unfolded, { flatten: true });
-    if (parsed.length === 1 && parsed[0]) {
-      fromName = oneLine(decodeWords(parsed[0].name ?? ""));
+    // The parser recovers from malformed syntax ("Accounts <a@b> <x@y>" reads as one mailbox), so a field with more
+    // than one angle address is not one sender, whatever it recovered (completion review).
+    if (parsed.length === 1 && parsed[0] && angleAddresses(unfolded) <= 1) {
+      // The parser has decoded the name's encoded words already; decoding again would turn a literal "=?...?=" into
+      // another name (completion review).
+      fromName = oneLine(parsed[0].name);
       // The parser drops a control character silently ("a\u0007b" reads "ab"), which would show an address the message
       // never had: a field with anything hidden in it gives none.
       HIDDEN.lastIndex = 0;
