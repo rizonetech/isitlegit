@@ -6,14 +6,17 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   answerOf,
   balance,
+  brandIdentity,
   buildDataset,
   capBrands,
   dedupe,
   dhash,
+  groupEntries,
   groupOf,
   hamming,
   jaccard,
   shingles,
+  siteOf,
   split,
 } from "../../scripts/glimmer/build-dataset.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
@@ -120,6 +123,65 @@ describe("caps and balance", () => {
   });
 });
 
+describe("one brand identity and site-joined groups", () => {
+  const entry = (id: string, over: Partial<StoredPage>, labels: Partial<StoredPage["labels"]>) => {
+    const p = page(id, over, labels);
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+  };
+  const credential = { lure: true, lure_type: "credential" as const };
+
+  it("caps FNB and First National Bank together at 300", () => {
+    const some = (brand: string, n: number, tag: string) =>
+      Array.from({ length: n }, (_, i) => entry(`${tag}${i}`, {}, { brand, ...credential }));
+    const capped = capBrands([...some("FNB", 200, "a"), ...some("First National Bank", 200, "b")], () => 0.5);
+    expect(capped).toHaveLength(300);
+  });
+
+  it("folds a domain spelling to its brand, and case and spacing for an unknown name", () => {
+    expect(brandIdentity("standardbank.co.za")).toBe(brandIdentity("Standard Bank"));
+    expect(brandIdentity("First National Bank")).toBe(brandIdentity("FNB"));
+    expect(brandIdentity("Acme  Bank")).toBe(brandIdentity("acme bank"));
+    expect(brandIdentity("Acme Bank")).not.toBe(brandIdentity("Acme Pay"));
+    expect(new Set(["Acme  Bank", "acme bank", "ACME BANK"].map(brandIdentity)).size).toBe(1);
+  });
+
+  it("joins a branded and an unbranded page of one site, and pages of one brand on two sites", () => {
+    const branded = entry("a", { host: "login.shop.example.co.za" }, { brand: "Acme Shop", ...credential });
+    const bare = entry("b", { host: "cdn.shop.example.co.za" }, { brand: null, ...credential });
+    const sibling = entry("c", { host: "other.example.com" }, { brand: "acme  shop", ...credential });
+    const stranger = entry("d", { host: "stranger.example.net" }, { brand: "Other", ...credential });
+    const groups = [...groupEntries([branded, bare, sibling, stranger]).values()];
+    const together = groups.find((members) => members.includes(branded));
+    expect(together?.map((e) => e.page.id).sort()).toEqual(["a", "b", "c"]);
+    expect(groups).toHaveLength(2);
+  });
+
+  it("keeps both sites of one registrable domain in one split", () => {
+    const entries = [];
+    for (let b = 0; b < 30; b++)
+      for (let i = 0; i < 4; i++)
+        entries.push(
+          entry(
+            `p${b}-${i}`,
+            { host: i === 0 ? `a.brand${b}.co.za` : `b.brand${b}.co.za` },
+            { brand: i === 1 ? null : `Brand ${b}`, ...credential },
+          ),
+        );
+    let state = 11;
+    const random = () => {
+      state = (state * 48271) % 2147483647;
+      return state / 2147483647;
+    };
+    const parts = split(entries, random);
+    expect(parts.evaluation.length).toBeGreaterThan(0);
+    const sitesOf = (set: { page: StoredPage }[]) => new Set(set.map((e) => siteOf(e.page.host as string)));
+    const brandsOf = (set: { page: StoredPage }[]) =>
+      new Set(set.flatMap((e) => (e.page.labels.brand ? [brandIdentity(e.page.labels.brand)] : [])));
+    for (const site of sitesOf(parts.evaluation)) expect(sitesOf(parts.train).has(site)).toBe(false);
+    for (const brand of brandsOf(parts.evaluation)) expect(brandsOf(parts.train).has(brand)).toBe(false);
+  });
+});
+
 describe("the split", () => {
   it("shares no brand, site or template, and holds only trusted labels", () => {
     const entries = [];
@@ -128,7 +190,7 @@ describe("the split", () => {
         const spark = b % 7 === 0 && i === 0;
         const p = page(
           `p${b}-${i}`,
-          { host: `site${b}.example.co.za`, south_africa: b % 2 === 0, template: b === 3 ? "t1" : null },
+          { host: `www.site${b}.co.za`, south_africa: b % 2 === 0, template: b === 3 ? "t1" : null },
           {
             brand: `Brand ${b}`,
             lure: i % 2 === 0,
@@ -169,7 +231,7 @@ describe("buildDataset", () => {
         text: `Page ${seed}: ${"distinct words ".repeat(3)}${seed * 7919}`,
         origin: "public",
         licence: "CC0",
-        host: `site${seed}.example.com`,
+        host: `www.site${seed}.com`,
         template: null,
         south_africa: false,
         labels,

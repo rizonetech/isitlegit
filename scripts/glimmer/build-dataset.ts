@@ -20,7 +20,7 @@ import {
   type PageAnswer,
   type ScreenMode,
 } from "../../src/vision/page-screen.ts";
-import { readExcluded } from "./label-rules.ts";
+import { canonicalBrand, readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -104,11 +104,37 @@ export function labelTrusted(page: StoredPage, field: keyof StoredPage["labels"]
   return TRUSTED.has(page.label_source[field] ?? "");
 }
 
-// The group a page is held out with: its brand, else its site, else itself.
+// The one identity a brand goes by, for caps, groups and counts (plan review finding 4): a known spelling or long form
+// is its canonical name (`First National Bank` is `FNB`), a domain spelling is its brand (`standardbank.co.za` is
+// `Standard Bank`), and case, spacing and punctuation are folded, so `Acme  Bank` and `acme bank` are one brand.
+export function brandIdentity(name: string): string {
+  const spelled = name.trim();
+  const stem = /^[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+$/u.test(spelled)
+    ? getDomain(spelled.toLowerCase())?.split(".")[0]
+    : undefined;
+  const canonical = canonicalBrand(stem ?? spelled);
+  return canonical.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "") || canonical.toLowerCase();
+}
+
+// A page's site: the registrable domain of its host. A host under a shared platform's own suffix (`x.blogspot.com`) is
+// a site of its own, not the platform's, so one hosting service does not join every page it serves.
+export function siteOf(host: string): string {
+  return getDomain(host, { allowPrivateDomains: true }) ?? host;
+}
+
+// Every identity a page shares with others: its canonical brand, its site and its template (plan review finding 3).
+export function identities(page: StoredPage): string[] {
+  const out: string[] = [];
+  if (page.labels.brand) out.push(`brand:${brandIdentity(page.labels.brand)}`);
+  if (page.host) out.push(`site:${siteOf(page.host)}`);
+  if (page.template) out.push(`template:${page.template}`);
+  return out;
+}
+
+// The first identity a page has: its brand, else its site, else itself. The split holds out every identity a page
+// shares, joined (`groupEntries`); this is the key a page would take alone.
 export function groupOf(page: StoredPage): string {
-  if (page.labels.brand) return `brand:${page.labels.brand.toLowerCase()}`;
-  if (page.host) return `site:${getDomain(page.host) ?? page.host}`;
-  return `page:${page.id}`;
+  return identities(page)[0] ?? `page:${page.id}`;
 }
 
 // A value added to its key's list in place: copying the list for each value made grouping quadratic.
@@ -116,6 +142,39 @@ function append<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const list = map.get(key);
   if (list) list.push(value);
   else map.set(key, [value]);
+}
+
+// Pages grouped by every identity they share: two pages are one group when they share a canonical brand, a site or a
+// template, directly or through others, so a branded and an unbranded page of one site never cross the split. A group
+// is named by its first identity in sorted order (a brand's before a site's before a template's).
+export function groupEntries(entries: Entry[]): Map<string, Entry[]> {
+  const parent = new Map<string, string>();
+  const find = (key: string): string => {
+    let root = key;
+    while (parent.get(root) !== root) root = parent.get(root) as string;
+    for (let at = key; at !== root; ) {
+      const next = parent.get(at) as string;
+      parent.set(at, root);
+      at = next;
+    }
+    return root;
+  };
+  const named = new Map<Entry, string[]>();
+  for (const entry of entries) {
+    const own = identities(entry.page);
+    const keys = own.length ? own : [`page:${entry.page.id}`];
+    named.set(entry, keys);
+    for (const key of keys) if (!parent.has(key)) parent.set(key, key);
+    for (const key of keys.slice(1)) parent.set(find(key), find(keys[0] as string));
+  }
+  const members = new Map<string, Entry[]>();
+  for (const entry of entries) append(members, find((named.get(entry) as string[])[0] as string), entry);
+  const groups = new Map<string, Entry[]>();
+  for (const group of members.values()) {
+    const keys = new Set(group.flatMap((entry) => named.get(entry) as string[]));
+    groups.set([...keys].sort()[0] as string, group);
+  }
+  return groups;
 }
 
 function seeded(seed: number) {
@@ -177,12 +236,13 @@ export function dedupe(entries: Entry[]): { kept: Entry[]; exact: number; near: 
   return { kept, exact, near };
 }
 
-// At most 300 pages a brand, chosen with the seed.
+// At most 300 pages a brand, chosen with the seed, by the one brand identity (`FNB` and `First National Bank` share
+// their 300).
 export function capBrands(entries: Entry[], random: () => number): Entry[] {
   const byBrand = new Map<string, Entry[]>();
   const out: Entry[] = [];
   for (const entry of entries) {
-    const brand = entry.answer.brand?.toLowerCase();
+    const brand = entry.answer.brand ? brandIdentity(entry.answer.brand) : null;
     if (!brand) out.push(entry);
     else append(byBrand, brand, entry);
   }
@@ -208,8 +268,7 @@ export type Split = { train: Entry[]; evaluation: Entry[]; heldOut: string[]; te
 // the minimums hold; only pages whose every label is trusted. A held-out group's untrusted pages are dropped, never
 // trained on, so no brand, site or template is on both sides.
 export function split(entries: Entry[], random: () => number): Split {
-  const groups = new Map<string, Entry[]>();
-  for (const entry of entries) append(groups, groupOf(entry.page), entry);
+  const groups = groupEntries(entries);
   const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
   const brands = shuffle(
@@ -482,7 +541,7 @@ export async function buildDataset(options: {
     bySource: by(chosen, (e) => e.page.source),
     byLureType: by(chosen, (e) => e.answer.lure_type),
     southAfrica: chosen.filter((e) => e.page.south_africa).length,
-    brands: new Set(chosen.map((e) => e.answer.brand?.toLowerCase()).filter(Boolean)).size,
+    brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
   });
   writeAtomic(
     join(dir, "summary.json"),
