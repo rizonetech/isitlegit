@@ -422,7 +422,7 @@ describe("round 1", () => {
     }
   });
 
-  it("keeps two refused messages of one subject seconds apart as two, each with its forward (§9 round 1)", async () => {
+  it("names both messages when two of one subject are refused seconds apart, losing neither (§9 rounds 1 and 2)", async () => {
     const second = forward({
       messageId: "<m-2@x>",
       sessionId: "s2",
@@ -435,13 +435,48 @@ describe("round 1", () => {
     ];
     const w = world([[forward(), second, ...notices]]);
     await checkForwarding(deps(w.fetcher, at(5)));
-    const aliases = (
-      await env.DB.prepare("SELECT alias FROM forward_incidents WHERE kind = 'refused' ORDER BY occurred_at").all<{
+    // A notice does not say which message it refused: one incident, both named, uncertain, both notices counted.
+    const rows = (
+      await env.DB.prepare("SELECT alias, uncertain FROM forward_incidents WHERE kind = 'refused'").all<{
         alias: string;
+        uncertain: number;
       }>()
-    ).results.map((r) => r.alias);
-    expect(aliases).toEqual(["hello@isitlegit.co.za", "conduct@isitlegit.co.za"]);
-    expect(w.sends.some((m) => m.subject.includes("conduct@isitlegit.co.za"))).toBe(true);
+    ).results;
+    expect(rows).toEqual([{ alias: "hello@isitlegit.co.za, conduct@isitlegit.co.za", uncertain: 1 }]);
+    for (const m of w.sends) {
+      expect(m.text).toContain("hello@isitlegit.co.za, conduct@isitlegit.co.za");
+      expect(m.text).toContain("Cloudflare dropped the 2 refusal notices");
+    }
+  });
+
+  it("never names a later, delivered forward as refused on a duplicate notice's word (§9 round 2)", async () => {
+    // A refused at :00 (notices :10 and :12); B forwarded fine at :11, between the notices.
+    const b = forward({
+      messageId: "<m-b@x>",
+      sessionId: "s-b",
+      to: "conduct@isitlegit.co.za",
+      datetime: new Date(at(0).getTime() + 11_000).toISOString(),
+    });
+    const notices = [
+      report({ datetime: new Date(at(0).getTime() + 10_000).toISOString() }),
+      report({ sessionId: "s-r2", messageId: "<ndr-2@x>", datetime: new Date(at(0).getTime() + 12_000).toISOString() }),
+    ];
+    const w = world([[forward(), b, ...notices]]);
+    await checkForwarding(deps(w.fetcher, at(5)));
+    const definite = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM forward_incidents WHERE kind = 'refused' AND uncertain = 0 AND alias = 'conduct@isitlegit.co.za'",
+    ).first<{ n: number }>();
+    expect(definite?.n).toBe(0);
+    expect(new Set(w.sends.map((m) => m.subject)).size).toBe(1);
+  });
+
+  it("counts one refusal's same-second notices once even with two candidate forwards (§9 round 2)", async () => {
+    const earlier = forward({ messageId: "<m-0@x>", sessionId: "s0", datetime: at(-1).toISOString() });
+    const notices = [report(), report({ sessionId: "s-r1b", messageId: "<ndr-1b@x>" })];
+    const w = world([[earlier, forward(), ...notices]]);
+    expect(await checkForwarding(deps(w.fetcher, at(5)))).toMatchObject({ folded: 1, alerted: 1 });
+    expect(w.sends.map((m) => m.to)).toEqual(OPERATORS);
+    expect(w.sends[0]?.text).toContain("Cloudflare dropped the 2 refusal notices");
   });
 
   it("keeps notices minutes apart as separate refusals", async () => {
