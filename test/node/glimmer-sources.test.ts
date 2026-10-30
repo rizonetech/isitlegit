@@ -472,6 +472,46 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
     expect(manifestDigest(manifest)).toBe("12e9362bc402fec37e7749613d6bf4a42d0a8998e6a82a183a6588d573ae1fce");
   });
 
+  it("asks a receipt of any source converted to rows, not only the six §18 knew (§27)", () => {
+    const receipt = {
+      met: 2,
+      exported: 2,
+      sampled_out: 0,
+      rejected: {},
+      rows_sha256: "r1",
+      converter_sha256: "c1",
+      inputs: "m1",
+    };
+    const fresh = {
+      ...base,
+      sources: [header, row("new-lures", "accepted")].join("\n"),
+      pages: [page("new-lures"), page("new-lures")],
+      notice: "| `new-lures`: New lures | CC BY 4.0 | credit |",
+    };
+    const record = { status: "complete" as const, expected: 2, imported: 2, duplicates: 0, excluded: [], stored: 2 };
+    const check = (imports: Record<string, unknown>, bindings: Record<string, unknown>) =>
+      reconcile({ ...fresh, imports: imports as never, bindings: bindings as never });
+    const good = { ...record, inputs: "m1", rows: "r1" };
+    expect(check({ "new-lures": good }, { "new-lures": { manifest: "m1", export: receipt, rows: true } })).toEqual([]);
+    // Its rows on the disk with no receipt beside them.
+    expect(
+      check({ "new-lures": { ...record, inputs: "m1" } }, { "new-lures": { manifest: "m1", rows: true } }).join(),
+    ).toMatch(/new-lures: no EXPORT.json/);
+    // Rows the receipt does not name, and a receipt made from other inputs.
+    expect(
+      check(
+        { "new-lures": { ...good, rows: "r2" } },
+        { "new-lures": { manifest: "m1", export: receipt, rows: true } },
+      ).join(),
+    ).toMatch(/other rows than EXPORT.json names/);
+    expect(
+      check(
+        { "new-lures": good },
+        { "new-lures": { manifest: "m1", export: { ...receipt, inputs: "m2" }, rows: true } },
+      ).join(),
+    ).toMatch(/other inputs than INPUTS.json names/);
+  });
+
   it("refuses an import not bound to its manifest, or made from other rows than the export wrote", () => {
     const receipt = {
       met: 3,

@@ -131,7 +131,7 @@ export function reconcile(input: {
   notice: string;
   // Each source's manifest digest and export receipt, as read beside its import (§18); left out, the binding is not
   // checked (a caller with no store).
-  bindings?: Record<string, { manifest?: string; export?: ExportReceipt }>;
+  bindings?: Record<string, { manifest?: string; export?: ExportReceipt; rows?: boolean }>;
 }): string[] {
   const { rows, problems } = parseSources(input.sources);
   const bySource = new Map<string, StoredPage[]>();
@@ -170,7 +170,9 @@ export function reconcile(input: {
     if (input.bindings && record?.status === "complete") {
       const bound = input.bindings[row.source] ?? {};
       if (!bound.manifest) problems.push(`${row.source}: no INPUTS.json binding its input files`);
-      else if (RECEIPTED.includes(row.source)) {
+      // Every source converted to rows owes its converter's receipt, the six §18 knew and any added since (§27): its
+      // rows file on the disk, a rows digest in its import, or a receipt beside it says it was converted.
+      else if (RECEIPTED.includes(row.source) || bound.rows || record.rows || bound.export) {
         const receipt = bound.export;
         if (!receipt) problems.push(`${row.source}: no EXPORT.json from its converter`);
         else {
@@ -261,7 +263,7 @@ export function storeProblems(
     const source = /^(.+)-[0-9a-f]{16}$/.exec(id)?.[1] ?? id;
     damagedBy[source] = (damagedBy[source] ?? 0) + 1;
   }
-  const bindings: Record<string, { manifest?: string; export?: ExportReceipt }> = {};
+  const bindings: Record<string, { manifest?: string; export?: ExportReceipt; rows?: boolean }> = {};
   for (const row of parseSources(sourcesMd).rows) {
     const folder = join(dir, "raw", row.source);
     const manifest = readJson<unknown>(join(folder, "INPUTS.json"));
@@ -269,6 +271,7 @@ export function storeProblems(
     bindings[row.source] = {
       ...(manifest !== undefined ? { manifest: manifestDigest(manifest) } : {}),
       ...(receipt ? { export: receipt } : {}),
+      ...(existsSync(join(folder, "rows.jsonl")) ? { rows: true } : {}),
     };
   }
   problems.push(
@@ -282,7 +285,7 @@ export function storeProblems(
   );
   // The rows beside each receipt are the ones it names (completion review G12): a converter stopped between its rows
   // and its receipt leaves new rows beside the old receipt.
-  for (const source of RECEIPTED) {
+  for (const source of Object.keys(bindings)) {
     const rows = join(dir, "raw", source, "rows.jsonl");
     const receipt = bindings[source]?.export;
     if (!receipt || !existsSync(rows)) continue;
