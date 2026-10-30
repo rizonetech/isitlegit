@@ -31,7 +31,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Trusted Authentication-Results parsing | D02 T01 §2 | [ ] |
+| 1 | §1 | Trusted Authentication-Results parsing | D02 T01 §2 | [x] |
 | 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [ ] |
 | 3 | §3 | ARC chain evidence | §1 | [ ] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [ ] |
@@ -65,6 +65,9 @@ Anyone can write an `Authentication-Results` header into a message. Only the one
 - [x] Commit: `checks: trusted Authentication-Results parsing` Done 2026-10-30: 42ac0cf, then the review fixes to 9374ea7.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/auth-results.test.ts` passes and fails if the forged header is trusted.
+
+> **Verified:** 2026-10-30 | §1 | 54329057ac79d1cfb03322328b04b0d3ef16c283
+> **Review:** `docs/reviews/d02-t02-s1.json`
 
 ## 2. SPF, DKIM and DMARC alignment evidence
 

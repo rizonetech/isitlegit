@@ -101,7 +101,7 @@ Sections: 39 | Checklist items: 227
 | [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
-| [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
+| [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
 | [ ]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 6     |
 | [ ]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
@@ -334,6 +334,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 84/265 verified sections, 42 ready to run now.
+Progress: 85/265 verified sections, 44 ready to run now.
 
 Checklist: 878/1703 items completed (includes Commit items).

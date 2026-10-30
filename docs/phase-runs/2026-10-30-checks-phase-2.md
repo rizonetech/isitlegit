@@ -11,5 +11,8 @@ Started 2026-10-30 12:15 UTC by `process-plan`, scope plan, on branch `checks-la
 
 ## Sections
 
+- D02 T02 §1 Trusted Authentication-Results parsing: stamped (plan review 2 P1 + 2 P2 fixed; completion 4 gaps fixed, 1 filed as D02 T02 §6; rounds 1 to 4 fixed (2 P1 + 2 P2, then a P1 each), round 5 clean). The whole Worker suite passed at 862 on the build; the affected folders (319 tests) on the final code. Trust now rests on what each receiver can prove: Microsoft 365 and Google by their topmost stamp, any other receiver only above its topmost hop, its inner chain left to §6.
+
 ## Critical events
 - 2026-10-30T12:15Z run guard: session `3be2e4be-a8fb-4ea8-9e8b-6d8060daa291`, heartbeat job `5c1771a3`, generation `9c2b46bb7ebd`, run `94de7fd7e7d6`, scope plan, lane checks.
+- 2026-10-30T13:00Z merged main (483e65a, D00 T01 §19 lane scoping) into checks-lane at 6234ec2; the run file renamed to the lane convention (`checks-phase-N`); the heartbeat is recreated from §19's prompt.
