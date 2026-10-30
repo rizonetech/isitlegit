@@ -14,6 +14,24 @@ export const LOOKUP_BUDGET_MS = 5_000;
 // The most of an RDAP answer read: a domain object is a few kilobytes (Verisign's example.com is 2.5 KB).
 export const MAX_RDAP_BYTES = 256 * 1024;
 const BOOTSTRAP_TTL_S = 24 * 60 * 60;
+// KV is a cache: a read or write that takes longer than this is given up, never holding a lookup's answer back
+// (completion review: a stalled write lost a good date).
+export const CACHE_MS = 500;
+const bounded = <T>(work: Promise<T>, fallback: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work.catch(() => fallback),
+    new Promise<T>((resolve) => {
+      timer = setTimeout(() => resolve(fallback), CACHE_MS);
+    }),
+  ]).finally(() => clearTimeout(timer));
+};
+const cacheGet = (deps: RdapDeps, key: string) =>
+  deps.cache ? bounded(deps.cache.get(key, "json") as Promise<unknown>, null) : Promise.resolve(null);
+const cachePut = (deps: RdapDeps, key: string, value: unknown, ttl: number) =>
+  deps.cache
+    ? bounded(deps.cache.put(key, JSON.stringify(value), { expirationTtl: ttl }), undefined)
+    : Promise.resolve();
 const DOMAIN_TTL_S = 7 * 24 * 60 * 60;
 
 export type DomainAge =
@@ -55,10 +73,11 @@ async function boundedText(response: Response): Promise<string | null> {
 // A 200 answer's JSON, `malformed` when it is too large or not JSON, null when there is no 200 answer.
 async function fetchJson(url: string, deps: RdapDeps, signal: AbortSignal): Promise<unknown | "malformed" | null> {
   let response: Response;
+  const within = AbortSignal.any([signal, AbortSignal.timeout(RDAP_TIMEOUT_MS)]);
   try {
     response = await deps.fetch(url, {
       headers: { accept: "application/rdap+json, application/json" },
-      signal: AbortSignal.any([signal, AbortSignal.timeout(RDAP_TIMEOUT_MS)]),
+      signal: within,
     });
   } catch {
     return null;
@@ -73,20 +92,19 @@ async function fetchJson(url: string, deps: RdapDeps, signal: AbortSignal): Prom
     const json: unknown = JSON.parse(text);
     return typeof json === "object" && json !== null ? json : "malformed";
   } catch {
-    return signal.aborted ? null : "malformed";
+    // A body cut off by either deadline is no answer, not a bad one (completion review).
+    return within.aborted ? null : "malformed";
   }
 }
 
 type Services = [string[], string[]][];
 async function bootstrap(deps: RdapDeps, signal: AbortSignal): Promise<Services | null> {
-  const cached = await deps.cache?.get("rdap:bootstrap", "json").catch(() => null);
+  const cached = await cacheGet(deps, "rdap:bootstrap");
   if (cached) return (cached as { services: Services }).services;
   const read = await fetchJson(BOOTSTRAP_URL, deps, signal);
   if (!read || read === "malformed" || !Array.isArray((read as { services?: unknown }).services)) return null;
   const services = (read as { services: Services }).services;
-  await deps.cache
-    ?.put("rdap:bootstrap", JSON.stringify({ services }), { expirationTtl: BOOTSTRAP_TTL_S })
-    .catch(() => undefined);
+  await cachePut(deps, "rdap:bootstrap", { services }, BOOTSTRAP_TTL_S);
   return services;
 }
 
@@ -100,6 +118,27 @@ export function serviceFor(domain: string, services: Services): string | null {
     if (base) return base.endsWith("/") ? base : `${base}/`;
   }
   return null;
+}
+
+// An RFC 3339 timestamp (RDAP's, RFC 9083 section 4.5) as a Date, only when it names a real moment: `2026-02-30` is no
+// date, where JavaScript would read March 2 (completion review).
+const RFC3339 = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
+export function rfc3339(text: string): Date | null {
+  const m = RFC3339.exec(text);
+  if (!m) return null;
+  const [year, month, day, hour, minute, second] = m.slice(1, 7).map(Number) as number[];
+  const calendar = new Date(Date.UTC(year as number, (month as number) - 1, day as number));
+  if (
+    calendar.getUTCFullYear() !== year ||
+    calendar.getUTCMonth() !== (month as number) - 1 ||
+    calendar.getUTCDate() !== day ||
+    (hour as number) > 23 ||
+    (minute as number) > 59 ||
+    (second as number) > 60
+  )
+    return null;
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 // A domain's registration date, within LOOKUP_BUDGET_MS, never throwing: an answer that cannot be had is `unavailable`.
@@ -124,7 +163,7 @@ export async function rdapLookup(domain: string, deps: RdapDeps): Promise<Domain
 
 async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal): Promise<DomainAge> {
   const key = `rdap:domain:${domain}`;
-  const cached = await deps.cache?.get(key, "json").catch(() => null);
+  const cached = await cacheGet(deps, key);
   if (cached) return cached as DomainAge;
   const services = await bootstrap(deps, signal);
   if (!services) return { state: "unknown", reason: "unavailable" };
@@ -138,10 +177,10 @@ async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal): Prom
   const event = (Array.isArray(events) ? (events as { eventAction?: unknown; eventDate?: unknown }[]) : []).find(
     (e) => e?.eventAction === "registration",
   );
-  const date = typeof event?.eventDate === "string" ? new Date(event.eventDate) : null;
-  if (!date || Number.isNaN(date.getTime())) return { state: "unknown", reason: "no-date" };
+  const date = typeof event?.eventDate === "string" ? rfc3339(event.eventDate) : null;
+  if (!date) return { state: "unknown", reason: "no-date" };
   const age: DomainAge = { state: "known", registered: date.toISOString(), server };
-  await deps.cache?.put(key, JSON.stringify(age), { expirationTtl: DOMAIN_TTL_S }).catch(() => undefined);
+  await cachePut(deps, key, age, DOMAIN_TTL_S);
   return age;
 }
 

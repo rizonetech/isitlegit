@@ -11,6 +11,7 @@ import {
   MAX_RDAP_BYTES,
   type RdapDeps,
   rdapLookup,
+  rfc3339,
   serviceFor,
 } from "../../src/checks/rdap";
 import { runChecks } from "../../src/checks/runner";
@@ -134,6 +135,45 @@ describe("rdapLookup", () => {
     expect(fresh.calls).toEqual([]);
   });
 
+  it("keeps a good date when the cache write stalls (completion review)", async () => {
+    const stalling = {
+      get: async () => null,
+      put: () => new Promise(() => {}),
+    } as unknown as KVNamespace;
+    const { deps } = stub({ [BOOTSTRAP_URL]: ok(BOOTSTRAP), [`${VERISIGN}domain/example.com`]: ok(EXAMPLE_COM) });
+    const started = Date.now();
+    expect(await rdapLookup("example.com", { ...deps, cache: stalling })).toMatchObject({ state: "known" });
+    expect(Date.now() - started).toBeLessThan(LOOKUP_BUDGET_MS);
+  });
+
+  it("reads a body cut off by the request's own deadline as unavailable, not malformed (completion review)", async () => {
+    const slow = {
+      fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === BOOTSTRAP_URL) return new Response(JSON.stringify(BOOTSTRAP), { status: 200 });
+        const signal = init?.signal;
+        const body = new ReadableStream({
+          start(controller) {
+            signal?.addEventListener("abort", () => controller.error(signal.reason));
+          },
+        });
+        return new Response(body, { status: 200 });
+      }) as typeof fetch,
+      cache: null,
+    };
+    expect(await rdapLookup("x.com", slow)).toEqual({ state: "unknown", reason: "unavailable" });
+  });
+
+  it("rejects impossible dates rather than normalising them (completion review)", async () => {
+    for (const date of ["2026-02-30T00:00:00Z", "2026-13-01T00:00:00Z", "2026-01-01T25:00:00Z", "2026-01-01"]) {
+      const { deps } = stub({
+        [BOOTSTRAP_URL]: ok(BOOTSTRAP),
+        [`${VERISIGN}domain/odd.com`]: ok(registered(date)),
+      });
+      expect(await rdapLookup("odd.com", deps), date).toEqual({ state: "unknown", reason: "no-date" });
+    }
+    expect(rfc3339("2024-02-29T12:00:00+02:00")?.toISOString()).toBe("2024-02-29T10:00:00.000Z");
+  });
+
   it("picks the longest bootstrap suffix", () => {
     const services: [string[], string[]][] = [
       [["za"], ["https://za.example/rdap/"]],
@@ -227,6 +267,14 @@ describe("domain.age", () => {
       ],
       unreadCount: 1,
     });
+  });
+
+  it("gives each domain its own reason in a mixed summary (completion review)", () => {
+    const items = domainAgeEvidence(
+      view({ checkedAt: NOW, ages: [unknown("a.co.za", "no-service"), unknown("b.com", "unavailable")], unread: [] }),
+    );
+    expect(items[0]?.summary).toContain("a.co.za (no registration service (RDAP) answers for this ending)");
+    expect(items[0]?.summary).toContain("b.com (the registration service did not answer)");
   });
 
   it("says a .za domain's age was not checked rather than failing the check", () => {

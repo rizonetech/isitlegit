@@ -21,6 +21,13 @@ const REASON: Record<string, string> = {
   "no-date": "the registration service gave no registration date",
 };
 
+// Each reason once, with the domains it applies to, so a mixed failure says what happened to each (completion review).
+function byReason(unchecked: { domain: string; reason: string }[]): string {
+  const groups = new Map<string, string[]>();
+  for (const u of unchecked) groups.set(u.reason, [...(groups.get(u.reason) ?? []), u.domain]);
+  return [...groups].map(([reason, domains]) => `${domains.join(", ")} (${REASON[reason] ?? reason})`).join("; ");
+}
+
 export function domainAgeEvidence(view: CaseView): EvidenceDraft[] {
   const read = view.domainAges;
   if (!read || (!read.ages.length && !read.unread.length)) return [];
@@ -59,7 +66,7 @@ export function domainAgeEvidence(view: CaseView): EvidenceDraft[] {
       severity: "info",
       summary: bounded(
         unchecked.length
-          ? `The age of ${plain(unchecked.map((u) => u.domain).join(", "), 100)} was not checked: ${REASON[unchecked[0]?.reason ?? "unavailable"]}.`
+          ? `Ages not checked: ${plain(byReason(unchecked), 170)}.`
           : `${read.unread.length} more domains' ages were not checked.`,
       ),
       // Names bounded, counts exact, so a message naming many domains keeps the ages found (plan review).
