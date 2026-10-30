@@ -30,5 +30,5 @@ Every chapter card says shipped, partly built or planned. Shipped means the code
 
 ## Operator decisions and open questions
 
-- Text only for now, no voiceover (operator, 2026-10-30).
+- Text only for now; a voiceover is planned for later, recorded by the operator against the finished cut (operator, 2026-10-30).
 - Re-render once the verdict agent ships, to move chapters 6, 7 and 10 from planned to shipped?

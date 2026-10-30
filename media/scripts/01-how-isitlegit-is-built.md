@@ -30,5 +30,5 @@ Client data, account and vault names, keys, budgets, and the model identifier of
 
 ## Operator decisions
 
-- Text only for now, no voiceover (operator, 2026-10-30).
+- Text only for now; a voiceover is planned for later, recorded by the operator against the finished cut (operator, 2026-10-30).
 - Keep the reviewer model names (GPT-6 Astra, Muse Wonder) on screen, for authenticity (operator, 2026-10-30).

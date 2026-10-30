@@ -34,5 +34,5 @@ The pilot client's sample mail and anything from it beyond counts, the data stor
 
 - Show the teacher's spend (US$6.91), or keep costs out?
 - Show the 61% Muse Spark recall bar? It is an aggregate over the pilot client's redacted sample lures; only the count and the rate would appear.
-- Text only for now, no voiceover (operator, 2026-10-30).
+- Text only for now; a voiceover is planned for later, recorded by the operator against the finished cut (operator, 2026-10-30).
 - Re-render after Loupe 1.0 trains, adding a results scene from the model card?
