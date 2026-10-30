@@ -40,7 +40,9 @@ track: day-6
 
 Every case of the organisation, newest first, with verdict, channel, sender (display only for members), subject and time; filters by verdict, channel and date; search by sender or subject words; paged 25 at a time.
 
-**Phase:** 6
+**Phase:** 2
+
+**Corrected 2026-10-30** (the operator's decision, 18:20 SAST, through the coordinator): was Phase 6. Every sign-in lands on `/cases` (`DEFAULT_RETURN`), so the Cases list is built before the sign-in page (D07 T02 §7), which depends on it, ahead of the operator's own sign-up (D99 T02 §1).
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` member console, cases list
