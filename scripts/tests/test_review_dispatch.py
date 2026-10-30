@@ -872,6 +872,9 @@ SCHEDULED_PIN = FIXTURE_PIN + textwrap.dedent('''
     effort = "low"
     lenses = ["adversarial"]
 
+    [schedule.light]
+    rounds = [{ effort = "medium", lenses = ["adversarial", "plan-delivery"] }]
+
     [schedule.rotation]
     effort = "low"
     lenses = ["consistency", "design", "record"]
@@ -915,6 +918,82 @@ class Schedule(Harness):
         rounds = self.module().read_rounds(self.findings.read_text(encoding="utf-8"))
         self.assertEqual([(r["effort"], r["lenses"]) for r in rounds][:2],
                          [("high", ["adversarial", "integration"]), ("medium", ["adversarial"])])
+
+    # D00 T01 §15: a light section runs the light fixed rounds, the rest of the schedule as before.
+
+    def light_section(self, risk="light"):
+        """§1 of D00 T01 in this scratch repository, with the risk given, and its findings file."""
+        todo = self.repo / "todo/00-workspace/TODO-01-a.md"
+        todo.parent.mkdir(parents=True, exist_ok=True)
+        line = f"**Risk:** {risk}\n" if risk else ""
+        todo.write_text(f"# A\n\n## 1. Tool\n\n**Phase:** 0\n{line}**Surface:** no\n\nNames `scripts/x.py`.\n\n"
+                        "## 2. Other\n\n**Risk:** full\n", encoding="utf-8")
+        self.findings = self.repo / "docs/reviews/00-workspace/D00-T01-s1.md"
+        self.findings.parent.mkdir(parents=True, exist_ok=True)
+
+    def test_a_light_section_runs_the_light_rounds_and_says_so(self):
+        self.light_section()
+        seen = [(s["position"], self.effort_of(c), s["lenses"]) for s, (c,) in (self.round() for _ in range(3))]
+        self.assertEqual(seen, [(1, "medium", ["adversarial", "plan-delivery"]), (2, "low", ["consistency"]),
+                                (3, "low", ["record"])])
+        text = self.findings.read_text(encoding="utf-8")
+        self.assertEqual(text.count("- Schedule: light"), 3)
+        self.assertEqual([r["schedule"] for r in self.module().read_rounds(text)], ["light"] * 3)
+
+    def test_a_p1_in_a_light_round_still_earns_another_round(self):
+        self.light_section()
+        self.round("1. [P1] broken.\n\nHIGHEST: P1\n\nOVERALL: needs-attention")
+        summary, (call,) = self.round("1. [P1] still.\n\nHIGHEST: P1\n\nOVERALL: needs-attention")
+        self.assertEqual((summary["position"], summary["lenses"]), (2, ["consistency"]))
+        # The low round found a P1, so the next is the escalation, as on the full schedule.
+        summary, (call,) = self.round()
+        self.assertEqual((summary["position"], self.effort_of(call), summary["escalated"]), (3, "medium", True))
+
+    def test_a_section_whose_risk_changes_starts_its_rounds_again(self):
+        self.light_section()
+        self.round("1. [P2] gap.\n\nHIGHEST: P2\n\nOVERALL: needs-attention")
+        self.light_section("full")
+        summary, (call,) = self.round()
+        self.assertEqual((summary["position"], self.effort_of(call), summary["lenses"]),
+                         (1, "high", ["adversarial", "integration"]))
+        rounds = self.module().read_rounds(self.findings.read_text(encoding="utf-8"))
+        self.assertEqual([(r["number"], r["schedule"]) for r in rounds], [(1, "light"), (2, None)])
+
+    def test_a_section_with_no_risk_is_full_and_a_malformed_one_is_refused_before_a_review(self):
+        module = self.module()
+        self.light_section(None)
+        self.assertEqual(module.section_risk(self.findings, self.repo), "full")
+        for line in ("**Risk:** medium", "**Risk:** light\n**Risk:** full", "**Risk:**"):
+            with self.subTest(line=line):
+                self.light_section(None)
+                todo = self.repo / "todo/00-workspace/TODO-01-a.md"
+                todo.write_text(todo.read_text(encoding="utf-8").replace("**Surface:** no", f"{line}\n**Surface:** no", 1),
+                                encoding="utf-8")
+                with self.assertRaises(module.Refused):
+                    module.section_risk(self.findings, self.repo)
+                self.log.unlink(missing_ok=True)
+                result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--record",
+                                          str(self.findings), codex="say", say="OVERALL: approve")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.calls(), [], "no reviewer ran")
+        # A quoted field reads as the validator reads it.
+        self.light_section(None)
+        todo = self.repo / "todo/00-workspace/TODO-01-a.md"
+        todo.write_text(todo.read_text(encoding="utf-8").replace("**Surface:** no", "> **Risk:** light\n**Surface:** no", 1),
+                        encoding="utf-8")
+        self.assertEqual(module.section_risk(self.findings, self.repo), "light")
+        self.assertEqual(module.section_risk(self.repo / "notes.md", self.repo), "full")
+        self.light_section()
+        self.assertEqual(module.section_risk(self.findings, self.repo), "light")
+        self.assertEqual(module.section_risk(self.findings.with_name("D00-T01-s2.md"), self.repo), "full")
+
+    def test_the_pin_refuses_a_malformed_light_step(self):
+        module = self.module()
+        good = module.load_pin(self.repo / ".conclave/reviewers.toml")["schedule"]
+        for light in ({}, {"rounds": []}, {"rounds": [{"effort": "loud", "lenses": ["adversarial"]}]},
+                      {"rounds": [{"effort": "low", "lenses": ["adversarial"]}], "extra": 1}):
+            with self.subTest(light=light), self.assertRaises(module.Refused):
+                module.check_schedule({**good, "light": light}, ["codex"])
 
     def test_surface_puts_design_in_the_rotation(self):
         lenses = [self.round("OVERALL: approve", "--surface")[0]["lenses"] for _ in range(6)]

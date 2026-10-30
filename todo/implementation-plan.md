@@ -8,36 +8,37 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 26 | Checklist items: 355
+Sections: 27 | Checklist items: 359
 
-| Status | Reference   | Deliverable                              | Needs                | Items |
-| ------ | ----------- | ---------------------------------------- | -------------------- | ----- |
-| [x]    | D00 T01 §1  | Git repository and public GitHub repo    | attended             | 16    |
-| [x]    | D00 T01 §2  | Worker package and health route          | none                 | 16    |
-| [x]    | D00 T01 §3  | Vitest workers pool and Biome            | none                 | 15    |
-| [x]    | D00 T01 §4  | GitHub Actions CI                        | none                 | 12    |
-| [x]    | D00 T01 §5  | Cloudflare bindings and first deploy     | cloudflare           | 24    |
-| [x]    | D00 T01 §6  | AI Gateway for the Meta Model API        | cloudflare           | 9     |
-| [x]    | D00 T01 §10 | Deploy rollback and re-verification      | cloudflare           | 11    |
-| [x]    | D00 T01 §12 | Rollback from a split deployment         | cloudflare           | 10    |
-| [x]    | D03 T04 §2  | Fireworks account check and image probe  | none                 | 22    |
-| [x]    | D03 T04 §3  | PageScreen contract and training store   | none                 | 15    |
-| [x]    | D03 T04 §4  | Astra as dataset collector               | none                 | 17    |
-| [x]    | D03 T04 §5  | Public phishing-page datasets by licence | none                 | 12    |
-| [x]    | D03 T04 §6  | Benign real pages rendered locally       | none                 | 8     |
-| [x]    | D03 T04 §7  | Redacted sample mail converted to pages  | none                 | 28    |
-| [x]    | D03 T04 §8  | Synthetic South African lures            | meta-api             | 10    |
-| [x]    | D03 T04 §9  | Spark teacher labels and human check     | meta-api             | 18    |
-| [ ]    | D03 T04 §26 | Benign render hardening                  | none                 | 13    |
-| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0   | none                 | 18    |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set  | none                 | 13    |
-| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe        | none                 | 11    |
-| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero   | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured   | meta-api             | 16    |
-| [ ]    | D03 T04 §17 | Loupe model card per version             | none                 | 9     |
-| [x]    | D99 T01 §8  | AI Gateway tokens                        | none                 | 9     |
-| [x]    | D00 T01 §7  | Meta smoke test                          | meta-api, cloudflare | 10    |
-| [x]    | D00 T01 §11 | AI Gateway config snapshot and restore   | cloudflare           | 6     |
+| Status | Reference   | Deliverable                                | Needs                | Items |
+| ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
+| [x]    | D00 T01 §1  | Git repository and public GitHub repo      | attended             | 16    |
+| [x]    | D00 T01 §2  | Worker package and health route            | none                 | 16    |
+| [x]    | D00 T01 §3  | Vitest workers pool and Biome              | none                 | 15    |
+| [x]    | D00 T01 §4  | GitHub Actions CI                          | none                 | 12    |
+| [x]    | D00 T01 §5  | Cloudflare bindings and first deploy       | cloudflare           | 24    |
+| [x]    | D00 T01 §6  | AI Gateway for the Meta Model API          | cloudflare           | 9     |
+| [x]    | D00 T01 §10 | Deploy rollback and re-verification        | cloudflare           | 11    |
+| [x]    | D00 T01 §12 | Rollback from a split deployment           | cloudflare           | 10    |
+| [ ]    | D00 T01 §14 | Timing-free render, import and fetch tests | none                 | 4     |
+| [x]    | D03 T04 §2  | Fireworks account check and image probe    | none                 | 22    |
+| [x]    | D03 T04 §3  | PageScreen contract and training store     | none                 | 15    |
+| [x]    | D03 T04 §4  | Astra as dataset collector                 | none                 | 17    |
+| [x]    | D03 T04 §5  | Public phishing-page datasets by licence   | none                 | 12    |
+| [x]    | D03 T04 §6  | Benign real pages rendered locally         | none                 | 8     |
+| [x]    | D03 T04 §7  | Redacted sample mail converted to pages    | none                 | 28    |
+| [x]    | D03 T04 §8  | Synthetic South African lures              | meta-api             | 10    |
+| [x]    | D03 T04 §9  | Spark teacher labels and human check       | meta-api             | 18    |
+| [ ]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
+| [ ]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
+| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 13    |
+| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
+| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 16    |
+| [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
+| [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
+| [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
+| [x]    | D00 T01 §11 | AI Gateway config snapshot and restore     | cloudflare           | 6     |
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
@@ -90,10 +91,11 @@ Sections: 42 | Checklist items: 368
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 35 | Checklist items: 191
+Sections: 36 | Checklist items: 195
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
+| [ ]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [ ]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 5     |
@@ -274,11 +276,14 @@ Sections: 61 | Checklist items: 257
 
 ### Phase 7: After the event
 
-Sections: 24 | Checklist items: 144
+Sections: 27 | Checklist items: 156
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
 | [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none     | 6     |
+| [x]    | D00 T01 §15 | Review schedule by section risk                  | none     | 5     |
+| [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none     | 3     |
+| [ ]    | D00 T01 §17 | Light against full review, measured              | none     | 4     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
@@ -325,6 +330,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 77/256 verified sections, 37 ready to run now.
+Progress: 78/261 verified sections, 41 ready to run now.
 
-Checklist: 824/1629 items completed (includes Commit items).
+Checklist: 832/1649 items completed (includes Commit items).

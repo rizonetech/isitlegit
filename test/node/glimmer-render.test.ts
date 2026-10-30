@@ -148,10 +148,12 @@ const pages: Record<string, (res: import("node:http").ServerResponse, origin: st
     ),
   // §26's completion review: text that changes during capture, a form below its frame's visible area, a shadow
   // root's form and text, a small wall panel, a consent wall inside a frame, and covers drawn as one image.
+  // The text changes on every frame drawn, and the screenshot between the two readings draws one: never on a timer a
+  // busy browser may hold back, which let the readings agree on a loaded runner (D00 T01 §14).
   "/text-swap": (res) =>
     html(
       res,
-      `<p id=t>My account</p><p>${words}</p><script>let n = 0; setInterval(() => { t.textContent = 'Account ' + (n++).toString(26).replace(/[0-9]/g, (d) => 'klmnopqrst'[d]) }, 10)</script>`,
+      `<p id=t>My account</p><p>${words}</p><script>let n = 0; requestAnimationFrame(function swap() { t.textContent = 'Account ' + (n++).toString(26).replace(/[0-9]/g, (d) => 'klmnopqrst'[d]); requestAnimationFrame(swap) })</script>`,
     ),
   "/frame-clipped": (res) =>
     html(

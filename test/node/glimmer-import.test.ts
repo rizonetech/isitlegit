@@ -465,20 +465,24 @@ describe("the import run", () => {
 
   it("turns a load that never settles into an exclusion, and the other items still import", async () => {
     const stuck: SourceItem = { ...item("stuck", "#707"), load: () => new Promise(() => undefined) };
+    // Each normal item's page is made before the run, so its load resolves at once and only the stuck one can meet the
+    // deadline: a busy runner encoding a picture inside the load once lost that race (D00 T01 §14).
+    const ready = await Promise.all(
+      Array.from({ length: 25 }, async (_, i) => {
+        const normal = item(`ok${i}`, `#${(i * 13 + 32).toString(16).padStart(3, "0")}`);
+        const page = await normal.load();
+        return { ...normal, load: async () => page };
+      }),
+    );
     const result = await importSource({
       source: "set",
       licence: "CC0",
-      items: [
-        stuck,
-        ...Array.from({ length: 25 }, (_, i) => item(`ok${i}`, `#${(i * 13 + 32).toString(16).padStart(3, "0")}`)),
-      ],
+      items: [stuck, ...ready],
       store: openStore(join(dir, "store")),
-      // Room for a normal item's load on a busy runner (0.3 seconds excluded one in CI, 2026-10-29); the stuck one
-      // still meets the deadline, since it never settles at all.
-      itemMs: 3000,
+      itemMs: 300,
       concurrency: 2,
     });
-    expect(result.excluded).toEqual([{ item: "stuck", reason: "the item did not load within 3 seconds" }]);
+    expect(result.excluded).toEqual([{ item: "stuck", reason: "the item did not load within 0.3 seconds" }]);
     expect(result).toMatchObject({ status: "complete", imported: 25 });
   }, 20_000);
 

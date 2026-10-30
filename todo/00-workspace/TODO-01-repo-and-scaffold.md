@@ -51,6 +51,11 @@ track: day-0
 | 10 | §10 | Deploy rollback and re-verification | §5 | [x] |
 | 11 | §11 | AI Gateway config snapshot and restore | §6, D99 T01 §8 | [x] |
 | 12 | §12 | Rollback from a split deployment | §10 | [x] |
+| 13 | §13 | Type check before every push | §4 | [ ] |
+| 14 | §14 | Timing-free render, import and fetch tests | §4 | [ ] |
+| 15 | §15 | Review schedule by section risk | §4 | [x] |
+| 16 | §16 | A returned review kept when its record fails | §4 | [ ] |
+| 17 | §17 | Light against full review, measured | §15 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -517,6 +522,120 @@ Evidence 2026-10-27 14:05 SAST, after the final review's fixes (commit `a7a3aee`
 
 > **Verified:** 2026-10-27 | §12 | 8d3c602062e5419d41286396cd0800c926ea08f6
 > **Review:** `docs/reviews/d00-t01-s12.json`
+
+## 13. Type check before every push
+
+Filed 2026-10-29 at the operator's request, after CI's Worker gates failed in 30 to 36 seconds on three `glimmer-screener` commits pushed with a type error in a test (`6d1c736`, `902ae19`, `8d979c8`, 17:12 to 17:22 SAST: `test/node/glimmer-dataset.test.ts` named an `afterFreeze` field the code did not have yet). The pre-commit hook checks the plan, client names and private paths, but nothing local runs the type checker, so a lane that skips it finds out from CI. A pre-push hook beside the pre-commit one makes the check mechanical for both lanes, which share `core.hooksPath = scripts/hooks`.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the hook. Done when: a push with a type error is refused locally with the first error shown, and a clean push goes through.
+2. Prove it. Done when: tests cover a refused push, a clean push and the documented escape.
+
+- [ ] Write `scripts/hooks/pre-push` running `pnpm typecheck` (and `pnpm lint`), refusing the push on a failure with the first errors printed and the command to rerun. Done when: in a scratch clone with `core.hooksPath` set, a push with a type error exits non-zero before anything leaves, and a clean push succeeds.
+- [ ] Keep the hook bounded and honest: a missing `pnpm` or `node_modules` is a refusal naming what to install, never a silent pass, and the escape is git's own `--no-verify`, documented, not a variable the hook reads. Done when: `tests/scripts/test_pre_push_hook.py` covers each case with a stubbed `pnpm` on `PATH`.
+- [ ] Add the tests to `tests/scripts/test_pre_push_hook.py` and name the hook in `AGENTS.md` beside the pre-commit hook. Done when: each case fails if its branch in the hook is removed, and `AGENTS.md` names both hooks.
+- [ ] Commit: `tools: a pre-push hook runs the type check and lint`
+
+**Test checkpoint:** `python3 -m pytest tests/scripts/test_pre_push_hook.py` passes and fails if a push with a type error is let through.
+
+## 14. Timing-free render, import and fetch tests
+
+Filed 2026-10-29 at the operator's request: most of the red CI runs that are not a real defect come from tests that wait on a fixed time and lose the race on a slow runner. The Glimmer lane owns the code (D03 T04), so its runner takes this row (Phase 0). The runs: `test/node/glimmer-render.test.ts` "renderPage > renders a page with its screenshot, text and form flags" timed out at 15 s on `main` (runs 40797268504, 40798611883) and "the batch run" cases failed on the lane (40899049673, 40881446236); `test/node/glimmer-import.test.ts` "turns a load that never settles into an exclusion" (40812786684); `tests/scripts/test_fetch_bench.py` "test_aria2c_too_is_killed_at_the_byte_and_resumes" (40927700660, the most recent red) and "test_a_small_run_records_fetch_py_recovering_intact" (40832290146).
+
+> **Started:** 2026-10-29T19:57Z (main's session, at the operator's request, after main merged the lane at `b80e4bf`, so it works on the lane's current files)
+
+**Corrected 2026-10-29** (at start, from the failed runs' logs and the code): (1) both fetch-bench failures are one assertion, `resumed` false: `killed_and_resumed` in `scripts/glimmer/fetch_bench.py` kills the first process as soon as the server holds every connection at the kill byte, whether or not the tool has saved its progress since (aria2c saves every second, `--auto-save-interval=1`; `fetch.py` every MiB), and waits a fixed `time.sleep(0.5)` for the dead connections to close; the harness, not the tests, owns both; (2) `/text-swap` changes its text on a 10 ms `setInterval`, a timer headless Chromium may throttle, so the two readings sometimes agree; a `requestAnimationFrame` loop changes it on every frame the screenshot between the readings draws; (3) the frame case stored the page (1, not 0): its read fault fires only on a non-main frame, so a run that captured before the cross-origin frame was in the renderer's frame tree read no frame at all; whether that is the renderer storing a page whose shown frame it never read (a real defect) is diagnosed before anything is changed; (4) "renders a page" timed out at 15 s on its first render, which carries the browser's cold start; (5) the import case's deadline is real time (3 s after the lane raised it from 0.3 s), so a busy runner can still push a normal item past it.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find what each test waits on. Done when: each named test's fixed delay or deadline is listed with the event it stands in for.
+2. Wait on the event instead. Done when: each test passes repeatedly under load and still fails when the behaviour it checks is removed.
+
+- [x] Replace each fixed sleep or wall-clock deadline in the named tests (`test/node/glimmer-render.test.ts`, `test/node/glimmer-import.test.ts`, `tests/scripts/test_fetch_bench.py`) with the event it waits for: a promise, a file or byte count observed, a fake clock, or a process exit read with a bounded retry. Done when: no named test asserts on elapsed real time except as a generous upper bound. Done 2026-10-29: `/text-swap` changes on every drawn frame (`requestAnimationFrame`), not a 10 ms timer; the import case's 25 normal pages are made before the run, so only the stuck item meets the deadline (back to 0.3 s); the harness kills only once `tool_saved` sees the tool's progress saved since the hold, and the second run starts once the server's open connections reach zero (`Bench.open`, `Bench.closed`), not after `time.sleep(0.5)`. The cold-start timeouts (runs 40797268504, 40798611883) were on commits that predated the lane's warm-up in `beforeAll` (`d16dc8b`), already fixed; the frame case did not reproduce in 20 loaded runs, so the renderer is left as it is.
+- [x] Run each named test 20 times under CPU load (`stress-ng --cpu` or parallel copies) and record the results. Done when: the section records 20 of 20 passes for each, with the command used. Done 2026-10-29, each on two cores held busy by `stress-ng --cpu 2 --taskset 8,9` with the test pinned to them (`taskset -c 8,9`), so the lane's Majestic render kept the rest of the machine: the text-swap case 20 of 20 (2 of 20 failed before the change), the frame case 20 of 20, the import case 20 of 20, the fetch-bench small-run and aria2c cases 20 of 20.
+- [x] Prove each still catches its defect. Done when: removing the behaviour each test checks makes it fail, recorded per test. Done 2026-10-29: the text-swap case fails with `readingsAgree` always true; the import case fails (times out) with the deadline removed; both fetch-bench cases fail with the saved progress wiped before the resume.
+- [ ] Commit: `glimmer: render, import and fetch tests wait on events, not time`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-render.test.ts test/node/glimmer-import.test.ts` and `python3 -m pytest tests/scripts/test_fetch_bench.py` pass 20 times in a row under load.
+
+## 15. Review schedule by section risk
+
+Filed 2026-10-30 at the operator's request, to go quicker without lowering the bar where it matters. Every section runs one review schedule today (`.conclave/reviewers.toml` `[schedule]`: a plan review, a completion review, then rounds until one finds no P1 or P2). In this session the plan and completion reviews found real gaps on every section, while rounds after the first rarely did on tooling and documentation sections. A section's risk should choose its schedule: the full one for code that handles authentication, mail, money, model calls or stored data; a lighter one (the plan review, the completion review and one round) for tooling, documentation and test-only sections.
+
+> **Started:** 2026-10-29T22:31Z (at the operator's request: "let's implement it and carry it over to the glimmer lane")
+
+**Corrected 2026-10-30** (at start, checked against `scripts/review-dispatch.py` and `scripts/lib/todo_graph.py`): (1) the light schedule keeps the loop's stop rule and changes only the fixed rounds: `[schedule.light]` holds its own `rounds` list (one round at medium through the adversarial and plan-delivery lenses), after which rotation, escalation and `severity_stop_after` apply as they do now, so a round that finds a P1 or P2 still earns another round to prove the fix; ending the loop after one round whatever it found, as first written, would stamp an unproven fix, and is not adopted; (2) `scheduled()` is the one copy of the schedule rule, which the stamp replays: it takes the section's risk as it takes `surface`, the dispatcher a `--light` flag as it takes `--surface`, and the stamp replays every recorded pass with the section's own `**Risk:**`, so a light schedule run for a full section is refused at the stamp; (3) "paths touch" is read from the section's own text: a section naming a path under `src/auth/`, `src/mail/`, `src/meta/` or `src/db/` (migrations included) in backticks is refused `light`.
+
+**Corrected 2026-10-30** (plan review): (4) an allow-list, not a deny-list: `light` only when every path the section names in backticks is under `scripts/`, `tests/`, `test/`, `docs/`, `todo/`, `.claude/`, `.github/` or `design/`, none names a guarded word (auth, mail, meta, secret, credential, redact, leak, migration, sample, trust, bank, payment), and it names at least one, so `src/trust/bank.ts` and `src/agent/loop.ts` are refused whatever prefix list a deny-list would have missed; (5) no flag to forget: the dispatcher reads the risk from the section its findings file names (`section_risk`), so the existing review workflow, retries and post-final rounds included, needs no change; (6) each light round records `- Schedule: light`, and a change of risk starts the rounds again from round 1 on the new schedule with the earlier findings kept: the stamp replays each round on the schedule it ran on and requires the last to match the section's risk, with a message saying how to recover.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Say each section's risk. Done when: every section carries a risk the validator checks, or one derived from its domain and paths.
+2. Run each risk's schedule. Done when: the dispatcher picks the schedule by the section's risk, and the stamp checks the receipt against it.
+
+- [x] Add a `**Risk:**` line (`full` or `light`) to the section format in `todo/README.md` and the validator in `scripts/lib/todo_graph.py`, defaulting to `full` when absent, so no section gets the lighter schedule by accident. Done when: `python3 scripts/todo-graph.py validate` refuses an unknown risk, and a section with none is `full`. Done 2026-10-30: `LIGHT_PREFIXES`, `GUARDED_WORDS`, `light_paths`, `light_path` in `scripts/lib/todo_graph.py`, documented in `todo/README.md`; `tests/scripts/test_todo_graph.py` class `Risk`.
+- [x] Add `[schedule.light]` to `.conclave/reviewers.toml` (its own `rounds`: one at medium, the adversarial and plan-delivery lenses), checked by `check_schedule`, and have `scheduled()` in `scripts/review-dispatch.py` use those rounds for a light section, with a `--light` flag on the dispatcher. Done when: `scripts/tests/test_review_dispatch.py` shows a light section's round 1 at medium with those lenses, its round 2 from the rotation, a P1 in a light round still earning another round, and a full section's rounds as today. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `[schedule.light]` in the pin; `check_schedule`, `round_schedule`, `section_risk`, `scheduled(..., risk)` and the `- Schedule: light` line in `scripts/review-dispatch.py`, with no flag (correction 5); `scripts/tests/test_review_dispatch.py` (five tests).
+- [x] Have the stamp replay a light section's rounds with the light schedule and a full section's with the full one (`schedule_ok` in `scripts/lib/todo_graph.py`, the section's `**Risk:**` beside its `Surface`), the schedule at the stamped commit deciding. Done when: `tests/scripts/test_todo_graph.py` covers a light section stamping on the light schedule, a full section refused a light round, and a light section refused a full one. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `schedule_ok(..., risk)` in `scripts/lib/todo_graph.py`; `tests/scripts/test_todo_graph.py` (a light stamp, both refusals, a section made full partway, a hand-edited light round).
+- [x] Refuse `light` for a section whose text names a path under `src/auth/`, `src/mail/`, `src/meta/` or `src/db/` in backticks. Done when: a test shows such a section refused `light` and the same section `full` accepted. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: the allow-list of correction (4); the `Risk` tests refuse `src/trust/bank.ts`, `src/agent/loop.ts`, a migration, a redaction and a leak check, and a section naming no path. Each test proven to fail with its rule removed.
+- [x] Commit: `tools: a lighter review schedule for low-risk sections` Done 2026-10-30: bd4d682, then the review fixes to c8bc0c8. Test checkpoint 2026-10-30: `python3 -m pytest scripts/tests/test_review_dispatch.py tests/scripts/test_todo_graph.py` 241 passed.
+
+**Test checkpoint:** `python3 -m pytest scripts/tests/test_review_dispatch.py tests/scripts/test_todo_graph.py` passes, including a light section stamped after one round and a full one refused.
+
+> **Verified:** 2026-10-30 | §15 | b27d2322641e1797262052665ca9ea68effb32a0
+> **Review:** `docs/reviews/d00-t01-s15.json`
+
+## 16. A returned review kept when its record fails
+
+Filed 2026-10-30 from D00 T01 §15's completion review (gap 11, missing out of scope): a reviewer's returned review is lost when `scripts/review-dispatch.py` cannot write the findings file after it (a full disk, a permission error, a lock), since the record branch catches only `Unrecorded`: the review was paid for and the operator sees an exception with no output. The existing findings survive, since the write is atomic.
+
+**Phase:** 7
+**Needs:** none
+**Risk:** light
+**Surface:** no
+
+**Build order:**
+
+1. Keep the review when the record cannot be written. Done when: a failed write prints the review and the record's path and exits non-zero.
+2. Prove it. Done when: tests cover a full disk, a refused permission and a held lock.
+
+- [ ] Catch an `OSError` from writing the findings file in `scripts/review-dispatch.py`, printing the returned review whole to stderr with the record path that could not be written and the command to record it again, and exiting with the unrecorded code. Done when: the review's text, the path and the exit code are in the output with the findings file unchanged.
+- [ ] Add the tests to `scripts/tests/test_review_dispatch.py`, the write made to fail with `ENOSPC`, `EACCES` and a held lock. Done when: each case keeps the review in the output and fails if the catch is removed.
+- [ ] Commit: `tools: a review whose record fails is printed, not lost`
+
+**Test checkpoint:** `python3 -m pytest scripts/tests/test_review_dispatch.py` passes, including the three failed-write cases.
+
+## 17. Light against full review, measured
+
+Filed 2026-10-30 from D00 T01 §15's completion review (Part 2, item 2): the light schedule rests on what this session observed (rounds after the first rarely found anything on tooling, test and documentation sections), not on a measurement. This compares the two on the same candidates.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Gather the candidates. Done when: a set of past tooling, test and documentation sections with their known P1 and P2 findings is listed.
+2. Measure both schedules. Done when: the record names time, usage and missed known findings for each.
+
+- [ ] List at least eight stamped sections that would be light today, with each one's commit before its rounds and the P1 and P2 findings its rounds found, in `docs/evals/review-schedules.md`. Done when: the list is committed with the commits and findings named.
+- [ ] Replay both schedules on each candidate through `scripts/review-dispatch.py` into scratch findings files, recording wall time, reviewer usage and which known findings each found. Done when: `docs/evals/review-schedules.md` has the table, and says whether light missed any known P1 or P2.
+- [ ] If light missed a known P1 or P2, narrow `LIGHT_PREFIXES` or `[schedule.light]` in `.conclave/reviewers.toml` until it does not, and record why. Done when: the record names the change, or that none was needed.
+- [ ] Commit: `docs: light against full review, measured`
+
+**Test checkpoint:** `docs/evals/review-schedules.md` holds the table with time, usage and missed findings for both schedules.
 
 ## Verification
 

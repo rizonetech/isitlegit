@@ -54,8 +54,10 @@ lenses = ["plan"]
 [schedule.completion]
 effort = "high"
 
+# Round 1 at high, not xhigh, from 2026-10-30 00:30 SAST (operator: quicker, with the plan and completion reviews kept
+# at high, since they find the most real gaps).
 [[schedule.rounds]]
-effort = "xhigh"
+effort = "high"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 
 [[schedule.rounds]]
@@ -65,6 +67,12 @@ lenses = ["adversarial"]
 [[schedule.rounds]]
 effort = "low"
 lenses = ["adversarial"]
+
+# A `light` section (its `**Risk:** light` line, D00 T01 §15: a section whose named paths are all tooling, tests or
+# documentation) runs these fixed rounds in place of the list above; the rotation, the escalation and the severity stop
+# are the same, so a round that finds a P1 or P2 still earns another round to prove its fix.
+[schedule.light]
+rounds = [{ effort = "medium", lenses = ["adversarial", "plan-delivery"] }]
 
 [schedule.rotation]
 effort = "low"
