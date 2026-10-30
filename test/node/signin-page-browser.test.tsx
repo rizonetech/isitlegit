@@ -318,6 +318,22 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     await context.close();
   });
 
+  it("goes on only for the session as it is now, whatever a late word from another tab says", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const asked = await open("/signin/inbox", { context });
+    const other = await open("/signin", { context });
+    // Another address is signed in now; a late word for this page's address arrives.
+    state.session = "someone-else@example.org";
+    await other.p.evaluate((email) => new BroadcastChannel("isitlegit-auth").postMessage({ signedIn: email }), EMAIL);
+    await asked.p.waitForTimeout(1500);
+    expect(new URL(asked.p.url()).pathname).toBe("/signin/inbox");
+    // The word again, with this address signed in: it goes on.
+    state.session = EMAIL;
+    await other.p.evaluate((email) => new BroadcastChannel("isitlegit-auth").postMessage({ signedIn: email }), EMAIL);
+    await asked.p.waitForURL(`${origin}/cases/42`, { timeout: 2000 });
+    await context.close();
+  });
+
   it("finishes by asking for the session in a browser without BroadcastChannel", async () => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await context.addInitScript(() => {
@@ -372,9 +388,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     await context.close();
   });
 
-  it("loads a page restored from the back/forward cache again, its form usable", async () => {
+  it("loads a busy page restored from the back/forward cache again, its form usable", async () => {
     const { p, context } = await open("/signin");
     const before = state.gets;
+    // The page as the cache keeps it after its form went: busy, its button disabled. (Chromium under automation keeps no
+    // back/forward cache, so the restore is the event the browser fires for one.)
+    await p.evaluate(() => {
+      const form = document.querySelector<HTMLFormElement>("form[data-busy]");
+      const button = form?.querySelector<HTMLButtonElement>("button[type=submit]");
+      if (form) form.dataset.sent = "true";
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Sending…";
+      }
+    });
+    expect(await p.getByRole("button", { name: "Sending…" }).isDisabled()).toBe(true);
     await p.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
     await expect.poll(() => state.gets).toBeGreaterThan(before);
     await p.waitForLoadState("load");
