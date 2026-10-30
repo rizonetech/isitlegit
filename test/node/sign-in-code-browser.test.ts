@@ -53,7 +53,14 @@ async function open(viewport = { width: 1280, height: 800 }, context?: BrowserCo
       if (path === "/signin/code") {
         const held = (all.cookie ?? "").includes(`${CODE_COOKIE}=${handle}`);
         if (held && normaliseCode(body.get("code")) === CODE)
-          return route.fulfill({ status: 303, headers: { location: `${APP}${callbackURL}` } });
+          // The signed-in landing itself, not a 303 to it: a redirect a fulfilled POST answers with was followed to the
+          // network on the CI runner, not back to this handler (runs 41072800586, 41073228487). The Worker's 303 to the
+          // return path is test/auth/sign-in-code.test.ts's.
+          return route.fulfill({
+            status: 200,
+            contentType: "text/html",
+            body: `<!doctype html><title>Signed in</title><p id="signed-in">${callbackURL}</p>`,
+          });
         return route.fulfill(
           await html(
             InboxPage({
@@ -72,8 +79,6 @@ async function open(viewport = { width: 1280, height: 800 }, context?: BrowserCo
       return route.fulfill(
         await html(LinkRequestPage({ callbackURL: "/cases/12", heading: "Sign in", title: "Sign in" })),
       );
-    if (path === "/cases/12")
-      return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Cases</title>" });
     const file = join(PUBLIC, path);
     if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
     return route.fulfill({ status: 404 });
@@ -100,7 +105,8 @@ describe.skipIf(!chromiumPath())("the sign-in code in Chromium", () => {
       .toBe("code");
     await page.keyboard.type("012 345");
     await page.keyboard.press("Enter");
-    await page.waitForURL(`${APP}/cases/12`);
+    await page.waitForSelector("#signed-in");
+    expect(await page.textContent("#signed-in")).toBe("/cases/12");
     const sent = posts.find((p) => p.path === "/signin/code");
     expect(sent?.cookie).toContain(`${CODE_COOKIE}=`);
     expect(sent?.body.get("code")).toBe("012 345");
