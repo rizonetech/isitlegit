@@ -172,6 +172,26 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the signup page in Chromium
     await context.close();
   });
 
+  it("keeps Create account held when a stopped request gives the form back with consent unticked", async () => {
+    state.delayMs = 5000;
+    const { p, context } = await open("/signup");
+    await fill(p);
+    await p.getByLabel("I agree to IsItLegit processing mail I forward").check();
+    await p.evaluate(() => {
+      for (const form of document.querySelectorAll<HTMLFormElement>("form[data-busy]")) form.dataset.busyMs = "800";
+    });
+    await p.getByRole("button", { name: "Create account" }).click({ noWaitAfter: true });
+    await p.waitForTimeout(200);
+    await (await context.newCDPSession(p)).send("Page.stopLoading");
+    await p.getByLabel("I agree to IsItLegit processing mail I forward").uncheck();
+    await p.waitForTimeout(1200);
+    const create = p.getByRole("button", { name: "Create account" });
+    expect(await create.isDisabled()).toBe(true);
+    await p.getByLabel("I agree to IsItLegit processing mail I forward").check();
+    expect(await create.isEnabled()).toBe(true);
+    await context.close();
+  });
+
   it("takes a shared invite code into the form and out of the address", async () => {
     const { p, context } = await open("/signup?code=GARDEN-ROUTE-24");
     expect(await p.getByLabel("Invite code").inputValue()).toBe("GARDEN-ROUTE-24");

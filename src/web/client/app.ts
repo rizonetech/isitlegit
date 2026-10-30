@@ -160,7 +160,9 @@ document.addEventListener("submit", (event) => {
     delete form.dataset.sent;
     if (status) status.textContent = "";
     button.textContent = label;
-    button.disabled = false;
+    // Usable again, unless another hold still applies: a box it needs that is unticked (the signup page's consent).
+    const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
+    button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.removeAttribute("aria-busy");
   }, Number(form.dataset.busyMs) || BUSY_MS);
 });
