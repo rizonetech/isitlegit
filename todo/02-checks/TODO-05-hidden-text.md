@@ -40,6 +40,10 @@ track: day-2
 
 Parse the email HTML, resolve inline styles and `<style>` rules that hide text, and separate visible text from hidden text. The visible text is what the model reads (inside an untrusted block); the hidden text is evidence.
 
+> **Started:** 2026-10-30T20:27Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) checks are pure (`src/checks/registry.ts`), and the cut parts' full text lives in R2 (`truncated[].key`), so the scan runs in the Workflow's `checks` step: `scanHtml` in `src/checks/hidden-text.ts` streams the summary's HTML and each cut HTML part's artefact through `HTMLRewriter`, and the view carries the result as `hiddenText` (the hidden spans with their reason and part, the count of rules not resolved); the check maps them to items; (2) the visible text is written to `raw/<caseId>/visible.txt` (`visibleKey`, `putVisible` in `src/intake/store.ts`), stored as the parsed summary is (kind `raw`, beside the message it was read from, so the bucket's 30-day rule deletes it with them), not under `art/`, whose kinds are `render`, `crop`, `page` and `audio` (a new kind would need a migration of the artefacts table); no model prompt reads it yet (the verdict agent is D04 T01's), so a reader, `readVisible`, is its contract; (3) `HTMLRewriter` streams: hiding is decided per element from its inline style, its `hidden` attribute, the `<style>` rules seen before it (class, id and tag selectors, alone or `tag.class`), and its ancestors' state, kept on a stack popped at each end tag (void elements have none); a rule with any other selector is counted as not resolved; (4) colour is read from `color`, `background`, `background-color` and `bgcolor` (hex, `rgb()`, `rgba()` and the CSS named colours a mail client renders), the background inherited from the nearest ancestor that sets one, white when none; near means CIE76 delta E under 3; (5) the item quotes at most 300 characters of hidden text, and severity is medium only for a hidden preheader (under 120 characters, before any visible text, no instruction words such as `ignore`, `instruction`, `assistant`, `system`, `classify`, `safe`, `legitimate`), high otherwise; comments are hidden text too, but a conditional comment (`[if mso]`) is markup, not text.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -54,7 +58,7 @@ Parse the email HTML, resolve inline styles and `<style>` rules that hide text, 
 - [ ] Run the hidden-text scan over the full HTML of every body part D01 T01 §5 cut for reading (the parsed summary's `truncated`), streaming the artefact through `HTMLRewriter` rather than loading it whole. Done when: a fixture whose hidden instruction sits past the 1 MiB cut is found. Source: D01 T01 §5 plan review, 2026-10-28.
 - [ ] Resolve simple `<style>` class and id selectors and inline styles; record that complex selectors are not resolved. Done when: a class-hidden fixture is caught.
 - [ ] Register `content.hidden_text` (medium for hidden marketing preheaders under 120 characters with no instruction language, high otherwise) quoting up to 300 characters. Done when: the demo fixture is high and a normal preheader is medium.
-- [ ] Write `art/<case>/parsed/visible.txt` with the visible text only, used by every model prompt. Done when: the demo fixture's `visible.txt` lacks the hidden sentence.
+- [ ] Write the visible text to `raw/<caseId>/visible.txt` (`putVisible`, correction 2), read back by `readVisible`. Done when: the demo fixture's `visible.txt` lacks the hidden sentence. (**Corrected 2026-10-30**, at start.)
 - [ ] Commit: `checks: invisible text extraction`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/hidden-text.test.ts` passes and fails if the white-on-white sentence appears in `visible.txt`.
