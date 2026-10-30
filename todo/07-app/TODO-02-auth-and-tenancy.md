@@ -495,6 +495,8 @@ Wrong-device link: b (2026-10-30)
 
 ## 13. Signup page
 
+> **Started:** 2026-10-30T21:29:15Z
+
 The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's address, the organisation's name and the POPIA consent, then the first link and its code. Split from §7 on 2026-10-30 (its items moved here unchanged).
 
 **Phase:** 2
@@ -505,15 +507,29 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 **Treatment:** one task, plain words, consent asked for plainly, every error says what to do next
 **Chrome:** `Field`, `Checkbox`, `Button`, `ErrorState` from D07 T01 §6 to §8 on the sign-in frame (§7)
 
+**Corrected 2026-10-30** at start, against the code and the board (`Signup`):
+- `/api/auth/sign-up/invite-code` (§4, `src/auth/signup.ts`) takes JSON, which a form cannot send without script, so the page has its own `POST /signup` that calls it (as `/signin/link` calls Better Auth's endpoint, `src/auth/confirm.tsx`) and draws its answers; with no script the page works whole.
+- The endpoint answers every unusable code with one message, while the board draws three ("We do not recognise that code.", "This code has been used up. Ask whoever gave it to you for a new one.", "This code expired on 31 Oct 2026."). The endpoint gains the reason (unknown, used up, or expired with its date), read in the same statement that tries the code; the code is the secret, so its holder learning its state discloses nothing new.
+- The page is A1's frame (§7's `SigninFrame`) with A2's own panel words ("Protect your business from fake invoices and phishing.", "Create your organisation. During the launch you need an invite code; checks are free."), so the frame takes its panel words as props.
+- "Read the privacy notice" links `/privacy`, the public page S6 that D07 T06 §5 builds; until then the link answers 404, recorded as a Deferred line.
+- "Create account" is enabled only with consent (SPEC A2): the app script holds it until the box is ticked, and the server refuses without it (the field error), so without script the refusal is the guard.
+- An address that already has an account is answered on the email field with Sign in (the endpoint's 409, as today); the endpoint's 503 and a rate limit (D07 T02 §6) are answered in words with the form kept.
+
 **Build order:**
 
 1. Build the signup page and both of its answers. Done when: a rendered-page test signs up with a code and signs in from the first mail.
 
-- [ ] Build `src/web/pages/signup.tsx` (invite code, email, organisation name, POPIA notice and consent checkbox). Done when: submitting without consent shows the field error and stores nothing. It posts to `/api/auth/sign-up/invite-code` (§4) and renders both answers: `linkSent: true` ("check your inbox") and `linkSent: false` ("your account is ready, but the sign-in link could not be confirmed", with a button that asks for a new link). A signup link the operator shares, `/signup?code=<code>`, fills the code in so nobody types it (the code stays in the form, never in a log or a stored URL).
-- [ ] Show the sign-in code field (§11) on the signup page's "check your inbox" answer (`linkSent: true`, whose first link carries a code bound to the browser that signed up), with its refusals, the page setting the code handle when it is served to a browser with none. Done when: the page test signs up and signs in by the code from the first mail. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
+- [ ] Give `SigninFrame` (`src/web/pages/signin.tsx`) its panel words as props, A1's as the default. Done when: `test/web/signin-page.test.ts` still reads A1's, and the signup page test reads A2's.
+- [ ] Return why a code is unusable from `/api/auth/sign-up/invite-code` (`src/auth/signup.ts`): `unknown`, `used-up`, or `expired` with its date, read from the code's row after its use failed, the message kept for old callers. Done when: `test/auth/signup.test.ts` reads each reason and its date, and a valid code still signs up.
+- [ ] Build `src/web/pages/signup.tsx` and `GET /signup` and `POST /signup`: Create an account, Already have one? Sign in, Invite code, Work email, Organisation name, the POPIA notice with Read the privacy notice and the consent box, Create account; `/signup?code=<code>` fills the code in (kept in the form only, the page `no-store` and `same-origin`). Done when: `test/web/signup-page.test.ts` finds each control by name and the code filled in from the address.
+- [ ] Answer each refusal on its field, the form kept: no consent (nothing stored), each of the three code reasons in the board's words, an address that already has an account (with Sign in), an invalid address or name, a rate limit (when it lifts, in SAST), and the endpoint failing (try again). Done when: the page test reads each and finds nothing stored for the refusals.
+- [ ] Draw both answers: `linkSent: true` is the check-your-inbox state with the code field (§11; the page sets the code handle for a browser with none, so the first link's code is this browser's), and `linkSent: false` says the account is ready but the link could not be confirmed, with Email me a new link. Done when: the page test signs up and signs in by the code from the first mail, and reads the second answer with a working new-link form.
+- [ ] Hold Create account until the box is ticked, show it busy while it runs (D07 T02 §7's `data-busy`), and pass the accessibility gate's rules at 360 and 1280 px in both themes for the form, a code refusal and both answers. Done when: `test/node/signup-page-browser.test.tsx` finds the button held, ticks the box, sends once for two presses, and scans each state.
 - [ ] Commit: `web: the signup page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if signup proceeds without the POPIA consent.
+> **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
+
+**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/signup.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
 
 ## 14. Invite acceptance page
 
