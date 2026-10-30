@@ -1603,7 +1603,14 @@ class Fetch(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 20)
         self.assertLessEqual(group["peak"], 4)
         quarter = -(-SIZE // 4)
-        self.assertTrue([1 for first, _, _ in healthy.ranges if 0 < first < quarter or 2 * quarter < first < 3 * quarter])
+        slow_ranges = [(0, quarter - 1), (2 * quarter, 3 * quarter - 1)]
+        taken = [first for first, _, _ in healthy.ranges if any(low < first <= high for low, high in slow_ranges)]
+        self.assertTrue(taken, healthy.ranges)  # the healthy host was asked for the tail of a range the stalled one began
+        middle = taken[0]
+        low, high = next((low, high) for low, high in slow_ranges if low < middle <= high)
+        tail_done = max(when for when, offset, _ in writes if middle <= offset <= high)
+        kept_done = max(when for when, offset, _ in writes if low <= offset < middle)
+        self.assertLess(tail_done, kept_done)  # the taken tail was finished before the stalled host's kept half
         self.assertIn(base + "/file", result["urls"])
 
     def test_a_host_that_disconnects_hands_its_unfinished_range_to_the_other(self):
