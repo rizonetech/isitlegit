@@ -528,8 +528,13 @@ Evidence 2026-10-27 14:05 SAST, after the final review's fixes (commit `a7a3aee`
 
 Filed 2026-10-29 at the operator's request, after CI's Worker gates failed in 30 to 36 seconds on three `glimmer-screener` commits pushed with a type error in a test (`6d1c736`, `902ae19`, `8d979c8`, 17:12 to 17:22 SAST: `test/node/glimmer-dataset.test.ts` named an `afterFreeze` field the code did not have yet). The pre-commit hook checks the plan, client names and private paths, but nothing local runs the type checker, so a lane that skips it finds out from CI. A pre-push hook beside the pre-commit one makes the check mechanical for both lanes, which share `core.hooksPath = scripts/hooks`.
 
+> **Started:** 2026-10-30T10:12Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) `pnpm typecheck` and `pnpm lint` run against the working tree, not the commits being pushed, so the hook refuses a push while the tree differs from `HEAD` (an unstaged or uncommitted change could pass or fail the check for the wrong commit), naming the files to commit or stash; (2) both lanes push through their own worktrees, which share `core.hooksPath = scripts/hooks`, so the hook runs in whichever worktree pushes, with that worktree's `node_modules`; (3) a push that deletes a branch or carries no commits (git hands the hook such lines on stdin) needs no check and passes.
+
 **Phase:** 2
 **Needs:** none
+**Risk:** light
 **Surface:** no
 
 **Build order:**
