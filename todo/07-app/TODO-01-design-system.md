@@ -416,28 +416,33 @@ Evidence 2026-10-30 16:55 SAST. `htmx.org` 2.0.11 exact (the lockfile gained tha
 
 ## 10. Component gallery with accessibility checks
 
+> **Started:** 2026-10-30T15:12:10Z
+
 Every frame and component in every state on one page, checked together, before any page section builds on them.
+
+**Corrected 2026-10-30** (validation before build): the Worker has no `ENV` variable, so the gallery's "development only" needs one: `"ENV": "production"` in `wrangler.jsonc` and `--var ENV:development` on `pnpm dev` (the regenerated `worker-configuration.d.ts` with it), a shared change asked of the coordinator; the components grew after this section was written (§8's states, §9's copy group and scripts, the sign-in code field of D07 T02 §11 on `Field`), so the gallery names them; the accessibility run is a test file in the Node project (`test/node/a11y.test.tsx`), so `pnpm test`, which CI already runs, runs it too, and `pnpm test:a11y` runs it alone; axe-core is a new test-only dependency (4.11.4 is the current 4.11 release, MPL-2.0), asked of the coordinator with the gate lines.
 
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** every board §3 and §6 to §8 name
+**Fidelity:** every board §3 and §6 to §9 name
 **Job:** a developer sees and checks the whole component set in one place
 **Treatment:** tokens only; the page exists only in development
-**Chrome:** the frames from §3 and the components from §6 to §8
+**Chrome:** the frames from §3 and the components from §6 to §9
 
 **Build order:**
 
 1. Add the gallery page. Done when: it renders every frame and component in every state, and production answers 404.
 2. Check accessibility and colours on it. Done when: axe-core and the rendered-colour check pass and each fails on a planted defect.
 
-- [ ] Add `/dev/components`, served only when `ENV` is `development`, rendering every component state (§6 to §8) on the page and every frame (§3) in its own document, `/dev/components/frame/<member|admin|public>` shown in an `<iframe>` (**Corrected 2026-10-27:** `AppShell` is once per document, owning the ids `nav` and `content`, the `main` landmark and the Menu's popover, so three frames on one page would duplicate them; D07 T01 §3 final review). Done when: it answers 200 under `pnpm dev` and 404 with production configuration (`test/node/serve.test.ts`).
-- [ ] Add `pnpm test:a11y`: axe-core 4.11 run in headless Chromium (the browser the other tests use) on `/dev/components` at 360 px and 1280 px. Done when: it reports zero violations and fails on a planted icon-only button without a label.
-- [ ] Add `test/node/rendered-colours.test.ts`: render each frame and component state with Hono's renderer and refuse any colour that is not `var(--color-*)`, `transparent` or `currentcolor` in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: a planted `style={{ color: "red" }}` and `fill="red"` in a component each fail it. (D07 T01 §2 round 2: the source scan is a pattern match over text; the rendered HTML, which Hono owns, is the authoritative proof once pages exist.)
-- [ ] Add `pnpm test:a11y` to CI and to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass.
+- [ ] Write the gallery in `src/web/dev/gallery.tsx`: one `Document` with every component state (§6 `Button` in each variant, size, disabled and icon-only form, `Field` with hint, error and the code field's limits, `Checkbox`, `Pill` in each variant and size; §7 `VerdictBand` in each state, `VerdictBadge`, `SeverityPill`, `EvidenceRef`, `EvidenceCard` in both layouts with `EvidenceFigure` and `EvidenceQuote`; §8 both `EmptyState` layouts, `LoadingState`, every `ErrorState` code and `PartialNotice`; §9's copy group), each under a heading naming it, and every frame (§3) in its own document, `/dev/components/frame/<member|admin|public>`, shown in an `<iframe>` with a title (**Corrected 2026-10-27:** `AppShell` is once per document, owning the ids `nav` and `content`, the `main` landmark and the Menu's popover, so three frames on one page would duplicate them; D07 T01 §3 final review). Done when: `test/node/gallery.test.tsx` finds each component's heading and markup, three framed documents and no id repeated in any document. Cheaper substitute: a page that shows one state per component.
+- [ ] Add `ENV` (`"production"` in `wrangler.jsonc` vars, `--var ENV:development` in the `dev` script, `worker-configuration.d.ts` regenerated with `pnpm types`) and serve the gallery routes from `src/index.ts` only when `ENV` is `development`. Done when: `test/node/serve.test.ts` gets 200 from `/dev/components` and each frame from a Worker started with `ENV=development`, and 404 from the configuration as committed. Cheaper substitute: a route left on in production behind an unlisted path. (Shared change: asked of the coordinator, 2026-10-30.)
+- [ ] Add `test/node/a11y.test.tsx`: axe-core 4.11.4 (an exact dev dependency, `NOTICE.md` row, MPL-2.0) run in headless Chromium (the browser the other tests use) over the gallery and each frame, at 360 px and 1280 px, in both themes, with `pnpm test:a11y` running it alone. Done when: it reports zero violations, and fails on a planted icon-only button without a name and on a planted text colour below 4.5:1. Cheaper substitute: axe over one width or one theme. (Shared change: the dependency and the script asked of the coordinator, 2026-10-30.)
+- [ ] Add `test/node/rendered-colours.test.ts`: render the gallery and each frame with Hono's renderer and refuse any colour that is not `var(--color-*)`, `transparent` or `currentcolor` in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: a planted `style={{ color: "red" }}` and `fill="red"` in a component each fail it. (D07 T01 §2 round 2: the source scan is a pattern match over text; the rendered HTML, which Hono owns, is the authoritative proof once pages exist.)
+- [ ] Add `pnpm test:a11y` to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README; CI runs it inside `pnpm test`, which it already runs. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass. **Corrected 2026-10-30:** was a CI step of its own, which would run the same file twice. (Shared change: asked of the coordinator, 2026-10-30.)
 - [ ] Commit: `web: component gallery with accessibility checks`
 
-**Test checkpoint:** `pnpm test:a11y` reports zero violations at 360 px and 1280 px, and `pnpm exec vitest run test/node/rendered-colours.test.ts` passes.
+**Test checkpoint:** `pnpm test:a11y` reports zero violations over the gallery and its frames at 360 px and 1280 px in both themes, and `pnpm exec vitest run test/node/gallery.test.tsx test/node/rendered-colours.test.ts test/node/serve.test.ts` passes.
 
 ## 11. Keyboard shortcuts and their help
 
