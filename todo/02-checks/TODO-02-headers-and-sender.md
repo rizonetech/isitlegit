@@ -133,6 +133,10 @@ Forwarders and mailing lists break SPF and DKIM; ARC (RFC 8617) carries the earl
 
 Business email compromise often keeps a real-looking display name over a different address, or sends replies elsewhere (spec 4.3 Sender).
 
+> **Started:** 2026-10-30T14:34Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) the brand table is read from KV with the bundled copy as fallback (`brandTable(env)` in `src/checks/brands.ts`), and checks are pure (`src/checks/registry.ts`), so the Workflow's `checks` step reads it and puts it in the view (`brands` on `CaseView`), as it does the receivers; a check never reads KV; (2) the From domain is §2's validated `fromDomain` (`src/checks/auth.ts`), and From, Reply-To and the display name come from postal-mime's `addressParser`; a brand is named in a display name when one of its `display_names` appears in it as whole words, compared case-folded after NFKC; a brand's own domains are its registrable domains, never its `user_content` hosts; (3) `Return-Path` is the topmost one, which the receiving system writes at final delivery; (4) the checks read the original's headers only: with none (an inline forward, a file without them) they say nothing, `auth.results` already saying why; each item carries the header it rests on and the raw message key, its detail fitted to the store as §2's are (`fittedDetail`).
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
