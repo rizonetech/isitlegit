@@ -268,6 +268,7 @@ type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Set<nu
 export function dedupe(
   entries: Entry[],
   prefer: Set<string> = new Set(),
+  protectors: Entry[] = [],
 ): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
@@ -281,6 +282,15 @@ export function dedupe(
     keys.forEach((value, band) => {
       append(bands[band] as Map<number, Entry[]>, value, entry);
     });
+  // Pages that are never candidates (a reference page the rules excluded) still guard their exact and near duplicates:
+  // they are in the comparison before any candidate is (completion review round 1).
+  for (const protector of protectors) {
+    seen.add(`${protector.page.sha256.screenshot}:${protector.page.sha256.text}`);
+    index(
+      protector,
+      Array.from({ length: 7 }, (_, band) => Number((protector.hash >> BigInt(band * 9)) & 0x1ffn)),
+    );
+  }
   for (const entry of [...entries].sort(order)) {
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
     const reserved = prefer.has(entry.page.id);
@@ -867,6 +877,8 @@ export async function buildDataset(options: {
   const excluded = readExcluded(store.dir);
   const entries: Entry[] = [];
   const unverified: string[] = [];
+  // Reference pages that are not candidates (excluded, unlabelled), kept to guard their duplicates.
+  const protectorPages: StoredPage[] = [];
   // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
   // is not trained on or evaluated, whatever pages it already stored.
   const importStatus = new Map<string, string>();
@@ -939,6 +951,7 @@ export async function buildDataset(options: {
     }
     if (excluded.has(page.id)) {
       dropped.excluded++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     if (!usable(page)) {
@@ -953,6 +966,7 @@ export async function buildDataset(options: {
     const answer = answerOf(page);
     if (!answer) {
       dropped.unlabelled++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     // A sample-derived page is trained on only once redacted (§7).
@@ -981,7 +995,18 @@ export async function buildDataset(options: {
     );
   // The trusted sample-derived lures admitted after every exclusion: the denominator of training's half.
   const admittedSampleLures = entries.filter((e) => sampleLure(e.page)).length;
-  const deduped = dedupe(entries, reference.ids);
+  const protectors: Entry[] = [];
+  for (const page of protectorPages) {
+    const verified = store.readVerifiedPage(page.id);
+    if (!verified) throw new Error(`reference page ${page.id}'s files do not match its record`);
+    protectors.push({
+      page: verified.page,
+      answer: null as unknown as PageAnswer,
+      hash: await dhash(verified.screenshot),
+      words: shingles(verified.text),
+    });
+  }
+  const deduped = dedupe(entries, reference.ids, protectors);
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
   const capped = capBrands(deduped.kept, random);
@@ -996,7 +1021,7 @@ export async function buildDataset(options: {
   // A reference page that is no candidate any more (excluded, deduplicated or capped away) still holds its brand, site
   // and template out of training, and its near duplicates were dropped above (completion review G3).
   const candidateIds = new Set(capped.map((e) => e.page.id));
-  const byId = new Map(entries.map((e) => [e.page.id, e]));
+  const byId = new Map([...entries, ...protectors].map((e) => [e.page.id, e]));
   const recordOf = new Map(pages.map((p) => [p.id, p]));
   const protect: Entry[] = [...reference.ids].flatMap((id) => {
     if (candidateIds.has(id)) return [];

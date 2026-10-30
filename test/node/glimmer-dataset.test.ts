@@ -1051,6 +1051,34 @@ describe("a build at the production floors", () => {
   }, 240_000);
 });
 
+describe("an excluded reference page still guards its duplicates", () => {
+  it("keeps a near copy of it, from another source, out of training", async () => {
+    const original = await shot(1, 1280, 1600);
+    const resized = new Uint8Array(await sharp(original).resize(640).jpeg({ quality: 60 }).toBuffer());
+    const text = "Sign in to your bank account to verify a payment of R4,999 before it is released today";
+    const specs: Spec[] = [
+      { seed: 1, brand: "Brand X", host: "login.x.co.za", text, image: original },
+      { seed: 2, brand: "Copy Brand", host: "login.copy.example", text, image: resized, source: "other" },
+      ...Array.from({ length: 14 }, (_, i) => ({ seed: 20 + i, lure: i % 2 === 0 })),
+    ];
+    const { store, ids } = await fill(dir, specs);
+    mkdirSync(dirname(referenceFile(join(dir, "store"))), { recursive: true });
+    writeFileSync(referenceFile(join(dir, "store")), JSON.stringify({ pages: [ids[0]] }));
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: ids[0], reason: "a parked capture" })}\n`,
+    );
+    for (const seed of [101, 2027, 86421, 1234567, 99991, 31337]) {
+      const built = await build(store, { seed });
+      expect(idsIn(built.dir, "train")).not.toContain(ids[1]);
+      expect(idsIn(built.dir, "train")).not.toContain(ids[0]);
+      expect(idsIn(built.dir, "eval")).not.toContain(ids[0]);
+      expect(built.dropped.near).toBe(1);
+    }
+  });
+});
+
 describe("a build short of a floor", () => {
   it("is refused with the shortfalls named and nothing published", async () => {
     const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2 }, { seed: 3, lure: false }]);
