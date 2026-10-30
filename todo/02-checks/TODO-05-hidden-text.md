@@ -33,7 +33,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [ ] |
+| 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [x] |
 | 2 | §2 | AI-addressed instruction detection | §1 | [ ] |
 | 3 | §3 | Invisible Unicode characters in visible text | §1 | [ ] |
 
@@ -65,6 +65,9 @@ Parse the email HTML, resolve inline styles and `<style>` rules that hide text, 
 - [x] Commit: `checks: invisible text extraction` Done 2026-10-30: bbd465d, with c73d547 (completion review) and the round fixes 5b6e13e, ffec721, bc49d96, fcd963f, 6fc8eed, 2deb631.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/hidden-text.test.ts` passes and fails if the white-on-white sentence appears in `visible.txt`.
+
+> **Verified:** 2026-10-31 | §1 | 813b546710d5e3f909ec272eae4256115c64f327
+> **Review:** `docs/reviews/d02-t05-s1.json`
 
 ## 2. AI-addressed instruction detection
 
