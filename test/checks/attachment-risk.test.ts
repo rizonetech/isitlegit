@@ -9,6 +9,7 @@ import { parsedKey, putAttachment, putParsed, putRaw, type Store } from "../../s
 import { checks } from "../../src/pipeline/analysis-workflow";
 import {
   AES,
+  AES_IN_NAME,
   encodedHeader,
   LZMA,
   plainHeader,
@@ -147,6 +148,8 @@ describe("encrypted archives", () => {
       ["attachment.encrypted_archive", "high", "d.7z"],
     ]);
     expect(await one(["d.7z", "application/x-7z-compressed", sevenZip(plainHeader(LZMA))])).toEqual([]);
+    // A filename holding the AES coder's bytes is no coder (completion review).
+    expect(await one(["e.7z", "application/x-7z-compressed", sevenZip(plainHeader(LZMA, AES_IN_NAME))])).toEqual([]);
     expect(await one(["d.7z", "application/x-7z-compressed", sevenZip(encodedHeader(LZMA))])).toEqual([
       ["attachment.executable", "info", "its header is compressed, which is not read yet"],
     ]);
@@ -181,7 +184,7 @@ describe("limits and refusals", () => {
     await run(id);
     expect(await risky(id)).toEqual([
       ["attachment.executable", "critical", "run.exe"],
-      ["attachment.executable", "info", "its central directory was not found"],
+      ["attachment.executable", "info", "it is too short to be a ZIP archive"],
       ["attachment.executable", "info", "it is larger than is read"],
     ]);
   });
@@ -229,5 +232,131 @@ describe("limits and refusals", () => {
     await run(id);
     await run(id);
     expect(await risky(id)).toEqual([["attachment.executable", "critical", "run.exe"]]);
+  });
+});
+
+describe("after the completion review", () => {
+  it("says a damaged ZIP, RAR or 7z was not checked, never clean", async () => {
+    const zipped = zip([
+      { name: "a.pdf", data: pdf },
+      { name: "b.pdf", data: pdf },
+    ]);
+    // The end record counts three entries, the directory holds two.
+    const miscounted = zipped.slice();
+    miscounted[miscounted.length - 22 + 10] = 3;
+    miscounted[miscounted.length - 22 + 8] = 3;
+    const cutRar5 = rar5({ encryptedAfter: 5_000 }).subarray(0, 2_000);
+    const cutRar4 = rar4().subarray(0, 30);
+    const shortSeven = new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]);
+    for (const [name, body] of [
+      ["m.zip", miscounted],
+      ["c.rar", cutRar5],
+      ["d.rar", cutRar4],
+      ["s.7z", shortSeven],
+    ] as const) {
+      const got = await one([name, "application/octet-stream", body]);
+      expect(got.length, name).toBe(1);
+      expect(got[0]?.[1], name).toBe("info");
+    }
+  });
+
+  it("names an archive inside an archive, which is not opened", async () => {
+    const inner = zip([{ name: "run.exe", data: samples.pe }]);
+    expect(await one(["outer.zip", "application/zip", zip([{ name: "inner.zip", data: inner }])])).toEqual([
+      ["attachment.executable", "info", undefined],
+    ]);
+    const id = await caseWith([["outer.zip", "application/zip", zip([{ name: "inner.zip", data: inner }])]]);
+    await run(id);
+    const [item] = (await readEvidence(env.DB, id)).filter((e) => e.check === "attachment.executable");
+    expect(item?.detail).toMatchObject({ checked: false, nested: ["inner.zip"] });
+  });
+
+  it("says an attachment whose first bytes could not be read was not checked", async () => {
+    const view = {
+      attachments: [
+        {
+          key: "raw/x/attachments/a",
+          filename: "a.zip",
+          mediaType: "application/zip",
+          contentId: null,
+          disposition: null,
+          bytes: 10,
+        },
+      ],
+      attachmentHeads: { heads: [], unread: 1 },
+    } as unknown as Pick<CaseView, "attachments" | "attachmentHeads">;
+    expect((await attachmentRisksOf(env.ARTEFACTS, view))?.items[0]?.notChecked).toBe("its contents could not be read");
+  });
+
+  it("cites each attachment's key and stores each check once on a replay", async () => {
+    const id = await caseWith([
+      ["run.exe", "application/octet-stream", samples.pe],
+      ["pay.zip", "application/zip", zip([{ name: "invoice.pdf", data: pdf, encrypted: true }])],
+      ["report.docx", "application/zip", zip([{ name: "[Content_Types].xml" }, { name: "word/vbaProject.bin" }])],
+    ]);
+    await run(id);
+    await run(id);
+    const items = (await readEvidence(env.DB, id)).filter((e) =>
+      ["attachment.macro", "attachment.encrypted_archive", "attachment.executable"].includes(e.check),
+    );
+    expect(items.map((i) => i.check).sort()).toEqual([
+      "attachment.encrypted_archive",
+      "attachment.executable",
+      "attachment.macro",
+    ]);
+    for (const item of items)
+      expect(item.artefacts).toEqual([expect.stringMatching(/^raw\/[0-9A-Z]{26}\/attachments\//)]);
+    expect(new Set(items.map((i) => i.artefacts[0])).size).toBe(3);
+  });
+
+  it("reads a run of small RAR members from one buffered window", async () => {
+    const id = await caseWith([["many.rar", "application/vnd.rar", rar5Many(100, 1_000)]]);
+    let gets = 0;
+    const counting = {
+      get: (key: string, options?: R2GetOptions) => {
+        gets++;
+        return env.ARTEFACTS.get(key, options);
+      },
+    } as unknown as R2Bucket;
+    const view = await (async () => {
+      const read = await readEvidence(env.DB, id);
+      void read;
+      const stored = await env.ARTEFACTS.list({ prefix: `raw/${id}/attachments/` });
+      const key = stored.objects[0]?.key as string;
+      const bytes = rar5Many(100, 1_000);
+      return {
+        attachments: [
+          {
+            key,
+            filename: "many.rar",
+            mediaType: "application/vnd.rar",
+            contentId: null,
+            disposition: null,
+            bytes: bytes.length,
+          },
+        ],
+        attachmentHeads: { heads: [{ key, head: btoa(String.fromCharCode(...bytes.subarray(0, 64))) }], unread: 0 },
+      } as unknown as Pick<CaseView, "attachments" | "attachmentHeads">;
+    })();
+    const risks = await attachmentRisksOf(counting, view);
+    expect(risks?.items[0]?.findings.map((f) => f.kind)).toEqual(["encrypted"]);
+    expect(gets).toBeLessThanOrEqual(3);
+  });
+
+  it("says no more than it found: a name is a name, a disk image can carry programs", async () => {
+    const id = await caseWith([
+      ["budget.xlsm", "application/octet-stream", zip([{ name: "[Content_Types].xml" }, { name: "xl/workbook.xml" }])],
+      ["disk.iso", "application/octet-stream", samples.iso],
+      ["note.vbs", "text/plain", enc('MsgBox "hi"')],
+    ]);
+    await run(id);
+    const summaries = (await readEvidence(env.DB, id))
+      .filter((e) => ["attachment.macro", "attachment.executable"].includes(e.check))
+      .map((e) => e.summary);
+    expect(summaries).toEqual([
+      "budget.xlsm is named as a macro-enabled document (.xlsm).",
+      "disk.iso is a disk image, which can carry programs that run when it is opened.",
+      "note.vbs is named as a program or script (.vbs).",
+    ]);
   });
 });

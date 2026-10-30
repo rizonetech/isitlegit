@@ -37,6 +37,7 @@ track: day-2
 | 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 | 7 | §7 | Compressed 7z headers read | §3 | [ ] |
+| 8 | §8 | Archive members read by content | §3 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -187,6 +188,24 @@ Filed 2026-10-31 from §3's plan review (its correction 8): 7-Zip compresses an 
 - [ ] Add a bounded LZMA decoder for 7z headers in `src/checks/sevenzip.ts` (a vetted library or the reference decoder), with limits on compressed bytes, expanded bytes (1 MiB) and dictionary memory, refusing anything past them as not checked. Done when: `test/checks/attachment-risk.test.ts` decodes a synthetic compressed header and refuses one that expands past the limit.
 - [ ] Read the decoded header's coders for AES in `attachmentRisksOf`. Done when: the encrypted-files fixture is `attachment.encrypted_archive` high and the plain one yields nothing.
 - [ ] Commit: `checks: compressed 7z headers read`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+
+## 8. Archive members read by content
+
+Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's members and reads their names only, opens no archive inside an archive, and reads no member of a RAR or 7z. A renamed program inside a plain ZIP therefore passes, and a second archive layer hides everything.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read members' first bytes, two levels deep, within bounds. Done when: a renamed program inside a ZIP, and a program inside a ZIP inside a ZIP, are `attachment.executable`, and a ZIP of PDFs is not.
+
+- [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program and refuses an expansion past its limit.
+- [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: the nested program is found and a third level is named, not opened.
+- [ ] Commit: `checks: archive members read by content`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
 

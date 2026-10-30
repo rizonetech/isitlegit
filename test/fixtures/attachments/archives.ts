@@ -180,6 +180,25 @@ export function sevenZip(next: Uint8Array): Uint8Array {
 }
 export const AES = new Uint8Array([0x06, 0xf1, 0x07, 0x01]);
 export const LZMA = new Uint8Array([0x03, 0x01, 0x01]);
-export const plainHeader = (coder: Uint8Array) =>
-  join(new Uint8Array([0x01, 0x04, 0x06]), coder, new Uint8Array([0x00]));
-export const encodedHeader = (coder: Uint8Array) => join(new Uint8Array([0x17, 0x06]), coder, new Uint8Array([0x00]));
+// A 7z StreamsInfo (7zFormat.txt) with one packed stream and one folder of one coder (with properties).
+const streamsInfo = (coder: Uint8Array) =>
+  join(
+    new Uint8Array([0x06, 0x00, 0x01, 0x09, 0x10, 0x00]),
+    new Uint8Array([0x07, 0x0b, 0x01, 0x00, 0x01, 0x20 | coder.length]),
+    coder,
+    new Uint8Array([0x05, 0x5d, 0x00, 0x00, 0x10, 0x00]),
+    new Uint8Array([0x0c, 0x20, 0x00]),
+  );
+// A plain header: main streams, then (when asked) a files record holding `name` in UTF-16, then its end.
+export const plainHeader = (coder: Uint8Array, name = "") => {
+  const utf16 = new Uint8Array(name.length * 2);
+  for (let i = 0; i < name.length; i++) utf16[i * 2] = name.charCodeAt(i);
+  const files = name
+    ? join(new Uint8Array([0x05, 0x01, 0x11, utf16.length + 3, 0x00]), utf16, new Uint8Array([0, 0, 0x00]))
+    : new Uint8Array(0);
+  return join(new Uint8Array([0x01, 0x04]), streamsInfo(coder), new Uint8Array([0x00]), files, new Uint8Array([0x00]));
+};
+export const encodedHeader = (coder: Uint8Array) =>
+  join(new Uint8Array([0x17]), streamsInfo(coder), new Uint8Array([0x00]));
+// A filename whose UTF-16 bytes hold the AES coder's ID: \u06f1? no; the bytes 06 F1 07 01 as two code units.
+export const AES_IN_NAME = String.fromCharCode(0xf106, 0x0107);
