@@ -25,6 +25,7 @@ Checked 2026-10-28 14:14 UTC with `node scripts/fireworks-check.ts` (admin key, 
 probe session ts-28111d83258c4bd0b016571ba6d6cc22: image step loss:sum 120.10 over 2,435 tokens; text control loss:sum 48.57 over 321 tokens; 2,762 tokens sent in all
 training mode: image
 - Bill: pending until 2026-10-29 16:13 UTC (rated costs lag a day); SFT on Glimmer is free until 2026-11-30 by Fireworks' statement, and §11 reconciles it before the first training run.
+- Bill, 2026-10-30 11:27 UTC: reconciled: US$0.00. `node scripts/fireworks-check.ts` (GET only) read the account's rated spend from 2026-10-01 to now as US$0.00 (every SERVERLESS line US$0.00), a window holding the probe session and the 19:32 UTC throughput measure, read more than 24 hours after both.
 - `--delete-probe` found no managed probe resource left (16:14 UTC).
 - 16:33 UTC: closing the client had not freed the sessions' slots (`ts-28111d83…` still `READY`), so both of today's sessions were deleted through `DELETE /v1/accounts/rizonetech/trainingSessions/<id>` (HTTP 200, read back `EXPIRED`); the probe now deletes its session itself.
 
