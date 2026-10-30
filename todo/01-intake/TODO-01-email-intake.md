@@ -51,7 +51,7 @@ track: day-1
 | 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
 | 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
-| 16 | §16 | Original's subject and sender stored on the case | -- | [ ] |
+| 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -533,6 +533,9 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the report 
 - [x] Commit: `intake: the original's subject and sender stored on the case` Done 2026-10-30: da7c52b, with 135d702, the round 1 and round 2 fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts test/db/cases.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §16 | 2d82cfe54f4c9d233d76ab42280c574489d2cc53
+> **Review:** `docs/reviews/d01-t01-s16.json`
 
 ## Verification
 
