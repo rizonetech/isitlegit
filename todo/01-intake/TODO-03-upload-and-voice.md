@@ -44,6 +44,7 @@ track: day-1
 | 8 | §8 | M4A decoding | §2 | [x] |
 | 9 | §9 | Filtered resampling for WAV | §2 | [x] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
+| 11 | §11 | Uploading member stored on the case | §1 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -382,6 +383,26 @@ AAC decoding: not during the event; M4A stays refused with its MP3-or-WAV messag
 - [ ] Commit: `voice: M4A voice notes decoded with libxaac`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/m4a.test.ts test/voice/decode.test.ts` passes, and fails if an M4A is refused, decoded to the wrong length or pitch, or damage is passed on.
+
+## 11. Uploading member stored on the case
+
+Filed 2026-10-30 at the app lane's request, through the coordinator: the cases list's "Checked by" column (D07 T04 §1, drawn by the app lane's D07 T04 §7) names the member who checked each case. An email case has `forwarded_by`; an upload case records no one, so the list can only say "Not recorded". The uploading member's user id goes on the case when the upload admits it.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Record and read the uploader. Done when: a case admitted through `POST /api/upload` carries the signed-in member's user id, an email case carries null, and it reads back only within the organisation.
+
+- [ ] Add `uploaded_by` (nullable, the user id) to `cases` in `src/db/migrations/0039_case_uploaded_by.sql` (0039 offered by the coordinator, 2026-10-30). Done when: the migration applies locally and existing cases read null.
+- [ ] Accept `uploadedBy` in `NewCase` and `admitCase` (`src/db/cases.ts`), refused on an email case, and pass the signed-in member's id from `uploadRoutes` (`src/intake/upload.ts`, `c.get("signedIn")`) through `admitDelivery` (`src/intake/admit.ts`). Done when: `test/intake/upload.test.ts` reads the uploader on a new upload case; a repeat of the same file within the day answers the first case and keeps its first uploader (the claim answers the case, it does not re-admit it).
+- [ ] Return it as `Case.uploadedBy` through `getCase`. Done when: `test/db/cases.test.ts` reads it back for its organisation and refuses another organisation; an email case reads null.
+- [ ] Name `uploaded_by` in the closure purge's reckoning if the purge lists columns (D07 T02 §9 deletes whole case rows, so likely none). Done when: the purge item is checked and the answer recorded here.
+- [ ] Commit: `intake: the uploading member stored on the case`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/db/cases.test.ts` passes.
 
 ## Verification
 
