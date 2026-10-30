@@ -23,3 +23,19 @@ Reply with: the main commit that holds steps 1 to 4, and your decision on steps 
 ```
 
 After the reply: merge `main` into this branch, move the scripts into a D10 TODO file (one section per video), and update [README.md](README.md).
+
+# Request to the coordinator: add the Loupe mark to the brand
+
+Prepared 2026-10-31; not yet sent.
+
+```
+Operator request (2026-10-31): add a Loupe logo to design/brand.
+
+The operator chose a Loupe mark for video 03 and its thumbnail: a magnifier with the IsItLegit orange tick inside, drawn on the IsItLegit mark's grid (200 x 200 box, 24-unit strokes, butt caps, mitred joins, ink plus one orange accent). Its source is media/src/videos/LoupeMark.tsx (LoupeMark) on branch claude/trusting-pasteur-umwvqz.
+
+Please do, on main:
+1. Add design/brand/logo-svg/loupe-mark.svg and loupe-mark-on-dark.svg from that geometry (circle cx 84 cy 84 r 58; handle M125 125L180 180 at stroke 30; tick M58 86L76 104L112 68 in orange), with the brand's ink and on-dark ink.
+2. Note the mark in design/brand/README.md as Loupe's, a sub-brand of IsItLegit.
+
+Reply with the main commit, and the media lane will switch the video to the files in design/.
+```

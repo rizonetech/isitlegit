@@ -1,12 +1,13 @@
 import type React from "react";
 import { interpolate, Series, useCurrentFrame } from "remotion";
 import data from "../../data/loupe-facts.json";
-import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, MetaBadge, mono, Scene, Tick, TitleScene, useIn } from "../brand";
+import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, MetaBadge, mono, Scene, Tick, useIn } from "../brand";
 import { ColdOpen, coldOpenFrames, hookFor } from "../kit/coldopen";
 import { CREDITS as END_CREDITS, Credits as EndCredits } from "../kit/credits";
 import { MusicBed, Sfx } from "../kit/sound";
 import { Voice, voicedFrames, voiceFor, voiceSpans } from "../kit/voice";
 import { DURATION as INTRO, LogoReveal } from "./LogoReveal";
+import { LoupeTitle } from "./LoupeMark";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
 const F = data.facts;
@@ -373,7 +374,7 @@ const Credits: React.FC = () => (
 
 export const LoupeV1: React.FC = () => {
   const parts = [
-    <TitleScene key="t" line="Loupe 1.0" sub={`Training a page screener on ${v("baseModel")}.`} />,
+    <LoupeTitle key="t" line="Loupe 1.0" sub={`Training a page screener on ${v("baseModel")}.`} />,
     <Job key="j" />,
     <BaseModel key="b" />,
     <Data key="d" />,
