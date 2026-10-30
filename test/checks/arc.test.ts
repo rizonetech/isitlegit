@@ -202,6 +202,20 @@ describe("auth.arc", () => {
     });
   });
 
+  it("splits an instance tag outside comments, escapes included, and never lets a set it cannot read hide a duplicate (round 2)", () => {
+    for (const tag of ["i (forwarder; note) = 1", "i (forwarder\\) note) = 1"]) {
+      const hidden = h("ARC-Authentication-Results", `${tag}; mx.lists.example; spf=fail`);
+      expect(one(view(viaGoogle("arc=pass (i=1)", EARLIER, hidden, SEAL)))).toMatchObject({
+        detail: { context: "unavailable" },
+      });
+    }
+    expect(readArcResults("i (forwarder; note) = 1; mx.lists.example; spf=fail")).toMatchObject({ instance: 1 });
+    const unreadable = h("ARC-Authentication-Results", "garbled without an instance");
+    expect(one(view(viaGoogle("arc=pass (i=1)", EARLIER, unreadable, SEAL)))).toMatchObject({
+      detail: { context: "unavailable" },
+    });
+  });
+
   it("runs in the production registry after §2's checks", () => {
     const names = checks.names();
     expect(names.indexOf("auth.arc")).toBeGreaterThan(names.indexOf("auth.alignment"));

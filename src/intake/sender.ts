@@ -200,7 +200,7 @@ function unquote(v: string): string {
 }
 
 // Splits at the separator outside quoted strings and comments (a `;` inside `(...)` belongs to the comment).
-function splitOutside(value: string, separator: string): string[] {
+export function splitOutside(value: string, separator: string): string[] {
   const out: string[] = [];
   let current: string[] = [];
   let depth = 0;
@@ -251,7 +251,7 @@ function commentsOf(value: string): string {
 }
 
 // Removes (possibly nested) comments outside quoted strings.
-function stripComments(value: string): string {
+export function stripComments(value: string): string {
   let out = "";
   let depth = 0;
   let quoted = false;
