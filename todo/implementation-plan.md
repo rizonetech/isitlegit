@@ -102,7 +102,7 @@ Sections: 44 | Checklist items: 280
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
-| [ ]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
+| [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
@@ -340,6 +340,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 90/271 verified sections, 47 ready to run now.
+Progress: 91/271 verified sections, 47 ready to run now.
 
-Checklist: 941/1760 items completed (includes Commit items).
+Checklist: 942/1760 items completed (includes Commit items).

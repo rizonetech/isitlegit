@@ -62,7 +62,7 @@ track: day-0
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
-| 24 | §24 | Pre-commit refuses a missing client list | -- | [ ] |
+| 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -858,9 +858,12 @@ Found 2026-10-30 by the app lane (message to the coordinator) and confirmed by t
 - [x] Refuse when no list is found at all, naming the main checkout's path where the operator's private list belongs (git-ignored, never committed), as `scripts/check-publication.py` refuses. Done when: a test refuses with that text, creates the list there, and then accepts a clean commit and refuses a listed name.
 - [x] Keep the unreadable-list refusal and every existing name scan. Done when: the existing `tests/scripts/test_pre_commit_hook.py` cases pass unchanged, and `tests/scripts/test_merge_plan.py` passes with a client list in its fixture.
 - [x] Name the lookup in `AGENTS.md` (Safety: the list in the main checkout serves every worktree of the clone; a new clone needs the operator's list). Done when: `AGENTS.md` names it.
-- [ ] Commit: `tools: pre-commit finds the clone's client list and refuses a missing one`
+- [x] Commit: `tools: pre-commit finds the clone's client list and refuses a missing one`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_commit_hook tests.scripts.test_merge_plan` passes, including the linked worktree that scans with the main checkout's list (which commits unscanned on the fail-open hook) and the three refusals, each followed by its repair.
+
+> **Verified:** 2026-10-30 | §24 | e2de849ebd291c810e096ddb46c24393f610ce27
+> **Review:** `docs/reviews/d00-t01-s24.json`
 
 ## 25. The publication check reads the clone's client list
 
