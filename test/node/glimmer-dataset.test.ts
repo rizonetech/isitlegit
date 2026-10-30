@@ -32,6 +32,7 @@ import {
   hamming,
   jaccard,
   NO_FLOORS,
+  netNewLures,
   PublicationRefused,
   previousHeldOut,
   referenceFile,
@@ -1408,6 +1409,54 @@ describe("a later version keeps the earlier one's held-out pages out of its trai
         protectedTerms: [],
       });
       expect(held.some((id) => idsIn(unguarded.dir, "train").includes(id))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the lures a sweep adds, after everything that drops pages (§27)", () => {
+  it("counts a new source's surviving lures by kind, and reads zero for a source whose lures all fall away", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-netnew-"));
+    try {
+      const specs: Spec[] = [
+        ...Array.from({ length: 12 }, (_, i) => ({
+          seed: i,
+          lure: i % 2 === 0,
+          brand: `Brand ${i}`,
+          host: `site${i}.example`,
+        })),
+        ...Array.from({ length: 4 }, (_, i) => ({
+          seed: 40 + i,
+          lure: true,
+          type: "payment" as const,
+          brand: `Kept ${i}`,
+          host: `kept${i}.example`,
+          source: "sweep-kept",
+        })),
+        ...Array.from({ length: 3 }, (_, i) => ({
+          seed: 60 + i,
+          lure: true,
+          type: "fake_shop" as const,
+          brand: `Gone ${i}`,
+          host: `gone${i}.example`,
+          source: "sweep-gone",
+        })),
+      ];
+      const { store, ids } = await fill(dir, specs);
+      const gone = ids.slice(16);
+      teach(
+        dir,
+        Object.fromEntries(
+          ids.map((id) => [id, gone.includes(id) ? { status: "disputed", answer: null, applied: false } : AGREED]),
+        ),
+      );
+      const built = await build(store);
+      expect(netNewLures(built.dir, ["sweep-gone"])).toEqual({ training: {}, evaluation: {}, total: 0 });
+      const kept = netNewLures(built.dir, ["sweep-kept"]);
+      expect(kept.total).toBe(4);
+      expect((kept.training.payment ?? 0) + (kept.evaluation.payment ?? 0)).toBe(4);
+      expect(netNewLures(built.dir, ["sweep-kept", "sweep-gone"]).total).toBe(4);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

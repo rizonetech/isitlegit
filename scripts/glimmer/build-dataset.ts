@@ -777,9 +777,6 @@ export type Built = {
   sha256: { train: string; evaluation: string };
 };
 
-// The pages a version is built from: those `sources.ts freeze` named, once each frozen source's import record is still
-// the one it recorded (an import run since would put other pages or labels behind the same ids) and both benign lists
-// were rendered. Throws with the reason otherwise.
 // The evaluation pages of every version published before `version` (their `eval.meta.jsonl`), which a later version
 // holds out of its training (§27). Empty for the first version.
 export function previousHeldOut(dir: string, version: string): Set<string> {
@@ -798,6 +795,34 @@ export function previousHeldOut(dir: string, version: string): Set<string> {
       if (line.trim()) held.add((JSON.parse(line) as { id: string }).id);
   }
   return held;
+}
+
+// The pages a version is built from: those `sources.ts freeze` named, once each frozen source's import record is still
+// the one it recorded (an import run since would put other pages or labels behind the same ids) and both benign lists
+// were rendered. Throws with the reason otherwise.
+// The lures a set of sources adds to a published version (§27 finding 6): its lines by kind in training and in
+// evaluation, read from the version's `summary.json`, so they count only what survived the exclusions, the held-out
+// protection and deduplication. A source with no lure left reads zero.
+export function netNewLures(
+  datasetDir: string,
+  sources: string[],
+): { training: Record<string, number>; evaluation: Record<string, number>; total: number } {
+  const summary = JSON.parse(readFileSync(join(datasetDir, "summary.json"), "utf-8")) as Record<
+    "train" | "evaluation",
+    { luresBySource?: Record<string, Record<string, number>> }
+  >;
+  const count = (part: "train" | "evaluation") => {
+    const bySource = summary[part].luresBySource;
+    if (!bySource) throw new Error(`${datasetDir}/summary.json records no lures by source (built before §27)`);
+    const kinds: Record<string, number> = {};
+    for (const source of sources)
+      for (const [kind, n] of Object.entries(bySource[source] ?? {})) kinds[kind] = (kinds[kind] ?? 0) + n;
+    return kinds;
+  };
+  const training = count("train");
+  const evaluation = count("evaluation");
+  const total = [...Object.values(training), ...Object.values(evaluation)].reduce((a, b) => a + b, 0);
+  return { training, evaluation, total };
 }
 
 export function readFreeze(dir: string, version = "1.0"): Set<string> {
@@ -1176,6 +1201,13 @@ export async function buildDataset(options: {
       byOrigin: by(chosen, (e) => e.page.origin),
       bySource: by(chosen, (e) => e.page.source),
       byLureType: by(chosen, (e) => e.answer.lure_type),
+      luresBySource: chosen.reduce<Record<string, Record<string, number>>>((acc, e) => {
+        if (!e.answer.lure) return acc;
+        const kinds = acc[e.page.source] ?? {};
+        kinds[e.answer.lure_type] = (kinds[e.answer.lure_type] ?? 0) + 1;
+        acc[e.page.source] = kinds;
+        return acc;
+      }, {}),
       southAfrica: chosen.filter((e) => e.page.south_africa).length,
       brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
     });
