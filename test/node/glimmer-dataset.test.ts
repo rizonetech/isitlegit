@@ -1447,12 +1447,19 @@ describe("the scan of the built files for protected sample details", () => {
     expect(scanSampleLines([{ id: "p-5", origin: "public", line: domain }], kinds, "image")).toHaveLength(1);
   });
 
-  it("refuses a version whose public-origin line names a protected client", async () => {
-    const { store } = await fill(dir, [
+  it("leaves a public page that names a protected client out of the version, counted (fourth 1.0 build)", async () => {
+    const { store, ids } = await fill(dir, [
       ...Array.from({ length: 3 }, (_, i) => ({ seed: i + 1, text: `Invoice from Kestrel Holdings ${i}` })),
       ...Array.from({ length: 4 }, (_, i) => ({ seed: 10 + i, lure: false })),
+      ...Array.from({ length: 3 }, (_, i) => ({ seed: 20 + i, text: `Your parcel is waiting ${i}` })),
     ]);
-    await expect(build(store, { protectedTerms: ["Kestrel Holdings"] })).rejects.toThrow(/a protected sample term/);
+    const built = await build(store, { protectedTerms: ["Kestrel Holdings"] });
+    expect(built.dropped.namesClient).toBe(3);
+    const published = [...idsIn(built.dir, "train"), ...idsIn(built.dir, "eval")];
+    for (const id of ids.slice(0, 3)) expect(published).not.toContain(id);
+    expect(published.length).toBeGreaterThan(0);
+    for (const name of ["train.jsonl", "eval.jsonl"])
+      expect(readFileSync(join(built.dir, name), "utf-8")).not.toContain("Kestrel Holdings");
   });
 
   const planted = (text: string) =>

@@ -58,6 +58,9 @@ const ROOT = resolve(import.meta.dirname, "../..");
 export const BRAND_CAP = 300;
 export const NEAR_BITS = 6;
 export const NEAR_TEXT = 0.8;
+// Pages or lines scanned for the protected terms in one call: `leaks` makes each term's rule once a call.
+const SCAN_BATCH = 500;
+const READ_BACK_BATCH = 200;
 export const LURE_SHARE = { min: 0.4, max: 0.6 };
 export const EVAL_MINIMUMS = { total: 1000, southAfrica: 300, perLureType: 50 };
 // The largest group the split may hold out of training, as a share of its pages. Operators running kits of several
@@ -755,14 +758,28 @@ export function scanSampleLines(
   const kinds = termKinds(terms);
   const publicTerms = [...kinds.client, ...kinds.addresses, ...kinds.domains];
   const allTerms = [...publicTerms, ...kinds.pieces];
-  for (const { id, origin, line } of lines) {
+  const shown = lines.map(({ id, origin, line }) => {
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
-    const shown = `${text.split(nonce).join("")}\n${answer.brand ?? ""}`;
-    if (leaks([{ id, text: shown }], origin === "samples" ? allTerms : publicTerms).length)
-      problems.push(`${id}: a protected sample term`);
+    return { id, origin, text: `${text.split(nonce).join("")}\n${answer.brand ?? ""}` };
+  });
+  // One `leaks` call for each kind of line: it makes each term's rule once a call.
+  const named = new Set(
+    [
+      ...leaks(
+        shown.filter((s) => s.origin === "samples"),
+        allTerms,
+      ),
+      ...leaks(
+        shown.filter((s) => s.origin !== "samples"),
+        publicTerms,
+      ),
+    ].map((hit) => hit.id),
+  );
+  for (const { id, origin, text } of shown) {
+    if (named.has(id)) problems.push(`${id}: a protected sample term`);
     if (origin !== "samples") continue;
-    const kind = personalDetail(shown);
+    const kind = personalDetail(text);
     if (kind) problems.push(`${id}: ${kind}`);
   }
   return problems;
@@ -817,6 +834,12 @@ function readBack(
   // Each file ends with a newline, so the last piece is empty.
   if (metas.pop() !== "") throw new PublicationRefused(`${name}: a file does not end with a newline`);
   const problems: string[] = [];
+  // Lines are scanned in batches (their screenshots make a line about 235 KB), so the terms' rules are made once a batch.
+  const batch: { id: string; origin: string; line: string }[] = [];
+  const scan = () => {
+    problems.push(...scanSampleLines(batch, terms, mode));
+    batch.length = 0;
+  };
   const read = eachLine(join(dir, `${name}.jsonl`), (line, index) => {
     if (index >= metas.length) return;
     const meta = JSON.parse(metas[index] as string) as {
@@ -836,8 +859,10 @@ function readBack(
       identity !== meta.brand_identity
     )
       throw new PublicationRefused(`${name}: line ${index + 1} is not the page its meta line names`);
-    problems.push(...scanSampleLines([{ id: meta.id, origin: meta.origin, line }], terms, mode));
+    batch.push({ id: meta.id, origin: meta.origin, line });
+    if (batch.length >= READ_BACK_BATCH) scan();
   });
+  scan();
   if (read.lines !== metas.length)
     throw new PublicationRefused(`${name}: ${read.lines} lines but ${metas.length} meta lines`);
   if (problems.length)
@@ -928,6 +953,9 @@ export type Built = {
     // Pages the label rules excluded (`raw/labels/excluded.jsonl`): a capture of something else, contradictory or
     // incomplete labels, a lost teacher answer (§9, §18).
     excluded: number;
+    // Public pages that name the pilot client (a client name, address or domain of the protected terms): a version
+    // leaves the machine, so they are never in one (the fourth 1.0 build was refused on 8 such lines).
+    namesClient: number;
   };
   sha256: { train: string; evaluation: string };
 };
@@ -1095,6 +1123,7 @@ export async function buildDataset(options: {
     balanced: 0,
     afterFreeze: 0,
     excluded: 0,
+    namesClient: 0,
   };
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
@@ -1179,6 +1208,28 @@ export async function buildDataset(options: {
     queue: { pages: queued.length, sha256: digest(queued) },
     excluded: { pages: excluded.size, sha256: digest([...excluded].sort(byKey)) },
   };
+  // A public page naming the client is left out before anything is built from it, scanned in batches so the terms'
+  // rules are made once a batch (`leaks` makes them a call). A sample page is redacted already, and one that still
+  // holds a term is refused at publication, never dropped quietly.
+  const kinds = options.protectedTerms ? termKinds(options.protectedTerms) : null;
+  const clientTerms = kinds ? [...kinds.client, ...kinds.addresses, ...kinds.domains] : [];
+  const pending: { entry: Entry; text: string }[] = [];
+  const screenPublic = () => {
+    const named = new Set(
+      leaks(
+        pending.map(({ entry, text }) => ({ id: entry.page.id, text })),
+        clientTerms,
+      ).map((hit) => hit.id),
+    );
+    for (const { entry } of pending) {
+      if (!named.has(entry.page.id)) entries.push(entry);
+      else {
+        dropped.namesClient++;
+        if (reference.ids.has(entry.page.id)) protectorPages.push(entry.page);
+      }
+    }
+    pending.length = 0;
+  };
   let read = 0;
   for (const page of pages) {
     if (++read % 10_000 === 0) options.progress?.(`build-dataset: ${read} of ${pages.length} pages read`);
@@ -1220,13 +1271,19 @@ export async function buildDataset(options: {
       unverified.push(page.id);
       continue;
     }
-    entries.push({
+    const entry = {
       page: verified.page,
       answer,
       hash: await dhash(verified.screenshot),
       words: shingles(verified.text),
-    });
+    };
+    if (page.origin === "samples" || !clientTerms.length) entries.push(entry);
+    else {
+      pending.push({ entry, text: `${page.host ?? ""}\n${verified.text}\n${answer.brand ?? ""}` });
+      if (pending.length >= SCAN_BATCH) screenPublic();
+    }
   }
+  screenPublic();
   if (unverified.length)
     throw new Error(
       `${unverified.length} pages' files do not match their records (first: ${unverified[0]}): repair or remove them before building`,
