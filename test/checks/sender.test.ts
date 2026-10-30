@@ -7,6 +7,7 @@ import { runChecks } from "../../src/checks/runner";
 import {
   displayAddressEvidence,
   displayBrandEvidence,
+  mailbox,
   registerSenderChecks,
   replyToEvidence,
   returnPathEvidence,
@@ -135,6 +136,58 @@ describe("sender.return_path", () => {
         from(base, h("Return-Path", "<bounces@fynbosfreight.example>"), h("Return-Path", "<b@elsewhere.example>")),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("completion review", () => {
+  it("validates mailboxes by RFC 5322 and reads a needless quote as the plain form", () => {
+    expect(mailbox('"accounts"@fynbosfreight.example')).toBe(mailbox("accounts@fynbosfreight.example"));
+    expect(mailbox('"pay@desk"@elsewhere.example')).toBe('"pay@desk"@elsewhere.example');
+    expect(mailbox("bad..local@elsewhere.example")).toBeNull();
+    const base = "accounts@fynbosfreight.example";
+    expect(replyToEvidence(from(base, h("Reply-To", '"pay@desk"@elsewhere.example')))[0]).toMatchObject({
+      severity: "medium",
+    });
+    expect(returnPathEvidence(from(base, h("Return-Path", "<bad..local@elsewhere.example>")))[0]).toMatchObject({
+      severity: "info",
+    });
+    expect(
+      displayAddressEvidence(from('"\\"accounts\\"@fynbosfreight.example" <accounts@fynbosfreight.example>')),
+    ).toEqual([]);
+  });
+
+  it("trims prose punctuation from a shown address and reads an A-label top-level domain", () => {
+    expect(
+      displayAddressEvidence(from('"Contact accounts@fynbosfreight.example!" <accounts@fynbosfreight.example>')),
+    ).toEqual([]);
+    expect(
+      displayAddressEvidence(from('"Pay debtors@elsewhere.example." <accounts@fynbosfreight.example>'))[0],
+    ).toMatchObject({
+      detail: { shown: "debtors@elsewhere.example" },
+    });
+    expect(displayAddressEvidence(from('"example.xn--p1ai" <x@elsewhere.example>'))[0]).toMatchObject({
+      detail: { shown: "example.xn--p1ai" },
+    });
+  });
+
+  it("cites the Reply-To field that holds the outside destination, in either order", () => {
+    const inside = h("Reply-To", "billing@fynbosfreight.example");
+    const outside = h("Reply-To", "pay@elsewhere.example");
+    for (const order of [
+      [inside, outside],
+      [outside, inside],
+    ])
+      expect(replyToEvidence(from("accounts@fynbosfreight.example", ...order))[0]?.detail).toMatchObject({
+        headers: ["Reply-To: pay@elsewhere.example"],
+      });
+  });
+
+  it("reads an 80 KB display name in linear time and still finds the address in it", () => {
+    const name = `${"word ".repeat(16_000)}debtors@fynbosfreight.example`;
+    const started = performance.now();
+    const [item] = displayAddressEvidence(from(`"${name}" <x@freemail.example>`));
+    expect(performance.now() - started).toBeLessThan(250);
+    expect(item).toMatchObject({ detail: { shown: "debtors@fynbosfreight.example" } });
   });
 });
 

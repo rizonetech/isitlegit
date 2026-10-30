@@ -56,8 +56,8 @@ export function fromDomain(headers: readonly { name: string; value: string }[]):
   const domain = address.slice(at + 1);
   return LOCAL.test(local) && asciiDomain(domain) !== null ? domain : null;
 }
-const ATOM = "[\\p{L}\\p{N}\\p{M}!#$%&'*+/=?^_`{|}~-]+";
-const LOCAL = new RegExp(`^(?:${ATOM}(?:\\.${ATOM})*|"(?:[^"\\\\]|\\\\.)*")$`, "u");
+export const ATOM = "[\\p{L}\\p{N}\\p{M}!#$%&'*+/=?^_`{|}~-]+";
+export const LOCAL = new RegExp(`^(?:${ATOM}(?:\\.${ATOM})*|"(?:[^"\\\\]|\\\\.)*")$`, "u");
 
 const domainOf = (value: string) => {
   const v = value.trim().toLowerCase().replace(/^<|>$/g, "");

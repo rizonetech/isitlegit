@@ -776,7 +776,7 @@ describe("the checks step and the event writer", () => {
         'Content-Disposition: attachment; filename="original.eml"',
         "",
         "Return-Path: <bounce@elsewhere.example>",
-        "From: Fynbos Bank <accounts@freemail.example>",
+        'From: "Fynbos Bank debtors@fynbosbank.co.za" <accounts@freemail.example>',
         "Reply-To: pay@elsewhere.example",
         "To: accounts@fictional-recipient.example",
         "Subject: Updated banking details",
@@ -795,16 +795,16 @@ describe("the checks step and the event writer", () => {
       await run(id);
       const stored = await readEvidence(env.DB, id);
       const sender = stored.filter((e) => e.check.startsWith("sender."));
-      expect(sender.map((e) => [e.check, e.severity])).toEqual([
-        ["sender.display_brand", "medium"],
-        ["sender.reply_to", "medium"],
-        ["sender.return_path", "low"],
+      // All four, each citing the exact header it rests on (completion review).
+      const from = 'From: "Fynbos Bank debtors@fynbosbank.co.za" <accounts@freemail.example>';
+      expect(sender.map((e) => [e.check, e.severity, (e.detail as { headers: string[] }).headers])).toEqual([
+        ["sender.display_address", "medium", [from]],
+        ["sender.display_brand", "medium", [from]],
+        ["sender.reply_to", "medium", ["Reply-To: pay@elsewhere.example"]],
+        ["sender.return_path", "low", ["Return-Path: <bounce@elsewhere.example>"]],
       ]);
-      expect(sender[0]?.detail).toMatchObject({ brand: "Fynbos Bank" });
-      for (const e of sender) {
-        expect(e.artefacts).toEqual([rawKey(id)]);
-        expect((e.detail as { headers: string[] }).headers).toHaveLength(1);
-      }
+      expect(sender[1]?.detail).toMatchObject({ brand: "Fynbos Bank" });
+      for (const e of sender) expect(e.artefacts).toEqual([rawKey(id)]);
       expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
     } finally {
       await env.CACHE.delete(BRANDS_KEY);

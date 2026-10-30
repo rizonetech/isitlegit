@@ -3,7 +3,7 @@
 // headers only, says nothing when they did not come (`auth.results` says why), and carries the header it rests on and
 // the raw message key, its detail fitted to the store.
 import { addressParser } from "postal-mime";
-import { asciiDomain, bounded, fittedDetail, fromDomain, plain } from "./auth";
+import { ATOM, asciiDomain, bounded, fittedDetail, fromDomain, LOCAL, plain } from "./auth";
 import { registrable } from "./brand-schema";
 import { brandForDomain } from "./brands";
 import type { CaseView } from "./case-view";
@@ -13,13 +13,22 @@ import type { CheckRegistry } from "./registry";
 type Header = { name: string; value: string };
 const named = (headers: readonly Header[], name: string) => headers.filter((h) => h.name.trim().toLowerCase() === name);
 
-// A mailbox as compared: the local part case-folded and the domain in its A-label form; null when either is not valid.
-function mailbox(address: string): string | null {
+// A mailbox as compared: a local part valid by RFC 5322 (dot-separated atoms, or a quoted string, section 3.2.4),
+// case-folded, a quoted one that needs no quotes read as its plain form (`"accounts"` is `accounts`), and the domain in
+// its A-label form; null when either part is not valid (completion review: `"pay@desk"@x` is valid, `a..b@x` is not).
+const DOT_ATOM = new RegExp(`^${ATOM}(?:\\.${ATOM})*$`, "u");
+export function mailbox(address: string): string | null {
   const at = address.lastIndexOf("@");
   if (at < 1 || at === address.length - 1) return null;
   const domain = asciiDomain(address.slice(at + 1));
-  const local = address.slice(0, at).toLowerCase();
-  return domain && !local.includes("@") ? `${local}@${domain}` : null;
+  const raw = address.slice(0, at);
+  if (!domain || !LOCAL.test(raw)) return null;
+  let local = raw;
+  if (raw.startsWith('"')) {
+    const inner = raw.slice(1, -1).replace(/\\(.)/g, "$1");
+    local = DOT_ATOM.test(inner) ? inner : `"${inner}"`;
+  }
+  return `${local.toLowerCase()}@${domain}`;
 }
 const siteOf = (domain: string | null) => {
   const ascii = domain === null ? null : asciiDomain(domain);
@@ -32,13 +41,14 @@ function item(
   severity: EvidenceDraft["severity"],
   summary: string,
   detail: Record<string, unknown>,
-  header: Header,
+  cited: Header | Header[],
 ): EvidenceDraft {
+  const headers = (Array.isArray(cited) ? cited : [cited]).map((h) => `${h.name}: ${h.value}`);
   return {
     check,
     severity,
     summary: bounded(summary),
-    detail: fittedDetail({ ...detail, headers: [`${header.name}: ${header.value}`] }) as EvidenceDraft["detail"],
+    detail: fittedDetail({ ...detail, headers }) as EvidenceDraft["detail"],
     artefacts: [view.raw],
   };
 }
@@ -52,10 +62,25 @@ function fromOf(view: CaseView): { header: Header; name: string; address: string
   return { header: from[0], name: parsed[0]?.name ?? "", address: (parsed[0]?.address ?? "").toLowerCase() };
 }
 
-// What a display name shows: email addresses in it, and bare domain names (`fynbosfreight.example`).
-const SHOWN_ADDRESS = /[^\s<>"'(),;:@]+@[^\s<>"'(),;:@]+\.[^\s<>"'(),;:@]+/gu;
-const SHOWN_DOMAIN =
-  /(?<![@\p{L}\p{N}.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}.-])/gu;
+// What a display name shows: its words, split at spaces and quoting, each with prose punctuation trimmed from its ends,
+// read as a mailbox when it has an `@` and as a domain when it is dot-separated labels ending in a top-level domain
+// (letters, or an A-label such as `xn--p1ai`). Words are read one at a time against anchored patterns, and a word
+// longer than any address can be is skipped, so the work stays linear in the name (completion review: an unanchored
+// pattern took four seconds on an 80 KB name).
+const MAX_WORD = 320;
+const SHOWN_DOMAIN = /^(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?:\p{L}{2,}|xn--[a-z0-9-]+)$/iu;
+function shownIn(name: string): { addresses: string[]; domains: string[] } {
+  const addresses: string[] = [];
+  const domains: string[] = [];
+  for (const raw of name.split(/[\s<>"'(),;[\]]+/u)) {
+    const word = raw.replace(/^[.,;:!?]+|[.,;:!?]+$/gu, "");
+    if (!word || word.length > MAX_WORD) continue;
+    if (word.includes("@")) {
+      if (mailbox(word)) addresses.push(word);
+    } else if (SHOWN_DOMAIN.test(word)) domains.push(word);
+  }
+  return { addresses, domains };
+}
 
 export function displayAddressEvidence(view: CaseView): EvidenceDraft[] {
   if (!view.tenant.headersAvailable) return [];
@@ -64,9 +89,7 @@ export function displayAddressEvidence(view: CaseView): EvidenceDraft[] {
   const actual = mailbox(from.address);
   const actualSite = siteOf(fromDomain(view.headers));
   if (!actual || !actualSite) return [];
-  const addresses = [...from.name.matchAll(SHOWN_ADDRESS)].map((m) => m[0]);
-  const rest = addresses.reduce((text, a) => text.replace(a, " "), from.name);
-  const domains = [...rest.matchAll(SHOWN_DOMAIN)].map((m) => m[0]);
+  const { addresses, domains } = shownIn(from.name);
   // A shown mailbox is compared whole (a different person at the same domain is a different sender); a shown domain
   // by its registrable domain.
   const otherMailbox = addresses.find((a) => mailbox(a) !== actual);
@@ -133,7 +156,11 @@ export function replyToEvidence(view: CaseView): EvidenceDraft[] {
   const header = headers[0];
   if (!header) return [];
   const fromSite = siteOf(fromDomain(view.headers));
-  const destinations = headers.flatMap((h) => addressParser(h.value, { flatten: true })).map((a) => a.address ?? "");
+  // Each destination with the field it is in, so a finding cites the field that holds it (completion review).
+  const found = headers.flatMap((h) =>
+    addressParser(h.value, { flatten: true }).map((a) => ({ address: a.address ?? "", header: h })),
+  );
+  const destinations = found.map((f) => f.address);
   const unreadable = !destinations.length || destinations.some((d) => mailbox(d) === null);
   if (fromSite === null || unreadable)
     return [
@@ -146,7 +173,8 @@ export function replyToEvidence(view: CaseView): EvidenceDraft[] {
         header,
       ),
     ];
-  const elsewhere = destinations.filter((d) => siteOf(d.slice(d.lastIndexOf("@") + 1)) !== fromSite);
+  const outside = found.filter((f) => siteOf(f.address.slice(f.address.lastIndexOf("@") + 1)) !== fromSite);
+  const elsewhere = outside.map((f) => f.address);
   if (!elsewhere.length) return [];
   return [
     item(
@@ -155,7 +183,7 @@ export function replyToEvidence(view: CaseView): EvidenceDraft[] {
       "medium",
       `Replies go to ${plain(elsewhere.join(", "), 80)}, not to the sender's own domain ${plain(fromSite, 50)}.`,
       { destinations, elsewhere, from: fromSite },
-      header,
+      [...new Set(outside.map((f) => f.header))],
     ),
   ];
 }
