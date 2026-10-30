@@ -148,6 +148,30 @@ export function trustedAuthResults(
   };
 }
 
+// The headers from the top down to the first hop a host outside the receivers wrote, and the receiver whose hop is
+// nearest the top (undefined when none is): where the receiver's own stamps can be, under the rules of
+// `trustedAuthResults` (D02 T02 §3 reads Microsoft's ARC verdict there).
+export function receiverZone(
+  headers: readonly { name: string; value: string }[],
+  receivers: readonly Receiver[],
+): { top: ReceiverKind | undefined; zone: { name: string; value: string }[] } {
+  const ours = (host: string) => receivers.find((r) => covers(r.pattern, host));
+  let top: ReceiverKind | undefined;
+  const zone: { name: string; value: string }[] = [];
+  for (const header of headers) {
+    if (header.name.trim().toLowerCase() === "received") {
+      const by = receivedBy(header.value);
+      if (by !== null && !literal(by)) {
+        const receiver = ours(by);
+        if (!receiver) break;
+        top ??= receiver.kind;
+      }
+    }
+    zone.push(header);
+  }
+  return { top, zone };
+}
+
 const UNTRUSTED: Record<Untrusted, string> = {
   "no-headers":
     "The original email's headers did not come with it, so how its sender was authenticated could not be read.",

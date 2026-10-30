@@ -33,7 +33,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Trusted Authentication-Results parsing | D02 T01 §2 | [x] |
 | 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [x] |
-| 3 | §3 | ARC chain evidence | §1 | [ ] |
+| 3 | §3 | ARC chain evidence | §1 | [x] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [ ] |
 | 5 | §5 | First-time sender per organisation | §4 | [ ] |
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
@@ -106,6 +106,12 @@ From the trusted results, produce evidence: SPF and DKIM pass or fail, DMARC res
 
 Forwarders and mailing lists break SPF and DKIM; ARC (RFC 8617) carries the earlier results. The trusted receiver's `arc=` result is read and, when it passes, the earlier authentication results inside the sealed chain are reported as context, not as proof.
 
+> **Started:** 2026-10-30T13:49Z
+
+**Corrected 2026-10-30** (at start, checked against the code and the receivers' header forms): (1) the receiver's ARC verdict is read where each writes it, under §1's provenance rules: Google in its trusted `Authentication-Results` (`arc=pass (i=1 spf=pass ...)`, the comment naming the instance it validated), through `trustedAuthResults`; Microsoft 365 writes no `arc=` there but seals the message on receipt, its verdict inside its own `ARC-Authentication-Results` (authserv-id `mx.microsoft.com`), which is read as Microsoft's topmost stamp is, the topmost of that authserv-id down to the first hop another host wrote; any other receiver's `arc=` only from its trusted header; (2) "the highest instance" can be the receiver's own seal (Microsoft's), so the earlier results are the `ARC-Authentication-Results` of the instance the receiver validated: the `i=` in Google's comment, or the instance just below Microsoft's own; the sealer is the `d=` of the `ARC-Seal` with that instance; (3) an `ARC-Authentication-Results` value is `i=<n>;` then a header of §1's grammar, parsed by the shared parser after the instance; (4) `auth.arc` is pure and reads only the view (`src/checks/registry.ts`); it says nothing when no ARC verdict is trusted, and the earlier results are context with their sealer named, never proof: they do not change §2's items.
+
+**Corrected 2026-10-30** (plan review): (5) `auth.arc` is registered in `src/checks/index.ts` after §2's checks, and a stored synthetic message run through the Workflow's `checks` step and `readEvidence` asserts its severity, earlier results, sealer, the header excerpts it rests on and the raw message key that exists in R2, failing when the registration or the provenance is removed; (6) `arc=none` means no chain arrived, normal for mail sent straight to the receiver: `auth.arc` says nothing for it (no instance zero is ever read), distinct from `temperror` or `permerror`, which are low; (7) the earlier context is found only from what the receiver names: the `i=` in its verdict's comment (any receiver that writes one), or, for Microsoft, the instance below its own; a pass naming no instance, an instance with no `ARC-Authentication-Results` or no `ARC-Seal`, or two of either for one instance, is "the receiver reported a pass; the earlier context is unavailable", never a guessed instance. The boundary selects the receiver's verdict only; the earlier `ARC-Authentication-Results` it names may sit below that boundary, where the earlier hop wrote it; (8) the earlier results are converted to plain JSON (properties as an object), every value in the detail bounded and the summary plain, as §2's items are (`boundedDetail` in `src/checks/auth.ts`), with a runner and store test of oversized and hostile values keeping the outcome.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -114,11 +120,14 @@ Forwarders and mailing lists break SPF and DKIM; ARC (RFC 8617) carries the earl
 
 1. Register check `auth.arc`. Done when: fixtures with `arc=pass` and `arc=fail` yield the expected items.
 
-- [ ] Read the trusted receiver's `arc` result and the `ARC-Authentication-Results` with the highest instance `i=` (RFC 8617 section 4.1.1). Done when: `test/checks/arc.test.ts` parses a synthetic two-hop chain.
-- [ ] Emit `auth.arc` info with the earlier results when `arc=pass`, and medium when `arc=fail`. Done when: both fixtures pass.
-- [ ] Commit: `checks: ARC chain evidence`
+- [x] Read the trusted receiver's ARC verdict (correction 1) and the earlier `ARC-Authentication-Results` and sealer of the instance it validated (corrections 2 and 3) in `src/checks/arc.ts`. Done when: `test/checks/arc.test.ts` reads Google's verdict with its instance, Microsoft's from its own seal with the instance below, and a synthetic two-hop chain's earlier results and sealer. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `src/checks/arc.ts` (`arcVerdict`, `readArcResults`, `readArcSeal`), `receiverZone` in `src/checks/auth-results.ts`.
+- [x] Emit `auth.arc` info with the earlier results and sealer when the verdict is `pass`, info saying the context is unavailable when it cannot be found (correction 7), medium when `fail`, low when it could not be evaluated, nothing for `none` or no trusted verdict; register it and carry the header excerpts and raw key (corrections 5, 6 and 8). Done when: each fixture passes (a legitimate earlier set below the boundary, an unavailable context, duplicate instances, Microsoft's first set with `arc=none`), a forged verdict below the receiver's boundary is never read, oversized and hostile values keep the item, and the Workflow `checks` test reads it back from the store. (**Corrected 2026-10-30**, at start and plan review.) Done 2026-10-30: `test/checks/arc.test.ts` (10 tests) and the Workflow read-back in `test/pipeline/analysis-workflow.test.ts`; five mutations (registration, `arc=none`, a doubled instance, the Microsoft path for any receiver, Microsoft's set read below the boundary) each fail a test.
+- [x] Commit: `checks: ARC chain evidence` Done 2026-10-30: 15bffc4, then the review fixes to 72e916f.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/arc.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §3 | 7d159c86737ac82b10633ec6d6e5b9067b8bf9c1
+> **Review:** `docs/reviews/d02-t02-s3.json`
 
 ## 4. Display name, Reply-To and Return-Path checks
 
