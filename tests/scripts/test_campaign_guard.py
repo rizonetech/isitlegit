@@ -26,6 +26,7 @@ RUN_FILE = "docs/phase-runs/2099-01-01-phase-0.md"
 spec = importlib.util.spec_from_file_location("campaign_guard_under_test", GUARD_PY)
 guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
+READY_ROWS = guard.ready_rows
 
 # The fake graph answers `query ready` the way the test asks: the SDK's JSON list, or Isotone's text summary.
 FAKE_GRAPH = """import json, os, sys
@@ -707,6 +708,31 @@ class LanePin(Workspace):
             self.assertEqual(guard.rows(self.root, SESSION), (1, "LANE MISMATCH guard=checks checkout=app"))
         self.assertEqual(guard.rows(self.root, OTHER), (1, "NOT THE OWNER"))
 
+    def test_rows_reports_a_failed_query_and_never_a_count(self):
+        self.lane("checks")
+        self.acquire()
+        before = self.guard_bytes()
+        self.ready(0, "crash")
+        code, line = guard.rows(self.root, SESSION)
+        self.assertEqual(code, 1)
+        self.assertTrue(line.startswith("ROWS UNKNOWN: query ready failed"), line)
+        self.ready(30, "sleep")  # a hung graph: the query times out
+        with mock.patch.object(guard, "ready_rows", lambda root, **kw: READY_ROWS(root, timeout=1, **kw)):
+            code, line = guard.rows(self.root, SESSION)
+        self.assertEqual((code, line.split(":")[0]), (1, "ROWS UNKNOWN"))
+        self.assertEqual(self.guard_bytes(), before)
+
+    def test_rows_of_a_phase_run_counts_only_its_phase(self):
+        self.lane("checks")
+        self.acquire(scope="phase")
+        self.ready(2, "mixed")  # two Phase 0 rows and one Phase 5 row
+        self.assertEqual(guard.rows(self.root, SESSION),
+                         (0, "lane=checks phase=0 ready=2 open=0 next=D00 T01 §3  Interface SPEC and screenshots"))
+        self.write("scripts/ready.txt", "mixed 0")
+        code, line = guard.rows(self.root, SESSION)
+        self.assertIn("ready=0", line, "the later phase's ready row is not this run's")
+        self.assertNotIn("D05", line)
+
 
     def test_rows_runs_from_the_command_line(self):
         self.lane("checks")
@@ -727,6 +753,8 @@ class HeartbeatPrompt(unittest.TestCase):
         self.assertIn("campaign_guard.py rows --session", prompt)
         self.assertIn("LANE MISMATCH", prompt)
         self.assertIn("lane=<lane>", prompt)
+        self.assertIn("ROWS UNKNOWN", prompt)
+        self.assertIn("ci_status.py --branch <branch>", prompt, "a lane reads its own branch's CI")
 
 class RealLanes(unittest.TestCase):
     """The guard over a real two-lane tree and the real scripts/todo-graph.py: a lane's turn ends while only the

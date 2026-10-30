@@ -506,9 +506,10 @@ def whoami(root: str, session: str, generation: str | None = None) -> str:
 
 
 def rows(root: str, session: str) -> tuple[int, str]:
-    """The heartbeat's view of the run's lane: `lane=L ready=N open=M next=<row>`, every count through the guard's
-    pinned lane, or `LANE MISMATCH` (exit 1) when this checkout now works another lane, so the heartbeat parks instead
-    of resuming another lane's rows."""
+    """The heartbeat's view of the run: `lane=L ready=N open=M next=<row>`, every count through the guard's pinned
+    lane (and, for a phase run, its phase's ready rows only), or exit 1 with `LANE MISMATCH` when this checkout now
+    works another lane, or `ROWS UNKNOWN` when a query failed, so the heartbeat never selects work it could not
+    count."""
     try:
         guard = read_guard(root)
     except GuardError:
@@ -522,11 +523,14 @@ def rows(root: str, session: str) -> tuple[int, str]:
         here = graph_lane(root)
         if here is not None and here != pinned:
             return 1, f"LANE MISMATCH guard={pinned} checkout={here}"
-    ready, next_row = ready_rows(root, lane=pinned)
+    phase = guard.get("phase") if guard.get("scope") == "phase" else None
+    ready, next_row = ready_rows(root, phase=phase, lane=pinned)
     still_open = open_rows(root, lane=pinned)
-    unknown = lambda n: "unknown" if n is None else str(n)  # noqa: E731
-    return 0, (f"lane={pinned or 'checkout'} ready={unknown(ready)} open={unknown(still_open)} "
-               f"next={next_row or 'none'}")
+    if ready is None or still_open is None:
+        failed = " and ".join(q for q, n in (("query ready", ready), ("query stats", still_open)) if n is None)
+        return 1, f"ROWS UNKNOWN: {failed} failed or timed out (lane {pinned or 'checkout'}); the guard is unchanged"
+    where = f" phase={phase}" if phase is not None else ""
+    return 0, f"lane={pinned or 'checkout'}{where} ready={ready} open={still_open} next={next_row or 'none'}"
 
 
 def reset_state(root: str, session: str | None = None, expect_no_guard: bool = False) -> str:
