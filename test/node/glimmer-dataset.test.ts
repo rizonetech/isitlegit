@@ -1742,6 +1742,17 @@ describe("line files streamed to and from disk (1.0's training file is some 20 G
       expect(seen).toEqual(lines);
       expect(read).toEqual({ sha256: hashOfFile(path), lines: 14 });
       expect(readdirSync(folder)).toEqual(["train.jsonl"]);
+      // A line that fails part-way leaves the file as it was and no partial file behind (round 9).
+      const before = hashOfFile(path);
+      function* failing() {
+        yield "replacement";
+        throw new Error("page changed on disk");
+      }
+      expect(() => writeLinesAtomic(path, failing())).toThrow(/page changed on disk/);
+      expect(hashOfFile(path)).toBe(before);
+      expect(readdirSync(folder)).toEqual(["train.jsonl"]);
+      expect(writeLinesAtomic(path, ["again"])).toBe(1);
+      expect(readFileSync(path, "utf-8")).toBe("again\n");
       writeFileSync(path, "a\nb");
       expect(() => eachLine(path, () => {})).toThrow(/does not end with a newline/);
     } finally {

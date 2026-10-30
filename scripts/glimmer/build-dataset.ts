@@ -866,9 +866,13 @@ export function writeLinesAtomic(path: string, lines: Iterable<string>): number 
       count++;
     }
     fsyncSync(fd);
-  } finally {
+  } catch (error) {
+    // A failed line leaves the destination as it was and no partial file behind.
     closeSync(fd);
+    rmSync(temporary, { force: true });
+    throw error;
   }
+  closeSync(fd);
   renameSync(temporary, path);
   return count;
 }
