@@ -42,7 +42,7 @@ Sections: 27 | Checklist items: 371
 
 ### Phase 1: Intake and pipeline skeleton (Tue 27 Oct)
 
-Sections: 43 | Checklist items: 370
+Sections: 43 | Checklist items: 372
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -54,7 +54,7 @@ Sections: 43 | Checklist items: 370
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
 | [x]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
-| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 3     |
+| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 5     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
 | [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
 | [x]    | D01 T03 §8  | M4A decoding                              | none                  | 5     |
@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 45 | Checklist items: 295
+Sections: 53 | Checklist items: 331
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -106,6 +106,8 @@ Sections: 45 | Checklist items: 295
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
+| [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
+| [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
@@ -114,7 +116,7 @@ Sections: 45 | Checklist items: 295
 | [x]    | D02 T03 §1  | Confusables skeleton and edit distance module         | none     | 5     |
 | [x]    | D02 T03 §3  | Curated brand domain table in KV                      | none     | 4     |
 | [x]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 6     |
-| [ ]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
+| [x]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [ ]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
 | [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
 | [ ]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
@@ -129,15 +131,21 @@ Sections: 45 | Checklist items: 295
 | [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
 | [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
-| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
-| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
+| [ ]    | D07 T02 §15 | Domain verification page                              | none     | 2     |
+| [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
 | [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
+| [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
+| [ ]    | D07 T04 §1  | Cases list with filters and search                    | none     | 4     |
+| [ ]    | D07 T02 §7  | Sign-in page                                          | none     | 12    |
+| [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
+| [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
+| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 | [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
@@ -219,11 +227,12 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 69 | Checklist items: 302
+Sections: 70 | Checklist items: 306
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
 | [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
+| [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
@@ -245,10 +254,9 @@ Sections: 69 | Checklist items: 302
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
+| [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
-| [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
-| [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -278,6 +286,7 @@ Sections: 69 | Checklist items: 302
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
+| [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
 | [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
@@ -295,7 +304,7 @@ Sections: 69 | Checklist items: 302
 
 ### Phase 7: After the event
 
-Sections: 28 | Checklist items: 165
+Sections: 29 | Checklist items: 168
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -308,6 +317,7 @@ Sections: 28 | Checklist items: 165
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator | 7     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
+| [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none     | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 7     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
@@ -330,7 +340,7 @@ Sections: 28 | Checklist items: 165
 
 ### Phase 99: Manual, operator only
 
-Sections: 17 | Checklist items: 70
+Sections: 17 | Checklist items: 71
 
 | Status | Reference   | Deliverable                                   | Needs    | Items |
 | ------ | ----------- | --------------------------------------------- | -------- | ----- |
@@ -349,9 +359,9 @@ Sections: 17 | Checklist items: 70
 | [ ]    | D99 T02 §2  | Pilot client written consent                  | operator | 2     |
 | [ ]    | D99 T02 §3  | Record the demo footage                       | operator | 2     |
 | [ ]    | D99 T02 §4  | Assemble, caption and upload the video        | operator | 3     |
-| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
+| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 95/283 verified sections, 58 ready to run now.
+Progress: 99/293 verified sections, 61 ready to run now.
 
-Checklist: 982/1830 items completed (includes Commit items).
+Checklist: 1009/1876 items completed (includes Commit items).

@@ -268,9 +268,28 @@ export function returnPathEvidence(view: CaseView): EvidenceDraft[] {
   ];
 }
 
+// A sender the organisation's earlier IsItLegit checks never had (D02 T02 §5): weak, said as what IsItLegit can know,
+// since mail the organisation received without checking it is not seen here.
+export function firstTimeEvidence(view: CaseView): EvidenceDraft[] {
+  if (!view.tenant.headersAvailable || view.senderHistory !== "first") return [];
+  const from = fromOf(view);
+  if (!from) return [];
+  return [
+    item(
+      view,
+      "sender.first_time",
+      "low",
+      `${plain(from.address, 80)} has not appeared in your organisation's earlier IsItLegit checks. Mail you received without checking it is not counted.`,
+      { history: "first", from: from.address },
+      from.header,
+    ),
+  ];
+}
+
 export function registerSenderChecks(registry: CheckRegistry): void {
   registry.register({ name: "sender.display_address", needs: [], timeoutMs: 1_000, run: displayAddressEvidence });
   registry.register({ name: "sender.display_brand", needs: [], timeoutMs: 1_000, run: displayBrandEvidence });
   registry.register({ name: "sender.reply_to", needs: [], timeoutMs: 1_000, run: replyToEvidence });
   registry.register({ name: "sender.return_path", needs: [], timeoutMs: 1_000, run: returnPathEvidence });
+  registry.register({ name: "sender.first_time", needs: [], timeoutMs: 1_000, run: firstTimeEvidence });
 }

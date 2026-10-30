@@ -62,6 +62,9 @@ export type CaseView = {
   // The curated brand table in force (D02 T02 §4): KV's copy, or the bundled one, read by the checks step so a check
   // never reads KV.
   brands: BrandTable;
+  // Whether the organisation's earlier IsItLegit checks had a case from this sender (D02 T02 §5), filled by the checks
+  // step from `observeSender`; null when it was not asked (no single valid From in the original's own headers).
+  senderHistory: "first" | "seen" | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -85,6 +88,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       tenant: { ...tenant, headersAvailable: m.forward.headersAvailable },
       raw,
       brands,
+      senderHistory: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -101,6 +105,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       tenant: { ...tenant, headersAvailable: false },
       raw,
       brands,
+      senderHistory: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

@@ -35,8 +35,10 @@ track: day-2
 | 2 | §2 | SPF, DKIM and DMARC alignment evidence | §1 | [x] |
 | 3 | §3 | ARC chain evidence | §1 | [x] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [x] |
-| 5 | §5 | First-time sender per organisation | §4 | [ ] |
+| 5 | §5 | First-time sender per organisation | §4 | [x] |
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
+| 7 | §7 | First-time sender per recipient | §5 | [ ] |
+| 8 | §8 | Familiarity from consented mail | §5 | [ ] |
 
 ## 1. Trusted Authentication-Results parsing
 
@@ -163,6 +165,12 @@ Business email compromise often keeps a real-looking display name over a differe
 
 A sender this organisation has never had mail from is a weak but useful signal, especially with a payment request. Senders are remembered per organisation as hashes, never as addresses in clear.
 
+> **Started:** 2026-10-30T16:17Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) migration `0008` is long taken; the number comes from the coordinator (asked 2026-10-30), and the tables are `org_senders` (org id, sender hash, the case that first recorded it, first seen, count) and `org_sender_salts` (a random 32-byte salt per organisation, made on first use), so a sender is only ever a salted SHA-256 of its lower-cased address; (2) checks are pure (`src/checks/registry.ts`: a check never reaches the store), so the Workflow's `checks` step reads the sender's history into the view (`senderHistory` on `CaseView`: unknown, first, or seen before) and records the sender after the evidence is stored; the record names the case that first saw the sender, so a retried step reads "first" again for that case and never counts it twice; (3) the sender is the original's single From mailbox as §2 validates it (`fromDomain`'s rules in `src/checks/auth.ts`): no valid From, or no headers, means no item and nothing recorded; (4) `sender.first_time` carries the From header excerpt and the raw message key, its detail fitted to the store, as §2's items do; (5) a closed organisation's senders and salt are purged with it: D07 T02's closure purge item is the app lane's, asked of it through the coordinator (2026-10-30).
+
+**Corrected 2026-10-30** (plan review): (6) corrections 1 and 2's `org_senders` and recording after the evidence are replaced by one table, `sender_observations` (org id, case id, sender hash, classification, observed at; one row per case): before the checks, the `checks` step classifies the case in a single statement that inserts its row as `first` unless the organisation has a row for that sender already, else `seen`, and does nothing when the case has its row; D1 runs one write at a time, so of two overlapping cases exactly one is first, a retried step reads its own row back unchanged, and the count of a sender's cases is the count of its rows, never incremented twice; (7) the sender hashed is the canonical mailbox, `mailbox` in `src/checks/sender.ts` (A-label domain, a needless quote removed, case-folded), so `bücher.example` and `xn--bcher-kva.example` are one sender; (8) the item says what IsItLegit can know: this sender has not appeared in the organisation's earlier IsItLegit checks, which says nothing of mail the organisation received without checking it; (9) `org_sender_salts` holds one random 32-byte salt per organisation, inserted only when absent and read back, so concurrent first use never replaces a salt in use; two organisations keep separate salts, hashes and histories; (10) with no headers (an inline forward, whose outer From is the forwarding member's, or a headerless upload), or no single valid From mailbox, there is no item and no row; (11) the stored item carries the From excerpt and the raw key, and an oversized display name keeps it.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -171,11 +179,14 @@ A sender this organisation has never had mail from is a weak but useful signal, 
 
 1. Add `org_senders` and the check. Done when: the first case from a sender flags it and the second does not.
 
-- [ ] Add migration `0008_senders.sql` with `org_senders` (`org_id`, `sender_hash` SHA-256 of the lower-case address with a per-organisation salt, `first_seen`, `count`). Done when: it applies locally.
-- [ ] Register `sender.first_time` (low) and record the sender after the check. Done when: `test/checks/first-time.test.ts` sees low on the first case and nothing on the second.
-- [ ] Commit: `checks: first-time sender per organisation`
+- [x] Add the migration (its number from the coordinator) with `org_sender_salts` and `sender_observations` (corrections 6 and 9), and `observeSender(db, orgId, caseId, mailbox)` in `src/checks/senders-seen.ts` returning `first` or `seen`. Done when: `test/checks/first-time.test.ts` shows two organisations each first for the same address with distinct 32-byte salts and hashes, a second case seen, a retried case its own answer, two overlapping first cases one first and one seen, an equivalent A-label mailbox the same sender, a salt never replaced, and no address in clear in D1. (**Corrected 2026-10-30**, at start and plan review.) Done 2026-10-30: `src/db/migrations/0037_sender_observations.sql` (0037 from the coordinator), `src/checks/senders-seen.ts`; four mutations (a retry reclassified, the inline forward's outer From learned, a non-canonical mailbox, a salt replaced) each fail a test.
+- [x] Register `sender.first_time` (low) over the view's `senderHistory`, which the Workflow's `checks` step fills from `observeSender` before the checks (corrections 2, 6, 8 and 10). Done when: a stored message through the `checks` step reads the item with its wording, From excerpt and an existing raw key, twice the same for one case, nothing for a second case from the sender; an inline forward, a headerless upload and an invalid or doubled From give no item and no row; an oversized display name keeps the item. (**Corrected 2026-10-30**, at start and plan review.) Done 2026-10-30: `firstTimeEvidence` in `src/checks/sender.ts`, `senderHistory` on `CaseView` filled in the `checks` step; `test/checks/first-time.test.ts` (8 tests); 502 tests across checks, pipeline, intake and mail pass.
+- [x] Commit: `checks: first-time sender per organisation` Done 2026-10-30: 0386377.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/first-time.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §5 | 915bbb712e2d57297767bdeda462a49948189bcf
+> **Review:** `docs/reviews/d02-t02-s5.json`
 
 ## 6. Receiving chains behind a filtering gateway
 
@@ -196,6 +207,42 @@ Filed 2026-10-30 from D02 T02 §1's completion review (Part 1 item 12): receiver
 - [ ] Commit: `checks: receiving chains behind a filtering gateway`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/auth-results.test.ts test/auth/receivers.test.ts` passes, with both gateway fixtures.
+
+## 7. First-time sender per recipient
+
+Filed 2026-10-30 from §5's completion review (out of scope): §5 remembers a sender for the whole organisation for good, so one member's earlier check makes the sender familiar to everyone, even after a long silence. Familiarity per recipient (the member who forwarded) and a recency horizon would keep the signal where it still means something.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Decide and build the finer familiarity. Done when: a sender seen only by another member, or not for a long time, still reads as unfamiliar where the decision says it should.
+
+- [ ] Decide, in `docs/specs/`, whether familiarity is per recipient, per organisation with a recency horizon, or both, and what the horizon is, recording the choice and its reversal cost. Done when: the decision is recorded.
+- [ ] Extend `sender_observations` (a migration the coordinator numbers) and `observeSender` in `src/checks/senders-seen.ts` as decided, keeping one atomic classification per case. Done when: `test/checks/first-time.test.ts` covers another member's earlier case and a sender silent past the horizon.
+- [ ] Commit: `checks: first-time sender per recipient`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/first-time.test.ts` passes.
+
+## 8. Familiarity from consented mail
+
+Filed 2026-10-30 from §5's completion review (out of scope): IsItLegit sees only the mail members submit, so a long-standing supplier's first checked message reads as first-time. With the organisation's consent, its own mail history (for example through Microsoft Graph or Gmail's API) would say whether the organisation has corresponded with the sender before.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Design consented history and use it. Done when: an organisation that consents has familiarity from its own mail, and one that does not keeps §5's behaviour.
+
+- [ ] Write the design in `docs/specs/`: the consent, the scopes asked for, what is read (sender domains or hashes only), how long it is kept, and how consent is withdrawn and the data deleted. Done when: the design is recorded and its privacy terms checked against `docs/specs/2026-10-26-phishing-invoice-analyser-design.md`.
+- [ ] File the build sections the design needs through `add-todo` (the connector in D07, the familiarity read here). Done when: the sections exist and resolve.
+- [ ] Commit: `docs: consented mail history for sender familiarity`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
 
 ## Verification
 

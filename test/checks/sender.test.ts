@@ -21,6 +21,7 @@ function view(headers: { name: string; value: string }[], headersAvailable = tru
     tenant: { orgId: "org-sender", channel: "email", receivers: [], headersAvailable },
     raw: RAW,
     brands: bundled,
+    senderHistory: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

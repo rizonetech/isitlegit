@@ -46,6 +46,32 @@ async function member() {
   return { cookie, orgId: org?.id as string };
 }
 
+// A second member of `orgId`, signed in: a user and a membership as Better Auth stores them, then its own sign-in.
+async function secondMember(orgId: string) {
+  const email = `second-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+  const now = new Date().toISOString();
+  const userId = `user-${crypto.randomUUID()}`;
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES (?, ?, ?, 1, ?, ?)`,
+      )
+      .bind(userId, email, email, now, now),
+    db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'member', ?)`)
+      .bind(`member-${userId}`, orgId, userId, now),
+  ]);
+  const { cookie } = await signIn(email);
+  return { cookie, userId };
+}
+const userIdOf = async (cookie: string) => {
+  const session = await call("/api/auth/get-session", { headers: { cookie } });
+  return ((await session.json()) as { user: { id: string } }).user.id;
+};
+const uploadedBy = async (caseId: string) =>
+  (await db.prepare("SELECT uploaded_by FROM cases WHERE id = ?").bind(caseId).first<{ uploaded_by: string | null }>())
+    ?.uploaded_by;
+
 function upload(cookie: string | null, parts: [string, Blob | string, string?][], workerEnv?: Env) {
   const form = new FormData();
   for (const [field, value, name] of parts)
@@ -323,6 +349,23 @@ describe("POST /api/upload", () => {
     expect((await upload(cookie, [file(other, "o.pdf")])).status).toBe(201);
     expect((await email(`sha256:${await sha256Hex(other)}`)).kind).toBe("admitted");
     expect((await email(`upload:sha256:${await sha256Hex(other)}`)).kind).toBe("admitted");
+  });
+
+  it("records the uploading member on the case (D01 T03 §11)", async () => {
+    const { cookie } = await member();
+    const made = (await (await upload(cookie, [file(PDF, "x.pdf")])).json()) as { caseId: string };
+    expect(await uploadedBy(made.caseId)).toBe(await userIdOf(cookie));
+  });
+
+  it("keeps the first uploader when another member uploads the same file again (D01 T03 §11)", async () => {
+    const first = await member();
+    const second = await secondMember(first.orgId);
+    const made = (await (await upload(first.cookie, [file(PDF, "x.pdf")])).json()) as { caseId: string };
+    const again = await upload(second.cookie, [file(PDF, "again.pdf")]);
+    expect(await again.json()).toEqual({ caseId: made.caseId, repeat: true });
+    expect(await casesOf(first.orgId)).toHaveLength(1);
+    expect(await uploadedBy(made.caseId)).toBe(await userIdOf(first.cookie));
+    expect(await uploadedBy(made.caseId)).not.toBe(second.userId);
   });
 
   it("answers the same file again with the first case", async () => {

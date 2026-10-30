@@ -49,7 +49,7 @@ export const ERRORS: Record<string, ErrorStateProps> = {
     code: 410,
     title: "This report link has expired.",
     children:
-      "Links in our reply emails work for 7 days, so an old email can't be used to read a report. The case itself is still in your account until it reaches 30 days.",
+      "Links in our reply emails work for 7 days, so an old email can't be used to read a report. The case itself stays in your organisation's account: sign in to open it.",
     actions: [
       <Button variant="dark" href="/sign-in">
         Sign in to see the case

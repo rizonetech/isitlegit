@@ -904,6 +904,8 @@ States:
 
 Boards: [PNG](mockups/png/Error-410.png) · [source](mockups/source/Error-410.dc.html)
 
+- Deviation (D07 T03 §1): the sentence ends "The case itself stays in your organisation's account: sign in to open it." where the board says the case stays "until it reaches 30 days", because 30 days is the raw files' limit; a case's summary stays while the organisation has an account (design spec 4.8), so the board's words would tell a member an older report is gone when signing in opens it.
+
 Controls:
 
 - report link past its 7 days: Explains the 7-day rule. (Error-410)

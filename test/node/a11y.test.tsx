@@ -5,6 +5,7 @@ import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Document } from "../../src/web/components/Document.tsx";
 import { GALLERY_FRAMES, GalleryFrame, GalleryPage } from "../../src/web/dev/gallery.tsx";
+import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 
 // axe-core 4.11.4 over the component gallery and every shell frame in Chromium (D07 T01 §10; `pnpm test:a11y`, its own
@@ -14,24 +15,6 @@ import { chromiumPath, launch } from "./browser";
 const APP = "http://localhost";
 const ROOT = join(import.meta.dirname, "../..");
 const PUBLIC = join(ROOT, "public");
-const AXE = join(ROOT, "node_modules/axe-core/axe.min.js");
-const OPTIONS = {
-  runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
-  rules: { "target-size": { enabled: true } },
-  iframes: false,
-  resultTypes: ["violations", "incomplete"],
-};
-
-// Results axe could not decide that a person has checked: rule, a selector fragment of the target, and why it holds.
-const CHECKED_INCOMPLETE: { rule: string; target: string; reason: string }[] = [];
-
-type Finding = {
-  id: string;
-  impact: string | null;
-  nodes: { target: string[]; failureSummary?: string | undefined }[];
-};
-type Scan = { violations: Finding[]; incomplete: Finding[] };
-
 let browser: Browser;
 beforeAll(async () => {
   browser = await launch();
@@ -59,34 +42,6 @@ async function open(path: string, pages: Record<string, string>, width: number, 
   await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
   await p.addScriptTag({ path: AXE });
   return { p, context };
-}
-
-const scan = (p: Page): Promise<Scan> =>
-  p.evaluate(async (options) => {
-    const result = await (window as unknown as { axe: { run: (c: Document, o: unknown) => Promise<Scan> } }).axe.run(
-      document,
-      options,
-    );
-    const slim = (list: Finding[]) =>
-      list.map((f) => ({
-        id: f.id,
-        impact: f.impact,
-        nodes: f.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
-      }));
-    return { violations: slim(result.violations), incomplete: slim(result.incomplete) };
-  }, OPTIONS);
-
-// What a scan leaves unresolved: every violation, and every undecided result no person has checked.
-function problems(result: Scan): string[] {
-  const unchecked = result.incomplete.flatMap((f) =>
-    f.nodes
-      .filter((n) => !CHECKED_INCOMPLETE.some((c) => c.rule === f.id && n.target.join(" ").includes(c.target)))
-      .map((n) => `incomplete ${f.id} ${n.target.join(" ")}`),
-  );
-  const violations = result.violations.flatMap((f) =>
-    f.nodes.map((n) => `${f.id} ${n.target.join(" ")}: ${n.failureSummary ?? ""}`.slice(0, 300)),
-  );
-  return [...violations, ...unchecked];
 }
 
 const galleryPages = () => ({ "/dev/components": String(<GalleryPage />) });

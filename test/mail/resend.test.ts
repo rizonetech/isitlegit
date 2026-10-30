@@ -160,7 +160,12 @@ describe("resendRequested", () => {
 
 describe("recordEvent", () => {
   it("keeps a Meta cap's class whole and still refuses one that is a message", async () => {
-    const made = await createCase(env.DB, { orgId: ORG, channel: "upload", headersAvailable: false });
+    const made = await createCase(env.DB, {
+      orgId: ORG,
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: "user-resend",
+    });
     if (!made.ok) throw new Error(made.error.message);
     const id = made.value.id;
     await recordEvent(env.DB, id, "checks", "failed", { errorClass: "budget:day:muse-spark-1.3" });
@@ -513,13 +518,23 @@ describe("final review (2026-10-29)", () => {
 describe("completeStored", () => {
   it("never completes a partial case that failed before its verdict, or has none", async () => {
     const { completeStored } = await import("../../src/db/cases");
-    const made = await createCase(env.DB, { orgId: ORG, channel: "upload", headersAvailable: false });
+    const made = await createCase(env.DB, {
+      orgId: ORG,
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: "user-resend",
+    });
     if (!made.ok) throw new Error(made.error.message);
     const id = made.value.id;
     await setStatus(env.DB, ORG, id, "running");
     await setStatus(env.DB, ORG, id, "partial");
     expect((await completeStored(env.DB, ORG, id)).ok).toBe(false);
-    const other = await createCase(env.DB, { orgId: ORG, channel: "upload", headersAvailable: false });
+    const other = await createCase(env.DB, {
+      orgId: ORG,
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: "user-resend",
+    });
     if (!other.ok) throw new Error(other.error.message);
     await setStatus(env.DB, ORG, other.value.id, "running");
     await storeVerdict(env.DB, ORG, other.value.id, STUB_VERDICT);

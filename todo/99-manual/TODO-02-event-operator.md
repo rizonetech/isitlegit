@@ -123,6 +123,7 @@ Submit by Wed 4 Nov 18:00 SAST (official deadline Thu 5 Nov 04:00 SAST): public 
 
 1. Submit and confirm. Done when: the submission shows as received.
 
+- [ ] Make `rizonetech/isitlegit` public again on Tue 3 Nov 2026, before submitting (operator decision 2026-10-30 20:05 SAST: private from then until submission, since the Official Rules need the repository public at submission, `docs/hackathon-criteria.md`): `gh repo edit rizonetech/isitlegit --visibility public --accept-visibility-change-consequences`. Done when: `gh api repos/rizonetech/isitlegit --jq .visibility` prints `public` and a logged-out `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit` prints `200`.
 - [ ] Submit at `https://cerebralvalley.ai/e/meta-ai-developer-hackathon/hackathon/submit` with the repository URL, video link, track and judge code. Done when: the form confirms.
 - [ ] Record `Submitted: YYYY-MM-DD HH:MM SAST` here after seeing the submission as received. Done when: the line is written.
 - [ ] Commit: `todo: record the submission`
