@@ -47,7 +47,7 @@ track: day-1
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
 | 12 | §12 | Sign-in link opened on another device | §11 | [ ] |
-| 13 | §13 | Signup page | §4, §7 | [ ] |
+| 13 | §13 | Signup page | §4, §7 | [x] |
 | 14 | §14 | Invite acceptance page | §3, §7 | [ ] |
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
@@ -532,11 +532,14 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 - [x] Hold Create account until the box is ticked, show it busy while it runs (D07 T02 §7's `data-busy`), and pass the accessibility gate's rules at 360 and 1280 px in both themes for the form, a code refusal and both answers. Done when: `test/node/signup-page-browser.test.tsx` finds the button held, ticks the box, sends once for two presses, and scans each state. Evidence 2026-10-30: `data-needs-consent` in `src/web/client/app.ts`; `test/node/signup-page-browser.test.tsx` (7) finds the button held, enabled on ticking and held again on unticking, one post for two presses, and no accessibility problem in four states at 360 and 1280 px in both themes; removing the hold fails it.
 - [x] Work without script and by keyboard alone: with JavaScript off, Create account is usable (only the script holds it) and the signup and the first code go through; by Tab, Space and Enter alone a member fills the form, ticks consent, submits, meets a refusal tied to its field (`aria-describedby`, announced), corrects it, and submits again with the other values kept. Done when: the browser test drives both journeys. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: the browser test with JavaScript off finds the box's own `required` stopping a form without consent (nothing sent), then signs up and signs in by the first code; by keyboard it types each field, ticks with Space, submits with Enter, reads the refused code as the field's description with the other values kept, corrects it and submits.
 - [x] Close the completion review's in-scope gaps: Create account stays held when a retry's time comes with consent unticked; a form too large to read is the signup page again saying why (413), the fields bounded (`maxlength` 200, 254 and 120) so a typed form stays under it; a shared invite code is taken into the form and out of the address (`data-drop-query`, `history.replaceState`); and the server's part of a signup is timed. Done when: `test/node/signup-page-browser.test.tsx` (9) holds the button past an expired retry with the box unticked and finds `/signup` with no code and the field filled; `test/web/signup-page.test.ts` (9) reads the 413 page and times ten signups at p95 207 ms locally (the browser and the mail are the rest of the minute, unmeasured here). Each fix's removal fails its test. **Added 2026-10-31 (completion review).**
-- [ ] Commit: `web: the signup page`
+- [x] Commit: `web: the signup page`
 
 > **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
 
 **Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/invite.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
+
+> **Verified:** 2026-10-31 | §13 | 060ad6980a49f3b0796b115ae0eb2c5e32bd76a8
+> **Review:** `docs/reviews/d07-t02-s13.json`
 
 ## 14. Invite acceptance page
 
