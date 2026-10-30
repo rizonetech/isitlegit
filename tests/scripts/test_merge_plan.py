@@ -45,7 +45,10 @@ class MergePlan(fixtures.Stamp):
         self.write(fixtures.todo_file([(1, "Bravo", 0, "none", "--")], ident="bravo").replace(
             "**Test checkpoint:**", fixtures.STARTED + "**Test checkpoint:**", 1), name="TODO-02-b.md")
         shutil.copytree(REPO / "scripts", self.root / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
-        (self.root / ".gitignore").write_text("build/\n__pycache__/\n", encoding="utf-8")
+        (self.root / ".gitignore").write_text("build/\n__pycache__/\nsamples/\n", encoding="utf-8")
+        # Every clone needs a client list to commit (D00 T01 §24); one naming a client nothing here mentions.
+        (self.root / "samples").mkdir(exist_ok=True)
+        (self.root / "samples/client-names.txt").write_text("Zzyzx Unlisted Client\n", encoding="utf-8")
         tg.projections(self.root, sync=True)
         for args in (["config", "core.hooksPath", "scripts/hooks"], ["config", "commit.gpgsign", "false"]):
             self.git(*args)

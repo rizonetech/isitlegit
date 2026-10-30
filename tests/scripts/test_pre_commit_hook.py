@@ -53,6 +53,8 @@ class PreCommitHook(unittest.TestCase):
                      ["config", "core.autocrlf", "false"], ["add", "-A"], ["commit", "-qm", "seed"],
                      ["config", "core.hooksPath", "scripts/hooks"]):
             self.git(*args)
+        # Every clone needs a client list to commit (D00 T01 §24); one that names a client nothing here mentions.
+        self.names("Zzyzx Unlisted Client\n")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -231,10 +233,70 @@ class PreCommitHook(unittest.TestCase):
         self.git("add", "notes.md")
         self.assertEqual(self.commit().returncode, 0)
 
-    def test_without_a_client_list_nothing_is_checked(self):
-        (self.root / "notes.txt").write_text("Acme Holdings\n", encoding="utf-8")
-        self.git("add", "notes.txt")
-        self.assertEqual(self.commit().returncode, 0)
+    # D00 T01 §24: without a usable list the commit is refused (it once passed unscanned), each state with its own fix,
+    # and following that fix lets a clean commit through while a listed name is still refused.
+    def stage(self, text, name="notes.txt"):
+        (self.root / name).write_text(text, encoding="utf-8")
+        self.git("add", name)
+
+    def repaired(self, cwd=None):
+        """After a repair: a clean commit goes through and a listed name is refused."""
+        root = cwd or self.root
+        (root / "clean.txt").write_text("nothing private\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "clean.txt"], check=True, capture_output=True)
+        clean = subprocess.run(["git", "-C", str(root), "commit", "-qm", "clean"], capture_output=True, text=True)
+        self.assertEqual(clean.returncode, 0, clean.stderr)
+        (root / "listed.txt").write_text("Acme Holdings wrote\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "listed.txt"], check=True, capture_output=True)
+        listed = subprocess.run(["git", "-C", str(root), "commit", "-qm", "listed"], capture_output=True, text=True)
+        self.assertNotEqual(listed.returncode, 0)
+        self.assertIn("client name", listed.stderr)
+
+    def test_without_any_client_list_the_commit_is_refused_until_one_is_provided(self):
+        (self.root / "samples/client-names.txt").unlink()
+        self.stage("Acme Holdings\n")
+        refused = self.commit()
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("no client list", refused.stderr)
+        self.assertIn(str(self.root / "samples/client-names.txt"), refused.stderr, "names where the list belongs")
+        self.git("reset", "-q")
+        (self.root / "notes.txt").unlink()
+        self.names("Acme Holdings\n")
+        self.repaired()
+
+    def test_a_list_that_names_no_one_is_refused_until_a_name_is_added(self):
+        self.names("\n   \n")
+        self.stage("anything\n")
+        refused = self.commit()
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("names no one; add the client names, one per line", refused.stderr)
+        self.git("reset", "-q")
+        self.names("Acme Holdings\n")
+        self.repaired()
+
+    def test_a_dangling_link_is_refused_until_it_is_repaired(self):
+        real = self.root.parent / f"{self.root.name}-list.txt"
+        real.write_text("Acme Holdings\n", encoding="utf-8")
+        self.addCleanup(real.unlink, True)
+        link = self.root / "samples/client-names.txt"
+        link.unlink()
+        link.symlink_to(self.root.parent / "gone.txt")
+        self.stage("anything\n")
+        refused = self.commit()
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("which does not exist; repair it with 'ln -sfn", refused.stderr)
+        self.git("reset", "-q")
+        subprocess.run(["ln", "-sfn", str(real), str(link)], check=True)
+        self.repaired()
+
+    def test_a_linked_worktree_without_its_own_list_scans_with_the_main_checkouts(self):
+        self.names("Acme Holdings\n")
+        tree = self.root.parent / f"{self.root.name}-wt"
+        self.git("worktree", "add", "-q", "-b", "wt", str(tree))
+        self.addCleanup(shutil.rmtree, tree, True)
+        self.assertFalse((tree / "samples/client-names.txt").exists(), "git worktree add copies no ignored file")
+        (tree / "node_modules").mkdir(exist_ok=True)
+        self.repaired(cwd=tree)
 
 
 class HookFile(unittest.TestCase):
