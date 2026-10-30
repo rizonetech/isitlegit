@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -20,14 +21,19 @@ import {
   hamming,
   jaccard,
   NO_FLOORS,
+  PublicationRefused,
   referenceFile,
   ShortfallError,
+  sampleTerms,
+  scanSampleLines,
   shingles,
   siteOf,
   split,
+  validateLine,
 } from "../../scripts/glimmer/build-dataset.ts";
+import { CONSENT_HEADING } from "../../scripts/glimmer/import-samples.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
-import { PageAnswer } from "../../src/vision/page-screen.ts";
+import { buildScreenRequest, buildTrainingLine, PageAnswer } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/build-dataset.ts (D03 T04 §10): duplicates go, no brand passes 300, lures stay within 40 to 60
 // percent, and the evaluation set shares no brand, site, template or near duplicate with training and holds only
@@ -331,17 +337,18 @@ describe("buildDataset", () => {
       expect(PageAnswer.safeParse(JSON.parse(messages.at(-1).content)).success).toBe(true);
       expect(messages[1].content.some((p: { type: string }) => p.type === "image_url")).toBe(true);
     }
-    // A second build replaces the version whole: no building or previous folder is left beside it.
+    // A second build under a new number is published beside it, whole: no staging folder is left, and the first is
+    // never replaced.
     const rebuilt = await buildDataset({
       store,
-      version: "1.0",
+      version: "1.1",
       mode: "image",
       seed: 3,
       floors: NO_FLOORS,
       referenceSize: 0,
     });
-    expect(rebuilt.dir).toBe(built.dir);
-    expect(readdirSync(join(dir, "store", "dataset"))).toEqual(["1.0"]);
+    expect(rebuilt.dir).toBe(join(dir, "store", "dataset", "1.1"));
+    expect(readdirSync(join(dir, "store", "dataset"))).toEqual(["1.0", "1.1"]);
     const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
     expect(summary.train.lines + summary.evaluation.lines).toBe(built.train + built.evaluation);
     // Without the set's key (a sample run stopped between its two records), no sample page is used at all.
@@ -351,7 +358,7 @@ describe("buildDataset", () => {
     );
     const unset = await buildDataset({
       store,
-      version: "1.0",
+      version: "1.2",
       mode: "image",
       seed: 3,
       floors: NO_FLOORS,
@@ -362,7 +369,7 @@ describe("buildDataset", () => {
     const named = store.manifest().map((p) => p.id);
     const frozen = await buildDataset({
       store,
-      version: "1.0",
+      version: "1.3",
       mode: "image",
       floors: NO_FLOORS,
       referenceSize: 0,
@@ -374,7 +381,7 @@ describe("buildDataset", () => {
     await expect(
       buildDataset({
         store,
-        version: "1.0",
+        version: "1.4",
         mode: "image",
         floors: NO_FLOORS,
         referenceSize: 0,
@@ -392,7 +399,7 @@ describe("buildDataset", () => {
     );
     const ruled = await buildDataset({
       store,
-      version: "1.0",
+      version: "1.5",
       mode: "image",
       seed: 3,
       floors: NO_FLOORS,
@@ -491,6 +498,7 @@ const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<ty
     seed: 3,
     floors: NO_FLOORS,
     referenceSize: 0,
+    protectedTerms: [],
     ...extra,
   });
 const idsIn = (folder: string, name: string) =>
@@ -736,7 +744,7 @@ describe("the floors a version must meet", () => {
     // A split with 61 percent lures.
     expect(
       check(
-        evaluationOf((i, k) => k),
+        evaluationOf((_i, k) => k),
         lures(7, false, 300)
           .concat(lures(0, false))
           .concat([shaped(900, { lure: false }), shaped(901, { lure: false }), shaped(902, { lure: false })]),
@@ -879,5 +887,260 @@ describe("a build short of a floor", () => {
     const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
     expect(summary.sampleLures).toEqual({ admitted: 4, training: 2, evaluation: 2 });
     expect(summary.floors.sampleEvaluation).toBe(2);
+  });
+});
+
+describe("validateLine", () => {
+  const goodLine = async (mode: "image" | "text-only" = "image") =>
+    buildTrainingLine(
+      buildScreenRequest({
+        ...(mode === "image" ? { image: await shot(1) } : {}),
+        host: "login.example.com",
+        text: "Sign in to your account",
+        mode,
+        nonce: "0123456789abcdef0123456789abcdef",
+      }),
+      {
+        brand: "Acme",
+        has_login_form: true,
+        has_payment_form: false,
+        lure: true,
+        lure_type: "credential",
+        confidence: 0.95,
+      },
+    );
+  const edited = (line: string, change: (parsed: { messages: Record<string, unknown>[] }) => void) => {
+    const parsed = JSON.parse(line);
+    change(parsed);
+    return JSON.stringify(parsed);
+  };
+
+  it("accepts a line the builder wrote, in both modes", async () => {
+    expect(validateLine(await goodLine(), "image").answer.brand).toBe("Acme");
+    expect(validateLine(await goodLine("text-only"), "text-only").answer.lure).toBe(true);
+  });
+
+  it("rejects a line whose answer carries a runtime `screener` field", async () => {
+    const line = edited(await goodLine(), (p) => {
+      const answer = JSON.parse(p.messages[2]?.content as string);
+      p.messages[2] = {
+        ...(p.messages[2] as object),
+        content: JSON.stringify({ ...answer, screener: "glimmer" }),
+      } as never;
+    });
+    expect(() => validateLine(line, "image")).toThrow(/not a PageAnswer/);
+  });
+
+  it("rejects a line over the token limit for its mode", async () => {
+    const line = edited(await goodLine("text-only"), (p) => {
+      p.messages[1] = { role: "user", content: [{ type: "text", text: `Host: none\n\n${"word ".repeat(60_000)}` }] };
+    });
+    expect(() => validateLine(line, "text-only")).toThrow(/over the 30000-token limit/);
+  });
+
+  it("rejects a line of the wrong structure", async () => {
+    const good = await goodLine();
+    expect(() => validateLine("not json", "image")).toThrow(/not JSON/);
+    expect(() => validateLine(good, "text-only")).toThrow(/does not suit the text-only mode/);
+    const textOnly = await goodLine("text-only");
+    expect(() => validateLine(textOnly, "image")).toThrow(/does not suit the image mode/);
+    expect(() =>
+      validateLine(
+        edited(good, (p) => (p.messages[0] = { role: "system", content: "x" })),
+        "image",
+      ),
+    ).toThrow(/system prompt/);
+    expect(() =>
+      validateLine(
+        edited(good, (p) => p.messages.pop()),
+        "image",
+      ),
+    ).toThrow(/assistant answer/);
+  });
+});
+
+describe("a sample page not marked redacted", () => {
+  it("is in neither file", async () => {
+    const { store, ids } = await fill(dir, [
+      ...Array.from({ length: 6 }, (_, i) => ({ seed: i })),
+      { seed: 40, origin: "samples" as const, source: "samples-body", redacted: false },
+    ]);
+    const built = await build(store);
+    expect(built.dropped.unredacted).toBe(1);
+    for (const name of ["train", "eval"]) expect(idsIn(built.dir, name)).not.toContain(ids[6]);
+  });
+});
+
+describe("the scan of the built files for protected sample details", () => {
+  const sampleLine = async (id: string, text: string) => {
+    const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
+    return buildTrainingLine(buildScreenRequest({ image: await shot(2), host: null, text, mode: "image", nonce }), {
+      brand: null,
+      has_login_form: false,
+      has_payment_form: false,
+      lure: false,
+      lure_type: "none",
+      confidence: 0.95,
+    });
+  };
+
+  it("finds a protected term, an address, a phone and a long number, naming the kind and never the detail", async () => {
+    const lines = [
+      { id: "samples-a", origin: "samples", line: await sampleLine("samples-a", "Pay Kestrel Holdings today") },
+      { id: "samples-b", origin: "samples", line: await sampleLine("samples-b", "Write to someone@clientco.example") },
+      { id: "samples-c", origin: "samples", line: await sampleLine("samples-c", "Call 082 555 1234 now") },
+      { id: "samples-d", origin: "samples", line: await sampleLine("samples-d", "Reference 4012888888881881") },
+      { id: "samples-e", origin: "samples", line: await sampleLine("samples-e", "A clean page about invoices") },
+    ];
+    const problems = scanSampleLines(lines, ["Kestrel Holdings"], "image");
+    expect(problems).toEqual([
+      "samples-a: a protected sample term",
+      "samples-b: an address",
+      "samples-c: a phone number",
+      "samples-d: a long number",
+    ]);
+    expect(problems.join()).not.toMatch(/Kestrel|clientco|555|4012/);
+  });
+
+  it("reads only the lines made from sample pages", async () => {
+    const line = await sampleLine("p-1", "Call 082 555 1234 now");
+    expect(scanSampleLines([{ id: "p-1", origin: "public", line }], ["Kestrel"], "image")).toEqual([]);
+  });
+
+  const planted = (text: string) =>
+    Array.from({ length: 4 }, (_, i) => ({
+      seed: i,
+      origin: "samples" as const,
+      source: "samples-body",
+      text: `${text} ${i}`,
+    }));
+
+  it("refuses to write a version whose sample-derived lines hold a planted phone, and leaves nothing behind", async () => {
+    const { store } = await fill(dir, [...planted("Call 082 555 1234 about invoice"), { seed: 30, lure: false }]);
+    const refusal = build(store);
+    await expect(refusal).rejects.toBeInstanceOf(PublicationRefused);
+    await expect(refusal).rejects.toThrow(
+      /sample-derived lines hold protected details \(samples-body-[0-9a-f]+: a phone number/,
+    );
+    expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
+  });
+
+  it("refuses a planted protected term, and publishes the same pages once the term is absent", async () => {
+    const { store } = await fill(dir, [...planted("Invoice from Kestrel Holdings"), { seed: 30, lure: false }]);
+    await expect(build(store, { protectedTerms: ["Kestrel Holdings"] })).rejects.toThrow(/a protected sample term/);
+    const clean = await build(store, { protectedTerms: ["Someone Else"] });
+    expect(clean.train).toBeGreaterThan(0);
+  });
+
+  it("refuses a version with sample-derived lines when no terms were given to scan for", async () => {
+    const { store } = await fill(dir, [...planted("An invoice"), { seed: 30, lure: false }]);
+    await expect(
+      buildDataset({ store, version: "9.9", mode: "image", seed: 3, floors: NO_FLOORS, referenceSize: 0 }),
+    ).rejects.toThrow(/no protected terms were given/);
+  });
+
+  it("derives the terms from a samples folder as the leak check does", async () => {
+    const samples = join(dir, "samples");
+    mkdirSync(join(samples, "client-set"), { recursive: true });
+    writeFileSync(join(samples, "pilot-consent.md"), `# Consent\n\n## ${CONSENT_HEADING}\n\nyes\n`);
+    writeFileSync(join(samples, "client-names.txt"), "Kestrel Holdings\n");
+    writeFileSync(
+      join(samples, "client-set", "one.eml"),
+      "From: sender@elsewhere.example\r\nTo: Thandi Mokoena <thandi.mokoena@kestrel.example>\r\nSubject: hi\r\nContent-Type: text/plain\r\n\r\nhello\r\n",
+    );
+    const { terms, unreadable } = await sampleTerms(samples);
+    expect(unreadable).toBe(0);
+    expect(terms).toEqual(
+      expect.arrayContaining([
+        "Kestrel Holdings",
+        "thandi.mokoena@kestrel.example",
+        "kestrel.example",
+        "Thandi",
+        "Mokoena",
+      ]),
+    );
+    // Without the consent section nothing is read.
+    writeFileSync(join(samples, "pilot-consent.md"), "# Consent\n");
+    await expect(sampleTerms(samples)).rejects.toThrow(/no sample is read without it/);
+  });
+});
+
+describe("staged publication with read-back", () => {
+  const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));
+  const versionDir = (version: string) => join(dir, "store", "dataset", version);
+  const hashOf = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+
+  it("takes the files' hashes from disk and leaves no staging folder", async () => {
+    const { store } = await fill(dir, specs);
+    const built = await build(store);
+    expect(built.sha256.train).toBe(hashOf(join(built.dir, "train.jsonl")));
+    expect(built.sha256.evaluation).toBe(hashOf(join(built.dir, "eval.jsonl")));
+    const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
+    expect(summary.sha256).toEqual(built.sha256);
+    expect(readdirSync(join(dir, "store", "dataset")).filter((name) => name.includes("staging"))).toEqual([]);
+  });
+
+  it("never replaces a version already published", async () => {
+    const { store } = await fill(dir, specs);
+    const first = await build(store, { version: "3.0" });
+    const before = hashOf(join(first.dir, "train.jsonl"));
+    await expect(build(store, { version: "3.0", seed: 99 })).rejects.toThrow(/already published/);
+    expect(hashOf(join(first.dir, "train.jsonl"))).toBe(before);
+  });
+
+  it("keeps the earlier version intact and the staging folder recoverable when a write fails", async () => {
+    const { store } = await fill(dir, specs);
+    const first = await build(store, { version: "3.0" });
+    const before = hashOf(join(first.dir, "train.jsonl"));
+    let calls = 0;
+    const failing = {
+      write: (path: string, text: string) => {
+        if (++calls === 3) throw new Error("disk full");
+        writeFileSync(path, text);
+      },
+    };
+    await expect(build(store, { version: "3.1", io: failing })).rejects.toThrow(/disk full/);
+    expect(hashOf(join(first.dir, "train.jsonl"))).toBe(before);
+    expect(existsSync(versionDir("3.1"))).toBe(false);
+    expect(existsSync(`${versionDir("3.1")}.staging`)).toBe(true);
+    // The next build of the version starts the staging folder again and publishes it.
+    const recovered = await build(store, { version: "3.1" });
+    expect(recovered.train).toBe(first.train);
+    expect(existsSync(`${versionDir("3.1")}.staging`)).toBe(false);
+  });
+
+  it("keeps the earlier version intact and a whole, checked staging folder when the rename fails", async () => {
+    const { store } = await fill(dir, specs);
+    const first = await build(store, { version: "3.0" });
+    const before = hashOf(join(first.dir, "train.jsonl"));
+    const failing = {
+      rename: () => {
+        throw new Error("rename refused");
+      },
+    };
+    await expect(build(store, { version: "3.1", io: failing })).rejects.toThrow(/rename refused/);
+    expect(hashOf(join(first.dir, "train.jsonl"))).toBe(before);
+    expect(existsSync(versionDir("3.1"))).toBe(false);
+    expect(readdirSync(`${versionDir("3.1")}.staging`).sort()).toEqual([
+      "eval.jsonl",
+      "eval.meta.jsonl",
+      "summary.json",
+      "train.jsonl",
+      "train.meta.jsonl",
+    ]);
+    const recovered = await build(store, { version: "3.1" });
+    expect(recovered.sha256.train).toBe(first.sha256.train);
+  });
+
+  it("refuses a staged file whose meta lines are not aligned with its lines, and removes the staging folder", async () => {
+    const { store } = await fill(dir, specs);
+    const crooked = {
+      write: (path: string, text: string) => {
+        const lines = text.split("\n").filter(Boolean);
+        writeFileSync(path, path.endsWith("train.meta.jsonl") ? `${lines.reverse().join("\n")}\n` : text);
+      },
+    };
+    await expect(build(store, { io: crooked })).rejects.toThrow(/is not the page its meta line names/);
+    expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
   });
 });

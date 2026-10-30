@@ -2,14 +2,17 @@
 //
 //   node scripts/glimmer/build-dataset.ts <version> [--seed <n>]
 //
-// Writes `<store>/dataset/<version>/` (each file temp-then-rename): `train.jsonl` and `eval.jsonl` (one training line
+// Writes `<store>/dataset/<version>/` (each file temp-then-rename, the folder staged as `<version>.staging`, read back
+// and checked, then renamed; a published version is never replaced): `train.jsonl` and `eval.jsonl` (one training line
 // a page, the production request and its answer), `train.meta.jsonl` and `eval.meta.jsonl` (each line's page id,
 // source, origin, lure type, brand and region, in the same order), and `summary.json`. Duplicates go, no brand passes
-// 300 pages, lures stay within 40 to 60 percent of each split, and the evaluation set shares no brand, template, site
-// or near duplicate with training and holds only labels known to be true.
+// 300 pages, lures stay within 40 to 60 percent of each split, the evaluation set shares no brand, template, site or
+// near duplicate with training and holds only pages the teacher agreed with, and a version short of any floor, or
+// whose sample-derived lines hold a protected detail, is refused and never published.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import PostalMime from "postal-mime";
 import sharp from "sharp";
 import { getDomain } from "tldts";
 import {
@@ -17,9 +20,21 @@ import {
   buildScreenRequest,
   buildTrainingLine,
   LURE_TYPES,
-  type PageAnswer,
+  PageAnswer,
+  SCREENER_SYSTEM_PROMPT,
   type ScreenMode,
 } from "../../src/vision/page-screen.ts";
+import {
+  addresses,
+  assertConsent,
+  leaks,
+  MAX_MESSAGE_BYTES,
+  messageFiles,
+  personalDetail,
+  protectedTerms,
+  readClientNames,
+  recipientNames,
+} from "./import-samples.ts";
 import { canonicalBrand, readExcluded } from "./label-rules.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
@@ -490,6 +505,145 @@ export function split(
   return { train, evaluation, heldOut: [...held].sort(), template };
 }
 
+// A line or version refused on inspection: it is removed, never left to be uploaded.
+export class PublicationRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PublicationRefused";
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+// One training line checked as Fireworks and the screener will read it (plan review finding 9): the JSONL's message
+// structure (the screener's system prompt, one user turn made of the page's text part and, in image mode, one JPEG
+// data URL, then one assistant turn), the assistant's answer parsed with `PageAnswer` (strict, so a runtime `screener`
+// field or any other is refused) and the token limit for the mode. `PageScreen` is a type, not a validator, and holds
+// the runtime-owned `screener` a training answer must not carry.
+export function validateLine(line: string, mode: ScreenMode): { answer: PageAnswer; text: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    throw new PublicationRefused("a training line is not JSON");
+  }
+  if (!isRecord(parsed) || Object.keys(parsed).join() !== "messages" || !Array.isArray(parsed.messages))
+    throw new PublicationRefused("a training line is not one object holding `messages`");
+  const [system, user, assistant, ...extra] = parsed.messages as unknown[];
+  if (!isRecord(system) || system.role !== "system" || system.content !== SCREENER_SYSTEM_PROMPT)
+    throw new PublicationRefused("a training line does not open with the screener's system prompt");
+  if (!isRecord(user) || user.role !== "user" || !Array.isArray(user.content))
+    throw new PublicationRefused("a training line's second message is not a user turn of parts");
+  const [text, image, ...more] = user.content as unknown[];
+  if (!isRecord(text) || text.type !== "text" || typeof text.text !== "string" || !text.text.startsWith("Host: "))
+    throw new PublicationRefused("a training line's user turn does not open with the host and page text");
+  const shown = mode === "image";
+  const imageOk =
+    isRecord(image) &&
+    image.type === "image_url" &&
+    isRecord(image.image_url) &&
+    typeof image.image_url.url === "string" &&
+    image.image_url.url.startsWith("data:image/jpeg;base64,");
+  if (more.length || (shown ? !imageOk : image !== undefined))
+    throw new PublicationRefused(`a training line's user turn does not suit the ${mode} mode`);
+  if (!isRecord(assistant) || assistant.role !== "assistant" || typeof assistant.content !== "string" || extra.length)
+    throw new PublicationRefused("a training line does not end with one assistant answer");
+  let answer: PageAnswer;
+  try {
+    answer = PageAnswer.parse(JSON.parse(assistant.content));
+  } catch {
+    throw new PublicationRefused("a training line's answer is not a PageAnswer");
+  }
+  try {
+    assertLineFits(line, mode);
+  } catch (error) {
+    throw new PublicationRefused((error as Error).message);
+  }
+  return { answer, text: text.text };
+}
+
+// Where a protected term, or an address, phone or long number, shows in the lines made from sample pages (§7, filed from
+// its completion review, gap 12): the page text as the line states it and the answer, never the screenshot (the import
+// read those by OCR). The problems name the line's page and the kind of detail, never the detail. The nonce is left out
+// of what is read: a run of hex digits is no phone number.
+export function scanSampleLines(
+  lines: { id: string; origin: string; line: string }[],
+  terms: string[],
+  mode: ScreenMode,
+): string[] {
+  const problems: string[] = [];
+  for (const { id, origin, line } of lines) {
+    if (origin !== "samples") continue;
+    const { answer, text } = validateLine(line, mode);
+    const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
+    const shown = `${text.split(nonce).join("")}\n${answer.brand ?? ""}`;
+    if (leaks([{ id, text: shown }], terms).length) problems.push(`${id}: a protected sample term`);
+    const kind = personalDetail(shown);
+    if (kind) problems.push(`${id}: ${kind}`);
+  }
+  return problems;
+}
+
+// The protected terms of the pilot client's samples, derived as `leakCheck()` derives them (import-samples.ts): the
+// client names, every recipient's name pieces and address, and the client's domains. A message over 25 MB or one that
+// does not parse is counted, not read: the import records it as failed and makes no page from it, so it has no
+// recipient to guard on any page.
+export async function sampleTerms(samples: string): Promise<{ terms: string[]; unreadable: number }> {
+  assertConsent(samples);
+  const clientNames = readClientNames(samples);
+  const addressesSeen: string[] = [];
+  const pieces = new Set<string>();
+  let unreadable = 0;
+  for (const file of messageFiles(samples)) {
+    const path = join(samples, file);
+    try {
+      if (statSync(path).size > MAX_MESSAGE_BYTES) throw new RangeError("over the size the import reads");
+      const bytes = readFileSync(path);
+      const email = await PostalMime.parse(bytes);
+      const raw = bytes.toString("latin1");
+      addressesSeen.push(...addresses(email, raw));
+      for (const piece of recipientNames(email, raw, [])) pieces.add(piece);
+    } catch {
+      unreadable++;
+    }
+  }
+  return { terms: protectedTerms(clientNames, addressesSeen, [...pieces]), unreadable };
+}
+
+// A staged split read back from disk (plan review finding 8): every line validated, every meta line aligned with its
+// line (the line's own nonce, answer type and brand are the meta line's page's), the sample-derived lines scanned, and
+// the SHA-256 taken from the bytes read, not from the string written.
+function readBack(dir: string, name: string, mode: ScreenMode, terms: string[]): { sha256: string; lines: number } {
+  const body = readFileSync(join(dir, `${name}.jsonl`));
+  const lines = body.toString("utf-8").split("\n");
+  const metas = readFileSync(join(dir, `${name}.meta.jsonl`), "utf-8").split("\n");
+  // Each file ends with a newline, so the last piece is empty.
+  if (lines.pop() !== "" || metas.pop() !== "")
+    throw new PublicationRefused(`${name}: a file does not end with a newline`);
+  if (lines.length !== metas.length)
+    throw new PublicationRefused(`${name}: ${lines.length} lines but ${metas.length} meta lines`);
+  const checked = lines.map((line, index) => {
+    const meta = JSON.parse(metas[index] as string) as {
+      id: string;
+      origin: string;
+      lure_type: string;
+      brand: string | null;
+    };
+    const { answer, text } = validateLine(line, mode);
+    const nonce = createHash("sha256").update(meta.id).digest("hex").slice(0, 32);
+    if (!text.includes(nonce) || answer.lure_type !== meta.lure_type || answer.brand !== meta.brand)
+      throw new PublicationRefused(`${name}: line ${index + 1} is not the page its meta line names`);
+    return { id: meta.id, origin: meta.origin, line };
+  });
+  const problems = scanSampleLines(checked, terms, mode);
+  if (problems.length)
+    throw new PublicationRefused(
+      `${name}: ${problems.length} sample-derived lines hold protected details (${problems.slice(0, 5).join("; ")})`,
+    );
+  return { sha256: createHash("sha256").update(body).digest("hex"), lines: lines.length };
+}
+
 function writeAtomic(path: string, text: string) {
   const temporary = `${path}.${process.pid}.tmp`;
   writeFileSync(temporary, text);
@@ -601,8 +755,19 @@ export async function buildDataset(options: {
   floors?: Floors;
   // How many pages the reference set holds when it is first drawn (`REFERENCE_SIZE`); a set already saved is kept.
   referenceSize?: number;
+  // The protected terms of the sample mail (`sampleTerms`), which the lines made from sample pages are scanned for
+  // before the version is published. Required once the version holds such a line.
+  protectedTerms?: string[];
+  // The two writes publication makes, replaceable so a test can fail one: a file's write (temp then rename) and the
+  // rename of the staged folder into place.
+  io?: { write?: (path: string, text: string) => void; rename?: (from: string, to: string) => void };
 }): Promise<Built> {
   const { store, version, mode } = options;
+  // A published version is never replaced: a new number is required, so a model trained on one never finds its files
+  // changed under it.
+  const final = join(store.dir, "dataset", version);
+  if (existsSync(final))
+    throw new Error(`dataset version ${version} is already published at ${final}; use a new version number`);
   const floors = options.floors ?? FLOORS;
   const random = seeded(options.seed ?? 20261101);
   const dropped = {
@@ -750,73 +915,102 @@ export async function buildDataset(options: {
   const shortfalls = checkFloors({ train, evaluation, admittedSampleLures }, floors);
   if (shortfalls.length) throw new ShortfallError(shortfalls);
 
-  // The whole version is written into a building folder and swapped in at the end, so a stopped build never leaves new
-  // training lines beside an earlier run's evaluation lines and summary.
-  const final = join(store.dir, "dataset", version);
-  const dir = `${final}.building-${process.pid}`;
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
-  const write = (name: string, chosen: Entry[]) => {
-    const lines: string[] = [];
-    const meta: string[] = [];
-    for (const entry of shuffle(chosen, random)) {
-      const verified = store.readVerifiedPage(entry.page.id);
-      if (
-        !verified ||
-        verified.page.sha256.screenshot !== entry.page.sha256.screenshot ||
-        verified.page.sha256.text !== entry.page.sha256.text
-      )
-        throw new Error(`page ${entry.page.id} changed on disk during the build`);
-      const { screenshot, text } = verified;
-      // The nonce comes from the page, so a rebuild writes the same line.
-      const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
-      const line = buildTrainingLine(
-        buildScreenRequest({ image: screenshot, host: entry.page.host, text, mode, nonce }),
-        entry.answer,
-      );
-      assertLineFits(line, mode);
-      lines.push(line);
-      meta.push(
-        JSON.stringify({
-          id: entry.page.id,
-          source: entry.page.source,
-          origin: entry.page.origin,
-          lure_type: entry.answer.lure_type,
-          brand: entry.answer.brand,
-          south_africa: entry.page.south_africa,
-          screenshot: entry.page.sha256.screenshot,
-        }),
-      );
+  // The version is staged beside its final place, each file read back from disk and checked there, and only then
+  // renamed into place (plan review finding 8), so a stopped build never leaves new training lines beside an earlier
+  // run's evaluation lines and summary, and a version already published is never touched.
+  const staging = `${final}.staging`;
+  const write = options.io?.write ?? writeAtomic;
+  const rename = options.io?.rename ?? renameSync;
+  // Lines made from sample pages are scanned for the protected terms; a build with such lines and no terms to scan for
+  // cannot show they are clean, so it is refused.
+  if ([...train, ...evaluation].some((e) => e.page.origin === "samples") && !options.protectedTerms)
+    throw new Error("the version holds sample-derived lines but no protected terms were given to scan them for");
+  // A staging folder an earlier run left (a failed write or rename) is made again from nothing: the build is
+  // deterministic, and the folder was never a published version.
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true });
+  try {
+    const written = new Map<string, number>();
+    for (const [name, chosen] of [
+      ["train", train],
+      ["eval", evaluation],
+    ] as const) {
+      const lines: string[] = [];
+      const meta: string[] = [];
+      for (const entry of shuffle(chosen, random)) {
+        const verified = store.readVerifiedPage(entry.page.id);
+        if (
+          !verified ||
+          verified.page.sha256.screenshot !== entry.page.sha256.screenshot ||
+          verified.page.sha256.text !== entry.page.sha256.text
+        )
+          throw new Error(`page ${entry.page.id} changed on disk during the build`);
+        const { screenshot, text } = verified;
+        // The nonce comes from the page, so a rebuild writes the same line (and the read-back finds it again).
+        const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
+        lines.push(
+          buildTrainingLine(
+            buildScreenRequest({ image: screenshot, host: entry.page.host, text, mode, nonce }),
+            entry.answer,
+          ),
+        );
+        meta.push(
+          JSON.stringify({
+            id: entry.page.id,
+            source: entry.page.source,
+            origin: entry.page.origin,
+            lure_type: entry.answer.lure_type,
+            brand: entry.answer.brand,
+            south_africa: entry.page.south_africa,
+            screenshot: entry.page.sha256.screenshot,
+          }),
+        );
+      }
+      write(join(staging, `${name}.jsonl`), lines.map((line) => `${line}\n`).join(""));
+      write(join(staging, `${name}.meta.jsonl`), meta.map((m) => `${m}\n`).join(""));
+      written.set(name, chosen.length);
     }
-    const body = lines.map((line) => `${line}\n`).join("");
-    writeAtomic(join(dir, `${name}.jsonl`), body);
-    writeAtomic(join(dir, `${name}.meta.jsonl`), meta.map((m) => `${m}\n`).join(""));
-    return createHash("sha256").update(body).digest("hex");
-  };
-  const sha256 = { train: write("train", train), evaluation: write("eval", evaluation) };
-  const built: Built = { dir: final, train: train.length, evaluation: evaluation.length, dropped, sha256 };
-  const by = (chosen: Entry[], key: (e: Entry) => string) =>
-    chosen.reduce<Record<string, number>>((acc, e) => {
-      acc[key(e)] = (acc[key(e)] ?? 0) + 1;
-      return acc;
-    }, {});
-  const describe = (chosen: Entry[]) => ({
-    lines: chosen.length,
-    byOrigin: by(chosen, (e) => e.page.origin),
-    bySource: by(chosen, (e) => e.page.source),
-    byLureType: by(chosen, (e) => e.answer.lure_type),
-    southAfrica: chosen.filter((e) => e.page.south_africa).length,
-    brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
-  });
-  writeAtomic(
-    join(dir, "summary.json"),
-    `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
-  );
-  const previous = `${final}.previous-${process.pid}`;
-  if (existsSync(final)) renameSync(final, previous);
-  renameSync(dir, final);
-  rmSync(previous, { recursive: true, force: true });
-  return built;
+    // What is on disk is what is checked and hashed: every line validated, every meta line aligned with its line, and
+    // the sample-derived lines scanned, all over the bytes that will be uploaded.
+    const sha256 = { train: "", evaluation: "" };
+    for (const [name, key] of [
+      ["train", "train"],
+      ["eval", "evaluation"],
+    ] as const) {
+      const back = readBack(staging, name, mode, options.protectedTerms ?? []);
+      if (back.lines !== written.get(name))
+        throw new PublicationRefused(`${name}: ${back.lines} lines read back, ${written.get(name)} written`);
+      sha256[key] = back.sha256;
+    }
+    const built: Built = { dir: final, train: train.length, evaluation: evaluation.length, dropped, sha256 };
+    const by = (chosen: Entry[], key: (e: Entry) => string) =>
+      chosen.reduce<Record<string, number>>((acc, e) => {
+        acc[key(e)] = (acc[key(e)] ?? 0) + 1;
+        return acc;
+      }, {});
+    const describe = (chosen: Entry[]) => ({
+      lines: chosen.length,
+      byOrigin: by(chosen, (e) => e.page.origin),
+      bySource: by(chosen, (e) => e.page.source),
+      byLureType: by(chosen, (e) => e.answer.lure_type),
+      southAfrica: chosen.filter((e) => e.page.south_africa).length,
+      brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
+    });
+    write(
+      join(staging, "summary.json"),
+      `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`,
+    );
+    // Checked once more at the last moment: a version that appeared while this one was built is not replaced either.
+    if (existsSync(final))
+      throw new Error(`dataset version ${version} was published meanwhile; use a new version number`);
+    rename(staging, final);
+    return built;
+  } catch (error) {
+    // Lines that fail inspection are removed, never left where they could be uploaded; a failed write or rename leaves
+    // the staging folder, and the next build of the version starts it again.
+    if (error instanceof PublicationRefused) rmSync(staging, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -841,18 +1035,31 @@ if (import.meta.filename === process.argv[1]) {
     console.error(`build-dataset: ${(error as Error).message}`);
     process.exit(2);
   }
+  // The terms the sample-derived lines are scanned for before the version is published, derived from samples/ as the
+  // leak check derives them. Without them the scan cannot run, so the build does not either.
+  let protectedTerms: string[];
+  try {
+    const derived = await sampleTerms(join(ROOT, "samples"));
+    protectedTerms = derived.terms;
+    console.error(`build-dataset: ${derived.terms.length} protected terms, ${derived.unreadable} messages unreadable`);
+  } catch (error) {
+    console.error(`build-dataset: the protected terms cannot be derived: ${(error as Error).message}`);
+    process.exit(2);
+  }
   try {
     const built = await buildDataset({
       store,
       version,
       mode: recorded,
       frozen,
+      protectedTerms,
       ...(seed ? { seed: Number(seed) } : {}),
     });
     console.log(JSON.stringify(built, null, 2));
   } catch (error) {
-    if (!(error instanceof ShortfallError)) throw error;
-    // A refused version names every floor it missed; nothing was published.
+    if (!(error instanceof ShortfallError || error instanceof PublicationRefused)) throw error;
+    // A refused version names every floor it missed, or the lines it holds that must not be uploaded; nothing was
+    // published.
     console.error(`build-dataset: ${error.message}`);
     process.exit(1);
   }
