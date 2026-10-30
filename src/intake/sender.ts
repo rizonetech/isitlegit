@@ -22,7 +22,9 @@ export const EMAIL_ROUTING_AUTHSERV_ID = "mx.cloudflare.net";
 // Headers end at the first empty line; a header block longer than this is not a mail anyone sends us.
 const MAX_HEADER_BYTES = 256 * 1024;
 
-export type Result = { method: string; result: string; props: Map<string, string> };
+// One result; `comment` keeps the text of its comments (Google writes the DMARC policy there: `dmarc=fail (p=REJECT
+// sp=REJECT dis=NONE)`, D02 T02 §2), empty when it has none.
+export type Result = { method: string; result: string; props: Map<string, string>; comment: string };
 
 export async function senderAuthenticated(
   raw: Uint8Array,
@@ -122,13 +124,18 @@ function singleFromMailbox(headers: { name: string; value: string }[]): string {
 // Microsoft Learn's "Anti-spam message headers"): a first part that is itself a result gives `authservId: null` and is
 // read as a result (D02 T02 §1). The intake's own check needs Email Routing's authserv-id, so it refuses such a header.
 export function parseAuthenticationResults(value: string): { authservId: string | null; results: Result[] } | null {
-  const parts = splitOutsideQuotes(tightenSeparators(stripComments(value)), ";").map((p) => p.trim());
+  // Split first, at semicolons outside quoted strings and comments, so each result keeps its own comments.
+  const raw = splitOutside(value, ";");
+  const parts = raw.map((p) => tightenSeparators(stripComments(p)).trim());
   const first = parts[0]?.split(/\s+/)[0] ?? "";
   if (!first) return null;
   const authservId = first.indexOf("=") > 0 ? null : unquote(first).toLowerCase();
-  if (authservId !== null) parts.shift();
+  if (authservId !== null) {
+    parts.shift();
+    raw.shift();
+  }
   const results: Result[] = [];
-  for (const part of parts) {
+  for (const [n, part] of parts.entries()) {
     const tokens = splitOutsideQuotes(part.replace(/\s/g, " "), " ")
       .map((t) => t.trim())
       .filter(Boolean);
@@ -145,6 +152,7 @@ export function parseAuthenticationResults(value: string): { authservId: string 
       method: head.slice(0, eq).split("/")[0]?.toLowerCase() ?? "",
       result: unquote(head.slice(eq + 1)).toLowerCase(),
       props,
+      comment: commentsOf(raw[n] ?? ""),
     });
   }
   return { authservId, results };
@@ -189,6 +197,57 @@ const SEPARATORS = new Set(["=", ".", "/"]);
 function unquote(v: string): string {
   if (!(v.length >= 2 && v.startsWith('"') && v.endsWith('"'))) return v;
   return v.slice(1, -1).replace(/\\(.)/g, "$1");
+}
+
+// Splits at the separator outside quoted strings and comments (a `;` inside `(...)` belongs to the comment).
+function splitOutside(value: string, separator: string): string[] {
+  const out: string[] = [];
+  let current: string[] = [];
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i] as string;
+    if (c === "\\" && (quoted || depth > 0)) {
+      current.push(c, value[i + 1] ?? "");
+      i++;
+      continue;
+    }
+    if (c === '"' && depth === 0) quoted = !quoted;
+    else if (c === "(" && !quoted) depth++;
+    else if (c === ")" && !quoted && depth > 0) depth--;
+    if (c === separator && !quoted && depth === 0) {
+      out.push(current.join(""));
+      current = [];
+    } else current.push(c);
+  }
+  out.push(current.join(""));
+  return out;
+}
+
+// The text of the comments outside quoted strings, joined by a space (nested ones read as part of their outer one).
+function commentsOf(value: string): string {
+  const found: string[] = [];
+  let current: string[] = [];
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i] as string;
+    if (c === "\\" && (quoted || depth > 0)) {
+      if (depth > 0) current.push(value[i + 1] ?? "");
+      i++;
+    } else if (c === '"' && depth === 0) quoted = !quoted;
+    else if (c === "(" && !quoted) {
+      if (depth > 0) current.push(c);
+      depth++;
+    } else if (c === ")" && !quoted && depth > 0) {
+      depth--;
+      if (depth === 0) {
+        found.push(current.join("").trim());
+        current = [];
+      } else current.push(c);
+    } else if (depth > 0) current.push(c);
+  }
+  return found.filter(Boolean).join(" ");
 }
 
 // Removes (possibly nested) comments outside quoted strings.

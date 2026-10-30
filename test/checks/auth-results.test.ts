@@ -82,6 +82,18 @@ describe("parseAuthenticationResults", () => {
     expect(large.ms).toBeLessThan(Math.max(8 * small.ms, 200));
   });
 
+  it("keeps each result's comment, where Google writes the DMARC policy (D02 T02 §2)", () => {
+    const parsed = parseAuthenticationResults(
+      "mx.google.com; dkim=pass (test mode; ok) header.d=a.example; dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=a.example",
+    );
+    expect(
+      parsed?.results.map((r) => [r.method, r.comment, r.props.get("header.from") ?? r.props.get("header.d")]),
+    ).toEqual([
+      ["dkim", "test mode; ok", "a.example"],
+      ["dmarc", "p=REJECT sp=REJECT dis=NONE", "a.example"],
+    ]);
+  });
+
   it("reads Microsoft 365's header, which has no authserv-id, as results only", () => {
     const parsed = parseAuthenticationResults(M365);
     expect(parsed?.authservId).toBeNull();
@@ -336,6 +348,7 @@ describe("trustedAuthResults", () => {
 function view(headers: { name: string; value: string }[], tenant: Partial<CaseView["tenant"]> = {}): CaseView {
   return {
     tenant: { orgId: "org-auth", channel: "email", receivers: GOOGLE, headersAvailable: true, ...tenant },
+    raw: "raw/case-auth/message.eml",
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: "Pay the invoice.",

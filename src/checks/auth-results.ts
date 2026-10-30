@@ -20,7 +20,10 @@ export type Untrusted =
   | "ambiguous" // results from two receiving systems sit inside the zone: which is genuine cannot be told
   | "none-in-zone"; // the receiver's zone holds no Authentication-Results header it wrote
 
-export type Trusted = { kind: ReceiverKind; authservId: string | null; results: Result[] };
+// What the receiver recorded: its results, and each header they came from with its own results (`sources`), so an item
+// cites the header its result is in, never a neighbour (D02 T02 §2).
+export type Source = { header: string; results: Result[] };
+export type Trusted = { kind: ReceiverKind; authservId: string | null; results: Result[]; sources: Source[] };
 
 export type Selection = { trusted: Trusted } | { untrusted: Untrusted };
 
@@ -69,7 +72,12 @@ function kindsOf(parsed: { authservId: string | null; results: Result[] }, recei
 // promises no stamp (completion review).
 const STAMPS_EVERY_MESSAGE: ReadonlySet<ReceiverKind> = new Set(["microsoft", "google"]);
 
-type Read = { kinds: Set<ReceiverKind>; parsed: { authservId: string | null; results: Result[] } };
+type Read = { kinds: Set<ReceiverKind>; header: string; parsed: { authservId: string | null; results: Result[] } };
+const only = (kind: ReceiverKind, read: Read): Trusted => ({
+  kind,
+  ...read.parsed,
+  sources: [{ header: read.header, results: read.parsed.results }],
+});
 
 // The receiver whose hop is nearest the top took the message in last, so its rules apply.
 //   Microsoft 365 or Google: the topmost header of theirs, read down to the first hop another host wrote; a header of
@@ -89,7 +97,7 @@ export function trustedAuthResults(
   const ours = (host: string | null) => (host === null ? undefined : receivers.find((r) => covers(r.pattern, host)));
   const read = (value: string): Read | null => {
     const parsed = parseAuthenticationResults(value);
-    return parsed ? { parsed, kinds: kindsOf(parsed, [...receivers]) } : null;
+    return parsed ? { parsed, header: value, kinds: kindsOf(parsed, [...receivers]) } : null;
   };
   const isReceived = (name: string) => name.trim().toLowerCase() === "received";
   const isResults = (name: string) => name.trim().toLowerCase() === "authentication-results";
@@ -112,7 +120,7 @@ export function trustedAuthResults(
       }
       if (!isResults(name)) continue;
       const found = read(value);
-      if (found?.kinds.has(top)) return { trusted: { kind: top, ...found.parsed } };
+      if (found?.kinds.has(top)) return { trusted: only(top, found) };
     }
     return { untrusted: "none-in-zone" };
   }
@@ -130,7 +138,14 @@ export function trustedAuthResults(
   const kinds = new Set(above.flatMap((a) => [...a.kinds]));
   const [kind] = kinds;
   if (kinds.size > 1 || kind === undefined) return { untrusted: "ambiguous" };
-  return { trusted: { kind, authservId: first.parsed.authservId, results: above.flatMap((a) => a.parsed.results) } };
+  return {
+    trusted: {
+      kind,
+      authservId: first.parsed.authservId,
+      results: above.flatMap((a) => a.parsed.results),
+      sources: above.map((a) => ({ header: a.header, results: a.parsed.results })),
+    },
+  };
 }
 
 const UNTRUSTED: Record<Untrusted, string> = {
