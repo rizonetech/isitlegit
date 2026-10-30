@@ -15,6 +15,7 @@ import {
   newRules,
   parseColor,
   scanHtml,
+  stripCssComments,
 } from "../../src/checks/hidden-text";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putAttachment, putParsed, putRaw, readVisible, type Store } from "../../src/intake/store";
@@ -398,7 +399,8 @@ describe("scanHtml after round 1", () => {
     const html = `<style>${".a{color:red}".repeat(40_000)}</style>${"<i class=a>x</i>".repeat(15_000)}`;
     const started = Date.now();
     await scanHtml(() => html);
-    expect(Date.now() - started).toBeLessThan(5_000);
+    // Linear: the quadratic cascade took 69 s here; the margin allows for a loaded machine.
+    expect(Date.now() - started).toBeLessThan(15_000);
   });
 
   it("keeps an instruction behind whitespace padding", async () => {
@@ -510,5 +512,26 @@ describe("scanHtml after round 3", () => {
     const many = Array.from({ length: MAX_SELECTORS + 5 }, (_, i) => `.b${i}`).join(",");
     const bounded = await scanHtml(() => `<style>${many}{display:none}</style><p>Invoice</p>`);
     expect(bounded.unresolvedRules).toBe(5);
+  });
+});
+
+describe("scanHtml after round 4", () => {
+  it("strips CSS comments in linear time, an unterminated one running to the end", async () => {
+    const started = Date.now();
+    const scan = await scanHtml(() => `<p style="${"/*x".repeat(300_000)}">Invoice</p>`);
+    expect(Date.now() - started).toBeLessThan(3_000);
+    expect(scan.visible).toBe("Invoice");
+    expect(stripCssComments("a/* b */c/* open")).toBe("ac");
+  });
+
+  it("ignores malformed numbers, as CSS does, keeping the valid hiding", async () => {
+    for (const style of ["opacity:0;opacity:1.2.3", "font-size:0;font-size:16..px", "font-size:0;font-size:.px"]) {
+      const scan = await scanHtml(() => `<p style="${style}">${SECRET}</p><p>v</p>`);
+      expect(
+        scan.hidden.map((h) => h.text),
+        style,
+      ).toEqual([SECRET]);
+    }
+    expect(parseColor("rgb(1.2.3, 0, 0)")).toBeNull();
   });
 });

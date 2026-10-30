@@ -35,6 +35,7 @@ export const MAX_SPAN_CHARS = 2_000;
 export const MAX_VISIBLE_CHARS = 1024 * 1024;
 export const MAX_SHEET_CHARS = 512 * 1024;
 export const MAX_SELECTORS = 20_000;
+const MAX_CASCADES = 4_096;
 
 const VOID = new Set([
   "area",
@@ -115,7 +116,7 @@ type State = {
 };
 
 const FONT_SIZE =
-  /^(?:[\d.]+(?:px|pt|em|rem|%)|0|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)$/;
+  /^(?:(?:\d+(?:\.\d+)?|\.\d+)(?:px|pt|em|rem|%)|0|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)$/;
 // A shorthand's longhands, set where the shorthand stands (CSS Cascade 5, shorthands; round 1): `background` sets its
 // colour (transparent when it names none), `font` its size.
 function expand(name: string, value: string): [string, string][] {
@@ -132,14 +133,14 @@ function expand(name: string, value: string): [string, string][] {
 
 // Whether a value is one the property can take, for the properties this reads; any other property is not judged.
 const WIDE = /^(inherit|initial|unset|revert|revert-layer)$/;
-const LENGTH = /^-?(?:[\d.]+(?:px|pt|pc|cm|mm|in|em|rem|ex|ch|vw|vh|vmin|vmax|%)|0)$/;
+const LENGTH = /^[+-]?(?:(?:\d+(?:\.\d+)?|\.\d+)(?:px|pt|pc|cm|mm|in|em|rem|ex|ch|vw|vh|vmin|vmax|%)|0)$/;
 const VALID: Record<string, (v: string) => boolean> = {
   display: (v) =>
     /^(none|block|inline|inline-block|flex|inline-flex|grid|inline-grid|table|table-row|table-cell|table-row-group|table-header-group|table-footer-group|table-column|table-column-group|table-caption|list-item|contents|flow-root|run-in|ruby)$/.test(
       v,
     ),
   visibility: (v) => /^(visible|hidden|collapse)$/.test(v),
-  opacity: (v) => /^-?[\d.]+%?$/.test(v),
+  opacity: (v) => /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)%?$/.test(v),
   "font-size": (v) => FONT_SIZE.test(v),
   position: (v) => /^(static|relative|absolute|fixed|sticky)$/.test(v),
   left: (v) => LENGTH.test(v) || v === "auto",
@@ -155,10 +156,25 @@ const VALID: Record<string, (v: string) => boolean> = {
 const valid = (name: string, value: string) =>
   WIDE.test(value) || !Object.hasOwn(VALID, name) || (VALID[name] as (v: string) => boolean)(value);
 
+// CSS comments removed in one linear pass; an unterminated one runs to the end, as CSS reads it (round 4: a regex
+// rescanning `/*x/*x...` was quadratic).
+export function stripCssComments(text: string): string {
+  let out = "";
+  let at = 0;
+  for (;;) {
+    const open = text.indexOf("/*", at);
+    if (open < 0) return out + text.slice(at);
+    out += text.slice(at, open);
+    const close = text.indexOf("*/", open + 2);
+    if (close < 0) return out;
+    at = close + 2;
+  }
+}
+
 // `prop: value; ...` as a map of lower-cased names to values and their `!important`, shorthands expanded in order.
 export function declarations(text: string): Declarations {
   const out: Declarations = new Map();
-  for (const part of text.replace(/\/\*[\s\S]*?\*\//g, "").split(";")) {
+  for (const part of stripCssComments(text).split(";")) {
     const colon = part.indexOf(":");
     if (colon < 1) continue;
     const name = part.slice(0, colon).trim().toLowerCase();
@@ -198,10 +214,7 @@ export function addRules(sheet: string, rules: Rules): number {
     }
     const open = sheet.indexOf("{", at);
     if (open < 0) break;
-    const prelude = sheet
-      .slice(at, open)
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .trim();
+    const prelude = stripCssComments(sheet.slice(at, open)).trim();
     if (prelude.startsWith("@") || prelude.includes("@")) {
       let depth = 1;
       let i = open + 1;
@@ -311,7 +324,10 @@ export function readColour(value: string | null | undefined): Colour | null {
     if (alpha !== null && Number.parseInt(alpha.length === 1 ? alpha + alpha : alpha, 16) === 0) return "transparent";
     return [0, 2, 4].map((i) => Number.parseInt(full.slice(i, i + 2), 16)) as Rgb;
   }
-  const rgb = /^rgba?\(\s*([\d.]+%?)[\s,]+([\d.]+%?)[\s,]+([\d.]+%?)(?:[\s,/]+([\d.]+%?))?\s*\)$/.exec(v);
+  const rgb =
+    /^rgba?\(\s*((?:\d+(?:\.\d+)?|\.\d+)%?)[\s,]+((?:\d+(?:\.\d+)?|\.\d+)%?)[\s,]+((?:\d+(?:\.\d+)?|\.\d+)%?)(?:[\s,/]+((?:\d+(?:\.\d+)?|\.\d+)%?))?\s*\)$/.exec(
+      v,
+    );
   if (rgb) {
     if (rgb[4] !== undefined && Number.parseFloat(rgb[4]) === 0) return "transparent";
     return [rgb[1], rgb[2], rgb[3]].map((c) =>
@@ -366,7 +382,7 @@ export function deltaE(a: Rgb, b: Rgb): number {
 // A length in pixels (px, pt, or a bare zero), or null when it is relative or unreadable.
 const px = (value: string | undefined) => {
   if (!value) return null;
-  const m = /^(-?[\d.]+)(px|pt)?$/.exec(value.trim());
+  const m = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(px|pt)?$/.exec(value.trim());
   if (!m) return null;
   const n = Number.parseFloat(m[1] as string);
   return m[2] === "pt" ? n * (4 / 3) : m[2] === "px" || n === 0 ? n : null;
@@ -376,7 +392,7 @@ const fontSize = (value: string | undefined, parent: number) => {
   if (!value) return parent;
   const absolute = px(value);
   if (absolute !== null) return absolute;
-  const m = /^([\d.]+)(em|rem|%)$/.exec(value.trim());
+  const m = /^((?:\d+(?:\.\d+)?|\.\d+))(em|rem|%)$/.exec(value.trim());
   if (!m) return parent;
   const n = Number.parseFloat(m[1] as string);
   return m[2] === "%" ? (parent * n) / 100 : m[2] === "rem" ? 16 * n : parent * n;
@@ -486,6 +502,7 @@ export async function scanHtml(
     silent: false,
   };
   const stack: State[] = [root];
+  const cascades = new Map<string, Map<string, string>>();
   const hidden: HiddenSpan[] = [];
   let omittedSpans = 0;
   let visible = "";
@@ -582,7 +599,15 @@ export async function scanHtml(
         // Classes and ids keep their case (round 1).
         const classes = (element.getAttribute("class") ?? "").split(/\s+/).filter(Boolean);
         const id = element.getAttribute("id") ?? "";
-        const d = cascade(rules, tag, classes, id, declarations(element.getAttribute("style") ?? ""));
+        // Elements alike in tag, class, id and style share one cascade (bounded), so a body of thousands of identical
+        // elements costs one lookup each (round 4's timing).
+        const style = element.getAttribute("style") ?? "";
+        const signature = `${tag}\u0000${element.getAttribute("class") ?? ""}\u0000${id}\u0000${style}`;
+        let d = cascades.get(signature);
+        if (!d) {
+          d = cascade(rules, tag, classes, id, declarations(style));
+          if (cascades.size < MAX_CASCADES) cascades.set(signature, d);
+        }
         const readOrCount = (value: string | undefined | null, read: (v: string) => Colour | null) => {
           if (value === undefined || value === null || value === "") return null;
           const c = read(value);
