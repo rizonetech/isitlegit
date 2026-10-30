@@ -964,6 +964,8 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 
 Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and G6, `docs/reviews/03-vision/D03-T04-s18.md`). §18 bound every source to its inputs and receipts and fixed what changes Loupe 1.0's training set; these five need deeper converter and importer work than fits before 1.0's collection freeze (2026-10-31 00:00 SAST), and none changes a page 1.0 trains on: each converter already ran under §18's limits on its published, digest-checked inputs, ScamFerret's import is bound to its manifest after its clean re-import, and the import records count every item. Decision (unattended): file for 1.1; reversing it means doing this section before the freeze and re-running every conversion.
 
+> **Started:** 2026-10-30T23:07:53Z
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
