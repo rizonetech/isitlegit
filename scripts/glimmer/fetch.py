@@ -1423,9 +1423,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             continue
                         body = span[1] - span[0] + 1
                         state["total"] = span[2]
-                        if here() not in state.setdefault("sources", []):
-                            state["sources"].append(here())  # the file now holds this URL's bytes too
-                            _write_json(state_file, state)
+                        state.setdefault("sources", [])  # this URL is added once it supplies a byte that is kept
                         mode = "ab"
                         resumed = True
                     else:
@@ -1436,12 +1434,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         with partial.open("wb") as handle:
                             os.fsync(handle.fileno())
                         state = {"url": url, "expected": [kind, want], "validator": _validator(response.headers),
-                                 "encoding": encoding, "total": body, "final_url": final_url, "sources": [here()]}
+                                 "encoding": encoding, "total": body, "final_url": final_url, "sources": []}
                         _write_json(state_file, state)
                         have = 0
                         mode = "ab"
                         resumed = False
                     got = 0
+                    supplier = here()
                     base = _folder_bytes(source)  # what the source holds before this body, the partial's start included
                     started = time.monotonic()
                     window_start, window_bytes = started, 0
@@ -1466,6 +1465,12 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 if shutil.disk_usage(partial_dir).free - len(block) < min_free:
                                     raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
                                 write(handle, block)
+                                if supplier not in state["sources"]:
+                                    # The file now holds this URL's bytes: named only from the first byte it gave, so a
+                                    # source that answered and sent nothing is not one that supplied the file.
+                                    handle.flush()
+                                    state["sources"].append(supplier)
+                                    _write_json(state_file, state)
                                 now = time.monotonic()
                                 if now - window_start >= rate_window:
                                     if window_bytes / (now - window_start) < min_rate:

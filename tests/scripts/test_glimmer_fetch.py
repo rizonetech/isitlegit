@@ -287,6 +287,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         cut = len(chunk)
         if "drop-once" in modes and n == 1:
             cut = int(len(chunk) * 0.9)
+        if "drop-empty" in modes and n == 1:
+            cut = 0  # the valid headers, then the connection closes before any byte
         if "corrupt-drop-once" in modes and n == 1:
             # Wrong bytes for the first half, then the connection drops: a host serving a damaged copy.
             chunk = bytes(len(chunk))
@@ -1970,6 +1972,25 @@ class Fetch(unittest.TestCase):
         self.assertEqual(code, 0, line)
         self.assertEqual((line["resumed"], line["urls"], line["url"]), (True, [mine, theirs], mine))
         self.assert_whole()
+
+    def test_a_url_that_answered_and_sent_no_byte_is_not_named_as_a_supplier(self):
+        empty, second = self.mirror()
+        finisher, third = self.mirror()
+        mine = self.base + "/file"
+        half = SIZE // 2
+        # An earlier process left half the file from this host alone, in one stream.
+        Path("src/.partial").mkdir(parents=True)
+        Path("src/.partial/data.bin").write_bytes(BODY[:half])
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": mine, "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity", "total": SIZE,
+            "sources": [mine]}))
+        self.server.modes = {"fail"}  # down now
+        empty.modes = {"drop-empty"}  # valid 206 headers for the rest, then nothing
+        result = self.run_fetch(mirrors=[second + "/file", third + "/file"], attempts=5)
+        self.assertEqual((result["status"], result["resumed"]), ("fetched", True))
+        self.assertEqual(Path("src/data.bin").read_bytes(), BODY)
+        self.assertGreater(empty.requests, 0)  # it was asked, and answered
+        self.assertEqual((result["urls"], result["url"]), ([mine, third + "/file"], mine))
 
     def test_the_mirror_wording_is_in_the_help_and_the_guide(self):
         guide = (SCRIPT.parents[2] / "docs" / "glimmer" / "importing.md").read_text(encoding="utf-8")
