@@ -921,6 +921,8 @@ States:
 
 Boards: [PNG](mockups/png/Error-403.png) · [source](mockups/source/Error-403.dc.html)
 
+- Deviation (D07 T04 §1): the Cases list answers its own 403 (no active organisation, or a membership just removed) with Sign out alone, because the board's "Go to your own cases" is that page and would answer the same 403 again.
+
 Controls:
 
 - signed in but not a member of this organisation: With Go to your own cases and Sign out. (Error-403)

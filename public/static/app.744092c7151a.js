@@ -81,4 +81,28 @@ document.addEventListener("click", (event) => {
   void copy(button);
 });
 
+// A results request (the Cases list's filters and pager, D07 T04 §1) that fails, cannot be sent, or ends somewhere else
+// (an expired session sent to sign in) is not drawn into the page: the address is loaded as a whole page instead, so
+// the reader meets the sign-in, 403 or 503 page as a page, and its Try again keeps the filters.
+                   
+                       
+                                                                 
+                       
+  
+const asked = (detail            ) =>
+  detail.pathInfo?.finalRequestPath ?? detail.pathInfo?.requestPath ?? location.href;
+for (const name of ["htmx:responseError", "htmx:sendError"])
+  document.addEventListener(name, (event) => {
+    location.assign(asked((event                           ).detail));
+  });
+document.addEventListener("htmx:beforeSwap", (event) => {
+  const detail = (event                           ).detail;
+  const landed = detail.xhr?.responseURL;
+  if (!landed) return;
+  const wanted = new URL(asked(detail), location.href);
+  if (new URL(landed).pathname === wanted.pathname) return;
+  detail.shouldSwap = false;
+  location.assign(landed);
+});
+
 export {};

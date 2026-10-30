@@ -52,7 +52,7 @@ describe("Document", () => {
   });
 
   it("puts the page in the body, then htmx and the app script, then the page's own scripts (D07 T01 §9)", () => {
-    const body = /<body class="bg-surface text-ink[^"]*">([\s\S]*)<\/body>/.exec(page)?.[1] ?? "";
+    const body = /<body class="[^"]*">([\s\S]*)<\/body>/.exec(page)?.[1] ?? "";
     expect(body).toBe(
       `<p id="body">x</p><script src="${HTMX}" defer=""></script><script type="module" src="${APP_JS}"></script><script src="/static/app.000000000000.js"></script>`,
     );
