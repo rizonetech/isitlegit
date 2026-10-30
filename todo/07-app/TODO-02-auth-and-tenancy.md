@@ -520,7 +520,7 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 1. Build the signup page and both of its answers. Done when: a rendered-page test signs up with a code and signs in from the first mail.
 
 - [ ] Give `SigninFrame` (`src/web/pages/signin.tsx`) its panel words as props, A1's as the default. Done when: `test/web/signin-page.test.ts` still reads A1's, and the signup page test reads A2's.
-- [ ] Return why a code is unusable from `/api/auth/sign-up/invite-code` (`src/auth/signup.ts`): `unknown`, `used-up`, or `expired` with its date, read from the code's row after its use failed, the message kept for old callers. Done when: `test/auth/signup.test.ts` reads each reason and its date, and a valid code still signs up.
+- [ ] Return why a code is unusable from `/api/auth/sign-up/invite-code` (`src/auth/signup.ts`): `unknown`, `used-up`, or `expired` with its date, read from the code's row after its use failed, the message kept for old callers. Done when: `test/auth/invite.test.ts` (the invite-code signup's tests, §4) reads each reason and its date, and a valid code still signs up.
 - [ ] Build `src/web/pages/signup.tsx` and `GET /signup` and `POST /signup`: Create an account, Already have one? Sign in, Invite code, Work email, Organisation name, the POPIA notice with Read the privacy notice and the consent box, Create account; `/signup?code=<code>` fills the code in (kept in the form only, the page `no-store` and `same-origin`). Done when: `test/web/signup-page.test.ts` finds each control by name and the code filled in from the address.
 - [ ] Answer each refusal on its field, the form kept: no consent (nothing stored), each of the three code reasons in the board's words, an address that already has an account (with Sign in), an invalid address or name, a rate limit (when it lifts, in SAST), and the endpoint failing (try again). Done when: the page test reads each and finds nothing stored for the refusals.
 - [ ] Draw both answers: `linkSent: true` is the check-your-inbox state with the code field (§11; the page sets the code handle for a browser with none, so the first link's code is this browser's), and `linkSent: false` says the account is ready but the link could not be confirmed, with Email me a new link. Done when: the page test signs up and signs in by the code from the first mail, and reads the second answer with a working new-link form.
@@ -529,7 +529,7 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 
 > **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
 
-**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/signup.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
+**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/invite.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
 
 ## 14. Invite acceptance page
 
