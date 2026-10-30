@@ -22,10 +22,19 @@ const SEAL = h("ARC-Seal", "i=1; a=rsa-sha256; t=1730000000; cv=none; d=lists.ex
 
 function view(headers: { name: string; value: string }[], receivers: Receiver[] = GOOGLE): CaseView {
   return {
-    tenant: { orgId: "org-arc", channel: "email", receivers, headersAvailable: true },
+    tenant: {
+      orgId: "org-arc",
+      channel: "email",
+      receivers,
+      headersAvailable: true,
+      trusted: { own: [], suppliers: [] },
+    },
     raw: RAW,
     brands: bundled,
     senderHistory: null,
+    domainAges: null,
+    attachmentHeads: null,
+    hiddenText: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

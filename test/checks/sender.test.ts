@@ -18,10 +18,19 @@ const RAW = "raw/case-sender/message.eml";
 const h = (name: string, value: string) => ({ name, value });
 function view(headers: { name: string; value: string }[], headersAvailable = true): CaseView {
   return {
-    tenant: { orgId: "org-sender", channel: "email", receivers: [], headersAvailable },
+    tenant: {
+      orgId: "org-sender",
+      channel: "email",
+      receivers: [],
+      headersAvailable,
+      trusted: { own: [], suppliers: [] },
+    },
     raw: RAW,
     brands: bundled,
     senderHistory: null,
+    domainAges: null,
+    attachmentHeads: null,
+    hiddenText: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

@@ -68,6 +68,13 @@ export function parsedKey(caseId: string): string {
   return `raw/${caseId}/parsed.json`;
 }
 
+// The message's visible text, hidden text taken out (D02 T05 §1): what a model reads. Kept beside the message it was read
+// from, as the parsed summary is, so the bucket's 30-day rule deletes it with them.
+export function visibleKey(caseId: string): string {
+  checkCase(caseId);
+  return `raw/${caseId}/visible.txt`;
+}
+
 export function attachmentKey(caseId: string, sha256: string, name: string): string {
   checkCase(caseId);
   checkHash(sha256);
@@ -221,6 +228,16 @@ export async function putArtefact(
 
 // The row and the bytes, or the row and `missing` when the object is gone (a raw object past 30 days, or one deleted
 // outside this store); a key the case does not own, or a write that never reached its row, is not found.
+export const putVisible = (store: Store, caseId: string, text: string) =>
+  put(store, caseId, "raw", () => visibleKey(caseId), new TextEncoder().encode(text), "text/plain; charset=utf-8");
+
+// The visible text, or null when none was written (not yet scanned, or gone with the message): unavailable, which is not
+// the same as an empty body.
+export async function readVisible(store: Store, caseId: string): Promise<string | null> {
+  const read = await readArtefact(store, caseId, visibleKey(caseId));
+  return read && "body" in read ? new TextDecoder().decode(read.body) : null;
+}
+
 export async function readArtefact(
   store: Store,
   caseId: string,

@@ -221,7 +221,7 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 - [x] Commit: `intake: MIME parsing with attachments stored in R2`
 
 > **Deferred:** links in a cut part's full text -> XREF: D02 T07 §1
-> **Deferred:** hidden text in a cut part's full HTML -> XREF: D02 T05 §1
+> **Resolved:** hidden text in a cut part's full HTML -> XREF: D02 T05 §1. Resolved 2026-10-31 by D02 T05 §1 in `bbd465d` and its review fixes: `hiddenTextOf` streams each cut HTML part's full artefact from R2 in its own charset through the hidden-text scan, its rules applied to the summary's HTML too, and a part it cannot scan (its object missing, its charset undecodable) is named in the stored coverage item.
 > **Resolved:** the evidence item saying a body was cut for reading and that the full part was still checked -> XREF: D02 T01 §1. Resolved 2026-10-29 by D02 T01 §1 in `f88f338` and `34b5da2`: `truncatedEvidence` states the cut (each part, its sizes, the further parts kept only to the cut); its plan review moved the claim that the full part was checked to the checks that read it (D02 T07 §1, D02 T05 §1), so a check that fails leaves no such claim.
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/parse.test.ts` and `pnpm exec vitest run --project node test/node/parse-memory.test.ts` pass, and fail if duplicate headers are collapsed (the `Received` chain needs them), the total budget is passed, an attachment is cut, or a summary is written before its attachments.

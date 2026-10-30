@@ -64,7 +64,7 @@ async function forwardView(message: Uint8Array, channel: "email" | "upload" = "e
   await storeParsed(store, caseId, await parseMessage(forward.original), forward);
   return caseViewOf(
     await summaryOf(caseId),
-    { orgId: "org-evidence", channel, receivers: [] },
+    { orgId: "org-evidence", channel, receivers: [], trusted: { own: [], suppliers: [] } },
     rawKey(caseId),
     bundled,
   );
@@ -247,7 +247,13 @@ describe("caseViewOf", () => {
         `Content-Type: text/plain; charset=UTF-16LE\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64(utf16(body))}`,
       ]),
     );
-    expect(view.tenant).toEqual({ orgId: "org-evidence", channel: "email", receivers: [], headersAvailable: false });
+    expect(view.tenant).toEqual({
+      orgId: "org-evidence",
+      channel: "email",
+      receivers: [],
+      trusted: { own: [], suppliers: [] },
+      headersAvailable: false,
+    });
     expect(view.source).toEqual({ kind: "message", path: "inline", otherOriginals: 0 });
     expect(view.truncated).toHaveLength(1);
     const [part] = view.truncated;
@@ -293,7 +299,7 @@ describe("caseViewOf", () => {
     const summary = (await summaryOf(caseId)) as Record<string, unknown>;
     const view = caseViewOf(
       summary,
-      { orgId: "org-evidence", channel: "upload", receivers: [] },
+      { orgId: "org-evidence", channel: "upload", receivers: [], trusted: { own: [], suppliers: [] } },
       rawKey(caseId),
       bundled,
     );
@@ -322,7 +328,7 @@ describe("caseViewOf", () => {
     await parse(store, caseId, { channel: "upload", sourceKind: "document", headersAvailable: false });
     const view = caseViewOf(
       await summaryOf(caseId),
-      { orgId: "org-evidence", channel: "upload", receivers: [] },
+      { orgId: "org-evidence", channel: "upload", receivers: [], trusted: { own: [], suppliers: [] } },
       rawKey(caseId),
       bundled,
     );
@@ -339,7 +345,12 @@ describe("caseViewOf", () => {
       { source: { kind: "mail" }, forward: { headersAvailable: false } },
     ])
       expect(() =>
-        caseViewOf(summary, { orgId: "o", channel: "email", receivers: [] }, "raw/x/message.eml", bundled),
+        caseViewOf(
+          summary,
+          { orgId: "o", channel: "email", receivers: [], trusted: { own: [], suppliers: [] } },
+          "raw/x/message.eml",
+          bundled,
+        ),
       ).toThrow(SummaryRefused);
   });
 });
@@ -371,7 +382,7 @@ describe("the intake items", () => {
     await parse(store, caseId, { channel: "upload", sourceKind: "image", headersAvailable: false });
     const view = caseViewOf(
       await summaryOf(caseId),
-      { orgId: "org-evidence", channel: "upload", receivers: [] },
+      { orgId: "org-evidence", channel: "upload", receivers: [], trusted: { own: [], suppliers: [] } },
       rawKey(caseId),
       bundled,
     );
