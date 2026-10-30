@@ -191,6 +191,26 @@ describe("a link request", () => {
     expect(await rows(email)).toHaveLength(0);
   });
 
+  it("answers a browser that holds a handle the same for a refused address as for a sent one", async () => {
+    mailed();
+    const asker = browser();
+    await asker.post("/signin/link", { email: unique("holder"), callbackURL: "/cases" });
+    const handle = asker.jar.get(CODE_COOKIE);
+    const cookieOf = (answer: Response) =>
+      answer.headers
+        .getSetCookie()
+        .filter((c) => c.startsWith(`${CODE_COOKIE}=`))
+        .map((c) => c.split(";")[0]);
+    const refused = await asker.post("/signin/link", {
+      email: `nobody-${crypto.randomUUID().slice(0, 8)}@example.org`,
+      callbackURL: "/cases",
+    });
+    const sent = await asker.post("/signin/link", { email: unique("holder-2"), callbackURL: "/cases" });
+    expect(cookieOf(refused)).toEqual([`${CODE_COOKIE}=${handle}`]);
+    expect(cookieOf(sent)).toEqual([`${CODE_COOKIE}=${handle}`]);
+    expect(refused.status).toBe(sent.status);
+  });
+
   it("keeps a mailed code working when a resend is refused by the address's limit", async () => {
     const smtp = mailed();
     const laptop = browser();

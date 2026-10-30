@@ -87,11 +87,11 @@ export function authOptions(
         if (outcome.status === "refused" && /too many sign-in links/.test(outcome.reason))
           await audit({ kind: "rate-limited", outcome: "per-address", ip: clientIp(ctx?.request?.headers) });
         // Refused (not on the allowlist, or too many links to this address) answers exactly as sent, so the answer
-        // never tells a stranger who is registered; a failed or unknown send is still an error. A browser that already
-        // holds a handle keeps it, and the code it was mailed before keeps working; one with none gets a handle with
-        // no code behind it, the same cookie a sent link sets.
+        // never tells a stranger who is registered; a failed or unknown send is still an error. The handle cookie is set
+        // either way, the one the browser already holds kept (its value unchanged, so a code it was mailed before keeps
+        // working), so whether a cookie comes back never tells a refused address from a sent one.
         if (outcome.status === "refused") {
-          if (!held) keepHandle();
+          keepHandle();
           return;
         }
         const delivered = outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
