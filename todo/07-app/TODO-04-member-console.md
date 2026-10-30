@@ -29,7 +29,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Cases list with filters and search | D07 T03 §1 | [ ] |
+| 1 | §1 | Cases list with filters and search | D07 T03 §1 | [x] |
 | 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [ ] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
@@ -80,11 +80,14 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 - [x] Answer a member with no active organisation, or one just removed, with the E3 403 page (`ErrorState` 403), and a read that fails with the E5 page (503, its reference logged as the report's is, Try again keeping the filters). The active organisation and membership are read through one function `src/auth/org.ts` exports, which `requireOrg` also uses, so the page and the API agree. Done when: the page test covers each. Evidence 2026-10-30: `activeMembership` in `src/auth/org.ts` (requireOrg uses it, `test/auth/org.test.ts` 19 passed); `test/web/cases-page.test.ts` reads the 403 page with the address and Sign out for a removed member and for no active organisation (a Deviation in `design/SPEC.md` E3), and the 503 page with its logged reference and Try again keeping the filters. The error pages moved to `src/web/pages/errors.tsx`, shared with the report.
 - [x] Pass the accessibility gate's rules at 360 and 1280 px in both themes, the table a real table with its caption and column headers, the segmented filter a labelled radio group, on a phone the table reflowing to one card per case with no sideways scroll. Done when: the browser test scans each and measures the width. Evidence 2026-10-30: `test/node/cases-browser.test.tsx` scans the list, the filtered-empty and the first-run states at 360 and 1280 px in both themes with no problem and no sideways scroll (a captioned table on desktop, one card per case on phones, the verdict filter a fieldset of radios). It found a body shorter than the viewport leaving the sidebar's text over two backgrounds: `Document` now gives the body `min-h-screen`.
 - [x] Close the completion review's in-scope gaps: every results request (the filters and the pager) joins one queue so the newest wins in either order; a results request from a page drawn for another organisation (switched in another tab) reloads the whole page (`x-cases-org`, answered `HX-Redirect`); the Gmail tile says to tick the email and use More at the top (a Deviation in `design/SPEC.md` M1); a session store that cannot be read answers the E5 page (`sessionGate` in `src/auth/gate.ts`, the API keeping JSON); focus stays on a pager end through each redraw; and the list is timed at 10,000 cases. Done when: `test/node/cases-browser.test.tsx` (15) drives both queue orders, the switched organisation, and Tab and Enter through filtering, paging to the last page and back and opening a case with no programmatic focus; `test/web/cases-page.test.ts` (15) reads the session-store outage's E5 page with its logged reference and the stale organisation's 204 `HX-Redirect`; `test/db/case-list.test.ts` (5) reads 10,000 cases at p95 6 ms on the local SQLite through `cases_org_created` (production D1 adds its network time). Each fix's removal fails its test. **Added 2026-10-30 (completion review).**
-- [ ] Commit: `web: cases list with filters and search`
+- [x] Commit: `web: cases list with filters and search`
 
 > **Deferred:** the row's subject and original sender, the search box that searches them, the uploader's name and the invoice words in Type (boards `Cases`) -> XREF: D07 T04 §7
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if another organisation's case appears.
+
+> **Verified:** 2026-10-30 | §1 | d3456050f9e9893852d6041dace75d72ae0059ec
+> **Review:** `docs/reviews/d07-t04-s1.json`
 
 ## 2. Weekly stats, money at risk, CSV export
 
