@@ -142,7 +142,7 @@ Sections: 54 | Checklist items: 366
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
-| [ ]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
+| [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
 | [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
@@ -361,6 +361,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 102/292 verified sections, 63 ready to run now.
+Progress: 103/292 verified sections, 65 ready to run now.
 
-Checklist: 1053/1884 items completed (includes Commit items).
+Checklist: 1054/1884 items completed (includes Commit items).
