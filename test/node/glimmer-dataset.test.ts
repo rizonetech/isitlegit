@@ -24,6 +24,7 @@ import {
   checkFloors,
   dedupe,
   dhash,
+  eachLine,
   evaluationPool,
   FLOORS,
   freezeDigest,
@@ -48,6 +49,7 @@ import {
   sizesAllow,
   split,
   validateLine,
+  writeLinesAtomic,
 } from "../../scripts/glimmer/build-dataset.ts";
 import { CONSENT_HEADING } from "../../scripts/glimmer/import-samples.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
@@ -1723,6 +1725,32 @@ describe("summary.json is read back, and records the inputs the version was buil
     expect(lines.filter((m) => m.brand === null).every((m) => m.brand_identity === null)).toBe(true);
   });
 });
+
+describe("line files streamed to and from disk (1.0's training file is some 20 GB)", () => {
+  it("writes and reads back every line across chunk boundaries, hashing the bytes on disk", () => {
+    const folder = mkdtempSync(join(tmpdir(), "glimmer-lines-"));
+    try {
+      // Lines of 300 KB to 1.3 MB, so several cross the reader's 4 MB chunks.
+      const lines = Array.from({ length: 14 }, (_, i) => `${i}:${"x".repeat(300_000 + i * 77_777)}é`);
+      const path = join(folder, "train.jsonl");
+      expect(writeLinesAtomic(path, lines)).toBe(14);
+      const seen: string[] = [];
+      const read = eachLine(path, (line, index) => {
+        expect(index).toBe(seen.length);
+        seen.push(line);
+      });
+      expect(seen).toEqual(lines);
+      expect(read).toEqual({ sha256: hashOfFile(path), lines: 14 });
+      expect(readdirSync(folder)).toEqual(["train.jsonl"]);
+      writeFileSync(path, "a\nb");
+      expect(() => eachLine(path, () => {})).toThrow(/does not end with a newline/);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+});
+
+const hashOfFile = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 describe("staged publication with read-back", () => {
   const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));

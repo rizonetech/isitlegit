@@ -10,7 +10,21 @@
 // near duplicate with training and holds only pages the teacher agreed with, and a version short of any floor, or
 // whose sample-derived lines hold a protected detail, is refused and never published.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import PostalMime from "postal-mime";
 import sharp from "sharp";
@@ -799,15 +813,12 @@ function readBack(
   mode: ScreenMode,
   terms: string[] | ProtectedTerms,
 ): { sha256: string; lines: number } {
-  const body = readFileSync(join(dir, `${name}.jsonl`));
-  const lines = body.toString("utf-8").split("\n");
   const metas = readFileSync(join(dir, `${name}.meta.jsonl`), "utf-8").split("\n");
   // Each file ends with a newline, so the last piece is empty.
-  if (lines.pop() !== "" || metas.pop() !== "")
-    throw new PublicationRefused(`${name}: a file does not end with a newline`);
-  if (lines.length !== metas.length)
-    throw new PublicationRefused(`${name}: ${lines.length} lines but ${metas.length} meta lines`);
-  const checked = lines.map((line, index) => {
+  if (metas.pop() !== "") throw new PublicationRefused(`${name}: a file does not end with a newline`);
+  const problems: string[] = [];
+  const read = eachLine(join(dir, `${name}.jsonl`), (line, index) => {
+    if (index >= metas.length) return;
     const meta = JSON.parse(metas[index] as string) as {
       id: string;
       origin: string;
@@ -825,20 +836,74 @@ function readBack(
       identity !== meta.brand_identity
     )
       throw new PublicationRefused(`${name}: line ${index + 1} is not the page its meta line names`);
-    return { id: meta.id, origin: meta.origin, line };
+    problems.push(...scanSampleLines([{ id: meta.id, origin: meta.origin, line }], terms, mode));
   });
-  const problems = scanSampleLines(checked, terms, mode);
+  if (read.lines !== metas.length)
+    throw new PublicationRefused(`${name}: ${read.lines} lines but ${metas.length} meta lines`);
   if (problems.length)
     throw new PublicationRefused(
       `${name}: ${problems.length} lines hold protected details (${problems.slice(0, 5).join("; ")})`,
     );
-  return { sha256: createHash("sha256").update(body).digest("hex"), lines: lines.length };
+  return read;
 }
 
 function writeAtomic(path: string, text: string) {
   const temporary = `${path}.${process.pid}.tmp`;
   writeFileSync(temporary, text);
   renameSync(temporary, path);
+}
+
+// A file of lines written one line at a time, temp then rename: a version's lines carry their screenshots (about
+// 235 KB a line, some 20 GB for 1.0's training file), so they are never joined in memory (the third 1.0 build was
+// stopped by the host's out-of-memory guard at 6 GB while it joined them).
+export function writeLinesAtomic(path: string, lines: Iterable<string>): number {
+  const temporary = `${path}.${process.pid}.tmp`;
+  const fd = openSync(temporary, "w");
+  let count = 0;
+  try {
+    for (const line of lines) {
+      writeSync(fd, `${line}\n`);
+      count++;
+    }
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(temporary, path);
+  return count;
+}
+
+// Each line of a file, read in bounded chunks with the file's SHA-256 taken over the same bytes; the file must end
+// with a newline.
+export function eachLine(
+  path: string,
+  visit: (line: string, index: number) => void,
+): { sha256: string; lines: number } {
+  const hash = createHash("sha256");
+  const fd = openSync(path, "r");
+  const chunk = Buffer.alloc(4 << 20);
+  let pending: Buffer[] = [];
+  let index = 0;
+  try {
+    for (;;) {
+      const read = readSync(fd, chunk, 0, chunk.length, null);
+      if (!read) break;
+      const bytes = chunk.subarray(0, read);
+      hash.update(bytes);
+      let start = 0;
+      for (let at = bytes.indexOf(10); at >= 0; at = bytes.indexOf(10, start)) {
+        pending.push(bytes.subarray(start, at));
+        visit(Buffer.concat(pending).toString("utf-8"), index++);
+        pending = [];
+        start = at + 1;
+      }
+      if (start < read) pending.push(Buffer.from(bytes.subarray(start)));
+    }
+  } finally {
+    closeSync(fd);
+  }
+  if (pending.length) throw new PublicationRefused(`${path}: the file does not end with a newline`);
+  return { sha256: hash.digest("hex"), lines: index };
 }
 
 export type Built = {
@@ -1239,39 +1304,39 @@ export async function buildDataset(options: {
       ["train", train],
       ["eval", evaluation],
     ] as const) {
-      const lines: string[] = [];
       const meta: string[] = [];
-      for (const entry of shuffle(chosen, random)) {
-        const verified = store.readVerifiedPage(entry.page.id);
-        if (
-          !verified ||
-          verified.page.sha256.screenshot !== entry.page.sha256.screenshot ||
-          verified.page.sha256.text !== entry.page.sha256.text
-        )
-          throw new Error(`page ${entry.page.id} changed on disk during the build`);
-        const { screenshot, text } = verified;
-        // The nonce comes from the page, so a rebuild writes the same line (and the read-back finds it again).
-        const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
-        lines.push(
-          buildTrainingLine(
+      const ordered = shuffle(chosen, random);
+      function* lines() {
+        for (const entry of ordered) {
+          const verified = store.readVerifiedPage(entry.page.id);
+          if (
+            !verified ||
+            verified.page.sha256.screenshot !== entry.page.sha256.screenshot ||
+            verified.page.sha256.text !== entry.page.sha256.text
+          )
+            throw new Error(`page ${entry.page.id} changed on disk during the build`);
+          const { screenshot, text } = verified;
+          // The nonce comes from the page, so a rebuild writes the same line (and the read-back finds it again).
+          const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
+          meta.push(
+            JSON.stringify({
+              id: entry.page.id,
+              source: entry.page.source,
+              origin: entry.page.origin,
+              lure_type: entry.answer.lure_type,
+              brand: entry.answer.brand,
+              brand_identity: entry.answer.brand ? brandIdentity(entry.answer.brand) : null,
+              south_africa: entry.page.south_africa,
+              screenshot: entry.page.sha256.screenshot,
+            }),
+          );
+          yield buildTrainingLine(
             buildScreenRequest({ image: screenshot, host: entry.page.host, text, mode, nonce }),
             entry.answer,
-          ),
-        );
-        meta.push(
-          JSON.stringify({
-            id: entry.page.id,
-            source: entry.page.source,
-            origin: entry.page.origin,
-            lure_type: entry.answer.lure_type,
-            brand: entry.answer.brand,
-            brand_identity: entry.answer.brand ? brandIdentity(entry.answer.brand) : null,
-            south_africa: entry.page.south_africa,
-            screenshot: entry.page.sha256.screenshot,
-          }),
-        );
+          );
+        }
       }
-      write(join(staging, `${name}.jsonl`), lines.map((line) => `${line}\n`).join(""));
+      writeLinesAtomic(join(staging, `${name}.jsonl`), lines());
       write(join(staging, `${name}.meta.jsonl`), meta.map((m) => `${m}\n`).join(""));
       written.set(name, chosen.length);
     }

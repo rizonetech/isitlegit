@@ -121,6 +121,33 @@ class Choose(unittest.TestCase):
         self.assertEqual(ts.choose(groups, tokens, now, None, None, 5), list(range(1000)))
 
 
+class TrainingFile(unittest.TestCase):
+    """Loupe 1.0's training file is some 20 GB: it is streamed, and copied only when a cut makes a subset."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="loupe-file-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.train = self.dir / "train.jsonl"
+        self.train.write_text("".join(f'{{"n": {i}}}\n' for i in range(10)) + "\n", encoding="utf-8")
+        self.run = self.dir / "runs" / "loupe-1.0"
+
+    def test_lines_are_streamed_and_counted_without_blank_ones(self):
+        self.assertEqual(ts.count_lines(self.train), 10)
+        self.assertEqual(next(ts.iter_lines(self.train)), '{"n": 0}\n')
+
+    def test_every_line_chosen_trains_on_the_dataset_file_itself(self):
+        self.assertEqual(ts.training_file(self.train, list(range(10)), 10, self.run), self.train)
+        self.assertFalse((self.run / "train.subset.jsonl").exists())
+        self.assertEqual(ts.resumed_file(self.train, self.run), self.train)
+
+    def test_a_cut_streams_the_chosen_lines_in_order_and_a_resume_finds_them(self):
+        chosen = ts.training_file(self.train, [7, 2, 5], 10, self.run)
+        self.assertEqual(chosen, self.run / "train.subset.jsonl")
+        self.assertEqual(chosen.read_text(encoding="utf-8"), '{"n": 2}\n{"n": 5}\n{"n": 7}\n')
+        self.assertEqual(ts.resumed_file(self.train, self.run), chosen)
+        self.assertEqual([p.name for p in self.run.iterdir()], ["train.subset.jsonl"])
+
+
 class FakeLoop:
     """The cookbook's sft_loop as far as the wrapper uses it: a Config, main(), and the W&B logger it calls."""
 

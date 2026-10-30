@@ -161,6 +161,49 @@ def read_lines(path):
         return [line for line in handle if line.strip()]
 
 
+def iter_lines(path):
+    """A file's non-blank lines one at a time: a training file carries its screenshots (some 20 GB for Loupe 1.0), so it
+    is never read whole."""
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                yield line
+
+
+def count_lines(path):
+    return sum(1 for _ in iter_lines(path))
+
+
+def write_lines_atomic(path, lines):
+    """Lines written one at a time to a temporary file, then put in place."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with open(temporary, "w", encoding="utf-8") as handle:
+        for line in lines:
+            handle.write(line)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def training_file(train_file, chosen, count, run_dir):
+    """The file a run trains on: the dataset's own when every line is chosen (no copy of it is made), else the chosen
+    lines streamed to `<run>/train.subset.jsonl`, in the dataset's order."""
+    subset = Path(run_dir) / "train.subset.jsonl"
+    if len(chosen) == count:
+        return Path(train_file)
+    keep = set(chosen)
+    write_lines_atomic(subset, (line for index, line in enumerate(iter_lines(train_file)) if index in keep))
+    return subset
+
+
+def resumed_file(train_file, run_dir):
+    """The file an interrupted run trained on: its subset when it made one, else the dataset's own."""
+    subset = Path(run_dir) / "train.subset.jsonl"
+    return subset if subset.is_file() else Path(train_file)
+
+
 def read_groups(path, count):
     """Each line's source and lure type from §10's `train.meta.jsonl` beside the training file."""
     meta = Path(path).with_name("train.meta.jsonl")
@@ -329,7 +372,7 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
           resume_from=None, dataset_sha=None):
     """One cookbook SFT run on `train_file`. `loop` is the cookbook's `recipes.sft_loop` module (a fake in tests)."""
     model_id, _checkpoint = names(version)
-    lines = examples if examples is not None else len(read_lines(train_file)) if Path(train_file).is_file() else None
+    lines = examples if examples is not None else count_lines(train_file) if Path(train_file).is_file() else None
     params = {"lora_rank": LORA_RANK, "learning_rate": LEARNING_RATE, "batch_size": BATCH_SIZE, "epochs": 1,
               "max_seq_len": MAX_SEQ_LEN, "checkpoint_every": CHECKPOINT_EVERY, "warmup_steps": 0,
               "lines_trained": lines}
@@ -429,20 +472,17 @@ def main(argv=None, now=None):
 
         renderer = get_renderer(RENDERER, get_tokenizer(TOKENIZER),
                                 image_processor=MuseGlimmerImageTokenCounter.from_pretrained(TOKENIZER))
-        lines = read_lines(train_file)
-        tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in lines]
-        chosen = list(range(len(lines)))
-        if not args.measure and not resuming:
-            groups = read_groups(train_file, len(lines))
+        if resuming:
+            # The set was chosen when the run started; a resume trains on the same file.
+            train_file = resumed_file(train_file, run_dir)
+        elif not args.measure:
+            tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
+            groups = read_groups(train_file, len(tokens))
             chosen = choose(groups, tokens, now, args.lines_per_second, cap, args.seed)
-            subset = run_dir / "train.subset.jsonl"
-            write_atomic(subset, "".join(lines[i] for i in chosen))
-            append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(lines)} lines "
+            append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(tokens)} lines "
                             f"({sum(tokens[i] for i in chosen)} tokens, seed {args.seed}, cap "
                             f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {dataset_sha}")
-            train_file = subset
-        elif resuming:
-            train_file = run_dir / "train.subset.jsonl"
+            train_file = training_file(train_file, chosen, len(tokens), run_dir)
         os.environ["FIREWORKS_API_KEY"] = read_key()
         from training.recipes import sft_loop
 
