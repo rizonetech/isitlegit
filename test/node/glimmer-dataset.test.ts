@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
+import { getDomain } from "tldts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   answerOf,
@@ -948,6 +949,106 @@ describe("reference protection outlives the reference page's candidacy", () => {
       expect(idsIn(built.dir, "train")).not.toContain(ids[1]);
     }
   });
+});
+
+// The finished output audited without the builder's own grouping: no brand, site, template or near duplicate in both
+// files, and no reference page, nor a brand or site of one, in training (completion review G6).
+async function assertIndependent(store: ReturnType<typeof openStore>, folder: string) {
+  const byId = new Map(store.manifest().map((p) => [p.id, p]));
+  const reference = (JSON.parse(readFileSync(referenceFile(store.dir), "utf-8")) as { pages: string[] }).pages;
+  const train = idsIn(folder, "train");
+  const evaluation = idsIn(folder, "eval");
+  const site = (id: string) => getDomain(byId.get(id)?.host ?? "") ?? `none:${id}`;
+  const brand = (id: string) =>
+    byId
+      .get(id)
+      ?.labels.brand?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") ?? `none:${id}`;
+  const template = (id: string) => byId.get(id)?.template ?? `none:${id}`;
+  for (const [name, key] of [
+    ["brand", brand],
+    ["site", site],
+    ["template", template],
+  ] as const) {
+    const inTrain = new Set(train.map(key));
+    expect(evaluation.filter((id) => inTrain.has(key(id))).map((id) => `${name}:${key(id)}`)).toEqual([]);
+  }
+  const inReference = new Set(reference.filter((id) => byId.has(id)));
+  for (const id of train) expect(inReference.has(id)).toBe(false);
+  const referenceBrands = new Set([...inReference].map(brand));
+  const referenceSites = new Set([...inReference].map(site));
+  expect(train.filter((id) => referenceBrands.has(brand(id)) || referenceSites.has(site(id)))).toEqual([]);
+  // Near duplicates: pages whose screenshots are within 6 bits and whose texts share 80 percent of their shingles.
+  const measure = async (ids: string[]) =>
+    Promise.all(
+      ids.map(async (id) => {
+        const { screenshot, text } = store.readPage(id);
+        return { id, hash: await dhash(screenshot), words: shingles(text) };
+      }),
+    );
+  const [a, b] = [await measure(train), await measure(evaluation)];
+  const pairs = [];
+  for (const x of a)
+    for (const y of b) if (hamming(x.hash, y.hash) <= 6 && jaccard(x.words, y.words) >= 0.8) pairs.push([x.id, y.id]);
+  expect(pairs).toEqual([]);
+}
+
+describe("the finished output, audited independently", () => {
+  it("holds no brand, site, template, near duplicate or reference group on both sides", async () => {
+    const specs: Spec[] = [];
+    for (let b = 0; b < 14; b++) {
+      specs.push({ seed: b * 4, brand: `Brand ${b}`, host: `a.brand${b}.co.za`, lure: true });
+      specs.push({ seed: b * 4 + 1, brand: null, host: `b.brand${b}.co.za`, lure: false });
+      specs.push({ seed: b * 4 + 2, brand: `Brand ${b}`, host: `c.other${b}.com`, lure: false });
+      specs.push({ seed: b * 4 + 3, brand: `Spare ${b}`, host: `www.spare${b}.com`, lure: b % 2 === 0 });
+    }
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const built = await build(store, { referenceSize: 6 });
+    expect(idsIn(built.dir, "eval").length).toBeGreaterThan(0);
+    await assertIndependent(store, built.dir);
+  });
+});
+
+describe("a build at the production floors", () => {
+  // Words of letters only, so no page text can read as a phone or a long number, unique to the page.
+  const wordsFor = (n: number) => {
+    const random = lcg(n * 7919 + 13);
+    return Array.from({ length: 12 }, () =>
+      Array.from({ length: 6 }, () => String.fromCharCode(97 + Math.floor(random() * 26))).join(""),
+    ).join(" ");
+  };
+
+  it("publishes a version that meets every floor, and the output audits clean", async () => {
+    const images = await Promise.all(Array.from({ length: 12 }, (_, i) => shot(i + 1)));
+    const types = ["credential", "payment", "fake_shop", "impersonation"] as const;
+    const specs: Spec[] = [];
+    for (let i = 0; i < 4200; i++) {
+      // Lures are 65 percent of the pool, so balancing must cut evaluation's lures (review G2).
+      const lure = i % 20 < 13;
+      const sample = lure && i % 36 === 0;
+      specs.push({
+        seed: i,
+        image: images[i % images.length] as Uint8Array,
+        text: wordsFor(i),
+        lure,
+        type: types[i % 4] as (typeof types)[number],
+        southAfrica: i % 3 === 0 || sample,
+        brand: `Brand ${i}`,
+        host: `www.site${i}.com`,
+        ...(sample ? { origin: "samples" as const, source: "samples-body", host: null } : {}),
+      });
+    }
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const built = await build(store, { floors: FLOORS, referenceSize: 500 });
+    const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
+    expect(summary.evaluation.lines).toBeGreaterThanOrEqual(FLOORS.evaluation);
+    expect(summary.sampleLures.evaluation).toBeGreaterThanOrEqual(FLOORS.sampleEvaluation);
+    expect(summary.sampleLures.training).toBeGreaterThanOrEqual(Math.ceil(summary.sampleLures.admitted / 2));
+    expect(summary.reference.pages).toBe(500);
+    await assertIndependent(store, built.dir);
+  }, 240_000);
 });
 
 describe("a build short of a floor", () => {
