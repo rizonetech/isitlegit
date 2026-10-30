@@ -665,16 +665,24 @@ export async function sampleTerms(samples: string): Promise<{ terms: ProtectedTe
   let unreadable = 0;
   for (const file of messageFiles(samples)) {
     const path = join(samples, file);
+    // Only what the import itself could not read is passed over: a message over the size it reads, or one that does
+    // not parse, made no page, so it has no recipient to guard. A file that cannot be read now (permissions, a disk
+    // error) may have made pages earlier: its recipients would go unguarded, so the build refuses (§10 round 2).
+    if (statSync(path).size > MAX_MESSAGE_BYTES) {
+      unreadable++;
+      continue;
+    }
+    const bytes = readFileSync(path);
+    let email: Awaited<ReturnType<typeof PostalMime.parse>>;
     try {
-      if (statSync(path).size > MAX_MESSAGE_BYTES) throw new RangeError("over the size the import reads");
-      const bytes = readFileSync(path);
-      const email = await PostalMime.parse(bytes);
-      const raw = bytes.toString("latin1");
-      addressesSeen.push(...addresses(email, raw));
-      for (const piece of recipientNames(email, raw, [])) pieces.add(piece);
+      email = await PostalMime.parse(bytes);
     } catch {
       unreadable++;
+      continue;
     }
+    const raw = bytes.toString("latin1");
+    addressesSeen.push(...addresses(email, raw));
+    for (const piece of recipientNames(email, raw, [])) pieces.add(piece);
   }
   // The terms `leakCheck()` guards, kept by kind so a scan can tell a company name from a recipient's first name.
   const domains = clientDomains(addressesSeen);

@@ -1,5 +1,14 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
@@ -1324,6 +1333,17 @@ describe("the scan of the built files for protected sample details", () => {
     expect(terms.addresses).toEqual(["thandi.mokoena@kestrel.example"]);
     expect(terms.domains).toEqual(["kestrel.example"]);
     expect(terms.pieces).toEqual(expect.arrayContaining(["Thandi", "Mokoena"]));
+    // A message that cannot be read now (it may have made pages earlier) refuses: its recipients would go unguarded.
+    // One the import itself could not parse is passed over and counted, as it made no page.
+    writeFileSync(join(samples, "client-set", "two.eml"), "\u0000not a message");
+    const parsed = await sampleTerms(samples);
+    expect(parsed.terms.client).toEqual(["Kestrel Holdings"]);
+    chmodSync(join(samples, "client-set", "one.eml"), 0o000);
+    try {
+      await expect(sampleTerms(samples)).rejects.toThrow(/EACCES/);
+    } finally {
+      chmodSync(join(samples, "client-set", "one.eml"), 0o644);
+    }
     // Without the consent section nothing is read.
     writeFileSync(join(samples, "pilot-consent.md"), "# Consent\n");
     await expect(sampleTerms(samples)).rejects.toThrow(/no sample is read without it/);
