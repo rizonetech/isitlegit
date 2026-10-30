@@ -16,6 +16,7 @@ For TODO work, use the skill in your agent's isolated skill directory (`.agents/
 
 ## Rules for TODO work
 
+- **Plan before build:** a section's plan review reads the commit that records its `Started:` line or an earlier one, or a later commit only when the section has an explicit `Started:` line and, on the first-parent line from the Started commit to the candidate, every commit changes only `todo/` and `docs/reviews/`, or an existing file under `test/` or `tests/` by whitespace alone, and leaves the section's contract (its text and its TODO file's preamble, other sections' rows aside) byte for byte as it was; the receipt records that evidence as `plan.after_started` and validation rebuilds it (D00 T01 §28).
 - **Tests prove claims:** a section's Test checkpoint must be able to fail, and is quoted, not paraphrased, in its stamp.
 - **Commits:** trunk-based `main`, concise imperative messages, the section ref in the body. Commits follow logical steps within a section; review fix-loop commits append to the candidate range. Never amend a candidate under review, never bypass hooks, never force-push.
 
