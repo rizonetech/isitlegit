@@ -265,7 +265,9 @@ Sign-in routes are rate-limited per address and per IP (stack doc), and every si
 
 ## 7. Sign-in page
 
-> **Started:** 2026-10-30T15:53:07Z
+> **Started:** 2026-10-30T19:45:00Z
+
+**Corrected 2026-10-30** (at stamp): the Started line was carried from the section before its split (15:53:07Z, in 152e751), but this section's plan was corrected and reviewed after the split (9326ec8, 7e597d4) and its build began only after the Cases list's stamp (D07 T04 §1), at the time above.
 
 The sign-in page (`/signin`, `design/SPEC.md` A1): a magic link, a passkey, the code from the mail, and every state a sign-in can end in.
 
