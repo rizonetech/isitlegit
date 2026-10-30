@@ -94,6 +94,12 @@ class Refused(Exception):
     """The pin or the arguments are wrong; nothing ran."""
 
 
+def pin_blob(data):
+    """The git blob id of the pin's bytes, computed as `git hash-object` does in a SHA-1 repository (this one), so the
+    stamp can read that exact pin back with `git cat-file`; needs no git on PATH."""
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
 def load_pin(path=PIN, data=None):
     """The checked pin at `path`, or, given `data`, the pin in those bytes (a committed pin read with `git show`), so
     a read-only caller needs no temporary file."""
@@ -653,13 +659,13 @@ def atomic_write(path, text):
 # past Python's digit limit raises). A review is at most MAX_OUTPUT_BYTES, so it has at most MAX_OUTPUT_BYTES + 1 lines,
 # and the count's width follows from that: whatever `record` writes, the reader reads.
 ROUND_HEADING = re.compile(r"^## Round ([0-9]{1,6}): (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
-ROUND_LINE = re.compile(r"^- (Writer|Run|Effort|Lenses|Schedule|Lines|Digest|Skipped): (\S.*)$")
+ROUND_LINE = re.compile(r"^- (Writer|Run|Effort|Lenses|Schedule|Pin|Lines|Digest|Skipped): (\S.*)$")
 # The one-pass completion review, recorded beside the rounds and never counted as one. It always carries Lines, Digest
 # and the Candidate commit it reviewed; the writer's notes after it (its `- Filed:` lines) run to the next `## ` line.
 COMPLETION_HEADING = re.compile(r"^## Completion review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
 PLAN_HEADING = re.compile(r"^## Plan review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
 FINAL_HEADING = re.compile(r"^## Final review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
-COMPLETION_LINE = re.compile(r"^- (Writer|Run|Candidate|Effort|Lenses|Lines|Digest|Skipped): (\S.*)$")
+COMPLETION_LINE = re.compile(r"^- (Writer|Run|Candidate|Effort|Lenses|Pin|Lines|Digest|Skipped): (\S.*)$")
 # The one-pass reviews, by --kind: the heading each is recorded under and the key read_findings lists them under.
 PASSES = {"completion": ("## Completion review", COMPLETION_HEADING, "completions"),
           "plan": ("## Plan review", PLAN_HEADING, "plans"),
@@ -671,6 +677,8 @@ CANDIDATE = re.compile(r"[0-9a-f]{40}")
 SKIPPED = re.compile(r"^([a-z0-9][a-z0-9-]*) \((.*)\)$")
 COUNT = re.compile(r"[0-9]{1,%d}" % len(str(MAX_OUTPUT_BYTES + 1)))
 DIGEST = re.compile(r"[0-9a-f]{16}")
+# The git blob id of the pin a pass ran under (SHA-1 or SHA-256), so the stamp can hold it to that pin (D00 T01 §18).
+PIN_ID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 
 def repository_relative(text, record=None):
@@ -742,11 +750,11 @@ def _read_findings(text):
             return None, head
         if completion:
             entry = {"reviewer": heading.group(2), "model": heading.group(3), "cli": heading.group(4), "writer": None,
-                     "run": None, "candidate": None, "effort": None, "lenses": None, "skipped": []}
+                     "run": None, "candidate": None, "effort": None, "lenses": None, "pin": None, "skipped": []}
         else:
             entry = {"number": int(heading.group(1)), "reviewer": heading.group(3), "model": heading.group(4),
                      "cli": heading.group(5), "writer": None, "run": None, "effort": None, "lenses": None,
-                     "schedule": None, "skipped": []}
+                     "schedule": None, "pin": None, "skipped": []}
         count = sealed = None
         i += 2
         while i < len(lines) and lines[i] != "":
@@ -771,6 +779,8 @@ def _read_findings(text):
             elif entry[key] is not None or (key == "candidate" and not CANDIDATE.fullmatch(value)):
                 return None, head
             elif key == "schedule" and value not in SCHEDULES:
+                return None, head
+            elif key == "pin" and not PIN_ID.fullmatch(value):
                 return None, head
             elif key == "lenses":
                 names = value.split(", ")
@@ -914,6 +924,9 @@ def metadata(result):
     # Only a light round says so: a round without the line ran on the full schedule, as every older record did.
     if result.get("schedule") == "light":
         lines.append("- Schedule: light")
+    # The pin the pass ran under; a pass recorded without the line is held to the stamped commit's pin, as before.
+    if result.get("pin"):
+        lines.append(f"- Pin: {result['pin']}")
     return lines + [f"- Skipped: {f['reviewer']} ({f['reason']})" for f in result["failover"]]
 
 
@@ -1039,7 +1052,15 @@ def main(argv=None):
     if args.kind == "round" and args.candidate:
         parser.error("--candidate goes with --kind completion or plan; a round names its candidate in its prompt")
     try:
-        pin = load_pin(args.pin)
+        # The pin's bytes are read once: the same bytes are loaded and named by their blob id, so the record names
+        # exactly the pin this pass ran under (D00 T01 §18).
+        try:
+            with open(args.pin, "rb") as handle:
+                pin_bytes = handle.read()
+        except OSError:
+            pin_bytes = None  # load_pin reports a missing or unreadable pin in its own words
+        pin = load_pin(args.pin, data=pin_bytes) if pin_bytes is not None else load_pin(args.pin)
+        pin_id = pin_blob(pin_bytes)
         plan = None
         if "schedule" in pin:
             rounds = []
@@ -1094,6 +1115,7 @@ def main(argv=None):
             {"reviewer": result["reviewer"], "reason": "returned no HIGHEST line or OVERALL verdict"}]}
     if one_pass:
         result.update(kind=args.kind, candidate=args.candidate)
+    result["pin"] = pin_id
     if plan and plan["position"]:
         result.update(position=plan["position"], escalated=plan["escalated"], schedule=plan["schedule"])
         stop_after = pin["schedule"]["severity_stop_after"]

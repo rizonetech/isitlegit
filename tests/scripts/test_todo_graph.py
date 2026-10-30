@@ -515,7 +515,7 @@ class Stamp(Tree):
 
     def write_plan(self, review="1. Controls: all present.\n\nHIGHEST: none\n\nPLAN: complete\n\nOVERALL: approve",
                    reviewer="astra", cli="codex", writer="claude", effort="medium", lenses=("plan",), candidate=None,
-                   path=None, keep=False):
+                   path=None, keep=False, pin=None):
         """A plan review as scripts/review-dispatch.py --kind plan records it (keep: after the attempts already there;
         otherwise the earlier plan reviews are dropped and the file's rounds stay)."""
         target = self.root / (path or self.PLAN)
@@ -524,12 +524,12 @@ class Stamp(Tree):
             target.write_bytes(self.only(target.read_bytes().decode("utf-8"), plans=False).encode("utf-8"))
         result = {"writer": writer, "reviewer": reviewer, "model": "m", "cli": cli, "effort": effort,
                   "lenses": list(lenses), "failover": [] if reviewer else [{"reviewer": "astra", "reason": "exited 3"}],
-                  "review": review if reviewer else None}
+                  "review": review if reviewer else None, "pin": pin}
         tg.review_dispatch().record_completion(target, result, "2026-10-22T00:00:00Z", candidate or self.start,
                                                kind="plan")
 
     def write_completion(self, review="1. Open file: present.\n\nCOMPLETION: complete", notes="", reviewer="sol",
-                         candidate=None, path=None, effort="medium", keep=False):
+                         candidate=None, path=None, effort="medium", keep=False, pin=None):
         """A completion review as scripts/review-dispatch.py --kind completion records it, then the writer's notes."""
         target = self.root / (path or self.COMPLETION)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -537,7 +537,7 @@ class Stamp(Tree):
             target.unlink(missing_ok=True)
         result = {"writer": "claude", "reviewer": reviewer, "model": "gpt-6.1-sol", "cli": "codex", "effort": effort,
                   "failover": [] if reviewer else [{"reviewer": "sol", "reason": "exited 3"}],
-                  "review": review if reviewer else None}
+                  "review": review if reviewer else None, "pin": pin}
         tg.review_dispatch().record_completion(target, result, "2026-10-23T00:00:00Z", candidate or self.sha)
         if notes:
             with open(target, "a", encoding="utf-8", newline="") as handle:
@@ -1656,9 +1656,10 @@ class FinalStamp(Stamp):
         self.sha = self.commit("final pin")
         self.tick_work()
 
-    def write_final(self, review="1. P3 a name.\n\nHIGHEST: P3\nOVERALL: approve", effort="medium", lenses=("adversarial",)):
+    def write_final(self, review="1. P3 a name.\n\nHIGHEST: P3\nOVERALL: approve", effort="medium", lenses=("adversarial",),
+                    pin=None):
         result = {"writer": "claude", "reviewer": "wonder", "model": "muse-wonder-full-1.0", "cli": "muse",
-                  "effort": effort, "lenses": list(lenses), "failover": [], "review": review}
+                  "effort": effort, "lenses": list(lenses), "failover": [], "review": review, "pin": pin}
         tg.review_dispatch().record_completion(self.root / self.ROUNDS, result, "2026-10-24T00:00:00Z", self.sha,
                                                kind="final")
 
@@ -1696,6 +1697,132 @@ class FinalStamp(Stamp):
     def test_an_optional_final_review_given_must_still_be_real(self):
         self.set_mode("optional")
         self.refused({"report": self.ROUNDS, "verdict": "clean"}, "must hold exactly one final review")
+
+    # D00 T01 §18: each pass is held to the pin it recorded running under, so passes that straddle a pin change stamp.
+    LATER_PIN = FINAL_PIN.replace('plan = { effort = "medium"', 'plan = { effort = "high"').replace(
+        'completion = { effort = "medium" }', 'completion = { effort = "high" }').replace(
+        'rounds = [{ effort = "low"', 'rounds = [{ effort = "medium"').replace(
+        'rotation = { effort = "low"', 'rotation = { effort = "medium"').replace(
+        'final = { reviewer = "wonder", effort = "medium"', 'final = { reviewer = "wonder", effort = "high"')
+
+    @staticmethod
+    def blob(text):
+        return tg.review_dispatch().pin_blob(text.encode("utf-8"))
+
+    def straddle(self, plan=("medium", "a"), completion=("medium", "a"), round1=("low", "a"), round2=("medium", "b"),
+                 final=("high", "b"), later=True):
+        """Plan, completion and round 1 under the first pin, round 2 and the final review under the later one by
+        default; each argument is (effort, pin), the pin "a", "b", None (no Pin line) or a blob id. later=False
+        commits no later pin: the stamp is at HEAD as it stands."""
+        self.assertNotEqual(self.LATER_PIN, FINAL_PIN)
+        ids = {"a": self.blob(FINAL_PIN), "b": self.blob(self.LATER_PIN), None: None}
+        if later:
+            (self.root / tg.PIN).write_text(self.LATER_PIN, encoding="utf-8")
+            self.sha = self.commit("the later pin")
+        else:
+            self.sha = self.head()
+        dispatch = tg.review_dispatch()
+        rounds = self.root / self.ROUNDS
+        rounds.write_text("# Review findings\n", encoding="utf-8")
+        for (effort, pin) in (round1, round2):
+            dispatch.record(rounds, {"writer": "claude", "reviewer": "astra", "model": "m", "cli": "codex",
+                                     "effort": effort, "lenses": ["adversarial"], "failover": [],
+                                     "pin": ids.get(pin, pin), "review": "1. ok.\n\nHIGHEST: none\n\nOVERALL: approve"},
+                            "2026-10-24T00:00:00Z")
+        self.write_plan(effort=plan[0], pin=ids.get(plan[1], plan[1]), keep=True)
+        self.write_completion(effort=completion[0], pin=ids.get(completion[1], completion[1]))
+        self.write_final(effort=final[0], pin=ids.get(final[1], final[1]))
+        return [{"round": 2, "report": self.ROUNDS, "verdict": "clean"}]
+
+    def test_passes_that_straddle_a_pin_change_stamp_each_held_to_its_own_pin(self):
+        reviews = self.straddle()
+        receipt = self.root / self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        self.assertEqual(json.loads(receipt.read_text(encoding="utf-8"))["schedule"]["plan"]["effort"], "high",
+                         "the receipt keeps the stamped commit's schedule")
+        tg.graph(self.root)
+        # The receipt replays the same way: a Pin line edited to the later pin no longer matches its pass.
+        text = (self.root / self.ROUNDS).read_text(encoding="utf-8")
+        plan_at = text.index("## Plan review")
+        edited = text[:plan_at] + text[plan_at:].replace(f"- Pin: {self.blob(FINAL_PIN)}",
+                                                         f"- Pin: {self.blob(self.LATER_PIN)}", 1)
+        (self.root / self.ROUNDS).write_text(edited, encoding="utf-8")
+        with self.assertRaises(tg.Refused) as ctx:
+            tg.graph(self.root)
+        self.assertIn("ran at medium with lenses ['plan']; the schedule expects high with ['plan']", str(ctx.exception))
+
+    def test_a_final_review_under_the_earlier_pin_stamps_at_its_effort(self):
+        reviews = self.straddle(final=("medium", "a"))
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        tg.graph(self.root)
+
+    def test_a_pass_matching_only_the_stamped_pin_is_refused(self):
+        cases = {"plan": ({"plan": ("high", "a")}, "the plan review in", "ran at high with lenses ['plan']"),
+                 "completion": ({"completion": ("high", "a")}, "the completion review in", "ran at high"),
+                 "round": ({"round1": ("medium", "a")}, "round 1 ran at medium", "expects low"),
+                 "final": ({"final": ("high", "a")}, "the final review in", "ran at high")}
+        for kind, (change, where, fragment) in cases.items():
+            with self.subTest(kind=kind):
+                self.setUp()
+                reviews = self.straddle(**change)
+                self.refused({"report": self.ROUNDS, "verdict": "clean"}, where, reviews)
+                self.refused({"report": self.ROUNDS, "verdict": "clean"}, fragment, reviews)
+
+    def test_a_pass_without_a_pin_line_is_held_to_the_stamped_pin_as_before(self):
+        reviews = self.straddle(plan=("medium", None))
+        self.refused({"report": self.ROUNDS, "verdict": "clean"},
+                     "ran at medium with lenses ['plan']; the schedule expects high with ['plan']", reviews)
+        self.setUp()
+        reviews = self.straddle(plan=("high", None))
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+
+    def test_a_pass_under_a_pin_never_committed_is_refused(self):
+        never = self.blob(FINAL_PIN + "# an edit never committed\n")
+        reviews = self.straddle(round2=("medium", never))
+        self.refused({"report": self.ROUNDS, "verdict": "clean"},
+                     f"round 2 ran under pin {never}, which no commit in this history holds", reviews)
+
+    def test_a_pass_under_a_pin_only_staged_is_refused(self):
+        # Completion review: a pin staged (so its blob is in the object store), reviewed under, then replaced before
+        # any commit is readable locally but not in a fresh clone.
+        staged = FINAL_PIN + "# staged, then replaced\n"
+        (self.root / tg.PIN).write_text(staged, encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", tg.PIN], check=True)
+        self.assertEqual(subprocess.run(["git", "-C", str(self.root), "cat-file", "-e", self.blob(staged)]).returncode,
+                         0, "the staged pin's blob is in the object store")
+        reviews = self.straddle(round2=("medium", self.blob(staged)))
+        self.refused({"report": self.ROUNDS, "verdict": "clean"},
+                     f"round 2 ran under pin {self.blob(staged)}, which no commit in this history holds", reviews)
+
+    def test_a_pin_written_by_a_merge_resolution_counts(self):
+        # Round 1: a merge whose resolution differs from both parents holds a pin no other commit does.
+        def git(*args):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+        pin = self.root / tg.PIN
+        git("checkout", "-qb", "lane")
+        pin.write_text(FINAL_PIN + "# the lane's\n", encoding="utf-8")
+        self.commit("lane pin")
+        git("checkout", "-q", "-")
+        pin.write_text(FINAL_PIN + "# main's\n", encoding="utf-8")
+        self.commit("main pin")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "lane"], capture_output=True)  # conflicts
+        resolved = FINAL_PIN + "# resolved\n"
+        pin.write_text(resolved, encoding="utf-8")
+        git("add", tg.PIN)
+        git("commit", "-q", "--no-edit")
+        self.assertEqual(subprocess.run(["git", "-C", str(self.root), "rev-list", "--parents", "-n1", "HEAD"],
+                                        capture_output=True, text=True).stdout.count(" "), 2, "HEAD is the merge")
+        reviews = self.straddle(round2=("low", self.blob(resolved)), final=("medium", "a"), later=False)
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        tg.graph(self.root)
+
+    def test_a_fresh_clone_validates_the_receipt(self):
+        reviews = self.straddle()
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        self.commit("the stamp")
+        clone = pathlib.Path(self.tmp.name + "-clone")
+        self.addCleanup(shutil.rmtree, clone, True)
+        subprocess.run(["git", "clone", "-q", "--no-local", str(self.root), str(clone)], check=True)
+        tg.graph(clone)
 
     def test_a_final_review_switched_off_stamps_without_one_and_refuses_one_given(self):
         self.set_mode("off")
