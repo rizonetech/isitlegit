@@ -348,7 +348,7 @@ def _folder_bytes(folder: Path) -> int:
 
 class _InOrderDigest:
     """The digest of a partial file, read back in file order as its leading bytes arrive (D03 T04 §22). `frontier()` is
-    the end of the unbroken written run from the first byte, read with `guard` held; an invalidation (`invalidate`,
+    the end of the unbroken written run from the first byte, called with `guard` held; an invalidation (`invalidate`,
     also with `guard` held) says some of those bytes are to be replaced, and the digest starts over from the first."""
 
     def __init__(self, kind: str, descriptor: int, guard, frontier):
@@ -363,12 +363,15 @@ class _InOrderDigest:
         self.gen += 1
 
     def hash_up_to(self, end: int) -> None:
-        """Reads on to `end`. An invalidation (the generation moved) starts it over from the first byte; it is then
-        left to the caller to ask again for the frontier, which the invalidation lowered."""
+        """Reads on to `end`. An invalidation (the generation moved) starts the digest over from the first byte, and the
+        frontier `end` was read from is then out of date: it may lie past bytes the invalidation cut back, which hold
+        old bytes until their replacements arrive, and the replacements would then be skipped as already hashed. The
+        frontier is read again, in the same step as the restart, and the read goes on to that."""
         while True:
             with self.guard:
                 if self.seen != self.gen:
                     self.hash, self.at, self.seen = hashlib.new(self.kind), 0, self.gen
+                    end = self.frontier()
                 generation, at = self.gen, self.at
             if at >= end:
                 return
@@ -377,7 +380,7 @@ class _InOrderDigest:
                 raise OSError(errno.EIO, "the partial file ended early")
             with self.guard:
                 if self.gen != generation:
-                    return
+                    continue  # cut back while this block was read: it may be old bytes, and is dropped
                 self.hash.update(block)
                 self.at = at + len(block)
 
@@ -1140,15 +1143,18 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     run(item)
                     wake()
 
-            def frontier() -> int:
-                # The end of the unbroken run of written bytes from the start of the file.
-                with guard:
-                    for item in state["segments"]:
-                        if rest(item) > 0:
-                            return item[0] + item[2]
-                    return state["total"]
+            def frontier_held() -> int:
+                # The end of the unbroken run of written bytes from the start of the file; `guard` is held.
+                for item in state["segments"]:
+                    if rest(item) > 0:
+                        return item[0] + item[2]
+                return state["total"]
 
-            hashed = _InOrderDigest(kind, fd, guard, frontier)
+            def frontier() -> int:
+                with guard:
+                    return frontier_held()
+
+            hashed = _InOrderDigest(kind, fd, guard, frontier_held)
 
             def hash_along():
                 # The digest is computed in file order as the leading ranges fill, read back from the file, so only

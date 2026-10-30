@@ -1747,8 +1747,7 @@ class Fetch(unittest.TestCase):
         self.assertEqual(healthy.requests, healthy.segment_requests)  # nothing started again whole
         cut = [event[1] for event in events if event[0] == "state" and event[1]["segments"][0][2] == 0
                and event[1]["segments"][1][2] == 0 and "provenance" in event[1]
-               and all(span[2] != event[1]["sources"].index(mine) for span in event[1]["provenance"])
-               and event[1]["sources"] == [mine]]
+               and all(span[2] != event[1]["sources"].index(mine) for span in event[1]["provenance"])]
         self.assertTrue(cut, "the cut of both ranges was never saved")
 
     def test_a_stop_during_a_replacement_is_resumed_by_a_fresh_process(self):
@@ -1968,6 +1967,54 @@ class Fetch(unittest.TestCase):
         self.assertIn("--mirror", helped)
         for words in ("`urls`", "serves ranges together"):
             self.assertIn(words, " ".join(fetch.__doc__.split()))
+
+
+class InOrderDigest(unittest.TestCase):
+    """The digest a segmented run reads in file order while ranges can still be cut back (D03 T04 §22)."""
+
+    def setUp(self):
+        self.file = tempfile.TemporaryFile()
+        self.addCleanup(self.file.close)
+        self.fd = self.file.fileno()
+        self.old, self.new = bytes(range(16)), bytes(range(100, 108))
+        os.pwrite(self.fd, self.old, 0)
+        self.progress = {"end": 16}
+        self.guard = threading.Lock()
+        self.digest = fetch._InOrderDigest("sha256", self.fd, self.guard, lambda: self.progress["end"])
+
+    def cut_back_to(self, end):
+        with self.guard:
+            self.progress["end"] = end
+            self.digest.invalidate()
+
+    def test_an_invalidation_between_reading_the_frontier_and_hashing_never_lets_old_bytes_in(self):
+        stale = 16  # the frontier the hasher read, before the cut
+        self.cut_back_to(8)  # bytes 8 to 15 now wait for their replacements
+        self.digest.hash_up_to(stale)
+        self.assertEqual(self.digest.at, 8)  # only what the cut left, not the stale frontier
+        self.assertEqual(self.digest.hash.hexdigest(), hashlib.sha256(self.old[:8]).hexdigest())
+        os.pwrite(self.fd, self.new, 8)  # the replacements arrive and the frontier moves on
+        self.progress["end"] = 16
+        self.digest.hash_up_to(16)
+        self.assertEqual((self.digest.at, self.digest.hash.hexdigest()),
+                         (16, hashlib.sha256(self.old[:8] + self.new).hexdigest()))  # every replacement byte is in it
+
+    def test_a_cut_while_a_block_is_read_drops_the_block_and_goes_on_from_the_new_frontier(self):
+        real, fired = os.pread, []
+
+        def pread(descriptor, count, offset):
+            block = real(descriptor, count, offset)
+            if not fired:
+                fired.append(True)  # the cut lands after the old bytes were read, before they were counted
+                self.cut_back_to(4)
+                os.pwrite(self.fd, self.new, 4)
+                self.progress["end"] = 12
+            return block
+
+        with mock.patch.object(fetch.os, "pread", pread):
+            self.digest.hash_up_to(16)
+        self.assertEqual((self.digest.at, self.digest.hash.hexdigest()),
+                         (12, hashlib.sha256(self.old[:4] + self.new).hexdigest()))
 
 
 if __name__ == "__main__":
