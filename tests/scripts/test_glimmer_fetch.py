@@ -1722,6 +1722,35 @@ class Fetch(unittest.TestCase):
                     and all(span[2] != state_["sources"].index(self.base + "/file") for span in state_["provenance"])
                     for state_ in saved), saved)  # the cut was saved before the first replacement byte
 
+    def test_a_changed_source_loses_every_range_its_one_provenance_span_covers(self):
+        healthy, base = self.mirror()
+        mine = self.base + "/file"
+        quarter = -(-SIZE // 4)
+        # An earlier process left the first two ranges whole from this host alone, so the provenance holds the one
+        # span [0, 2 quarters) that runs across the boundary between them; the bytes are wrong, so any range left
+        # behind would fail the digest.
+        Path("src/.partial").mkdir(parents=True)
+        with open("src/.partial/data.bin", "wb") as handle:
+            handle.truncate(SIZE)
+            handle.write(bytes(2 * quarter))
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": mine, "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity", "total": SIZE,
+            "segments": [[0, quarter - 1, quarter], [quarter, 2 * quarter - 1, quarter],
+                         [2 * quarter, 3 * quarter - 1, 0], [3 * quarter, SIZE - 1, 0]],
+            "sources": [mine], "provenance": [[0, 2 * quarter - 1, 0]]}))
+        self.server.flip_after = 0  # the first range it is asked for comes from another file
+        events, (patch_state, patch_writes) = self.snapshots()
+        with patch_state, patch_writes:
+            result = self.mixed(base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
+        self.assert_whole()
+        self.assertEqual(healthy.requests, healthy.segment_requests)  # nothing started again whole
+        cut = [event[1] for event in events if event[0] == "state" and event[1]["segments"][0][2] == 0
+               and event[1]["segments"][1][2] == 0 and "provenance" in event[1]
+               and all(span[2] != event[1]["sources"].index(mine) for span in event[1]["provenance"])
+               and event[1]["sources"] == [mine]]
+        self.assertTrue(cut, "the cut of both ranges was never saved")
+
     def test_a_stop_during_a_replacement_is_resumed_by_a_fresh_process(self):
         for where in ("before the first replacement byte", "after some replacement bytes"):
             with self.subTest(where):

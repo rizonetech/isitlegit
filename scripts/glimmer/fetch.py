@@ -798,7 +798,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 the in-order digest is reset to be rebuilt over the replacements."""
                 with guard:
                     index = state["sources"].index(source) if source in state["sources"] else None
-                    cut_ranges = []
+                    # Every range's cut is found against the provenance as it stands, before any of it changes: one
+                    # span can run across range boundaries (the same source wrote the end of one range and the start
+                    # of the next), so trimming it for the first range must not hide the source's bytes in the others.
+                    cuts = []
                     for item in state["segments"]:
                         first, last, done = item
                         if not done:
@@ -806,15 +809,28 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         if prov is None:
                             cut = first  # unknown provenance: any of it may be this source's
                         else:
-                            cuts = [max(span[0], first) for span in prov
-                                    if span[2] == index and span[1] >= first and span[0] <= first + done - 1]
-                            if not cuts:
+                            found = [max(span[0], first) for span in prov
+                                     if span[2] == index and span[1] >= first and span[0] <= first + done - 1]
+                            if not found:
                                 continue
-                            cut = min(cuts)
-                        item[2] = cut - first
+                            cut = min(found)
+                        cuts.append((item, cut, first + done - 1))
+                    cut_ranges = [item for item, _, _ in cuts]
+                    for item, cut, written in cuts:
+                        item[2] = cut - item[0]
                         if prov is not None:
-                            prov[:] = [span for span in prov if not (first <= span[0] <= last and span[0] >= cut)]
-                        cut_ranges.append(item)
+                            # Everything the range held from the cut on goes, whoever wrote it; a span that runs on
+                            # past the cut keeps the part before it (and the part after the range's old end, if any).
+                            kept = []
+                            for span in prov:
+                                if span[1] < cut or span[0] > written:
+                                    kept.append(span)
+                                    continue
+                                if span[0] < cut:
+                                    kept.append([span[0], cut - 1, span[2]])
+                                if span[1] > written:
+                                    kept.append([written + 1, span[1], span[2]])
+                            prov[:] = kept
                     if not cut_ranges:
                         return
                     ends.clear()
