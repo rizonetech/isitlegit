@@ -43,7 +43,7 @@ import {
   sampleTerms,
   scanSampleLines,
   shingles,
-  siteKeys,
+  siteKey,
   siteOf,
   sizesAllow,
   split,
@@ -629,39 +629,42 @@ describe("the split's targets are counted on what is published", () => {
   });
 });
 
-describe("a shared platform names no one operator (1.0 build: 28,334 pages chained by free hosts)", () => {
-  it("joins pages by a domain only while it carries few brands, then by host, then not by site at all", () => {
-    const lure = { lure: true, lure_type: "credential" as const };
-    const entries = [
-      // One operator's domain with two brands on two hosts: still one site, one group.
-      entryOf(page("own1", { host: "login.kestrel-pay.co.za" }, { brand: "Kestrel", ...lure })),
-      entryOf(page("own2", { host: "pay.kestrel-pay.co.za" }, { brand: "Osprey", ...lure })),
-      // A free host carrying three unrelated brands on three tenants: three groups, not one.
-      entryOf(page("free1", { host: "one.freehost.example" }, { brand: "Alpha", ...lure })),
-      entryOf(page("free2", { host: "two.freehost.example" }, { brand: "Beta", ...lure })),
-      entryOf(page("free3", { host: "three.freehost.example" }, { brand: "Gamma", ...lure })),
-      // A path-hosting platform: one host carrying three brands names no site, so only brands join.
-      entryOf(page("doc1", { host: "docs.platform.example" }, { brand: "Delta", ...lure })),
-      entryOf(page("doc2", { host: "docs.platform.example" }, { brand: "Epsilon", ...lure })),
-      entryOf(page("doc3", { host: "docs.platform.example" }, { brand: "Zeta", ...lure })),
-      entryOf(page("doc4", { host: "www.delta.example" }, { brand: "Delta", ...lure })),
-    ];
+describe("a site names an operator; a verified shared platform names none (1.0 build: 28,334 pages chained)", () => {
+  const lure = { lure: true, lure_type: "credential" as const };
+  const pages = [
+    // One operator's lure domain serving a kit of three brands from one host (review round 5): one site, one group.
+    page("op1", { host: "secure.kestrel-pay.shop" }, { brand: "Alpha", ...lure }),
+    page("op2", { host: "secure.kestrel-pay.shop" }, { brand: "Beta", ...lure }),
+    page("op3", { host: "login.kestrel-pay.shop" }, { brand: "Gamma", ...lure }),
+    // A site builder whose tenants have their own subdomains: three tenants, three groups.
+    page("free1", { host: "one.weebly.com" }, { brand: "Delta", ...lure }),
+    page("free2", { host: "two.weebly.com" }, { brand: "Epsilon", ...lure }),
+    page("free3", { host: "three.weebly.com" }, { brand: "Zeta", ...lure }),
+    // A form platform whose tenants differ by path: no site, so only brands join.
+    page("form1", { host: "forms.gle" }, { brand: "Eta", ...lure }),
+    page("form2", { host: "forms.gle" }, { brand: "Theta", ...lure }),
+    page("form3", { host: "www.eta.example" }, { brand: "Eta", ...lure }),
+  ];
+  it("keeps one operator's brands together and parts a platform's tenants", () => {
     const groupOfId = new Map<string, string>();
-    for (const [key, members] of groupEntries(entries)) for (const e of members) groupOfId.set(e.page.id, key);
-    expect(groupOfId.get("own1")).toBe(groupOfId.get("own2"));
+    for (const [key, members] of groupEntries(pages.map(entryOf)))
+      for (const e of members) groupOfId.set(e.page.id, key);
+    expect(new Set(["op1", "op2", "op3"].map((id) => groupOfId.get(id))).size).toBe(1);
     expect(new Set(["free1", "free2", "free3"].map((id) => groupOfId.get(id))).size).toBe(3);
-    expect(new Set(["doc1", "doc2", "doc3"].map((id) => groupOfId.get(id))).size).toBe(3);
-    expect(groupOfId.get("doc1")).toBe(groupOfId.get("doc4")); // the brand still joins them
-    const site = siteKeys(entries.map((e) => e.page));
-    expect([site("login.kestrel-pay.co.za"), site("one.freehost.example"), site("docs.platform.example")]).toEqual([
-      "kestrel-pay.co.za",
-      "one.freehost.example",
+    expect(groupOfId.get("form1")).not.toBe(groupOfId.get("form2"));
+    expect(groupOfId.get("form1")).toBe(groupOfId.get("form3")); // the brand still joins them
+    expect(["secure.kestrel-pay.shop", "One.Weebly.com", "forms.gle"].map(siteKey)).toEqual([
+      "kestrel-pay.shop",
+      "one.weebly.com",
       null,
     ]);
-    // Caught: joined by registrable domain alone, the free host is one group.
-    expect(
-      new Set(["free1", "free2", "free3"].map((id) => groupOf(page(id, { host: `${id}.freehost.example` })))).size,
-    ).toBe(1);
+  });
+  it("never lets the operator cross the split when one of its pages is reserved", () => {
+    for (const seed of [1, 2, 3, 5, 8]) {
+      const parts = split(pages.map(entryOf), lcg(seed), { floors: NO_FLOORS, reserved: new Set(["op1"]) });
+      const training = new Set(parts.train.map((e) => e.page.id));
+      for (const id of ["op1", "op2", "op3"]) expect(training.has(id)).toBe(false);
+    }
   });
 });
 

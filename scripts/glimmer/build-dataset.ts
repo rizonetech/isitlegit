@@ -36,6 +36,7 @@ import {
   recipientNames,
 } from "./import-samples.ts";
 import { canonicalBrand, readExcluded } from "./label-rules.ts";
+import { PATH_TENANTS, SUBDOMAIN_TENANTS } from "./shared-platforms.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
 
@@ -210,41 +211,20 @@ export function siteOf(host: string): string {
   return getDomain(host, { allowPrivateDomains: true }) ?? host;
 }
 
-// A site names one operator only while its pages carry few brands: a registrable domain whose pages carry more than
-// `SHARED_BRANDS` canonical brands is a shared platform (free hosting like weebly.com or glitch.me, documents on
-// google.com, a link shortener), which the Public Suffix List often leaves out, and joining by it chained 28,334 pages
-// of unrelated brands into one group. Such a domain's pages are a site by their full host instead, and a host that is
-// itself shared names no site; their brand still joins them.
-export const SHARED_BRANDS = 2;
-export type SiteKey = (host: string) => string | null;
-export function siteKeys(pages: StoredPage[]): SiteKey {
-  const brands = new Map<string, Set<string>>();
-  const add = (key: string, brand: string) => {
-    const set = brands.get(key);
-    if (set) set.add(brand);
-    else brands.set(key, new Set([brand]));
-  };
-  for (const page of pages)
-    if (page.host && page.labels.brand) {
-      const brand = brandIdentity(page.labels.brand);
-      add(`domain:${siteOf(page.host)}`, brand);
-      add(`host:${page.host.toLowerCase()}`, brand);
-    }
-  const shared = (key: string) => (brands.get(key)?.size ?? 0) > SHARED_BRANDS;
-  return (host) => {
-    const domain = siteOf(host);
-    if (!shared(`domain:${domain}`)) return domain;
-    const full = host.toLowerCase();
-    return shared(`host:${full}`) ? null : full;
-  };
+// The site a host names (`shared-platforms.ts`): its registrable domain, except on a platform whose tenants are separate
+// parties, where it is the full host (a tenant's subdomain) or none (tenants told apart by path or link). Joined by
+// registrable domain alone, shared hosts chained unrelated brands into one group of 28,334 pages in the 1.0 collection.
+export function siteKey(host: string): string | null {
+  const domain = siteOf(host);
+  if (PATH_TENANTS.has(domain)) return null;
+  return SUBDOMAIN_TENANTS.has(domain) ? host.toLowerCase() : domain;
 }
 
 // Every identity a page shares with others: its canonical brand, its site and its template (plan review finding 3).
-// `site` names the page's site (`siteKeys`); alone, a page's registrable domain is its site.
-export function identities(page: StoredPage, site: SiteKey = siteOf): string[] {
+export function identities(page: StoredPage): string[] {
   const out: string[] = [];
   if (page.labels.brand) out.push(`brand:${brandIdentity(page.labels.brand)}`);
-  const key = page.host ? site(page.host) : null;
+  const key = page.host ? siteKey(page.host) : null;
   if (key) out.push(`site:${key}`);
   if (page.template) out.push(`template:${page.template}`);
   return out;
@@ -287,10 +267,9 @@ export function groupEntries(entries: Entry[]): Map<string, Entry[]> {
     }
     return root;
   };
-  const site = siteKeys(entries.map((entry) => entry.page));
   const named = new Map<Entry, string[]>();
   for (const entry of entries) {
-    const own = identities(entry.page, site);
+    const own = identities(entry.page);
     const keys = own.length ? own : [`page:${entry.page.id}`];
     named.set(entry, keys);
     for (const key of keys) if (!parent.has(key)) parent.set(key, key);
