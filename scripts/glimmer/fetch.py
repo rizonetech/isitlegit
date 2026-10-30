@@ -473,8 +473,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         # next; a refused route, or a file whose digest does not match, rules that URL out for the run.
         # A source a mixed-source digest failure ruled out is never asked again for this download, by this process or a
         # fresh one that finds it in the state.
-        ruled_out = (state.get("recovery") or {}).get("ruled_out") or []
-        live = [name for name in dict.fromkeys([url, *mirrors]) if name not in ruled_out]
+        # They are kept at the top of the state, so the recovery's end, a restart of the file or a fallback to the other
+        # URLs does not forget them (the recovery's own list is read too, for a state an earlier version wrote).
+        excluded: list[str] = list(dict.fromkeys([*(state.get("ruled_out") or []),
+                                                  *((state.get("recovery") or {}).get("ruled_out") or [])]))
+        state.pop("ruled_out", None)
+        if set(state) <= {"url", "expected"}:
+            state = {}  # nothing but the exclusions was kept: no progress to resume
+        live = [name for name in dict.fromkeys([url, *mirrors]) if name not in excluded]
         if not live:
             state_file.unlink(missing_ok=True)
             raise Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
@@ -487,6 +493,26 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
 
         def here() -> str:
             return live[where["at"] % len(live)]
+
+        def write_state(value: dict | None = None) -> None:
+            """The state saved, with the sources ruled out for this download."""
+            value = state if value is None else value
+            _write_json(state_file, {**value, "ruled_out": list(excluded)} if excluded else value)
+
+        def forget() -> None:
+            """The download's state is dropped (its partial starts again); what proved a source bad is not."""
+            if excluded:
+                _write_json(state_file, {"url": url, "expected": [kind, want], "ruled_out": list(excluded)})
+            else:
+                state_file.unlink(missing_ok=True)
+
+        def exclude(name: str) -> None:
+            """`name` is ruled out for this download, in this process and in a fresh one that reads the state."""
+            if name not in excluded:
+                excluded.append(name)
+            recovery = state.get("recovery")
+            if recovery is not None and name not in recovery["ruled_out"]:
+                recovery["ruled_out"].append(name)
 
         def rotate():
             if len(live) > 1:
@@ -546,7 +572,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         def restart(reason: str):
             nonlocal state
             partial.unlink(missing_ok=True)
-            state_file.unlink(missing_ok=True)
+            forget()
             state = {}
             spend(reason, stay=True)  # the URL answered, with another file: start it again there, not elsewhere
 
@@ -686,7 +712,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 # The saved ranges belong to a file no live URL gives now: the first to answer starts it again.
                 log("fetch: no URL gives the file the saved ranges belong to; starting again from the next one")
                 partial.unlink(missing_ok=True)
-                state_file.unlink(missing_ok=True)
+                forget()
                 state = {}
                 return "again"
             return agreed, *reference
@@ -704,7 +730,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 # Ranges that do not tile the file, or a partial of the wrong length: start again, whatever this run
                 # asks (a one-stream run would otherwise read the sparse partial's full length as a whole file).
                 partial.unlink(missing_ok=True)
-                state_file.unlink(missing_ok=True)
+                forget()
                 state = {}
             resuming = bool(state.get("segments"))
             if not resuming and (one_stream or state):
@@ -726,7 +752,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 state = {"url": url, "expected": [kind, want], "validator": validator, "encoding": "identity",
                          "total": total, "segments": [[a, min(a + size, total) - 1, 0] for a in range(0, total, size)],
                          "sources": [], "provenance": []}
-                _write_json(state_file, state)
+                write_state()
             else:
                 room(0)  # the partial already holds its full length: the source and disk must still allow it now
                 resumed = resumed or any(item[2] for item in state["segments"])
@@ -768,7 +794,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         if prov is not None:
                             claimed["provenance"] = sorted(list(span) for span in prov)
                     os.fsync(fd)
-                    _write_json(state_file, claimed)
+                    write_state(claimed)
 
             owner: dict[int, str] = {}  # each range's source: the one its next request goes to
             hold = cooldown  # a source asked to wait (Retry-After): when it may be asked again
@@ -1255,8 +1281,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         def trial(candidate: str, total: int) -> str:
             """One whole-file download from `candidate` alone, into a temporary file of its own and checked against the
             published digest, so no other source's bytes can be in it. "verified" (the file is now the partial),
-            "wrong" (this source gives other bytes), "failed" (a counted failure: it may be asked again) or "skip" (it
-            does not give this file, or its route is refused)."""
+            "wrong" (this source gives other bytes), "failed" (a counted failure: it may be asked again), "unusable" (it
+            answers, but not with this whole file: another status, length or coding) or "skip" (its route is refused)."""
             nonlocal fetched
             room(total)
             cool(candidate)
@@ -1281,8 +1307,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         return "failed"
                     encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
                     if code != 200 or _count(response.getheader("Content-Length")) != total or encoding != "identity":
-                        log(f"fetch: {candidate} does not give the whole file this download is of; it is not tried")
-                        return "skip"
+                        log(f"fetch: {candidate} does not give the whole file this download is of")
+                        return "unusable"
                     hash_, got, base = hashlib.new(kind), 0, _folder_bytes(source)
                     try:
                         with trial_path.open("wb") as handle:
@@ -1331,7 +1357,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             (the other live URLs then start the file again, whole, under their own representation)."""
             nonlocal state
             recovery = state["recovery"]
-            queue = [name for name in recovery["candidates"] if name in live and name not in recovery["ruled_out"]]
+            queue = [name for name in recovery["candidates"] if name in live and name not in excluded]
             while queue:
                 candidate = queue.pop(0)
                 result = trial(candidate, state["total"])
@@ -1342,16 +1368,25 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     return True
                 if result == "failed":
                     queue.append(candidate)  # the budget bounds how often
-                elif result == "wrong":
-                    recovery["ruled_out"].append(candidate)
-                    _write_json(state_file, state)
-                    live.remove(candidate)
+                elif result in ("wrong", "unusable", "skip"):
+                    # A source whose bytes do not match, or that gives no whole file to check (another status, length
+                    # or coding, or a refused route), is ruled out and the outcome saved: it is never asked again, so a
+                    # server that corrupts ranges and refuses whole files cannot send the run round again.
+                    exclude(candidate)
+                    write_state()
+                    if candidate in live:
+                        live.remove(candidate)
                     where["at"] = where["at"] % len(live) if live else 0
-                    log(f"fetch: {candidate} gives bytes that do not match; ruled out ({len(live)} URLs left)")
-            state_file.unlink(missing_ok=True)
+                    why = "gives bytes that do not match" if result == "wrong" else "gives no whole file to check"
+                    log(f"fetch: {candidate} {why}; ruled out ({len(live)} URLs left)")
+            partial.unlink(missing_ok=True)
+            if live:
+                forget()  # the other URLs start the file again, keeping the exclusions
+            else:
+                state_file.unlink(missing_ok=True)
             state = {}
             if not live:
-                raise Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
+                raise Refused(f"refused: the {kind} does not match the published one and no URL is left to ask; the partial file is removed")
             return False
 
         found = None
@@ -1435,7 +1470,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             os.fsync(handle.fileno())
                         state = {"url": url, "expected": [kind, want], "validator": _validator(response.headers),
                                  "encoding": encoding, "total": body, "final_url": final_url, "sources": []}
-                        _write_json(state_file, state)
+                        write_state()
                         have = 0
                         mode = "ab"
                         resumed = False
@@ -1470,7 +1505,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                     # source that answered and sent nothing is not one that supplied the file.
                                     handle.flush()
                                     state["sources"].append(supplier)
-                                    _write_json(state_file, state)
+                                    write_state()
                                 now = time.monotonic()
                                 if now - window_start >= rate_window:
                                     if window_bytes / (now - window_start) < min_rate:
@@ -1499,7 +1534,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         continue
                     if state.get("total") is None:
                         state["total"] = have + got  # no length given: whatever arrived whole is what the digest will judge
-                        _write_json(state_file, state)
+                        write_state()
                     # A valid shorter range is progress, not a failure: the loop asks for the next one. A tiny one when
                     # more was asked spends an attempt, so a host answering a byte at a time cannot go on forever.
                     if (code == 206 and body is not None and body < SHORT_ANSWER
@@ -1515,7 +1550,6 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
             if found != want:
                 partial.unlink(missing_ok=True)
-                state_file.unlink(missing_ok=True)
                 mismatch = Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
                 suppliers = contributors()
                 kept = {key: state.get(key) for key in ("validator", "encoding", "total")}
@@ -1524,6 +1558,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 if len(live) == 1 or len(suppliers) == 1:
                     # The file was one URL's bytes alone (or there is only one URL): it serves other bytes, and is
                     # ruled out; with no other URL left, that is the answer.
+                    if len(live) > 1:
+                        exclude(suppliers[0])
+                        forget()
+                    else:
+                        state_file.unlink(missing_ok=True)
                     drop(mismatch, suppliers[0] if len(suppliers) == 1 else None)
                 else:
                     # Bytes from several URLs (or from a run that did not record them): no one URL can be blamed. Each
@@ -1531,8 +1570,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     known = {*suppliers, *agreed}
                     candidates = [name for name in dict.fromkeys([url, *mirrors]) if name in live and name in known]
                     state = {"url": url, "expected": [kind, want], **kept, "sources": [],
-                             "recovery": {"candidates": candidates or list(live), "ruled_out": []}}
-                    _write_json(state_file, state)
+                             "recovery": {"candidates": candidates or list(live), "ruled_out": list(excluded)}}
+                    write_state()
                     log(f"fetch: the {kind} does not match and the bytes came from {len(suppliers) or 'unrecorded'} URLs; "
                         "trying each source alone")
                 continue

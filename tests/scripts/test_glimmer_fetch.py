@@ -261,11 +261,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if "encoding" in modes:
                 self.send_header("Content-Encoding", "gzip")
         else:
+            if "whole-404" in modes:
+                self.send_response(404)  # a whole-file request this source cannot answer, whatever its ranges give
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             self.send_response(200)
             chunk = body
             for offset in server.damaged:
                 chunk = chunk[:offset] + bytes([chunk[offset] ^ 0xFF]) + chunk[offset + 1:]
-            length = len(chunk)
+            length = len(chunk) - 1 if "whole-length" in modes else len(chunk)
+            if "whole-gzip" in modes:
+                self.send_header("Content-Encoding", "gzip")
         if "no-validator-on-range" in modes and honour:
             pass  # a 206 that names no representation
         elif "weak-etag" in modes or ("weak-etag-on-range" in modes and honour):
@@ -1927,6 +1934,68 @@ class Fetch(unittest.TestCase):
         self.assertFalse(Path("src/.partial/data.bin").exists())
         self.assertFalse(Path("src/.partial/data.bin.state.json").exists())
 
+
+    WHOLE_FILE_UNUSABLE = ({"whole-404"}, {"whole-length"}, {"whole-gzip"})  # a wrong status, length and coding
+
+    def corrupt_pair_and_an_outsider(self, whole_modes):
+        """This server and a mirror that agree on the file and give a damaged byte in their ranges (and, unless
+        `whole_modes` make the whole file unusable, in the whole file too), and an outsider with another validator and
+        the true bytes: (the mirror, its base URL, the outsider, its base URL)."""
+        second, second_base = self.mirror()
+        outsider, outsider_base = self.mirror()
+        outsider.etag = '"v2"'
+        for server in (self.server, second):
+            server.damaged = {100}
+            server.modes = set(whole_modes)
+        return second, second_base, outsider, outsider_base
+
+    def test_a_search_whose_whole_file_answers_are_unusable_ends_refused_instead_of_repeating(self):
+        for modes in ({"whole-404"}, {"whole-length"}, {"whole-gzip"}, set()):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.requests = self.server.segment_requests = 0
+                second, second_base, _, _ = self.corrupt_pair_and_an_outsider(modes)
+                second.requests = second.segment_requests = 0
+                real, calls = fetch._request, []
+
+                class Runaway(BaseException):
+                    pass
+
+                def counted(*args, **kwargs):
+                    calls.append(1)
+                    if len(calls) > 60 and threading.current_thread() is threading.main_thread():
+                        raise Runaway("the same download and recovery went round again")
+                    return real(*args, **kwargs)
+
+                with mock.patch.object(fetch, "_request", counted), self.assertRaisesRegex(fetch.Refused, "does not match"):
+                    self.mixed(second_base, attempts=5)
+                self.assertEqual((self.trials(self.server), self.trials(second)), (1, 1))  # each asked once, then out
+                self.assertFalse(Path("src/data.bin").exists())
+                self.assertFalse(Path("src/.partial/data.bin").exists())
+                self.assertFalse(Path("src/.partial/data.bin.state.json").exists())
+
+    def test_ruled_out_sources_stay_ruled_out_through_the_fallback_and_a_fresh_process(self):
+        for modes in ({"whole-404"}, {"whole-length"}, {"whole-gzip"}, set()):  # unusable answers, and wrong bytes
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.requests = self.server.segment_requests = self.server.heads = 0
+                second, second_base, outsider, outsider_base = self.corrupt_pair_and_an_outsider(modes)
+                second.requests = second.segment_requests = second.heads = 0
+                mine, theirs, last = self.base + "/file", second_base + "/file", outsider_base + "/file"
+
+                def fallback_begun(value):
+                    # Both agreeing sources are out and the outsider's own download has its state saved.
+                    return bool(value.get("segments")) and value.get("ruled_out") == [mine, theirs]
+
+                with self.stopping_after(fallback_begun), self.assertRaisesRegex(fetch.Refused, "the test stops the run"):
+                    self.mixed(second_base, outsider_base, attempts=5)
+                saved = json.loads(Path("src/.partial/data.bin.state.json").read_text())
+                self.assertEqual(saved["ruled_out"], [mine, theirs])  # kept beside the fallback's own progress
+                before = [(server.heads, server.requests) for server in (self.server, second)]
+                code, line = self.cli_run("--mirror", theirs, "--mirror", last)  # a fresh process
+                self.assertEqual((code, line["status"], line["urls"]), (0, "fetched", [last]), line)
+                self.assert_whole()
+                self.assertEqual([(server.heads, server.requests) for server in (self.server, second)], before)
 
     # The JSON line's `urls` (D03 T04 §22).
     def cli_run(self, *args, dest="src/data.bin", sha=SHA):
