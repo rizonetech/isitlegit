@@ -1221,6 +1221,12 @@ describe("the scan of the built files for protected sample details", () => {
     expect(scanSampleLines([{ id: "p-2", origin: "public", line: named }], ["Kestrel Holdings"], "image")).toEqual([
       "p-2: a protected sample term",
     ]);
+    // A recipient's first name alone on a public page is a stranger's name, not a leak; on a sample line it is one.
+    const firstName = await sampleLine("p-3", "Dear Thandiwe, your parcel is waiting");
+    expect(scanSampleLines([{ id: "p-3", origin: "public", line: firstName }], ["Thandiwe"], "image")).toEqual([]);
+    expect(scanSampleLines([{ id: "p-3", origin: "samples", line: firstName }], ["Thandiwe"], "image")).toEqual([
+      "p-3: a protected sample term",
+    ]);
   });
 
   it("refuses a version whose public-origin line names a protected client", async () => {

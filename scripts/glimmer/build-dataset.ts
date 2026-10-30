@@ -618,11 +618,16 @@ export function scanSampleLines(
   mode: ScreenMode,
 ): string[] {
   const problems: string[] = [];
+  // A public page cannot carry the client's mail, but it can carry an ordinary first name that is also one recipient's
+  // name piece: on a public line only the terms no stranger's page shares by chance are read (a full name, an address,
+  // a domain); a sample line is read for every term.
+  const strong = terms.filter((term) => /[\s@.]/.test(term.trim()));
   for (const { id, origin, line } of lines) {
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
     const shown = `${text.split(nonce).join("")}\n${answer.brand ?? ""}`;
-    if (leaks([{ id, text: shown }], terms).length) problems.push(`${id}: a protected sample term`);
+    if (leaks([{ id, text: shown }], origin === "samples" ? terms : strong).length)
+      problems.push(`${id}: a protected sample term`);
     if (origin !== "samples") continue;
     const kind = personalDetail(shown);
     if (kind) problems.push(`${id}: ${kind}`);
