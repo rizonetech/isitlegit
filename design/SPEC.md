@@ -924,6 +924,7 @@ States:
 Boards: [PNG](mockups/png/Error-403.png) · [source](mockups/source/Error-403.dc.html)
 
 - Deviation (D07 T04 §1): the Cases list answers its own 403 (no active organisation, or a membership just removed) with Sign out alone, because the board's "Go to your own cases" is that page and would answer the same 403 again.
+- Deviation (D07 T02 §15): a member of the organisation who is not an owner or admin, asking for an owner's page (the domain verification page), gets a 403 of its own: "Only an owner or admin verifies domains.", "An owner or admin of <organisation> verifies its domains. Ask one of them to do it." and Go to your cases. The board draws only the not-a-member case, whose sentence (ask an owner to invite this address) would be wrong for someone already a member.
 
 Controls:
 

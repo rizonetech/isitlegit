@@ -121,4 +121,24 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted) location.reload();
 });
 
+// A form marked `data-busy` (the domain page's Check now, Send code and Verify, D07 T02 §15) shows its button busy
+// while the request runs, and a second press does nothing: the button says what is happening (`data-busy-label`) and
+// is disabled once the form has gone. The action travels in a hidden field, so disabling the button loses nothing.
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-busy")) return;
+  if (form.dataset.sent === "true") {
+    event.preventDefault();
+    return;
+  }
+  form.dataset.sent = "true";
+  const button = form.querySelector<HTMLButtonElement>("button[type=submit][data-busy-label]");
+  if (!button) return;
+  setTimeout(() => {
+    button.textContent = button.dataset.busyLabel ?? button.textContent;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  }, 0);
+});
+
 export {};

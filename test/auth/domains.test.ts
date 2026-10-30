@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DOH_URL, findMemberBySender } from "../../src/auth/domains";
+import { DOH_URL, domainClaimView, findMemberBySender, normaliseClaimCode } from "../../src/auth/domains";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
 import { call, redeem, sessionCookie } from "./helpers";
@@ -835,6 +835,44 @@ describe("completion review cases", () => {
     expect(answered.status).toBe(503);
     expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
     expect(await stateOf(orgId, "deadline.co.za")).toBe("pending");
+  });
+});
+
+describe("the domain page's needs (D07 T02 §15)", () => {
+  it("reads a code as people type it, keeping leading zeroes, and nothing else as a code", () => {
+    expect(normaliseClaimCode("482107")).toBe("482107");
+    expect(normaliseClaimCode(" 48 21 07 ")).toBe("482107");
+    expect(normaliseClaimCode("482-107")).toBe("482107");
+    expect(normaliseClaimCode("007 001")).toBe("007001");
+    for (const bad of ["48210", "4821077", "48a107", "48  2107", "48--2107", "", "-482107"])
+      expect(normaliseClaimCode(bad), bad).toBeNull();
+  });
+
+  it("verifies a grouped code, and refuses a malformed one without spending an attempt", async () => {
+    const { cookie, orgId } = await owner("grouped@example.org");
+    await json("/domains", cookie, "POST", { domain: "grouped.co.za" });
+    await json("/domains/grouped.co.za/code", cookie, "POST", { local: "admin" });
+    const code = lastCode();
+    const bad = await json("/domains/grouped.co.za/verify", cookie, "POST", { code: "48a107" });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ error: "send the 6 digits you were mailed" });
+    expect((await domainClaimView(db, orgId, "grouped.co.za"))?.code.attempts).toBe(0);
+    const grouped = `${code.slice(0, 2)} ${code.slice(2, 4)} ${code.slice(4)}`;
+    expect((await json("/domains/grouped.co.za/verify", cookie, "POST", { code: grouped })).status).toBe(200);
+    expect((await domainClaimView(db, orgId, "grouped.co.za"))?.state).toBe("verified");
+  });
+
+  it("names a different verification record a check finds, and keeps the check for the page", async () => {
+    const { cookie, orgId } = await owner("different@example.org");
+    await json("/domains", cookie, "POST", { domain: "different.co.za" });
+    world.doh = () => txtAnswer("isitlegit-verify=0b19aaaabbbbccccddddeeeeffff0000");
+    expect((await json("/domains/different.co.za/check", cookie, "POST")).status).toBe(200);
+    const view = await domainClaimView(db, orgId, "different.co.za");
+    expect(view).toMatchObject({ state: "pending", lastCheck: { outcome: "dns-different" } });
+    world.doh = () => Response.json({ Status: 3 });
+    await json("/domains/different.co.za/check", cookie, "POST");
+    expect((await domainClaimView(db, orgId, "different.co.za"))?.lastCheck?.outcome).toBe("dns-not-visible");
+    expect(await domainClaimView(db, orgId, "never-claimed.co.za")).toBeNull();
   });
 });
 
