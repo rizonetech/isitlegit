@@ -64,6 +64,7 @@ track: day-0
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
+| 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -881,6 +882,28 @@ Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope the
 - [ ] Commit: `tools: the publication check reads the clone's client list`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_check_publication` passes, including the linked worktree without its own list (which exits 2 on the current check).
+
+## 26. Uncoordinated lane: no run guard, reviewless stamps
+
+Operator request, 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane): the `media` lane (D10, branch `claude/trusting-pasteur-umwvqz`) is registered but not coordinated. Lane scoping (§19) already keeps its rows out of every other lane's queries. The tools must also know the lane is uncoordinated, so that no run guard starts in it and its stamps need no plan review, completion review or rounds, with the waiver recorded rather than silent.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Mark a lane uncoordinated. Done when: `todo/lanes.json` accepts `"coordinated": false` on a lane, refuses a non-boolean, and `query lane` prints it.
+2. Keep the coordinator's machinery out of it. Done when: `campaign_guard.py acquire` refuses to start a run in an uncoordinated lane, and a stamp of one of its sections records the waived reviews in its receipt.
+
+- [ ] Accept an optional `coordinated` boolean (default true) per lane in `lanes()` (`scripts/lib/todo_graph.py`), and print it from `query lane`. Done when: `tests/scripts/test_todo_graph.py` loads `"coordinated": false`, refuses `"coordinated": "no"`, and reads `coordinated: false` from `query lane`.
+- [ ] Refuse `acquire` in `scripts/campaign_guard.py` when `query lane` reports `coordinated: false`, naming the lane and the spec amendment. Done when: `tests/scripts/test_campaign_guard.py` refuses it with the guard file unwritten, and a coordinated lane still acquires.
+- [ ] Let `stamp` take a section of an uncoordinated lane without `--plan`, `--completion` or `--review`, requiring `--sha` and at least one `--check`, and record `"waived": "plan, completion and review rounds: uncoordinated lane <name> (operator, 2026-10-30)"` in the receipt; validation accepts such a receipt only while the section's lane is uncoordinated. Done when: a test stamps a D10 section with checks only and validates, the same receipt refuses once the lane is coordinated, and a coordinated section's stamp without reviews still refuses.
+- [ ] Set `"coordinated": false` on the `media` lane in `todo/lanes.json`. Done when: `TODO_LANE=media python3 scripts/todo-graph.py query lane` prints `coordinated: false`.
+- [ ] Name the rule in `AGENTS.md` Parallel lanes and the `process-plan` skill (an uncoordinated lane runs no campaign; its stamps carry the waiver). Done when: both name it.
+- [ ] Commit: `tools: an uncoordinated lane: no run guard, stamps without review rounds`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph tests.scripts.test_campaign_guard` passes, including the waived D10 stamp that refuses once its lane is coordinated.
 
 ## Verification
 
