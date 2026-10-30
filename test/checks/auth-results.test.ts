@@ -242,6 +242,15 @@ describe("trustedAuthResults", () => {
     ]);
   });
 
+  it("reads a provider's header above its first hop as its topmost, never a lower one (round 3)", () => {
+    const headers = [
+      h("Authentication-Results", "mx.google.com; spf=fail smtp.mailfrom=bank.example"),
+      h("Received", "from attacker.example (203.0.113.9) by mx.google.com with ESMTP"),
+      h("Authentication-Results", "mx.google.com; spf=pass smtp.mailfrom=bank.example"),
+    ];
+    expect(results(trustedAuthResults(headers, GOOGLE))).toEqual(["spf=fail"]);
+  });
+
   it("lets a provider's stamp vouch only under its own entry hop (round 1)", () => {
     const mixed: Receiver[] = [...GOOGLE, { kind: "other", pattern: "*.mailhost.example" }];
     const viaOther = [

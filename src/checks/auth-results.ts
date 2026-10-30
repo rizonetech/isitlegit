@@ -121,7 +121,12 @@ export function trustedAuthResults(
       if (by === null || literal(by)) continue;
       const receiver = ours(by);
       if (!receiver) break; // another host wrote this: everything from here down came with the message
-      top ??= receiver.kind;
+      if (top === undefined) {
+        top = receiver.kind;
+        // A provider's header above its first hop is its topmost (round 3): read it, never a lower one.
+        const earlier = above.find((a) => a.kinds.has(receiver.kind));
+        if (STAMPS_EVERY_MESSAGE.has(top) && earlier) return { trusted: { kind: top, ...earlier.parsed } };
+      }
       if (STAMPS_EVERY_MESSAGE.has(top)) continue;
       const address = connectedFrom(value);
       if (address !== null && privateAddress(address)) continue; // a hop between the receiver's own machines
