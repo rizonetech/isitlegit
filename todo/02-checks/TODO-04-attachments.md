@@ -31,7 +31,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [x] |
-| 2 | §2 | HTML attachments and smuggling | §1 | [ ] |
+| 2 | §2 | HTML attachments and smuggling | §1 | [x] |
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [ ] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
@@ -88,6 +88,9 @@ An HTML attachment is either a local phishing page (opened from disk, so link ch
 - [x] Commit: `checks: HTML attachments and smuggling` Done 2026-10-31: 625e0a3, with 601a4cd (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/html-attachment.test.ts` passes and fails if the base64 blob loader is rated medium.
+
+> **Verified:** 2026-10-31 | §2 | 1ef8c5c16cd7a1b7e1cf892dd3e264d213314853
+> **Review:** `docs/reviews/d02-t04-s2.json`
 
 ## 3. Macros, encrypted archives and executables
 
