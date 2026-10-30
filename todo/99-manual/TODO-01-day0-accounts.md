@@ -354,10 +354,14 @@ Walkthrough 2026-10-29, against the live domain, nothing changed, every step lis
 D99 T01 §6's check proves the Web Risk key works and that seven other Google APIs refuse it, at least one by the key's API restriction; it cannot read the key's exact allowed-service list, so a key allowed Web Risk and an eighth, unprobed API would pass. Google's API Keys API reads that list (`keys.lookupKey` with the key string, then `keys.get` for its `restrictions.apiTargets`; https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys), but needs a Google Cloud credential with `apikeys.keys.lookup` and `apikeys.keys.get` on the Rizonetech project, which this repository does not hold. Filed from §6's completion review (gap C1 and E1, 2026-10-28).
 
 **Phase:** 99
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Operator action (open):** create a Google Cloud service account in the Rizonetech project with the API Keys Viewer role only, and store its JSON key in the Conclave vault as "IsItLegit Google API keys viewer". Recording `Operator ready: API keys viewer (YYYY-MM-DD)` here and removing `operator` from Needs releases the section.
+
+Operator ready: API keys viewer (2026-10-30)
+
+**Corrected 2026-10-30** (Needs was `operator`): the operator created the service account `isitlegit-apikeys-viewer@rizonetech-511822.iam.gserviceaccount.com` (API Keys Viewer only) and stored its JSON key in "IsItLegit Google API keys viewer" (operator batch 1, `docs/coordinator.md`), and enabled the API Keys API in project 131143319364, which holds the Web Risk key. A first read by the coordinator (2026-10-30 15:31 SAST) found `keys.lookupKey` and `keys.get` answering 200 and `restrictions.apiTargets` naming exactly `webrisk.googleapis.com`, with no other restriction. Read the key with `op read`, not `op item get --fields`, which CSV-quotes a JSON value.
 
 **Build order:**
 
