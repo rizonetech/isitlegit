@@ -349,19 +349,27 @@ async function record(db: D1Database, event: RoutingEvent, now: Date): Promise<n
 // forwards, never one (round 1). A cluster with no forward of its own beside a refusal already resolved (the same
 // subject and destination within NOTICE_SPREAD_MS, its notices read in a later run) is that refusal's, folded into it.
 // Returns how many notices' incidents were folded into another.
-type Waiting = { key: string; subject_hash: string; destination_domain: string | null; occurred_at: string };
+type Waiting = {
+  key: string;
+  subject_hash: string;
+  destination_domain: string | null;
+  occurred_at: string;
+  detected_at: string;
+};
 async function resolveRefusals(db: D1Database, now: Date, graceMs: number): Promise<number> {
   let folded = 0;
   const waiting = await db
     .prepare(
-      "SELECT key, subject_hash, destination_domain, occurred_at FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' AND detected_at <= ? ORDER BY occurred_at, key",
+      "SELECT key, subject_hash, destination_domain, occurred_at, detected_at FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at, key",
     )
-    .bind(new Date(now.getTime() - graceMs).toISOString())
     .all<Waiting>();
+  // A cluster starts from a notice past the grace and takes in every waiting notice beside it, read in whatever scan:
+  // a related notice read a run later must not be left to claim a forward alone (§9 round 3).
+  const cutoff = new Date(now.getTime() - graceMs).toISOString();
   const done = new Set<string>();
   const gap = (a: string, b: string) => Math.abs(Date.parse(b) - Date.parse(a));
   for (const first of waiting.results) {
-    if (done.has(first.key)) continue;
+    if (done.has(first.key) || first.detected_at > cutoff) continue;
     const cluster = [first];
     for (const next of waiting.results) {
       const last = cluster[cluster.length - 1] as Waiting;
@@ -392,7 +400,28 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number): Prom
       .bind(first.subject_hash, last.occurred_at, new Date(Date.parse(first.occurred_at) - NDR_WINDOW_MS).toISOString())
       .all<{ message_hash: string; alias: string; sender_domain: string | null; at: string }>();
     const found = forwards.results;
-    const only = found.length === 1 ? found[0] : undefined;
+    // Notices beside a refusal already resolved (read after it was): another notice of it, folded and counted there,
+    // when no other forward could be theirs; otherwise their own incident, never definitive, naming the forwards that
+    // could be (a delivered one included), since a notice does not say which message it refused (§9 round 3).
+    const sibling = await db
+      .prepare(
+        "SELECT key FROM forward_incidents WHERE kind = 'refused' AND key <> ? AND alert <> 'waiting' AND subject_hash = ? AND destination_domain IS ? AND julianday(occurred_at) BETWEEN julianday(?) - ? AND julianday(?) + ? ORDER BY occurred_at LIMIT 1",
+      )
+      .bind(
+        first.key,
+        first.subject_hash,
+        first.destination_domain,
+        first.occurred_at,
+        NOTICE_SPREAD_MS / 86400000,
+        last.occurred_at,
+        NOTICE_SPREAD_MS / 86400000,
+      )
+      .first<{ key: string }>();
+    if (sibling && !found.length) {
+      await fold(sibling.key, [first]);
+      continue;
+    }
+    const only = !sibling && found.length === 1 ? found[0] : undefined;
     if (only) {
       await db
         .prepare(
@@ -402,21 +431,14 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number): Prom
         .run();
       continue;
     }
-    if (found.length > 1) {
+    if (found.length >= 1) {
       await db
         .prepare("UPDATE forward_incidents SET alias = ?, uncertain = 1, alert = 'pending' WHERE key = ?")
         .bind([...new Set(found.map((f) => f.alias))].join(", "), first.key)
         .run();
       continue;
     }
-    const sibling = await db
-      .prepare(
-        "SELECT key FROM forward_incidents WHERE kind = 'refused' AND key <> ? AND alert <> 'waiting' AND subject_hash = ? AND destination_domain IS ? AND ABS(julianday(occurred_at) - julianday(?)) * 86400000 <= ? ORDER BY occurred_at LIMIT 1",
-      )
-      .bind(first.key, first.subject_hash, first.destination_domain, first.occurred_at, NOTICE_SPREAD_MS)
-      .first<{ key: string }>();
-    if (sibling) await fold(sibling.key, [first]);
-    else await db.prepare("UPDATE forward_incidents SET alert = 'pending' WHERE key = ?").bind(first.key).run();
+    await db.prepare("UPDATE forward_incidents SET alert = 'pending' WHERE key = ?").bind(first.key).run();
   }
   return folded;
 }
@@ -441,7 +463,9 @@ export function alertText(incident: Incident): { subject: string; text: string }
   if (incident.kind === "refused") {
     const alias = incident.alias
       ? incident.uncertain
-        ? `one of ${incident.alias} (several messages had the same subject)`
+        ? incident.alias.includes(",")
+          ? `one of ${incident.alias} (several messages had the same subject)`
+          : `possibly ${incident.alias} (another message had the same subject, and a refusal notice does not say which)`
         : incident.alias
       : "an alias (its forward was not found)";
     const received = incident.received_at ? `, received at ${incident.received_at},` : "";
