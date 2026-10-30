@@ -156,7 +156,7 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 - [x] Cache results in `CACHE` for 7 days keyed by registrable domain. Done when: a second lookup makes no network call. Done 2026-10-30: KV keys and TTLs read back in `test/checks/rdap.test.ts`.
 - [x] Register `domain.age` over the view's `domainAges`, filled by the `checks` step (corrections 1 and 2): high under 30 days, medium under 90, info otherwise, with the date and RDAP server as detail. Done when: the test covers each band, and a Workflow read-back test stores a stubbed new domain as high. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `src/checks/domain-age.ts`; the checks step reads the ages (`domainAges`); `test/checks/rdap.test.ts` (20 tests) with the stored read-backs.
 - [x] Map timeouts and non-200 responses to `not_checked` for this check only when every lookup failed, and to an info item naming the domains not checked when some did (correction 4). Done when: a 503 stub yields `not_checked` naming `domain.age`, and a mixed case keeps its found ages. Cheaper substitute: treating unknown age as new. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: six mutations (no lookup deadline, a day's cache, trusted domains looked up, no lookup cap, another event's date, an outage never `not_checked`) each fail a test; 452 tests across checks, pipeline, intake and bindings pass.
-- [ ] Commit: `checks: domain age from RDAP with caching`
+- [x] Commit: `checks: domain age from RDAP with caching` Done 2026-10-30: c94105c, with 043b675 (completion review) and dd007c8 (round 1).
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes and fails if an outage is reported as a new domain.
 
