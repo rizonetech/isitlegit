@@ -1,7 +1,6 @@
-import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gzipSync } from "node:zlib";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -11,8 +10,14 @@ import {
   readHtml,
   readShot,
 } from "../../scripts/glimmer/import-phreshphish.ts";
-import { lureTypeOf, scamferretItems } from "../../scripts/glimmer/import-scamferret.ts";
-import { hostOf, importSource, type SourceItem } from "../../scripts/glimmer/import-source.ts";
+import { importScamferret, lureTypeOf, scamferretItems } from "../../scripts/glimmer/import-scamferret.ts";
+import {
+  exportBinding,
+  fileSha256,
+  hostOf,
+  importSource,
+  type SourceItem,
+} from "../../scripts/glimmer/import-source.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
@@ -61,36 +66,50 @@ describe("ScamFerret", () => {
   });
 
   it("imports a real screenshot and a rendered page, each read back whole", async () => {
-    const dataset = join(dir, "dataset");
-    const shop = join(dataset, "scam_websites", "online_shopping_english");
-    mkdirSync(join(shop, "toppage_html"), { recursive: true });
-    mkdirSync(join(shop, "sample_screenshot"), { recursive: true });
-    writeFileSync(
-      join(shop, "toppage_html", "cheap-shoes.example.html.gz"),
-      gzipSync("<h1>Designer shoes 90% off today only</h1>"),
-    );
     const big = await sharp({ create: { width: 2560, height: 5000, channels: 3, background: "#c33" } })
       .png()
       .toBuffer();
-    writeFileSync(join(shop, "sample_screenshot", "cheap-shoes.example.png"), big);
-    const crypto = join(dataset, "scam_websites", "cryptocurrency", "toppage_html");
-    mkdirSync(crypto, { recursive: true });
+    // The rows scripts/glimmer/scamferret_rows.py writes from the archive: the item id is `<class>/<category>/<file>`.
+    const rowsFile = join(dir, "rows.jsonl");
     writeFileSync(
-      join(crypto, "coin-yield.example.html.gz"),
-      gzipSync("<h1>Guaranteed daily returns on your coins</h1>"),
+      rowsFile,
+      `${[
+        {
+          sha256: "scam_websites/online_shopping_english/cheap-shoes.example.html.gz",
+          url: "https://cheap-shoes.example/",
+          html: "<h1>Designer shoes 90% off today only</h1>",
+          label: "phish",
+          target: null,
+          category: "online_shopping_english",
+          screenshot: big.toString("base64"),
+        },
+        {
+          sha256: "scam_websites/cryptocurrency/coin-yield.example.html.gz",
+          url: "https://coin-yield.example/",
+          html: "<h1>Guaranteed daily returns on your coins</h1>",
+          label: "phish",
+          target: null,
+          category: "cryptocurrency",
+        },
+        {
+          sha256: "legitimate_websites/investment/bank.example.html.gz",
+          url: "https://bank.example/",
+          html: "<h1>Annual report for shareholders</h1><input type=password>",
+          label: "benign",
+          target: null,
+          category: "investment",
+        },
+      ]
+        .map((row) => JSON.stringify(row))
+        .join("\n")}\n`,
     );
-    const legit = join(dataset, "legitimate_websites", "investment", "toppage_html");
-    mkdirSync(legit, { recursive: true });
-    writeFileSync(
-      join(legit, "bank.example.html.gz"),
-      gzipSync("<h1>Annual report for shareholders</h1><input type=password>"),
-    );
+    const itemsOf = async () => scamferretItems(rowsFile, await indexRows(rowsFile), reader);
 
     const store = openStore(join(dir, "store"));
     const result = await importSource({
       source: "scamferret",
       licence: "GPL-3.0",
-      items: scamferretItems(dataset, reader),
+      items: await itemsOf(),
       store,
     });
     expect(result).toMatchObject({ status: "complete", expected: 3, imported: 3, duplicates: 0, stored: 3 });
@@ -110,13 +129,13 @@ describe("ScamFerret", () => {
     });
     expect(benign).toMatchObject({ labels: { lure: false, lure_type: "none", has_login_form: true } });
     // A page stored before the mapping changed takes it on resume, without rendering again: its false flag untrusted.
-    const old = scamferretItems(dataset, reader).map(({ inertFlags: _, ...item }) => item);
+    const old = (await itemsOf()).map(({ inertFlags: _, ...item }) => item);
     const fresh = openStore(join(dir, "store2"));
     await importSource({ source: "scamferret", licence: "GPL-3.0", items: old, store: fresh });
     const before = fresh.manifest().find((p) => p.host === "cheap-shoes.example");
     expect(before?.label_source.has_login_form).toBe("dom");
     let rendered = 0;
-    const again = scamferretItems(dataset, reader).map((item) => ({
+    const again = (await itemsOf()).map((item) => ({
       ...item,
       load: async () => {
         rendered++;
@@ -131,7 +150,7 @@ describe("ScamFerret", () => {
       .find((p) => p.host === "cheap-shoes.example");
     expect(after?.label_source.has_login_form).toBe("unverified");
     // A mapping that no longer gives a field it once set withdraws it on resume; what the DOM set stays.
-    const withBrand = scamferretItems(dataset, reader).map((item) =>
+    const withBrand = (await itemsOf()).map((item) =>
       item.labels.lure_type === "fake_shop"
         ? {
             ...item,
@@ -146,7 +165,7 @@ describe("ScamFerret", () => {
     const corrected = await importSource({
       source: "scamferret",
       licence: "GPL-3.0",
-      items: scamferretItems(dataset, reader),
+      items: await itemsOf(),
       store: branded,
     });
     expect(corrected.relabelled).toBeGreaterThan(0);
@@ -160,6 +179,65 @@ describe("ScamFerret", () => {
     expect(jpegSize(shot.screenshot)).toEqual({ width: 1280, height: 2000 });
     expect(shot.text).toBe("Designer shoes 90% off today only");
     expect(openStore(join(dir, "store")).readPage(benign?.id ?? "").text).toBe("Annual report for shareholders");
+  });
+
+  describe("bound to its converter's export (D03 T04 §28)", () => {
+    const row = {
+      sha256: "scam_websites/technical_support/help.example.html.gz",
+      url: "https://help.example/",
+      html: "<h1>Call our support line to unlock your computer</h1>",
+      label: "phish",
+      target: null,
+      category: "technical_support",
+    };
+    // A store with the converter's rows and, when asked, the receipt that names them.
+    const withRows = (receipt: boolean | { inputs: string; rows_sha256: string }) => {
+      const folder = join(dir, "raw", "scamferret");
+      mkdirSync(folder, { recursive: true });
+      const rowsFile = join(folder, "rows.jsonl");
+      writeFileSync(rowsFile, `${JSON.stringify(row)}\n`);
+      if (receipt)
+        writeFileSync(
+          join(folder, "EXPORT.json"),
+          JSON.stringify(receipt === true ? { inputs: "m1", rows_sha256: fileSha256(rowsFile) } : receipt),
+        );
+      return { folder, rowsFile };
+    };
+
+    it("imports rows whose export receipt names them, and records the binding in IMPORT.json", async () => {
+      const { folder, rowsFile } = withRows(true);
+      expect(exportBinding(rowsFile)).toEqual({ inputs: "m1", rows: fileSha256(rowsFile) });
+      const result = await importScamferret(dir, reader, 1, () => {});
+      expect(result).toMatchObject({ status: "complete", expected: 1, stored: 1, inputs: "m1" });
+      const record = JSON.parse(readFileSync(join(folder, "IMPORT.json"), "utf-8"));
+      expect(record).toMatchObject({ status: "complete", inputs: "m1", rows: fileSha256(rowsFile) });
+      expect(openStore(dir).manifest()[0]).toMatchObject({
+        labels: { lure: true, lure_type: "impersonation" },
+        label_source: { lure: "ground-truth", lure_type: "ground-truth" },
+      });
+    });
+
+    it("refuses rows with no receipt, stores nothing and writes no IMPORT.json", async () => {
+      const { folder } = withRows(false);
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/EXPORT.json is missing/);
+      expect(existsSync(join(folder, "IMPORT.json"))).toBe(false);
+      expect(openStore(dir).manifest()).toEqual([]);
+    });
+
+    it("refuses rows changed since the receipt was written", async () => {
+      const { folder, rowsFile } = withRows(true);
+      writeFileSync(rowsFile, `${JSON.stringify({ ...row, label: "benign" })}\n`);
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/changed since its export receipt/);
+      expect(existsSync(join(folder, "IMPORT.json"))).toBe(false);
+      expect(openStore(dir).manifest()).toEqual([]);
+    });
+
+    it("refuses a receipt that names no inputs, and rows that were never converted", async () => {
+      withRows({ inputs: "", rows_sha256: "" });
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/does not name its inputs and rows/);
+      rmSync(join(dir, "raw"), { recursive: true });
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/scamferret_rows.py first/);
+    });
   });
 });
 

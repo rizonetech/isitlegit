@@ -10,7 +10,7 @@ Each source's files sit under `<store>/raw/<source>/` with their SHA-256 (or the
 
 | Source | Command |
 | ------ | ------- |
-| ScamFerret | `python3 scripts/glimmer/extract_archive.py <store>/raw/scamferret/artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc.tar.gz <store>/raw/scamferret/extracted --only artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc/dataset/` (the extractor keeps the archive's own paths, so the importer finds `extracted/artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc/dataset/`; the destination must not exist yet) |
+| ScamFerret | `python3 -I scripts/glimmer/scamferret_rows.py` (reads the archive `<store>/raw/scamferret/artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc.tar.gz` entry by entry, never unpacked, once `INPUTS.json` binds it, and writes `rows.jsonl` and `EXPORT.json`) |
 | PhreshPhish | `~/.venvs/fireworks/bin/python scripts/glimmer/phreshphish_rows.py` |
 | CompPhish, Ariyadasa 2021, Kempf HTML, Look For Mallory | `~/.venvs/fireworks/bin/python -I scripts/glimmer/dataset_rows.py <source> [--max 15000]` |
 | 7 Days Later | `~/.venvs/fireworks/bin/python -I scripts/glimmer/sevendays_rows.py [--max 15000]` |
@@ -21,7 +21,7 @@ Archives are read entry by entry, never run; each entry is bounded in size. Each
 
 | Source | Command |
 | ------ | ------- |
-| ScamFerret | `node scripts/glimmer/import-scamferret.ts [--concurrency 4]` |
+| ScamFerret | `node scripts/glimmer/import-scamferret.ts [--concurrency 4]` (reads only the rows its `EXPORT.json` names; rows without a receipt, or changed since, are refused) |
 | PhreshPhish | `node scripts/glimmer/import-phreshphish.ts [--concurrency 4]` |
 | The rest | `node scripts/glimmer/import-rows.ts <source> [--concurrency 4]` |
 
