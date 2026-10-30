@@ -24,23 +24,32 @@ import {
   checkFloors,
   dedupe,
   dhash,
+  eachLine,
   evaluationPool,
   FLOORS,
   freezeDigest,
   groupEntries,
   groupOf,
   hamming,
+  holdablePages,
   jaccard,
+  NEAR_TEXT,
   NO_FLOORS,
+  netNewLures,
   PublicationRefused,
+  previousHeldOut,
   referenceFile,
   ShortfallError,
+  sampleLure,
   sampleTerms,
   scanSampleLines,
   shingles,
+  siteKey,
   siteOf,
+  sizesAllow,
   split,
   validateLine,
+  writeLinesAtomic,
 } from "../../scripts/glimmer/build-dataset.ts";
 import { CONSENT_HEADING } from "../../scripts/glimmer/import-samples.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
@@ -117,13 +126,51 @@ describe("near duplicates", () => {
     expect(near).toBe(1);
     expect(kept.map((e) => e.page.id)).toEqual(["a", "c"]);
     expect(jaccard(shingles(text), shingles(text))).toBe(1);
+    // Packed, sorted and distinct, and the merge walk counts exactly what a set intersection would.
+    const words = shingles("one two three one two three four");
+    expect(words).toBeInstanceOf(Uint32Array);
+    expect([...words]).toEqual([...new Set(words)].sort((x, y) => x - y));
+    const a = shingles("the quick brown fox jumps over the lazy dog today");
+    const b = shingles("the quick brown fox jumps over a lazy cat today");
+    const both = [...a].filter((x) => b.includes(x)).length;
+    expect(jaccard(a, b)).toBeCloseTo(both / (a.length + b.length - both), 12);
+  });
+});
+
+describe("which copy of a duplicate is kept", () => {
+  it("keeps the copy whose label the teacher verified, whatever its id, and a reserved copy before either", () => {
+    const twin = (id: string) => ({ ...entryOf(page(id, {}, { lure: true, lure_type: "credential" })), hash: 7n });
+    const [a, b, c] = [twin("a"), twin("b"), twin("c")];
+    for (const e of [a, b, c]) e.page.sha256 = { screenshot: "s".repeat(64), text: "t".repeat(64) };
+    const checked = (e: { page: StoredPage }) => e.page.id === "c";
+    expect(dedupe([a, b, c], new Set(), [], undefined, checked).kept.map((e) => e.page.id)).toEqual(["c"]);
+    expect(dedupe([a, b, c], new Set(["b"]), [], undefined, checked).kept.map((e) => e.page.id)).toEqual(["b"]);
+    // Caught: without the teacher's verdict the lowest id survives.
+    expect(dedupe([a, b, c]).kept.map((e) => e.page.id)).toEqual(["a"]);
+  });
+  it("keeps a brand's teacher-verified pages within its cap of 300", () => {
+    const many = Array.from({ length: 320 }, (_, i) =>
+      entryOf(page(`p${String(i).padStart(3, "0")}`, {}, { brand: "Big", lure: true, lure_type: "credential" })),
+    );
+    const checked = new Set(Array.from({ length: 10 }, (_, i) => `p${310 + i}`));
+    const verified = (e: { page: StoredPage }) => checked.has(e.page.id);
+    let lostBefore = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const kept = new Set(capBrands(many, lcg(seed), verified).map((e) => e.page.id));
+      expect(kept.size).toBe(300);
+      for (const id of checked) expect(kept.has(id)).toBe(true);
+      // Caught: a cut that ignores the teacher drops some verified page.
+      const blind = new Set(capBrands(many, lcg(seed)).map((e) => e.page.id));
+      if ([...checked].some((id) => !blind.has(id))) lostBefore++;
+    }
+    expect(lostBefore).toBeGreaterThan(0);
   });
 });
 
 describe("caps and balance", () => {
   const entry = (id: string, labels: Partial<StoredPage["labels"]>) => {
     const p = page(id, {}, labels);
-    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
   };
   const random = () => 0.5;
 
@@ -151,7 +198,7 @@ describe("caps and balance keep the sample-derived lures", () => {
   const credential = { lure: true, lure_type: "credential" as const };
   const make = (id: string, sample: boolean, labels: Partial<StoredPage["labels"]> = credential) => {
     const p = page(id, { origin: sample ? "samples" : "public" }, labels);
-    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
   };
 
   it("cuts a brand's other pages before a sample-derived lure", () => {
@@ -179,7 +226,7 @@ describe("caps and balance keep the sample-derived lures", () => {
 describe("one brand identity and site-joined groups", () => {
   const entry = (id: string, over: Partial<StoredPage>, labels: Partial<StoredPage["labels"]>) => {
     const p = page(id, over, labels);
-    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+    return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
   };
   const credential = { lure: true, lure_type: "credential" as const };
 
@@ -255,7 +302,7 @@ describe("the split", () => {
           page: p,
           answer: answerOf(p) as PageAnswer,
           hash: BigInt(b * 10 + i),
-          words: new Set<number>(),
+          words: new Uint32Array(0),
         });
       }
     let state = 7;
@@ -614,6 +661,127 @@ describe("the split's targets are counted on what is published", () => {
   });
 });
 
+describe("a site names an operator; a verified shared platform names none (1.0 build: 28,334 pages chained)", () => {
+  const lure = { lure: true, lure_type: "credential" as const };
+  const pages = [
+    // One operator's lure domain serving a kit of three brands from one host (review round 5): one site, one group.
+    page("op1", { host: "secure.kestrel-pay.shop" }, { brand: "Alpha", ...lure }),
+    page("op2", { host: "secure.kestrel-pay.shop" }, { brand: "Beta", ...lure }),
+    page("op3", { host: "login.kestrel-pay.shop" }, { brand: "Gamma", ...lure }),
+    // A site builder whose tenants have their own subdomains: three tenants, three groups.
+    page("free1", { host: "one.weebly.com" }, { brand: "Delta", ...lure }),
+    page("free2", { host: "two.weebly.com" }, { brand: "Epsilon", ...lure }),
+    page("free3", { host: "three.weebly.com" }, { brand: "Zeta", ...lure }),
+    // A form platform whose tenants differ by path: no site, so only brands join.
+    page("form1", { host: "forms.gle" }, { brand: "Eta", ...lure }),
+    page("form2", { host: "forms.gle" }, { brand: "Theta", ...lure }),
+    page("form3", { host: "www.eta.example" }, { brand: "Eta", ...lure }),
+    // An account's own subdomain on a form platform is one operator (review round 6): one site, one group.
+    page("acct1", { host: "kestrel.formstack.com" }, { brand: "Iota", ...lure }),
+    page("acct2", { host: "kestrel.formstack.com" }, { brand: "Kappa", ...lure }),
+    page("acct3", { host: "kestrel.formstack.com" }, { brand: "Lambda", ...lure }),
+  ];
+  it("keeps one operator's brands together and parts a platform's tenants", () => {
+    const groupOfId = new Map<string, string>();
+    for (const [key, members] of groupEntries(pages.map(entryOf)))
+      for (const e of members) groupOfId.set(e.page.id, key);
+    expect(new Set(["op1", "op2", "op3"].map((id) => groupOfId.get(id))).size).toBe(1);
+    expect(new Set(["acct1", "acct2", "acct3"].map((id) => groupOfId.get(id))).size).toBe(1);
+    expect(new Set(["free1", "free2", "free3"].map((id) => groupOfId.get(id))).size).toBe(3);
+    expect(groupOfId.get("form1")).not.toBe(groupOfId.get("form2"));
+    expect(groupOfId.get("form1")).toBe(groupOfId.get("form3")); // the brand still joins them
+    expect(
+      ["secure.kestrel-pay.shop", "One.Weebly.com", "forms.gle", "kestrel.formstack.com", "www.formstack.com"].map(
+        siteKey,
+      ),
+    ).toEqual(["kestrel-pay.shop", "one.weebly.com", null, "kestrel.formstack.com", null]);
+  });
+  it("never lets the operator cross the split when one of its pages is reserved", () => {
+    for (const seed of [1, 2, 3, 5, 8]) {
+      for (const [reserved, operator] of [
+        ["op1", ["op1", "op2", "op3"]],
+        ["acct1", ["acct1", "acct2", "acct3"]],
+      ] as const) {
+        const parts = split(pages.map(entryOf), lcg(seed), { floors: NO_FLOORS, reserved: new Set([reserved]) });
+        const training = new Set(parts.train.map((e) => e.page.id));
+        for (const id of operator) expect(training.has(id)).toBe(false);
+      }
+    }
+  });
+});
+
+describe("a group too large to hold out trains (1.0 build: 18,880 pages of the common brands)", () => {
+  const lure = { lure: true, lure_type: "credential" as const };
+  // One group of 200 pages (a brand on many hosts, past 5 percent of 3,000 and past the 100-page floor) and 2,800
+  // single-brand groups.
+  const pages = [
+    ...Array.from({ length: 200 }, (_, i) =>
+      page(`m${i}`, { host: `www.mega${i}.example` }, { brand: "Mega", ...lure }),
+    ),
+    ...Array.from({ length: 2800 }, (_, i) =>
+      page(`s${i}`, { host: `www.small${i}.example` }, { brand: `Small ${i}`, ...lure }),
+    ),
+  ];
+  it("is never held for the brand share or the floors, whatever the seed", () => {
+    // The brand share holds about 280 single pages; a floor of 320 sends the loop after more.
+    const floors = { ...NO_FLOORS, evaluation: 320 };
+    let heldBefore = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const parts = split(pages.map(entryOf), lcg(seed), { floors });
+      expect(parts.evaluation.some((e) => e.page.labels.brand === "Mega")).toBe(false);
+      expect(parts.train.filter((e) => e.page.labels.brand === "Mega").length).toBe(200);
+      // Caught: with the size limit lifted, some seed holds the large group out.
+      const lifted = split(pages.map(entryOf), lcg(seed), { floors, maxHeldShare: 1 });
+      if (lifted.evaluation.some((e) => e.page.labels.brand === "Mega")) heldBefore++;
+    }
+    expect(heldBefore).toBeGreaterThan(0);
+  }, 120_000);
+  it("is left out of the reference draw, so no reference page forces it out of training", () => {
+    const drawn = new Set(holdablePages(pages).map((p) => p.id));
+    expect(drawn.has("m0")).toBe(false);
+    expect(drawn.size).toBe(2800);
+  });
+});
+
+describe("training's sample floor while the split chooses (1.0 build: 29 of 100 kept)", () => {
+  it("does not take sample lures into evaluation past what training must keep, however short South Africa is", () => {
+    const entries = [
+      ...Array.from({ length: 20 }, (_, i) =>
+        entryOf(
+          page(
+            `s${i}`,
+            { origin: "samples", redacted: true, south_africa: true },
+            { lure: true, lure_type: "credential" },
+          ),
+        ),
+      ),
+      ...Array.from({ length: 200 }, (_, i) =>
+        entryOf(
+          page(
+            `b${i}`,
+            { host: `www.b${i}.co.za` },
+            { brand: `B${i}`, lure: i % 2 === 0, lure_type: i % 2 === 0 ? "payment" : "none" },
+          ),
+        ),
+      ),
+    ];
+    // South Africa's floor can never be met here, so the loop wants every South African page it can find.
+    const floors = { ...NO_FLOORS, southAfrica: 500, sampleEvaluation: 5, sampleTraining: 0.5 };
+    for (const seed of [3, 5, 7, 11]) {
+      const parts = split(entries, lcg(seed), { floors });
+      const training = parts.train.filter((e) => sampleLure(e.page)).length;
+      expect(training).toBeGreaterThanOrEqual(10);
+      expect(parts.evaluation.filter((e) => sampleLure(e.page)).length).toBeGreaterThanOrEqual(5);
+      expect(
+        checkFloors(
+          { train: parts.train, evaluation: parts.evaluation, admittedSampleLures: 20 },
+          { ...floors, southAfrica: 0 },
+        ),
+      ).toEqual([]);
+    }
+  });
+});
+
 describe("the split without admissible pages", () => {
   it("does not hold training groups out for an evaluation nothing can enter", () => {
     const entries = Array.from({ length: 40 }, (_, b) =>
@@ -629,7 +797,7 @@ describe("the split without admissible pages", () => {
 });
 
 function entryOf(p: StoredPage) {
-  return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Set<number>() };
+  return { page: p, answer: answerOf(p) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
 }
 
 describe("a dispute known only to the teacher's state", () => {
@@ -902,7 +1070,7 @@ describe("the reference set reserved for §13", () => {
 });
 
 describe("reference protection outlives the reference page's candidacy", () => {
-  const words = new Set([1, 2, 3, 4, 5]);
+  const words = Uint32Array.from([1, 2, 3, 4, 5]);
   const at = (id: string, hash: bigint) => ({
     ...entryOf(page(id, { host: `www.${id}.co.za` }, { brand: `Brand ${id}`, lure: true, lure_type: "credential" })),
     hash,
@@ -1120,13 +1288,12 @@ describe("a build short of a floor", () => {
     await expect(build(store, { floors })).rejects.toThrow(/sample-derived lure evaluation pool 0 of 2/);
   });
 
-  it("refuses a build with every sample-derived lure in evaluation", async () => {
-    // All four in one group, agreed: evaluation takes the whole group and training keeps none.
+  it("refuses a build whose sample-derived lures cannot be split, one group holding all four", async () => {
+    // All four in one group, agreed: the group cannot go to evaluation without leaving training none, so the split keeps
+    // it in training and evaluation falls short instead. Either way the version is never published.
     const { store, ids } = await fill(dir, [...group("S One", 1, 4), ...publics]);
     teach(dir, Object.fromEntries(ids.slice(0, 8).map((id) => [id, AGREED])));
-    await expect(build(store, { floors })).rejects.toThrow(
-      /training keeps 0 of 4 sample-derived lures, at least 2 needed/,
-    );
+    await expect(build(store, { floors })).rejects.toThrow(/sample-derived lure evaluation 0 of 2/);
   });
 
   it("publishes a build with half of them in training, and records both counts in summary.json", async () => {
@@ -1280,12 +1447,19 @@ describe("the scan of the built files for protected sample details", () => {
     expect(scanSampleLines([{ id: "p-5", origin: "public", line: domain }], kinds, "image")).toHaveLength(1);
   });
 
-  it("refuses a version whose public-origin line names a protected client", async () => {
-    const { store } = await fill(dir, [
+  it("leaves a public page that names a protected client out of the version, counted (fourth 1.0 build)", async () => {
+    const { store, ids } = await fill(dir, [
       ...Array.from({ length: 3 }, (_, i) => ({ seed: i + 1, text: `Invoice from Kestrel Holdings ${i}` })),
       ...Array.from({ length: 4 }, (_, i) => ({ seed: 10 + i, lure: false })),
+      ...Array.from({ length: 3 }, (_, i) => ({ seed: 20 + i, text: `Your parcel is waiting ${i}` })),
     ]);
-    await expect(build(store, { protectedTerms: ["Kestrel Holdings"] })).rejects.toThrow(/a protected sample term/);
+    const built = await build(store, { protectedTerms: ["Kestrel Holdings"] });
+    expect(built.dropped.namesClient).toBe(3);
+    const published = [...idsIn(built.dir, "train"), ...idsIn(built.dir, "eval")];
+    for (const id of ids.slice(0, 3)) expect(published).not.toContain(id);
+    expect(published.length).toBeGreaterThan(0);
+    for (const name of ["train.jsonl", "eval.jsonl"])
+      expect(readFileSync(join(built.dir, name), "utf-8")).not.toContain("Kestrel Holdings");
   });
 
   const planted = (text: string) =>
@@ -1347,6 +1521,149 @@ describe("the scan of the built files for protected sample details", () => {
     // Without the consent section nothing is read.
     writeFileSync(join(samples, "pilot-consent.md"), "# Consent\n");
     await expect(sampleTerms(samples)).rejects.toThrow(/no sample is read without it/);
+  });
+});
+
+describe("a later version keeps the earlier one's held-out pages out of its training (§27)", () => {
+  it("reserves every page an earlier version evaluated on, so none trains the later version", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-heldout-"));
+    try {
+      const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({
+        seed: i,
+        lure: i % 2 === 0,
+        brand: `Brand ${i}`,
+        host: `site${i}.example`,
+      }));
+      const { store, ids } = await fill(dir, specs);
+      teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+      const first = await buildDataset({
+        store,
+        version: "1.0",
+        mode: "image",
+        seed: 3,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        protectedTerms: [],
+      });
+      const held = idsIn(first.dir, "eval");
+      expect(held.length).toBeGreaterThan(0);
+      expect([...previousHeldOut(store.dir, "1.1")].sort()).toEqual([...held].sort());
+      expect(previousHeldOut(store.dir, "1.0").size).toBe(0);
+      // Another seed would hold out other pages; the earlier version's held-out pages still never train.
+      const second = await buildDataset({
+        store,
+        version: "1.1",
+        mode: "image",
+        seed: 11,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        protectedTerms: [],
+        heldOut: previousHeldOut(store.dir, "1.1"),
+      });
+      const trained = new Set(idsIn(second.dir, "train"));
+      for (const id of held) expect(trained.has(id)).toBe(false);
+      // Without the earlier version's pages reserved, the other seed does train some of them.
+      const unguarded = await buildDataset({
+        store,
+        version: "1.2",
+        mode: "image",
+        seed: 11,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        protectedTerms: [],
+      });
+      expect(held.some((id) => idsIn(unguarded.dir, "train").includes(id))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the lures a sweep adds, after everything that drops pages (§27)", () => {
+  it("counts a new source's surviving lures by kind, and reads zero for a source whose lures all fall away", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-netnew-"));
+    try {
+      const specs: Spec[] = [
+        ...Array.from({ length: 12 }, (_, i) => ({
+          seed: i,
+          lure: i % 2 === 0,
+          brand: `Brand ${i}`,
+          host: `site${i}.example`,
+        })),
+        ...Array.from({ length: 4 }, (_, i) => ({
+          seed: 40 + i,
+          lure: true,
+          type: "payment" as const,
+          brand: `Kept ${i}`,
+          host: `kept${i}.example`,
+          source: "sweep-kept",
+        })),
+        ...Array.from({ length: 3 }, (_, i) => ({
+          seed: 60 + i,
+          lure: true,
+          type: "fake_shop" as const,
+          brand: `Gone ${i}`,
+          host: `gone${i}.example`,
+          source: "sweep-gone",
+        })),
+      ];
+      const { store, ids } = await fill(dir, specs);
+      const gone = ids.slice(16);
+      teach(
+        dir,
+        Object.fromEntries(
+          ids.map((id) => [id, gone.includes(id) ? { status: "disputed", answer: null, applied: false } : AGREED]),
+        ),
+      );
+      const built = await build(store);
+      expect(netNewLures(built.dir, ["sweep-gone"])).toEqual({ training: {}, evaluation: {}, total: 0 });
+      const kept = netNewLures(built.dir, ["sweep-kept"]);
+      expect(kept.total).toBe(4);
+      expect((kept.training.payment ?? 0) + (kept.evaluation.payment ?? 0)).toBe(4);
+      expect(netNewLures(built.dir, ["sweep-kept", "sweep-gone"]).total).toBe(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the size cut before the shingle merge", () => {
+  it("skips only pairs whose Jaccard cannot reach the bar, agreeing with jaccard at the boundary", () => {
+    const set = (n: number, from = 0) => Uint32Array.from({ length: n }, (_, i) => from + i);
+    // 12 inside 15 is exactly the bar (0.8 * 15 is 12.000000000000002 in floating point, 12 / 15 is not).
+    expect(jaccard(set(12), set(15))).toBeGreaterThanOrEqual(NEAR_TEXT);
+    expect(sizesAllow(12, 15)).toBe(true);
+    for (let small = 0; small <= 60; small++)
+      for (let large = small; large <= 60; large++)
+        if (jaccard(set(small), set(large)) >= NEAR_TEXT) expect(sizesAllow(small, large)).toBe(true);
+    expect(sizesAllow(11, 15)).toBe(false);
+    expect(sizesAllow(0, 0)).toBe(true);
+  });
+});
+
+describe("progress", () => {
+  it("says each stage as the build reaches it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-progress-"));
+    try {
+      const { store } = await fill(
+        dir,
+        Array.from({ length: 6 }, (_, i) => ({ seed: i, lure: i % 2 === 0 })),
+      );
+      const lines: string[] = [];
+      await buildDataset({
+        store,
+        version: "1.0",
+        mode: "image",
+        seed: 3,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        progress: (line) => lines.push(line),
+      });
+      expect(lines.some((line) => /pages admitted; removing duplicates/.test(line))).toBe(true);
+      expect(lines.some((line) => /after duplicates and caps; splitting/.test(line))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1415,6 +1732,43 @@ describe("summary.json is read back, and records the inputs the version was buil
     expect(lines.filter((m) => m.brand === null).every((m) => m.brand_identity === null)).toBe(true);
   });
 });
+
+describe("line files streamed to and from disk (1.0's training file is some 20 GB)", () => {
+  it("writes and reads back every line across chunk boundaries, hashing the bytes on disk", () => {
+    const folder = mkdtempSync(join(tmpdir(), "glimmer-lines-"));
+    try {
+      // Lines of 300 KB to 1.3 MB, so several cross the reader's 4 MB chunks.
+      const lines = Array.from({ length: 14 }, (_, i) => `${i}:${"x".repeat(300_000 + i * 77_777)}é`);
+      const path = join(folder, "train.jsonl");
+      expect(writeLinesAtomic(path, lines)).toBe(14);
+      const seen: string[] = [];
+      const read = eachLine(path, (line, index) => {
+        expect(index).toBe(seen.length);
+        seen.push(line);
+      });
+      expect(seen).toEqual(lines);
+      expect(read).toEqual({ sha256: hashOfFile(path), lines: 14 });
+      expect(readdirSync(folder)).toEqual(["train.jsonl"]);
+      // A line that fails part-way leaves the file as it was and no partial file behind (round 9).
+      const before = hashOfFile(path);
+      function* failing() {
+        yield "replacement";
+        throw new Error("page changed on disk");
+      }
+      expect(() => writeLinesAtomic(path, failing())).toThrow(/page changed on disk/);
+      expect(hashOfFile(path)).toBe(before);
+      expect(readdirSync(folder)).toEqual(["train.jsonl"]);
+      expect(writeLinesAtomic(path, ["again"])).toBe(1);
+      expect(readFileSync(path, "utf-8")).toBe("again\n");
+      writeFileSync(path, "a\nb");
+      expect(() => eachLine(path, () => {})).toThrow(/does not end with a newline/);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+});
+
+const hashOfFile = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 describe("staged publication with read-back", () => {
   const specs: Spec[] = Array.from({ length: 10 }, (_, i) => ({ seed: i, lure: i % 2 === 0 }));

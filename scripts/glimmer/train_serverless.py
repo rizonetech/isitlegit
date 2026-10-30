@@ -16,13 +16,17 @@ This script decides whether a run may start and what it trains on, and keeps the
 - the set is cut, by source and `lure_type` in proportion with a fixed seed, to what trains before
   2026-11-01 22:00 SAST at the measured tokens a second;
 - every step goes to `<store>/runs/loupe-<version>/metrics.jsonl`, a progress line to `Training` every 50 steps, and
-  `run.json` at the end.
+  `run.json` at the end;
+- a run keeps its training session open when it ends, so its checkpoints outlive a crash, and records the session, run
+  and account in `serverless.json`; run again, an interrupted version continues from its newest checkpoint (the
+  cookbook's `<account>/<run>/<checkpoint>` reference with the same log path) at the step and data position it saved.
 
 The key is the operator's ("IsItLegit Fireworks Owner") through conclave-op, never printed.
 """
 import argparse
 import hashlib
 import json
+import logging
 import os
 import random
 import re
@@ -157,6 +161,49 @@ def read_lines(path):
         return [line for line in handle if line.strip()]
 
 
+def iter_lines(path):
+    """A file's non-blank lines one at a time: a training file carries its screenshots (some 20 GB for Loupe 1.0), so it
+    is never read whole."""
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                yield line
+
+
+def count_lines(path):
+    return sum(1 for _ in iter_lines(path))
+
+
+def write_lines_atomic(path, lines):
+    """Lines written one at a time to a temporary file, then put in place."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with open(temporary, "w", encoding="utf-8") as handle:
+        for line in lines:
+            handle.write(line)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def training_file(train_file, chosen, count, run_dir):
+    """The file a run trains on: the dataset's own when every line is chosen (no copy of it is made), else the chosen
+    lines streamed to `<run>/train.subset.jsonl`, in the dataset's order."""
+    subset = Path(run_dir) / "train.subset.jsonl"
+    if len(chosen) == count:
+        return Path(train_file)
+    keep = set(chosen)
+    write_lines_atomic(subset, (line for index, line in enumerate(iter_lines(train_file)) if index in keep))
+    return subset
+
+
+def resumed_file(train_file, run_dir):
+    """The file an interrupted run trained on: its subset when it made one, else the dataset's own."""
+    subset = Path(run_dir) / "train.subset.jsonl"
+    return subset if subset.is_file() else Path(train_file)
+
+
 def read_groups(path, count):
     """Each line's source and lure type from §10's `train.meta.jsonl` beside the training file."""
     meta = Path(path).with_name("train.meta.jsonl")
@@ -246,6 +293,42 @@ class Recorder:
             self.stop()
 
 
+class ServerlessRun(logging.Handler):
+    """Keeps the serverless session, run and account the cookbook names as it starts, which a resume needs."""
+
+    # WORKAROUND: the cookbook gives the run and account ids a new process resumes from only in this log line
+    # (`training/utils/serverless.py`, "To continue from one of this run's checkpoints in a new process, pass
+    # init_from_checkpoint='<account>/<run>/<checkpoint>'"), so the handler reads the line's own arguments.
+    LOGGER = "training.utils.serverless"
+
+    def __init__(self, run_dir, recorder, started=None):
+        super().__init__()
+        self.path, self.recorder, self.started = Path(run_dir) / "serverless.json", recorder, started
+
+    def emit(self, record):
+        if not str(record.msg).startswith("Serverless training session") or len(record.args or ()) != 4:
+            return
+        session, run, account, _ = record.args
+        self.recorder.session = session
+        write_atomic(self.path, json.dumps({"session": session, "run": run, "account": account}) + "\n")
+        if self.started:
+            self.started(session)
+
+
+def resume_reference(run_dir):
+    """The checkpoint an interrupted run continues from, `<account>/<run>/<checkpoint>`, or None before its first."""
+    saved = Path(run_dir) / "cookbook" / "dataloader.json"
+    checkpoints = json.loads(saved.read_text(encoding="utf-8")).get("checkpoints", {}) if saved.is_file() else {}
+    if not checkpoints:
+        return None
+    ids = Path(run_dir) / "serverless.json"
+    if not ids.is_file():
+        raise Refused(f"{run_dir} has checkpoints but no serverless.json naming their run; it cannot be resumed")
+    run = json.loads(ids.read_text(encoding="utf-8"))
+    newest = max(checkpoints, key=lambda name: (checkpoints[name] or {}).get("step", -1))
+    return f"{run['account']}/{run['run']}/{newest}"
+
+
 def run_json(run_dir, version, model_id, params, started, ended, outcome, session=None):
     lines = [json.loads(line) for line in read_lines(Path(run_dir) / "metrics.jsonl")] if (
         Path(run_dir) / "metrics.jsonl").is_file() else []
@@ -285,10 +368,11 @@ def read_key():
     return key
 
 
-def train(loop, train_file, version, run_dir, recorder, examples=None, promote=True, runner_config=None):
+def train(loop, train_file, version, run_dir, recorder, examples=None, promote=True, runner_config=None,
+          resume_from=None, dataset_sha=None):
     """One cookbook SFT run on `train_file`. `loop` is the cookbook's `recipes.sft_loop` module (a fake in tests)."""
     model_id, _checkpoint = names(version)
-    lines = examples if examples is not None else len(read_lines(train_file)) if Path(train_file).is_file() else None
+    lines = examples if examples is not None else count_lines(train_file) if Path(train_file).is_file() else None
     params = {"lora_rank": LORA_RANK, "learning_rate": LEARNING_RATE, "batch_size": BATCH_SIZE, "epochs": 1,
               "max_seq_len": MAX_SEQ_LEN, "checkpoint_every": CHECKPOINT_EVERY, "warmup_steps": 0,
               "lines_trained": lines}
@@ -310,7 +394,9 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         lora_rank=LORA_RANK,
         output_model_id=model_id if promote else None,
         serverless=True,
-        close_session_on_exit=True,
+        # A closed session ends its checkpoints, on the crash path too: only the unpromoted measure closes its own.
+        close_session_on_exit=not promote,
+        init_from_checkpoint=resume_from,
         dcp_save_interval=CHECKPOINT_EVERY,
         runner=runner_config(status_file=str(Path(run_dir) / "status.json"),
                             metadata_file=str(Path(run_dir) / "metadata.json"),
@@ -326,6 +412,16 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         return original(metrics, step)
 
     loop.wandb_log = recording
+    def started_line(session):
+        # Each version's record under `Training` once its job exists, so a failed one has its line too.
+        append_training(f"Loupe {version}: {model_id}, trained {datetime.now(timezone.utc).date().isoformat()}, "
+                        f"dataset {dataset_sha}, job {session}", recorder.markdown_path)
+
+    ids = ServerlessRun(run_dir, recorder, started_line if promote else None)
+    named = logging.getLogger(ServerlessRun.LOGGER)
+    level = named.level
+    named.setLevel(logging.INFO)  # the line is INFO, which an unconfigured logger drops before any handler
+    named.addHandler(ids)
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     outcome = "failed"
     try:
@@ -340,6 +436,8 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         raise
     finally:
         loop.wandb_log = original
+        named.removeHandler(ids)
+        named.setLevel(level)
 
 
 def main(argv=None, now=None):
@@ -361,7 +459,10 @@ def main(argv=None, now=None):
         markdown = TRAINING_MD.read_text(encoding="utf-8")
         run_dir = store_dir() / "runs" / (f"loupe-{args.version}-measure" if args.measure else f"loupe-{args.version}")
         resuming = (run_dir / "cookbook").is_dir() and not args.measure
-        check_start(now, sha256(train_file), markdown, resuming)
+        resume_from = resume_reference(run_dir) if resuming else None
+        # Only a run with a checkpoint to continue from is a resume past the cutoff.
+        dataset_sha = sha256(train_file)
+        check_start(now, dataset_sha, markdown, resume_from is not None)
         cap = cap_usd(now, reconciled(markdown))
         cookbook = Path(os.environ.get("FW_COOKBOOK", Path.home() / "src" / "fw-cookbook" / "training")).expanduser()
         sys.path.insert(0, str(cookbook.parent))
@@ -371,26 +472,26 @@ def main(argv=None, now=None):
 
         renderer = get_renderer(RENDERER, get_tokenizer(TOKENIZER),
                                 image_processor=MuseGlimmerImageTokenCounter.from_pretrained(TOKENIZER))
-        lines = read_lines(train_file)
-        tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in lines]
-        chosen = list(range(len(lines)))
-        if not args.measure and not resuming:
-            groups = read_groups(train_file, len(lines))
+        if resuming:
+            # The set was chosen when the run started; a resume trains on the same file.
+            train_file = resumed_file(train_file, run_dir)
+        elif not args.measure:
+            tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
+            groups = read_groups(train_file, len(tokens))
             chosen = choose(groups, tokens, now, args.lines_per_second, cap, args.seed)
-            subset = run_dir / "train.subset.jsonl"
-            write_atomic(subset, "".join(lines[i] for i in chosen))
-            append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(lines)} lines "
+            append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(tokens)} lines "
                             f"({sum(tokens[i] for i in chosen)} tokens, seed {args.seed}, cap "
-                            f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {sha256(train_file)}")
-            train_file = subset
-        elif resuming:
-            train_file = run_dir / "train.subset.jsonl"
+                            f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {dataset_sha}")
+            train_file = training_file(train_file, chosen, len(tokens), run_dir)
         os.environ["FIREWORKS_API_KEY"] = read_key()
         from training.recipes import sft_loop
 
         recorder = Recorder(run_dir, args.version, cap)
+        if resume_from:
+            append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
         _result, record = train(sft_loop, train_file, args.version, run_dir, recorder,
-                                examples=MEASURE_EXAMPLES if args.measure else None, promote=not args.measure)
+                                examples=MEASURE_EXAMPLES if args.measure else None, promote=not args.measure,
+                                resume_from=resume_from, dataset_sha=dataset_sha)
     except Refused as refusal:
         print(f"train-serverless: refused: {refusal}", file=sys.stderr)
         return 2
