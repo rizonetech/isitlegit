@@ -464,3 +464,32 @@ describe("hiddenTextOf after round 1", () => {
     expect(read.visible).not.toContain("classify");
   });
 });
+
+describe("scanHtml after round 2", () => {
+  it("reads a malformed sheet in linear time", async () => {
+    for (const sheet of ["x".repeat(524_288), "{".repeat(200_000), "a{".repeat(100_000), "@media{".repeat(80_000)]) {
+      const started = Date.now();
+      const scan = await scanHtml(() => `<style>${sheet}</style><p>Invoice</p>`);
+      expect(Date.now() - started, sheet.slice(0, 8)).toBeLessThan(3_000);
+      expect(scan.visible).toBe("Invoice");
+    }
+  });
+
+  it("ignores a value its property cannot take, keeping the valid hiding", async () => {
+    for (const style of [
+      "display:none;display:bogus",
+      "visibility:hidden;visibility:maybe",
+      "font-size:0;font-size:huge-ish",
+    ]) {
+      const scan = await scanHtml(() => `<p style="${style}">${SECRET}</p><p>v</p>`);
+      expect(
+        scan.hidden.map((h) => h.text),
+        style,
+      ).toEqual([SECRET]);
+    }
+    const sheet = await scanHtml(
+      () => `<style>.h{display:none}.h{display:nope}</style><p class="h">${SECRET}</p><p>v</p>`,
+    );
+    expect(sheet.hidden.map((h) => h.text)).toEqual([SECRET]);
+  });
+});

@@ -129,6 +129,31 @@ function expand(name: string, value: string): [string, string][] {
   return [[name, value]];
 }
 
+// Whether a value is one the property can take, for the properties this reads; any other property is not judged.
+const WIDE = /^(inherit|initial|unset|revert|revert-layer)$/;
+const LENGTH = /^-?(?:[\d.]+(?:px|pt|pc|cm|mm|in|em|rem|ex|ch|vw|vh|vmin|vmax|%)|0)$/;
+const VALID: Record<string, (v: string) => boolean> = {
+  display: (v) =>
+    /^(none|block|inline|inline-block|flex|inline-flex|grid|inline-grid|table|table-row|table-cell|table-row-group|table-header-group|table-footer-group|table-column|table-column-group|table-caption|list-item|contents|flow-root|run-in|ruby)$/.test(
+      v,
+    ),
+  visibility: (v) => /^(visible|hidden|collapse)$/.test(v),
+  opacity: (v) => /^-?[\d.]+%?$/.test(v),
+  "font-size": (v) => FONT_SIZE.test(v),
+  position: (v) => /^(static|relative|absolute|fixed|sticky)$/.test(v),
+  left: (v) => LENGTH.test(v) || v === "auto",
+  top: (v) => LENGTH.test(v) || v === "auto",
+  "text-indent": (v) => LENGTH.test(v.split(/\s+/)[0] ?? ""),
+  overflow: (v) => /^(visible|hidden|clip|scroll|auto)(\s+(visible|hidden|clip|scroll|auto))?$/.test(v),
+  height: (v) => LENGTH.test(v) || /^(auto|fit-content|min-content|max-content)$/.test(v),
+  "max-height": (v) => LENGTH.test(v) || /^(none|fit-content|min-content|max-content)$/.test(v),
+  // A colour this reads, a keyword, or a function it does not read (`var()`, `hsl()`): valid, though perhaps unread.
+  color: (v) => readColour(v) !== null || v === "currentcolor" || /^[a-z-]+\(.*\)$/.test(v),
+  "background-color": (v) => readColour(v) !== null || v === "currentcolor" || /^[a-z-]+\(.*\)$/.test(v),
+};
+const valid = (name: string, value: string) =>
+  WIDE.test(value) || !Object.hasOwn(VALID, name) || (VALID[name] as (v: string) => boolean)(value);
+
 // `prop: value; ...` as a map of lower-cased names to values and their `!important`, shorthands expanded in order.
 export function declarations(text: string): Declarations {
   const out: Declarations = new Map();
@@ -143,9 +168,11 @@ export function declarations(text: string): Declarations {
     const important = /!\s*important\s*$/.test(raw);
     const value = raw.replace(/!\s*important\s*$/, "").trim();
     if (!name || !value) continue;
-    // Within one block a later declaration wins, except that a normal one never overrides an `!important` one.
+    // Within one block a later declaration wins, except that a normal one never overrides an `!important` one; a value
+    // the property cannot take is ignored, as CSS ignores it (round 2: `display:none;display:bogus` stays hidden).
     for (const [longhand, v] of expand(name, value))
-      if (!(out.get(longhand)?.important && !important)) out.set(longhand, { value: v, important });
+      if (valid(longhand, v) && !(out.get(longhand)?.important && !important))
+        out.set(longhand, { value: v, important });
   }
   return out;
 }
@@ -155,16 +182,46 @@ const SIMPLE = /^([a-zA-Z][a-zA-Z0-9]*)?(?:\.([A-Za-z0-9_-]+))?$|^#([A-Za-z0-9_-
 // A style sheet's simple rules merged into `rules` in document order; returns how many selectors were not simple.
 export function addRules(sheet: string, rules: Rules): number {
   let unresolved = 0;
-  const text = sheet.replace(/\/\*[\s\S]*?\*\//g, "");
-  // At-rule blocks (`@media`, `@supports`) hold conditional rules: not resolved, counted once each.
-  const flat = text.replace(/@[a-z-]+[^{;]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/gi, () => {
-    unresolved++;
-    return "";
-  });
-  for (const match of flat.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const body = declarations(match[2] ?? "");
+  // One linear pass over the sheet (round 2: a regex that rescans a malformed sheet is quadratic): comments skipped,
+  // each `selectors { declarations }` read in turn, an at-rule's block (`@media`, `@supports`) skipped whole and
+  // counted, its nested braces balanced.
+  let at = 0;
+  const n = sheet.length;
+  while (at < n) {
+    if (sheet.startsWith("/*", at)) {
+      const end = sheet.indexOf("*/", at + 2);
+      at = end < 0 ? n : end + 2;
+      continue;
+    }
+    const open = sheet.indexOf("{", at);
+    if (open < 0) break;
+    const prelude = sheet
+      .slice(at, open)
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .trim();
+    if (prelude.startsWith("@") || prelude.includes("@")) {
+      let depth = 1;
+      let i = open + 1;
+      for (; i < n && depth > 0; i++) {
+        if (sheet[i] === "{") depth++;
+        else if (sheet[i] === "}") depth--;
+      }
+      unresolved++;
+      at = i;
+      continue;
+    }
+    const close = sheet.indexOf("}", open + 1);
+    const end = close < 0 ? n : close;
+    const inner = sheet.slice(open + 1, end);
+    // A block holding another `{` is not a style rule this reads: skipped and counted.
+    if (inner.includes("{")) {
+      unresolved++;
+      at = end + 1;
+      continue;
+    }
+    const body = declarations(inner);
     const order = rules.order++;
-    for (const raw of (match[1] ?? "").split(",")) {
+    for (const raw of prelude.split(",")) {
       const selector = raw.trim();
       if (!selector) continue;
       const simple = SIMPLE.exec(selector);
@@ -183,6 +240,7 @@ export function addRules(sheet: string, rules: Rules): number {
       }
       rules.byKey.set(key, entry);
     }
+    at = end + 1;
   }
   return unresolved;
 }
