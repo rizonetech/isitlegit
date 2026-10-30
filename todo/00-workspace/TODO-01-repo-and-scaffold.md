@@ -659,18 +659,22 @@ Filed 2026-10-30 from D00 T01 §15's completion review (Part 2, item 2): the lig
 
 Filed 2026-10-30 from the Glimmer lane's report on D03 T04 §18: the stamp replays every recorded pass against the review schedule in `.conclave/reviewers.toml` at the stamped commit (`schedule_ok` in `scripts/lib/todo_graph.py`), so a section whose rounds ran before a schedule change (round 1 at xhigh until 2026-10-30 00:30 SAST, high after) is refused at a later commit, and one whose rounds straddle the change has no commit to stamp at. The lane stamped at its last reviewed candidate, which works only when every round ran under one schedule.
 
+> **Started:** 2026-10-30T10:36Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) the dispatcher reads `.conclave/reviewers.toml` from the working tree when a pass runs, and every pass records its UTC `Run` time, so the schedule a pass ran under is the pin at the last commit on the stamped commit's first-parent history at or before that time (`git rev-list -1 --first-parent --before=<run>`), not the pin at the commit that recorded it, which can land after a pin change; (2) the plan, completion and final reviews are replayed the same way, not only the rounds, since each step's effort can change too; (3) a pass whose `Run` time is missing or unreadable, or earlier than any commit, is refused, naming it; (4) every stamped receipt still validates after the change (`validate` replays them all).
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
 
 **Build order:**
 
-1. Find the schedule each pass ran under. Done when: each recorded pass maps to the pin at the commit that recorded it.
+1. Find the schedule each pass ran under. Done when: each recorded pass maps to the pin in force at its `Run` time on the stamped commit's first-parent history.
 2. Replay each pass against its own schedule. Done when: a section whose rounds straddle a schedule change stamps at its tip.
 
-- [ ] Write `pass_schedules(root, report)` in `scripts/lib/todo_graph.py`: for each pass a findings file records, the commit that added it (`git log` on the file, oldest first, matched by its heading) and the `[schedule]` in `.conclave/reviewers.toml` at that commit. Done when: `tests/scripts/test_todo_graph.py` maps each round of a file built across two commits to its commit's pin.
-- [ ] Have `schedule_ok` replay each pass against the schedule it ran under, the position still counted across all rounds, and keep the stamped commit's schedule for the final mode and the receipt. Done when: a section with round 1 under an xhigh pin and round 2 under a high one stamps at its tip, and a round whose recorded effort matches neither its own pin nor the stamped one is refused.
-- [ ] Refuse a pass whose adding commit cannot be found (an uncommitted round), naming it. Done when: a test with an uncommitted round shows the refusal.
+- [ ] Write `pass_schedule(root, sha, entry, ref)` in `scripts/lib/todo_graph.py`: the `[schedule]` of the pin at the last first-parent commit of `sha` at or before the entry's `Run` time, cached per commit. Done when: `tests/scripts/test_todo_graph.py` maps a round run before a pin change, and one after it, each to its own pin, in a tree whose findings are committed after the change. (**Corrected 2026-10-30**, at start.)
+- [ ] Have `schedule_ok` replay every pass (plan, completion, final and each round) against `pass_schedule`, the round position still counted across all rounds, and keep the stamped commit's schedule for the final mode and the receipt. Done when: a section with round 1 under an xhigh pin and round 2 under a high one stamps at its tip, and a round whose recorded effort is not its own pin's is refused. (**Corrected 2026-10-30**, at start.)
+- [ ] Refuse a pass whose `Run` time is missing, unreadable or earlier than every commit, naming it. Done when: a test with each shows the refusal, and `python3 scripts/todo-graph.py validate` still passes over every stamped receipt. (**Corrected 2026-10-30**, at start.)
 - [ ] Commit: `tools: each round held to the schedule it ran under`
 
 **Test checkpoint:** `python3 -m pytest tests/scripts/test_todo_graph.py` passes, including a section stamped across a schedule change.
