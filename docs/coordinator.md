@@ -25,6 +25,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Media lane registered, uncoordinated (D10) | media | 18:45 |
 | Remotion licence: free (up to 3 people) | media, D10 T01 §2 | 19:10 |
 | Video 01 shows the method as it runs; the Muse Wonder final review shown as available but off | media | 19:10 |
+| Repository private until submission, public again Tue 3 Nov | main, D99 T02 §5 | 20:05 |
 
 ### Waiting on a lane first
 
@@ -37,6 +38,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Exchange Online mail flow rule rejecting the test subject, removed after | D01 T02 §6 live check (checks) | the checks lane reaching that item |
 | Microsoft 365 admin deploys the Outlook add-in | D01 T01 §10 (checks, Phase 6) | the add-in built |
 | Paste new Discord project posts, Sun 1 Nov and Tue 3 Nov | D99 T02 §6 (main) | the dates |
+| Make the repository public again (private since 2026-10-30 20:05), verified logged out | D99 T02 §5 (main) | Tue 3 Nov, before the submission |
 | Record the demo footage, then assemble, caption and upload the video, then submit by Wed 4 Nov 18:00 SAST | D99 T02 §3 to §5 (main) | the core path stamped and the demo script |
 
 ### After the event (Phase 7)

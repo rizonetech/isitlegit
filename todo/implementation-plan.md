@@ -333,7 +333,7 @@ Sections: 29 | Checklist items: 168
 
 ### Phase 99: Manual, operator only
 
-Sections: 15 | Checklist items: 61
+Sections: 15 | Checklist items: 62
 
 | Status | Reference   | Deliverable                                   | Needs    | Items |
 | ------ | ----------- | --------------------------------------------- | -------- | ----- |
@@ -350,9 +350,9 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §2  | Pilot client written consent                  | operator | 2     |
 | [ ]    | D99 T02 §3  | Record the demo footage                       | operator | 2     |
 | [ ]    | D99 T02 §4  | Assemble, caption and upload the video        | operator | 3     |
-| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
+| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
 Progress: 97/284 verified sections, 61 ready to run now.
 
-Checklist: 986/1820 items completed (includes Commit items).
+Checklist: 986/1821 items completed (includes Commit items).
