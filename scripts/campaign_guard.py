@@ -68,7 +68,7 @@ SCOPES = ("plan", "phase")
 HOOK_BUDGET_SECONDS = 40.0
 UTC_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 # The guard's record of a run waiting on another lane's rows (D00 T01 §20).
-WAIT_KEYS = ("waiting_on", "waiting_since", "notified_at", "unreachable")
+WAIT_KEYS = ("waiting_on", "waiting_since", "notified_at", "unreachable", "wake_merge")
 LONG_WAIT = datetime.timedelta(hours=24)
 
 
@@ -683,12 +683,56 @@ def _backed_out(root: str, cause: str) -> str:
     return f"{cause}: backed out"
 
 
-def _merge_main(root: str) -> str | None:
+def _rev(root: str, name: str) -> str:
+    done = _run_git(root, "rev-parse", "-q", "--verify", name)
+    return done.stdout.strip() if done.returncode == 0 else ""
+
+
+def _set_wake_merge(root: str, guard: dict, value: dict | None) -> None:
+    """Record (or clear) the merge `wake` itself began, so only that merge is ever backed out by a later wake."""
+    with _Lock(root):
+        still = read_guard(root)
+        if not _same_run(still, guard):
+            return
+        if value is None:
+            still.pop("wake_merge", None)
+        else:
+            still["wake_merge"] = value
+        _write_json(_paths(root)[0], still)
+
+
+def _own_merge(root: str, guard: dict) -> bool:
+    """Whether the open merge is the one a wake of this run began: the same HEAD and the same commit merged in."""
+    mine = (read_guard(root) or {}).get("wake_merge") or {}
+    return bool(mine) and mine.get("head") == _rev(root, "HEAD") and mine.get("into") == _rev(root, "MERGE_HEAD")
+
+
+def _branch_lane_ok(root: str, lane: str | None) -> str | None:
+    """The checked-out branch against the lane the run is pinned to, read from git and the committed
+    todo/lanes.json, never the working tree (a conflicted merge can leave its TODO files unreadable). The mismatch
+    to report, or None."""
+    if not lane:
+        return None
+    branch = _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    shown = _run_git(root, "show", "HEAD:todo/lanes.json")
+    try:
+        lanes = json.loads(shown.stdout).get("lanes", {}) if shown.returncode == 0 else {}
+    except (ValueError, AttributeError):
+        lanes = {}
+    expected = "main" if lane == "main" else (lanes.get(lane) or {}).get("branch")
+    if expected and branch != expected:
+        return f"LANE MISMATCH guard={lane} branch={branch} (lane {lane} works {expected})"
+    return None
+
+
+def _merge_main(root: str, guard: dict | None = None) -> str | None:
     """Merge origin/main into the lane when it holds a commit the lane lacks: `git merge --no-edit`, and when the
     plan's merge stop (D00 T01 §22) halts it with nothing unmerged, `git commit --no-edit` through the hooks. Any
     conflict or failed conclusion is backed out with `git merge --abort`. Returns the failure's cause, or None."""
     if _run_git(root, "merge-base", "--is-ancestor", "origin/main", "HEAD").returncode == 0:
         return None
+    if guard is not None:
+        _set_wake_merge(root, guard, {"head": _rev(root, "HEAD"), "into": _rev(root, "origin/main")})
     try:
         merged = _run_git(root, "merge", "--no-edit", "origin/main", timeout=600)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -729,15 +773,23 @@ def wake(root: str, session: str, now: str | None = None) -> tuple[int, str]:
     if not guard.get("waiting_on"):
         return rows(root, session)
     lines, failed = [], None
+    mismatch = _branch_lane_ok(root, guard.get("lane"))
+    if mismatch:
+        return 1, f"{mismatch}; nothing fetched, merged or backed out"
     if _merging(root):
-        # A merge an earlier wake could not back out (an index.lock, a full disk): backed out before anything else,
-        # even the lane check, which reads the graph a half-merged tree may not hold. git switches no branch while a
-        # merge is open, so the abort is on the branch the merge began on.
+        # A merge an earlier wake could not back out (an index.lock, a full disk) is backed out before the lane check
+        # below, which reads the graph a half-merged tree may not hold; but only a merge a wake of this run began
+        # (the same HEAD and merged commit it recorded). Any other merge is someone's work in progress: left as it is.
+        if not _own_merge(root, guard):
+            return 1, (f"WAITING on {', '.join(guard.get('waiting_on') or [])} (a merge is open)\n"
+                       f"wake: a merge this run did not begin is open; it is left as it is: conclude it or "
+                       f"`git merge --abort` it, then the next wake goes on")
         left = _abort_merge(root)
         if left:
             return 1, (f"WAITING on {', '.join(guard.get('waiting_on') or [])} (a merge is still open)\n"
                        f"wake: an earlier merge is still open and could not be backed out: {left}")
         lines.append("wake: an earlier merge left open was backed out")
+        _set_wake_merge(root, guard, None)
     pinned = guard.get("lane")
     if pinned:
         # The lane is checked before git fetches or merges: a worktree now on another lane's branch is left as it is.
@@ -755,7 +807,9 @@ def wake(root: str, session: str, now: str | None = None) -> tuple[int, str]:
     if failed is None:
         failed = _fetch_main(root)
     if failed is None and pinned not in (None, "main"):
-        failed = _merge_main(root)
+        failed = _merge_main(root, guard)
+        if not _merging(root):
+            _set_wake_merge(root, guard, None)
     if _merging(root):
         # A tree with a merge still open is half one side and half the other: nothing is read from it, so a stamp
         # that arrived only in the unfinished merge can never end the wait.

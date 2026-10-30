@@ -244,7 +244,7 @@ class LaneWake(fixtures.Stamp):
         head = self.run_git(self.lane, "rev-parse", "HEAD").stdout
         code, text = guard.wake(str(self.lane), SESSION)
         self.assertEqual(code, 1)
-        self.assertIn("LANE MISMATCH guard=checks checkout=main; nothing fetched or merged", text)
+        self.assertIn("LANE MISMATCH guard=checks branch=something-else", text)
         self.assertEqual(self.run_git(self.lane, "rev-parse", "HEAD").stdout, head)
         self.assertTrue(self.lane_clean())
         self.assertNotEqual(self.run_git(self.lane, "rev-parse", "origin/main").stdout,
@@ -284,14 +284,53 @@ class LaneWake(fixtures.Stamp):
         tg.projections(self.root, sync=True)
         self.commit("main's note")
         self.stamp_prerequisite_on_main()
-        self.run_git(self.lane, "fetch", "-q", "origin")
-        self.run_git(self.lane, "merge", "--no-edit", "origin/main", check=False)  # a merge left on its conflict
+        real = guard._run_git
+
+        def abort_fails(root, *args, **kw):
+            if args[:2] == ("merge", "--abort"):
+                return subprocess.CompletedProcess(args, 128, "", "fatal: Unable to create index.lock")
+            return real(root, *args, **kw)
+        with mock.patch.object(guard, "_run_git", abort_fails):  # wake's own merge, left on its conflict
+            guard.wake(str(self.lane), SESSION)
         self.assertIn(shared, self.run_git(self.lane, "diff", "--name-only", "--diff-filter=U").stdout)
         code, text = guard.wake(str(self.lane), SESSION)
         self.assertIn("an earlier merge left open was backed out", text)
         self.assertNotIn("ROWS UNKNOWN", text, "the lane check ran on the restored tree, not the conflicted graph")
         self.assertIn(f"merge conflict in {shared}", text, "then the merge is tried again and backed out again")
         self.assertTrue(self.lane_clean())
+
+    def test_a_merge_someone_else_began_is_never_backed_out(self):
+        self.start_waiting()
+        (self.lane / "notes.txt").write_text("the lane's\n", encoding="utf-8")
+        self.commit_lane("lane notes")
+        (self.root / "notes.txt").write_text("main's\n", encoding="utf-8")
+        self.commit("main notes")
+        self.stamp_prerequisite_on_main()
+        self.run_git(self.lane, "fetch", "-q", "origin")
+        self.run_git(self.lane, "merge", "--no-edit", "origin/main", check=False)  # the operator's own merge
+        (self.lane / "notes.txt").write_text("resolved by hand\n", encoding="utf-8")
+        code, text = guard.wake(str(self.lane), SESSION)
+        self.assertEqual(code, 1)
+        self.assertIn("a merge this run did not begin is open; it is left as it is", text)
+        self.assertEqual((self.lane / "notes.txt").read_text(encoding="utf-8"), "resolved by hand\n")
+        self.assertEqual(self.run_git(self.lane, "rev-parse", "-q", "--verify", "MERGE_HEAD",
+                                      check=False).returncode, 0, "the merge is still open")
+
+    def test_a_merge_on_another_branch_is_never_touched(self):
+        self.start_waiting()
+        self.stamp_prerequisite_on_main()
+        self.run_git(self.lane, "checkout", "-qb", "elsewhere")
+        (self.lane / "notes.txt").write_text("elsewhere\n", encoding="utf-8")
+        self.run_git(self.lane, "commit", "-qam", "elsewhere", check=False)
+        self.run_git(self.lane, "fetch", "-q", "origin")
+        self.run_git(self.lane, "merge", "--no-commit", "--no-ff", "origin/main", check=False)
+        merging = self.run_git(self.lane, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False).returncode == 0
+        code, text = guard.wake(str(self.lane), SESSION)
+        self.assertEqual(code, 1)
+        self.assertIn("LANE MISMATCH guard=checks branch=elsewhere", text)
+        self.assertIn("nothing fetched, merged or backed out", text)
+        self.assertEqual(self.run_git(self.lane, "rev-parse", "-q", "--verify", "MERGE_HEAD",
+                                      check=False).returncode == 0, merging, "the merge there is untouched")
 
     def test_a_merge_that_times_out_is_backed_out(self):
         self.start_waiting()
