@@ -14,6 +14,11 @@
       "branch": "glimmer-screener",
       "worktree": "../isitlegit-glimmer",
       "domains": ["D03"]
+    },
+    "media": {
+      "branch": "claude/trusting-pasteur-umwvqz",
+      "worktree": "a Claude Code cloud session (no local worktree)",
+      "domains": ["D10"]
     }
   }
 }

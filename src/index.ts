@@ -14,6 +14,9 @@ import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { smoke } from "./smoke";
+import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { casesRoutes } from "./web/pages/cases";
+import { reportRoutes } from "./web/pages/report";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
@@ -36,6 +39,17 @@ app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
 app.route("/api/org", domainRoutes);
 app.route("/api/team", teamHistoryRoutes);
 app.route("/api/upload", uploadRoutes);
+// The report, to a member of the case's organisation or a signed link (D07 T03 §1), src/web/pages/report.tsx.
+app.route("/", reportRoutes);
+// The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
+app.route("/", casesRoutes);
+// The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
+// "production" in wrangler.jsonc, so every deploy answers them 404.
+app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));
+app.get("/dev/components/frame/:id", (c) => {
+  const frame = c.env.ENV === "development" ? GalleryFrame(c.req.param("id")) : null;
+  return frame ? c.html(frame) : c.notFound();
+});
 
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
 // cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)

@@ -53,7 +53,10 @@
     "APP_URL": "https://app.isitlegit.co.za",
     // The origin the reply's report links are made absolute with (D01 T02 §3): the app's own, and https only. Separate
     // from APP_URL because the tests serve the app at http://localhost and need an https origin here.
-    "PUBLIC_ORIGIN": "https://app.isitlegit.co.za"
+    "PUBLIC_ORIGIN": "https://app.isitlegit.co.za",
+    // `development` only under `pnpm dev` (`--var ENV:development`): the component gallery (D07 T01 §10) answers 404
+    // everywhere else, deploys included.
+    "ENV": "production"
   },
   // Every 15 minutes: settle uncertain mail sends from SMTP2GO's record (D01 T02 §5, src/mail/reconcile.ts).
   "triggers": { "crons": ["*/15 * * * *"] }

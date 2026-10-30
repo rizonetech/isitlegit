@@ -92,15 +92,20 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 43 | Checklist items: 246
+Sections: 55 | Checklist items: 355
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
 | [x]    | D00 T01 §13 | Type check before every push                          | none     | 4     |
 | [x]    | D00 T01 §18 | Each round held to the schedule it ran under          | none     | 4     |
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
-| [ ]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 8     |
+| [x]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 14    |
 | [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output         | none     | 5     |
+| [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
+| [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
+| [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
+| [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
+| [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
@@ -123,19 +128,26 @@ Sections: 43 | Checklist items: 246
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
-| [ ]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 5     |
-| [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
-| [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
+| [x]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 12    |
+| [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
+| [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
-| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 8     |
-| [ ]    | D07 T02 §11 | Sign-in code for another device                       | none     | 3     |
-| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
+| [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
+| [ ]    | D07 T02 §15 | Domain verification page                              | none     | 2     |
+| [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
-| [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 4     |
+| [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
+| [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
+| [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
+| [ ]    | D07 T02 §7  | Sign-in page                                          | none     | 12    |
+| [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
+| [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
+| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
+| [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 | [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
@@ -218,7 +230,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 64 | Checklist items: 268
+Sections: 66 | Checklist items: 275
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -245,8 +257,10 @@ Sections: 64 | Checklist items: 268
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
+| [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
+| [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
+| [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
-| [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -289,42 +303,47 @@ Sections: 64 | Checklist items: 268
 
 ### Phase 7: After the event
 
-Sections: 28 | Checklist items: 165
+Sections: 33 | Checklist items: 180
 
-| Status | Reference   | Deliverable                                      | Needs    | Items |
-| ------ | ----------- | ------------------------------------------------ | -------- | ----- |
-| [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none     | 6     |
-| [x]    | D00 T01 §15 | Review schedule by section risk                  | none     | 5     |
-| [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none     | 3     |
-| [ ]    | D00 T01 §17 | Light against full review, measured              | none     | 4     |
-| [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none     | 4     |
-| [ ]    | D01 T01 §12 | Several originals in one forward                 | none     | 5     |
-| [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none     | 4     |
-| [ ]    | D01 T01 §15 | Second inbound mail route                        | operator | 7     |
-| [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator | 6     |
-| [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none     | 3     |
-| [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none     | 14    |
-| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none     | 7     |
-| [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none     | 11    |
-| [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none     | 9     |
-| [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none     | 7     |
-| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none     | 7     |
-| [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none     | 5     |
-| [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api | 7     |
-| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none     | 10    |
-| [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none     | 7     |
-| [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none     | 2     |
-| [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
-| [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
-| [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
-| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 8     |
-| [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
-| [ ]    | D07 T04 §6  | MSP console and own branding                     | none     | 4     |
-| [ ]    | D99 T01 §5  | WhatsApp test number                             | operator | 5     |
+| Status | Reference   | Deliverable                                      | Needs          | Items |
+| ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
+| [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none           | 6     |
+| [x]    | D00 T01 §15 | Review schedule by section risk                  | none           | 5     |
+| [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none           | 3     |
+| [ ]    | D00 T01 §17 | Light against full review, measured              | none           | 4     |
+| [ ]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 3     |
+| [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none           | 4     |
+| [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
+| [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
+| [ ]    | D01 T01 §15 | Second inbound mail route                        | operator       | 7     |
+| [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator       | 6     |
+| [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
+| [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
+| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none           | 7     |
+| [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none           | 11    |
+| [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none           | 9     |
+| [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none           | 7     |
+| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 7     |
+| [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none           | 5     |
+| [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api       | 7     |
+| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 10    |
+| [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 7     |
+| [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
+| [ ]    | D07 T01 §4  | Design change comparison                         | none           | 3     |
+| [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended       | 4     |
+| [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended       | 3     |
+| [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none           | 3     |
+| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none           | 8     |
+| [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
+| [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
+| [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
+| [ ]    | D07 T04 §9  | Next and previous case from a report             | owner-decision | 3     |
+| [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
+| [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
 
-Sections: 15 | Checklist items: 61
+Sections: 15 | Checklist items: 62
 
 | Status | Reference   | Deliverable                                   | Needs    | Items |
 | ------ | ----------- | --------------------------------------------- | -------- | ----- |
@@ -341,9 +360,9 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §2  | Pilot client written consent                  | operator | 2     |
 | [ ]    | D99 T02 §3  | Record the demo footage                       | operator | 2     |
 | [ ]    | D99 T02 §4  | Assemble, caption and upload the video        | operator | 3     |
-| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
+| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 93/275 verified sections, 48 ready to run now.
+Progress: 102/294 verified sections, 64 ready to run now.
 
-Checklist: 930/1743 items completed (includes Commit items).
+Checklist: 1037/1875 items completed (includes Commit items).

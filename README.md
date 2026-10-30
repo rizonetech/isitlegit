@@ -87,9 +87,12 @@ pnpm typecheck                   # checks worker-configuration.d.ts against wran
 pnpm lint                        # Biome: format and lint the Worker's own files
 pnpm build:assets                # self-hosted fonts and the fingerprinted app stylesheet (Python 3.11+; a changed font needs design/tools/requirements.txt)
 pnpm test                        # Vitest: the Worker inside workerd, build scripts and style checks in Node
+pnpm test:a11y                   # axe-core over the component gallery in Chromium (WCAG 2.2 A and AA)
 pnpm build                       # bundles the Worker with a dry-run deploy into build/dry
 pnpm dev                         # serves http://localhost:8787 with COMMIT_SHA set to your checkout's commit
 ```
+
+Under `pnpm dev`, http://localhost:8787/dev/components is the component gallery: every shared component in every state and every frame of the app shell, each reachable from the page's index and by its own anchor (`#state-button-primary`, `#frame-member-cases`); a frame opens alone at `/dev/components/frame/<name>`. It answers 404 everywhere else, deploys included (`ENV` is `production` in `wrangler.jsonc`). `pnpm test:a11y` checks the gallery with axe-core in headless Chromium: it uses `MOCKUP_CHROMIUM` when set, else Playwright's headless shell (`pnpm exec playwright-core install chromium-headless-shell`), else `chromium` or `google-chrome` on your `PATH`, and skips when it finds none (CI always has one).
 
 While you edit, `pnpm exec vitest --watch` keeps the tests running in workerd and reruns them when a file under `src/` or `test/` changes; press `q` to stop it. `pnpm test` is the one-shot run the gates use.
 

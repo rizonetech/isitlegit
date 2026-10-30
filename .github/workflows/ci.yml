@@ -55,6 +55,11 @@ jobs:
           # test/node/theme.test.ts and fonts.test.ts measure the compiled styles and fonts in Chromium; the image's
           # /usr/bin/chromium has no usable sandbox (see the project-scripts job), Google Chrome does.
           MOCKUP_CHROMIUM: /usr/bin/google-chrome
+      - name: pnpm test:a11y
+        # axe-core over the component gallery and every shell frame in Chromium (D07 T01 §10); left out of pnpm test.
+        run: pnpm test:a11y
+        env:
+          MOCKUP_CHROMIUM: /usr/bin/google-chrome
       - name: pnpm build
         run: pnpm build
 

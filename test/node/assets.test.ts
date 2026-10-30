@@ -2,7 +2,17 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { APP_CSS, FONTS, LOGO, LOGO_MARK, LOGO_MARK_ON_DARK, LOGO_ON_DARK, MOTION } from "../../src/web/assets.ts";
+import {
+  APP_CSS,
+  APP_JS,
+  FONTS,
+  HTMX,
+  LOGO,
+  LOGO_MARK,
+  LOGO_MARK_ON_DARK,
+  LOGO_ON_DARK,
+  MOTION,
+} from "../../src/web/assets.ts";
 
 // Everything under public/static/ is served with a year-long immutable cache (public/_headers), so every file there must
 // carry a 12-hex content fingerprint, be named in src/web/assets.ts, and exist: a missing, unhashed or stray file fails.
@@ -26,6 +36,8 @@ describe("static assets", () => {
     LOGO_MARK,
     LOGO_MARK_ON_DARK,
     ...Object.values(MOTION),
+    HTMX,
+    APP_JS,
   ];
   const served = files(STATIC).map((path) => `/${relative(join(ROOT, "public"), path).replaceAll("\\", "/")}`);
 
@@ -39,6 +51,14 @@ describe("static assets", () => {
 
   it("leaves nothing under /static/ that no page can name", () => {
     expect(served.filter((path) => !exported.includes(path)).sort()).toEqual([]);
+  });
+
+  it("serves htmx byte for byte as the pinned package publishes it (D07 T01 §9)", () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, "node_modules/htmx.org/package.json"), "utf-8"));
+    expect(pkg.version).toBe("2.0.11");
+    expect(readFileSync(join(ROOT, "public", HTMX))).toEqual(
+      readFileSync(join(ROOT, "node_modules/htmx.org/dist/htmx.min.js")),
+    );
   });
 
   it("names both brand families", () => {

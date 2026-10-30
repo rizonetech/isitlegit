@@ -1,0 +1,12 @@
+#!/bin/sh
+# Stop a merge that changes the plan's inputs before git commits it (D00 T01 §22). The todo-plan merge driver
+# (.gitattributes) kept one side of todo/implementation-plan.md, so the merged plan is stale; git runs this hook before
+# it writes MERGE_HEAD, so the incoming stamps cannot be validated here. Exiting 1 makes git stop with the merge staged
+# and MERGE_HEAD written; the `git commit --no-edit` that concludes it runs scripts/hooks/pre-commit, which validates
+# the merged graph against both parents and regenerates the plan. A merge that touches neither folder commits as usual.
+if git diff --cached --quiet HEAD -- todo/ docs/reviews/; then
+    exit 0
+fi
+echo "pre-merge-commit: the merge changes the plan's inputs (todo/ or docs/reviews/); run 'git commit --no-edit'" \
+    "to validate it and regenerate the plan" >&2
+exit 1

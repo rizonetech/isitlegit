@@ -58,8 +58,14 @@ track: day-0
 | 17 | §17 | Light against full review, measured | §15 | [ ] |
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
-| 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
+| 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [x] |
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
+| 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
+| 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
+| 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
+| 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
+| 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
+| 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -735,28 +741,43 @@ Decided 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`): two building 
 
 ## 20. Lane run waits on another lane's rows, then resumes
 
+> **Started:** 2026-10-30T18:45Z
+
 Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/D00-T01-s19.md`, gap 4, out of scope there). Under §19 a lane whose only open rows wait on another lane's rows parks: `end --reason park` deletes its guard and heartbeat, so when the prerequisite is stamped and merged nothing wakes the lane and the operator must prompt it again. Claude Code's agent teams unblock a dependent task by themselves. This section gives a lane a waiting state that keeps its heartbeat, so the lane resumes within one heartbeat of the prerequisite reaching `main`, with every gate, the merge rule and an operator pause unchanged.
+
+**Corrected 2026-10-30** (at start, after §22 and §24 shipped): the heartbeat's merge of `main` follows §22, so a merge that changes the plan's inputs stops at `pre-merge-commit` and concludes with `git commit --no-edit`, and any other conflict is backed out with `git merge --abort` and reported, so a waiting lane is never left mid-merge. Before, the item resolved a plan conflict by hand (`take either side, then plan --sync`), which §22 made obsolete. The clause refusing `wait` on a handed-over guard is struck: a new owner re-points and may wait like any owner, so the refusal guarded nothing. The coordinator's own lane (`main`) never merges `origin/main` into itself: a waiting coordinator run only fetches and reads `rows` again.
 
 **Phase:** 2
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-30** (plan review, `docs/reviews/00-workspace/D00-T01-s20.md`): the heartbeat is a prompt, so its fetch, merge and resume cannot be proven as text; they move into `campaign_guard.py wake`, which the heartbeat calls and a test drives against a real remote. A stamped prerequisite is not a runnable dependent (D03 T02 §1 waits on two rows), so a wait ends only when the lane has a runnable row in the run's scope. The wait survives a heartbeat replacement and a handover, entering it is specified for a plan run that finds nothing runnable and for a phase that ends on cross-lane leftovers, merge failures beyond conflicts recover to a retryable state, and the daily long-wait notice is recorded so it fires once a day. Before, the checklist cleared the wait on any stamp, proved the heartbeat by searching the prompt's text, and named only the conflict path.
+
 **Build order:**
 
-1. Record a wait. Done when: `campaign_guard.py wait` keeps the guard and its heartbeat with the rows waited on, and refuses while the lane has a ready row of its own.
-2. Notice the prerequisite. Done when: `rows` reads `WAITING` while every waited row is open and `READY` once one is stamped in this checkout.
-3. Resume from the heartbeat. Done when: the heartbeat fetches `main`, merges it under the lane's merge rule when it holds a waited row's stamp, and resumes without an operator prompt.
+1. Record a wait that survives the run's lifecycle. Done when: `wait` records the rows waited on, and a re-point, a job replacement and a handover of the same run keep them and their age.
+2. Wake a waiting run in code. Done when: `wake` fetches `main`, merges it into a lane by §22's path, recovers from every failure to a retryable state, and reads `READY` only when the lane has a runnable row in the run's scope.
+3. Enter and leave waiting from the runners. Done when: `process-plan` and `process-phase` wait instead of ending when their only leftovers wait on another lane, and the heartbeat resumes on `READY` with no operator prompt.
 
-- [ ] Add `wait --session S --on 'DNN TNN §N,...'` to `scripts/campaign_guard.py`: it records `waiting_on` (each ref resolving, each owned by another lane, `todo-graph.py resolve`) and `waiting_since` in the guard, keeps the guard and the heartbeat job, and refuses while the run's lane has a ready row (`rows` ready above 0) or the run file holds a terminal marker of this run. Done when: `tests/scripts/test_campaign_guard.py` reads both fields after `wait`, and each refusal leaves the guard byte for byte unchanged. Cheaper substitute: a `PARKED` line plus a note, which ends the run and is the gap this section closes.
-- [ ] Let the Stop hook end the turn of a waiting run without counting a block, in `stop_decision()`. Done when: a test with `waiting_on` set and nothing ready reads no block and no breaker count, and a ready row of the lane still blocks.
-- [ ] Report the wait in `rows()`: `WAITING on <refs> since <UTC>` (exit 0) while every waited row is open, `READY <ref>` once one is stamped in this checkout, which clears `waiting_on` under the lock. Done when: a real two-lane tree test reads `WAITING`, stamps the prerequisite, and reads `READY` with the field gone.
-- [ ] Have the heartbeat prompt in `.claude/skills/process-plan/SKILL.md` handle `WAITING`: `git fetch origin main`, and when `origin/main` holds a newer commit, merge it into the lane (a merge, never a rebase; on a conflict in `todo/implementation-plan.md`, take either side, then `plan --sync`; any other conflict is reported to the coordinator and the run keeps waiting), then run `rows` again and resume on `READY`. Done when: a skill-file test finds the fetch, the merge rule and the `READY` resume inside the heartbeat block, and no `git rebase` or `--force` in it.
-- [ ] Keep an operator stop and an escalation final while waiting: `end --reason operator-stop` and `escalation` delete a waiting guard and its job as before, and `wait` is refused on a guard handed over with an operator reason until the new owner re-points it. Done when: tests end a waiting run both ways and read no guard.
-- [ ] Report a long wait: `rows` adds `long-wait` when `waiting_since` is more than 24 hours old, and the heartbeat appends it to the run file and tells the coordinator once a day. Done when: a test with `--now` 25 hours on reads `long-wait`.
-- [ ] Describe the waiting state in `.claude/skills/process-plan/SKILL.md` and `.claude/skills/process-phase/SKILL.md` (a phase whose only leftovers wait on another lane's rows waits instead of parking; host-bound and person-bound leftovers still park) and in `AGENTS.md` Parallel lanes. Done when: both skills name `wait` and the park rule for the other leftovers.
-- [ ] Commit: `tools: a lane waits on another lane's rows and resumes by itself`
+- [x] Add `wait --session S --on 'DNN TNN §N,...'` to `scripts/campaign_guard.py`: each ref resolving (`todo-graph.py resolve`) and owned by another lane, recorded as `waiting_on` with `waiting_since` in the guard, the guard and its heartbeat job kept; refused while the run's lane has a runnable row (`rows` ready above 0) or the run file holds a terminal marker of this run. Done when: `tests/scripts/test_campaign_guard.py` reads both fields after `wait`, and each refusal (a ref of this lane, an unknown ref, a ready row, a terminal marker) leaves the guard byte for byte unchanged.
+- [x] Keep `waiting_on`, `waiting_since` and `notified_at` across a continuation of the same run in `_acquire_locked()` (a re-point, a new heartbeat job, a handover of its run file), and clear them for a new run. Done when: tests re-point near the 7-day expiry with a new job and hand the run over, each reading the same refs and the original `waiting_since`, and a new run over the old guard reads none.
+- [x] Let the Stop hook end the turn of a waiting run without counting a block in `stop_decision()`, and block it once one of the lane's rows is ready. Done when: a test with `waiting_on` and nothing ready reads no block and no breaker count; with a ready row it blocks.
+- [x] Add `wake --session S` to `scripts/campaign_guard.py`, the heartbeat's whole waiting step: refuse a dirty tree (reported, nothing touched); `git fetch origin main` (a failure reported, the run left waiting); on a lane other than `main`, when `origin/main` holds a commit the lane lacks, `git merge --no-edit origin/main`; when that stops at `pre-merge-commit` (§22, `MERGE_HEAD` and no unmerged path), `git commit --no-edit`; on a conflict, or a concluding commit that fails (an invalid merged graph, a full temporary folder), `git merge --abort`, the cause reported, the run left waiting; never `--no-verify`, a rebase or `--force`. Done when: tests over a bare remote with a lane clone and a main clone cover a fetch failure, a dirty tree, a conflict, a failed conclusion and a clean merge, each ending with no `MERGE_HEAD` and the lane's own work intact, and a retry after each succeeds once its cause is gone.
+- [x] Read the wait in `rows()` and `wake`: `READY <ref>` only when the lane has a runnable row in the run's scope (its phase for a phase run), which clears `waiting_on` under the lock; otherwise `WAITING on <the refs still open> since <UTC>`, the stamped ones dropped from the list. Done when: a two-lane test with a lane row depending on two other-lane rows reads `WAITING` on both, then on the one left after the first is stamped and merged, then `READY` after both; and an independently ready row of the lane reads `READY` while the watched rows stay open.
+- [x] Prove resumption end to end: a lane clone waiting on another lane's row, that row stamped and pushed to `main` from a second clone, then `wake` in the lane clone merges `main` through §22's stop and reads `READY` naming the dependent, with no other step. Done when: the scenario passes for a plan run and for a phase run, and fails when `wake` skips the fetch, the merge, or the conclusion (each tested).
+- [x] Report a long wait once a day in `wake`: `long-wait` with the refs when `waiting_since` is more than 24 hours old and `notified_at` is absent or more than 24 hours old, recording `notified_at` under the lock. Done when: tests with `--now` read `long-wait` once on the first heartbeat past 24 hours, not on the next heartbeats that day, again the following day, and not again after a heartbeat replacement the same day.
+- [x] Check the heartbeat's expiry in `wake` too (`expiry()`), since a waiting run reaches no section boundary. Done when: a test 6 days 13 hours after the job's creation reads the replacement notice from `wake`.
+- [x] Keep an operator stop and an escalation final while waiting: `end --reason operator-stop` and `escalation` delete a waiting guard and its job as before. Done when: tests end a waiting run both ways and read no guard.
+- [x] Have the heartbeat prompt in `.claude/skills/process-plan/SKILL.md` call `wake` when `whoami` reads a waiting run, resume under the runners on `READY`, append `long-wait` to the run file and tell the coordinator, and reply with the line otherwise. Done when: a skill-file test finds `campaign_guard.py wake` in the heartbeat block and no bare `git merge`, `git rebase` or `--force` in it.
+- [x] Enter waiting from `process-plan`: when the audit finds nothing runnable in the lane but rows that wait only on another lane's rows, start the guard and its heartbeat and `wait` on those rows, instead of halting; with mixed leftovers, the operator- or host-bound ones go to the coordinator's manual list and the wait keeps the heartbeat for the rest. Done when: the skill names the transition, and a dry run in a scratch tree whose lane has only cross-lane-blocked rows reaches `wait` with a live guard.
+- [x] Enter waiting from `process-phase`: when a phase's only leftovers in the lane wait on another lane's rows, and `process-plan` finds no other runnable phase, `wait` on them before any `PARKED` line or guard deletion; a phase with a runnable row elsewhere moves on as today. Done when: the skill names the order (other phases first, then wait, park only for leftovers that wait on a person or an unreachable host).
+- [x] Describe the waiting state in `AGENTS.md` Parallel lanes. Done when: it names `wait`, `wake` and the park rule for the other leftovers.
+- [x] Commit: `tools: a lane waits on another lane's rows and resumes by itself`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_campaign_guard` passes, including the two-lane wait-then-resume test, which fails if `rows` reads `READY` before the prerequisite is stamped.
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_campaign_guard tests.scripts.test_lane_wake` passes, including the end-to-end resumption over a bare remote (`test_lane_wake`), which fails when `wake` skips the fetch, the merge or the conclusion (**Corrected 2026-10-30**, completion review G6: the checkpoint named only `test_campaign_guard`, which does not load the real-remote tests).
+
+> **Verified:** 2026-10-30 | §20 | 984a8fd927d70f80545c18ad5cd563fbc33ba560
+> **Review:** `docs/reviews/d00-t01-s20.json`
 
 ## 21. Pre-push excerpt from the tools' error output
 
@@ -780,6 +801,143 @@ Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm 
 - [ ] Commit: `tools: the pre-push excerpt comes from the tools' own error output`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_push_hook` passes, including the warnings-then-one-error lint case, which fails on the word grep.
+
+## 22. Lane merges regenerate the plan, never conflict on it
+
+> **Started:** 2026-10-30T14:05Z
+
+Asked by the operator 2026-10-30 ("can we avoid these conflicts?", then "build it as D00 T01 §22"). Every stamp commits a regenerated `todo/implementation-plan.md`, so with four lanes (§19) every merge between two branches that each stamped conflicts on that one file, and each lane resolves it by hand (take either side, `plan --sync`; `AGENTS.md` Parallel lanes). The file is wholly derived from the TODO files, so git should never merge its lines: it should keep one side and regenerate. Measured in a scratch repository (2026-10-30, coordinator): a `pre-merge-commit` hook that stages a regenerated file does not change the merge commit (git writes the merge's tree before that hook runs), and a `post-merge` hook cannot amend (git keeps `MERGE_HEAD` while it runs); a `pre-merge-commit` hook that stages the regenerated plan and exits non-zero stops the automatic commit, and the next `git commit` (through `pre-commit`) records it, with the merge commit carrying the current plan. Committing the plan stays (`todo/README.md`: the one committed derived artefact); CI's `plan --check` stays the backstop for a clone without the driver.
+
+**Corrected 2026-10-30** (plan review, `docs/reviews/00-workspace/D00-T01-s22.md`): git runs `pre-merge-commit` before it writes `MERGE_HEAD` (git `builtin/merge.c`), so a regeneration there sees only `HEAD` and `validate` refuses the incoming lane's stamps as "commit is not on this branch". The corrected design regenerates only in `pre-commit`, which runs once the stopped merge has written `MERGE_HEAD`; `pre-merge-commit` only stops the automatic commit when the merge changes anything the plan or the graph reads (`todo/`, `docs/reviews/`), so every such merge is validated with both parents before it is recorded. Before, `pre-merge-commit` regenerated and staged the plan itself, and let a merge that changed only `docs/reviews/` commit unvalidated. The reviewer-pin history (`committed_pins()`) also reads only `HEAD` and gains the merge's other parent; the attribute is set for every worktree in the shared `info/attributes` as well, because a lane branch's own `.gitattributes` lacks it until its first merge of `main`.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Keep one side of the plan in a merge. Done when: a merge of two branches that both changed the plan stops on no conflict in it, including a lane branch whose own `.gitattributes` lacks the attribute.
+2. Regenerate the plan into the merge commit with both parents' stamps. Done when: the merge commit's plan equals `plan --sync` over its merged TODO files, with genuine stamps on both branches validated, whether the merge had other conflicts or none.
+
+- [x] Add `todo/implementation-plan.md merge=todo-plan` to `.gitattributes` with a comment naming this section, and set the driver and the attribute in the clone's shared files: `git config merge.todo-plan.driver true` and the same attribute line in `$(git rev-parse --git-common-dir)/info/attributes` (both shared by every worktree of the clone). Done when: `git check-attr merge todo/implementation-plan.md` prints `todo-plan` and `git config merge.todo-plan.driver` prints `true` in all four worktrees, `checks-lane` and `app-lane` included before they merge `main`.
+- [x] Write `scripts/hooks/pre-merge-commit`: when the merge changes nothing under `todo/` or `docs/reviews/` relative to `HEAD` (`git diff --cached --quiet HEAD -- todo/ docs/reviews/`), exit 0 (the plan's inputs are unchanged); otherwise print `the merge changes the plan's inputs; run 'git commit --no-edit' to validate it and regenerate the plan` and exit 1, so git stops before committing and writes `MERGE_HEAD`. Done when: `tests/scripts/test_merge_plan.py` merges two branches that each genuinely stamped a different section (real receipts, ancestry checked, nothing stubbed) and the merge stops with that line and no conflict, and a merge touching neither folder commits by itself. Cheaper substitute: regenerating here, where `validate` cannot see the incoming parent (corrected above).
+- [x] Regenerate in `scripts/hooks/pre-commit` while a merge is open (`MERGE_HEAD` exists), after its existing refusal of unstaged or untracked changes under `todo/` and `docs/reviews/`: run `plan --sync` and stage the plan, then the existing `validate` and `plan --check`. Done when: the stopped stamped merge above concludes with one `git commit --no-edit` into a two-parent merge whose plan equals `plan --sync` over the merged tree; a merge with a conflict in another TODO file, resolved and committed, carries the regenerated plan; an unstaged TODO edit during the merge is refused with the plan and index unchanged, and the commit succeeds once it is stashed; an ordinary commit with a stale plan is still refused as before.
+- [x] Read the reviewer-pin history over `HEAD` and `MERGE_HEAD` in `committed_pins()` (`scripts/lib/todo_graph.py`), as `_tips()` does for stamps. Done when: `tests/scripts/test_todo_graph.py` accepts a receipt using a pin committed only on the incoming parent while a merge is open, and still refuses a pin that is only staged.
+- [x] Refuse the merge commit in `pre-commit` when `validate` fails over the merged tree, naming the refusal, evidence-only merges included. Done when: a test merge whose incoming side changes only a referenced receipt in `docs/reviews/` so it no longer validates stops in `pre-merge-commit`, and `git commit --no-edit` is refused with the validator's message and no commit.
+- [x] Track both hooks executable (`100755`) and keep `TrackedHooks` (§21) covering them. Done when: `git ls-files -s scripts/hooks` lists both at `100755`.
+- [x] Name the setup and the new merge step in `AGENTS.md` (the hooks paragraph and Parallel lanes: "a merge that changes the plan stops with `plan regenerated`; run `git commit --no-edit`") and in `todo/README.md` Commands. Done when: both name the driver line and the step, and no text tells a lane to resolve the plan by hand.
+- [x] Tell the three lanes, after this lands on `main`, how their merges go from now on: with the shared attribute and driver already set, the first merge of `main` does not conflict on the plan; because their branch's hooks are still the old ones until that merge is concluded, they run it as `git merge --no-commit origin/main` then `git commit --no-edit` (the checked-out new `pre-commit` regenerates the plan); every later merge stops by itself. Done when: a test lane that starts without the attribute line or the new hooks follows that procedure into a merge with no conflict and a current plan, and each lane is messaged with the commit and the procedure. Done 2026-10-30 16:24 SAST: the shared driver and `info/attributes` set (all four worktrees read `todo-plan` and `true`), and each lane told to run merges as `git merge --no-commit`, `plan --sync`, `git add`, `git commit --no-edit` until its branch holds `e02cd06` (that form also holds with its older hooks).
+- [x] Commit: `tools: lane merges regenerate the plan instead of conflicting on it`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan tests.scripts.test_pre_commit_hook tests.scripts.test_pre_push_hook` passes, including a two-branch merge that, without the driver, conflicts on the plan (the test asserts that first), and with it, does not.
+
+> **Verified:** 2026-10-30 | §22 | 9717464b39d8832ef37146331288ee159dd49f39
+> **Review:** `docs/reviews/d00-t01-s22.json`
+
+## 23. One command for a lane merge through its plan stop
+
+Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope there). Under §22 a merge that changes the plan's inputs takes two commands (`git merge`, then `git commit --no-edit`), where a merge of a project without a committed generated file takes one. A wrapper that runs both, keeping every refusal, brings the common case back to one command.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Merge in one command. Done when: `scripts/merge-lane.sh <ref>` concludes a stamped merge with a current plan, and stops on any conflict or refusal with git's own message.
+
+- [ ] Write `scripts/merge-lane.sh <ref>`: `git merge --no-edit <ref>`; when it stopped only at `pre-merge-commit` (no unmerged paths, `MERGE_HEAD` present), run `git commit --no-edit`; otherwise exit with the merge's status and its message, leaving the merge for the lane to resolve. Done when: `tests/scripts/test_merge_plan.py` concludes a stamped merge with one call and a current plan, leaves a merge with a conflict open with its message, and passes a refusal of `pre-commit` through with no commit.
+- [ ] Name it in `AGENTS.md` Parallel lanes and `todo/README.md` Commands as the way to merge. Done when: both name it.
+- [ ] Commit: `tools: one command for a lane merge through its plan stop`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan` passes, including the one-call stamped merge.
+
+## 24. Pre-commit refuses a missing client list
+
+> **Started:** 2026-10-30T15:30Z
+
+Found 2026-10-30 by the app lane (message to the coordinator) and confirmed by the coordinator: `scripts/hooks/pre-commit` scans the staged tree for client names only `if [ -f samples/client-names.txt ]`, so a worktree without that git-ignored list commits with no scan and no word. The coordinator's worktree `~/isitlegit-main` and the app lane's `~/isitlegit-app`, both made by `git worktree add` (which copies no ignored file), had none; every coordinator commit until 2026-10-30 16:00 SAST went unscanned. `python3 scripts/check-publication.py` over the tree afterwards found no client name in 980 tracked files. `scripts/check-publication.py` already refuses a missing or empty list (exit 2, `scripts/check-publication.py:10`); the hook is the one guard that fails open.
+
+**Corrected 2026-10-30** (the operator asked whether the refusal could block work; plan review P2, `docs/reviews/00-workspace/D00-T01-s24.md`): a refusal alone would stop every new worktree, subagent worktrees under `.claude/worktrees/` included, until someone linked the file. Every worktree of a clone shares one git directory, so the hook now finds the list itself: the worktree's own `samples/client-names.txt` when it has one, else the main checkout's (the parent of `git rev-parse --git-common-dir`), and refuses only when neither holds a list, or when the one it finds is a dangling link or names no one, each with the fix for that state. Before, the section only refused, and named one fix (`ln -s`) that fails on a blank-only list or a dangling link.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Find the clone's client list from any worktree. Done when: a worktree without its own list scans with the main checkout's.
+2. Refuse a commit without a usable list, saying how to fix that state. Done when: a missing, blank-only or dangling list is refused with its own fix, and the fix, followed, lets a clean commit through and still refuses a listed name.
+
+- [x] Resolve the list in `scripts/hooks/pre-commit`: the worktree's `samples/client-names.txt` when it exists (a file, or a link that resolves), else `$(git rev-parse --path-format=absolute --git-common-dir)/../samples/client-names.txt`, the main checkout's. Done when: `tests/scripts/test_pre_commit_hook.py`, in a linked worktree (`git worktree add`) without its own list, refuses a staged name from the main checkout's list and accepts a clean commit. Cheaper substitute: linking each worktree by hand, which the next `git worktree add` misses.
+- [x] Refuse a dangling link (`samples/client-names.txt` a symlink whose target is gone), naming the target and the repair (`ln -sfn <main checkout>/samples/client-names.txt samples/client-names.txt`, or removing the link to use the main checkout's list). Done when: a test refuses with that text, follows the repair, and then accepts a clean commit and refuses a listed name.
+- [x] Refuse a list that names no one (only blank lines), naming its path and saying to add the client names, one per line. Done when: a test refuses with that text, adds a name, and then accepts a clean commit and refuses that name.
+- [x] Refuse when no list is found at all, naming the main checkout's path where the operator's private list belongs (git-ignored, never committed), as `scripts/check-publication.py` refuses. Done when: a test refuses with that text, creates the list there, and then accepts a clean commit and refuses a listed name.
+- [x] Keep the unreadable-list refusal and every existing name scan. Done when: the existing `tests/scripts/test_pre_commit_hook.py` cases pass unchanged, and `tests/scripts/test_merge_plan.py` passes with a client list in its fixture.
+- [x] Name the lookup in `AGENTS.md` (Safety: the list in the main checkout serves every worktree of the clone; a new clone needs the operator's list). Done when: `AGENTS.md` names it.
+- [x] Commit: `tools: pre-commit finds the clone's client list and refuses a missing one`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_commit_hook tests.scripts.test_merge_plan` passes, including the linked worktree that scans with the main checkout's list (which commits unscanned on the fail-open hook) and the three refusals, each followed by its repair.
+
+> **Verified:** 2026-10-30 | §24 | e2de849ebd291c810e096ddb46c24393f610ce27
+> **Review:** `docs/reviews/d00-t01-s24.json`
+
+## 25. The publication check reads the clone's client list
+
+Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope there). §24 lets every worktree's commits scan with the main checkout's `samples/client-names.txt`, but `scripts/check-publication.py` still reads only its own checkout's (`NAMES = ROOT / "samples/client-names.txt"`, `scripts/check-publication.py:27`), so a worktree whose commits pass refuses the publication check (exit 2) until the list is linked there. The two guards must find the same list.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. One lookup for both guards. Done when: `check-publication.py` in a linked worktree without its own list scans with the main checkout's, and refuses as the hook does when none is usable.
+
+- [ ] Resolve the list in `scripts/check-publication.py` as `scripts/hooks/pre-commit` does (§24): the checkout's own `samples/client-names.txt`, else the one beside `git rev-parse --git-common-dir`; refuse a dangling link, a list naming no one, and no list, each with the same fix text. Done when: `tests/scripts/test_check_publication.py` passes in a linked worktree without its own list, finds a planted name there, and refuses each unusable state.
+- [ ] Commit: `tools: the publication check reads the clone's client list`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_check_publication` passes, including the linked worktree without its own list (which exits 2 on the current check).
+
+## 26. Uncoordinated lane: no run guard, reviewless stamps
+
+Operator request, 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane): the `media` lane (D10, branch `claude/trusting-pasteur-umwvqz`) is registered but not coordinated. Lane scoping (§19) already keeps its rows out of every other lane's queries. The tools must also know the lane is uncoordinated, so that no run guard starts in it and its stamps need no plan review, completion review or rounds, with the waiver recorded rather than silent.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Mark a lane uncoordinated. Done when: `todo/lanes.json` accepts `"coordinated": false` on a lane, refuses a non-boolean, and `query lane` prints it.
+2. Keep the coordinator's machinery out of it. Done when: `campaign_guard.py acquire` refuses to start a run in an uncoordinated lane, and a stamp of one of its sections records the waived reviews in its receipt.
+
+- [ ] Accept an optional `coordinated` boolean (default true) per lane in `lanes()` (`scripts/lib/todo_graph.py`), and print it from `query lane`. Done when: `tests/scripts/test_todo_graph.py` loads `"coordinated": false`, refuses `"coordinated": "no"`, and reads `coordinated: false` from `query lane`.
+- [ ] Refuse `acquire` in `scripts/campaign_guard.py` when `query lane` reports `coordinated: false`, naming the lane and the spec amendment. Done when: `tests/scripts/test_campaign_guard.py` refuses it with the guard file unwritten, and a coordinated lane still acquires.
+- [ ] Let `stamp` take a section of an uncoordinated lane without `--plan`, `--completion` or `--review`, requiring `--sha` and at least one `--check`, and record `"waived": "plan, completion and review rounds: uncoordinated lane <name> (operator, 2026-10-30)"` in the receipt; validation accepts such a receipt only while the section's lane is uncoordinated. Done when: a test stamps a D10 section with checks only and validates, the same receipt refuses once the lane is coordinated, and a coordinated section's stamp without reviews still refuses.
+- [ ] Set `"coordinated": false` on the `media` lane in `todo/lanes.json`. Done when: `TODO_LANE=media python3 scripts/todo-graph.py query lane` prints `coordinated: false`.
+- [ ] Name the rule in `AGENTS.md` Parallel lanes and the `process-plan` skill (an uncoordinated lane runs no campaign; its stamps carry the waiver). Done when: both name it.
+- [ ] Commit: `tools: an uncoordinated lane: no run guard, stamps without review rounds`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph tests.scripts.test_campaign_guard` passes, including the waived D10 stamp that refuses once its lane is coordinated.
+
+## 27. Waiting lanes woken by main's push
+
+Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there). A waiting lane run (§20) notices a prerequisite only at its next heartbeat, every 5 minutes, so a stamp reaching `main` waits up to 300 seconds before anything acts on it. Claude Code's agent teams deliver a teammate's completion at once. The heartbeat stays as the fallback; a wake-up sent when the coordinator pushes `main` brings the common case down to seconds.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Wake waiting lanes when main moves. Done when: after the coordinator pushes `main`, each lane whose run waits on a row that push stamped receives one wake message within 10 seconds, and the heartbeat still resumes a lane the message missed.
+
+- [ ] After each push to `main`, list the lanes whose guards wait on a ref the push stamped (`campaign_guard.py rows` per lane worktree, or a `waiters` command reading each lane's guard), and send each one wake message naming the refs. Done when: a test with two waiting lanes, one of them on a stamped ref, messages only that one.
+- [ ] Keep the heartbeat as the fallback: a lane that never got the message resumes at its next heartbeat. Done when: the §20 end-to-end test still passes with no message sent.
+- [ ] Commit: `tools: waiting lanes are woken when main moves`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes, including the push that wakes only the lane waiting on the ref it stamped.
 
 ## Verification
 
