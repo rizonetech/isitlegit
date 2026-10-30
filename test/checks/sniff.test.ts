@@ -19,6 +19,31 @@ describe("sniff", () => {
     for (const [name, sample] of Object.entries(scripts)) expect(sniff(sample), name).toBe("script");
   });
 
+  it("reads a UTF-16LE script with its byte order mark (completion review)", () => {
+    const text = "Invoke-Expression (New-Object Net.WebClient).DownloadString('x')\r\n";
+    const utf16 = new Uint8Array(2 + text.length * 2);
+    utf16.set([0xff, 0xfe]);
+    for (let i = 0; i < text.length; i++) utf16[2 + i * 2] = text.charCodeAt(i);
+    expect(sniff(utf16)).toBe("script");
+  });
+
+  it("reads an SVG after its XML prolog (completion review)", () => {
+    for (const text of [
+      '<!-- Company logo -->\n<svg xmlns="http://www.w3.org/2000/svg"/>',
+      '<?xml version="1.0"?>\n<!-- Company logo -->\n<!DOCTYPE svg>\n<svg xmlns="http://www.w3.org/2000/svg"/>',
+    ])
+      expect(sniff(new TextEncoder().encode(text)), text).toBe("svg");
+  });
+
+  it("reads prose that mentions a command as text, not a script (completion review)", () => {
+    for (const prose of [
+      "In PowerShell, Invoke-Expression runs a string as a command.",
+      "Our IT notes: never run powershell -EncodedCommand from an email.",
+      'The old macro used CreateObject("WScript.Shell") to open files.',
+    ])
+      expect(sniff(new TextEncoder().encode(prose)), prose).toBe("text");
+  });
+
   it("recognises nothing in random binary", () => {
     expect(sniff(new Uint8Array([0x00, 0x01, 0x02, 0x03, 0xff, 0xfe]))).toBeNull();
     expect(sniff(new Uint8Array())).toBeNull();
@@ -144,6 +169,31 @@ describe("attachment.type_mismatch", () => {
     expect(renamed).toHaveLength(1);
   });
 
+  it("says what the file is named as and what it contains, in plain words (completion review)", () => {
+    expect(
+      typeMismatchEvidence(view([{ filename: "Invoice.pdf", mediaType: "application/pdf", sample: samples.pe }]))[0]
+        ?.summary,
+    ).toBe("Invoice.pdf is named as a PDF, but contains a Windows program.");
+    expect(
+      typeMismatchEvidence(view([{ filename: "scan", mediaType: "image/png", sample: samples.jpeg }]))[0]?.summary,
+    ).toBe("scan is declared as a PNG image, but contains a JPEG image.");
+  });
+
+  it("keeps the batch's findings whatever a filename's extension spells (completion review)", () => {
+    for (const odd of ["notes.constructor", "notes.__proto__", "notes.toString", "notes.hasOwnProperty"]) {
+      const items = typeMismatchEvidence(
+        view([
+          { filename: "Invoice.pdf", mediaType: "application/pdf", sample: samples.pe },
+          { filename: odd, mediaType: "application/octet-stream", sample: samples.text },
+        ]),
+      );
+      expect(
+        items.map((i) => i.severity),
+        odd,
+      ).toEqual(["high"]);
+    }
+  });
+
   it("counts attachments not read", () => {
     expect(typeMismatchEvidence(view([], 3))).toMatchObject([
       { severity: "info", detail: { checked: false, unread: 3 } },
@@ -152,6 +202,24 @@ describe("attachment.type_mismatch", () => {
 });
 
 describe("attachment.type_mismatch through the checks step", () => {
+  it("reads four at a time, keeping the attachments' order (completion review)", async () => {
+    let active = 0;
+    let peak = 0;
+    const slow = {
+      get: async (key: string) => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 20 - Number(key.slice(-1))));
+        active--;
+        return { arrayBuffer: async () => new TextEncoder().encode(key).buffer } as unknown as R2ObjectBody;
+      },
+    } as unknown as R2Bucket;
+    const keys = Array.from({ length: 10 }, (_, i) => ({ key: `attachments/x/${i}` }));
+    const read = await attachmentHeadsOf(slow, keys);
+    expect(peak).toBe(4);
+    expect(read.heads.map((h) => h.key)).toEqual(keys.map((k) => k.key));
+  });
+
   it("fails the step on a storage error, so the Workflow retries, rather than counting it as unread", async () => {
     const failing = { get: async () => Promise.reject(new Error("R2 down")) } as unknown as R2Bucket;
     await expect(attachmentHeadsOf(failing, [{ key: "attachments/x/1" }])).rejects.toThrow("R2 down");

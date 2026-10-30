@@ -93,6 +93,31 @@ const FAMILY: Record<SniffedType, Family> = {
   html: "web",
   text: "text",
 };
+// Each format as a member reads it, in the summaries; `detail` keeps the identifiers (completion review).
+const NAMES: Record<SniffedType, string> = {
+  pdf: "a PDF",
+  docx: "a Word document",
+  xlsx: "an Excel workbook",
+  pptx: "a PowerPoint presentation",
+  ooxml: "an Office document",
+  ole: "an older Office file or Outlook message",
+  zip: "a ZIP archive",
+  rar: "a RAR archive",
+  "7z": "a 7-Zip archive",
+  iso: "a disk image",
+  png: "a PNG image",
+  jpeg: "a JPEG image",
+  gif: "a GIF image",
+  webp: "a WebP image",
+  svg: "an SVG image",
+  pe: "a Windows program",
+  elf: "a Linux program",
+  macho: "a Mac program",
+  lnk: "a Windows shortcut",
+  script: "a script",
+  html: "a web page",
+  text: "plain text",
+};
 const DANGEROUS: Family[] = ["executable", "script", "shortcut"];
 const DISGUISE: Family[] = ["document", "image"];
 
@@ -118,8 +143,9 @@ export function typeMismatchEvidence(view: CaseView): EvidenceDraft[] {
     if (!sniffed) continue;
     const extension = extensionOf(attachment.filename);
     const declared = attachment.mediaType.split(";")[0]?.trim().toLowerCase() ?? "";
-    const byName = extension ? EXTENSIONS[extension] : undefined;
-    const byType = MEDIA_TYPES[declared];
+    // Own entries only: a name such as `notes.constructor` reads no inherited property (completion review).
+    const byName = extension && Object.hasOwn(EXTENSIONS, extension) ? EXTENSIONS[extension] : undefined;
+    const byType = Object.hasOwn(MEDIA_TYPES, declared) ? MEDIA_TYPES[declared] : undefined;
     const claims = [
       ...(byName && !byName.includes(sniffed) ? ["extension"] : []),
       ...(byType && !byType.includes(sniffed) ? ["media type"] : []),
@@ -132,7 +158,7 @@ export function typeMismatchEvidence(view: CaseView): EvidenceDraft[] {
       check: "attachment.type_mismatch",
       severity: hidden ? "high" : "medium",
       summary: bounded(
-        `${plain(attachment.filename || "An attachment", 80)} is named or labelled as ${said} but its contents are ${hidden ? `a ${FAMILY[sniffed]} (${sniffed})` : sniffed}.`,
+        `${plain(attachment.filename || "An attachment", 80)} is ${claims.includes("extension") ? "named" : "declared"} as ${NAMES[said]}, but contains ${NAMES[sniffed]}.`,
       ),
       detail: fittedDetail({
         filename: attachment.filename,

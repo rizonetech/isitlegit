@@ -34,6 +34,7 @@ track: day-2
 | 2 | §2 | HTML attachments and smuggling | §1 | [ ] |
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [ ] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
+| 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -114,6 +115,24 @@ Filed 2026-10-30 from §1's plan review (its correction 9): an uploaded document
 - [ ] Commit: `checks: type mismatch for uploaded files`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts test/intake/upload.test.ts` passes.
+
+## 5. RTF and further formats in the type check
+
+Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the formats a forwarded invoice usually carries, so a program named `invoice.rtf` and declared `application/rtf` claims a format the check does not know, and nothing is said. RTF, and the other document and voice formats members send (OpenDocument, older Office templates, M4A and Ogg voice notes), join the identifier and the claim tables.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Widen the formats. Done when: a program, script or shortcut behind each new claim is high, and a genuine file of each new format is silent.
+
+- [ ] Add RTF (`{\\rtf`), OpenDocument (a ZIP whose first entry is `mimetype` naming `application/vnd.oasis.opendocument.*`), M4A (`ftyp` with an audio brand) and Ogg to `sniff` in `src/checks/sniff.ts`, with their extensions and media types in `src/checks/attachment-type.ts`. Done when: `test/checks/sniff.test.ts` identifies a synthetic sample of each.
+- [ ] Prove the disguise and the silence for each new claim. Done when: the test reads high for a program behind `.rtf`, `.odt`, `.m4a` and `.ogg` names, and nothing for a genuine sample of each.
+- [ ] Commit: `checks: RTF and further formats in the type check`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts` passes.
 
 ## Verification
 

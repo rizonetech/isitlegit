@@ -29,6 +29,7 @@ export type SniffedType =
 export const SNIFF_BYTES = 36 * 1024;
 // The most attachments a case has read for sniffing; the rest are counted as not compared.
 export const MAX_SNIFFED = 20;
+export const READ_CONCURRENCY = 4;
 
 // Each attachment's first SNIFF_BYTES from R2, as base64, for the view (the `checks` step reads them, since a check never
 // reaches the store); one missing from R2 is counted with those past MAX_SNIFFED.
@@ -36,20 +37,26 @@ export async function attachmentHeadsOf(
   bucket: R2Bucket,
   attachments: readonly { key: string }[],
 ): Promise<{ heads: { key: string; head: string }[]; unread: number }> {
-  const heads: { key: string; head: string }[] = [];
+  const listed = attachments.slice(0, MAX_SNIFFED);
   let unread = Math.max(0, attachments.length - MAX_SNIFFED);
-  for (const { key } of attachments.slice(0, MAX_SNIFFED)) {
-    // A missing object is counted; any other storage error fails the step, which the Workflow retries (plan review).
-    const object = await bucket.get(key, { range: { offset: 0, length: SNIFF_BYTES } });
-    if (!object) {
-      unread++;
-      continue;
+  const read: ({ key: string; head: string } | null)[] = new Array(listed.length).fill(null);
+  // Four reads at a time (completion review), in order of the attachments however they finish.
+  let next = 0;
+  const worker = async () => {
+    for (let i = next++; i < listed.length; i = next++) {
+      const key = (listed[i] as { key: string }).key;
+      // A missing object is counted; any other storage error fails the step, which the Workflow retries (plan review).
+      const object = await bucket.get(key, { range: { offset: 0, length: SNIFF_BYTES } });
+      if (!object) continue;
+      const bytes = new Uint8Array(await object.arrayBuffer());
+      let text = "";
+      for (let j = 0; j < bytes.length; j += 0x8000) text += String.fromCharCode(...bytes.subarray(j, j + 0x8000));
+      read[i] = { key, head: btoa(text) };
     }
-    const bytes = new Uint8Array(await object.arrayBuffer());
-    let text = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    heads.push({ key, head: btoa(text) });
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, listed.length) }, worker));
+  const heads = read.filter((h): h is { key: string; head: string } => h !== null);
+  unread += listed.length - heads.length;
   return { heads, unread };
 }
 
@@ -97,15 +104,34 @@ function isText(bytes: Uint8Array): boolean {
   return control * 100 <= Math.min(bytes.length, 4096);
 }
 
+// What follows an XML prolog (the declaration, comments, processing instructions and a doctype, in any order), bounded
+// by the text read.
+function prolog(text: string): string {
+  let rest = text;
+  for (;;) {
+    const trimmed = rest.trimStart();
+    const end = trimmed.startsWith("<!--")
+      ? trimmed.indexOf("-->") + 3
+      : trimmed.startsWith("<?")
+        ? trimmed.indexOf("?>") + 2
+        : trimmed.startsWith("<!doctype")
+          ? trimmed.indexOf(">") + 1
+          : 0;
+    if (end <= 2) return trimmed;
+    rest = trimmed.slice(end);
+  }
+}
+
 // A script, by markers in its first 4 KiB of text (a bounded, documented list; plan review): an interpreter line, a batch
 // file, Windows Script Host or PowerShell (an HTML Application is caught first, in `sniff`). Anything else readable is
 // text.
 const SCRIPT = [
   /^\uFEFF?#!\//,
-  /^\uFEFF?\s*@echo\s+off\b/im,
-  /\bWScript\.(?:Shell|CreateObject|Echo)\b/i,
-  /\bCreateObject\s*\(\s*["'](?:WScript|Scripting|Shell|MSXML2|ADODB)\./i,
-  /\bInvoke-Expression\b|\bIEX\s*\(|-EncodedCommand\b|\bpowershell(?:\.exe)?\s+-/i,
+  /^\s*@echo\s+off\b/im,
+  // A statement, at the start of a line, not a mention in prose (completion review).
+  /^\s*(?:Set\s+\w+\s*=\s*)?(?:WScript\.(?:CreateObject|Echo|Sleep|Quit)\b|CreateObject\s*\(\s*["'](?:WScript|Scripting|Shell|MSXML2|ADODB)\.)/im,
+  /^\s*(?:\$\w+\s*=\s*)?(?:Invoke-Expression|IEX)\s*[(\s$'"]/im,
+  /^\s*powershell(?:\.exe)?\s+-(?:\w+\s+)*-?(?:EncodedCommand|enc|e|Command|c)\b/im,
 ];
 
 export function sniff(bytes: Uint8Array): SniffedType | null {
@@ -131,13 +157,23 @@ export function sniff(bytes: Uint8Array): SniffedType | null {
   if (ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a") return "gif";
   if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP") return "webp";
   if (at(bytes, 0, 0x4c, 0x00, 0x00, 0x00) && at(bytes, 4, ...LNK_CLSID)) return "lnk";
+  // UTF-16 text, as Windows writes scripts with a byte order mark, read as text too (completion review).
+  const utf16 = at(bytes, 0, 0xff, 0xfe) ? "utf-16le" : at(bytes, 0, 0xfe, 0xff) ? "utf-16be" : null;
+  if (utf16) return textType(new TextDecoder(utf16).decode(bytes.subarray(2, 8194)));
   if (!isText(bytes)) return null;
-  const head = new TextDecoder().decode(bytes.subarray(0, 1024)).replace(/^﻿/, "").trimStart().toLowerCase();
-  const text = new TextDecoder().decode(bytes.subarray(0, 4096));
-  // An HTML Application is a program written as a web page: a script, whatever its first tag.
+  return textType(new TextDecoder().decode(bytes.subarray(0, 4096)));
+}
+
+// A text's type: an HTML Application (a script, whatever its first tag), HTML, SVG (after any XML prolog: declaration,
+// comments, processing instructions, a doctype), another script, or text.
+function textType(text: string): SniffedType {
+  const head = text
+    .replace(/^\uFEFF/, "")
+    .trimStart()
+    .toLowerCase();
   if (/<hta:application\b/i.test(text)) return "script";
   if (head.startsWith("<!doctype html") || head.startsWith("<html")) return "html";
-  if (head.startsWith("<svg") || (head.startsWith("<?xml") && head.includes("<svg"))) return "svg";
+  if (prolog(head).startsWith("<svg")) return "svg";
   if (SCRIPT.some((marker) => marker.test(text))) return "script";
   return "text";
 }
