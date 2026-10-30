@@ -297,6 +297,17 @@ describe("round 1", () => {
     expect(new TextEncoder().encode(JSON.stringify(dkim?.detail)).length).toBeLessThanOrEqual(64 * 1024);
   });
 
+  it.each(["dkim", "spf"])(
+    "stores an inconclusive %s with its raw key however long its result token is (round 3)",
+    async (method) => {
+      const items = await run(view(gmail(`${method}=${"x".repeat(66_000)} header.d=bank.example`)));
+      expect(items.some((e) => e.check === "not_checked")).toBe(false);
+      const item = items.find((e) => e.check === `auth.${method}`);
+      expect(item).toMatchObject({ severity: "low", detail: { state: "inconclusive" }, artefacts: [RAW] });
+      expect(new TextEncoder().encode(JSON.stringify(item?.detail)).length).toBeLessThanOrEqual(64 * 1024);
+    },
+  );
+
   it("reads an internationalised apex as the organisational domain for its policy", () => {
     expect(dmarcEvidence(view(gmail("dmarc=fail (p=REJECT sp=NONE dis=NONE)", "a@bücher.example")))[0]).toMatchObject({
       severity: "high",

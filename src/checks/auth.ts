@@ -153,6 +153,18 @@ const MAX_SOURCES = 8;
 const MAX_COMMENT = 256;
 const MAX_VALUE = 255;
 const MAX_RESULTS = 20;
+// Every string and list in an item's detail bounded, wherever it came from (round 3: a 66 KB result token): the header
+// excerpts to MAX_HEADER, any other string to MAX_VALUE, any list to MAX_RESULTS (MAX_SOURCES for the excerpts). One
+// place for all, so a field added later cannot overflow the schema either.
+function boundedDetail(value: unknown, key = ""): unknown {
+  if (typeof value === "string") return clip(value, key === "headers" ? MAX_HEADER : MAX_VALUE);
+  if (Array.isArray(value))
+    return value.slice(0, key === "headers" ? MAX_SOURCES : MAX_RESULTS).map((v) => boundedDetail(v, key));
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, boundedDetail(v, k)]));
+  return value;
+}
+
 function clip(value: string | null, max = MAX_VALUE): string | null {
   if (value === null) return null;
   const text = Array.from(value);
@@ -188,7 +200,11 @@ function item(
     check,
     severity,
     summary: bounded(summary),
-    detail: { ...detail, receiver: trusted.kind, headers: headersOf(trusted, results) } as EvidenceDraft["detail"],
+    detail: boundedDetail({
+      ...detail,
+      receiver: trusted.kind,
+      headers: headersOf(trusted, results),
+    }) as EvidenceDraft["detail"],
     artefacts: [view.raw],
   };
 }
