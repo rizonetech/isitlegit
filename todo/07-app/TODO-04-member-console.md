@@ -35,7 +35,7 @@ track: day-6
 | 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
-| 7 | §7 | Subject, sender and search in the Cases list | §1 | [ ] |
+| 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [ ] |
 | 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
 | 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
 | 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
@@ -233,9 +233,9 @@ Each row named as the board names it: the original's subject over its sender, th
 1. Wait for D01 T01 §16 (the checks lane: the original's subject and sender stored on the case, migration 0038) to reach main and this branch, then add it to this section's Depends with its XREF. Done when: `validate` accepts the edge.
 2. Draw the two-line cell and search; draw the uploader and Type words once their rows exist (asked of the checks and invoice lanes through the coordinator). Done when: `test/web/cases-page.test.ts` reads each.
 
-- [ ] Add D01 T01 §16 to this section's Depends once it is on main and merged here. Done when: `validate` accepts the edge.
+- [x] Add D01 T01 §16 to this section's Depends once it is on main and merged here. Done when: `validate` accepts the edge. Evidence 2026-10-30: D01 T01 §16 (the original's subject and sender, migration 0038) and D01 T03 §11 (`uploaded_by`, migration 0039) are stamped on main, merged here at 5731f56, and both are in the Depends column; `validate` accepts them.
 - [ ] Draw the subject over the sender (name and address; "Uploaded PDF" and the like for a document with neither), and Search by sender or subject over both, case-insensitively, in the query string. Done when: `test/web/cases-page.test.ts` finds a case by a subject word and by a sender address, and another organisation's never.
-- [ ] Draw the uploader's name in Checked by for an upload, from the field the checks lane stores. Done when: the page test reads it.
+- [ ] Draw the uploader's name in Checked by for an upload, from `uploaded_by` (D01 T03 §11), matched to a member of the organisation as an email case's forwarder is. Done when: the page test reads it, and "Not recorded" only for an upload from before migration 0039.
 - [ ] Draw the invoice and payment-document words in Type from the invoice checks' stored classification (D06). Done when: the page test reads "Email, invoice".
 - [ ] Commit: `web: subject, sender and search in the cases list`
 

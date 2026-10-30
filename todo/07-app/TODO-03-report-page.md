@@ -43,7 +43,7 @@ track: day-2
 | 6 | §6 | This-was-wrong feedback | §2 | [ ] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
-| 9 | §9 | Report header | §1 | [ ] |
+| 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
