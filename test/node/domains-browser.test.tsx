@@ -134,6 +134,20 @@ describe("the busy form's wait", () => {
     expect(mail).toBeGreaterThan(0);
     expect(wait).toBeGreaterThan(mail + 10_000);
   });
+
+  // The server holds a new code while the last is being mailed (src/auth/domains.ts CODE_SEND_WINDOW_MS); the window
+  // must outlast a send's whole life: every attempt's deadline and the backoff between them (round 2).
+  it("holds a new code for longer than a mail send's whole retry life", () => {
+    const source = (file: string) => readFileSync(join(import.meta.dirname, "../..", file), "utf8");
+    const mail = source("src/mail/smtp2go.ts");
+    const attempts = Number(/export const MAX_ATTEMPTS = (\d+);/.exec(mail)?.[1]);
+    const deadline = Number((/deps\.timeoutMs \?\? ([\d_]+)/.exec(mail)?.[1] ?? "").replace(/_/g, ""));
+    expect(mail).toContain("await pause(1000 * 2 ** (attempts - 1));");
+    const backoff = Array.from({ length: attempts - 1 }, (_, i) => 1000 * 2 ** i).reduce((a, b) => a + b, 0);
+    const window = /export const CODE_SEND_WINDOW_MS = (\d+) \* 60_000;/.exec(source("src/auth/domains.ts"))?.[1];
+    expect(attempts).toBeGreaterThan(0);
+    expect(Number(window) * 60_000).toBeGreaterThan(attempts * deadline + backoff);
+  });
 });
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the domain page in Chromium", { timeout: 120_000 }, () => {

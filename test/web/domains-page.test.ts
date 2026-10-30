@@ -269,6 +269,23 @@ describe("the domain verification page", () => {
     expect(later).not.toContain("The next code can go at");
   });
 
+  it("says the last code is still on its way rather than replacing it", async () => {
+    const o = await org("Karoo Couriers");
+    const d = `wait-${tag()}.example`;
+    const id = await claim(o, d);
+    const { cookie } = await person(o);
+    const now = new Date().toISOString();
+    await db
+      .prepare(
+        "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, 'verify', ?, 'pending', 1, ?, ?)",
+      )
+      .bind(crypto.randomUUID(), `claim:${id}:${crypto.randomUUID()}`, "a".repeat(64), now, now)
+      .run();
+    const res = await act(d, cookie, { org: o, action: "send", local: "admin" });
+    expect(res.html).toContain("The last code is still on its way. Check the inbox before asking for another");
+    expect(world.sends).toEqual([]);
+  });
+
   it("says when a code has expired or none is waiting", async () => {
     const o = await org("Karoo Couriers");
     const d = `exp-${tag()}.example`;

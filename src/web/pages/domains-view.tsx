@@ -37,6 +37,7 @@ export const RESULTS = [
   "send-locked",
   "send-limit",
   "send-busy",
+  "send-sending",
   "send-bad-local",
   "verify-verified",
   "verify-wrong",
@@ -176,6 +177,12 @@ function sendNotice(result: Result | null, view: DomainClaimView) {
         <Notice tone="error">
           Your organisation has sent as many codes as it can for now.
           {view.code.nextCodeAt ? ` The next can go at ${at(view.code.nextCodeAt)}.` : ""}
+        </Notice>
+      );
+    case "send-sending":
+      return (
+        <Notice tone="info">
+          The last code is still on its way. Check the inbox before asking for another: a new code replaces it.
         </Notice>
       );
     case "send-bad-local":

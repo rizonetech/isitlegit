@@ -36,7 +36,13 @@ const CODES_PER_HOUR = 5;
 const ORG_CODES_PER_HOUR = 20;
 const ORG_CODES_PER_DAY = 50;
 const DAY_MS = 24 * HOUR_MS;
+const SENDING_NOW = "the last code is still being sent; check the inbox before asking for another";
 const ORG_LIMIT = `at most ${ORG_CODES_PER_HOUR} codes an hour and ${ORG_CODES_PER_DAY} a day for an organisation; try again later`;
+// How long a claim's code may still be on its way: a mail send's whole life, three attempts of 30 seconds and their
+// backoff (src/mail/smtp2go.ts), with room. No new code is issued while the last one's send is pending and this
+// recent, so a second press cannot replace a code still being mailed (D07 T02 §15); a send stuck pending longer (its
+// Worker gone) no longer holds the claim.
+export const CODE_SEND_WINDOW_MS = 2 * 60_000;
 const PENDING_DOMAINS = 10;
 const PENDING_ADDRESSES = 20;
 
@@ -95,7 +101,11 @@ const allowanceOf = (claim: { domain?: string; address?: string }) =>
 // statement that records the send, and the code is written only if that send was recorded.
 // Why a code was not issued: the claim is gone, its code is locked (a code sent now would expire before the lock
 // ends), its own hourly allowance is spent, or the organisation's is.
-type NotIssued = "gone" | "locked" | "limit" | "busy";
+type NotIssued = "gone" | "locked" | "limit" | "busy" | "sending";
+// A claim's last code still being mailed: its send row pending and recent. Claim mail is keyed `claim:<claim>:<code>`
+// (src/auth/claim-mail.ts), so the claim's sends are one range of the unique key.
+const SENDING =
+  "SELECT 1 FROM mail_sends WHERE send_key >= ? AND send_key < ? AND status = 'pending' AND updated_at > ?";
 const PENDING_CLAIM =
   "SELECT 1 FROM org_domains WHERE id = ? AND org_id = ? AND state = 'pending' UNION ALL SELECT 1 FROM org_addresses WHERE id = ? AND org_id = ? AND state = 'pending'";
 
@@ -116,7 +126,7 @@ async function issueCode(
   const [counted] = await db.batch([
     db
       .prepare(
-        `INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE EXISTS (${PENDING_CLAIM}) AND NOT EXISTS (SELECT 1 FROM verification_codes WHERE claim_id = ? AND locked_until > ?) AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ?`,
+        `INSERT INTO verification_sends (id, org_id, target, sent_at) SELECT ?, ?, ?, ? WHERE EXISTS (${PENDING_CLAIM}) AND NOT EXISTS (${SENDING}) AND NOT EXISTS (SELECT 1 FROM verification_codes WHERE claim_id = ? AND locked_until > ?) AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND target = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ? AND (SELECT COUNT(*) FROM verification_sends WHERE org_id = ? AND sent_at > ?) < ?`,
       )
       .bind(
         crypto.randomUUID(),
@@ -127,6 +137,9 @@ async function issueCode(
         orgId,
         claimId,
         orgId,
+        `claim:${claimId}:`,
+        `claim:${claimId};`,
+        new Date(now - CODE_SEND_WINDOW_MS).toISOString(),
         claimId,
         at,
         orgId,
@@ -154,6 +167,13 @@ async function issueCode(
   ]);
   if (counted?.meta.changes === 1) return { code, codeId };
   if (!(await db.prepare(PENDING_CLAIM).bind(claimId, orgId, claimId, orgId).first())) return "gone";
+  if (
+    await db
+      .prepare(SENDING)
+      .bind(`claim:${claimId}:`, `claim:${claimId};`, new Date(now - CODE_SEND_WINDOW_MS).toISOString())
+      .first()
+  )
+    return "sending";
   const wait = await nextCodeAt(db, orgId, claimId, allowance);
   return wait.locked ? "locked" : wait.target ? "limit" : "busy";
 }
@@ -385,7 +405,7 @@ export async function checkDomain(a: Actor, domain: string): Promise<CheckOutcom
 }
 
 export type SendOutcome =
-  | { kind: "gone" | "already" | "bad-local" | "locked" | "limit" | "busy" }
+  | { kind: "gone" | "already" | "bad-local" | "locked" | "limit" | "busy" | "sending" }
   | { kind: MailOutcome; domain: string; to: string };
 export async function sendDomainCode(env: Env, a: Actor, domain: string, local: unknown): Promise<SendOutcome> {
   const claim = await claimedDomain(a.db, a.orgId, domain);
@@ -591,6 +611,7 @@ domainRoutes.post("/domains/:domain/code", async (c) => {
   if (sent.kind === "bad-local") return problem(400, "the code goes to admin@ or postmaster@");
   if (sent.kind === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
   if (sent.kind === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes a domain an hour; try again later`);
+  if (sent.kind === "sending") return problem(429, SENDING_NOW);
   return problem(429, ORG_LIMIT);
 });
 
@@ -648,6 +669,7 @@ async function addressCode(c: Context<OrgEnv>, create: boolean) {
   if (issued === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
   if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes an address an hour; try again later`);
   if (issued === "busy") return problem(429, ORG_LIMIT);
+  if (issued === "sending") return problem(429, SENDING_NOW);
   const outcome = await sendClaimCode(c.env, {
     to: address,
     claimId: claim.id,

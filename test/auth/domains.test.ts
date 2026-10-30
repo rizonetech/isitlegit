@@ -902,6 +902,50 @@ describe("the domain page's needs (D07 T02 §15)", () => {
   });
 });
 
+describe("a code still being mailed (D07 T02 §15)", () => {
+  it("issues no new code while the last one's send is pending, and does once that send is stale", async () => {
+    const { cookie, orgId } = await owner("sending@example.org");
+    await json("/domains", cookie, "POST", { domain: "sending.co.za" });
+    const claimId = (
+      await db
+        .prepare("SELECT id FROM org_domains WHERE org_id = ? AND domain = ?")
+        .bind(orgId, "sending.co.za")
+        .first<{ id: string }>()
+    )?.id;
+    const pending = (at: Date) =>
+      db
+        .prepare(
+          "INSERT INTO mail_sends (id, send_key, kind, to_hash, status, attempts, created_at, updated_at) VALUES (?, ?, 'verify', ?, 'pending', 1, ?, ?)",
+        )
+        .bind(
+          crypto.randomUUID(),
+          `claim:${claimId}:${crypto.randomUUID()}`,
+          "a".repeat(64),
+          at.toISOString(),
+          at.toISOString(),
+        )
+        .run();
+    await pending(new Date());
+    const mailed = world.sends.length;
+    const refused = await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" });
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: expect.stringMatching(/still being sent/) });
+    expect(world.sends.length).toBe(mailed);
+    expect(
+      await db
+        .prepare("SELECT COUNT(*) AS n FROM verification_sends WHERE org_id = ?")
+        .bind(orgId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 0 });
+    // A send stuck pending past the window (its Worker gone) no longer holds the claim.
+    await db
+      .prepare("UPDATE mail_sends SET updated_at = ? WHERE send_key LIKE ?")
+      .bind(new Date(Date.now() - 3 * 60_000).toISOString(), `claim:${claimId}:%`)
+      .run();
+    expect((await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+  });
+});
+
 describe("final review cases", () => {
   it("locks an address after three wrong codes, sends nothing under the lock, and lets a new code verify after it", async () => {
     const { cookie, orgId } = await owner("addrlock@example.org");
