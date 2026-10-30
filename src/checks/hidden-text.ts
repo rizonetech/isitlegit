@@ -447,12 +447,17 @@ const ENTITIES: Record<string, string> = {
 export function decodeEntities(text: string): string {
   // A numeric reference needs no closing semicolon (WHATWG HTML, numeric character reference states: a parse error,
   // still decoded), so `pass&#119ord` reads `password`; a named one keeps its semicolon (D02 T04 §2, round 2).
-  return text.replace(/&(#\d{1,7};?|#x[0-9a-f]{1,6};?|[a-z]{2,8};)/gi, (whole, raw: string) => {
+  // A numeric reference takes its whole run of digits, leading zeros and all (round 3: `&#00000119;` is `w`); a value of
+  // zero, past U+10FFFF or a surrogate reads as U+FFFD, as HTML reads it.
+  return text.replace(/&(#\d+;?|#x[0-9a-f]+;?|[a-z]{2,8};)/gi, (whole, raw: string) => {
     const ref = raw.replace(/;$/, "");
     if (ref.startsWith("#")) {
-      const code =
-        ref[1] === "x" || ref[1] === "X" ? Number.parseInt(ref.slice(2), 16) : Number.parseInt(ref.slice(1), 10);
-      return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : whole;
+      const hex = ref[1] === "x" || ref[1] === "X";
+      const digits = (hex ? ref.slice(2) : ref.slice(1)).replace(/^0+/, "") || "0";
+      const code = digits.length > 8 ? Number.POSITIVE_INFINITY : Number.parseInt(digits, hex ? 16 : 10);
+      return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff)
+        ? String.fromCodePoint(code)
+        : "\ufffd";
     }
     return ENTITIES[ref.toLowerCase()] ?? whole;
   });

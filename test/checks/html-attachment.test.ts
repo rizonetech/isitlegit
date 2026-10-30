@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
+import { decodeEntities } from "../../src/checks/hidden-text";
 import {
   analyseHtml,
   decodeHtml,
@@ -214,6 +215,10 @@ describe("after round 2", () => {
   it("decodes a numeric reference without its semicolon, as browsers do", async () => {
     expect((await analyseHtml(`<input type="pass&#119ord">`)).passwordField).toBe(true);
     expect((await analyseHtml(`<input type="pass&#x77ord">`)).passwordField).toBe(true);
+    // Leading zeros are part of the number (round 3).
+    expect((await analyseHtml(`<input type="pass&#00000119;ord">`)).passwordField).toBe(true);
+    expect((await analyseHtml(`<input type="pass&#x00000077;ord">`)).passwordField).toBe(true);
+    expect(decodeEntities("a&#0;b&#99999999999;c")).toBe("a\ufffdb\ufffdc");
   });
 
   it("reads a cc- token after the section and billing tokens", async () => {
