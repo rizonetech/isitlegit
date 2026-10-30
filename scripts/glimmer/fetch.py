@@ -802,7 +802,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             busy: dict[str, int] = {}  # requests in flight, by source
             speed: dict[str, float] = {}  # a source's pace on its last finished request
             reading: dict[int, tuple[list, str]] = {}  # the ranges with a request in flight, and the source of each
-            parked: set[int] = set()  # ranges whose progress was just invalidated: nothing is written to them until it is saved
+            # Ranges whose progress was just invalidated, each with the number of invalidations still unsaved: nothing is
+            # written to a range until every invalidation that cut it has its state saved (one's save finishing must
+            # not release a range another's cut rewound further).
+            parked: dict[int, int] = {}
             taken: set[int] = set()
             working: set[int] = set()  # ranges a connection is working on now
             pace: dict[int, tuple[float, int]] = {}  # each range's current request: when it began, and its progress then
@@ -923,12 +926,16 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     ends.update({span[1]: span for span in prov or []})
                     hashed.invalidate()
                     for item in cut_ranges:
-                        parked.add(id(item))
+                        parked[id(item)] = parked.get(id(item), 0) + 1
                         if id(item) not in working:
                             taken.discard(id(item))  # nobody is on it: the next free connection takes it
                 save_or_stop()
                 with guard:
-                    parked.difference_update(id(item) for item in cut_ranges)
+                    for item in cut_ranges:
+                        if parked[id(item)] <= 1:
+                            del parked[id(item)]
+                        else:
+                            parked[id(item)] -= 1
                 wake()
 
             def leave(source: str, error: BaseException, route: bool = False, changed_file: bool = False) -> bool:

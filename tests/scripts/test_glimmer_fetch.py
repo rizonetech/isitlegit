@@ -50,6 +50,7 @@ class Server(http.server.ThreadingHTTPServer):
         self.flip_after = None  # after this many ranged requests the server's file has another validator
         self.ranges = []  # (first, last, when) of every ranged request, in arrival order
         self.heads = 0
+        self.range_pause = 0.0  # seconds a ranged request waits before it is answered
         self.trial_bodies = 0  # whole-file bodies begun and left waiting (`trial-stall`)
         self.head_pause = 0.0  # seconds each HEAD is held open, so concurrent HEADs are seen to overlap
         self.flip_etag = '"v2"'  # what the validator becomes at the flip (None: it stays)
@@ -134,6 +135,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.server.etag = self.server.flip_etag or self.server.etag
                     self.server.body = self.server.flip_body or self.server.body
             try:
+                time.sleep(self.server.range_pause)
                 return self.answer()
             finally:
                 with self.server.lock:
@@ -1817,6 +1819,48 @@ class Fetch(unittest.TestCase):
                and event[1]["segments"][1][2] == 0 and "provenance" in event[1]
                and all(span[2] != event[1]["sources"].index(mine) for span in event[1]["provenance"])]
         self.assertTrue(cut, "the cut of both ranges was never saved")
+
+    def test_overlapping_invalidations_keep_a_range_parked_until_the_last_cut_is_saved(self):
+        second, second_base = self.mirror()
+        third, third_base = self.mirror()
+        mine, theirs = self.base + "/file", second_base + "/file"
+        quarter = -(-SIZE // 4)
+        # The first range holds this host's prefix and the second host's suffix (wrong bytes both); each of the two
+        # changes its file at its first ranged answer, this one a moment after the other, so the second host's
+        # invalidation (cutting back to the middle) is saved slowly while this host's (cutting back to the start)
+        # waits behind it.
+        Path("src/.partial").mkdir(parents=True)
+        with open("src/.partial/data.bin", "wb") as handle:
+            handle.truncate(SIZE)
+            handle.write(bytes(quarter))
+        Path("src/.partial/data.bin.state.json").write_text(json.dumps({
+            "url": mine, "expected": ["sha256", SHA], "validator": '"v1"', "encoding": "identity", "total": SIZE,
+            "segments": [[0, quarter - 1, quarter], [quarter, 2 * quarter - 1, 0], [2 * quarter, 3 * quarter - 1, 0],
+                         [3 * quarter, SIZE - 1, 0]],
+            "sources": [mine, theirs], "provenance": [[0, quarter // 2 - 1, 0], [quarter // 2, quarter - 1, 1]]}))
+        self.server.flip_after = second.flip_after = 0
+        self.server.range_pause = 0.3
+        events, real_write, real_pwrite = [], fetch._write_json, os.pwrite
+
+        def write_json(path, value):
+            if path.name.endswith(".state.json") and value["segments"][0][2] < quarter:
+                time.sleep(0.6)  # every save of a cut is slow
+                real_write(path, value)
+                events.append(("saved", value["segments"][0][2]))
+            else:
+                real_write(path, value)
+
+        def pwrite(descriptor, data, offset):
+            if offset < quarter:
+                events.append(("replaced", offset))
+            return real_pwrite(descriptor, data, offset)
+
+        with mock.patch.object(fetch, "_write_json", write_json), mock.patch.object(fetch.os, "pwrite", pwrite):
+            result = self.mixed(second_base, third_base, attempts=5)
+        self.assertEqual((result["status"], result["urls"]), ("fetched", [third_base + "/file"]))
+        self.assert_whole()
+        first_replacement = next(number for number, event in enumerate(events) if event[0] == "replaced")
+        self.assertIn(("saved", 0), events[:first_replacement])  # the deeper cut was saved before any replacement byte
 
     def test_a_stop_during_a_replacement_is_resumed_by_a_fresh_process(self):
         for where in ("before the first replacement byte", "after some replacement bytes"):
