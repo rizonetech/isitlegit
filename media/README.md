@@ -10,6 +10,7 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, 
 - This folder is its own pnpm root: `media/pnpm-workspace.yaml` and `media/pnpm-lock.yaml`, never the root workspace or lockfile, and outside Biome, the TypeScript build and Vitest.
 - Every video is 1920 x 1080 at 30 fps (operator, 2026-10-30): compositions take `VIDEO` from `src/Root.tsx`, never their own size.
 - Brand files, fonts and colours come from `design/` unchanged (`design/brand/README.md`).
+- The explainers use the dark theme from `design/tokens/colors.json` on the brand's Ink ground with the on-dark logo (operator, 2026-10-30); `REMOTION_THEME=light` renders the light theme. The logo animation is always light, matching the original clip.
 - Every number on screen is read from the repository at render time (`{stats.x}`) or pinned to a commit and an exact quote (`{fact.x}`, proven by `tools/check-facts.py`), never typed in.
 - Development tooling (Claude Code, GPT-6 Astra, the Muse Wonder final review) is shown as how we build, never as a product feature, and is declared in `CONTRIBUTIONS.md`.
 - No Meta Model API calls, no client data, nothing we lack the rights to publish. Music only with a licence on file.

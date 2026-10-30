@@ -3,10 +3,10 @@ import { AbsoluteFill, continueRender, delayRender, Img, interpolate, spring, st
 import tokens from "../../design/tokens/colors.json";
 
 // Light theme tokens from design/tokens/colors.json, unchanged; the videos match the logo animation's light ground.
-// The theme comes from design/tokens/colors.json unchanged: light by default, dark when REMOTION_THEME=dark. On dark,
-// the ground is the brand's Ink, cards are raised a step, code sits on the darkest surface, and the logo is the
-// approved on-dark variant.
-export const DARK = process.env.REMOTION_THEME === "dark";
+// The theme comes from design/tokens/colors.json unchanged: dark by default (operator, 2026-10-30), light when
+// REMOTION_THEME=light. On dark, the ground is the brand's Ink, cards are raised a step, code sits on the darkest
+// surface, and the logo is the approved on-dark variant.
+export const DARK = process.env.REMOTION_THEME !== "light";
 export const c = DARK ? tokens.themes.dark : tokens.themes.light;
 export const BG = DARK ? tokens.themes.light.ink : c.light;
 export const CARD = DARK ? c["dark-raised"] : c.surface;

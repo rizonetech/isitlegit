@@ -1,6 +1,10 @@
 import type React from "react";
 import { AbsoluteFill, Audio, Img, interpolate, interpolateColors, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
-import { BG, c } from "../brand";
+import tokens from "../../../design/tokens/colors.json";
+
+// Always light, whatever the theme: it rebuilds the original light clip and draws the ink mark.
+const c = tokens.themes.light;
+const BG = c.light;
 
 // The logo animation rebuilt from the brand geometry (design/brand/logo-svg/isitlegit-logo.svg, mark at
 // translate(-27 0) scale(0.5) in a 338.32 x 100 box), replacing the 720p design/brand/videos/logo_animation.mp4.
