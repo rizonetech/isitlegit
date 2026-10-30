@@ -6,6 +6,13 @@ export type DomainClaimView = {
   method: "dns" | "email" | null;
   verifiedAt: string | null;
   txt: { name: string; value: string };
-  code: { expiresAt: string | null; attempts: number; lockedUntil: string | null; nextCodeAt: string | null };
+  // `expired`: a code was sent and has run out (send a new one); `attempts`: wrong codes so far against the live one.
+  code: {
+    expiresAt: string | null;
+    expired: boolean;
+    attempts: number;
+    lockedUntil: string | null;
+    nextCodeAt: string | null;
+  };
   lastCheck: { at: string; outcome: string } | null;
 };

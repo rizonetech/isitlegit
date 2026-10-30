@@ -295,13 +295,23 @@ const sendAnswer = (outcome: MailOutcome, body: Record<string, unknown>) =>
 // Each verification attempt and its outcome in the auth trail (D07 T02 §6): the claim's id, never the domain's code or
 // the address itself.
 // Who acts, for the shared actions below: the JSON routes and the domain page (D07 T02 §15) each build one.
-export type Actor = { db: D1Database; secret: string; orgId: string; userId: string; ip: string | null };
+// `defer` runs work after the answer has gone (the Worker's waitUntil): learning a verified domain's receivers is not
+// what the owner waits for, and the checks step learns them again when they are missing (D07 T02 §15).
+export type Actor = {
+  db: D1Database;
+  secret: string;
+  orgId: string;
+  userId: string;
+  ip: string | null;
+  defer: (work: Promise<unknown>) => void;
+};
 const actorOf = (c: Context<OrgEnv>): Actor => ({
   db: c.env.DB,
   secret: c.env.BETTER_AUTH_SECRET ?? "",
   orgId: c.get("org").id,
   userId: c.get("signedIn").user.id,
   ip: clientIp(c.req.raw.headers),
+  defer: (work) => c.executionCtx.waitUntil(work),
 });
 const recordAttempt = (a: Actor, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
   recordAuthEvent(a.db, a.secret, { kind, outcome, orgId: a.orgId, actorId: a.userId, targetId: claimId, ip: a.ip });
@@ -370,7 +380,7 @@ export async function checkDomain(a: Actor, domain: string): Promise<CheckOutcom
   }
   const verified = await verifyByDns(a.db, claim.id);
   await recordAttempt(a, "verify-domain", claim.id, verified === "verified" ? "verified-dns" : verified);
-  if (verified === "verified") await learnedQuietly(a.db, claim.id);
+  if (verified === "verified") a.defer(learnedQuietly(a.db, claim.id));
   return { kind: verified, domain: claim.domain };
 }
 
@@ -406,7 +416,7 @@ export async function verifyDomainCode(a: Actor, domain: string, code: string): 
   // A malformed code spends no attempt, so it is no attempt in the trail either.
   if (proved !== "malformed")
     await recordAttempt(a, "verify-domain", claim.id, proved === "verified" ? "verified-code" : proved);
-  if (proved === "verified") await learnedQuietly(a.db, claim.id);
+  if (proved === "verified") a.defer(learnedQuietly(a.db, claim.id));
   return { kind: proved, domain: claim.domain };
 }
 
@@ -442,6 +452,7 @@ export async function domainClaimView(db: D1Database, orgId: string, domain: str
     txt: txtFor(claim.domain, claim.token),
     code: {
       expiresAt: code && code.expires_at > now ? code.expires_at : null,
+      expired: Boolean(code && code.expires_at <= now && !locked),
       attempts: code && !locked ? code.attempts : 0,
       lockedUntil: locked,
       nextCodeAt:

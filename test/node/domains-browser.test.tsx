@@ -23,20 +23,28 @@ const pending = (over: Partial<DomainClaimView> = {}): DomainClaimView => ({
   method: null,
   verifiedAt: null,
   txt: { name: `_isitlegit.${DOMAIN}`, value: "isitlegit-verify=7f3c9a1e52d84b06" },
-  code: { expiresAt: null, attempts: 0, lockedUntil: null, nextCodeAt: null },
+  code: { expiresAt: null, expired: false, attempts: 0, lockedUntil: null, nextCodeAt: null },
   lastCheck: { at: "2026-10-30T12:05:00Z", outcome: "dns-not-visible" },
   ...over,
 });
 const STATES: Record<string, { view: DomainClaimView; result: Result | null }> = {
   pending: { view: pending(), result: null },
   coded: {
-    view: pending({ code: { expiresAt: "2026-10-30T12:35:00Z", attempts: 1, lockedUntil: null, nextCodeAt: null } }),
+    view: pending({
+      code: { expiresAt: "2026-10-30T12:35:00Z", expired: false, attempts: 1, lockedUntil: null, nextCodeAt: null },
+    }),
     result: { r: "verify-wrong" },
   },
   failed: { view: pending(), result: { r: "check-different", seen: "isitlegit-verify=0b19" } },
   locked: {
     view: pending({
-      code: { expiresAt: null, attempts: 0, lockedUntil: "2026-10-30T13:14:00Z", nextCodeAt: "2026-10-30T13:14:00Z" },
+      code: {
+        expiresAt: null,
+        expired: false,
+        attempts: 0,
+        lockedUntil: "2026-10-30T13:14:00Z",
+        nextCodeAt: "2026-10-30T13:14:00Z",
+      },
     }),
     result: null,
   },
@@ -175,6 +183,44 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domain page in Chromium
     await p.keyboard.press("Enter");
     await expect.poll(() => state.posts.length).toBe(1);
     expect(state.posts[0]).toEqual({ org: "org-karoo", action: "verify", code: "48 21 07" });
+    await context.close();
+  });
+
+  it("keeps a whole pasted code, spaces and all, for the server to read", async () => {
+    state.page = "coded";
+    const { p, context } = await open({ clipboard: true });
+    await p.evaluate(() => navigator.clipboard.writeText(" 07 21 07 "));
+    await p.getByLabel("Code from the email").focus();
+    await p.keyboard.press("ControlOrMeta+V");
+    expect(await p.getByLabel("Code from the email").inputValue()).toBe(" 07 21 07 ");
+    await p.keyboard.press("Enter");
+    await expect.poll(() => state.posts.length).toBe(1);
+    expect(state.posts[0]?.code).toBe(" 07 21 07 ");
+    await context.close();
+  });
+
+  it("gives the form back when its request is stopped", async () => {
+    state.delayMs = 5000;
+    const { p, context } = await open();
+    // The wait before the form comes back, shortened for the test (20 seconds on the page).
+    await p.evaluate(() => {
+      for (const form of document.querySelectorAll<HTMLFormElement>("form[data-busy]")) form.dataset.busyMs = "800";
+    });
+    await p.getByRole("button", { name: "Check now" }).click({ noWaitAfter: true });
+    await p.waitForTimeout(200);
+    // The reader presses Stop (the page cannot be reached from outside while its form is out, so through DevTools).
+    await (await context.newCDPSession(p)).send("Page.stopLoading");
+    await expect
+      .poll(() =>
+        p.evaluate(() => {
+          const b = document.querySelector<HTMLButtonElement>("form[data-busy] button[type=submit]");
+          return { text: b?.textContent?.trim(), disabled: b?.disabled };
+        }),
+      )
+      .toEqual({ text: "Check now", disabled: false });
+    state.delayMs = 0;
+    await p.getByRole("button", { name: "Check now" }).click();
+    await expect.poll(() => state.posts.length).toBe(2);
     await context.close();
   });
 

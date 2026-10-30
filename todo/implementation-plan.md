@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 53 | Checklist items: 353
+Sections: 53 | Checklist items: 354
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -131,7 +131,7 @@ Sections: 53 | Checklist items: 353
 | [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
-| [ ]    | D07 T02 §15 | Domain verification page                              | none     | 14    |
+| [ ]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
@@ -298,7 +298,7 @@ Sections: 64 | Checklist items: 267
 
 ### Phase 7: After the event
 
-Sections: 32 | Checklist items: 177
+Sections: 33 | Checklist items: 180
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -333,6 +333,7 @@ Sections: 32 | Checklist items: 177
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §9  | Next and previous case from a report             | owner-decision | 3     |
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
+| [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -357,6 +358,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 98/288 verified sections, 64 ready to run now.
+Progress: 98/289 verified sections, 64 ready to run now.
 
-Checklist: 1013/1858 items completed (includes Commit items).
+Checklist: 1014/1862 items completed (includes Commit items).

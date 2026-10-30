@@ -39,6 +39,7 @@ track: day-6
 | 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
 | 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
 | 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
+| 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -308,6 +309,29 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 - [ ] Commit: `web: a checked by filter in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
+
+## 11. DNS help for each provider on the domain page
+
+An owner who does not know where their DNS lives reaches the steps for their provider in one action from the domain page: where the TXT record goes, what the provider calls Name (host, `@`, or the whole name), the value, TTL, and what to do when Check now still finds nothing. Filed 2026-10-30 from D07 T02 §15's completion review (excellence item 2, against Microsoft 365's domain setup): the board `Verify-Domain` has no help entry, so it is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A5 Verify a domain, once the operator approves a board change adding the help entry
+**Job:** an owner adds the TXT record at their own DNS provider without searching for how
+**Treatment:** a "How do I add this at my provider?" entry beside the record, opening steps for the common South African and global providers, with propagation troubleshooting
+**Chrome:** D07 T02 §15's page
+
+**Build order:**
+
+1. Draw the help entry on the board `Verify-Domain` and have the operator approve it. Done when: `design/SPEC.md` A5 lists the control.
+2. Write and test the steps for each provider named. Done when: `test/web/domains-page.test.ts` opens each provider's steps from the page.
+
+- [ ] Add the help entry to the board and SPEC A5 with the operator's approval, naming the providers covered. Done when: `design/SPEC.md` A5 names it and the providers.
+- [ ] Write each provider's steps (where the record goes, what its Name field expects, TTL, propagation and troubleshooting), checked against that provider, and draw them from the page. Done when: `test/web/domains-page.test.ts` reaches each provider's steps in one action and reads the Name each expects.
+- [ ] Commit: `web: dns help for each provider on the domain page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a provider's steps name the wrong field for the record's name.
 
 ## Verification
 

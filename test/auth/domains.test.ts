@@ -9,7 +9,7 @@ import { call, redeem, sessionCookie } from "./helpers";
 // by one fetch stub (two spies on fetch would replace each other).
 const db = (env as unknown as Env).DB;
 
-type Doh = Response | "throw";
+type Doh = Response | Promise<Response> | "throw";
 const world = {
   doh: (_name: string): Doh => Response.json({ Status: 3 }),
   smtp: "sent" as "sent" | "refused" | "silent",
@@ -323,7 +323,7 @@ describe("receiving systems learned at verification (D02 T02 §1)", () => {
           ? mxAnswer("mx-dns-co-za.mail.protection.outlook.com")
           : Response.json({ Status: 3 });
     expect(await (await json(`/domains/${domain}/check`, cookie, "POST")).json()).toEqual({ domain, verified: true });
-    expect(await receiversOf(orgId)).toEqual([{ domain, kind: "microsoft", pattern: "*.outlook.com" }]);
+    await expect.poll(() => receiversOf(orgId)).toEqual([{ domain, kind: "microsoft", pattern: "*.outlook.com" }]);
     expect((await json(`/domains/${domain}`, cookie, "DELETE")).status).toBe(204);
     expect(await receiversOf(orgId)).toEqual([]);
     // Claimed again but not yet verified: nothing of the old claim is trusted.
@@ -344,7 +344,33 @@ describe("receiving systems learned at verification (D02 T02 §1)", () => {
     ).toMatchObject({
       verified: true,
     });
-    expect(await receiversOf(orgId)).toEqual([{ domain: "mx-code.co.za", kind: "google", pattern: "*.google.com" }]);
+    await expect
+      .poll(() => receiversOf(orgId))
+      .toEqual([{ domain: "mx-code.co.za", kind: "google", pattern: "*.google.com" }]);
+  });
+
+  it("answers verified without waiting for the MX lookup, which still learns the receivers after", async () => {
+    const { cookie, orgId } = await owner("mxslow@example.org");
+    const domain = "mx-slow.co.za";
+    const added = (await (await json("/domains", cookie, "POST", { domain })).json()) as {
+      txt: { name: string; value: string };
+    };
+    let release: () => void = () => {};
+    const mx = new Promise<Response>((resolve) => {
+      release = () =>
+        resolve(
+          Response.json({ Status: 0, Answer: [{ type: 15, data: "10 mx-slow-co-za.mail.protection.outlook.com." }] }),
+        );
+    });
+    world.doh = (name) => (name === added.txt.name ? txtAnswer(added.txt.value) : mx);
+    const answered = await Promise.race([
+      json(`/domains/${domain}/check`, cookie, "POST").then((r) => r.json()),
+      new Promise((resolve) => setTimeout(() => resolve("still waiting"), 1000)),
+    ]);
+    expect(answered).toEqual({ domain, verified: true });
+    expect(await receiversOf(orgId)).toEqual([]);
+    release();
+    await expect.poll(() => receiversOf(orgId)).toEqual([{ domain, kind: "microsoft", pattern: "*.outlook.com" }]);
   });
 
   it("verifies the domain all the same when the MX lookup fails, storing no receivers", async () => {

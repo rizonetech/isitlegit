@@ -196,6 +196,10 @@ describe("the domain verification page", () => {
     expect(first.html).toContain("That code is not right. 2 tries left before this is locked for an hour.");
     const second = await act(d, cookie, { org: o, action: "verify", code: wrong });
     expect(second.html).toContain("That code is not right. 1 try left before this is locked for an hour.");
+    // A plain visit still says how many tries are left, and keeps postmaster@ chosen after the send.
+    const plain = await (await page(d, cookie)).text();
+    expect(plain).toContain("1 try left before this is locked for an hour.");
+    expect(sent.html).toMatch(/value="postmaster" checked/);
     const malformed = await act(d, cookie, { org: o, action: "verify", code: "48a107" });
     expect(malformed.html).toContain("Type the 6 digits from the email.");
     expect((await stored(id))?.attempts).toBe(2);
@@ -274,8 +278,10 @@ describe("the domain verification page", () => {
       .bind(new Date(Date.now() - 1000).toISOString())
       .run();
     expect(await (await page(d, cookie)).text()).not.toContain("Code from the email");
+    // Said on a plain visit, not only after a guess.
+    expect(await (await page(d, cookie)).text()).toContain("The code we sent has expired. Send a new one.");
     const expired = await act(d, cookie, { org: o, action: "verify", code: lastCode() });
-    expect(expired.html).toContain("That code has expired. Send a new one.");
+    expect(expired.html).toContain("The code we sent has expired. Send a new one.");
   });
 
   it("refuses a domain another organisation verified while this one waited", async () => {
@@ -393,6 +399,54 @@ describe("the domain verification page", () => {
     const refused = await act(`local-${d}`, cookie, { org: o, action: "send", local: "hostmaster" });
     expect(refused.html).toContain("Choose admin@ or postmaster@ to send the code to.");
     expect(world.sends).toEqual([]);
+  });
+
+  it("shows only a result an action of this organisation signed here in the last ten minutes", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const d = `forge-${tag()}.example`;
+    await claim(a, d);
+    await claim(b, d);
+    const owner = await person(a);
+    const other = await person(b);
+    // Unsigned: a crafted link claims success, a mailbox and a DNS finding.
+    const forged = await (
+      await page(d, owner.cookie, "?r=verify-verified&to=attacker%40evil.example&seen=isitlegit-verify%3Dbeef")
+    ).text();
+    expect(forged).not.toContain("Done:");
+    expect(forged).not.toContain("attacker@evil.example");
+    expect(forged).not.toContain("beef");
+    // A real result of A's, edited, or opened by B, or too old: ignored.
+    const real = await post(d, owner.cookie, { org: a, action: "send", local: "admin" });
+    const query = new URL(target(real) ?? "", "http://localhost").search;
+    expect(await (await page(d, owner.cookie, query)).text()).toContain(`We sent a code to admin@${d}.`);
+    expect(await (await page(d, owner.cookie, query.replace("send-sent", "send-failed"))).text()).not.toContain(
+      "could not be sent",
+    );
+    expect(await (await page(d, other.cookie, query)).text()).not.toContain("We sent a code");
+    const old = new URLSearchParams(query);
+    old.set("t", String(Date.now() - 11 * 60_000));
+    expect(await (await page(d, owner.cookie, `?${old}`)).text()).not.toContain("We sent a code");
+    // A verified notice is never drawn over a pending claim, signed or not.
+    expect(await (await page(d, owner.cookie, "?r=check-verified")).text()).not.toContain("Done:");
+  });
+
+  it("answers a store failing while it names the organisation for a member's refusal with the 503 page", async () => {
+    const o = await org("Karoo Couriers");
+    const d = `role-${tag()}.example`;
+    await claim(o, d);
+    const { cookie } = await person(o, "member");
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/SELECT name FROM "organization" WHERE id = \?/.test(sql))
+        throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    for (const res of [await page(d, cookie), await post(d, cookie, { org: o, action: "check" })]) {
+      expect(res.status).toBe(503);
+      expect(res.headers.get("cache-control")).toBe("private, no-store");
+      expect(await res.text()).toContain("Sorry, something broke on our side.");
+    }
   });
 
   it("answers a session store it cannot read with the 503 page", async () => {

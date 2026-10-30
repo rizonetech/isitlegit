@@ -200,7 +200,20 @@ function verifyError(result: Result | null, view: DomainClaimView): string | und
   }
 }
 
-function EmailCard(props: { view: DomainClaimView; org: string; result: Result | null; now: Date }) {
+// The tries left on the live code after a wrong one, said on every visit, not only after the guess.
+function triesLeft(view: DomainClaimView): string {
+  if (view.code.attempts === 0) return "";
+  const left = MAX_ATTEMPTS - view.code.attempts;
+  return ` ${left} ${left === 1 ? "try" : "tries"} left before this is locked for an hour.`;
+}
+
+function EmailCard(props: {
+  view: DomainClaimView;
+  org: string;
+  result: Result | null;
+  local: "admin" | "postmaster";
+  now: Date;
+}) {
   const { view, result, now } = props;
   const { lockedUntil, expiresAt, nextCodeAt } = view.code;
   const waiting = nextCodeAt && Date.parse(nextCodeAt) > now.getTime() ? nextCodeAt : null;
@@ -232,9 +245,15 @@ function EmailCard(props: { view: DomainClaimView; org: string; result: Result |
             <input type="hidden" name="action" value="send" />
             <fieldset class="flex flex-col gap-8">
               <legend class="text-14 weight-text-strong mb-8">Send the code to</legend>
-              {(["admin", "postmaster"] as const).map((local, i) => (
+              {(["admin", "postmaster"] as const).map((local) => (
                 <label class="inline-flex items-center gap-12 min-h-24 font-mono text-14 wrap-anywhere">
-                  <input type="radio" name="local" value={local} checked={i === 0} class="w-20 h-20 accent-orange" />
+                  <input
+                    type="radio"
+                    name="local"
+                    value={local}
+                    checked={local === props.local}
+                    class="w-20 h-20 accent-orange"
+                  />
                   {local}@{view.domain}
                 </label>
               ))}
@@ -260,10 +279,10 @@ function EmailCard(props: { view: DomainClaimView; org: string; result: Result |
                 id="claim-code"
                 name="code"
                 label="Code from the email"
-                hint={`It works until ${at(expiresAt)}.`}
+                hint={`It works until ${at(expiresAt)}.${triesLeft(view)}`}
                 inputmode="numeric"
                 autocomplete="one-time-code"
-                maxlength={8}
+                maxlength={32}
                 required
                 {...(error ? { error } : {})}
               />
@@ -271,6 +290,8 @@ function EmailCard(props: { view: DomainClaimView; org: string; result: Result |
                 Verify
               </Button>
             </form>
+          ) : view.code.expired ? (
+            <Notice tone="error">The code we sent has expired. Send a new one.</Notice>
           ) : (
             error && <Notice tone="error">{error}</Notice>
           )}
@@ -312,14 +333,21 @@ function generalNotice(result: Result | null, view: DomainClaimView, orgName: st
     );
   if (result.r === "unavailable" || result.r === "check-unavailable" || result.r === "verify-unavailable")
     return <Notice tone="error">That could not be done just now. Try again in a moment.</Notice>;
-  if (result.r === "check-verified" || result.r === "verify-verified")
+  // Said only of a claim that is verified: the page never contradicts what is stored.
+  if ((result.r === "check-verified" || result.r === "verify-verified") && view.state === "verified")
     return <Notice tone="info">Done: {view.domain} is verified.</Notice>;
   return null;
 }
 
 type Shell = Omit<MemberShellProps, "children">;
 
-export function DomainPage(props: { shell: Shell; view: DomainClaimView; result: Result | null; now: Date }) {
+export function DomainPage(props: {
+  shell: Shell;
+  view: DomainClaimView;
+  result: Result | null;
+  local?: "admin" | "postmaster";
+  now: Date;
+}) {
   const { shell, view, result, now } = props;
   const org = shell.organization;
   return (
@@ -359,7 +387,7 @@ export function DomainPage(props: { shell: Shell; view: DomainClaimView; result:
           ) : (
             <div class="grid gap-24 lg:grid-cols-[3fr_2fr] items-start">
               <DnsCard view={view} org={org.id} result={result} />
-              <EmailCard view={view} org={org.id} result={result} now={now} />
+              <EmailCard view={view} org={org.id} result={result} local={props.local ?? "admin"} now={now} />
             </div>
           )}
         </div>

@@ -121,6 +121,7 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted) location.reload();
 });
 
+const BUSY_MS = 20_000;
 // A form marked `data-busy` (the domain page's Check now, Send code and Verify, D07 T02 §15) shows its button busy
 // while the request runs, and a second press does nothing: the button says what is happening (`data-busy-label`) and
 // is disabled once the form has gone. The action travels in a hidden field, so disabling the button loses nothing.
@@ -134,11 +135,20 @@ document.addEventListener("submit", (event) => {
   form.dataset.sent = "true";
   const button = form.querySelector                   ("button[type=submit][data-busy-label]");
   if (!button) return;
+  const label = button.textContent;
   setTimeout(() => {
-    button.textContent = button.dataset.busyLabel ?? button.textContent;
+    button.textContent = button.dataset.busyLabel ?? label;
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
   }, 0);
+  // A request the reader stops (or that never answers) does not leave the form dead: once the slowest action can have
+  // answered (the DNS lookup's 10 seconds and the mail's), the button is itself again and the form can be sent.
+  setTimeout(() => {
+    delete form.dataset.sent;
+    button.textContent = label;
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+  }, Number(form.dataset.busyMs) || BUSY_MS);
 });
 
 export {};
