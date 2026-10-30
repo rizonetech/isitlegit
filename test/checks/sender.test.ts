@@ -215,6 +215,20 @@ describe("round 1", () => {
     ).toMatchObject({ detail: { shown: "o'connor@fynbosfreight.example" } });
   });
 
+  it("reads a quoted local part, and still reads the domain when no mailbox reads (round 2)", () => {
+    expect(displayAddressEvidence(from('"\\"debtors\\"@fynbosfreight.example" <x@freemail.example>'))[0]).toMatchObject(
+      {
+        severity: "medium",
+      },
+    );
+    expect(
+      displayAddressEvidence(from('"\\"debtors\\"@fynbosfreight.example" <accounts@fynbosfreight.example>'))[0],
+    ).toMatchObject({ severity: "medium" });
+    expect(displayAddressEvidence(from('"@fynbosfreight.example" <x@freemail.example>'))[0]).toMatchObject({
+      detail: { shown: "fynbosfreight.example" },
+    });
+  });
+
   it("treats a brand's mail domain as its own even where its website hosts others' content on some paths", () => {
     expect(displayBrandEvidence(from('"PayPal" <service@paypal.com>'))).toEqual([]);
     expect(displayBrandEvidence(from('"PayPal" <service@freemail.example>'))[0]).toMatchObject({

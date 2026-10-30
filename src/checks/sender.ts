@@ -79,13 +79,21 @@ function shownIn(name: string): { addresses: string[]; domains: string[] } {
   for (let at = 0; at < chars.length; at++) {
     if (chars[at] !== "@") continue;
     let start = at;
-    while (start > 0 && at - start < MAX_WORD && LOCAL_CHAR.test(chars[start - 1] as string)) start--;
+    if (chars[at - 1] === '"') {
+      // A quoted local part (`"debtors"@x`, round 2): back to its opening quote, an escaped quote skipped, bounded.
+      let open = at - 2;
+      while (open >= 0 && at - open < MAX_WORD && !(chars[open] === '"' && chars[open - 1] !== "\\")) open--;
+      if (open >= 0 && chars[open] === '"') start = open;
+    } else while (start > 0 && at - start < MAX_WORD && LOCAL_CHAR.test(chars[start - 1] as string)) start--;
     let end = at + 1;
     while (end < chars.length && end - at < MAX_WORD && DOMAIN_CHAR.test(chars[end] as string)) end++;
-    const local = trimDots(chars.slice(start, at).join(""));
+    const local = chars[start] === '"' ? chars.slice(start, at).join("") : trimDots(chars.slice(start, at).join(""));
     const domain = trimDots(chars.slice(at + 1, end).join(""));
+    const found = local && domain ? `${local}@${domain}` : "";
+    // Only a mailbox that reads is taken out of the domain scan: otherwise the domain is still read on its own.
+    if (!found || !mailbox(found)) continue;
+    addresses.push(found);
     for (let i = start; i < end; i++) inAddress[i] = true;
-    if (local && domain && mailbox(`${local}@${domain}`)) addresses.push(`${local}@${domain}`);
   }
   const domains: string[] = [];
   let run: string[] = [];
