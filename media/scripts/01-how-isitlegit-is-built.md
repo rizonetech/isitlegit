@@ -1,27 +1,34 @@
 # 01 How IsItLegit is built
 
-Our development process in about 65 seconds, for the channel and the hackathon judges. 1920 × 1080, 30 fps, on-screen text, no voiceover unless the operator records one.
+The development process in full, for learning and for the channel: about 11 and a half minutes, 1920 × 1080, on-screen text, no voiceover unless the operator records one. Long form on the operator's request (2026-10-30): it is not part of the demo video, so it takes the time the material needs. Every scene carries the label "Our development process, not a product feature".
 
-On screen from the first second: "Our development process. Not a product feature."
+The script is the storyboard [data/storyboards/01-development-process.json](../data/storyboards/01-development-process.json): every scene's words, in order. Figures are named, never typed: `{stats.x}` is read from git and the plan at render time by `tools/collect-stats.py`, and `{fact.x}` comes from [data/dev-facts.json](../data/dev-facts.json), each pinned to a commit and an exact quote that `tools/check-facts.py` proves before a render.
 
-## Scenes
+## The story
 
-| Scene | Seconds | On screen | Visual |
-| ----- | ------- | --------- | ------ |
-| 1 Title | 5 | How IsItLegit is built. Our development process, not a product feature. | IsItLegit logo on Ink, the question mark's dot becomes the tick |
-| 2 The plan | 8 | One plan, {sections} small sections. Each one testable on its own. | A grid of {sections} squares; the stamped ones fill orange |
-| 3 The writer | 8 | Claude Code builds one section at a time: code, tests, commit. | A section card whose checklist ticks off, ending on a commit line |
-| 4 The reviewer | 12 | A different model family reviews every section. GPT-6 Astra: a plan review, a completion review, then adversarial rounds at falling effort until a round finds no P1 or P2. | Round bars labelled high, medium, low, the last one green |
-| 5 The final review | 12 | Then one final review by Muse Wonder, through Muse Code. A P1 or P2 it finds is fixed and proven by one more round. | A review card quoting a real finding from `docs/reviews/01-intake/D01-T01-s2.md`: "the expired-object restore path can desynchronise R2, D1 and the returned media type" |
-| 6 The receipt | 8 | Nothing ships without a receipt. | `todo-graph.py stamp` writes the Verified stamp; the receipt file lands in `docs/reviews/` |
-| 7 So far | 8 | {stamped} sections shipped. {rounds} review rounds. {finals} Muse final reviews. As of {date}. | Three counters rolling up |
-| 8 Close | 4 | github.com/rizonetech/isitlegit. Development tooling is declared in CONTRIBUTIONS.md. | Logo, link |
+One operator directing a team of AI lanes that works around the clock, a coordinator as team lead, and independent reviewers from other model families as quality control.
 
-## Numbers
+## Chapters
 
-Read at render time by `media/tools/collect-stats.py`. On this branch on 2026-10-30: 268 sections, 86 stamped, 335 review rounds, 65 Muse Wonder final reviews.
+| Chapter | What it covers |
+| ------- | -------------- |
+| 1 The idea | The manifesto's bet, the build so far (commits, stamped sections, lines of TypeScript, lane merges), the judging weights |
+| 2 The rules everyone follows | The governing documents and the house rules |
+| 3 The plan is a graph | Domains, files, sections and phases, the Implementation Order graph, stamped sections per domain, the todo-graph commands |
+| 4 A section is a contract | Phase, Needs, Risk, Surface, Adjacency, the test checkpoint, the five-part micro-step rule, a real section from this lane's plan |
+| 5 The lanes: a team of five | Coordinator, checks, app, Glimmer and media lanes; why split by domain (7 shared dependencies, not 22); lane scoping in the tools |
+| 6 The coordinator: team lead | How work reaches main, what the coordinator owns, migration numbers, operator steps, sharing one machine |
+| 7 The loop that never stops | process-plan to stamp, the stop hook, heartbeat and handover; commits by hour of day and per day |
+| 8 Quality control | Writer and reviewers, the review schedule, the rules of a review, review counts, a real Muse Wonder finding; the final review is off since 29 Oct while the weekly Muse limit is reached |
+| 9 Nothing ships without a receipt | The stamp command and its evidence; the media lane's waived stamps |
+| 10 Guards on every action | Hooks, check-publication, local-tool-safety, CI's jobs |
+| 11 How it adds up to speed | Five parts, one machine; the result so far |
+
+## Not shown, on purpose
+
+Client data, account and vault names, keys, budgets, and the model identifier of the writer.
 
 ## Open questions for the operator
 
 - Voiceover or text only?
-- Show the real reviewer names (GPT-6 Astra, Muse Wonder) or roles only ("a second model family", "a third model family")?
+- Keep the reviewer model names (GPT-6 Astra, Muse Wonder) on screen?

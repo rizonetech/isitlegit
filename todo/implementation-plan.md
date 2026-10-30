@@ -298,8 +298,8 @@ Sections: 70 | Checklist items: 306
 | [ ]    | D09 T02 §6  | Final README                              | none                  | 5     |
 | [ ]    | D10 T01 §1  | Media package and stats collector         | none                  | 7     |
 | [ ]    | D10 T01 §2  | Remotion licence basis                    | operator              | 3     |
-| [ ]    | D10 T01 §3  | Video 01: development method              | none                  | 7     |
-| [ ]    | D10 T01 §4  | Video 02: tech stack                      | none                  | 7     |
+| [ ]    | D10 T01 §3  | Video 01: development process, long form  | none                  | 7     |
+| [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form  | none                  | 7     |
 | [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive   | none                  | 10    |
 
 ### Phase 7: After the event
@@ -364,4 +364,4 @@ Sections: 17 | Checklist items: 71
 
 Progress: 99/293 verified sections, 61 ready to run now.
 
-Checklist: 1009/1876 items completed (includes Commit items).
+Checklist: 1014/1876 items completed (includes Commit items).

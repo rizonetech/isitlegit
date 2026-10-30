@@ -4,4 +4,4 @@ Promo and explainer videos for the IsItLegit YouTube channel (@DerickPayneDev), 
 
 | TODO | Scope |
 | ---- | ----- |
-| `TODO-01-channel-videos.md` | Channel videos: development method and tech stack |
+| `TODO-01-channel-videos.md` | Channel videos: development process, technical deep dive, Loupe |

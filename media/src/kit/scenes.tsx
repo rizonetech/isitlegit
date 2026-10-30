@@ -122,7 +122,7 @@ const Code: React.FC<{ s: Extract<SceneSpec, { type: "code" }>; label?: string }
       <Headline text={fill(s.title)} sub={s.sub ? fill(s.sub) : undefined} />
       <Card style={{ background: c.dark, border: "none", marginTop: 36, maxWidth: 1620, padding: "30px 40px" }}>
         {s.lines.map((line, i) => (
-          <div key={`${i}-${line}`} style={{ ...mono, fontSize: s.lines.length > 9 ? 24 : 28, lineHeight: 1.5, color: line.trim().startsWith("#") ? c["on-dark-muted"] : c["on-dark"], whiteSpace: "pre", opacity: stagger(frame, i, 24, 8) }}>
+          <div key={`${i}-${line}`} style={{ ...mono, fontSize: s.lines.length > 9 ? 24 : 28, lineHeight: 1.5, color: line.trim().startsWith("#") ? c["on-dark-muted"] : c["on-dark"], whiteSpace: "pre-wrap", minHeight: "1.5em", opacity: stagger(frame, i, 24, 8) }}>
             {fill(line)}
           </div>
         ))}

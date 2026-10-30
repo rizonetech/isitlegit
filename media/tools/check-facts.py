@@ -30,8 +30,8 @@ def check(data: dict) -> list[str]:
     cache: dict = {}
     failures = []
     for key, fact in data["facts"].items():
-        if fact.get("status") not in ("measured", "planned"):
-            failures.append(f"{key}: status must be measured or planned")
+        if fact.get("status") not in ("measured", "planned", "shipped"):
+            failures.append(f"{key}: status must be measured, planned or shipped")
         text = show(data["commit"], fact["source"], cache)
         if text is None:
             failures.append(f"{key}: {fact['source']} not found at {data['commit'][:10]}")

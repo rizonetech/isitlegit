@@ -17,8 +17,8 @@ const FPS = 30;
 const TITLE = 6;
 const CLOSE = 6;
 
-// A scene stays up long enough to read: about 2.6 words a second plus time to take in the visual, unless the
-// storyboard sets `seconds`.
+// A scene stays up long enough to read: about 3.6 words a second, the pace of a viewer who can pause, plus time to
+// take in the visual, unless the storyboard sets `seconds`.
 const sceneText = (s: SceneSpec): string => {
   const parts: string[] = [s.title];
   if ("sub" in s && s.sub) parts.push(s.sub);
@@ -35,9 +35,9 @@ const sceneText = (s: SceneSpec): string => {
 
 export const sceneSeconds = (s: SceneSpec): number => {
   if (s.seconds) return s.seconds;
-  if (s.type === "chapter") return 6;
-  const visual = s.type === "chart" || s.type === "flow" ? 6 : 3;
-  return Math.max(8, Math.ceil(words(sceneText(s)) / 2.6 + visual));
+  if (s.type === "chapter") return 5;
+  const visual = s.type === "chart" || s.type === "flow" ? 5 : 2;
+  return Math.max(7, Math.ceil(words(sceneText(s)) / 3.6 + visual));
 };
 
 export const storyboardFrames = (b: StoryboardSpec) => (TITLE + CLOSE + b.scenes.reduce((a, s) => a + sceneSeconds(s), 0)) * FPS;

@@ -59,8 +59,12 @@ def pace(repo: Path) -> dict:
         d["commits"] += 1
         d["stamps"] += subject.startswith("todo: stamp")
         hours[int(hour)] += 1
-    first = git(repo, "log", *refs(repo), "--reverse", "--format=%ad", "--date=iso-strict").splitlines()[0]
-    return {"days": sorted(days.values(), key=lambda d: d["date"]), "hours": hours, "commits": len(log), "first": first}
+    first = subprocess.run(
+        ["git", "log", *refs(repo), "--reverse", "--format=%ad", "--date=format-local:%-d %b %Y, %H:%M SAST"],
+        cwd=repo, check=True, capture_output=True, text=True, env={**os.environ, "TZ": "Africa/Johannesburg"},
+    ).stdout.splitlines()[0]
+    stamps = sum(d["stamps"] for d in days.values())
+    return {"days": sorted(days.values(), key=lambda d: d["date"]), "hours": hours, "commits": len(log), "stamps": stamps, "first": first}
 
 
 def domains(repo: Path) -> list[dict]:

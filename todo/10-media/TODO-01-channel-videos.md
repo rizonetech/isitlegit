@@ -3,20 +3,20 @@ schema_version: 1
 id: media-channel-videos
 domain: 10-media
 status: active
-title: "TODO-01 -- Channel Videos: Development Method and Tech Stack"
+title: "TODO-01 -- Channel Videos: Development Process and Technical Deep Dive"
 track: day-6
 ---
 
-# TODO-01 -- Channel Videos: Development Method and Tech Stack
+# TODO-01 -- Channel Videos: Development Process and Technical Deep Dive
 
-> **Goal:** The IsItLegit YouTube channel (@DerickPayneDev) carries three short explainers made in Remotion from the repository: "How IsItLegit is built" (the development method, including the Muse Wonder final review through Muse Code, labelled as tooling) "IsItLegit in 60 seconds" (the tech stack as an architecture diagram) and "Loupe 1.0" (a technical deep dive on the page screener, figures pinned to the glimmer lane), each with an approved script, a licence basis on file, numbers read from the repository, and a public link recorded here.
+> **Goal:** The IsItLegit YouTube channel (@DerickPayneDev) carries three explainers made in Remotion from the repository: "How IsItLegit is built" (the development process in long form, including the lanes, the coordinator and the Muse Wonder final review, labelled as tooling), "IsItLegit: how it works" (the technical deep dive in long form, with an honest shipped or planned mark per chapter) and "Loupe 1.0" (a technical deep dive on the page screener, figures pinned to the glimmer lane), each with an approved script, a licence basis on file, numbers read from the repository, and a public link recorded here.
 
-> **Current state:** Measured 2026-10-30. `media/` exists on branch `claude/trusting-pasteur-umwvqz` (commits `cc4d49c`, `0b45c62`, `6aed7c0`): its own pnpm root (`media/pnpm-workspace.yaml`, `media/pnpm-lock.yaml`), Remotion 4.0.539 pinned, the brand layer `media/src/brand.tsx` reading `design/` unchanged, the compositions `media/src/videos/HowItIsBuilt.tsx` (65 s) and `media/src/videos/InSixtySeconds.tsx` (60 s), and `media/tools/collect-stats.py` writing the on-screen numbers (278 sections, 95 stamped, 355 rounds, 65 final reviews at `5c92ba8`). Both render to 1920 x 1080 MP4 and were sent to the operator as first drafts; neither script is approved, the Remotion licence basis is not recorded, and nothing is uploaded. The lane is registered but uncoordinated (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane); its stamps carry the review waiver once D00 T01 §26 ships.
+> **Current state:** Measured 2026-10-30. `media/` exists on branch `claude/trusting-pasteur-umwvqz` (commits `cc4d49c`, `0b45c62`, `6aed7c0`): its own pnpm root (`media/pnpm-workspace.yaml`, `media/pnpm-lock.yaml`), Remotion 4.0.539 pinned, the brand layer `media/src/brand.tsx` reading `design/` unchanged, videos 01 and 02 as long-form storyboards (`media/data/storyboards/`) rendered by the scene kit `media/src/kit/` after the operator asked for 5 to 10 minute learning videos (2026-10-30), replacing the 65 s and 60 s drafts, with figures from `media/tools/collect-stats.py` (git pace, per-domain stamps, review counts) and from `media/data/dev-facts.json` and `media/data/tech-facts.json`, every quote proven by `media/tools/check-facts.py`. Both render to 1920 x 1080 MP4; neither script is approved, the Remotion licence basis is not recorded, and nothing is uploaded. The lane is registered but uncoordinated (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane); its stamps carry the review waiver once D00 T01 §26 ships.
 
 ## Inputs
 
 - `media/README.md`: the lane rules (no product feature claims for tooling, numbers from the repository, no Meta Model API calls, licensed music only).
-- `media/scripts/01-how-isitlegit-is-built.md` and `media/scripts/02-isitlegit-in-60-seconds.md`: the scene-by-scene scripts the operator approves.
+- `media/scripts/01-how-isitlegit-is-built.md` and `media/scripts/02-isitlegit-technical-deep-dive.md`: the chapter outlines the operator approves; the words are the storyboards in `media/data/storyboards/`.
 - `design/brand/README.md`, `design/tokens/colors.json`, `design/fonts/`: brand files used unchanged.
 - `README.md` "How it uses Meta's models" and "How it is built", `docs/specs/2026-10-26-tech-stack-design.md`: the facts in video 02.
 - `.conclave/reviewers.toml` and `docs/reviews/`: the review method and the receipts video 01 shows.
@@ -40,8 +40,8 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Media package and stats collector | -- | [ ] |
 | 2 | §2 | Remotion licence basis | -- | [ ] |
-| 3 | §3 | Video 01: development method | §1, §2 | [ ] |
-| 4 | §4 | Video 02: tech stack | §1, §2 | [ ] |
+| 3 | §3 | Video 01: development process, long form | §1, §2 | [ ] |
+| 4 | §4 | Video 02: technical deep dive, long form | §1, §2 | [ ] |
 | 5 | §5 | Uploads and links recorded | §3, §4 | [ ] |
 | 6 | §6 | Video 03: Loupe 1.0 technical deep dive | §1, §2 | [ ] |
 | 7 | §7 | Video 03 upload and link recorded | §6 | [ ] |
@@ -87,9 +87,9 @@ Remotion is free for individuals and for companies of up to three people; a larg
 
 **Test checkpoint:** `grep -cE '^Remotion licence: ' todo/10-media/TODO-01-channel-videos.md` prints `1`.
 
-## 3. Video 01: development method
+## 3. Video 01: development process, long form
 
-The development method in about 65 seconds: the plan as small sections, Claude Code building, GPT-6 Astra's rounds, the one Muse Wonder final review through Muse Code, the stamp and its receipt, and live counts. Every scene carries the label "Our development process, not a product feature" (`docs/hackathon-criteria.md`, identify contributions).
+The development process in about 11 and a half minutes, for learning and for the channel: the governing documents, the plan as a graph, the section contract, the five lanes as a team, the coordinator as team lead, the loop that runs around the clock (with commits by hour and by day from git), independent review with the Muse Wonder final review, the stamp and its receipt, the guards, and how it adds up to speed. Every scene carries the label "Our development process, not a product feature" (`docs/hackathon-criteria.md`, identify contributions). Long form on the operator's request, 2026-10-30.
 
 **Phase:** 6
 **Needs:** none
@@ -97,22 +97,22 @@ The development method in about 65 seconds: the plan as small sections, Claude C
 
 **Build order:**
 
-1. The operator approves `media/scripts/01-how-isitlegit-is-built.md`. Done when: its approval line is written.
-2. Match `media/src/videos/HowItIsBuilt.tsx` to the approved script and render it. Done when: `media/out/01-how-isitlegit-is-built.mp4` is 1920 x 1080 and its duration equals the script's total.
+1. Write `media/data/storyboards/01-development-process.json` with every figure named from `media/data/dev-facts.json` or the collector. Done when: `pnpm check:facts` passes.
+2. The operator approves `media/scripts/01-how-isitlegit-is-built.md`, then the final render. Done when: its approval line is written and `media/out/01-how-isitlegit-is-built.mp4` is 1920 x 1080.
 
-- [ ] Operator: answer the script's open questions (voiceover or text only; reviewer names or roles). Done when: the answers are written into `media/scripts/01-how-isitlegit-is-built.md`.
+- [x] Pin the process facts in `media/data/dev-facts.json` (50 facts, quotes from `AGENTS.md`, `docs/specs/2026-10-30-four-lanes-design.md`, `.conclave/reviewers.toml`, `todo/README.md`, `scripts/`), with no writer model identifier, client data or account names. Done when: `python3 media/tools/check-facts.py` passes. Cheaper substitute: typed figures fail the lane rule.
+- [x] Add commits and stamps per day, commits per hour of day across every lane, merges, per-domain stamps and lines of code to `media/tools/collect-stats.py`, leaving out the template rows, with tests. Done when: its sections total equals `scripts/todo-graph.py validate`'s count.
+- [x] Write the storyboard and register it in `media/src/Root.tsx` as `DevProcess`. Done when: stills of all 33 content scenes show the label, Exo fonts and nothing cut off.
+- [ ] Operator: answer the script's open questions (voiceover or text only; reviewer names). Done when: the answers are written into `media/scripts/01-how-isitlegit-is-built.md`.
 - [ ] Record `Script approved: 01, YYYY-MM-DD` in `media/scripts/01-how-isitlegit-is-built.md`. Done when: the line is written.
-- [ ] Apply the approved wording and timings to `SCENES` and the scene components in `media/src/videos/HowItIsBuilt.tsx`. Done when: every on-screen line matches the script. Cheaper substitute: rendering the draft unchanged fails if the operator changed any line.
-- [ ] Keep the quoted Muse finding in `FINDING` identical to `docs/reviews/01-intake/D01-T01-s2.md` line 139. Done when: `grep -F` of the quoted clause finds it in the receipt.
-- [ ] Render with `pnpm render:01` in `media/` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts.
-- [ ] Check stills of every scene for fonts, safe margins and the tooling label. Done when: each scene's still shows Exo, the label and nothing cut off.
+- [ ] Re-pin `media/data/dev-facts.json` to the commit of the final render and re-render with `pnpm render:01` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts. Cheaper substitute: rendering at an old pin shows stale counts.
 - [ ] Commit: `media: video 01 approved and rendered (D10 T01 §3)`
 
-**Test checkpoint:** `ffprobe -v error -show_entries stream=width,height:format=duration -of csv=p=0 media/out/01-how-isitlegit-is-built.mp4` prints `1920,1080` and the script's total in seconds, and `grep -c '^Script approved: 01, ' media/scripts/01-how-isitlegit-is-built.md` prints `1`.
+**Test checkpoint:** `python3 media/tools/check-facts.py` exits 0, `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/01-how-isitlegit-is-built.mp4` prints `1920,1080`, and `grep -c '^Script approved: 01, ' media/scripts/01-how-isitlegit-is-built.md` prints `1`.
 
-## 4. Video 02: tech stack
+## 4. Video 02: technical deep dive, long form
 
-One suspicious email followed through the system as a labelled architecture diagram: intake, the Worker's Workflows steps, each Meta model's one job through AI Gateway, evidence storage, and the verdict marks from `design/brand/motion/`. It shows no product screens, so it never stands in for the live demo (`docs/hackathon-criteria.md`, Demo).
+The product's technical specification in about 11 minutes: intake, uploads and voice, the Workflows pipeline, the evidence model and checks, reputation and the hard floor, link following with Muse Wonder, vision, the Meta model client and AI Gateway, the verdict agent, invoices, the trust network, storage and retention, the app, evaluation and the pinned stack. Every chapter card says shipped, partly built or planned, measured from `src/` and the stamped plan, and diagrams are never product screens, so it never stands in for the live demo (`docs/hackathon-criteria.md`, Demo). Replaces the 60-second tech stack draft on the operator's request, 2026-10-30.
 
 **Phase:** 6
 **Needs:** none
@@ -120,18 +120,18 @@ One suspicious email followed through the system as a labelled architecture diag
 
 **Build order:**
 
-1. The operator approves `media/scripts/02-isitlegit-in-60-seconds.md`. Done when: its approval line is written.
-2. Match `media/src/videos/InSixtySeconds.tsx` to the approved script and render it. Done when: `media/out/02-isitlegit-in-60-seconds.mp4` is 1920 x 1080 and 60 seconds.
+1. Write `media/data/storyboards/02-technical-deep-dive.json` with every figure named from `media/data/tech-facts.json`. Done when: `pnpm check:facts` passes.
+2. The operator approves `media/scripts/02-isitlegit-technical-deep-dive.md`, then the final render. Done when: its approval line is written and `media/out/02-isitlegit-technical-deep-dive.mp4` is 1920 x 1080.
 
-- [ ] Operator: answer the script's open questions (include Muse Image or not; voiceover or text only). Done when: the answers are written into `media/scripts/02-isitlegit-in-60-seconds.md`.
-- [ ] Record `Script approved: 02, YYYY-MM-DD` in `media/scripts/02-isitlegit-in-60-seconds.md`. Done when: the line is written.
-- [ ] Check each model role in `MODELS` in `media/src/videos/InSixtySeconds.tsx` against `README.md` "How it uses Meta's models". Done when: every role matches the README's wording in meaning. Cheaper substitute: a role the product does not have fails the hackathon's no-mocks rule.
-- [ ] Apply the approved wording and timings to `SCENES` and the scene components. Done when: every on-screen line matches the script.
-- [ ] Render with `pnpm render:02` in `media/` on a committed tree. Done when: the file exists at 1920 x 1080.
-- [ ] Check stills of every scene for fonts, safe margins and the "Architecture diagram" label. Done when: each scene's still shows them.
+- [x] Pin the product facts in `media/data/tech-facts.json` (92 facts, status `shipped` only for code in `src/` at the pin, `planned` for the design spec), with no client data, keys or account IDs. Done when: `python3 media/tools/check-facts.py` passes. Cheaper substitute: calling a designed feature shipped fails the no-mocks rule.
+- [x] Write the storyboard and register it in `media/src/Root.tsx` as `TechDeepDive`. Done when: stills of all 25 content scenes show the label and nothing cut off, including the wrapped code lines.
+- [ ] Operator: answer the script's open questions (voiceover; a re-render once the verdict agent ships). Done when: the answers are written into `media/scripts/02-isitlegit-technical-deep-dive.md`.
+- [ ] Record `Script approved: 02, YYYY-MM-DD` in `media/scripts/02-isitlegit-technical-deep-dive.md`. Done when: the line is written.
+- [ ] Re-check every chapter's shipped, partly built or planned mark against `src/` and the stamped rows at the final render's commit. Done when: each mark matches. Cheaper substitute: keeping the 30 Oct marks fails once the agent ships.
+- [ ] Re-pin and re-render with `pnpm render:02` on a committed tree. Done when: the file exists at 1920 x 1080.
 - [ ] Commit: `media: video 02 approved and rendered (D10 T01 §4)`
 
-**Test checkpoint:** `ffprobe -v error -show_entries stream=width,height:format=duration -of csv=p=0 media/out/02-isitlegit-in-60-seconds.mp4` prints `1920,1080` and `60.000000`, and `grep -c '^Script approved: 02, ' media/scripts/02-isitlegit-in-60-seconds.md` prints `1`.
+**Test checkpoint:** `python3 media/tools/check-facts.py` exits 0, `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/02-isitlegit-technical-deep-dive.mp4` prints `1920,1080`, and `grep -c '^Script approved: 02, ' media/scripts/02-isitlegit-technical-deep-dive.md` prints `1`.
 
 ## 5. Uploads and links recorded
 
@@ -146,7 +146,7 @@ The operator uploads the two approved renders to @DerickPayneDev as public video
 1. Upload both and record the links. Done when: two `Video 0N:` lines are written here and both play logged out.
 
 - [ ] Operator: upload `media/out/01-how-isitlegit-is-built.mp4` as public, in the `IsItLegit` playlist. Done when: it plays in a logged-out window at 1080p.
-- [ ] Operator: upload `media/out/02-isitlegit-in-60-seconds.mp4` the same way. Done when: it plays logged out at 1080p.
+- [ ] Operator: upload `media/out/02-isitlegit-technical-deep-dive.mp4` the same way. Done when: it plays logged out at 1080p.
 - [ ] Record `Video 01: https://www.youtube.com/watch?v=<id>` and `Video 02: https://www.youtube.com/watch?v=<id>` under this section. Done when: both lines are written.
 - [ ] Add both links to the Videos table in `media/README.md`. Done when: each row links its video.
 - [ ] Commit: `todo: record the channel video links (D10 T01 §5)`

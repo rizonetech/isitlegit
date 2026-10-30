@@ -1,11 +1,13 @@
+import dev from "../../data/dev-facts.json";
 import loupe from "../../data/loupe-facts.json";
+import tech from "../../data/tech-facts.json";
 import stats from "../data/stats.json";
 
 // Storyboard text may name a figure instead of typing it: {stats.path} reads media/src/data/stats.json (written by
 // tools/collect-stats.py at render time) and {fact.key} reads a facts file proven by tools/check-facts.py. An unknown
 // name throws, so a render fails rather than showing a guessed number.
 type Facts = { facts: Record<string, { value: string }> };
-const FACT_FILES: Facts[] = [loupe as Facts];
+const FACT_FILES: Facts[] = [loupe as Facts, dev as Facts, tech as Facts];
 
 const fact = (key: string): string => {
   for (const file of FACT_FILES) if (key in file.facts) return file.facts[key].value;
