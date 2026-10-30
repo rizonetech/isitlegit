@@ -1,0 +1,118 @@
+// The report as drawn (D07 T03 §1): the case's state, its evidence and the footer, in the member or the public frame.
+// Kept apart from the route (./report), which reads the case, so a browser test can render it with no storage.
+import { AppShell, type MemberShellProps } from "../components/AppShell";
+import { Document } from "../components/Document";
+import { type Severity, SeverityPill } from "../components/Evidence";
+import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
+
+// What the page draws of a case and its evidence (the stored rows' own fields, src/db/cases.ts and src/checks/evidence.ts).
+export type ReportCase = {
+  status: "received" | "running" | "done" | "partial";
+  verdict: VerdictName | null;
+  createdAt: string;
+};
+export type ReportEvidence = { id: string; severity: Exclude<Severity, "not-checked">; summary: string };
+
+const sast = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const sastDate = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+export type Shown = { state: CheckState; verdict?: VerdictName; words: string };
+
+// A stored case as the page shows it: its status and its nullable verdict. A finished case with no verdict (a pipeline
+// failure stores `partial` with none) is a failed check, never a guessed verdict.
+export function shownState(stored: Pick<ReportCase, "status" | "verdict">): Shown {
+  const { status, verdict } = stored;
+  if (status === "received") return { state: "running", words: "Received" };
+  if (status === "running") return { state: "running", words: "Checking" };
+  if (!verdict) return { state: "failed", words: "Could not be checked" };
+  if (status === "partial") return { state: "partial", verdict, words: "Partly checked" };
+  return { state: "complete", verdict, words: "Checked" };
+}
+
+function ReportBody(props: {
+  stored: ReportCase;
+  evidence: ReportEvidence[];
+  view: "member" | "public";
+  linkExpires?: number;
+}) {
+  const { stored, evidence, view } = props;
+  const shown = shownState(stored);
+  const arrived = sast.format(new Date(stored.createdAt));
+  return (
+    <article class="flex flex-col gap-24 px-16 py-24 md:px-48 md:py-40">
+      {view === "member" && (
+        <a href="/cases" class="md:hidden self-start inline-flex items-center min-h-24 type-small text-orange-text">
+          ← Cases
+        </a>
+      )}
+      <header class="flex flex-col gap-8">
+        <h1 class="type-h2 wrap-anywhere">Case received {arrived} SAST</h1>
+        <p class="flex flex-wrap items-center gap-12">
+          <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
+          <span class="type-small text-muted">{shown.words}</span>
+        </p>
+      </header>
+      <section aria-labelledby="evidence-heading" class="flex flex-col gap-12">
+        <h2 id="evidence-heading" class="type-h3">
+          Evidence
+        </h2>
+        {evidence.length === 0 ? (
+          <p class="type-small text-muted">
+            {shown.state === "running" ? "The checks have not found anything yet." : "No evidence was recorded."}
+          </p>
+        ) : (
+          <ol class="flex flex-col gap-12">
+            {evidence.map((item) => (
+              <li class="flex flex-wrap items-start gap-12 wrap-anywhere">
+                <SeverityPill id={item.id} level={item.severity} />
+                <span class="min-w-0 flex-1">{item.summary}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+      <footer class="type-small text-muted border-t border-line pt-16">
+        {view === "member"
+          ? "Raw files are deleted after 30 days. This summary stays while your organisation has an account."
+          : `Anyone with this link can read this report until ${sastDate.format(new Date((props.linkExpires ?? 0) * 1000))}. Raw files are deleted after 30 days.`}
+      </footer>
+    </article>
+  );
+}
+
+// The report as a whole document: the member frame for a member (its shell data given), the public frame for a link.
+export function ReportDocument(props: {
+  stored: ReportCase;
+  evidence: ReportEvidence[];
+  shell: Omit<MemberShellProps, "children"> | null;
+  linkExpires?: number;
+}) {
+  const { stored, evidence, shell, linkExpires } = props;
+  const body = (
+    <ReportBody
+      stored={stored}
+      evidence={evidence}
+      view={shell ? "member" : "public"}
+      {...(linkExpires ? { linkExpires } : {})}
+    />
+  );
+  return (
+    <Document title="Report">
+      {shell ? <AppShell {...shell}>{body}</AppShell> : <AppShell variant="public">{body}</AppShell>}
+    </Document>
+  );
+}

@@ -41,12 +41,16 @@ track: day-1
 | 4 | §4 | Invite-code signup and daily case caps | §3 | [x] |
 | 5 | §5 | Domain verification and sender lookup | §3, D01 T02 §1 | [x] |
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [x] |
-| 7 | §7 | Sign-in, signup, invite and domain verification pages | §5, D07 T01 §10 | [ ] |
+| 7 | §7 | Sign-in page | §1, §11, D07 T01 §10, D07 T04 §1 | [ ] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [x] |
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
 | 12 | §12 | Sign-in link opened on another device | §11 | [ ] |
+| 13 | §13 | Signup page | §4, §7 | [ ] |
+| 14 | §14 | Invite acceptance page | §3, §7 | [ ] |
+| 15 | §15 | Domain verification page | §5, D07 T01 §10 | [ ] |
+| 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -259,34 +263,43 @@ Sign-in routes are rate-limited per address and per IP (stack doc), and every si
 > **Verified:** 2026-10-29 | §6 | dd469114955fb7dae155301555200df12e7cb030
 > **Review:** `docs/reviews/d07-t02-s6.json`
 
-## 7. Sign-in, signup, invite and domain verification pages
+## 7. Sign-in page
 
-The pages members see before and around sign-in, built on the shell and components (D07 T01 §3) against `design/SPEC.md`.
+> **Started:** 2026-10-30T15:53:07Z
+
+The sign-in page (`/signin`, `design/SPEC.md` A1): a magic link, a passkey, the code from the mail, and every state a sign-in can end in.
+
+**Corrected 2026-10-30** (validation before build): the section held four pages, each a feature of its own (sign-in with passkeys and the tab that asked finishing by itself; signup; invite acceptance; domain verification), against the TODO rule of small single-responsibility sections. It is split: this section is the sign-in page; the signup page is §13, invite acceptance §14 and domain verification §15, each with its own items moved there unchanged. The sections that waited on §7 for the other pages now name the one they need (D07 T04 §4 on §15, D07 T08 §2 on §7 and §13).
 
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` sign-in, signup and domain verification sections
-**Job:** a business owner gets in, creates the organisation and proves their domain in a few minutes
-**Treatment:** one task per page, plain words, every error says what to do next
-**Chrome:** `AppShell`, `Field`, `Button`, `ErrorState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
+**Fidelity:** `design/SPEC.md` A1 Sign in (boards `Signin`, `Signin-States`), its confirm step and sign-in code; values from `design/mockups/source/Signin.dc.html` and `Signin-States.dc.html`
+**Job:** a member signs in, by link, passkey or code, and lands on the page they asked for
+**Treatment:** one task, plain words, every error says what to do next
+**Chrome:** `Field`, `Button`, `ErrorState`, `LoadingState` from D07 T01 §6 to §8 and the app script (D07 T01 §9), on the sign-in frame this section defines (`SigninFrame`)
+
+**Corrected 2026-10-30** (validation before build, after the split): nothing answers `/signin` yet, though the session gate (§1, `src/auth/gate.ts`) and sign-out send members there, so this section adds the route; A1's split frame (a dark brand panel beside the form, `Signin`) is not built, and the interim pages of §10 and §11 (`ConfirmPage`, `LinkRequestPage`, `InboxPage`, `MessagePage` in `src/auth/confirm-page.tsx`) are drawn on a plain frame that SPEC A1 says "D07 T02 §7 draws these on A1's frame", so they move onto it; the board's "We sent a sign-in link to <address>" contradicts the neutral answer every request gets (D01 T02 §2), so the neutral words stay and are recorded as a Deviation; the busy submit is this section's (SPEC A1, loading); the tab that redeems a link must tell the tab that asked, so a sign-in lands on its return path with a `#signed-in` marker the app script broadcasts and removes; the passkey and cross-tab behaviour is browser code in the app script (D07 T01 §9). Browser tests answer the server's routes with their real shapes (as `test/node/sign-in-code-browser.test.ts` does), the server's side being `test/auth/`'s.
 
 **Build order:**
 
-1. Build the sign-in and signup pages. Done when: a rendered-page test signs up with a code and signs in with a magic link.
-2. Build invite acceptance and domain verification pages. Done when: a test verifies a domain by DNS and by code through the pages.
+1. Build the sign-in page and its states. Done when: a rendered-page test signs in with a magic link, a passkey and a code, each landing on `next`.
 
-- [ ] Build `src/web/pages/signin.tsx` (email field, magic-link button, passkey button, "check your inbox" state), passing the `next` that `requireSession` (§1) puts on `/signin` as the link request's `callbackURL`, so signing in returns to the page asked for (§1 validates it as a same-site path). Done when: the page test finds each control by accessible name. Cheaper substitute: Better Auth's default unstyled form. The "check your inbox" state says "If this address can sign in to IsItLegit, a link is on its way", never that a link was sent: a refused or rate-limited address is answered exactly as a sent one (D01 T02 §2).
-- [ ] Render the failed-link state on `src/web/pages/signin.tsx`: when §1 sends a used, expired or unknown link to `/signin?next=<page>&error=<code>` (`INVALID_TOKEN`, or Better Auth's other magic-link codes, `src/auth/auth.ts` `recoveryPath`), show that the link no longer works and why in plain words, with the email field and "Email me a new link" ready, keeping `next` as the new request's `callbackURL`, and announce the message (`role="alert"`). Done when: `test/web/auth-pages.test.ts` renders `/signin?next=%2Fcases%2F42&error=INVALID_TOKEN`, finds the message and the button by role and name, and a new link requested from it carries `callbackURL=/cases/42`; an unknown `error` code shows the generic wording, never the raw code. Cheaper substitute: a generic "something went wrong" banner, or dropping `next`, fails the test. Source: D07 T02 §1 completion review (`docs/reviews/07-app/D07-T02-s1.md`, Part 1 item 9 and Part 2 item 1).
-- [ ] Finish the sign-in in the tab that asked for the link: the "check your inbox" state on `src/web/pages/signin.tsx` listens for the session (a `BroadcastChannel("isitlegit-auth")` message from the tab the link opened, with a `/api/auth/get-session` check every 5 seconds while the page is visible as the fallback) and goes to `next` once signed in, with no reload or second click. Done when: a browser test requests a link, redeems it in a second tab, and the first tab reaches `next` within 2 seconds; with no session it stays on the inbox state. Cheaper substitute: a "refresh after clicking the link" note fails the test. Source: D07 T02 §1 completion review (Part 2 item 3, the initiating-tab completion Clerk documents).
-- [ ] Run the passkey sign-in from `src/web/pages/signin.tsx`'s "Sign in with a passkey" button in one activation (no email entry): `navigator.credentials.get` with the options from `/api/auth/passkey/generate-authenticate-options`, then `verify-authentication`, then `next`; cancellation and "no passkey on this device" return at once to the page with the email field focused and a plain message, an expired challenge retries with new options, and a refusal for a device that was not unlocked (401 with the code `USER_VERIFICATION_REQUIRED`, §2) says to unlock the device or use the email link, announced (`role="alert"`). Done when: a browser test with a virtual authenticator signs in and lands on `next`, and cancels, has none, and is refused, each ending on the email field with the message; post-approval navigation to `next` stays within 2 seconds p95 on a throttled mid-range mobile profile. Cheaper substitute: a passkey button that reloads the page or drops `next` fails the test. Source: D07 T02 §2 completion review (Part 2 items 2 and 3).
-- [ ] Build `src/web/pages/signup.tsx` (invite code, email, organisation name, POPIA notice and consent checkbox). Done when: submitting without consent shows the field error and stores nothing. It posts to `/api/auth/sign-up/invite-code` (§4) and renders both answers: `linkSent: true` ("check your inbox") and `linkSent: false` ("your account is ready, but the sign-in link could not be confirmed", with a button that asks for a new link). A signup link the operator shares, `/signup?code=<code>`, fills the code in so nobody types it (the code stays in the form, never in a log or a stored URL).
-- [ ] Carry the sign-in code field (§11) from `InboxPage` onto the "check your inbox" states of `src/web/pages/signin.tsx` and of `src/web/pages/signup.tsx` (its `linkSent: true` answer, whose first link carries a code bound to the browser that signed up), with its refusals, each page setting the code handle when it is served to a browser with none (as the `/signin/*` middleware in `src/auth/confirm.tsx` does), so requests sent at once share one handle. Done when: the page test signs in by code from each page, and two requests from a fresh browser keep both codes its own. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
-- [ ] Build `src/web/pages/invite.tsx` for accepting an invite. Done when: an invitee lands in the organisation.
-- [ ] Build `src/web/pages/domains.tsx` with the TXT record to copy, a "check now" button, the emailed-code option, and pending, verified and failed states. Done when: each state renders in the test.
-- [ ] Commit: `web: sign-in, signup, invite and domain verification pages`
+- [ ] Build `SigninFrame` in `src/web/pages/signin.tsx`, A1's frame: from `md` a dark brand panel (`bg-dark`, the logo on dark, the mark art, the headline "Every suspicious email, investigated. Every reason, cited.", its sentence, the footer "IsItLegit by Rizonetech · George, South Africa") beside a centred form column; below `md` the column alone under the logo. Done when: `test/web/signin-page.test.ts` finds both regions at 1280 px and the panel hidden at 360 px with no sideways scroll (`test/node/signin-page-browser.test.tsx`). Cheaper substitute: the plain interim frame. Source: board `Signin`.
+- [ ] Serve `GET /signin` (`src/auth/confirm.tsx` beside the confirm routes) with `src/web/pages/signin.tsx`: "Sign in", its sentence, the "Work email" field, the primary "Email me a sign-in link" posting to `/signin/link`, and "New here? You need an invite code during the launch. Create an account" linking to `/signup`, passing the `next` that `requireSession` (§1) puts on `/signin` as the link request's `callbackURL`, so signing in returns to the page asked for (§1 validates it as a same-site path). Done when: the page test finds each control by accessible name. Cheaper substitute: Better Auth's default unstyled form. The "check your inbox" state says "If this address can sign in to IsItLegit, a link is on its way", never that a link was sent: a refused or rate-limited address is answered exactly as a sent one (D01 T02 §2).
+- [ ] Land every sign-in on a page that exists: the default return `/cases` is the Cases list (D07 T04 §1, moved into Phase 2 by the operator's decision, 2026-10-30, so this section waits on it). Done when: `test/web/signin-page.test.ts` signs in by link and by code with no `next` and reads the Cases list's own heading from the page it lands on, with the session read back through `requireSession`. **Added 2026-10-30 (plan review P1).**
+- [ ] Normalise `next` once, where `/signin` is served: a same-site path by §1's rule (`sameSitePath`, `src/auth/paths.ts`), else `DEFAULT_RETURN`, and give every way out of the page (the link request's `callbackURL`, the code form, the automatic finish, the passkey of §16) that one validated value. Done when: `test/web/signin-page.test.ts` serves `/signin` with `next` as `https://attacker.example`, `//attacker.example`, `/\\attacker.example`, `/%2F%2Fattacker.example` and `/../..//attacker.example` and finds `DEFAULT_RETURN` in every form and data attribute, and `/cases/42?tab=evidence` kept whole. Cheaper substitute: validating only the link request, as §1 does. **Added 2026-10-30 (plan review P1).**
+- [ ] Move the confirm step's and the link request's states (`ConfirmPage`, `LinkRequestPage`, `InboxPage`, `MessagePage`, `src/auth/confirm-page.tsx`) onto `SigninFrame` with the boards' structure: each state's icon tile (mail, clock, stop, key), heading, sentence and actions, the rate-limited states (below), and the inbox state's neutral words recorded as a Deviation in `design/SPEC.md` A1. Done when: the existing `test/auth/magic-link-confirm.test.ts` and `test/auth/sign-in-code.test.ts` still pass, and `test/web/signin-page.test.ts` finds each state's heading, icon and actions. Cheaper substitute: keeping the interim frame for the states. Source: board `Signin-States`, SPEC A1's confirm step.
+- [ ] Give every sign-in form a busy submit (`src/web/client/app.ts`): on submit the button is disabled with `aria-busy="true"` and its words become "Sending…" (or "Signing in…"), a second press sends nothing, and the button comes back when the page is restored from the back-forward cache. Done when: `test/node/signin-page-browser.test.tsx` holds the answer, finds the busy button and one request after two presses, then navigates away and back (`page.goBack()`, the restore asserted through `pageshow`'s `persisted`) and finds the button usable. Cheaper substitute: nothing until the page answers. Source: SPEC A1 (loading).
+- [ ] Give each rate-limited state its retry contract: the state carries the operation it retries and the time it may (`data-retry-at`, epoch seconds, and the SAST time in words): a link request's "Send another link at 14:32" re-sends the same address and return path, the confirm step's "Sign in to IsItLegit" retries its retained token, the code form's "Sign in" retries its code; the app script enables the button at that time. Done when: `test/node/signin-page-browser.test.tsx` installs the clock, finds each button disabled, moves past its time, finds it enabled, and presses it to complete the retained operation against the stubbed answer (a sent link, a redeemed token, a redeemed code). Cheaper substitute: one "Send another link" for every limit. **Added 2026-10-30 (plan review P2).**
+- [ ] Render the failed-link state on `src/web/pages/signin.tsx`: when §1 sends a used, expired or unknown link to `/signin?next=<page>&error=<code>` (`INVALID_TOKEN`, or Better Auth's other magic-link codes, `src/auth/auth.ts` `recoveryPath`), show that the link no longer works and why in plain words, with the email field and "Email me a new link" ready, keeping `next` as the new request's `callbackURL`, and announce the message (`role="alert"`). Done when: `test/web/signin-page.test.ts` renders `/signin?next=%2Fcases%2F42&error=INVALID_TOKEN`, finds the message and the button by role and name, and a new link requested from it carries `callbackURL=/cases/42`; an unknown `error` code shows the generic wording, never the raw code. Cheaper substitute: a generic "something went wrong" banner, or dropping `next`, fails the test. Source: D07 T02 §1 completion review (`docs/reviews/07-app/D07-T02-s1.md`, Part 1 item 9 and Part 2 item 1).
+- [ ] Finish the sign-in in the tab that asked for the link: the "check your inbox" state on `src/web/pages/signin.tsx` listens for the session (a `BroadcastChannel("isitlegit-auth")` message from the tab the link opened, posted by the app script when a page loads with the `#signed-in` marker a sign-in by link or code lands with (which it then removes from the address), with a `/api/auth/get-session` check every 5 seconds while the page is visible as the fallback) and goes to `next` once signed in as the address it waits for (the form's address; the broadcast carries the signed-in address, read from `/api/auth/get-session` by the redeeming tab, and the fallback compares the session's), never on another member's session: a session that was already there for another address, or another tab signing in as someone else, leaves the inbox state as it is. The fallback checks at once when the page becomes visible (`visibilitychange`), then every 5 seconds while visible, a failed check retried at the next interval. Done when: `test/node/signin-page-browser.test.tsx` requests a link, redeems it in a second tab, and the first tab reaches `next` within 2 seconds of the broadcast; with the redeeming tab closed before it broadcasts, the first tab reaches `next` at its next check (within 5 seconds while visible, at once on becoming visible); with no session, or a failed check, it stays and tries again; with a session for another address already present, or broadcast by another tab, it stays. **Corrected 2026-10-30 (plan review P2 x2):** any session finished the wait, and the fallback had no timing of its own. Cheaper substitute: a "refresh after clicking the link" note fails the test. Source: D07 T02 §1 completion review (Part 2 item 3, the initiating-tab completion Clerk documents).
+- [ ] Carry the sign-in code field (§11) from `InboxPage` onto the "check your inbox" state of `src/web/pages/signin.tsx`, with its refusals (the signup page's is §13), the page setting the code handle when it is served to a browser with none (as the `/signin/*` middleware in `src/auth/confirm.tsx` does), so requests sent at once share one handle. Done when: the page test signs in by code from the sign-in page, and two requests from a fresh browser keep both codes its own. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
+- [ ] Check the sign-in page as a member meets it, in `test/node/signin-page-browser.test.tsx` (run in CI, never skipped there): every state at 360 and 1280 px in both themes passes axe-core with the A11y gate's rules (`test/node/a11y.test.tsx`'s configuration), Tab reaches each field and button in the order drawn with the shared focus ring visible, and each state change a member does not navigate to (busy, a refused code, the automatic finish) is announced through a live region. Done when: it passes, and fails with a planted unlabelled control, a planted tab order out of the drawn order, and the busy state's announcement removed. **Added 2026-10-30 (plan review P2).**
+> **Deferred:** the "or" divider and "Sign in with a passkey" on the sign-in page and its rate-limited state, with the passkey prompt state -> XREF: §16
+- [ ] Commit: `web: the sign-in page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/auth-pages.test.ts` passes and fails if signup proceeds without the POPIA consent.
+**Test checkpoint:** `pnpm exec vitest run test/web/signin-page.test.ts test/node/signin-page-browser.test.tsx` passes, with `test/auth/` still green: the page by accessible name, the failed-link state with `next` kept, sign-in by link, passkey and code each landing on `next`, and the inbox state finishing in the tab that asked.
 
 ## 8. Plans, trial and feature flags
 
@@ -333,7 +346,7 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 - [ ] Add the owner's Close account control to `design/SPEC.md` (where it sits, the confirmation naming the 30-day purge, what members see afterwards) and build it on that page, posting to the closure route. Done when: the SPEC section and its board exist, and a rendered-page test finds the control by role and name for an owner only, refuses it without the confirmation, and closes the organisation with it. Cheaper substitute: a route with no control, or a control for every member, fails the test. Source: D07 T02 §1 completion review (Part 1 item 14), which found no control to start the closure.
 - [ ] Record an organisation's closure (`closed_at`) when its owner closes the account, and refuse new cases for it from then on. Done when: a test closes an organisation and its next case is refused.
 - [ ] Write the purge: a scheduled Worker run deletes, for each organisation closed 30 days or more, its R2 objects listed by each case's prefixes (`raw/<caseId>/` and `art/<caseId>/`, so an object whose row was never written goes too; D01 T01 §2) and then its cases (the child rows cascade), in batches that resume after a failure. Done when: a test with two organisations purges only the closed one's cases, rows and objects, and a purge interrupted halfway finishes on the next run. The purge also deletes the organisation's `invitation_uses` rows (migration 0012, which has no foreign key to `invitation`), so a spent invitation's user and time go with it (D07 T02 §3 final review).
-- [ ] Revoke a closed organisation's domains and addresses at closure (mail from them is no longer admitted, and another organisation may then claim them) and purge its `org_domains`, `org_addresses`, `verification_codes` and `verification_sends` rows (migration 0015, D07 T02 §5), its `org_receivers` and `receiver_lookups` rows (migration 0034, D02 T02 §1) and its `intake_messages` claims (migration 0016, D01 T01 §3), none of which carries a foreign key to the organisation, with the rest. Done when: `test/auth/closure.test.ts` closes an organisation and `findMemberBySender` returns null for its domain at once, another organisation can then verify it, and after the purge none of those rows remain while another organisation's are untouched. Source: D07 T02 §5 completion review (Part 1 item 16); `intake_messages` added by D01 T01 §3's plan review, 2026-10-28.
+- [ ] Revoke a closed organisation's domains and addresses at closure (mail from them is no longer admitted, and another organisation may then claim them) and purge its `org_domains`, `org_addresses`, `verification_codes` and `verification_sends` rows (migration 0015, D07 T02 §5), its `org_receivers` and `receiver_lookups` rows (migration 0034, D02 T02 §1), its `org_sender_salts` and `sender_observations` rows (migration 0037, D02 T02 §5: its senders, stored only as salted hashes; **Added 2026-10-30** at the checks lane's request through the coordinator, **Corrected 2026-10-30** to the tables D02 T02 §5 stamped at a0b5bc1) and its `intake_messages` claims (migration 0016, D01 T01 §3), none of which carries a foreign key to the organisation, with the rest. Done when: `test/auth/closure.test.ts` closes an organisation and `findMemberBySender` returns null for its domain at once, another organisation can then verify it, and after the purge none of those rows remain while another organisation's are untouched. Source: D07 T02 §5 completion review (Part 1 item 16); `intake_messages` added by D01 T01 §3's plan review, 2026-10-28.
 - [ ] Purge a closed organisation's signup records with it (`invite_redemptions` rows naming it, migration 0013, with their address and consent time), and delete a pending redemption untouched for 30 days (an abandoned signup: its address, consent time and any user it made with no membership); a completed redemption of an open organisation is kept as its consent record. Done when: `test/auth/closure.test.ts` finds a closed organisation's redemptions gone after the purge and an abandoned pending one gone after 30 days, and an open organisation's kept. Source: D07 T02 §4 completion review (Part 1 item 12).
 - [ ] State the period on the privacy page and in `docs/operations.md`. Done when: both name 30 days from closure.
 - [ ] Delete a closed organisation's `auth_events` rows with its other data (from D07 T02 §6, which keeps them 12 months otherwise). Done when: the purge test finds none left for the closed organisation and another's untouched.
@@ -473,6 +486,95 @@ Wrong-device link: b (2026-10-30)
 - [ ] Commit: `auth: a link opened on another device keeps the asking browser's sign-in`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts` passes: the link opened in another browser does what the decision records, and the asking browser's code still signs it in.
+
+## 13. Signup page
+
+The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's address, the organisation's name and the POPIA consent, then the first link and its code. Split from §7 on 2026-10-30 (its items moved here unchanged).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A2 Sign up and its board
+**Job:** a business owner with an invite code creates the organisation in a minute
+**Treatment:** one task, plain words, consent asked for plainly, every error says what to do next
+**Chrome:** `Field`, `Checkbox`, `Button`, `ErrorState` from D07 T01 §6 to §8 on the sign-in frame (§7)
+
+**Build order:**
+
+1. Build the signup page and both of its answers. Done when: a rendered-page test signs up with a code and signs in from the first mail.
+
+- [ ] Build `src/web/pages/signup.tsx` (invite code, email, organisation name, POPIA notice and consent checkbox). Done when: submitting without consent shows the field error and stores nothing. It posts to `/api/auth/sign-up/invite-code` (§4) and renders both answers: `linkSent: true` ("check your inbox") and `linkSent: false` ("your account is ready, but the sign-in link could not be confirmed", with a button that asks for a new link). A signup link the operator shares, `/signup?code=<code>`, fills the code in so nobody types it (the code stays in the form, never in a log or a stored URL).
+- [ ] Show the sign-in code field (§11) on the signup page's "check your inbox" answer (`linkSent: true`, whose first link carries a code bound to the browser that signed up), with its refusals, the page setting the code handle when it is served to a browser with none. Done when: the page test signs up and signs in by the code from the first mail. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11
+- [ ] Commit: `web: the signup page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if signup proceeds without the POPIA consent.
+
+## 14. Invite acceptance page
+
+The page an invitation's link opens (`/invite/<id>`, `design/SPEC.md` A3). Split from §7 on 2026-10-30 (its item moved here unchanged).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A3 Accept invitation and its board
+**Job:** an invited person joins the organisation that invited them, with no other step
+**Treatment:** who invited them to what, one button, every error says what to do next
+**Chrome:** `Button`, `ErrorState` from D07 T01 §6 to §8 on the sign-in frame (§7)
+
+**Build order:**
+
+1. Build the invitation page. Done when: an invitee lands in the organisation.
+
+- [ ] Build `src/web/pages/invite.tsx` for accepting an invite. Done when: an invitee lands in the organisation.
+- [ ] Commit: `web: the invitation page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/invite-page.test.ts` passes: an invitee lands in the organisation.
+
+## 15. Domain verification page
+
+The page an owner proves a domain on (`design/SPEC.md` A5). Split from §7 on 2026-10-30 (its item moved here unchanged).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A5 Verify a domain and its board
+**Job:** an owner proves the organisation's domain in a few minutes, by DNS or by an emailed code
+**Treatment:** the record to copy, one check, each state says what to do next
+**Chrome:** `AppShell`, `Field`, `Button`, `ErrorState` from D07 T01 §3 and §6 to §8, the copy group (D07 T01 §9)
+
+**Build order:**
+
+1. Build the domain verification page. Done when: a test verifies a domain by DNS and by code through the page.
+
+- [ ] Build `src/web/pages/domains.tsx` with the TXT record to copy, a "check now" button, the emailed-code option, and pending, verified and failed states. Done when: each state renders in the test.
+- [ ] Commit: `web: the domain verification page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes: a domain verified by DNS and by code through the page, each state rendered.
+
+## 16. Passkey sign-in from the sign-in page
+
+The sign-in page's "Sign in with a passkey" (`design/SPEC.md` A1, the passkey button and the passkey prompt state), proven end to end against the real verifier. Split from §7 on 2026-10-30 (§7's plan review: proving it needs a running Worker, its D1, a registered credential and Chromium's virtual authenticator, a feature of its own).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (boards `Signin`, the "or" divider and passkey button; `Signin-States`, the passkey prompt and the rate-limited state's passkey button)
+**Job:** a member with a passkey signs in with one press and their device, and lands on the page they asked for
+**Treatment:** one activation, the device's own prompt, every failure back to the email field with a plain message
+**Chrome:** `Button` (§6 of D07 T01), the sign-in frame (§7), the app script (D07 T01 §9)
+
+**Build order:**
+
+1. Draw the passkey button and its prompt state. Done when: both render on the sign-in page.
+2. Run the ceremony in the browser against the real verifier. Done when: a browser-made assertion signs in through Better Auth and the session reads back.
+
+- [ ] Run the passkey sign-in from the "Sign in with a passkey" button (`src/web/pages/signin.tsx`, the "or" divider above it, and on the rate-limited state) in one activation (no email entry): `navigator.credentials.get` with the options from `/api/auth/passkey/generate-authenticate-options`, then `verify-authentication`, then `next`; cancellation and "no passkey on this device" return at once to the page with the email field focused and a plain message, an expired challenge retries with new options, and a refusal for a device that was not unlocked (401 with the code `USER_VERIFICATION_REQUIRED`, §2) says to unlock the device or use the email link, announced (`role="alert"`). Done when: a browser test with a virtual authenticator signs in and lands on `next`, and cancels, has none, and is refused, each ending on the email field with the message; post-approval navigation to `next` stays within 2 seconds p95 on a throttled mid-range mobile profile. Cheaper substitute: a passkey button that reloads the page or drops `next` fails the test. Source: D07 T02 §2 completion review (Part 2 items 2 and 3).
+- [ ] Convert between Better Auth's JSON and WebAuthn in `src/web/client/app.ts`: the options from `generate-authenticate-options` into `PublicKeyCredentialRequestOptions` (base64url challenge and credential ids to `ArrayBuffer`s, as WebAuthn Level 3's `parseRequestOptionsFromJSON` does, used when the browser has it), and the assertion back into the JSON `verify-authentication` takes (`id`, `rawId`, `type`, `response.clientDataJSON`, `authenticatorData`, `signature`, `userHandle`, `clientExtensionResults`, base64url). Done when: `test/node/passkey-client.test.ts` round-trips known vectors both ways and the end-to-end test below signs in with them. Cheaper substitute: a library added for two conversions. **Added 2026-10-30 (§7's plan review P1).**
+- [ ] Draw the passkey prompt state (A1: "Confirm it is you", "Use your fingerprint, face or device PIN in the window your browser opened.", the "No passkey found on this device?" panel, "Try the passkey again", "Email me a link instead") while the ceremony runs, and its recoveries: cancelled, no passkey on this device, WebAuthn unavailable (no `PublicKeyCredential`, or not a secure context: the button is not drawn), options or verification failing (the service's words, a retry), a device not unlocked (`USER_VERIFICATION_REQUIRED`), a credential this server no longer knows (`vetAuthentication`'s other 401: "This passkey is no longer on your account; sign in with an email link"), and an expired challenge retried once with new options; each keeps the address and the return path and ends on the email field, announced. Done when: `test/node/passkey-signin-browser.test.tsx` reaches each state by keyboard with the virtual authenticator, and "Try the passkey again" and "Email me a link instead" each work. Cheaper substitute: one "Something went wrong". **Added 2026-10-30 (§7's plan review P2).**
+- [ ] Prove the ceremony end to end against the real verifier: the test starts the Worker (`unstable_startWorker`) on a local D1 with the migrations applied, signs a member in (a session made for the test), registers a passkey through Better Auth's registration endpoints with Chromium's virtual authenticator (CDP `WebAuthn.addVirtualAuthenticator`, user verification on), signs out, then presses "Sign in with a passkey" on `/signin?next=/cases/7`, and reads the session back through a route behind `requireSession` (§1). Done when: it lands signed in on the return path, and fails with the conversion reversed or with user verification off. Cheaper substitute: stubbed answers, which pass a ceremony that never makes a session. **Added 2026-10-30 (§7's plan review P1).**
+- [ ] Commit: `web: passkey sign-in from the sign-in page`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-client.test.ts test/node/passkey-signin-browser.test.tsx` passes: a real passkey sign-in landing on its return path with the session read back, and every recovery state by keyboard.
 
 ## Verification
 

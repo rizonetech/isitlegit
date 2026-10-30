@@ -118,7 +118,7 @@ function NavLink(props: { href: string; current: boolean; dark?: boolean; childr
 // back link (D07 T03 §1).
 function PhoneHeader(props: { home: string; homeLabel: string }) {
   return (
-    <header class="md:hidden grid grid-cols-3 items-center h-56 px-16 border-b border-line bg-surface">
+    <header class="md:hidden print:hidden grid grid-cols-3 items-center h-56 px-16 border-b border-line bg-surface">
       <a href={props.home} class={cx("col-start-2 justify-self-center rounded-small", FOCUS)}>
         <Brand light={LOGO_MARK} dark={LOGO_MARK_ON_DARK} alt={props.homeLabel} class="w-32 h-32" />
       </a>
@@ -193,7 +193,12 @@ function MemberNav(props: MemberShellProps) {
   const planWords =
     "trialDaysLeft" in plan ? `Trial, ${plan.trialDaysLeft} ${plan.trialDaysLeft === 1 ? "day" : "days"}` : plan.name;
   return (
-    <nav id="nav" popover="auto" aria-label="Main" class={cx(SIDEBAR, "gap-20 bg-subtle md:border-r md:border-line")}>
+    <nav
+      id="nav"
+      popover="auto"
+      aria-label="Main"
+      class={cx(SIDEBAR, "print:hidden! gap-20 bg-subtle md:border-r md:border-line")}
+    >
       <a href="/cases" class={cx("block self-start px-8 rounded-small", FOCUS)}>
         <Brand light={LOGO} dark={LOGO_ON_DARK} alt="IsItLegit, cases" class="h-32" />
       </a>
@@ -282,7 +287,7 @@ function MemberNav(props: MemberShellProps) {
 function AdminNav(props: AdminShellProps) {
   const { active, feedbackOpen, operator } = props;
   return (
-    <nav id="nav" popover="auto" aria-label="Admin" class={cx(SIDEBAR, "gap-24 bg-dark")}>
+    <nav id="nav" popover="auto" aria-label="Admin" class={cx(SIDEBAR, "print:hidden! gap-24 bg-dark")}>
       <div class="flex flex-col gap-12 px-8">
         <a href="/admin" class={cx("self-start rounded-small", FOCUS_ON_DARK)}>
           <img src={LOGO_ON_DARK} alt="IsItLegit admin, overview" class="block h-28" />
@@ -327,7 +332,11 @@ function AdminNav(props: AdminShellProps) {
 function Main(props: { besideSidebar?: boolean; children: Child }) {
   // tabindex -1 lets the skip link move focus here; a heading inside names the page.
   return (
-    <main id="content" tabindex={-1} class={cx("min-w-0 focus:outline-none", props.besideSidebar && "md:ml-sidebar")}>
+    <main
+      id="content"
+      tabindex={-1}
+      class={cx("min-w-0 focus:outline-none", props.besideSidebar && "md:ml-sidebar print:ml-0")}
+    >
       {props.children}
     </main>
   );

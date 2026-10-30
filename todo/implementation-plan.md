@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 46 | Checklist items: 299
+Sections: 52 | Checklist items: 326
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -130,15 +130,21 @@ Sections: 46 | Checklist items: 299
 | [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
 | [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
-| [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
-| [ ]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 7     |
+| [ ]    | D07 T02 §15 | Domain verification page                              | none     | 2     |
+| [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
 | [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
+| [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
+| [ ]    | D07 T04 §1  | Cases list with filters and search                    | none     | 4     |
+| [ ]    | D07 T02 §7  | Sign-in page                                          | none     | 12    |
+| [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
+| [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
+| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 | [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
@@ -220,7 +226,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 65 | Checklist items: 271
+Sections: 64 | Checklist items: 267
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -247,10 +253,9 @@ Sections: 65 | Checklist items: 271
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
+| [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
-| [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
-| [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -348,6 +353,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 96/279 verified sections, 59 ready to run now.
+Progress: 97/284 verified sections, 61 ready to run now.
 
-Checklist: 973/1797 items completed (includes Commit items).
+Checklist: 986/1820 items completed (includes Commit items).

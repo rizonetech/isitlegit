@@ -81,7 +81,7 @@ Bank account numbers are encrypted with AES-GCM under `BANK_KEY` (Worker secret,
 
 ## 3. Protected identity console page
 
-Owners and admins manage the identity: display names, verified domains and addresses (linked from D07 T02 §7), logo, finance contact, bank accounts (add, remove, masked view), and the protected switch. Members see it read-only.
+Owners and admins manage the identity: display names, verified domains and addresses (linked from D07 T02 §15, split from §7 on 2026-10-30), logo, finance contact, bank accounts (add, remove, masked view), and the protected switch. Members see it read-only.
 
 **Phase:** 5
 **Needs:** none

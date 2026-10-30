@@ -30,7 +30,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | App and site error pages | D07 T01 §10 | [ ] |
-| 2 | §2 | First-run onboarding checklist | D07 T02 §7 | [ ] |
+| 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [ ] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [ ] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
