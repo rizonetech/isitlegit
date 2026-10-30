@@ -496,7 +496,9 @@ Wrong-device link: b (2026-10-30)
 
 ## 13. Signup page
 
-> **Started:** 2026-10-30T21:29:15Z
+> **Started:** 2026-10-30T21:33:30Z
+
+**Corrected 2026-10-31** (at stamp): the Started line was written with the first plan correction (1fa38f4, 2026-10-30T21:29:15Z), before the plan review and its renamed test file (5c42ef2); the build began after the plan review's gaps were built in (592d334), at the time above.
 
 The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's address, the organisation's name and the POPIA consent, then the first link and its code. Split from §7 on 2026-10-30 (its items moved here unchanged).
 
