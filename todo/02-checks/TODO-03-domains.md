@@ -41,6 +41,7 @@ track: day-2
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
 | 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
+| 9 | §9 | Domain age for .za by WHOIS | §4 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -136,6 +137,10 @@ The brands most impersonated in South African small-business mail (banks, Micros
 
 A domain registered in the last 30 days is a strong phishing signal (spec 4.3). RDAP (RFC 9083) is queried through the IANA bootstrap; results are cached in KV for 7 days; an outage gives a "not checked" item, never a guess.
 
+> **Started:** 2026-10-30T18:54Z
+
+**Corrected 2026-10-30** (at start, checked against the repository and the live registries): (1) checks are pure (`src/checks/registry.ts`; the brand table's KV read moved to the step, D02 T02 §4), so the lookups run in the Workflow's `checks` step and their results reach the view as `domainAges`; the check maps them to items; (2) the domains are §2's header domains (`headerDomains`), the organisation's own, its suppliers' and the brand table's left out (their age says nothing), From first, at most `MAX_AGE_LOOKUPS` (5) a case, each lookup within `RDAP_TIMEOUT_MS` (4 s), the rest counted as not checked; (3) the IANA bootstrap (publication 2026-10-28T22:00:04Z) has no `za` service, and ZACR's RDAP server (`rdap.registry.net.za/rdap/`) answers 404 for `.co.za` names, so a `.za` domain reads "not checked: no RDAP service for this ending" until §9 reads `.za` ages by WHOIS; the recorded fixtures are a real `.com` response (`test/fixtures/rdap/example-com.json`, from Verisign) and a trimmed bootstrap (`test/fixtures/rdap/dns.json`); (4) an outage is never a guess: when every lookup fails the check throws and the runner writes `not_checked` naming `domain.age`; when some fail, the ages found are items and one info item names the domains not checked and why; (5) KV `CACHE` holds the bootstrap a day (`rdap:bootstrap`) and each registration date seven days (`rdap:domain:<registrable>`), failures uncached; each item's detail carries the domain, the registration date, the RDAP server and the fields it came from.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -145,10 +150,10 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 1. Write the RDAP client with bootstrap and cache. Done when: a stubbed test reads the registration date from a recorded RDAP response.
 2. Register `domain.age`. Done when: 10 days old is high, 200 days is info, and an outage is not checked.
 
-- [ ] Write `rdapLookup(domain)` in `src/checks/rdap.ts` resolving the server from `https://data.iana.org/rdap/dns.json` (cached 1 day) and reading the `registration` event date. Done when: `test/checks/rdap.test.ts` parses a recorded `.co.za` and a `.com` response.
+- [ ] Write `rdapLookup(domain, deps)` in `src/checks/rdap.ts` resolving the server from `https://data.iana.org/rdap/dns.json` (cached 1 day) and reading the `registration` event date (correction 3). Done when: `test/checks/rdap.test.ts` parses the recorded `.com` response, and a `.co.za` domain reads as having no RDAP service. (**Corrected 2026-10-30**, at start.)
 - [ ] Cache results in `CACHE` for 7 days keyed by registrable domain. Done when: a second lookup makes no network call.
-- [ ] Register `domain.age`: high under 30 days, medium under 90, info otherwise, with the date and RDAP server as detail. Done when: the test covers each band.
-- [ ] Map timeouts and non-200 responses to `not_checked` for this check only. Done when: a 503 stub yields it. Cheaper substitute: treating unknown age as new.
+- [ ] Register `domain.age` over the view's `domainAges`, filled by the `checks` step (corrections 1 and 2): high under 30 days, medium under 90, info otherwise, with the date and RDAP server as detail. Done when: the test covers each band, and a Workflow read-back test stores a stubbed new domain as high. (**Corrected 2026-10-30**, at start.)
+- [ ] Map timeouts and non-200 responses to `not_checked` for this check only when every lookup failed, and to an info item naming the domains not checked when some did (correction 4). Done when: a 503 stub yields `not_checked` naming `domain.age`, and a mixed case keeps its found ages. Cheaper substitute: treating unknown age as new. (**Corrected 2026-10-30**, at start.)
 - [ ] Commit: `checks: domain age from RDAP with caching`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes and fails if an outage is reported as a new domain.
@@ -228,6 +233,24 @@ Filed 2026-10-30 from §2's completion review (out of scope): §2's techniques m
 - [ ] Commit: `checks: repetition and extension lookalikes`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes with the corpus cases.
+
+## 9. Domain age for .za by WHOIS
+
+Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap has no `za` service and ZACR's RDAP server does not answer for `.co.za` names, so §4 reads every `.za` domain as not checked. ZACR's port-43 WHOIS does (`coza-whois.registry.net.za` gave google.co.za's `Creation Date: 2001-06-25T20:37:59Z` on 2026-10-30), and most of the mail IsItLegit checks names `.co.za` domains, so their age is read there.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read `.za` registration dates by WHOIS from the Worker. Done when: a stubbed WHOIS answer for a `.co.za` domain gives its age through `domain.age`, and an unreachable WHOIS is not checked.
+
+- [ ] Write `whoisLookup(domain, deps)` in `src/checks/whois.ts` over a Workers TCP socket (`connect` from `cloudflare:sockets`) to the zone's WHOIS server (`co.za`, `org.za`, `net.za`, `web.za`, as ZACR lists them), bounded in bytes and time, reading `Creation Date`. Done when: `test/checks/whois.test.ts` parses a recorded answer, refuses an oversized or slow one, and reads a missing date as not checked.
+- [ ] Use it in `rdapLookup`'s place for `.za` domains, cached as RDAP results are. Done when: `test/checks/rdap.test.ts` reads a `.co.za` age through the stub, and a live check of one `.co.za` domain from the deployed Worker is recorded in `docs/live-checks.md`.
+- [ ] Commit: `checks: .za domain age by WHOIS`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/whois.test.ts test/checks/rdap.test.ts` passes.
 
 ## Verification
 
