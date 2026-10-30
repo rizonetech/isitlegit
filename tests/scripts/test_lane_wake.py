@@ -273,6 +273,26 @@ class LaneWake(fixtures.Stamp):
         self.assertIn("merge conflict in notes.txt", text)
         self.assertTrue(self.lane_clean())
 
+    def test_a_leftover_merge_with_an_unreadable_graph_is_backed_out_before_the_lane_check(self):
+        self.start_waiting()
+        shared = "todo/00-workspace/TODO-01-a.md"
+        for clone, text in ((self.lane, "the lane's"), (self.root, "main's")):
+            path = clone / shared
+            path.write_text(path.read_text(encoding="utf-8").replace("> **Current state:** c.",
+                                                                     f"> **Current state:** {text}."), encoding="utf-8")
+        self.commit_lane("the lane's note in the coordinator's file")
+        tg.projections(self.root, sync=True)
+        self.commit("main's note")
+        self.stamp_prerequisite_on_main()
+        self.run_git(self.lane, "fetch", "-q", "origin")
+        self.run_git(self.lane, "merge", "--no-edit", "origin/main", check=False)  # a merge left on its conflict
+        self.assertIn(shared, self.run_git(self.lane, "diff", "--name-only", "--diff-filter=U").stdout)
+        code, text = guard.wake(str(self.lane), SESSION)
+        self.assertIn("an earlier merge left open was backed out", text)
+        self.assertNotIn("ROWS UNKNOWN", text, "the lane check ran on the restored tree, not the conflicted graph")
+        self.assertIn(f"merge conflict in {shared}", text, "then the merge is tried again and backed out again")
+        self.assertTrue(self.lane_clean())
+
     def test_a_merge_that_times_out_is_backed_out(self):
         self.start_waiting()
         self.stamp_prerequisite_on_main()

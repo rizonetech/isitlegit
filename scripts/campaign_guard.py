@@ -536,6 +536,9 @@ def rows(root: str, session: str) -> tuple[int, str]:
         return 1, "NO GUARD"
     if str(guard.get("session_id", "")) != session:
         return 1, "NOT THE OWNER"
+    if _merging(root):
+        return 1, ("MERGE OPEN: a merge is in progress in this checkout, so its rows are not read (half one side, half "
+                   "the other); conclude it or `git merge --abort`")
     pinned = guard.get("lane")
     if pinned:
         try:
@@ -725,23 +728,25 @@ def wake(root: str, session: str, now: str | None = None) -> tuple[int, str]:
         return 1, "NOT THE OWNER"
     if not guard.get("waiting_on"):
         return rows(root, session)
+    lines, failed = [], None
+    if _merging(root):
+        # A merge an earlier wake could not back out (an index.lock, a full disk): backed out before anything else,
+        # even the lane check, which reads the graph a half-merged tree may not hold. git switches no branch while a
+        # merge is open, so the abort is on the branch the merge began on.
+        left = _abort_merge(root)
+        if left:
+            return 1, (f"WAITING on {', '.join(guard.get('waiting_on') or [])} (a merge is still open)\n"
+                       f"wake: an earlier merge is still open and could not be backed out: {left}")
+        lines.append("wake: an earlier merge left open was backed out")
     pinned = guard.get("lane")
     if pinned:
-        # The lane is checked before git touches anything: a worktree now on another lane's branch is left as it is.
+        # The lane is checked before git fetches or merges: a worktree now on another lane's branch is left as it is.
         try:
             here = graph_lane(root)
         except GuardError as exc:
-            return 1, f"ROWS UNKNOWN: {exc} (lane {pinned}); nothing fetched or merged"
+            return 1, "\n".join(lines + [f"ROWS UNKNOWN: {exc} (lane {pinned}); nothing fetched or merged"])
         if here is not None and here != pinned:
-            return 1, f"LANE MISMATCH guard={pinned} checkout={here}; nothing fetched or merged"
-    lines, failed = [], None
-    if _merging(root):
-        # A merge an earlier wake could not back out (an index.lock, a full disk): try again before anything else.
-        left = _abort_merge(root)
-        if left:
-            failed = f"an earlier merge is still open and could not be backed out: {left}"
-        else:
-            lines.append("wake: an earlier merge left open was backed out")
+            return 1, "\n".join(lines + [f"LANE MISMATCH guard={pinned} checkout={here}; nothing fetched or merged"])
     # The run file is the heartbeat's own bookkeeping, written between commits: it never blocks the merge.
     run_rel = str(guard.get("run_file", ""))
     dirty = _run_git(root, "status", "--porcelain", "--untracked-files=normal", "--", ".", f":!{run_rel}").stdout
@@ -1151,6 +1156,11 @@ def stop_decision(root: str, session: str) -> dict | None:
         # Waiting for a review is the work: the tree must not change under the reviewer, so the turn may end and the
         # review's notification (or the heartbeat) resumes the row. Not a block, so it never counts toward the breaker.
         print(f"campaign-stop: a review is running ({reviewing}); waiting for it, not stalled", file=sys.stderr)
+        return None
+    if guard.get("waiting_on") and _merging(root):
+        # A waiting run's tree with a merge left open (one wake could not back out) is never read: a stamp that
+        # arrived only in the unfinished merge must not send the runner to build its dependent (D00 T01 §20).
+        print("campaign-stop: a waiting run has a merge open; the next wake backs it out", file=sys.stderr)
         return None
     deadline = time.monotonic() + _env_int("CAMPAIGN_HOOK_BUDGET_SECONDS", int(HOOK_BUDGET_SECONDS))
     phase_only = guard.get("scope") == "phase"

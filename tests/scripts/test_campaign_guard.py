@@ -860,6 +860,27 @@ class Waiting(Workspace):
         self.ready(1, "mixed")  # a row the session can take appears
         self.assertEqual(guard.rows(self.root, SESSION)[1], "READY D05 T01 §1  Kit manager")
 
+    def test_after_a_phase_closes_the_run_re_points_to_a_new_run_file_and_waits(self):
+        self.write(RUN_FILE, f"## Closeout run={self.run_id()}\n\nPhase 0 done.\n", mode="a")
+        with self.assertRaises(guard.GuardError):
+            guard.wait(self.root, SESSION, [self.OTHER_ROW])  # the closed phase's run has ended
+        nxt = "docs/phase-runs/2099-01-01-checks-phase-1.md"
+        self.write(nxt, "# Phase run: Phase 1\n\n## Critical events\n")
+        guard.acquire(self.root, SESSION, 1, nxt, "job-1")  # the documented next-phase re-point
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.assertEqual((guard.read_guard(self.root)["phase"], guard.read_guard(self.root)["waiting_on"]),
+                         (1, [self.OTHER_ROW]))
+
+    def test_rows_and_the_stop_hook_never_read_a_tree_with_a_merge_open(self):
+        guard.wait(self.root, SESSION, [self.OTHER_ROW])
+        self.ready(1)  # what a half-merged tree would show: the stamp that arrived only in the unfinished merge
+        with mock.patch.object(guard, "_merging", return_value=True):
+            self.assertIsNone(self.hook(), "never sent to build the dependent from a half-merged tree")
+            code, line = guard.rows(self.root, SESSION)
+        self.assertEqual(code, 1)
+        self.assertTrue(line.startswith("MERGE OPEN"), line)
+        self.assertIn("waiting_on", guard.read_guard(self.root), "the wait is not cleared")
+
     def test_an_unreachable_row_must_be_one_of_the_lanes_ready_rows(self):
         self.ready(1)
         with self.assertRaises(guard.GuardError) as ctx:
