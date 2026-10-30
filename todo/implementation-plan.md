@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 389
+Sections: 61 | Checklist items: 397
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -121,10 +121,10 @@ Sections: 61 | Checklist items: 389
 | [x]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 6     |
 | [x]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [x]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
-| [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
+| [x]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
 | [ ]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
 | [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
-| [ ]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
+| [x]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
 | [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
@@ -150,7 +150,7 @@ Sections: 61 | Checklist items: 389
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
-| [ ]    | D07 T02 §13 | Signup page                                           | none     | 3     |
+| [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
@@ -160,7 +160,7 @@ Sections: 61 | Checklist items: 389
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 21 | Checklist items: 97
+Sections: 21 | Checklist items: 98
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -172,7 +172,7 @@ Sections: 21 | Checklist items: 97
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 5     |
-| [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 6     |
+| [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 7     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
 | [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 4     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
@@ -236,7 +236,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 66 | Checklist items: 275
+Sections: 67 | Checklist items: 278
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -245,6 +245,7 @@ Sections: 66 | Checklist items: 275
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
+| [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
@@ -309,7 +310,7 @@ Sections: 66 | Checklist items: 275
 
 ### Phase 7: After the event
 
-Sections: 34 | Checklist items: 192
+Sections: 35 | Checklist items: 195
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -340,6 +341,7 @@ Sections: 34 | Checklist items: 192
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended       | 3     |
 | [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none           | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none           | 8     |
+| [ ]    | D07 T02 §17 | Correct a mistyped signup address                | owner-decision | 3     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
@@ -370,6 +372,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 108/301 verified sections, 72 ready to run now.
+Progress: 111/303 verified sections, 72 ready to run now.
 
-Checklist: 1108/1922 items completed (includes Commit items).
+Checklist: 1122/1937 items completed (includes Commit items).

@@ -95,6 +95,7 @@ function view(attachments: { filename: string; mediaType: string; sample: Uint8A
       unread,
     },
     hiddenText: null,
+    htmlAttachments: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers: [],
     text: null,

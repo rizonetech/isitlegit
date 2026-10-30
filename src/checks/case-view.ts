@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
 import type { BrandTable } from "./brand-schema";
 import type { HiddenText } from "./hidden-text";
+import type { HtmlAttachment } from "./html-attachment";
 import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
@@ -83,6 +84,8 @@ export type CaseView = {
   // The hidden text the checks step found in the HTML, the summary's and each cut part's (D02 T05 §1); null when the
   // message had no HTML.
   hiddenText: HiddenText | null;
+  // The HTML and SVG attachments the checks step read and analysed (D02 T04 §2); null when there were none.
+  htmlAttachments: { items: HtmlAttachment[]; unread: number } | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -110,6 +113,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       domainAges: null,
       attachmentHeads: null,
       hiddenText: null,
+      htmlAttachments: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -130,6 +134,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       domainAges: null,
       attachmentHeads: null,
       hiddenText: null,
+      htmlAttachments: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

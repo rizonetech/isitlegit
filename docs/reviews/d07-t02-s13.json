@@ -1,0 +1,123 @@
+{
+  "ref": "D07 T02 \u00a713",
+  "title": "Signup page",
+  "implementation_sha": "060ad6980a49f3b0796b115ae0eb2c5e32bd76a8",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s13.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s13.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web test/auth test/db -> Tests 325 passed (325) (at 4a565ec)",
+    "pnpm exec vitest run test/node/signup-page-browser.test.tsx test/node/signin-page-browser.test.tsx -> Tests 31 passed (31) (at 385d726)",
+    "pnpm exec vitest run --project node -> Tests 869 passed | 1 skipped (870) (at 4a565ec)",
+    "pnpm test:a11y -> Tests 14 passed (14) (at 4a565ec)",
+    "pnpm typecheck -> exit 0",
+    "pnpm lint -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s13.md",
+    "verdict": "filed",
+    "candidate": "d660eae5e638a2d563f9962d1910ead5c47356a8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T06 \u00a75",
+      "D07 T02 \u00a717",
+      "D07 T02 \u00a79"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s13.md",
+    "candidate": "5c42ef2fb09ea66bd97a41d9eb8ba5d819188399",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

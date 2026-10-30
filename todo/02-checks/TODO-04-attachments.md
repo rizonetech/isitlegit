@@ -31,10 +31,11 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [x] |
-| 2 | §2 | HTML attachments and smuggling | §1 | [ ] |
+| 2 | §2 | HTML attachments and smuggling | §1 | [x] |
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [ ] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
+| 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -68,6 +69,12 @@ A `.pdf` that is really a Windows executable is the classic trick. Magic bytes d
 
 An HTML attachment is either a local phishing page (opened from disk, so link checks miss it) or a smuggling loader that assembles a file in the browser from base64 or a blob URL (spec 4.3).
 
+> **Started:** 2026-10-30T22:04Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) checks are pure, so the Workflow's `checks` step reads each HTML or SVG attachment (by its sniffed type, `sniff` in `src/checks/sniff.ts`, or its extension or declared type) from R2, at most `MAX_HTML_ATTACHMENTS` (10) of them and `MAX_HTML_BYTES` (5 MiB) of each, in its charset, and puts each one's features in the view as `htmlAttachments`; the rest are counted as not read; (2) the features: a password field (`input type=password`), a card field (`autocomplete` `cc-*`, or a field named or labelled for a card number, expiry or CVV), a form whose action is an absolute `http(s)` URL (a page opened from disk has no site of its own, so any such action posts off it), and smuggling: script or markup holding a base64 run over 10 KiB (in a `data:` URL or a string) together with a `Blob` or `data:` construction and a download trigger (an anchor's `download`, `msSaveOrOpenBlob`, `URL.createObjectURL` followed by a click or a navigation); (3) the case's link list does not exist yet (URL extraction is D02 T07 §1, Phase 3), so the HTML attachment's links and form actions are added to that section as its own item, not built here; (4) each item cites the attachment's key, its detail naming each feature found; a harmless HTML attachment is medium, as the plan says, since an HTML file opened from disk is itself a risk.
+
+**Corrected 2026-10-31** (plan review): (5) the production path is proven: a test stores synthetic attachments in R2, runs the `checks` step and reads the evidence back, and fails when the check is unregistered or the step does not supply `htmlAttachments`; (6) coverage is stored: a file past `MAX_HTML_BYTES` is read from its start and its item says so (`truncated`), attachments past `MAX_HTML_ATTACHMENTS` or missing from R2 are counted in an info item, and any other storage error fails the step for the Workflow to retry; (7) an attachment's MIME charset is not kept in the summary (correction 1's "in its charset" is struck), so its bytes are read by HTML's own encoding sniffing (`decodeHtml`): a byte order mark, then a `charset` declared in its first 1024 bytes, then strict UTF-8, then windows-1252; (8) the loader rule's parts must belong together: a long base64 run, a construction (`Blob`, `atob`, `Uint8Array.from`, a `data:` URL) and a download, all in script, or a link with a `download` attribute whose own `data:` payload is over 10 KiB; a large inline image beside an ordinary download link is no loader; each branch (a card field alone, an off-site form alone, an SVG's script, a downloading `data:` link) and each way of recognising the file (its bytes, extension, declared type) is tested, with each loader part missing and the 10 KiB boundary.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -76,11 +83,14 @@ An HTML attachment is either a local phishing page (opened from disk, so link ch
 
 1. Register `attachment.html`. Done when: the fixtures for a local login page, a smuggling loader and a harmless receipt each give the expected result.
 
-- [ ] Flag any HTML or SVG attachment as medium `attachment.html`, and raise to high when it contains a password or card field, a form posting off-site, or script building a `Blob` or a `data:` URL from a long base64 string (over 10 KB) with a download trigger. Done when: `test/checks/html-attachment.test.ts` gives high for both hostile fixtures and medium for the receipt.
-- [ ] Extract links and form actions from the HTML attachment into the case's link list for D02 T07. Done when: the login-page fixture's form action appears in the link list.
-- [ ] Commit: `checks: HTML attachments and smuggling`
+- [x] Flag any HTML or SVG attachment as medium `attachment.html`, and raise to high when it contains a password or card field, a form posting off-site, or script building a `Blob` or a `data:` URL from a long base64 string (over 10 KB) with a download trigger. Done when: `test/checks/html-attachment.test.ts` gives high for both hostile fixtures and medium for the receipt. Done 2026-10-31: `src/checks/html-attachment.ts` (`analyseHtml`, `htmlAttachmentsOf`, `decodeHtml`), wired in the `checks` step; `test/checks/html-attachment.test.ts` (14 tests); five mutations (unregistered, not wired, never high, the password field ignored, a loader without a download) each fail a test.
+- [x] Extract links and form actions from the HTML attachment into the case's link list for D02 T07. Done 2026-10-31: moved to D02 T07 §1 as its own item (correction 3), since the link list is built there.
+- [x] Commit: `checks: HTML attachments and smuggling` Done 2026-10-31: 625e0a3, with 601a4cd (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/html-attachment.test.ts` passes and fails if the base64 blob loader is rated medium.
+
+> **Verified:** 2026-10-31 | §2 | 1ef8c5c16cd7a1b7e1cf892dd3e264d213314853
+> **Review:** `docs/reviews/d02-t04-s2.json`
 
 ## 3. Macros, encrypted archives and executables
 
@@ -136,6 +146,24 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the
 - [ ] Commit: `checks: RTF and further formats in the type check`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts` passes.
+
+## 6. Obfuscated HTML attachments, measured
+
+Filed 2026-10-31 from §2's completion review (out of scope): §2 reads an HTML attachment's literal features, so a payload split across strings, encoded twice, or a login form written by script at load time can show none of them. Finding those needs more than signatures, and is judged on a labelled set, not on examples.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Measure, then widen the analysis. Done when: on a labelled set of HTML attachments, detection is at least 95% and false positives at most 2% (the project's targets), with each obfuscation family represented.
+
+- [ ] Build a labelled set of synthetic HTML attachments in `test/fixtures/attachments/obfuscated/`: split and twice-encoded payloads, script-written login forms, and as many benign pages that use script, base64 images and forms honestly. Done when: each family has at least 20 cases and the benign set at least 60.
+- [ ] Measure `analyseHtml` on the set and record the result in `docs/frontier-log.md`, then add analysis (for example, joining string literals before the base64 run is measured, reading the inputs a script writes into markup) until the targets hold. Done when: the log records detection and false positives per family, both within target.
+- [ ] Commit: `checks: obfuscated HTML attachments, measured`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/html-attachment.test.ts` passes with the labelled set.
 
 ## Verification
 

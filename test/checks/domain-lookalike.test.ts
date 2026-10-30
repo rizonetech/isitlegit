@@ -46,6 +46,7 @@ function view(
     domainAges: null,
     attachmentHeads: null,
     hiddenText: null,
+    htmlAttachments: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,
