@@ -12,6 +12,7 @@ import {
   LOGO_ON_DARK,
   MOTION,
 } from "../../src/web/assets.ts";
+import { GALLERY_FRAMES } from "../../src/web/dev/gallery.tsx";
 
 // The Worker as `wrangler dev` runs it, from wrangler.jsonc with its static assets and public/_headers, answers the
 // fingerprinted files with the year-long immutable cache and the right types, refuses unhashed or missing ones, and
@@ -92,5 +93,44 @@ describe("static assets as wrangler.jsonc serves them", () => {
     const res = await get("/health");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, commit: "dev" });
+  });
+});
+
+// The component gallery (D07 T01 §10) answers only under `pnpm dev`, whose `--var ENV:development` this Worker is
+// started with; the configuration as committed (the Worker above, as every deploy runs it) answers 404.
+describe("the component gallery", () => {
+  let dev: Awaited<ReturnType<typeof unstable_startWorker>>;
+  beforeAll(async () => {
+    dev = await unstable_startWorker({
+      config: join(ROOT, "wrangler.jsonc"),
+      bindings: { ENV: { type: "plain_text", value: "development" } },
+      dev: { server: { port: 0 }, inspector: false, logLevel: "error", persist: false, remote: false },
+    });
+    await dev.ready;
+  }, 120_000);
+  afterAll(async () => {
+    await dev?.dispose();
+  }, 120_000);
+
+  it("answers 404 for the gallery and its frames as committed", async () => {
+    for (const path of ["/dev/components", `/dev/components/frame/${GALLERY_FRAMES[0]?.id}`]) {
+      const res = await get(path);
+      expect(res.status, path).toBe(404);
+      await res.arrayBuffer();
+    }
+  });
+
+  it("serves the gallery and every frame in development, and 404 for a frame it does not list", async () => {
+    const page = await dev.fetch("http://localhost/dev/components");
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("Component gallery");
+    for (const frame of GALLERY_FRAMES) {
+      const res = await dev.fetch(`http://localhost/dev/components/frame/${frame.id}`);
+      expect(res.status, frame.id).toBe(200);
+      await res.arrayBuffer();
+    }
+    const missing = await dev.fetch("http://localhost/dev/components/frame/no-such-frame");
+    expect(missing.status).toBe(404);
+    await missing.arrayBuffer();
   });
 });

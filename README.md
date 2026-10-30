@@ -87,6 +87,7 @@ pnpm typecheck                   # checks worker-configuration.d.ts against wran
 pnpm lint                        # Biome: format and lint the Worker's own files
 pnpm build:assets                # self-hosted fonts and the fingerprinted app stylesheet (Python 3.11+; a changed font needs design/tools/requirements.txt)
 pnpm test                        # Vitest: the Worker inside workerd, build scripts and style checks in Node
+pnpm test:a11y                   # axe-core over the component gallery in Chromium (WCAG 2.2 A and AA)
 pnpm build                       # bundles the Worker with a dry-run deploy into build/dry
 pnpm dev                         # serves http://localhost:8787 with COMMIT_SHA set to your checkout's commit
 ```

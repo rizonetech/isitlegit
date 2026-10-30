@@ -66,5 +66,6 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `simple-yenc` | 1.0.4 | MIT | Yes: imported by `@wasm-audio-decoders/common`; unused once the WebAssembly is precompiled |
 | `@eshaz/web-worker` | 1.2.2 | Apache-2.0 | No: aliased to `src/voice/no-web-worker.ts`, so the Worker bundles the stub instead |
 | `opusscript` | 0.1.1 | MIT (libopus inside, BSD-3-Clause) | No: encodes the synthetic Opus test fixtures (`scripts/fixtures/make-audio.ts`) |
+| `axe-core` | 4.11.4 | MPL-2.0 (Mozilla Public License 2.0, `node_modules/axe-core/LICENSE`), used unchanged | No: injected into Chromium by `test/node/a11y.test.tsx` (`pnpm test:a11y`, D07 T01 §10) to check the component gallery against WCAG 2.2 A and AA |
 | `ziglang` (Python) | 0.15.2 | MIT | No: the compiler that builds `src/voice/minimp3.wasm` (`native/requirements.txt`) |
 | `@breezystack/lamejs` | 1.2.7 | LGPL-3.0 | No: encodes the synthetic MP3 test fixtures (`scripts/fixtures/make-audio.ts`); never bundled into the Worker |

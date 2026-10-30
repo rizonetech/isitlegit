@@ -166,6 +166,7 @@ pnpm typecheck                                      # worker-configuration.d.ts 
 pnpm lint                                           # Biome over the Worker's own files; unused variables are errors
 pnpm build:assets                                   # web fonts, tokens, stylesheet, fingerprints -> public/static/, src/web/assets.ts
 pnpm test                                           # Vitest: the Worker in workerd, build scripts and style checks in Node
+pnpm test:a11y                                      # axe-core (WCAG 2.2 A and AA) over the component gallery in Chromium
 pnpm build                                          # bundles the Worker (dry-run deploy into build/dry)
 ```
 
