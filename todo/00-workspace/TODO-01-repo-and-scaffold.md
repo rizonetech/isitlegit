@@ -59,6 +59,7 @@ track: day-0
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [ ] |
+| 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -756,6 +757,26 @@ Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/
 - [ ] Commit: `tools: a lane waits on another lane's rows and resumes by itself`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_campaign_guard` passes, including the two-lane wait-then-resume test, which fails if `rows` reads `READY` before the prerequisite is stamped.
+
+## 21. Pre-push excerpt from the tools' error output
+
+Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm typecheck` or `pnpm lint` fails, `scripts/hooks/pre-push` (§13) shows "its errors" by grepping the output for `error|✖|×|failed`. Biome's warning blocks carry the same words, so in a run with 13 warnings and 1 error the excerpt showed a `noCommaOperator` warning from `scripts/glimmer/source-pages.ts` and hid the one real error, a formatter diff in a test file. The word grep is a home-made scanner of output the tools already classify: Biome can print errors only (`--diagnostic-level=error`, Biome 2.6 `biome check --help`), and `tsc` marks each error `error TS<code>`. The fix takes the excerpt from those, keeping the push's verdict on the exit codes of the same `pnpm typecheck` and `pnpm lint` CI runs (§13).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Show lint's errors from Biome itself. Done when: a failed lint run's excerpt is Biome's own error-level output, with no warning in it.
+2. Show the type check's errors by their `tsc` mark. Done when: a failed type check's excerpt is its `error TS` lines, and a failure with none falls back to the output's first lines.
+
+- [ ] On a failed `pnpm lint` in `scripts/hooks/pre-push`, run `pnpm lint --diagnostic-level=error` and show its first 40 non-blank lines as the excerpt, the verdict still being the first run's exit status. Done when: `tests/scripts/test_pre_push_hook.py` gives a stub lint whose plain run prints warning blocks containing `error`, `×` and `failed` before one error, and whose error-level run prints only the error, and finds the error and no warning line in the refusal. Cheaper substitute: tightening the grep, which the next warning wording slips past again.
+- [ ] Fall back to the first run's opening lines when the error-level run prints nothing or cannot run, saying so. Done when: a test whose error-level run prints nothing finds the first run's opening lines and the fallback note.
+- [ ] On a failed `pnpm typecheck`, show the lines matching `error TS[0-9]+` (first 20), else the output's first 20 non-blank lines (a `wrangler types --check` failure prints no `TS` code). Done when: the existing test with 25 warning lines still finds the `error TS2339` line, and a new test of a typecheck failure with no `TS` line finds the opening lines.
+- [ ] Commit: `tools: the pre-push excerpt comes from the tools' own error output`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_push_hook` passes, including the warnings-then-one-error lint case, which fails on the word grep.
 
 ## Verification
 
