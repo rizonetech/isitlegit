@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 370
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 44 | Checklist items: 281
+Sections: 44 | Checklist items: 289
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -125,8 +125,8 @@ Sections: 44 | Checklist items: 281
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
 | [x]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 12    |
-| [ ]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 3     |
-| [ ]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 5     |
+| [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
+| [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
 | [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
 | [ ]    | D07 T02 §7  | Sign-in, signup, invite and domain verification pages | none     | 9     |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
@@ -218,7 +218,7 @@ Sections: 23 | Checklist items: 114
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 62 | Checklist items: 261
+Sections: 64 | Checklist items: 268
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -243,9 +243,11 @@ Sections: 62 | Checklist items: 261
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
+| [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T04 §1  | Cases list with filters and search        | none                  | 4     |
+| [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -287,7 +289,7 @@ Sections: 62 | Checklist items: 261
 
 ### Phase 7: After the event
 
-Sections: 27 | Checklist items: 162
+Sections: 28 | Checklist items: 165
 
 | Status | Reference   | Deliverable                                      | Needs    | Items |
 | ------ | ----------- | ------------------------------------------------ | -------- | ----- |
@@ -314,6 +316,7 @@ Sections: 27 | Checklist items: 162
 | [ ]    | D07 T01 §4  | Design change comparison                         | none     | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended | 3     |
+| [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none     | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none     | 8     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none     | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none     | 4     |
@@ -341,6 +344,6 @@ Sections: 15 | Checklist items: 61
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 3     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 93/272 verified sections, 47 ready to run now.
+Progress: 95/275 verified sections, 56 ready to run now.
 
-Checklist: 952/1763 items completed (includes Commit items).
+Checklist: 970/1781 items completed (includes Commit items).

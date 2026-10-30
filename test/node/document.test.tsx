@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { unstable_startWorker } from "wrangler";
-import { APP_CSS, FONTS, LOGO, LOGO_MARK, LOGO_ON_DARK } from "../../src/web/assets";
+import { APP_CSS, APP_JS, FONTS, HTMX, LOGO, LOGO_MARK, LOGO_ON_DARK } from "../../src/web/assets";
 import { AppShell } from "../../src/web/components/AppShell";
 import { Document } from "../../src/web/components/Document";
 import { admin, member } from "./shell-fixtures";
@@ -51,10 +51,17 @@ describe("Document", () => {
     expect(page).toContain(`<link rel="icon" href="${LOGO_MARK}" type="image/svg+xml"/>`);
   });
 
-  it("puts the page in the body and the scripts slot after it", () => {
-    expect(page).toMatch(
-      /<body class="bg-surface text-ink[^"]*"><p id="body">x<\/p><script src="\/static\/app\.000000000000\.js"><\/script><\/body>/,
+  it("puts the page in the body, then htmx and the app script, then the page's own scripts (D07 T01 §9)", () => {
+    const body = /<body class="bg-surface text-ink[^"]*">([\s\S]*)<\/body>/.exec(page)?.[1] ?? "";
+    expect(body).toBe(
+      `<p id="body">x</p><script src="${HTMX}" defer=""></script><script type="module" src="${APP_JS}"></script><script src="/static/app.000000000000.js"></script>`,
     );
+  });
+
+  it("loads htmx and the app script on a page that names no scripts of its own", () => {
+    const plain = html(<Document title="Plain">x</Document>);
+    const tags = [...plain.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]);
+    expect(tags).toEqual([`<script src="${HTMX}" defer="">`, `<script type="module" src="${APP_JS}">`]);
   });
 
   it("refuses a page without a title", () => {
@@ -84,7 +91,8 @@ describe("Document", () => {
       ),
     ].join("");
     const named = [...new Set([...pages.matchAll(/(?:href|src)="(\/static\/[^"]+)"/g)].map((m) => m[1] as string))];
-    for (const url of [APP_CSS, ...Object.values(FONTS), LOGO, LOGO_ON_DARK, LOGO_MARK]) expect(named).toContain(url);
+    for (const url of [APP_CSS, ...Object.values(FONTS), LOGO, LOGO_ON_DARK, LOGO_MARK, HTMX, APP_JS])
+      expect(named).toContain(url);
     for (const url of named) expect((await worker.fetch(`http://localhost${url}`)).status, url).toBe(200);
   });
 });

@@ -149,6 +149,7 @@ States:
 - Counts: the Monitor pill shows new findings and disappears at zero; the Plan pill shows trial days left, or the plan name after the trial.
 - Deviation (D07 T01 §3): the sidebar is fixed to the window's left edge with its own scroll, so its footer card and user block stay at the bottom of the window on a long page, where the page boards lay the navigation out in the page's flow; one placement serves the in-page sidebar and the phone popover alike, so a menu left open while the window widens past `md` still sits beside the content (the browser's top layer cannot be put back in the page by CSS).
 - Deviation (D07 T01 §3): below `md` the sidebar opens from the phone header's Menu button as a popover (`Report-Mobile` draws the button, not what it opens); a browser without the Popover API (before Chrome 114, Safari 17, Firefox 125) gets no Menu and the sidebar as a full-width block in the page above the content.
+- Deviation (D07 T01 §9): the forward-address card's copy button says what happened on a status line under the address ("Copied" for 4 seconds, or "Copy failed: select the address to copy it" with the address selected), visible and announced politely, because the `AppNav` board draws the button but no feedback, and a click that shows nothing reads as broken.
 
 ### P2 Admin navigation
 

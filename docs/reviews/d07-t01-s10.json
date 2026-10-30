@@ -1,0 +1,114 @@
+{
+  "ref": "D07 T01 \u00a710",
+  "title": "Component gallery with accessibility checks",
+  "implementation_sha": "d02ed2c0c36b1dac087247978a85b20afbd1951a",
+  "date": "2026-10-30",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s10.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm test:a11y -> 14 passed (axe-core 4.11.4, WCAG 2.2 A and AA with target-size, gallery and 16 frames at 360 and 1280 px in both themes, Menu, switcher and copy feedback opened, five planted defects caught, lazy frames)",
+    "pnpm exec vitest run test/node/gallery.test.tsx test/node/rendered-colours.test.tsx test/node/serve.test.ts -> 3 files, 16 passed",
+    "python3 -m unittest tests.scripts.test_ci_workflow tests.scripts.test_worker_gates -> OK; tests/scripts suite OK",
+    "pnpm typecheck and pnpm lint -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s10.md",
+    "verdict": "filed",
+    "candidate": "8dc05a1a2cd8e31a41bb59b434bd52149d10b0e0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T01 \u00a715"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s10.md",
+    "candidate": "8618fa18c64f046c021fdfc5f46fbe68850c9d0f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -43,10 +43,13 @@ track: day-1
 | 6 | §6 | Buttons, fields and pills | §2, §5 | [x] |
 | 7 | §7 | Verdict band, evidence card and severity | §6 | [x] |
 | 8 | §8 | Empty, loading, error and partial states | §6 | [x] |
-| 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [ ] |
-| 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [ ] |
+| 9 | §9 | htmx and the app script as fingerprinted assets | §5 | [x] |
+| 10 | §10 | Component gallery with accessibility checks | §3, §6, §7, §8, §9 | [x] |
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
+| 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
+| 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [ ] |
+| 15 | §15 | Gallery theme, width and accessibility controls | §10 | [ ] |
 
 ## 1. Attended design session, design/SPEC.md
 
@@ -151,7 +154,7 @@ One page frame for every app page (`AGENTS.md`: a second toolbar or panel shape 
 > **Resolved:** switching the active organisation (`POST /orgs/switch`, whose contract and tests D07 T02 §3 owns) -> XREF: D07 T02 §3. Resolved 2026-10-28 by D07 T02 §3 in `8fa3908`, `eabfeb1` and `7603dc0`: `src/auth/org.ts` takes the app's own origin only, reads the session first, refuses an organisation the member does not belong to with the active one kept (a Better Auth hook covering its own endpoint too), answers 503 on an outage and 303 to `/cases` on success.
 > **Resolved:** signing out (`POST /auth/sign-out`, whose contract and tests D07 T02 §1 owns) -> XREF: D07 T02 §1. Resolved 2026-10-28 by D07 T02 §1 in `ed84e5d`, `078b08f` and `3ec9b8c`: `src/auth/sign-out.ts` checks the origin, ends the session (refusing with 503 and keeping the cookie when D1 fails the delete, through a Better Auth hook that also holds `/api/auth/sign-out`), clears the cookie and answers 303 to `/signin`.
 > **Deferred:** the report page's own back link to Cases on phones (`Report-Mobile`) -> XREF: D07 T03 §1
-> **Deferred:** the copy and menu behaviour in the browser (`[data-copy]`, the phone menu) -> XREF: D07 T01 §9
+> **Resolved:** the copy and menu behaviour in the browser (`[data-copy]`, the phone menu) -> XREF: D07 T01 §9. Resolved 2026-10-30 by D07 T01 §9 in `8d5502a` and `38917b3`: `src/web/client/app.ts`, loaded on every page by `Document`, copies the check address with visible and announced feedback and selects it by hand when the clipboard refuses (`test/node/app-script.test.tsx`); the phone menu needs no script, being a `popovertarget` popover (§3).
 
 **Corrected 2026-10-27** (plan review: 3 P1, 4 P2): the section had no JSX configuration, no document that loads the stylesheet and scripts, no served logo, no browser contract for the two forms, no link destinations, a public header unlike its board, one phone rule for all three frames, and no keyboard proof. Each is an item below; the two form contracts are in their owners (D07 T02 §1 and §3).
 
@@ -381,7 +384,11 @@ Evidence 2026-10-30 15:20 SAST. `src/web/components/States.tsx` holds `EmptyStat
 
 ## 9. htmx and the app script as fingerprinted assets
 
+> **Started:** 2026-10-30T14:38:26Z
+
 The browser-side behaviour the pages need, served like the stylesheet.
+
+**Corrected 2026-10-30** (validation before build): htmx 2.0.11 is 0BSD (its `package.json` and `LICENSE`), not BSD 2-Clause; the app script is built by `scripts/hash-asset.ts` with Node's own `module.stripTypeScriptTypes`, so no bundler or build dependency is added (the shared-tooling change and the one `htmx.org` lockfile entry approved by the coordinator, 2026-10-30); the script is browser code, which the Worker's TypeScript project cannot check (the DOM library conflicts with the Workers runtime types), so it is checked in the DOM project `test/node/tsconfig.json` and the root project leaves it out; `Document` (§3) names a `scripts` slot "§9 fills", and the shell's copy button (`data-copy`, §3) does nothing until a page loads the script, so `Document` loads both by default; the refusal path selects the address shown beside the button, which carries `data-copy-source`.
 
 **Phase:** 2
 **Needs:** none
@@ -390,37 +397,60 @@ The browser-side behaviour the pages need, served like the stylesheet.
 **Build order:**
 
 1. Serve htmx and one small app script as fingerprinted static assets. Done when: both are under `/static/` with hashed names and named in `src/web/assets.ts`.
+2. Load them on every page and make the copy buttons work. Done when: a page's copy button copies in Chromium, or says why not and selects the address.
 
-- [ ] Add htmx 2.0.11 as an exact dependency and copy its minified build through `scripts/hash-asset.ts` to `public/static/htmx.<hash>.js`, named in `src/web/assets.ts` and added to the set `hashAssets` keeps, since its prune deletes every fingerprinted file outside that set (**Corrected 2026-10-27**, D07 T01 §3 final review). Done when: `test/node/assets.test.ts` and `test/node/serve.test.ts` cover it (fingerprinted, immutable cache, `application/javascript`), and `NOTICE.md` lists it (BSD 2-Clause). Moved here from §3 (its D07 T01 §5 plan-review correction stands: an unhashed htmx under the immutable cache would keep visitors on an old version).
-- [ ] Write `src/web/client/app.ts`, built to `public/static/app.<hash>.js` by the same step: `[data-copy]` buttons copy their value and announce "Copied" in a live region; when the clipboard refuses (no permission, an insecure context, no Clipboard API) they announce "Copy failed: select the address to copy it" and select the address's text, so it can be copied by hand. Done when: `test/node/app-script.test.ts` exercises the copy, the announcement and the refusal path (clipboard permission denied) in headless Chromium. (**Corrected 2026-10-27:** the phone Menu needs no script, since D07 T01 §3 made it a `popovertarget` popover whose button the browser keeps in step; the refusal path is D07 T01 §3's completion review, gap 4.)
-- [ ] Commit: `web: htmx and the app script as fingerprinted assets`
+- [x] Add `htmx.org` 2.0.11 as an exact dependency (`package.json`, `pnpm-lock.yaml`: that package and its integrity line only) and copy `node_modules/htmx.org/dist/htmx.min.js` through `scripts/hash-asset.ts` to `public/static/htmx.<hash>.js`, exported from `src/web/assets.ts` as `HTMX` and kept by `hashAssets`'s prune, and list it in `NOTICE.md` (0BSD). Done when: `test/node/hash-asset.test.ts`, `test/node/assets.test.ts` and `test/node/serve.test.ts` cover it (fingerprinted, kept by the prune, `application/javascript`, immutable cache), and the served file's bytes equal the package's. Cheaper substitute: an unhashed `/static/htmx.js` under the immutable cache, which would keep visitors on an old version (D07 T01 §5 plan review).
+- [x] Write `src/web/client/app.ts` and build it in `scripts/hash-asset.ts` with `stripTypeScriptTypes` to `public/static/app.<hash>.js`, exported as `APP_JS` and kept by the prune; check it in `test/node/tsconfig.json` (DOM) and leave it out of the root `tsconfig.json`. Done when: `pnpm typecheck` checks it and refuses a planted type error in it, and `test/node/hash-asset.test.ts` finds the built file free of type syntax and fingerprinted by its content. Cheaper substitute: a hand-written `.js` beside the sources, unchecked.
+- [x] Copy on `[data-copy]` buttons in `src/web/client/app.ts`: a click (or Enter or Space) writes the button's value with `navigator.clipboard.writeText` and says "Copied" in the copy group's status line (`[data-copy-status]` beside the button: visible, `role="status"`, `aria-live="polite"`, cleared after 4 seconds or at the next press); when the clipboard refuses (permission denied, an insecure context, no Clipboard API) it says "Copy failed: select the address to copy it" there until the next press, and selects the text of the `[data-copy-source]` beside the button, so it can be copied by hand; a button with no status line beside it announces through one `sr-only` region the script adds. Done when: `test/node/app-script.test.tsx` in Chromium copies with permission (the clipboard read back), finds each message visible and announced, presses again after a failure and after a success and sees the line reset, and on a denied permission and with the Clipboard API removed selects exactly the address. Cheaper substitute: a silent copy, or feedback only a screen reader hears. (Refusal path: D07 T01 §3's completion review, gap 4. **Corrected 2026-10-30 (plan review P2):** the feedback was `sr-only`, so a sighted member saw nothing happen.)
+- [x] Mark the shell's copy group (`src/web/components/AppShell.tsx`): the address `data-copy-source` and an empty status line `data-copy-status` (`role="status"`, `aria-live="polite"`, small, `text-muted`) under it, recorded in `design/SPEC.md` P1 as built from the `AppNav` board's controls (the board draws no copy feedback). Done when: `test/node/app-script.test.tsx` runs the copy on the rendered member shell at 1280 px and 360 px in both themes, by mouse and keyboard, with the message readable at 4.5:1. Cheaper substitute: a fixture of the test's own.
+- [x] Load both on every page: `Document` (`src/web/components/Document.tsx`) renders `<script src={HTMX} defer>` and `<script type="module" src={APP_JS}>` at the end of the body by default, a page's own `scripts` after them. **Corrected 2026-10-30** at build: the app script is a module (deferred by being one, and run after htmx in document order), since type stripping keeps its `export {}`, which a classic script refuses. Done when: `test/node/document.test.tsx` finds both, in that order, with `defer`, on a page that passes no scripts. Cheaper substitute: each page adding its own script tags.
+- [x] Prove the scripts run from `Document`'s own tags in Chromium: `test/node/app-script.test.tsx` serves a rendered `Document` page and the built files from `public/static/` (their real fingerprinted names from `src/web/assets.ts`), clicks an `hx-get` button and finds the answered fragment swapped into its target, and runs the shell's copy on the same page. Done when: it passes, and fails with either default tag removed from `Document`. **Added 2026-10-30 (plan review P1):** package bytes, headers and tags passed without htmx ever running.
+- [x] Announce a repeated outcome afresh: each press empties the status line and writes its outcome 100 ms later, in a task of its own (`src/web/client/app.ts`, WCAG technique ARIA19's clear-and-reinsert), so two refusals running are two announcements. Done when: `test/node/app-script.test.tsx` records the line through a MutationObserver over two refused presses as the message, the empty line, the message, and fails with the gap removed; a screen reader itself is not run here. **Added 2026-10-30 (completion review, in scope).**
+- [x] Commit: `web: htmx and the app script as fingerprinted assets`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/assets.test.ts test/node/serve.test.ts test/node/app-script.test.ts` passes.
+Evidence 2026-10-30 16:55 SAST. `htmx.org` 2.0.11 exact (the lockfile gained that package and its integrity line only); `scripts/hash-asset.ts` copies `htmx.min.js` and builds `src/web/client/app.ts` with `stripTypeScriptTypes` (an `enum` refuses the build and nothing is written), exporting `HTMX` and `APP_JS` and keeping both through the prune; the client is checked in `test/node/tsconfig.json` (a planted type error fails `tsc -p test/node`; the root project leaves it out); `Document` loads both; the shell's copy group carries `data-copy-group`, `data-copy-source` and a `data-copy-status` line; `NOTICE.md` lists htmx (0BSD); `design/SPEC.md` 1 records the status line as a Deviation. `pnpm exec vitest run test/node/hash-asset.test.ts test/node/assets.test.ts test/node/serve.test.ts test/node/document.test.tsx test/node/app-script.test.tsx` passes, within 12 files and 104 tests run together with the shell, sign-in, states, controls, colour and stylesheet tests; `app-script.test.tsx` (7 in Chromium): htmx swaps a fragment from `Document`'s own tag; the copy by click, Enter and Space at 1280 and 360 px (behind Menu) in both themes, the clipboard read back, "Copied" visible, announced, 4.5:1 or more and cleared after 4 seconds; a denied permission and a missing Clipboard API each say how to copy by hand, select exactly the address, keep the message and select again on the next press. Mutations caught: either `Document` tag removed (7 and 6 fail), the selection removed (2 fail).
+
+**Test checkpoint:** `pnpm exec vitest run test/node/hash-asset.test.ts test/node/assets.test.ts test/node/serve.test.ts test/node/document.test.tsx test/node/app-script.test.tsx` passes: both files fingerprinted and served with the immutable cache, loaded on every page by `Document`, htmx swapping a fragment and the copy, its visible and announced feedback and its refusal path working in Chromium.
+
+> **Verified:** 2026-10-30 | §9 | 354ddcfbc7bba7fec884d5c7e268dc91bafeb367
+> **Review:** `docs/reviews/d07-t01-s9.json`
 
 ## 10. Component gallery with accessibility checks
 
+> **Started:** 2026-10-30T15:12:10Z
+
 Every frame and component in every state on one page, checked together, before any page section builds on them.
+
+**Corrected 2026-10-30** (validation before build): the Worker has no `ENV` variable, so the gallery's "development only" needs one: `"ENV": "production"` in `wrangler.jsonc` and `--var ENV:development` on `pnpm dev` (the regenerated `worker-configuration.d.ts` with it), a shared change asked of the coordinator; the components grew after this section was written (§8's states, §9's copy group and scripts, the sign-in code field of D07 T02 §11 on `Field`), so the gallery names them; the accessibility run is a test file in the Node project (`test/node/a11y.test.tsx`), so `pnpm test`, which CI already runs, runs it too, and `pnpm test:a11y` runs it alone; axe-core is a new test-only dependency (4.11.4 is the current 4.11 release, MPL-2.0), asked of the coordinator with the gate lines.
 
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** every board §3 and §6 to §8 name
+**Fidelity:** every board §3 and §6 to §9 name
 **Job:** a developer sees and checks the whole component set in one place
 **Treatment:** tokens only; the page exists only in development
-**Chrome:** the frames from §3 and the components from §6 to §8
+**Chrome:** the frames from §3 and the components from §6 to §9
 
 **Build order:**
 
 1. Add the gallery page. Done when: it renders every frame and component in every state, and production answers 404.
 2. Check accessibility and colours on it. Done when: axe-core and the rendered-colour check pass and each fails on a planted defect.
 
-- [ ] Add `/dev/components`, served only when `ENV` is `development`, rendering every component state (§6 to §8) on the page and every frame (§3) in its own document, `/dev/components/frame/<member|admin|public>` shown in an `<iframe>` (**Corrected 2026-10-27:** `AppShell` is once per document, owning the ids `nav` and `content`, the `main` landmark and the Menu's popover, so three frames on one page would duplicate them; D07 T01 §3 final review). Done when: it answers 200 under `pnpm dev` and 404 with production configuration (`test/node/serve.test.ts`).
-- [ ] Add `pnpm test:a11y`: axe-core 4.11 run in headless Chromium (the browser the other tests use) on `/dev/components` at 360 px and 1280 px. Done when: it reports zero violations and fails on a planted icon-only button without a label.
-- [ ] Add `test/node/rendered-colours.test.ts`: render each frame and component state with Hono's renderer and refuse any colour that is not `var(--color-*)`, `transparent` or `currentcolor` in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: a planted `style={{ color: "red" }}` and `fill="red"` in a component each fail it. (D07 T01 §2 round 2: the source scan is a pattern match over text; the rendered HTML, which Hono owns, is the authoritative proof once pages exist.)
-- [ ] Add `pnpm test:a11y` to CI and to the gates in `AGENTS.md`, `CONTRIBUTING.md` and the README. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass.
-- [ ] Commit: `web: component gallery with accessibility checks`
+- [x] Write the gallery in `src/web/dev/gallery.tsx` from one state list (`GALLERY_STATES`, exported): every component state as its own item marked `data-gallery-state="<component>/<state>"` under a heading naming it, namely §6 `Button` in each variant (primary, dark, ghost, danger, link) and size (default, small, icon, small-icon), disabled with its reason and icon-only; `Field` plain, with hint, with error, with hint and error, and with the code field's limits; `Checkbox` unchecked, checked, required and disabled; `Pill` in each variant (safe, suspicious, malicious, partial, running, neutral) and both sizes; §7 `VerdictBand` in each state (complete for each verdict, partial, failed, running), `VerdictBadge` for each, `SeverityPill` for each level, `EvidenceRef`, `EvidenceCard` in both layouts with `EvidenceFigure` and `EvidenceQuote`; §8 `EmptyState` in both layouts (filtered with and without its action), `LoadingState`, `ErrorState` for each code and `PartialNotice` with one and two checks; §9's copy group. Done when: `test/node/gallery.test.tsx` finds every id in `GALLERY_STATES` exactly once with its component's markup, and fails when one state's item is removed while its component's heading stays. Cheaper substitute: a page that shows one state per component. **Corrected 2026-10-30 (plan review P1):** a heading per component passed with one state of each.
+- [x] Show every frame (§3) in its own document, `/dev/components/frame/<variant>`, each in an `<iframe>` with a title, for the shell's states: member with one organisation and with several (the switcher), on a trial and on a paid plan, with no Monitor findings and with some, and with each navigation item active; admin with each item active; public (**Corrected 2026-10-27:** `AppShell` is once per document, owning the ids `nav` and `content`, the `main` landmark and the Menu's popover, so frames on one page would duplicate them; D07 T01 §3 final review). Done when: `test/node/gallery.test.tsx` renders each variant's document, finds its state (the switcher or the plain label, the trial pill or the plan name, the Monitor pill or none, `aria-current` on the active item) and no repeated id in any document, and fails with a variant removed from the list. **Corrected 2026-10-30 (plan review P1):** three frame documents did not prove the shell's states.
+- [x] Add `ENV` (`"production"` in `wrangler.jsonc` vars, `--var ENV:development` in the `dev` script, `worker-configuration.d.ts` regenerated with `pnpm types`) and serve the gallery routes from `src/index.ts` only when `ENV` is `development`. Done when: `test/node/serve.test.ts` gets 200 from `/dev/components` and each frame from a Worker started with `ENV=development`, and 404 from the configuration as committed. Cheaper substitute: a route left on in production behind an unlisted path. (Shared change: asked of the coordinator, 2026-10-30.)
+- [x] Add `test/node/a11y.test.tsx`: axe-core 4.11.4 (an exact dev dependency, `NOTICE.md` row, MPL-2.0) run in headless Chromium over the gallery and every frame variant at 360 px and 1280 px in both themes, with the WCAG 2.2 A and AA rules on (`runOnly` tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`, with `target-size`, off by default in 4.11, enabled), scanning again after each closed region is opened (the phone Menu at 360 px, the organisation switcher, the copy group's success and its refusal, each opened state asserted visible first); a result axe could not decide (`incomplete`) fails unless listed in the file's allow list with its rule, target and the reason a person checked it. Done when: it reports zero violations and no unlisted incomplete result, and fails on each planted defect: an icon-only button without a name, a text colour below 4.5:1, an undersized target with no spacing, a defect placed only inside the closed Menu, and an injected incomplete result. Cheaper substitute: axe's defaults over the page as first drawn. **Corrected 2026-10-30 (plan review P2 x3):** hidden regions, the WCAG 2.2 rules and undecided results were unchecked.
+- [x] Add `test/node/rendered-colours.test.tsx`: render the gallery and every frame variant with Hono's renderer and refuse, property by property, any colour that is not `var(--color-*)`, `transparent` or `currentcolor`, and for `fill` and `stroke` also SVG's `none`, in a `style` attribute or a `fill`, `stroke`, `stop-color`, `flood-color`, `lighting-color` or `color` attribute. Done when: the shared icons and `PartialNotice` (`fill="none"`) pass, and a planted `style={{ color: "red" }}`, `fill="red"` and `stroke="#000"` in a component each fail it. **Corrected 2026-10-30 (plan review P2):** `fill="none"` is SVG's no-paint value, not a colour.
+- [x] Run `pnpm test:a11y` as a CI step of its own and list it in the gates of `AGENTS.md`, `CONTRIBUTING.md` and the README, with `pnpm test` leaving `test/node/a11y.test.tsx` out (the Vitest `node` project's `exclude` in `vitest.config.ts`) so it runs once. **Corrected 2026-10-30** at build: a project filter cannot reach a file its own project excludes, so `pnpm test:a11y` is `A11Y=1 vitest run --project a11y`, an `a11y` project `vitest.config.ts` adds only when `A11Y` is set. Done when: `tests/scripts/test_ci_workflow.py` and `tests/scripts/test_worker_gates.py` pass, and `pnpm test` lists no a11y file. **Corrected 2026-10-30 (plan review P1):** the gate policy needs every gate script run by name in CI. (Shared change: asked of the coordinator, 2026-10-30.)
+- [x] Close the completion review's in-scope gaps: the README gives the gallery's URL, its frame URLs and anchors and the browser `pnpm test:a11y` uses (C1); a disabled link button joins the states (C2); the error states are the boards' compositions, with their second action, note or panel and real sentences (C3); every member frame is scanned with its copy feedback shown both ways (C4); the colour check reads every colour property whole, shorthands and custom properties included, so a hex, a colour function or a named colour anywhere in one fails, however it reached the markup (C5); the gallery test checks what sets each state apart (a variant's class, a field's descriptions, a badge's word) and each frame's one current link by its address (C6); an index links every state and frame to a shareable anchor, its links 24 px targets (E1); and the frames load lazily (E2). Done when: `test/node/gallery.test.tsx`, `test/node/rendered-colours.test.tsx` and `pnpm test:a11y` cover each, the last finding the gallery requests fewer frames than it lists until one is followed. **Added 2026-10-30 (completion review).**
+- [x] Commit: `web: component gallery with accessibility checks`
 
-**Test checkpoint:** `pnpm test:a11y` reports zero violations at 360 px and 1280 px, and `pnpm exec vitest run test/node/rendered-colours.test.ts` passes.
+Evidence 2026-10-30 17:29 SAST. `src/web/dev/gallery.tsx` (`GALLERY_STATES`, 68 items; `GALLERY_FRAMES`, 16 shell states; `GalleryPage`, `GalleryFrame`), served by `src/index.ts` only when `ENV` is `development` (the routes call the components as functions, `src/index.ts` being a `.ts` file). Shared changes as the coordinator approved, 2026-10-30: `axe-core` 4.11.4 exact (lockfile: that package and its integrity line), `test:a11y`, `--var ENV:development` on `dev`, `"ENV": "production"` in `wrangler.jsonc` with `worker-configuration.d.ts` regenerated, the `node` project's exclude and the `a11y` project in `vitest.config.ts`, the `pnpm test:a11y` CI step, and the gate lines in `AGENTS.md`, `CONTRIBUTING.md` and the README; `NOTICE.md` lists axe-core. `pnpm test:a11y`: 13 passed (the gallery and its copy feedback shown both ways, every frame with the phone Menu and the switcher opened, at 1280 and 360 px in both themes, zero violations and no undecided result; each planted defect failing it: a nameless icon button, text below 4.5:1, an undersized target, a defect inside the closed Menu found only once opened, an undecided contrast). `pnpm exec vitest run test/node/gallery.test.tsx test/node/rendered-colours.test.tsx test/node/serve.test.ts` with the document, colour-guard, stylesheet, asset and app-script tests: 8 files, 44 passed. `vitest list --project node` names no a11y file. `tests.scripts.test_ci_workflow` and `test_worker_gates` pass, and the whole `tests/scripts` suite is OK. Mutations caught: a state dropped from `GALLERY_STATES` (gallery test), the `ENV` check dropped (serve test). The stylesheet changed with the gallery's utilities and is rebuilt.
+
+**Test checkpoint:** `pnpm test:a11y` reports zero violations and no unlisted incomplete result over the gallery and every frame variant at 360 px and 1280 px in both themes, closed regions opened, and `pnpm exec vitest run test/node/gallery.test.tsx test/node/rendered-colours.test.ts test/node/serve.test.ts` passes.
+
+> **Verified:** 2026-10-30 | §10 | d02ed2c0c36b1dac087247978a85b20afbd1951a
+> **Review:** `docs/reviews/d07-t01-s10.json`
 
 ## 11. Keyboard shortcuts and their help
 
@@ -468,6 +498,84 @@ A member of many organisations (a managed-service provider looking after 50 busi
 - [ ] Commit: `web: searchable organisation switcher`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/shell-switcher.test.tsx` passes and fails if the filtered list hides the match or the script-free list loses a form.
+
+## 13. Labels for icon-only buttons
+
+An icon-only button (the shell's copy button, the phone Menu) has its accessible name only as `aria-label`, so a sighted member must recognise the icon (D07 T01 §9 completion review, 2026-10-30: GitHub's Primer shows an icon button's name as a tooltip on hover and focus). The boards draw no tooltip, so showing one is a design amendment the operator approves first.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` 1 (shared parts; boards `AppNav`, `Report-Mobile`), with the amendment the operator approves
+**Job:** a member who does not know an icon still knows what its button does before pressing it
+**Treatment:** the button's own name shown on hover and keyboard focus, dismissed with Escape, readable in both themes
+**Chrome:** `Button` (§6)
+
+**Operator decision (2026-10-30 17:15 SAST, through the coordinator):** yes: the name shown as a tooltip on hover and keyboard focus. `owner-decision` removed from Needs (was `owner-decision`).
+
+Icon button labels: yes (2026-10-30)
+
+**Options as asked:** show icon-only buttons' names as a tooltip on hover and focus, or not. Recording `Icon button labels: <yes|no> (YYYY-MM-DD)` here releases the section.
+
+**Build order:**
+
+1. Record the decision. Done when: the `Icon button labels:` line is recorded.
+2. Show the label from `Button`. Done when: every icon-only button shows its name on hover and focus in Chromium.
+
+- [x] Record the operator's decision. Done when: the `Icon button labels:` line is recorded and `owner-decision` removed from Needs. Done 2026-10-30: `Icon button labels: yes (2026-10-30)`.
+- [ ] Draw the tooltip on the affected boards and re-export them through `design/tools/export-mockups.py` (AGENTS.md, Interface rules), with the operator's approval of the drawn change. Done when: `python3 design/tools/check-design.py` passes with the tooltip state in `design/mockups/coverage.json`.
+- [ ] Render the label for an icon-only `Button` (`src/web/components/Button.tsx`) as a tooltip tied by `aria-describedby`, shown on `:hover` and `:focus-visible`, hidden with Escape, never covering the button. Done when: `test/node/controls-browser.test.tsx` finds the label visible on hover and on Tab, 4.5:1 or more in both themes, gone after Escape, and absent on a button with visible words. Cheaper substitute: a `title` attribute, which keyboard users never see.
+- [ ] Commit: `web: visible labels for icon-only buttons`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/controls-browser.test.tsx` passes: every icon-only button's name shown on hover and focus, readable in both themes and dismissed with Escape.
+
+## 14. One-press copy on a phone
+
+On a phone the check address and its copy button sit in the sidebar behind Menu, so copying takes two presses where the desktop takes one (D07 T01 §9 completion review, 2026-10-30). Bringing the copy onto the phone page itself changes the approved phone shell (`Report-Mobile`, P1), so it is a design amendment the operator approves first.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` P1 and the phone boards (`Report-Mobile`), with the amendment the operator approves
+**Job:** a member on a phone copies the check address with one press from the page they are on
+**Treatment:** the address and its copy group (§9) where a phone reaches them without opening Menu
+**Chrome:** `AppShell` (§3), the copy group (§9)
+
+**Operator decision (2026-10-30 17:15 SAST, through the coordinator):** cases: the Cases page's own empty state carries the copy group. `owner-decision` removed from Needs (was `owner-decision`).
+
+Phone copy: cases (2026-10-30)
+
+**Options as asked:** where the phone shows the check address and its copy button outside Menu (the phone header, the Cases page's own empty state, or nowhere new). Recording `Phone copy: <header|cases|none> (YYYY-MM-DD)` here releases the section.
+
+**Build order:**
+
+1. Record the decision. Done when: the `Phone copy:` line is recorded.
+2. Build the chosen placement. Done when: one press copies the address at 360 px.
+
+- [x] Record the operator's decision. Done when: the `Phone copy:` line is recorded and `owner-decision` removed from Needs. Done 2026-10-30: `Phone copy: cases (2026-10-30)`.
+- [ ] Place the copy group on the Cases page's first-run empty state (D07 T04 §1's page, inside its `EmptyState` children beside the forward box), reusing §9's `data-copy-group`, as the decision says. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced. Cheaper substitute: a second copy script for the phone.
+- [ ] Commit: `web: one-press copy of the check address on a phone`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
+
+## 15. Gallery theme, width and accessibility controls
+
+The gallery (§10) shows every state, but a developer who wants the dark theme, the phone width or the accessibility findings for one state must use the browser's own tools or read `pnpm test:a11y`'s output in a terminal (D07 T01 §10 completion review E3 and E4, 2026-10-30: Storybook offers theme and viewport toolbars and its accessibility panel beside the selected story).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the controls to the gallery. Done when: theme and width are each chosen in two actions and apply to every preview.
+2. Show the accessibility findings beside each state. Done when: a planted defect is listed under its state and highlighted in one activation.
+
+- [ ] Add a theme switch (light, dark, the system's) and a width switch (360 px, 1280 px, full) to `src/web/dev/gallery.tsx`, applied to the states and to every frame (`data-theme` on each document, the frame's width), remembered for the session only, never touching the app's own theme default. Done when: `test/node/gallery-controls.test.ts` in Chromium switches each and finds every preview changed. Cheaper substitute: telling the developer to use the browser's device toolbar.
+- [ ] Run axe-core in the gallery on demand (`axe.min.js` served only under `ENV=development`) and list each violation and undecided result under its state with its rule's help text, a press highlighting the element. Done when: the test plants a nameless icon button in one state and finds it listed there and highlighted after one press, while `pnpm test:a11y` stays the gate. Cheaper substitute: a link to the terminal output.
+- [ ] Commit: `web: gallery theme, width and accessibility controls`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/gallery-controls.test.ts` passes: theme and width applied to every preview, and a planted defect found and highlighted under its state.
 
 ## Verification
 
