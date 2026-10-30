@@ -34,6 +34,7 @@ export const MAX_HIDDEN_SPANS = 200;
 export const MAX_SPAN_CHARS = 2_000;
 export const MAX_VISIBLE_CHARS = 1024 * 1024;
 export const MAX_SHEET_CHARS = 512 * 1024;
+export const MAX_SELECTORS = 20_000;
 
 const VOID = new Set([
   "area",
@@ -170,8 +171,10 @@ export function declarations(text: string): Declarations {
     if (!name || !value) continue;
     // Within one block a later declaration wins, except that a normal one never overrides an `!important` one; a value
     // the property cannot take is ignored, as CSS ignores it (round 2: `display:none;display:bogus` stays hidden).
+    // Only the properties the scanner reads are kept (round 3: a sheet of custom properties copied to every selector
+    // grew the heap past the Worker's limit).
     for (const [longhand, v] of expand(name, value))
-      if (valid(longhand, v) && !(out.get(longhand)?.important && !important))
+      if (Object.hasOwn(VALID, longhand) && valid(longhand, v) && !(out.get(longhand)?.important && !important))
         out.set(longhand, { value: v, important });
   }
   return out;
@@ -232,6 +235,13 @@ export function addRules(sheet: string, rules: Rules): number {
       const [, tag, cls, id] = simple;
       const key = id ? `#${id}` : `${tag?.toLowerCase() ?? ""}${cls ? `.${cls}` : ""}`;
       const specificity = (id ? 10_000 : 0) + (cls ? 100 : 0) + (tag ? 1 : 0);
+      // A rule that sets nothing the scanner reads is not kept; past MAX_SELECTORS distinct selectors, the rest are
+      // counted as not resolved (round 3).
+      if (!body.size) continue;
+      if (!rules.byKey.has(key) && rules.byKey.size >= MAX_SELECTORS) {
+        unresolved++;
+        continue;
+      }
       const entry = rules.byKey.get(key) ?? { specificity, props: new Map() };
       for (const [name, d] of body) {
         const existing = entry.props.get(name);

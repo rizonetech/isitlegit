@@ -4,12 +4,15 @@ import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
 import { hiddenTextEvidence, MAX_HIDDEN_ITEMS } from "../../src/checks/hidden-content";
 import {
+  addRules,
   deltaE,
   hiddenTextOf,
   MAX_HIDDEN_SPANS,
+  MAX_SELECTORS,
   MAX_SHEET_CHARS,
   MAX_SPAN_CHARS,
   MAX_VISIBLE_CHARS,
+  newRules,
   parseColor,
   scanHtml,
 } from "../../src/checks/hidden-text";
@@ -491,5 +494,21 @@ describe("scanHtml after round 2", () => {
       () => `<style>.h{display:none}.h{display:nope}</style><p class="h">${SECRET}</p><p>v</p>`,
     );
     expect(sheet.hidden.map((h) => h.text)).toEqual([SECRET]);
+  });
+});
+
+describe("scanHtml after round 3", () => {
+  it("keeps only the properties it reads, and bounds the selectors it keeps", async () => {
+    const selectors = Array.from({ length: 2_000 }, (_, i) => `.a${i}`).join(",");
+    const props = Array.from({ length: 1_000 }, (_, i) => `--p${i}:x`).join(";");
+    const scan = await scanHtml(() => `<style>${selectors}{${props}}</style><p>Invoice</p>`);
+    expect(scan.visible).toBe("Invoice");
+    // Custom properties set nothing the scanner reads, so the sheet keeps no entries at all.
+    const rules = newRules();
+    addRules(`${selectors}{${props}}`, rules);
+    expect(rules.byKey.size).toBe(0);
+    const many = Array.from({ length: MAX_SELECTORS + 5 }, (_, i) => `.b${i}`).join(",");
+    const bounded = await scanHtml(() => `<style>${many}{display:none}</style><p>Invoice</p>`);
+    expect(bounded.unresolvedRules).toBe(5);
   });
 });
