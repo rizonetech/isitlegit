@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DOH_URL, findMemberBySender } from "../../src/auth/domains";
+import { DOH_URL, domainClaimView, findMemberBySender, normaliseClaimCode } from "../../src/auth/domains";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
 import { call, redeem, sessionCookie } from "./helpers";
@@ -9,16 +9,18 @@ import { call, redeem, sessionCookie } from "./helpers";
 // by one fetch stub (two spies on fetch would replace each other).
 const db = (env as unknown as Env).DB;
 
-type Doh = Response | "throw";
+type Doh = Response | Promise<Response> | "throw";
 const world = {
   doh: (_name: string): Doh => Response.json({ Status: 3 }),
   smtp: "sent" as "sent" | "refused" | "silent",
+  smtpDelayMs: 0,
   sends: [] as { to: string; text: string }[],
 };
 let spy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   world.doh = () => Response.json({ Status: 3 });
   world.smtp = "sent";
+  world.smtpDelayMs = 0;
   world.sends = [];
   const real = globalThis.fetch;
   spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -30,6 +32,7 @@ beforeEach(() => {
     }
     if (url === SMTP2GO_URL) {
       const body = JSON.parse(String(init?.body ?? "{}")) as { to: string[]; text_body: string };
+      if (world.smtpDelayMs) await new Promise((done) => setTimeout(done, world.smtpDelayMs));
       if (world.smtp === "silent") throw new DOMException("timed out", "TimeoutError");
       if (world.smtp === "refused")
         return Response.json({ data: { error_code: "E_ApiResponseCodes.API_EXCEPTION" } }, { status: 400 });
@@ -323,7 +326,7 @@ describe("receiving systems learned at verification (D02 T02 §1)", () => {
           ? mxAnswer("mx-dns-co-za.mail.protection.outlook.com")
           : Response.json({ Status: 3 });
     expect(await (await json(`/domains/${domain}/check`, cookie, "POST")).json()).toEqual({ domain, verified: true });
-    expect(await receiversOf(orgId)).toEqual([{ domain, kind: "microsoft", pattern: "*.outlook.com" }]);
+    await expect.poll(() => receiversOf(orgId)).toEqual([{ domain, kind: "microsoft", pattern: "*.outlook.com" }]);
     expect((await json(`/domains/${domain}`, cookie, "DELETE")).status).toBe(204);
     expect(await receiversOf(orgId)).toEqual([]);
     // Claimed again but not yet verified: nothing of the old claim is trusted.
@@ -344,7 +347,33 @@ describe("receiving systems learned at verification (D02 T02 §1)", () => {
     ).toMatchObject({
       verified: true,
     });
-    expect(await receiversOf(orgId)).toEqual([{ domain: "mx-code.co.za", kind: "google", pattern: "*.google.com" }]);
+    await expect
+      .poll(() => receiversOf(orgId))
+      .toEqual([{ domain: "mx-code.co.za", kind: "google", pattern: "*.google.com" }]);
+  });
+
+  it("answers verified without waiting for the MX lookup, which still learns the receivers after", async () => {
+    const { cookie, orgId } = await owner("mxslow@example.org");
+    const domain = "mx-slow.co.za";
+    const added = (await (await json("/domains", cookie, "POST", { domain })).json()) as {
+      txt: { name: string; value: string };
+    };
+    let release: () => void = () => {};
+    const mx = new Promise<Response>((resolve) => {
+      release = () =>
+        resolve(
+          Response.json({ Status: 0, Answer: [{ type: 15, data: "10 mx-slow-co-za.mail.protection.outlook.com." }] }),
+        );
+    });
+    world.doh = (name) => (name === added.txt.name ? txtAnswer(added.txt.value) : mx);
+    const answered = await Promise.race([
+      json(`/domains/${domain}/check`, cookie, "POST").then((r) => r.json()),
+      new Promise((resolve) => setTimeout(() => resolve("still waiting"), 1000)),
+    ]);
+    expect(answered).toEqual({ domain, verified: true });
+    expect(await receiversOf(orgId)).toEqual([]);
+    release();
+    await expect.poll(() => receiversOf(orgId)).toEqual([{ domain, kind: "microsoft", pattern: "*.outlook.com" }]);
   });
 
   it("verifies the domain all the same when the MX lookup fails, storing no receivers", async () => {
@@ -835,6 +864,88 @@ describe("completion review cases", () => {
     expect(answered.status).toBe(503);
     expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
     expect(await stateOf(orgId, "deadline.co.za")).toBe("pending");
+  });
+});
+
+describe("the domain page's needs (D07 T02 §15)", () => {
+  it("reads a code as people type it, keeping leading zeroes, and nothing else as a code", () => {
+    expect(normaliseClaimCode("482107")).toBe("482107");
+    expect(normaliseClaimCode(" 48 21 07 ")).toBe("482107");
+    expect(normaliseClaimCode("482-107")).toBe("482107");
+    expect(normaliseClaimCode("007 001")).toBe("007001");
+    for (const bad of ["48210", "4821077", "48a107", "48  2107", "48--2107", "", "-482107"])
+      expect(normaliseClaimCode(bad), bad).toBeNull();
+  });
+
+  it("verifies a grouped code, and refuses a malformed one without spending an attempt", async () => {
+    const { cookie, orgId } = await owner("grouped@example.org");
+    await json("/domains", cookie, "POST", { domain: "grouped.co.za" });
+    await json("/domains/grouped.co.za/code", cookie, "POST", { local: "admin" });
+    const code = lastCode();
+    const bad = await json("/domains/grouped.co.za/verify", cookie, "POST", { code: "48a107" });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ error: "send the 6 digits you were mailed" });
+    expect((await domainClaimView(db, orgId, "grouped.co.za"))?.code.attempts).toBe(0);
+    const grouped = `${code.slice(0, 2)} ${code.slice(2, 4)} ${code.slice(4)}`;
+    expect((await json("/domains/grouped.co.za/verify", cookie, "POST", { code: grouped })).status).toBe(200);
+    expect((await domainClaimView(db, orgId, "grouped.co.za"))?.state).toBe("verified");
+  });
+
+  it("names a different verification record a check finds, and keeps the check for the page", async () => {
+    const { cookie, orgId } = await owner("different@example.org");
+    await json("/domains", cookie, "POST", { domain: "different.co.za" });
+    world.doh = () => txtAnswer("isitlegit-verify=0b19aaaabbbbccccddddeeeeffff0000");
+    expect((await json("/domains/different.co.za/check", cookie, "POST")).status).toBe(200);
+    const view = await domainClaimView(db, orgId, "different.co.za");
+    expect(view).toMatchObject({ state: "pending", lastCheck: { outcome: "dns-different" } });
+    world.doh = () => Response.json({ Status: 3 });
+    await json("/domains/different.co.za/check", cookie, "POST");
+    expect((await domainClaimView(db, orgId, "different.co.za"))?.lastCheck?.outcome).toBe("dns-not-visible");
+    expect(await domainClaimView(db, orgId, "never-claimed.co.za")).toBeNull();
+  });
+});
+
+describe("a code still being mailed (D07 T02 §15)", () => {
+  it("lets one of two presses at once through and refuses the other, the mailer slow", async () => {
+    const { cookie } = await owner("racing@example.org");
+    await json("/domains", cookie, "POST", { domain: "racing.co.za" });
+    const mailed = world.sends.length;
+    world.smtpDelayMs = 300;
+    const answers = await Promise.all([
+      json("/domains/racing.co.za/code", cookie, "POST", { local: "admin" }),
+      json("/domains/racing.co.za/code", cookie, "POST", { local: "postmaster" }),
+    ]);
+    expect(answers.map((a) => a.status).sort()).toEqual([200, 429]);
+    expect(world.sends.length).toBe(mailed + 1);
+  });
+
+  it("issues no new code while the last one's mail is unfinished, and does once it finished or is old", async () => {
+    const { cookie, orgId } = await owner("sending@example.org");
+    await json("/domains", cookie, "POST", { domain: "sending.co.za" });
+    const claimId = (
+      await db
+        .prepare("SELECT id FROM org_domains WHERE org_id = ? AND domain = ?")
+        .bind(orgId, "sending.co.za")
+        .first<{ id: string }>()
+    )?.id;
+    expect((await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+    // Its send still pending (the mailer retrying): no new code, no mail.
+    const unfinished = (status: string) =>
+      db.prepare("UPDATE mail_sends SET status = ? WHERE send_key LIKE ?").bind(status, `claim:${claimId}:%`).run();
+    await unfinished("pending");
+    const mailed = world.sends.length;
+    const refused = await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" });
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: expect.stringMatching(/still being sent/) });
+    expect(world.sends.length).toBe(mailed);
+    // Issued long enough ago (its Worker gone): the claim is free again.
+    await db
+      .prepare("UPDATE verification_codes SET expires_at = ? WHERE claim_id = ?")
+      .bind(new Date(Date.now() + 25 * 60_000).toISOString(), claimId)
+      .run();
+    expect((await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
+    // Finished (sent): a resend goes as before.
+    expect((await json("/domains/sending.co.za/code", cookie, "POST", { local: "admin" })).status).toBe(200);
   });
 });
 

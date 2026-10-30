@@ -277,7 +277,7 @@ describe("Field", () => {
     expect(input).toContain('aria-describedby="email-hint email-error"');
     expect(markup).toContain('<p id="email-hint" class="text-13 text-muted">Your work address</p>');
     expect(markup).toContain(
-      '<p id="email-error" class="text-13 text-mal weight-text-strong">Enter an email address</p>',
+      '<p id="email-error" role="alert" class="text-13 text-mal weight-text-strong">Enter an email address</p>',
     );
     expect(input).toContain("aria-invalid:border-mal");
   });

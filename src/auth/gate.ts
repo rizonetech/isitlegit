@@ -15,7 +15,8 @@ function toSignIn(requested: string) {
   const url = new URL(requested);
   const wanted = `${url.pathname}${url.search}`;
   const to = sameSitePath(wanted) ? `/signin?next=${encodeURIComponent(wanted)}` : "/signin";
-  return new Response(null, { status: 303, headers: { location: to } });
+  // A decision about who is signed in is never cached, nor is the address it names.
+  return new Response(null, { status: 303, headers: { location: to, "cache-control": "private, no-store" } });
 }
 
 const unavailable = () =>

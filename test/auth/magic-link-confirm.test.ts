@@ -130,7 +130,7 @@ describe("the link expired or used state", () => {
     const html = await used.text();
     expect(html).toContain('<form method="post" action="/signin/link"');
     expect(html).toContain('name="callbackURL" value="/cases/5"');
-    expect(html).toMatch(/<label[^>]*for="signin-email"[^>]*>Email<\/label>/);
+    expect(html).toMatch(/<label[^>]*for="signin-email"[^>]*>Work email<\/label>/);
     const asked = await post("/signin/link", { email: "again@demo.isitlegit.co.za", callbackURL: "/cases/5" });
     expect(asked.status).toBe(200);
     expect(await asked.text()).toContain("If that address can sign in, a new link is on its way");

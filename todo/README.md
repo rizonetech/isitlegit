@@ -105,8 +105,10 @@ When adopting or grooming this system on a repository where code is already part
 A section closes only through `stamp`:
 
 ```powershell
-python scripts/todo-graph.py stamp 'D01 T01 §1' --sha <full 40-char implementation commit> --review '1:docs/reviews/01-intake/D01-T01-s1.md:clean' --check '<command> -> <quoted result>'
+python scripts/todo-graph.py stamp 'D01 T01 §1' --sha <full 40-char implementation commit> --plan 'docs/reviews/01-intake/D01-T01-s1.md' --completion 'docs/reviews/01-intake/D01-T01-s1.md:complete' --review '1:docs/reviews/01-intake/D01-T01-s1.md:clean' --check '<command> -> <quoted result>'
 ```
+
+The section's plan review (`--plan`) must have read the contract before the build: its candidate is the commit that records the section's `> **Started:**` line or an earlier one, or a later commit only when the section has an explicit `Started:` line and, every commit that descends from the Started commit and leads to the candidate (a branch forked after it included) changes only `todo/` and `docs/reviews/`, or reformats an existing JSON file under `test/` or `tests/` to the same parsed value, and leaves the section's contract (its text and its TODO file's preamble, its own Implementation Order row found by its `§N` column) byte for byte as it was; the receipt records that evidence as `plan.after_started` and validation rebuilds it, and refuses it missing when the candidate follows the Started commit (D00 T01 §28).
 
 ## Commands
 
@@ -122,7 +124,7 @@ git merge --abort                               # backs out of such a stopped me
 python scripts/todo-graph.py query ready         # sections that can run now (also: blocked, stats, deferred, adjacency, plan)
 python scripts/todo-graph.py resolve 'D01 T01 §1'  # 0 ready, 1 no such section, 2 no reference, 3 verified, 4 waiting
 python scripts/todo-graph.py classify 'D01 T01 §1' 'D02 T01 §1'   # dispositions as JSON
-python scripts/todo-graph.py stamp 'D01 T01 §1' --sha <commit> --review '1:<report>:clean' --check '<cmd> -> <result>'
+python scripts/todo-graph.py stamp 'D01 T01 §1' --sha <commit> --plan '<report>' --completion '<report>:complete' --review '1:<report>:clean' --check '<cmd> -> <result>'
 python -m unittest tests.scripts.test_todo_graph   # the tooling's own tests
 ```
 

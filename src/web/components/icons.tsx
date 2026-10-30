@@ -37,3 +37,8 @@ export const CopyIcon = icon(
   "w-16 h-16",
 );
 export const MenuIcon = icon(["M4 7h16M4 12h16M4 17h16"]);
+// The sign-in states' tiles (board `Signin-States`): the inbox, the expired link, the limit, the passkey.
+export const MailIcon = icon(["M4 6h16v12H4z", "M4 7l8 6 8-6"]);
+export const ClockIcon = icon(["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", "M12 7v5l3 2"]);
+export const StopIcon = icon(["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", "M8 12h8"]);
+export const KeyIcon = icon(["M8 7a4 4 0 1 0 0 8a4 4 0 1 0 0-8", "M11.5 12.5L20 21", "M16 17l2-2", "M18 19l2-2"]);

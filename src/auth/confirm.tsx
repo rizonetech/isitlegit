@@ -12,6 +12,7 @@
 //   GET  /api/auth/magic-link/verify           a link mailed before this change: 303 to the page, never redeemed
 import { Hono } from "hono";
 import * as z from "zod";
+import { SIGNIN_PATH, SigninPage } from "../web/pages/signin";
 import { clientIp, recordAuthEvent } from "./audit";
 import { createAuth } from "./auth";
 import {
@@ -23,7 +24,9 @@ import {
   LinkRequestPage,
   MessagePage,
   pageResponse,
+  type Retry,
   resumesIn,
+  retryIn,
   returnPath,
 } from "./confirm-page";
 import { DEFAULT_RETURN, MAX_RETURN_PATH } from "./paths";
@@ -158,8 +161,13 @@ function signedIn(callbackURL: string, origin: string, cookies: string[]): Respo
   const to = destination.origin === origin ? destination.href : new URL(DEFAULT_RETURN, origin).href;
   const out = new Response(null, { status: 303, headers: { location: to, "cache-control": "no-store" } });
   for (const cookie of cookies) out.headers.append("set-cookie", cookie);
+  // The page landed on tells this browser's other tabs (the one that asked for the link) that the sign-in finished
+  // (D07 T02 §7, src/web/client/app.ts), by a short-lived cookie it reads and clears: the address, its fragment
+  // included (a report's evidence anchor), is left as asked.
+  out.headers.append("set-cookie", `${SIGNED_IN_COOKIE}=1; Path=/; Max-Age=60; SameSite=Lax; Secure`);
   return out;
 }
+export const SIGNED_IN_COOKIE = "isitlegit_signed_in";
 
 export const confirmRoutes = new Hono<{ Bindings: Env }>();
 
@@ -172,6 +180,14 @@ confirmRoutes.use("/signin/*", async (c, next) => {
   if (readHandle(c.req.raw.headers) || c.res.status >= 300) return;
   if (c.res.headers.getSetCookie().some((cookie) => cookie.startsWith(`${CODE_COOKIE}=`))) return;
   c.res.headers.append("set-cookie", handleCookie(newHandle()));
+});
+
+// The sign-in page (D07 T02 §7): `next` is normalised once, here, and that one value is what every way out of the page
+// carries (the link request, the code form, the automatic finish); an `error` is a used or expired link the session
+// gate sent back (src/auth/auth.ts `recoveryPath`).
+confirmRoutes.get(SIGNIN_PATH, (c) => {
+  const error = c.req.query("error");
+  return pageResponse(<SigninPage next={returnPath(c.req.query("next"))} error={error ? error.slice(0, 64) : null} />);
 });
 
 confirmRoutes.get(CONFIRM_PATH, (c) => {
@@ -207,7 +223,10 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
   if (outcome === "rate-limited") {
     // The token is untouched: the same button works again once the limiter's window has passed.
     log("rate-limited");
-    return pageResponse(<ConfirmPage token={token} callbackURL={callbackURL} retryAfter={retryAfterOf(answer)} />, 429);
+    return pageResponse(
+      <ConfirmPage token={token} callbackURL={callbackURL} retry={retryIn(retryAfterOf(answer))} />,
+      429,
+    );
   }
   if (outcome === "used") {
     log("used");
@@ -287,13 +306,7 @@ confirmRoutes.post(LINK_PATH, async (c) => {
   }
   if (asked.status === 429)
     return pageResponse(
-      <LinkRequestPage
-        callbackURL={callbackURL}
-        email={email}
-        title="Too many sign-in links"
-        heading="Too many sign-in links from here"
-        text={`New links can be sent from here again in ${resumesIn(retryAfterOf(asked))}. Your address is kept below.`}
-      />,
+      <LinkRequestPage callbackURL={callbackURL} email={email} retry={retryIn(retryAfterOf(asked))} />,
       429,
     );
   // Better Auth refusing the request itself (its own validation) is the address, not an outage.
@@ -329,8 +342,17 @@ confirmRoutes.post(CODE_PATH, async (c) => {
   if (!form) return tooLarge();
   const email = form.email ?? "";
   const callbackURL = returnPath(form.callbackURL);
-  const inbox = (codeError: string, status: number) =>
-    pageResponse(<InboxPage email={email} callbackURL={callbackURL} codeError={codeError} />, status);
+  // A rate limit's retry keeps the code it stopped, so pressing Sign in again needs nothing typed (completion review).
+  const inbox = (codeError: string, status: number, retry?: Retry) =>
+    pageResponse(
+      <InboxPage
+        email={email}
+        callbackURL={callbackURL}
+        codeError={codeError}
+        {...(retry ? { retry, code: (form.code ?? "").slice(0, 16) } : {})}
+      />,
+      status,
+    );
   const secret = c.env.BETTER_AUTH_SECRET ?? "";
   // Counted per IP before anything is read or recorded (D07 T02 §6's limiter, ./ratelimit), so neither guesses nor
   // refusals can be sent faster than the rule; a limiter that cannot count is the service's fault, as below.
@@ -344,6 +366,7 @@ confirmRoutes.post(CODE_PATH, async (c) => {
       return inbox(
         `Too many codes tried from here. Try again in ${resumesIn(limit.retryAfter ?? LINK_WINDOW_SECONDS)}.`,
         429,
+        retryIn(limit.retryAfter ?? LINK_WINDOW_SECONDS),
       );
   } catch (error) {
     unrecorded("uncounted")(error);
@@ -395,6 +418,7 @@ confirmRoutes.post(CODE_PATH, async (c) => {
         ? `Too many sign-in tries from here. Type the code again in ${wait}.`
         : `Too many sign-in tries from here, and this code could not be kept for later. Send another link in ${wait}.`,
       429,
+      kept ? retryIn(retryAfterOf(answer)) : undefined,
     );
   }
   // Used (the link was spent first), no account, or the service's failure after the token was taken: the code is done.
