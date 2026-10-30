@@ -45,11 +45,20 @@ export const NEAR_BITS = 6;
 export const NEAR_TEXT = 0.8;
 export const LURE_SHARE = { min: 0.4, max: 0.6 };
 export const EVAL_MINIMUMS = { total: 1000, southAfrica: 300, perLureType: 50 };
+// The largest group the split may hold out of training, as a share of its pages. Operators running kits of several
+// brands chain the common phishing brands into one group (18,880 of 129,886 pages in the 1.0 collection, holding
+// Facebook, Google, Amazon, Apple and Microsoft): held out, training would never see the brands it meets most. Such a
+// group trains, and §13's reference set is drawn only from groups that can be held out (`holdablePages`).
+export const MAX_HELD_SHARE = 0.05;
+// A group of this many pages can always be held, however small the collection (a share of a test's ten pages is less
+// than one page).
+export const MIN_HELD_LIMIT = 100;
+const heldLimit = (pages: number, share = MAX_HELD_SHARE) => Math.max(pages * share, MIN_HELD_LIMIT);
 
 // What a version must hold before it is published (§10, plan review finding 7). The sample floors keep the South
 // African lures this product exists for in both splits (filed from §8's plan review, finding 2): evaluation holds at
 // least `sampleEvaluation` trusted sample-derived lures, and training keeps at least `sampleTraining` of the trusted
-// sample-derived lures admitted after every exclusion, rounded up.
+// sample-derived lures the split receives (after every exclusion, deduplication and the brand cap), rounded up.
 export type Floors = {
   evaluation: number;
   southAfrica: number;
@@ -201,11 +210,42 @@ export function siteOf(host: string): string {
   return getDomain(host, { allowPrivateDomains: true }) ?? host;
 }
 
+// A site names one operator only while its pages carry few brands: a registrable domain whose pages carry more than
+// `SHARED_BRANDS` canonical brands is a shared platform (free hosting like weebly.com or glitch.me, documents on
+// google.com, a link shortener), which the Public Suffix List often leaves out, and joining by it chained 28,334 pages
+// of unrelated brands into one group. Such a domain's pages are a site by their full host instead, and a host that is
+// itself shared names no site; their brand still joins them.
+export const SHARED_BRANDS = 2;
+export type SiteKey = (host: string) => string | null;
+export function siteKeys(pages: StoredPage[]): SiteKey {
+  const brands = new Map<string, Set<string>>();
+  const add = (key: string, brand: string) => {
+    const set = brands.get(key);
+    if (set) set.add(brand);
+    else brands.set(key, new Set([brand]));
+  };
+  for (const page of pages)
+    if (page.host && page.labels.brand) {
+      const brand = brandIdentity(page.labels.brand);
+      add(`domain:${siteOf(page.host)}`, brand);
+      add(`host:${page.host.toLowerCase()}`, brand);
+    }
+  const shared = (key: string) => (brands.get(key)?.size ?? 0) > SHARED_BRANDS;
+  return (host) => {
+    const domain = siteOf(host);
+    if (!shared(`domain:${domain}`)) return domain;
+    const full = host.toLowerCase();
+    return shared(`host:${full}`) ? null : full;
+  };
+}
+
 // Every identity a page shares with others: its canonical brand, its site and its template (plan review finding 3).
-export function identities(page: StoredPage): string[] {
+// `site` names the page's site (`siteKeys`); alone, a page's registrable domain is its site.
+export function identities(page: StoredPage, site: SiteKey = siteOf): string[] {
   const out: string[] = [];
   if (page.labels.brand) out.push(`brand:${brandIdentity(page.labels.brand)}`);
-  if (page.host) out.push(`site:${siteOf(page.host)}`);
+  const key = page.host ? site(page.host) : null;
+  if (key) out.push(`site:${key}`);
   if (page.template) out.push(`template:${page.template}`);
   return out;
 }
@@ -226,6 +266,15 @@ function append<K, V>(map: Map<K, V[]>, key: K, value: V): void {
 // Pages grouped by every identity they share: two pages are one group when they share a canonical brand, a site or a
 // template, directly or through others, so a branded and an unbranded page of one site never cross the split. A group
 // is named by its first identity in sorted order (a brand's before a site's before a template's).
+// The pages whose group (`groupEntries`) could be held out of training: groups within `heldLimit` of `pages`.
+export function holdablePages(pages: StoredPage[]): StoredPage[] {
+  const limit = heldLimit(pages.length);
+  const groups = groupEntries(
+    pages.map((page) => ({ page, answer: null as unknown as PageAnswer, hash: 0n, words: new Uint32Array(0) })),
+  );
+  return [...groups.values()].filter((group) => group.length <= limit).flatMap((group) => group.map((e) => e.page));
+}
+
 export function groupEntries(entries: Entry[]): Map<string, Entry[]> {
   const parent = new Map<string, string>();
   const find = (key: string): string => {
@@ -238,9 +287,10 @@ export function groupEntries(entries: Entry[]): Map<string, Entry[]> {
     }
     return root;
   };
+  const site = siteKeys(entries.map((entry) => entry.page));
   const named = new Map<Entry, string[]>();
   for (const entry of entries) {
-    const own = identities(entry.page);
+    const own = identities(entry.page, site);
     const keys = own.length ? own : [`page:${entry.page.id}`];
     named.set(entry, keys);
     for (const key of keys) if (!parent.has(key)) parent.set(key, key);
@@ -440,8 +490,8 @@ export function evaluationPool(
 }
 
 // Every floor a finished split misses, named (plan review finding 7), checked after deduplication, capping and
-// balancing and before anything is published. `admittedSampleLures` is the trusted sample-derived lures admitted after
-// every exclusion, the denominator of training's half.
+// balancing and before anything is published. `admittedSampleLures` is the trusted sample-derived lures the split received, after
+// every exclusion, deduplication and the brand cap: the denominator of training's half.
 export function checkFloors(
   input: { train: Entry[]; evaluation: Entry[]; admittedSampleLures: number },
   floors: Floors = FLOORS,
@@ -501,6 +551,8 @@ export function split(
     floors?: Floors;
     reserved?: Set<string>;
     protect?: Entry[];
+    // The largest share of the pages one held group may be (`MAX_HELD_SHARE`); a test lifts it to show what it stops.
+    maxHeldShare?: number;
   } = {},
 ): Split {
   const admit = options.admit ?? ((entry: Entry) => trusted(entry.page));
@@ -510,7 +562,15 @@ export function split(
   const groups = new Map<string, Entry[]>();
   for (const [key, members] of groupEntries([...entries, ...phantoms])) groups.set(key, members);
   const real = (group: string) => (groups.get(group) ?? []).filter((e) => !phantoms.has(e));
-  const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
+  // A group past `heldLimit` trains: only the reference set's groups are held whatever their size.
+  const limit = heldLimit(entries.length, options.maxHeldShare);
+  const sizes = new Map([...groups.keys()].map((g) => [g, real(g).length]));
+  const holdable = (group: string) => (sizes.get(group) ?? 0) <= limit;
+  const templateHoldable = (template: string) =>
+    [...groups].every(([g, members]) => holdable(g) || !members.some((e) => e.page.template === template));
+  const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))]
+    .sort()
+    .filter(templateHoldable);
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
   // Ten percent of the distinct canonical brands, not of the joined groups: a group can hold many brands.
   const brandsOf = (group: string) =>
@@ -522,13 +582,27 @@ export function split(
   const held = new Set<string>();
   // Every group holding a page of §13's reference set stays out of training (plan review finding 6).
   for (const [group, members] of groups) if (members.some((e) => reserved.has(e.page.id))) held.add(group);
+  // Training's floor of sample-derived lures (`checkFloors`), kept while the split chooses: a group whose sample lures
+  // would take training below it is not chosen for evaluation, where a later group can meet the need instead. The groups
+  // the reference set and the held template hold are taken whatever they hold.
+  const samples = new Map([...groups.keys()].map((g) => [g, real(g).filter((e) => sampleLure(e.page)).length]));
+  const samplesIn = (group: string) => samples.get(group) ?? 0;
+  const trainingNeeds = Math.ceil(entries.filter((e) => sampleLure(e.page)).length * floors.sampleTraining);
+  let trainingSamples = [...groups.keys()].filter((g) => !held.has(g)).reduce((sum, g) => sum + samplesIn(g), 0);
+  const hold = (group: string) => {
+    if (held.has(group)) return;
+    held.add(group);
+    trainingSamples -= samplesIn(group);
+  };
+  const spares = (group: string) => trainingSamples - samplesIn(group) >= trainingNeeds;
   const heldBrands = () => new Set([...held].flatMap((g) => [...brandsOf(g)]));
   const candidates = shuffle([...allBrands].sort(), random);
   const groupOfBrand = new Map<string, string>();
   for (const group of [...groups.keys()].sort()) for (const brand of brandsOf(group)) groupOfBrand.set(brand, group);
   for (const brand of candidates) {
     if (heldBrands().size >= wanted) break;
-    held.add(groupOfBrand.get(brand) as string);
+    const group = groupOfBrand.get(brand) as string;
+    if (holdable(group) && (!samplesIn(group) || spares(group))) hold(group);
   }
   const evaluation: Entry[] = [];
   // The counts the published evaluation set would have: balanced as `balanceEvaluation` balances it.
@@ -544,7 +618,7 @@ export function split(
     };
   };
   const take = (group: string) => {
-    held.add(group);
+    hold(group);
     evaluation.push(...real(group).filter((e) => admit(e)));
   };
   for (const group of held) evaluation.push(...real(group).filter((e) => admit(e)));
@@ -578,8 +652,9 @@ export function split(
       (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType ||
       (needsBenign && !e.answer.lure) ||
       (needsLures && e.answer.lure);
-    const preferred = rest.findIndex((g) => real(g).some((e) => admit(e) && needs(e)));
-    const index = preferred >= 0 ? preferred : rest.findIndex((g) => real(g).some(admit));
+    const allowed = (g: string) => holdable(g) && (!samplesIn(g) || spares(g));
+    const preferred = rest.findIndex((g) => allowed(g) && real(g).some((e) => admit(e) && needs(e)));
+    const index = preferred >= 0 ? preferred : rest.findIndex((g) => allowed(g) && real(g).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
     if (index < 0) break;
     take(rest.splice(index, 1)[0] as string);
@@ -1000,15 +1075,18 @@ export async function buildDataset(options: {
   // `raw/dataset/reference.json` so every later version holds out the same pages. The pool does not consult the
   // exclusions either: those include pages the teacher lost, which would let its outcomes move the draw.
   const pages = store.manifest();
+  // Only pages whose group can be held out are drawn: each reference page's group is held out of training.
   const reference = reserveReference(
     store.dir,
-    pages.filter(
-      (page) =>
-        (!options.frozen || options.frozen.has(page.id)) &&
-        page.labels.lure !== undefined &&
-        TRUSTED.has(page.label_source.lure ?? "") &&
-        !(page.origin === "samples" && !page.redacted) &&
-        usable(page),
+    holdablePages(
+      pages.filter(
+        (page) =>
+          (!options.frozen || options.frozen.has(page.id)) &&
+          page.labels.lure !== undefined &&
+          TRUSTED.has(page.label_source.lure ?? "") &&
+          !(page.origin === "samples" && !page.redacted) &&
+          usable(page),
+      ),
     ),
     options.referenceSize,
   );
@@ -1088,8 +1166,6 @@ export async function buildDataset(options: {
     throw new Error(
       `${unverified.length} pages' files do not match their records (first: ${unverified[0]}): repair or remove them before building`,
     );
-  // The trusted sample-derived lures admitted after every exclusion: the denominator of training's half.
-  const admittedSampleLures = entries.filter((e) => sampleLure(e.page)).length;
   const protectors: Entry[] = [];
   for (const page of protectorPages) {
     const verified = store.readVerifiedPage(page.id);
@@ -1107,6 +1183,10 @@ export async function buildDataset(options: {
   dropped.near = deduped.near;
   const capped = capBrands(deduped.kept, random);
   dropped.capped = deduped.kept.length - capped.length;
+  // The trusted sample-derived lures the split receives, after every exclusion, deduplication and the brand cap: the
+  // denominator of training's half. A copy deduplication dropped can be in neither split, so it does not count against
+  // training.
+  const admittedSampleLures = capped.filter((e) => sampleLure(e.page)).length;
   // Only a page the teacher checked and agreed with, whose lure and files are still the ones it checked, may be
   // evaluated on (§9; the teacher's `stale` and `unchecked` states both fail this).
   const admit = (entry: Entry) => trusted(entry.page) && teacherState(teacher, entry.page) === "agreed";

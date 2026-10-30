@@ -30,6 +30,7 @@ import {
   groupEntries,
   groupOf,
   hamming,
+  holdablePages,
   jaccard,
   NEAR_TEXT,
   NO_FLOORS,
@@ -38,9 +39,11 @@ import {
   previousHeldOut,
   referenceFile,
   ShortfallError,
+  sampleLure,
   sampleTerms,
   scanSampleLines,
   shingles,
+  siteKeys,
   siteOf,
   sizesAllow,
   split,
@@ -626,6 +629,114 @@ describe("the split's targets are counted on what is published", () => {
   });
 });
 
+describe("a shared platform names no one operator (1.0 build: 28,334 pages chained by free hosts)", () => {
+  it("joins pages by a domain only while it carries few brands, then by host, then not by site at all", () => {
+    const lure = { lure: true, lure_type: "credential" as const };
+    const entries = [
+      // One operator's domain with two brands on two hosts: still one site, one group.
+      entryOf(page("own1", { host: "login.kestrel-pay.co.za" }, { brand: "Kestrel", ...lure })),
+      entryOf(page("own2", { host: "pay.kestrel-pay.co.za" }, { brand: "Osprey", ...lure })),
+      // A free host carrying three unrelated brands on three tenants: three groups, not one.
+      entryOf(page("free1", { host: "one.freehost.example" }, { brand: "Alpha", ...lure })),
+      entryOf(page("free2", { host: "two.freehost.example" }, { brand: "Beta", ...lure })),
+      entryOf(page("free3", { host: "three.freehost.example" }, { brand: "Gamma", ...lure })),
+      // A path-hosting platform: one host carrying three brands names no site, so only brands join.
+      entryOf(page("doc1", { host: "docs.platform.example" }, { brand: "Delta", ...lure })),
+      entryOf(page("doc2", { host: "docs.platform.example" }, { brand: "Epsilon", ...lure })),
+      entryOf(page("doc3", { host: "docs.platform.example" }, { brand: "Zeta", ...lure })),
+      entryOf(page("doc4", { host: "www.delta.example" }, { brand: "Delta", ...lure })),
+    ];
+    const groupOfId = new Map<string, string>();
+    for (const [key, members] of groupEntries(entries)) for (const e of members) groupOfId.set(e.page.id, key);
+    expect(groupOfId.get("own1")).toBe(groupOfId.get("own2"));
+    expect(new Set(["free1", "free2", "free3"].map((id) => groupOfId.get(id))).size).toBe(3);
+    expect(new Set(["doc1", "doc2", "doc3"].map((id) => groupOfId.get(id))).size).toBe(3);
+    expect(groupOfId.get("doc1")).toBe(groupOfId.get("doc4")); // the brand still joins them
+    const site = siteKeys(entries.map((e) => e.page));
+    expect([site("login.kestrel-pay.co.za"), site("one.freehost.example"), site("docs.platform.example")]).toEqual([
+      "kestrel-pay.co.za",
+      "one.freehost.example",
+      null,
+    ]);
+    // Caught: joined by registrable domain alone, the free host is one group.
+    expect(
+      new Set(["free1", "free2", "free3"].map((id) => groupOf(page(id, { host: `${id}.freehost.example` })))).size,
+    ).toBe(1);
+  });
+});
+
+describe("a group too large to hold out trains (1.0 build: 18,880 pages of the common brands)", () => {
+  const lure = { lure: true, lure_type: "credential" as const };
+  // One group of 200 pages (a brand on many hosts, past 5 percent of 3,000 and past the 100-page floor) and 2,800
+  // single-brand groups.
+  const pages = [
+    ...Array.from({ length: 200 }, (_, i) =>
+      page(`m${i}`, { host: `www.mega${i}.example` }, { brand: "Mega", ...lure }),
+    ),
+    ...Array.from({ length: 2800 }, (_, i) =>
+      page(`s${i}`, { host: `www.small${i}.example` }, { brand: `Small ${i}`, ...lure }),
+    ),
+  ];
+  it("is never held for the brand share or the floors, whatever the seed", () => {
+    // The brand share holds about 280 single pages; a floor of 320 sends the loop after more.
+    const floors = { ...NO_FLOORS, evaluation: 320 };
+    let heldBefore = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const parts = split(pages.map(entryOf), lcg(seed), { floors });
+      expect(parts.evaluation.some((e) => e.page.labels.brand === "Mega")).toBe(false);
+      expect(parts.train.filter((e) => e.page.labels.brand === "Mega").length).toBe(200);
+      // Caught: with the size limit lifted, some seed holds the large group out.
+      const lifted = split(pages.map(entryOf), lcg(seed), { floors, maxHeldShare: 1 });
+      if (lifted.evaluation.some((e) => e.page.labels.brand === "Mega")) heldBefore++;
+    }
+    expect(heldBefore).toBeGreaterThan(0);
+  }, 120_000);
+  it("is left out of the reference draw, so no reference page forces it out of training", () => {
+    const drawn = new Set(holdablePages(pages).map((p) => p.id));
+    expect(drawn.has("m0")).toBe(false);
+    expect(drawn.size).toBe(2800);
+  });
+});
+
+describe("training's sample floor while the split chooses (1.0 build: 29 of 100 kept)", () => {
+  it("does not take sample lures into evaluation past what training must keep, however short South Africa is", () => {
+    const entries = [
+      ...Array.from({ length: 20 }, (_, i) =>
+        entryOf(
+          page(
+            `s${i}`,
+            { origin: "samples", redacted: true, south_africa: true },
+            { lure: true, lure_type: "credential" },
+          ),
+        ),
+      ),
+      ...Array.from({ length: 200 }, (_, i) =>
+        entryOf(
+          page(
+            `b${i}`,
+            { host: `www.b${i}.co.za` },
+            { brand: `B${i}`, lure: i % 2 === 0, lure_type: i % 2 === 0 ? "payment" : "none" },
+          ),
+        ),
+      ),
+    ];
+    // South Africa's floor can never be met here, so the loop wants every South African page it can find.
+    const floors = { ...NO_FLOORS, southAfrica: 500, sampleEvaluation: 5, sampleTraining: 0.5 };
+    for (const seed of [3, 5, 7, 11]) {
+      const parts = split(entries, lcg(seed), { floors });
+      const training = parts.train.filter((e) => sampleLure(e.page)).length;
+      expect(training).toBeGreaterThanOrEqual(10);
+      expect(parts.evaluation.filter((e) => sampleLure(e.page)).length).toBeGreaterThanOrEqual(5);
+      expect(
+        checkFloors(
+          { train: parts.train, evaluation: parts.evaluation, admittedSampleLures: 20 },
+          { ...floors, southAfrica: 0 },
+        ),
+      ).toEqual([]);
+    }
+  });
+});
+
 describe("the split without admissible pages", () => {
   it("does not hold training groups out for an evaluation nothing can enter", () => {
     const entries = Array.from({ length: 40 }, (_, b) =>
@@ -1132,13 +1243,12 @@ describe("a build short of a floor", () => {
     await expect(build(store, { floors })).rejects.toThrow(/sample-derived lure evaluation pool 0 of 2/);
   });
 
-  it("refuses a build with every sample-derived lure in evaluation", async () => {
-    // All four in one group, agreed: evaluation takes the whole group and training keeps none.
+  it("refuses a build whose sample-derived lures cannot be split, one group holding all four", async () => {
+    // All four in one group, agreed: the group cannot go to evaluation without leaving training none, so the split keeps
+    // it in training and evaluation falls short instead. Either way the version is never published.
     const { store, ids } = await fill(dir, [...group("S One", 1, 4), ...publics]);
     teach(dir, Object.fromEntries(ids.slice(0, 8).map((id) => [id, AGREED])));
-    await expect(build(store, { floors })).rejects.toThrow(
-      /training keeps 0 of 4 sample-derived lures, at least 2 needed/,
-    );
+    await expect(build(store, { floors })).rejects.toThrow(/sample-derived lure evaluation 0 of 2/);
   });
 
   it("publishes a build with half of them in training, and records both counts in summary.json", async () => {
