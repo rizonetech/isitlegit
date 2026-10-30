@@ -65,17 +65,40 @@ function kindsOf(parsed: { authservId: string | null; results: Result[] }, recei
 }
 
 // Microsoft 365 and Google stamp every message they receive (Microsoft Learn: "When an email is received in Microsoft
-// 365, the service adds an Authentication-Results header"), writing it just under their own entry hop, as Gmail does;
-// any other receiver promises no stamp (completion review).
+// 365, the service adds an Authentication-Results header"), and a stamp written on receipt sits above every header the
+// sender could have supplied, so the topmost of theirs is theirs, whatever the hops below claim. Any other receiver
+// promises no stamp (completion review).
 const STAMPS_EVERY_MESSAGE: ReadonlySet<ReceiverKind> = new Set(["microsoft", "google"]);
 
-// The receiver's zone ends at its entry hop: reading down, the first `Received` a receiver wrote (`by` one of its
-// hosts) whose `from` is not one of them, where the message came in from outside. Hops below it, and every header
-// there, came with the message, whatever host they name, so a sender's forged hop cannot move the boundary (round 1).
-// Trusted are the headers above the entry hop that match a receiver, all of them (a receiver may write several, RFC
-// 8601 appendix B.4); and, only when the entry hop is Microsoft 365's or Google's and none of theirs sits above it, the
-// first of theirs in the block they write just under it, before the next `Received`. One receiver's stamp never vouches
-// for a header under another receiver's hop.
+// The address the receiver itself saw the previous hop connect from, in the `Received` header's TCP information
+// (`from helo (rdns [203.0.113.5])`, or `(203.0.113.5)`), never the greeting name, which the sender chooses (RFC 5321
+// section 4.4; round 2). Null when the header records none.
+function connectedFrom(value: string): string | null {
+  const info = /\bfrom\s+\S+\s*\(([^()]*)\)/i.exec(value)?.[1] ?? "";
+  const bracketed = /\[(?:ipv6:)?([0-9a-f:.]+)\]/i.exec(info)?.[1];
+  if (bracketed) return bracketed.toLowerCase();
+  const bare = /^\s*([0-9a-f:.]+)\s*$/i.exec(info)?.[1];
+  return bare && /[.:]/.test(bare) ? bare.toLowerCase() : null;
+}
+
+// Loopback, private, link-local and unique-local addresses: a hop between the receiver's own machines, never one the
+// internet can reach it from.
+function privateAddress(ip: string): boolean {
+  if (ip.includes(":")) return ip === "::1" || /^f[cd][0-9a-f]{2}:/.test(ip) || /^fe[89ab][0-9a-f]:/.test(ip);
+  const [a = -1, b = -1] = ip.split(".").map(Number);
+  return (
+    a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
+  );
+}
+
+type Read = { kinds: Set<ReceiverKind>; parsed: { authservId: string | null; results: Result[] } };
+
+// The receiver whose hop is at the top of the message took it in last, so its rules apply.
+//   Microsoft 365 or Google: the topmost header of theirs, read down to the first hop another host wrote.
+//   Another receiver: only headers above its entry hop, the first of its hops reading down whose connecting address
+//   (as it recorded it) is not private, so where the message came in from outside; all of them (a receiver may write
+//   several, RFC 8601 appendix B.4). A hop between public addresses ends the zone too: trust lost, never a forgery let
+//   in. Its results beside another receiver's above the entry hop are ambiguous.
 export function trustedAuthResults(
   headers: readonly { name: string; value: string }[],
   receivers: readonly Receiver[],
@@ -84,52 +107,45 @@ export function trustedAuthResults(
   if (!headersAvailable || headers.length === 0) return { untrusted: "no-headers" };
   if (receivers.length === 0) return { untrusted: "unknown-receiver" };
   const ours = (host: string | null) => (host === null ? undefined : receivers.find((r) => covers(r.pattern, host)));
-  const results = (value: string) => {
+  const read = (value: string): Read | null => {
     const parsed = parseAuthenticationResults(value);
     return parsed ? { parsed, kinds: kindsOf(parsed, [...receivers]) } : null;
   };
-  let entry = -1;
-  let entryKind: ReceiverKind | undefined;
-  const above: { kinds: Set<ReceiverKind>; parsed: { authservId: string | null; results: Result[] } }[] = [];
-  for (const [at, { name, value }] of headers.entries()) {
+  let top: ReceiverKind | undefined;
+  let entered = false;
+  const above: Read[] = [];
+  for (const { name, value } of headers) {
     const field = name.trim().toLowerCase();
     if (field === "received") {
       const by = receivedBy(value);
       if (by === null || literal(by)) continue;
       const receiver = ours(by);
-      if (!receiver) break; // a host outside the receivers wrote this above any entry: no boundary
-      const from = receivedHost(value, "from");
-      if (from !== null && !literal(from) && ours(from)) continue; // a hop inside the receiver
-      entry = at;
-      entryKind = receiver.kind;
+      if (!receiver) break; // another host wrote this: everything from here down came with the message
+      top ??= receiver.kind;
+      if (STAMPS_EVERY_MESSAGE.has(top)) continue;
+      const address = connectedFrom(value);
+      if (address !== null && privateAddress(address)) continue; // a hop between the receiver's own machines
+      entered = true;
       break;
     }
     if (field !== "authentication-results") continue;
-    const read = results(value);
-    if (read && read.kinds.size > 0) above.push(read);
-  }
-  if (entry < 0 || entryKind === undefined) return { untrusted: "no-boundary" };
-  const trusted = [...above];
-  if (STAMPS_EVERY_MESSAGE.has(entryKind) && !above.some((a) => a.kinds.has(entryKind))) {
-    for (const { name, value } of headers.slice(entry + 1)) {
-      const field = name.trim().toLowerCase();
-      if (field === "received") break;
-      if (field !== "authentication-results") continue;
-      const read = results(value);
-      if (read?.kinds.has(entryKind)) {
-        trusted.push({ kinds: new Set([entryKind]), parsed: read.parsed });
-        break;
-      }
+    const found = read(value);
+    if (!found || found.kinds.size === 0) continue;
+    if (top !== undefined && STAMPS_EVERY_MESSAGE.has(top)) {
+      if (found.kinds.has(top)) return { trusted: { kind: top, ...found.parsed } };
+      continue;
     }
+    above.push(found);
   }
-  const first = trusted[0];
+  if (top === undefined) return { untrusted: "no-boundary" };
+  if (STAMPS_EVERY_MESSAGE.has(top)) return { untrusted: "none-in-zone" };
+  if (!entered) return { untrusted: "no-boundary" };
+  const first = above[0];
   if (!first) return { untrusted: "none-in-zone" };
-  const kinds = new Set(trusted.flatMap((t) => [...t.kinds]));
+  const kinds = new Set(above.flatMap((a) => [...a.kinds]));
   const [kind] = kinds;
   if (kinds.size > 1 || kind === undefined) return { untrusted: "ambiguous" };
-  return {
-    trusted: { kind, authservId: first.parsed.authservId, results: trusted.flatMap((t) => t.parsed.results) },
-  };
+  return { trusted: { kind, authservId: first.parsed.authservId, results: above.flatMap((a) => a.parsed.results) } };
 }
 
 const UNTRUSTED: Record<Untrusted, string> = {

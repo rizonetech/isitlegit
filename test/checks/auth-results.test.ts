@@ -169,20 +169,20 @@ describe("trustedAuthResults", () => {
   });
 
   it("refuses ambiguous provenance: two receiving systems' results in one zone, or a top the receiver did not write", () => {
-    // Two systems' results above the entry hop: which one wrote what cannot be told.
+    // Another receiver's zone holding a Google-shaped result beside its own: which one wrote what cannot be told.
+    const mixed: Receiver[] = [...GOOGLE, { kind: "other", pattern: "*.mailhost.example" }];
     const both = [
-      h("Received", "from AM6PR01.eurprd01.prod.outlook.com by AM6PR02.eurprd01.prod.outlook.com with HTTPS"),
+      h("Received", "from mx1.mailhost.example (mx1.mailhost.example [10.0.0.5]) by store.mailhost.example with LMTP"),
       h("Authentication-Results", "mx.google.com; spf=pass smtp.mailfrom=sender.example"),
-      h("Authentication-Results", M365),
-      h("Received", "from mail.sender.example (203.0.113.5) by AM5EUR01FT001.mail.protection.outlook.com with ESMTP"),
+      h("Authentication-Results", "filter.mailhost.example; spf=fail smtp.mailfrom=sender.example"),
+      h("Received", "from mail.sender.example (mail.sender.example [203.0.113.5]) by mx1.mailhost.example with ESMTPS"),
     ];
-    expect(trustedAuthResults(both, [...MICROSOFT, ...GOOGLE])).toEqual({ untrusted: "ambiguous" });
-    // Under Google's entry hop only Google's own stamp counts: a Microsoft-shaped one beside it is the sender's.
+    expect(trustedAuthResults(both, mixed)).toEqual({ untrusted: "ambiguous" });
+    // Under Google's hop only Google's own stamp counts: a Microsoft-shaped one beside it is the sender's.
     const underGoogle = gmail(
       "mx.google.com; spf=fail smtp.mailfrom=sender.example",
       h("Authentication-Results", FORGED_M365),
     );
-    expect(trustedAuthResults(underGoogle, [...MICROSOFT, ...GOOGLE])).toMatchObject({ trusted: { kind: "google" } });
     expect(results(trustedAuthResults(underGoogle, [...MICROSOFT, ...GOOGLE]))).toEqual(["spf=fail"]);
     expect(trustedAuthResults([SENDER_HOP, h("Authentication-Results", "mx.google.com; spf=pass")], GOOGLE)).toEqual({
       untrusted: "no-boundary",
@@ -205,6 +205,43 @@ describe("trustedAuthResults", () => {
     expect(trustedAuthResults(forged, other)).toEqual({ untrusted: "none-in-zone" });
   });
 
+  it("never takes a greeting name for an internal hop (round 2: EHLO is the sender's to choose)", () => {
+    const other: Receiver[] = [{ kind: "other", pattern: "*.mailhost.example" }];
+    const spoofed = [
+      h("Received", "from mx.mailhost.example (unknown [203.0.113.9]) by mx.mailhost.example with ESMTP"),
+      h(
+        "Authentication-Results",
+        "mx.mailhost.example; spf=pass smtp.mailfrom=bank.example; dmarc=pass header.from=bank.example",
+      ),
+      h("Received", "from attacker.example by mx.mailhost.example with ESMTP"),
+    ];
+    expect(trustedAuthResults(spoofed, other)).toEqual({ untrusted: "none-in-zone" });
+    // A hop between public addresses ends the zone too: trust is lost, never a forgery let in.
+    const publicRelay = [
+      h("Received", "from mx1.mailhost.example (mx1.mailhost.example [198.51.100.7]) by store.mailhost.example"),
+      h("Authentication-Results", "filter.mailhost.example; spf=pass"),
+      h("Received", "from mail.sender.example (mail.sender.example [203.0.113.5]) by mx1.mailhost.example"),
+    ];
+    expect(trustedAuthResults(publicRelay, other)).toEqual({ untrusted: "none-in-zone" });
+    // The same greeting trick against Microsoft 365: its own stamp sits above, and is the one read.
+    const m365 = [
+      h(
+        "Received",
+        "from AM6PR01.eurprd01.prod.outlook.com (2603:10a6:20b:1::12) by AM6PR02.eurprd01.prod.outlook.com",
+      ),
+      h("Authentication-Results", M365),
+      h("Received", "from x.prod.outlook.com (203.0.113.9) by AM5EUR01FT001.mail.protection.outlook.com with ESMTP"),
+      h("Authentication-Results", FORGED_M365),
+      h("Received", "from attacker.example by AM5EUR01FT001.mail.protection.outlook.com with ESMTP"),
+    ];
+    expect(results(trustedAuthResults(m365, MICROSOFT))).toEqual([
+      "spf=fail",
+      "dkim=pass",
+      "dmarc=fail",
+      "compauth=fail",
+    ]);
+  });
+
   it("lets a provider's stamp vouch only under its own entry hop (round 1)", () => {
     const mixed: Receiver[] = [...GOOGLE, { kind: "other", pattern: "*.mailhost.example" }];
     const viaOther = [
@@ -217,7 +254,7 @@ describe("trustedAuthResults", () => {
   it("reports every proven header above the entry hop, not only the first (round 1, RFC 8601 appendix B.4)", () => {
     const other: Receiver[] = [{ kind: "other", pattern: "*.mailhost.example" }];
     const headers = [
-      h("Received", "from mx1.mailhost.example by store.mailhost.example with LMTP"),
+      h("Received", "from mx1.mailhost.example (mx1.mailhost.example [10.0.0.5]) by store.mailhost.example with LMTP"),
       h("Authentication-Results", "filter.mailhost.example; spf=pass smtp.mailfrom=sender.example"),
       h("Authentication-Results", "filter.mailhost.example; dkim=fail header.d=sender.example; dmarc=fail"),
       h("Received", "from mail.sender.example (203.0.113.5) by mx1.mailhost.example with ESMTPS"),
@@ -245,7 +282,7 @@ describe("trustedAuthResults", () => {
       { kind: "other", pattern: "*.mailhost.example" },
     ];
     const inside = [
-      h("Received", "from mx1.mailhost.example by store.mailhost.example with LMTP"),
+      h("Received", "from mx1.mailhost.example (mx1.mailhost.example [10.0.0.5]) by store.mailhost.example with LMTP"),
       h("Authentication-Results", "filter.mailhost.example; dmarc=pass header.from=sender.example"),
       h("Received", "from mail.sender.example by mx1.mailhost.example with ESMTPS"),
       SENDER_HOP,
