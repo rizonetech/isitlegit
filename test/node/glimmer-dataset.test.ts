@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   answerOf,
   balance,
+  balanceEvaluation,
   brandIdentity,
   buildDataset,
   capBrands,
@@ -549,6 +550,57 @@ describe("teacher admission to evaluation", () => {
     const fnb = entryOf(page("a", { host: "a.example.co.za" }, { brand: "FNB", ...lure }));
     const long = entryOf(page("b", { host: "b.example.net" }, { brand: "First National Bank", ...lure }));
     expect([...groupEntries([fnb, long]).values()]).toHaveLength(1);
+  });
+});
+
+const lcg = (seed: number) => {
+  let state = seed;
+  return () => {
+    state = (state * 48271) % 2147483647;
+    return state / 2147483647;
+  };
+};
+
+describe("the split's targets are counted on what is published", () => {
+  it("holds out ten percent of the distinct canonical brands, not of the joined groups", () => {
+    const entries = [];
+    // One site hosts 91 brands (one joined group); nine other brands stand alone: 100 brands, ten groups.
+    for (let b = 0; b < 91; b++)
+      entries.push(
+        entryOf(
+          page(`big${b}`, { host: "www.hub.co.za" }, { brand: `Hub Brand ${b}`, lure: true, lure_type: "credential" }),
+        ),
+      );
+    for (let b = 0; b < 9; b++)
+      entries.push(
+        entryOf(
+          page(`one${b}`, { host: `www.solo${b}.co.za` }, { brand: `Solo ${b}`, lure: true, lure_type: "credential" }),
+        ),
+      );
+    for (const seed of [3, 5, 7, 11, 13, 17]) {
+      const parts = split(entries, lcg(seed), { floors: NO_FLOORS });
+      const held = new Set(parts.evaluation.map((e) => brandIdentity(e.page.labels.brand as string)));
+      expect(held.size).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("keeps meeting the floors after balancing when lures are in excess", () => {
+    const entries = Array.from({ length: 300 }, (_, i) =>
+      entryOf(
+        i % 10 < 7
+          ? page(`l${i}`, { host: `www.l${i}.co.za` }, { brand: `L${i}`, lure: true, lure_type: "credential" })
+          : page(`n${i}`, { host: `www.n${i}.co.za` }, { brand: `N${i}`, lure: false }),
+      ),
+    );
+    const floors = { ...NO_FLOORS, evaluation: 60, lureShare: FLOORS.lureShare };
+    for (const seed of [3, 5, 7, 11]) {
+      const parts = split(entries, lcg(seed), { floors });
+      const published = balanceEvaluation(parts.evaluation);
+      expect(published.length).toBeGreaterThanOrEqual(60);
+      expect(
+        checkFloors({ train: balance(parts.train, lcg(1)), evaluation: published, admittedSampleLures: 0 }, floors),
+      ).toEqual([]);
+    }
   });
 });
 

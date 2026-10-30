@@ -435,42 +435,74 @@ export function checkFloors(
 
 export type Split = { train: Entry[]; evaluation: Entry[]; heldOut: string[]; template: string | null };
 
-// Whole groups go to evaluation: 10 percent of brands, every page of one synthetic template, and further groups until
-// the floors hold; only pages `admit` accepts (by default those with trusted labels; `buildDataset` also requires the
+// The evaluation set as it is published: its lures balanced with a seed of its own, so the split can count the
+// balanced pages it is choosing and the build then publishes exactly those (completion review G2).
+const EVALUATION_BALANCE_SEED = 20261030;
+export function balanceEvaluation(entries: Entry[]): Entry[] {
+  return balance(entries, seeded(EVALUATION_BALANCE_SEED));
+}
+
+// Whole groups go to evaluation: 10 percent of the distinct canonical brands (the groups holding them), every page of
+// one synthetic template, and further groups until the floors hold on the evaluation set as it will be published, after
+// balancing; only pages `admit` accepts (by default those with trusted labels; `buildDataset` also requires the
 // teacher's agreement). A held-out group's other pages are dropped, never trained on, so no brand, site or template is
-// on both sides.
+// on both sides. `protect` are entries that are no longer candidates (a reference page excluded, deduplicated or capped
+// away) and still join their groups, so their brand, site and template stay out of training (completion review G3).
 export function split(
   entries: Entry[],
   random: () => number,
-  options: { admit?: (entry: Entry) => boolean; floors?: Floors; reserved?: Set<string> } = {},
+  options: {
+    admit?: (entry: Entry) => boolean;
+    floors?: Floors;
+    reserved?: Set<string>;
+    protect?: Entry[];
+  } = {},
 ): Split {
   const admit = options.admit ?? ((entry: Entry) => trusted(entry.page));
   const floors = options.floors ?? FLOORS;
-  const groups = groupEntries(entries);
+  const reserved = options.reserved ?? new Set<string>();
+  const phantoms = new Set(options.protect ?? []);
+  const groups = new Map<string, Entry[]>();
+  for (const [key, members] of groupEntries([...entries, ...phantoms])) groups.set(key, members);
+  const real = (group: string) => (groups.get(group) ?? []).filter((e) => !phantoms.has(e));
   const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
-  const brands = shuffle(
-    [...groups.keys()].filter((g) => g.startsWith("brand:")),
-    random,
-  );
-  const held = new Set(brands.slice(0, Math.ceil(brands.length * 0.1)));
+  // Ten percent of the distinct canonical brands, not of the joined groups: a group can hold many brands.
+  const brandsOf = (group: string) =>
+    new Set(
+      (groups.get(group) ?? []).flatMap((e) => (e.page.labels.brand ? [brandIdentity(e.page.labels.brand)] : [])),
+    );
+  const allBrands = new Set([...groups.keys()].flatMap((g) => [...brandsOf(g)]));
+  const wanted = Math.ceil(allBrands.size * 0.1);
+  const held = new Set<string>();
   // Every group holding a page of §13's reference set stays out of training (plan review finding 6).
-  const reserved = options.reserved ?? new Set<string>();
   for (const [group, members] of groups) if (members.some((e) => reserved.has(e.page.id))) held.add(group);
+  const heldBrands = () => new Set([...held].flatMap((g) => [...brandsOf(g)]));
+  const candidates = shuffle([...allBrands].sort(), random);
+  const groupOfBrand = new Map<string, string>();
+  for (const group of [...groups.keys()].sort()) for (const brand of brandsOf(group)) groupOfBrand.set(brand, group);
+  for (const brand of candidates) {
+    if (heldBrands().size >= wanted) break;
+    held.add(groupOfBrand.get(brand) as string);
+  }
   const evaluation: Entry[] = [];
-  const counts = () => ({
-    total: evaluation.length,
-    southAfrica: evaluation.filter((e) => e.page.south_africa).length,
-    sampleLures: evaluation.filter((e) => sampleLure(e.page)).length,
-    lureTypes: Object.fromEntries(
-      LURE_TYPES.map((t) => [t, evaluation.filter((e) => e.answer.lure_type === t).length]),
-    ),
-  });
+  // The counts the published evaluation set would have: balanced as `balanceEvaluation` balances it.
+  const counts = () => {
+    const shown = balanceEvaluation(evaluation);
+    return {
+      total: shown.length,
+      southAfrica: shown.filter((e) => e.page.south_africa).length,
+      sampleLures: shown.filter((e) => sampleLure(e.page)).length,
+      lureTypes: Object.fromEntries(LURE_TYPES.map((t) => [t, shown.filter((e) => e.answer.lure_type === t).length])),
+      lures: evaluation.filter((e) => e.answer.lure).length,
+      benign: evaluation.filter((e) => !e.answer.lure).length,
+    };
+  };
   const take = (group: string) => {
     held.add(group);
-    evaluation.push(...(groups.get(group) ?? []).filter((e) => admit(e)));
+    evaluation.push(...real(group).filter((e) => admit(e)));
   };
-  for (const group of held) evaluation.push(...(groups.get(group) ?? []).filter((e) => admit(e)));
+  for (const group of held) evaluation.push(...real(group).filter((e) => admit(e)));
   if (template)
     for (const [group, members] of groups)
       if (!held.has(group) && members.some((e) => e.page.template === template)) take(group);
@@ -483,25 +515,31 @@ export function split(
       LURE_TYPES.some((t) => (now.lureTypes[t] ?? 0) < floors.perLureType)
     );
   };
-  // Further groups, the ones that fill the scarcest shortfall first, until every floor holds or none is left. At most a
-  // third of the pages go to evaluation.
+  // Further groups, the ones that fill the scarcest shortfall first, until every floor holds on the balanced set or none
+  // is left. At most a third of the pages go to evaluation.
   const rest = shuffle(
     [...groups.keys()].filter((g) => !held.has(g)),
     random,
   );
   while (short() && rest.length && evaluation.length < entries.length / 3) {
     const now = counts();
+    const share = floors.lureShare ?? LURE_SHARE;
+    // Balancing cuts the larger side, so once one side is in excess only the other side adds to the published set.
+    const needsBenign = now.lures > (now.benign * share.max) / (1 - share.max);
+    const needsLures = now.benign > (now.lures * (1 - share.min)) / share.min;
     const needs = (e: Entry) =>
       (now.southAfrica < floors.southAfrica && e.page.south_africa) ||
       (now.sampleLures < floors.sampleEvaluation && sampleLure(e.page)) ||
-      (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType;
-    const wanted = rest.findIndex((g) => (groups.get(g) ?? []).some((e) => admit(e) && needs(e)));
-    const index = wanted >= 0 ? wanted : rest.findIndex((g) => (groups.get(g) ?? []).some(admit));
+      (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType ||
+      (needsBenign && !e.answer.lure) ||
+      (needsLures && e.answer.lure);
+    const preferred = rest.findIndex((g) => real(g).some((e) => admit(e) && needs(e)));
+    const index = preferred >= 0 ? preferred : rest.findIndex((g) => real(g).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
     if (index < 0) break;
     take(rest.splice(index, 1)[0] as string);
   }
-  const train = [...groups.entries()].filter(([group]) => !held.has(group)).flatMap(([, members]) => members);
+  const train = [...groups.keys()].filter((group) => !held.has(group)).flatMap((group) => real(group));
   return { train, evaluation, heldOut: [...held].sort(), template };
 }
 
@@ -908,7 +946,7 @@ export async function buildDataset(options: {
   if (pool.shortfalls.length) throw new ShortfallError(pool.shortfalls);
   const parts = split(capped, random, { admit, floors, reserved: reference.ids });
   const train = balance(parts.train, random);
-  const evaluation = balance(parts.evaluation, random);
+  const evaluation = balanceEvaluation(parts.evaluation);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
   // Every floor, checked on the finished splits before anything is written: a version short of one is never published
   // and the previous version stays in place (plan review finding 7).
