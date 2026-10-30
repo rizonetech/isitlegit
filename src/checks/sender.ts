@@ -1,0 +1,220 @@
+// Display name, Reply-To and Return-Path checks (D02 T02 §4; spec 4.3, Sender). Business email compromise keeps a
+// real-looking display name over a different address, or sends the replies elsewhere. Each check reads the original's
+// headers only, says nothing when they did not come (`auth.results` says why), and carries the header it rests on and
+// the raw message key, its detail fitted to the store.
+import { addressParser } from "postal-mime";
+import { asciiDomain, bounded, fittedDetail, fromDomain, plain } from "./auth";
+import { registrable } from "./brand-schema";
+import { brandForDomain } from "./brands";
+import type { CaseView } from "./case-view";
+import type { EvidenceDraft } from "./evidence";
+import type { CheckRegistry } from "./registry";
+
+type Header = { name: string; value: string };
+const named = (headers: readonly Header[], name: string) => headers.filter((h) => h.name.trim().toLowerCase() === name);
+
+// A mailbox as compared: the local part case-folded and the domain in its A-label form; null when either is not valid.
+function mailbox(address: string): string | null {
+  const at = address.lastIndexOf("@");
+  if (at < 1 || at === address.length - 1) return null;
+  const domain = asciiDomain(address.slice(at + 1));
+  const local = address.slice(0, at).toLowerCase();
+  return domain && !local.includes("@") ? `${local}@${domain}` : null;
+}
+const siteOf = (domain: string | null) => {
+  const ascii = domain === null ? null : asciiDomain(domain);
+  return ascii === null ? null : registrable(ascii);
+};
+
+function item(
+  view: CaseView,
+  check: string,
+  severity: EvidenceDraft["severity"],
+  summary: string,
+  detail: Record<string, unknown>,
+  header: Header,
+): EvidenceDraft {
+  return {
+    check,
+    severity,
+    summary: bounded(summary),
+    detail: fittedDetail({ ...detail, headers: [`${header.name}: ${header.value}`] }) as EvidenceDraft["detail"],
+    artefacts: [view.raw],
+  };
+}
+
+// The original's single From header and its one mailbox, or null.
+function fromOf(view: CaseView): { header: Header; name: string; address: string } | null {
+  const from = named(view.headers, "from");
+  if (from.length !== 1 || !from[0]) return null;
+  const parsed = addressParser(from[0].value, { flatten: true }).filter((a) => a.address);
+  if (parsed.length !== 1) return null;
+  return { header: from[0], name: parsed[0]?.name ?? "", address: (parsed[0]?.address ?? "").toLowerCase() };
+}
+
+// What a display name shows: email addresses in it, and bare domain names (`fynbosfreight.example`).
+const SHOWN_ADDRESS = /[^\s<>"'(),;:@]+@[^\s<>"'(),;:@]+\.[^\s<>"'(),;:@]+/gu;
+const SHOWN_DOMAIN =
+  /(?<![@\p{L}\p{N}.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}.-])/gu;
+
+export function displayAddressEvidence(view: CaseView): EvidenceDraft[] {
+  if (!view.tenant.headersAvailable) return [];
+  const from = fromOf(view);
+  if (!from?.name) return [];
+  const actual = mailbox(from.address);
+  const actualSite = siteOf(fromDomain(view.headers));
+  if (!actual || !actualSite) return [];
+  const addresses = [...from.name.matchAll(SHOWN_ADDRESS)].map((m) => m[0]);
+  const rest = addresses.reduce((text, a) => text.replace(a, " "), from.name);
+  const domains = [...rest.matchAll(SHOWN_DOMAIN)].map((m) => m[0]);
+  // A shown mailbox is compared whole (a different person at the same domain is a different sender); a shown domain
+  // by its registrable domain.
+  const otherMailbox = addresses.find((a) => mailbox(a) !== actual);
+  const otherDomain = domains.find((d) => {
+    const site = siteOf(d);
+    return site !== null && site !== actualSite;
+  });
+  const shown = otherMailbox ?? otherDomain;
+  if (!shown) return [];
+  return [
+    item(
+      view,
+      "sender.display_address",
+      "medium",
+      `The sender's name shows ${plain(shown, 70)}, but the email came from ${plain(from.address, 70)}.`,
+      { shown, from: from.address },
+      from.header,
+    ),
+  ];
+}
+
+// A brand is named when one of its display names appears as whole words, compared case-folded after NFKC.
+const fold = (text: string) => text.normalize("NFKC").toLowerCase();
+function names(text: string, phrase: string): boolean {
+  const words = fold(text)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  const wanted = fold(phrase)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  if (!wanted.length) return false;
+  return words.some((_, i) => wanted.every((w, j) => words[i + j] === w));
+}
+
+export function displayBrandEvidence(view: CaseView): EvidenceDraft[] {
+  if (!view.tenant.headersAvailable) return [];
+  const from = fromOf(view);
+  if (!from?.name) return [];
+  const domain = fromDomain(view.headers);
+  const brand = view.brands.brands.find((b) => [b.name, ...b.display_names].some((n) => names(from.name, n)));
+  if (!brand) return [];
+  const ascii = domain === null ? null : asciiDomain(domain);
+  // Official: one of the brand's registrable domains or under it; a `user_content` host (a consumer mailbox it runs) is
+  // its platform, never the brand.
+  const at = ascii === null ? null : brandForDomain(view.brands, ascii);
+  if (at?.brand.name === brand.name && at.official) return [];
+  return [
+    item(
+      view,
+      "sender.display_brand",
+      "medium",
+      `The sender's name says ${plain(brand.name, 40)}, but ${plain(domain ?? from.address, 70)} is not one of ${plain(brand.name, 40)}'s domains.`,
+      { brand: brand.name, from: from.address, domain },
+      from.header,
+    ),
+  ];
+}
+
+// Every Reply-To destination, groups included, so a same-domain first address cannot hide an external second one; a
+// comparison that cannot be made (no valid From, a destination that cannot be read) says so.
+export function replyToEvidence(view: CaseView): EvidenceDraft[] {
+  if (!view.tenant.headersAvailable) return [];
+  const headers = named(view.headers, "reply-to");
+  const header = headers[0];
+  if (!header) return [];
+  const fromSite = siteOf(fromDomain(view.headers));
+  const destinations = headers.flatMap((h) => addressParser(h.value, { flatten: true })).map((a) => a.address ?? "");
+  const unreadable = !destinations.length || destinations.some((d) => mailbox(d) === null);
+  if (fromSite === null || unreadable)
+    return [
+      item(
+        view,
+        "sender.reply_to",
+        "info",
+        "Where replies go could not be compared with the sender's domain.",
+        { destinations, from: fromSite },
+        header,
+      ),
+    ];
+  const elsewhere = destinations.filter((d) => siteOf(d.slice(d.lastIndexOf("@") + 1)) !== fromSite);
+  if (!elsewhere.length) return [];
+  return [
+    item(
+      view,
+      "sender.reply_to",
+      "medium",
+      `Replies go to ${plain(elsewhere.join(", "), 80)}, not to the sender's own domain ${plain(fromSite, 50)}.`,
+      { destinations, elsewhere, from: fromSite },
+      header,
+    ),
+  ];
+}
+
+// Mail services whose bounce addresses carry their own domain for everyone they send for (their registrable domains).
+export const MAIL_SERVICES = [
+  "smtp2go.com",
+  "smtpcorp.com",
+  "outlook.com",
+  "microsoft.com",
+  "google.com",
+  "googlemail.com",
+  "mcsv.net",
+  "mailchimpapp.net",
+  "mandrillapp.com",
+] as const;
+
+// The topmost Return-Path, which the receiving system writes at final delivery: absent or `<>` (a valid empty bounce
+// path) says nothing; one that cannot be read says so; one in another registrable domain is low, unless it is a known
+// mail service's own.
+export function returnPathEvidence(view: CaseView): EvidenceDraft[] {
+  if (!view.tenant.headersAvailable) return [];
+  const header = named(view.headers, "return-path")[0];
+  if (!header) return [];
+  const path = header.value
+    .trim()
+    .replace(/^<\s*|\s*>$/g, "")
+    .trim();
+  if (!path) return [];
+  const fromSite = siteOf(fromDomain(view.headers));
+  const box = mailbox(path);
+  if (!box || fromSite === null)
+    return [
+      item(
+        view,
+        "sender.return_path",
+        "info",
+        "The bounce address could not be compared with the sender's domain.",
+        { path, from: fromSite },
+        header,
+      ),
+    ];
+  const site = siteOf(box.slice(box.lastIndexOf("@") + 1));
+  if (site === fromSite || (site !== null && (MAIL_SERVICES as readonly string[]).includes(site))) return [];
+  return [
+    item(
+      view,
+      "sender.return_path",
+      "low",
+      `Bounces go to ${plain(site ?? path, 60)}, not to the sender's own domain ${plain(fromSite, 50)}.`,
+      { path, site, from: fromSite },
+      header,
+    ),
+  ];
+}
+
+export function registerSenderChecks(registry: CheckRegistry): void {
+  registry.register({ name: "sender.display_address", needs: [], timeoutMs: 1_000, run: displayAddressEvidence });
+  registry.register({ name: "sender.display_brand", needs: [], timeoutMs: 1_000, run: displayBrandEvidence });
+  registry.register({ name: "sender.reply_to", needs: [], timeoutMs: 1_000, run: replyToEvidence });
+  registry.register({ name: "sender.return_path", needs: [], timeoutMs: 1_000, run: returnPathEvidence });
+}

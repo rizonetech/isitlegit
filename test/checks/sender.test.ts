@@ -1,0 +1,172 @@
+import { describe, expect, it } from "vitest";
+import { bundled } from "../../src/checks/brands";
+import type { CaseView } from "../../src/checks/case-view";
+import { checks } from "../../src/checks/index";
+import { CheckRegistry } from "../../src/checks/registry";
+import { runChecks } from "../../src/checks/runner";
+import {
+  displayAddressEvidence,
+  displayBrandEvidence,
+  registerSenderChecks,
+  replyToEvidence,
+  returnPathEvidence,
+} from "../../src/checks/sender";
+
+// D02 T02 §4: a display name over a different address or a brand's name, replies or bounces sent elsewhere.
+const RAW = "raw/case-sender/message.eml";
+const h = (name: string, value: string) => ({ name, value });
+function view(headers: { name: string; value: string }[], headersAvailable = true): CaseView {
+  return {
+    tenant: { orgId: "org-sender", channel: "email", receivers: [], headersAvailable },
+    raw: RAW,
+    brands: bundled,
+    source: { kind: "message", path: "rfc822", otherOriginals: 0 },
+    headers,
+    text: null,
+    html: null,
+    attachments: [],
+    truncated: [],
+    omitted: 0,
+  };
+}
+const from = (value: string, ...rest: { name: string; value: string }[]) => view([h("From", value), ...rest]);
+
+describe("sender.display_address", () => {
+  it("flags a shown address or domain other than the From, and a different mailbox at the same domain", () => {
+    for (const shown of [
+      '"debtors@fynbosfreight.example" <x@freemail.example>',
+      '"fynbosfreight.example" <x@freemail.example>',
+      '"debtors@fynbosfreight.example" <accounts@fynbosfreight.example>',
+    ]) {
+      const [item] = displayAddressEvidence(from(shown));
+      expect(item, shown).toMatchObject({ check: "sender.display_address", severity: "medium", artefacts: [RAW] });
+      expect((item?.detail as { headers: string[] } | undefined)?.headers).toEqual([`From: ${shown}`]);
+    }
+  });
+
+  it("passes a matching mailbox, a matching domain, and a plain name", () => {
+    for (const shown of [
+      '"Debtors@FynbosFreight.example" <debtors@fynbosfreight.example>',
+      '"fynbosfreight.example accounts" <accounts@mail.fynbosfreight.example>',
+      '"Thandi Mokoena" <thandi@fynbosfreight.example>',
+    ])
+      expect(displayAddressEvidence(from(shown)), shown).toEqual([]);
+  });
+});
+
+describe("sender.display_brand", () => {
+  it("flags a bank's name from a free mailbox, and Apple's name from an iCloud mailbox (its user content)", () => {
+    expect(displayBrandEvidence(from('"FNB Online Banking" <alerts@freemail.example>'))[0]).toMatchObject({
+      severity: "medium",
+      detail: { brand: "FNB" },
+    });
+    expect(displayBrandEvidence(from('"Apple Support" <help@icloud.com>'))[0]).toMatchObject({
+      detail: { brand: "Apple" },
+    });
+  });
+
+  it("passes the brand's own domain and subdomain, and a brand name inside a longer word", () => {
+    expect(displayBrandEvidence(from('"FNB" <alerts@fnb.co.za>'))).toEqual([]);
+    expect(displayBrandEvidence(from('"FNB Online Banking" <alerts@secure.fnb.co.za>'))).toEqual([]);
+    expect(displayBrandEvidence(from('"FNBX Logistics" <ops@freemail.example>'))).toEqual([]);
+  });
+
+  it("matches across case and NFKC forms", () => {
+    expect(displayBrandEvidence(from('"ｆｎｂ online banking" <alerts@freemail.example>'))[0]).toMatchObject({
+      detail: { brand: "FNB" },
+    });
+  });
+});
+
+describe("sender.reply_to", () => {
+  it("flags an external destination wherever it sits, groups included, and passes the same domain", () => {
+    const base = '"Accounts" <accounts@fynbosfreight.example>';
+    expect(replyToEvidence(from(base, h("Reply-To", "pay@elsewhere.example")))[0]).toMatchObject({
+      severity: "medium",
+    });
+    expect(replyToEvidence(from(base, h("Reply-To", "billing@fynbosfreight.example")))).toEqual([]);
+    for (const list of [
+      "billing@fynbosfreight.example, pay@elsewhere.example",
+      "pay@elsewhere.example, billing@fynbosfreight.example",
+      "Team: billing@fynbosfreight.example, pay@elsewhere.example;",
+    ])
+      expect(replyToEvidence(from(base, h("Reply-To", list)))[0], list).toMatchObject({
+        severity: "medium",
+        detail: { elsewhere: ["pay@elsewhere.example"] },
+      });
+  });
+
+  it("says the comparison could not be made, never a mismatch, when the From or a destination cannot be read", () => {
+    expect(replyToEvidence(from("not an address", h("Reply-To", "pay@elsewhere.example")))[0]).toMatchObject({
+      severity: "info",
+    });
+    expect(replyToEvidence(from("a@fynbosfreight.example", h("Reply-To", "garbled@@")))[0]).toMatchObject({
+      severity: "info",
+    });
+  });
+});
+
+describe("sender.return_path", () => {
+  const base = "accounts@fynbosfreight.example";
+  const path = (value: string) => returnPathEvidence(from(base, h("Return-Path", value)));
+
+  it("says nothing for an absent or empty path, or the sender's own domain", () => {
+    expect(returnPathEvidence(from(base))).toEqual([]);
+    expect(path("<>")).toEqual([]);
+    expect(path("<bounces@mail.fynbosfreight.example>")).toEqual([]);
+  });
+
+  it("is low for an unrelated domain and for a lookalike of a service, and quiet for each known service", () => {
+    expect(path("<b@elsewhere.example>")[0]).toMatchObject({ severity: "low" });
+    expect(path("<b@smtp2go.com.evil.example>")[0]).toMatchObject({ severity: "low" });
+    for (const service of [
+      "bounce@em123.smtp2go.com",
+      "x@eur.outlook.com",
+      "x@bounce.google.com",
+      "bounce-mc.us1_1.123-x@mail123.mcsv.net",
+    ])
+      expect(path(`<${service}>`), service).toEqual([]);
+  });
+
+  it("says an unreadable path could not be compared, and reads only the topmost", () => {
+    expect(path("<garbled@@>")[0]).toMatchObject({ severity: "info" });
+    expect(
+      returnPathEvidence(
+        from(base, h("Return-Path", "<bounces@fynbosfreight.example>"), h("Return-Path", "<b@elsewhere.example>")),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("all four", () => {
+  it("say nothing when the original's headers did not come", () => {
+    const none = view([h("From", '"FNB" <x@freemail.example>'), h("Reply-To", "a@b.example")], false);
+    expect(
+      [displayAddressEvidence, displayBrandEvidence, replyToEvidence, returnPathEvidence].flatMap((c) => c(none)),
+    ).toEqual([]);
+  });
+
+  it("keep their items however hostile or long the display name", async () => {
+    const registry = new CheckRegistry();
+    registerSenderChecks(registry);
+    const name = `FNB ${"<b>\u202e".repeat(4_000)} debtors@fynbosfreight.example`;
+    const items = await runChecks(
+      from(`"${name}" <x@freemail.example>`, h("Reply-To", "a@elsewhere.example")),
+      registry,
+    );
+    expect(items.map((e) => e.check).sort()).toEqual([
+      "sender.display_address",
+      "sender.display_brand",
+      "sender.reply_to",
+    ]);
+    for (const e of items) {
+      expect(Array.from(e.summary).length).toBeLessThanOrEqual(200);
+      expect(e.summary).not.toMatch(/[<>\u202e]/);
+    }
+  });
+
+  it("run in the production registry after the authentication checks", () => {
+    const names = checks.names();
+    expect(names.indexOf("sender.display_address")).toBeGreaterThan(names.indexOf("auth.arc"));
+  });
+});

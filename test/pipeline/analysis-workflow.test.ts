@@ -1,6 +1,7 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
 import { describe, expect, it } from "vitest";
+import { BRANDS_KEY, bundled, forgetBrandTable } from "../../src/checks/brands";
 import { SummaryRefused } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
@@ -736,6 +737,79 @@ describe("the checks step and the event writer", () => {
       artefacts: [rawKey(id)],
       detail: { verdict: "pass", sealer: "lists.example", trimmed: true },
     });
+  });
+
+  it("stores the sender checks through a Workflow run, the brand table read from KV in the step (D02 T02 §4)", async () => {
+    // KV's table gains a fictional bank the bundled one lacks: only a step that reads KV can name it.
+    const table = structuredClone(bundled);
+    table.brands.push({
+      name: "Fynbos Bank",
+      display_names: ["Fynbos Bank"],
+      domains: ["fynbosbank.co.za"],
+      user_content: [],
+      sources: [
+        {
+          url: "https://www.fynbosbank.co.za/about",
+          read: "2026-10-30",
+          names: ["fynbosbank.co.za"],
+          evidence: "fynbosbank.co.za",
+        },
+      ],
+    });
+    await env.CACHE.put(BRANDS_KEY, JSON.stringify(table));
+    forgetBrandTable();
+    const raw = new TextEncoder().encode(
+      [
+        "From: Fictional Boss <boss@fictional-recipient.example>",
+        "To: check@isitlegit.co.za",
+        "Subject: Fwd: sender checks",
+        "Message-ID: <sender-checks-outer@fictional-recipient.example>",
+        "MIME-Version: 1.0",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        "--b",
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        "Is it real?",
+        "--b",
+        "Content-Type: message/rfc822",
+        'Content-Disposition: attachment; filename="original.eml"',
+        "",
+        "Return-Path: <bounce@elsewhere.example>",
+        "From: Fynbos Bank <accounts@freemail.example>",
+        "Reply-To: pay@elsewhere.example",
+        "To: accounts@fictional-recipient.example",
+        "Subject: Updated banking details",
+        "Message-ID: <sender-checks-1@freemail.example>",
+        "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        "Please pay into our new account.",
+        "",
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+    try {
+      const id = await caseWith(raw);
+      await run(id);
+      const stored = await readEvidence(env.DB, id);
+      const sender = stored.filter((e) => e.check.startsWith("sender."));
+      expect(sender.map((e) => [e.check, e.severity])).toEqual([
+        ["sender.display_brand", "medium"],
+        ["sender.reply_to", "medium"],
+        ["sender.return_path", "low"],
+      ]);
+      expect(sender[0]?.detail).toMatchObject({ brand: "Fynbos Bank" });
+      for (const e of sender) {
+        expect(e.artefacts).toEqual([rawKey(id)]);
+        expect((e.detail as { headers: string[] }).headers).toHaveLength(1);
+      }
+      expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
+    } finally {
+      await env.CACHE.delete(BRANDS_KEY);
+      forgetBrandTable();
+    }
   });
 
   it("stores one list however often the step runs, and returns only its count", async () => {

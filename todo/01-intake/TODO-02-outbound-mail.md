@@ -244,6 +244,10 @@ Cloudflare accepts mail for an alias and then forwards it; a failure after that 
 
 **Probe 1 (2026-10-30), not a failure:** one message, subject `ILPROBE-7Q4K9X forward probe (D01 T02 section 6)`, sent at 14:18:14 UTC from `alerts@isitlegit.co.za` through SMTP2GO (email id `1xMnQo-FnQW0hPlB7A-RSRe`) to `hello@isitlegit.co.za`; SMTP2GO handed it to Cloudflare at 14:18:22 (`250 2.0.0 Ok`, `route2.mx.cloudflare.net`); Email Routing recorded it at 14:18:19 as `status` `delivered`, `action` `forward`, `isNDR` 0, no `errorDetail`, first visible to the GraphQL query between 13 and 14 minutes later; and the message reached `derick@rizonetech.com` at 14:18:25 (`internetMessageId` `<E1xMnQo-FnQW0hPlB7A-RSRe@message-id.smtpcorp.com>`). The mail flow rule did not reject it, so no failure was made and the failure status is still unread; the rule is to be checked (that it is applied, and that its condition matches mail reaching `hostmaster@`) and the probe sent again. The visibility delay alone is measured: about 14 minutes, so the scheduled check's lookback must cover at least that.
 
+**Probe 1's cause (2026-10-30, the coordinator):** the operator had created the mail flow rule in another Microsoft 365 tenant, not `rizonetech.com`; it is being created in the right tenant (same token, unscoped), and probe 2 is sent 30 minutes after the time the coordinator gives for it. Probe 1 stands as the `delivered` baseline.
+
+**Credential exposure (2026-10-30):** while reading probe 1's events, the checks lane passed the analytics token to a polling script as a command-line argument, and a process listing it then ran printed that argument into the session's transcript (local only). Fixed in practice: secrets go to a script through its environment or stdin only, never its arguments. **Operator decision (2026-10-30):** keep the token (read-only, `isitlegit.co.za` analytics only).
+
 **Build order:**
 
 1. Find where Cloudflare reports a forwarding failure. Done when: the source, its fields and the permission it needs are recorded here.
