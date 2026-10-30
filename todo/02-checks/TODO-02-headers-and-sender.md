@@ -106,6 +106,10 @@ From the trusted results, produce evidence: SPF and DKIM pass or fail, DMARC res
 
 Forwarders and mailing lists break SPF and DKIM; ARC (RFC 8617) carries the earlier results. The trusted receiver's `arc=` result is read and, when it passes, the earlier authentication results inside the sealed chain are reported as context, not as proof.
 
+> **Started:** 2026-10-30T13:49Z
+
+**Corrected 2026-10-30** (at start, checked against the code and the receivers' header forms): (1) the receiver's ARC verdict is read where each writes it, under §1's provenance rules: Google in its trusted `Authentication-Results` (`arc=pass (i=1 spf=pass ...)`, the comment naming the instance it validated), through `trustedAuthResults`; Microsoft 365 writes no `arc=` there but seals the message on receipt, its verdict inside its own `ARC-Authentication-Results` (authserv-id `mx.microsoft.com`), which is read as Microsoft's topmost stamp is, the topmost of that authserv-id down to the first hop another host wrote; any other receiver's `arc=` only from its trusted header; (2) "the highest instance" can be the receiver's own seal (Microsoft's), so the earlier results are the `ARC-Authentication-Results` of the instance the receiver validated: the `i=` in Google's comment, or the instance just below Microsoft's own; the sealer is the `d=` of the `ARC-Seal` with that instance; (3) an `ARC-Authentication-Results` value is `i=<n>;` then a header of §1's grammar, parsed by the shared parser after the instance; (4) `auth.arc` is pure and reads only the view (`src/checks/registry.ts`); it says nothing when no ARC verdict is trusted, and the earlier results are context with their sealer named, never proof: they do not change §2's items.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -114,8 +118,8 @@ Forwarders and mailing lists break SPF and DKIM; ARC (RFC 8617) carries the earl
 
 1. Register check `auth.arc`. Done when: fixtures with `arc=pass` and `arc=fail` yield the expected items.
 
-- [ ] Read the trusted receiver's `arc` result and the `ARC-Authentication-Results` with the highest instance `i=` (RFC 8617 section 4.1.1). Done when: `test/checks/arc.test.ts` parses a synthetic two-hop chain.
-- [ ] Emit `auth.arc` info with the earlier results when `arc=pass`, and medium when `arc=fail`. Done when: both fixtures pass.
+- [ ] Read the trusted receiver's ARC verdict (correction 1) and the earlier `ARC-Authentication-Results` and sealer of the instance it validated (corrections 2 and 3) in `src/checks/arc.ts`. Done when: `test/checks/arc.test.ts` reads Google's verdict with its instance, Microsoft's from its own seal with the instance below, and a synthetic two-hop chain's earlier results and sealer. (**Corrected 2026-10-30**, at start.)
+- [ ] Emit `auth.arc` info with the earlier results and sealer when the verdict is `pass`, medium when `fail`, low when it could not be evaluated, nothing when no verdict is trusted. Done when: each fixture passes, and a forged `ARC-Authentication-Results` below the receiver's boundary is never read. (**Corrected 2026-10-30**, at start.)
 - [ ] Commit: `checks: ARC chain evidence`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/arc.test.ts` passes.
