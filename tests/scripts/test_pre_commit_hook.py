@@ -1,11 +1,13 @@
 """scripts/hooks/pre-commit: a commit that stages TODO changes with a stale plan, or a client name, is refused."""
 import os
 import pathlib
+import re
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -274,26 +276,96 @@ class PreCommitHook(unittest.TestCase):
         self.names("Acme Holdings\n")
         self.repaired()
 
-    def test_a_dangling_link_is_refused_until_it_is_repaired(self):
-        real = self.root.parent / f"{self.root.name}-list.txt"
-        real.write_text("Acme Holdings\n", encoding="utf-8")
-        self.addCleanup(real.unlink, True)
+    def test_a_dangling_link_in_the_main_checkout_is_refused_until_the_list_is_restored(self):
         link = self.root / "samples/client-names.txt"
         link.unlink()
-        link.symlink_to(self.root.parent / "gone.txt")
+        link.symlink_to(self.root.parent / f"{self.root.name}-gone.txt")
         self.stage("anything\n")
         refused = self.commit()
         self.assertNotEqual(refused.returncode, 0)
-        self.assertIn("which does not exist; repair it with 'ln -sfn", refused.stderr)
+        self.assertIn("which does not exist; put the operator's private list there", refused.stderr)
+        self.assertNotIn("ln -sfn", refused.stderr, "the main checkout's list cannot point at itself")
         self.git("reset", "-q")
-        subprocess.run(["ln", "-sfn", str(real), str(link)], check=True)
+        link.unlink()  # the displayed repair: replace the link with the list itself
+        self.names("Acme Holdings\n")
         self.repaired()
 
-    def test_a_linked_worktree_without_its_own_list_scans_with_the_main_checkouts(self):
-        self.names("Acme Holdings\n")
+    def worktree(self):
         tree = self.root.parent / f"{self.root.name}-wt"
         self.git("worktree", "add", "-q", "-b", "wt", str(tree))
         self.addCleanup(shutil.rmtree, tree, True)
+        return tree
+
+    def test_a_dangling_link_in_a_worktree_is_refused_until_the_shown_command_repairs_it(self):
+        self.names("Acme Holdings\n")
+        tree = self.worktree()
+        link = tree / "samples/client-names.txt"
+        link.parent.mkdir(exist_ok=True)
+        link.symlink_to(self.root.parent / f"{self.root.name}-gone.txt")
+        (tree / "x.txt").write_text("anything\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(tree), "add", "x.txt"], check=True, capture_output=True)
+        refused = subprocess.run(["git", "-C", str(tree), "commit", "-qm", "x"], capture_output=True, text=True)
+        self.assertNotEqual(refused.returncode, 0)
+        command = re.search(r"repair it with '([^']+)'", refused.stderr)
+        self.assertIsNotNone(command, refused.stderr)
+        subprocess.run(["git", "-C", str(tree), "reset", "-q"], check=True)
+        subprocess.run(["sh", "-c", command[1]], check=True, cwd=tree)  # exactly the repair the message shows
+        self.repaired(cwd=tree)
+
+    def test_a_temporary_folder_that_cannot_be_written_is_named_not_the_list(self):
+        self.names("Acme Holdings\n")
+        self.stage("anything\n")
+        env = {**os.environ, "TMPDIR": str(self.root / "no-such-folder")}
+        refused = subprocess.run(["git", "-C", str(self.root), "commit", "-qm", "x"], capture_output=True, text=True,
+                                 env=env)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("no temporary file could be made", refused.stderr)
+        self.assertNotIn("fix its permissions", refused.stderr)
+
+    def test_an_interrupted_scan_leaves_no_copy_of_the_list_behind(self):
+        self.names("Acme Holdings\n")
+        self.stage("anything\n")
+        tmp = self.root.parent / f"{self.root.name}-tmp"
+        tmp.mkdir()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        stub = self.root.parent / f"{self.root.name}-bin"
+        stub.mkdir()
+        self.addCleanup(shutil.rmtree, stub, True)
+        real_git = shutil.which("git")
+        # A git whose grep hangs, so the hook is interrupted mid-scan with the copy of the list on disk.
+        (stub / "git").write_text(f'''#!/bin/sh
+for a in "$@"; do [ "$a" = grep ] && exec sleep 30; done
+exec {real_git} "$@"
+''', encoding="utf-8")
+        (stub / "git").chmod(0o755)
+        env = {**os.environ, "TMPDIR": str(tmp), "PATH": f"{stub}{os.pathsep}{os.environ['PATH']}"}
+        hook = subprocess.Popen(["sh", str(self.root / HOOK)], cwd=self.root, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        for _ in range(200):
+            if any(tmp.iterdir()):
+                break
+            time.sleep(0.05)
+        self.assertTrue(any(tmp.iterdir()), "the hook made its private copy")
+        time.sleep(0.3)
+        hook.terminate()
+        hook.wait(timeout=30)
+        for _ in range(100):
+            if not any(tmp.iterdir()):
+                break
+            time.sleep(0.05)
+        self.assertEqual(sorted(p.name for p in tmp.iterdir()), [], "no copy of the client list is left")
+
+    def test_a_refusal_says_where_the_name_is_without_repeating_it(self):
+        self.names("Acme Holdings\n")
+        self.stage("line one\nwritten for Acme Holdings\n", name="report.txt")
+        refused = self.commit()
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("report.txt:2", refused.stderr)
+        self.assertNotIn("Acme", refused.stderr)
+
+    def test_a_linked_worktree_without_its_own_list_scans_with_the_main_checkouts(self):
+        self.names("Acme Holdings\n")
+        tree = self.worktree()
         self.assertFalse((tree / "samples/client-names.txt").exists(), "git worktree add copies no ignored file")
         (tree / "node_modules").mkdir(exist_ok=True)
         self.repaired(cwd=tree)

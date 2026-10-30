@@ -63,6 +63,7 @@ track: day-0
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [ ] |
+| 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -860,6 +861,23 @@ Found 2026-10-30 by the app lane (message to the coordinator) and confirmed by t
 - [ ] Commit: `tools: pre-commit finds the clone's client list and refuses a missing one`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_commit_hook tests.scripts.test_merge_plan` passes, including the linked worktree that scans with the main checkout's list (which commits unscanned on the fail-open hook) and the three refusals, each followed by its repair.
+
+## 25. The publication check reads the clone's client list
+
+Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope there). §24 lets every worktree's commits scan with the main checkout's `samples/client-names.txt`, but `scripts/check-publication.py` still reads only its own checkout's (`NAMES = ROOT / "samples/client-names.txt"`, `scripts/check-publication.py:27`), so a worktree whose commits pass refuses the publication check (exit 2) until the list is linked there. The two guards must find the same list.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. One lookup for both guards. Done when: `check-publication.py` in a linked worktree without its own list scans with the main checkout's, and refuses as the hook does when none is usable.
+
+- [ ] Resolve the list in `scripts/check-publication.py` as `scripts/hooks/pre-commit` does (§24): the checkout's own `samples/client-names.txt`, else the one beside `git rev-parse --git-common-dir`; refuse a dangling link, a list naming no one, and no list, each with the same fix text. Done when: `tests/scripts/test_check_publication.py` passes in a linked worktree without its own list, finds a planted name there, and refuses each unusable state.
+- [ ] Commit: `tools: the publication check reads the clone's client list`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_check_publication` passes, including the linked worktree without its own list (which exits 2 on the current check).
 
 ## Verification
 

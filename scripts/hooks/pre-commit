@@ -18,8 +18,16 @@
 own="$(git rev-parse --show-toplevel)/samples/client-names.txt"
 main_list="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)/samples/client-names.txt"
 if [ -L "$own" ] && [ ! -e "$own" ]; then
-    echo "pre-commit: samples/client-names.txt is a link to $(readlink "$own"), which does not exist; repair it with" \
-        "'ln -sfn $main_list samples/client-names.txt', or remove the link to use the main checkout's list" >&2
+    # The repair depends on where the link sits: the main checkout's own list cannot point at itself, and a worktree's
+    # link is only worth pointing at the main checkout's list when that list exists.
+    if [ "$own" = "$main_list" ] || [ ! -e "$main_list" ]; then
+        echo "pre-commit: samples/client-names.txt is a link to $(readlink "$own"), which does not exist; put the" \
+            "operator's private list there, or replace the link with the list itself ('rm $own', then write the" \
+            "list at $main_list)" >&2
+    else
+        echo "pre-commit: samples/client-names.txt is a link to $(readlink "$own"), which does not exist; repair it" \
+            "with 'ln -sfn $main_list $own', or remove the link ('rm $own') to use the main checkout's list" >&2
+    fi
     exit 1
 fi
 if [ -e "$own" ]; then
@@ -32,33 +40,53 @@ else
         "committed) at $main_list, then commit again" >&2
     exit 1
 fi
-# Fail closed: a list that cannot be read, or a scan that errors, refuses the commit rather than passing it unchecked
-# (git grep and grep exit 1 for "no match" and above 1 for an error).
-patterns=$(mktemp) || exit 1
-if ! sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file" > "$patterns"; then
-    rm -f "$patterns"
+if [ ! -r "$names_file" ]; then
     echo "pre-commit: $names_file exists but cannot be read; fix its permissions" >&2
     exit 1
 fi
+# The patterns are a private copy of the list: removed on every exit, an interrupt or termination included.
+if ! patterns=$(mktemp); then
+    echo "pre-commit: no temporary file could be made (${TMPDIR:-/tmp} full or not writable), so the client-name" \
+        "scan cannot run; free space there and commit again" >&2
+    exit 1
+fi
+trap 'rm -f "$patterns" "$patterns.paths" "$patterns.hits"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+# Fail closed: a copy that cannot be written, or a scan that errors, refuses the commit rather than passing it
+# unchecked (git grep and grep exit 1 for "no match" and above 1 for an error).
+if ! sed -e 's/\r$//' -e '/^[[:space:]]*$/d' "$names_file" > "$patterns"; then
+    echo "pre-commit: the client list could not be copied to a temporary file (${TMPDIR:-/tmp} full?), so the" \
+        "scan cannot run; free space there and commit again" >&2
+    exit 1
+fi
 if [ ! -s "$patterns" ]; then
-    rm -f "$patterns"
     echo "pre-commit: the client list $names_file names no one; add the client names, one per line, then commit" \
         "again" >&2
     exit 1
 fi
-git grep --cached -q -a -i -F -f "$patterns" -- . ':(exclude,glob)**/*.ttf' ':(exclude,glob)**/*.otf' ':(exclude,glob)**/*.woff' ':(exclude,glob)**/*.woff2' ':(exclude,glob)**/*.png' ':(exclude,glob)**/*.jpg' ':(exclude,glob)**/*.jpeg' ':(exclude,glob)**/*.gif' ':(exclude,glob)**/*.webp' ':(exclude,glob)**/*.ico'
+git -c core.quotePath=false grep --cached -n -a -i -F -f "$patterns" -- . ':(exclude,glob)**/*.ttf' ':(exclude,glob)**/*.otf' ':(exclude,glob)**/*.woff' ':(exclude,glob)**/*.woff2' ':(exclude,glob)**/*.png' ':(exclude,glob)**/*.jpg' ':(exclude,glob)**/*.jpeg' ':(exclude,glob)**/*.gif' ':(exclude,glob)**/*.webp' ':(exclude,glob)**/*.ico' > "$patterns.hits"
 content=$?
 git -c core.quotePath=false ls-files > "$patterns.paths" && grep -q -i -F -f "$patterns" "$patterns.paths"
 paths=$?
-rm -f "$patterns" "$patterns.paths"
 if [ "$content" -eq 0 ] || [ "$paths" -eq 0 ]; then
-    echo "pre-commit: the staged tree contains a client name from samples/client-names.txt; anonymise it" >&2
+    echo "pre-commit: the staged tree contains a client name from samples/client-names.txt; anonymise it:" >&2
+    # Where, never what: each match as path:line, without the matched text, and a path that itself names a client is
+    # not printed at all (only said to exist).
+    printf '%s\n' "$(cut -d: -f1,2 "$patterns.hits" | grep -v -i -F -f "$patterns" | sort -u | head -20)" \
+        | sed -e '/^$/d' -e 's/^/  /' >&2
+    if [ "$paths" -eq 0 ] || cut -d: -f1 "$patterns.hits" | grep -q -i -F -f "$patterns"; then
+        echo "  and a staged file path names a client ('git ls-files | grep -iFf <the list>' shows it)" >&2
+    fi
     exit 1
 fi
 if [ "$content" -ne 1 ] || [ "$paths" -ne 1 ]; then
     echo "pre-commit: the client-name scan failed, so the commit is refused unchecked; run it again" >&2
     exit 1
 fi
+rm -f "$patterns" "$patterns.paths" "$patterns.hits"
+trap - EXIT INT TERM HUP
 
 # Private machine paths (a home folder, a Windows or WSL-mounted user folder) never enter the public repository either:
 # the pattern scripts/check-publication.py uses, over the whole index, so a reviewer's quoted path in a findings file is
