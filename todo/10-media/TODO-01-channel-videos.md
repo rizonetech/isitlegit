@@ -81,11 +81,13 @@ Remotion is free for individuals and for companies of up to three people; a larg
 
 1. The operator confirms which Remotion licence covers Rizonetech. Done when: one line records it here.
 
-- [ ] Operator: check Rizonetech's headcount against the Remotion licence terms at `https://www.remotion.dev/license` and buy a company licence if over three people. Done when: the operator states which licence applies.
-- [ ] Record the line `Remotion licence: <free (up to 3 people) | company licence, <reference>>, confirmed YYYY-MM-DD` under this section. Done when: the line is written. Cheaper substitute: assuming the free tier from the hackathon team size fails, since the licence counts the company.
+- [x] Operator: check Rizonetech's headcount against the Remotion licence terms at `https://www.remotion.dev/license` and buy a company licence if over three people. Done when: the operator states which licence applies.
+- [x] Record the line `Remotion licence: <free (up to 3 people) | company licence, <reference>>, confirmed YYYY-MM-DD` under this section. Done when: the line is written. Cheaper substitute: assuming the free tier from the hackathon team size fails, since the licence counts the company.
 - [ ] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`
 
 **Test checkpoint:** `grep -cE '^Remotion licence: ' todo/10-media/TODO-01-channel-videos.md` prints `1`.
+
+Remotion licence: free (up to 3 people), Rizonetech has 3 people, confirmed 2026-10-30
 
 ## 3. Video 01: development process, long form
 
@@ -103,7 +105,7 @@ The development process in about 11 and a half minutes, for learning and for the
 - [x] Pin the process facts in `media/data/dev-facts.json` (50 facts, quotes from `AGENTS.md`, `docs/specs/2026-10-30-four-lanes-design.md`, `.conclave/reviewers.toml`, `todo/README.md`, `scripts/`), with no writer model identifier, client data or account names. Done when: `python3 media/tools/check-facts.py` passes. Cheaper substitute: typed figures fail the lane rule.
 - [x] Add commits and stamps per day, commits per hour of day across every lane, merges, per-domain stamps and lines of code to `media/tools/collect-stats.py`, leaving out the template rows, with tests. Done when: its sections total equals `scripts/todo-graph.py validate`'s count.
 - [x] Write the storyboard and register it in `media/src/Root.tsx` as `DevProcess`. Done when: stills of all 33 content scenes show the label, Exo fonts and nothing cut off.
-- [ ] Operator: answer the script's open questions (voiceover or text only; reviewer names). Done when: the answers are written into `media/scripts/01-how-isitlegit-is-built.md`.
+- [x] Operator: answer the script's open questions (voiceover or text only; reviewer names). Done when: the answers are written into `media/scripts/01-how-isitlegit-is-built.md`.
 - [ ] Record `Script approved: 01, YYYY-MM-DD` in `media/scripts/01-how-isitlegit-is-built.md`. Done when: the line is written.
 - [ ] Re-pin `media/data/dev-facts.json` to the commit of the final render and re-render with `pnpm render:01` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts. Cheaper substitute: rendering at an old pin shows stale counts.
 - [ ] Commit: `media: video 01 approved and rendered (D10 T01 §3)`

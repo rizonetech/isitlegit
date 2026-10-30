@@ -30,9 +30,9 @@ Every figure comes from `media/data/loupe-facts.json`, which pins each one to th
 
 The pilot client's sample mail and anything from it beyond counts, the data store path, the cloud account and vault names, keys, credit and budget amounts, and the source of ground truth for the sample lures. The teacher's spend (US$6.91) is held back until the operator approves showing it.
 
-## Open questions for the operator
+## Operator decisions and open questions
 
 - Show the teacher's spend (US$6.91), or keep costs out?
 - Show the 61% Muse Spark recall bar? It is an aggregate over the pilot client's redacted sample lures; only the count and the rate would appear.
-- Voiceover or text only?
+- Text only for now, no voiceover (operator, 2026-10-30).
 - Re-render after Loupe 1.0 trains, adding a results scene from the model card?

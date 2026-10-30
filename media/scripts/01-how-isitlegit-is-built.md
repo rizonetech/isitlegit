@@ -28,7 +28,7 @@ One operator directing a team of AI lanes that works around the clock, a coordin
 
 Client data, account and vault names, keys, budgets, and the model identifier of the writer.
 
-## Open questions for the operator
+## Operator decisions
 
-- Voiceover or text only?
-- Keep the reviewer model names (GPT-6 Astra, Muse Wonder) on screen?
+- Text only for now, no voiceover (operator, 2026-10-30).
+- Keep the reviewer model names (GPT-6 Astra, Muse Wonder) on screen, for authenticity (operator, 2026-10-30).

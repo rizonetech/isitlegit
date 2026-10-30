@@ -28,7 +28,7 @@ Every chapter card says shipped, partly built or planned. Shipped means the code
 | 14 The app | partly | Better Auth, tenancy, invite codes, domain proof, sign-in limits, report links |
 | 15 Proof and the stack | planned and shipped | Evaluation targets and ablation, the pinned stack, stamped sections per domain |
 
-## Open questions for the operator
+## Operator decisions and open questions
 
-- Voiceover or text only?
+- Text only for now, no voiceover (operator, 2026-10-30).
 - Re-render once the verdict agent ships, to move chapters 6, 7 and 10 from planned to shipped?
