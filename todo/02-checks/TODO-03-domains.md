@@ -36,7 +36,7 @@ track: day-2
 | 1 | §1 | Confusables skeleton and edit distance module | D02 T01 §1 | [x] |
 | 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [x] |
 | 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [x] |
-| 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
+| 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [x] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
 | 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
@@ -159,6 +159,9 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 - [x] Commit: `checks: domain age from RDAP with caching` Done 2026-10-30: c94105c, with 043b675 (completion review) and dd007c8 (round 1).
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes and fails if an outage is reported as a new domain.
+
+> **Verified:** 2026-10-31 | §4 | 2253fa4ba7dc552fd7ff732c175a84a63c81307b
+> **Review:** `docs/reviews/d02-t03-s4.json`
 
 ## 5. Accent-insensitive lookalikes, measured
 
