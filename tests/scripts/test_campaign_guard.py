@@ -29,6 +29,24 @@ spec.loader.exec_module(guard)
 
 # The fake graph answers `query ready` the way the test asks: the SDK's JSON list, or Isotone's text summary.
 FAKE_GRAPH = """import json, os, sys
+here = os.path.dirname(__file__)
+# The TODO_LANE each query ran under, logged beside the workspace so it never reads as a change to the tree.
+with open(os.path.join(here, '..', '..', 'lanes-seen.txt'), 'a') as fh:
+    fh.write(sys.argv[2] + ' ' + os.environ.get('TODO_LANE', '-') + '\\n')
+if sys.argv[2:3] == ["lane"]:  # lane.txt: a lane name, 'garbage' or 'refuse'; absent, a graph with no lane query
+    path = os.path.join(here, 'lane.txt')
+    if not os.path.exists(path):
+        print("todo-graph.py query: error: argument kind: invalid choice: 'lane'", file=sys.stderr)
+        sys.exit(2)
+    mode = open(path).read().strip()
+    if mode == 'garbage':
+        print('not json')
+    elif mode == 'refuse':
+        print("TODO refused: TODO_LANE names 'nobody', which is not a lane in todo/lanes.json", file=sys.stderr)
+        sys.exit(2)
+    else:
+        print(json.dumps({"lane": os.environ.get('TODO_LANE') or mode, "domains": []}))
+    sys.exit(0)
 if sys.argv[2:3] == ["stats"]:  # open rows from open.txt (none when absent)
     path = os.path.join(os.path.dirname(__file__), 'open.txt')
     still_open = int(open(path).read()) if os.path.exists(path) else 0
@@ -61,7 +79,7 @@ class Workspace(unittest.TestCase):
             os.makedirs(os.path.join(self.root, folder))
         shutil.copy(GUARD_PY, os.path.join(self.root, "scripts", "campaign_guard.py"))
         self.write("scripts/todo-graph.py", FAKE_GRAPH)
-        self.write(".gitignore", "build/\nscripts/ready.txt\nscripts/open.txt\n")
+        self.write(".gitignore", "build/\nscripts/ready.txt\nscripts/open.txt\nscripts/lane.txt\n")
         self.ready(3)
         self.write(RUN_FILE, "# Phase run: Phase 0\n\n## Critical events\n")
         # No auto maintenance: newer git detaches it after a commit and it can outlive the test's temporary directory.
@@ -596,6 +614,192 @@ class Lifecycle(Workspace):
         self.assertEqual(cli("end", "--session", SESSION, "--reason", "nonsense").returncode, 1)
         self.assertEqual(cli("frobnicate").returncode, 2)
 
+
+
+class LanePin(Workspace):
+    """A run is pinned to its lane (D00 T01 §19): recorded at acquire from `query lane`, kept by a run carried on,
+    and passed as TODO_LANE to every query the guard runs."""
+
+    def lane(self, mode):
+        self.write("scripts/lane.txt", mode)
+
+    def seen(self):
+        path = os.path.join(self._tmp.name, "lanes-seen.txt")
+        with open(path, encoding="utf-8") as fh:
+            return [line.split() for line in fh.read().splitlines()]
+
+    def guard_bytes(self):
+        with open(os.path.join(self.root, "build", "claude-campaign-guard.json"), "rb") as fh:
+            return fh.read()
+
+    def test_a_new_run_records_its_lane_and_whoami_names_it(self):
+        self.lane("checks")
+        self.assertIn("lane checks", self.acquire())
+        self.assertEqual(guard.read_guard(self.root)["lane"], "checks")
+        self.assertIn("lane=checks", guard.whoami(self.root, SESSION))
+
+    def test_a_run_carried_on_keeps_its_lane(self):
+        self.lane("checks")
+        self.acquire()
+        self.lane("garbage")  # never read again: a re-point or handover does not ask the graph
+        with mock.patch.dict(os.environ, {"TODO_LANE": "app"}):
+            self.acquire(cron_id="job-2")
+            self.assertEqual(guard.read_guard(self.root)["lane"], "checks", "a re-point kept the lane")
+            self.acquire(session=OTHER, cron_id="job-3", handover="session died")
+            self.assertEqual(guard.read_guard(self.root)["lane"], "checks", "a handover kept the lane")
+
+    def test_a_guard_written_before_lanes_keeps_none(self):
+        self.acquire()  # no lane.txt: the graph has no lane query
+        self.assertNotIn("lane", guard.read_guard(self.root))
+        self.lane("checks")
+        self.acquire(cron_id="job-2")
+        self.assertNotIn("lane", guard.read_guard(self.root), "a re-point does not invent a lane")
+        self.assertNotIn("lane=", guard.whoami(self.root, SESSION))
+
+    def test_only_a_graph_without_the_query_records_no_lane(self):
+        self.acquire()
+        self.assertNotIn("lane", guard.read_guard(self.root))
+        before = self.guard_bytes()
+        for mode, fragment in (("garbage", "query lane printed no lane"),
+                               ("refuse", "query lane failed: TODO refused: TODO_LANE names 'nobody'")):
+            with self.subTest(mode):
+                self.lane(mode)
+                # Another run over this guard reads its lane first; a failing graph refuses it, guard untouched.
+                with self.assertRaises(guard.GuardError) as ctx:
+                    guard.acquire(self.root, OTHER, 0, "docs/phase-runs/other.md", "job-9", handover="operator")
+                self.assertIn(fragment, str(ctx.exception))
+                self.assertEqual(self.guard_bytes(), before)
+
+    def test_every_guard_query_runs_under_the_pinned_lane(self):
+        self.lane("checks")
+        self.acquire()
+        with mock.patch.dict(os.environ, {"TODO_LANE": "app"}):
+            self.assertEqual(self.hook()["decision"], "block")
+            self.assertIn("lane checks", self.hook()["reason"])
+            self.ready(0)
+            self.assertEqual(guard.rows(self.root, SESSION)[0], 1, "the checkout's lane (app) is not the run's")
+            guard.end(self.root, SESSION, "plan-done")
+        queries = [entry for entry in self.seen() if entry[0] in ("ready", "stats")]
+        self.assertTrue(queries)
+        self.assertEqual({lane for _, lane in queries}, {"checks"})
+
+    def test_rows_reports_the_lane_or_a_mismatch(self):
+        self.lane("checks")
+        self.acquire()
+        self.assertEqual(guard.rows(self.root, SESSION),
+                         (0, "lane=checks ready=3 open=0 next=D00 T01 §3  Interface SPEC and screenshots"))
+        with mock.patch.dict(os.environ, {"TODO_LANE": "app"}):
+            self.assertEqual(guard.rows(self.root, SESSION), (1, "LANE MISMATCH guard=checks checkout=app"))
+        self.assertEqual(guard.rows(self.root, OTHER), (1, "NOT THE OWNER"))
+
+
+    def test_rows_runs_from_the_command_line(self):
+        self.lane("checks")
+        self.acquire()
+        proc = subprocess.run([sys.executable, GUARD_PY, "rows", "--session", SESSION, "--root", self.root],
+                              capture_output=True, text=True, encoding="utf-8", env={**os.environ, "TODO_LANE": ""})
+        self.assertEqual((proc.returncode, proc.stdout.split()[0]), (0, "lane=checks"), proc.stderr)
+
+
+class HeartbeatPrompt(unittest.TestCase):
+    """The heartbeat reads its counts through the guard, pinned to the run's lane, never through a bare graph query
+    that follows whatever branch the worktree has checked out (D00 T01 §19)."""
+
+    def test_the_heartbeat_prompt_counts_through_the_guard(self):
+        text = (REPO / ".claude" / "skills" / "process-plan" / "SKILL.md").read_text(encoding="utf-8")
+        prompt = text.split("Canonical prompt:", 1)[1].split("```text", 1)[1].split("```", 1)[0]
+        self.assertNotIn("todo-graph.py query", prompt)
+        self.assertIn("campaign_guard.py rows --session", prompt)
+        self.assertIn("LANE MISMATCH", prompt)
+        self.assertIn("lane=<lane>", prompt)
+
+class RealLanes(unittest.TestCase):
+    """The guard over a real two-lane tree and the real scripts/todo-graph.py: a lane's turn ends while only the
+    other lane's rows are ready, is held while one of its own is, and stays pinned when the worktree switches branch."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("tg_tests", REPO / "tests" / "scripts" / "test_todo_graph.py")
+        self.fixtures = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.fixtures)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = os.path.join(self._tmp.name, "ws")
+        shutil.copytree(REPO / "scripts", os.path.join(self.root, "scripts"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        todo = self.fixtures.todo_file
+        # The checks lane's only row waits on the app lane's; the app lane's row is ready; D02 (the spare lane's) is
+        # an empty domain, every row of it closed.
+        self.write("todo/01-intake/TODO-01-a.md", todo([(1, "Needs trust", 0, "none", "D05 T01 §1")],
+                                                         ident="intake", domain="01-intake"))
+        self.write("todo/05-trust/TODO-01-a.md", todo([(1, "Trust", 0, "none", "--")], ident="trust",
+                                                        domain="05-trust"))
+        self.write("todo/02-checks/INDEX.md", "# Index\n")
+        self.write("todo/01-intake/INDEX.md", "# Index\n- TODO-01-a.md\n")
+        self.write("todo/05-trust/INDEX.md", "# Index\n- TODO-01-a.md\n")
+        self.write("todo/TODO-00-INDEX.md", "# Index\n- 01-intake/TODO-01-a.md\n- 05-trust/TODO-01-a.md\n")
+        self.write("todo/lanes.json", json.dumps({"lanes": {
+            "checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"]},
+            "app": {"branch": "app-lane", "worktree": "../a", "domains": ["D05"]},
+            "spare": {"branch": "spare-lane", "worktree": "../s", "domains": ["D02"]}}}))
+        self.write(RUN_FILE, "# Phase run: Phase 0\n\n## Critical events\n")
+        self.write(".gitignore", "build/\n__pycache__/\n")
+        for args in (["init", "-q", "-b", "checks-lane"], ["config", "maintenance.auto", "false"],
+                     ["config", "user.email", "t@t"], ["config", "user.name", "t"], ["config", "commit.gpgsign", "false"],
+                     ["add", "-A"], ["commit", "-qm", "seed"]):
+            self.git(*args)
+        self.env = mock.patch.dict(os.environ, {"TODO_LANE": ""})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self._tmp.cleanup()
+
+    def write(self, rel, text):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+
+    def git(self, *args):
+        subprocess.run(["git", *args], cwd=self.root, capture_output=True, check=True)
+
+    def hook(self):
+        code, out = guard.stop_hook(json.dumps({"session_id": SESSION, "cwd": self.root, "hook_event_name": "Stop"}),
+                                    self.root)
+        return json.loads(out) if out else None
+
+    def test_a_lanes_turn_follows_its_own_rows_whatever_branch_is_checked_out(self):
+        guard.acquire(self.root, SESSION, 0, RUN_FILE, "job-1")
+        self.assertEqual(guard.read_guard(self.root)["lane"], "checks")
+        self.assertIsNone(self.hook(), "only the app lane's row is ready: the checks lane's turn may end")
+        self.git("checkout", "-qb", "app-lane")
+        self.assertEqual(guard.ready_rows(self.root)[0], 1, "unpinned, this checkout now counts the app lane")
+        self.assertIsNone(self.hook(), "the run stays the checks lane's")
+        self.assertEqual(guard.rows(self.root, SESSION), (1, "LANE MISMATCH guard=checks checkout=app"))
+        self.git("checkout", "-q", "checks-lane")
+        self.write("todo/01-intake/TODO-01-a.md", self.fixtures.todo_file(
+            [(1, "Needs trust", 0, "none", "D05 T01 §1"), (2, "Own work", 0, "none", "--")],
+            ident="intake", domain="01-intake"))
+        decision = self.hook()
+        self.assertEqual(decision["decision"], "block", "one of its own rows is ready")
+        self.assertIn("Next ready row: D01 T01 §2  Own work.", decision["reason"])
+        self.assertEqual(guard.rows(self.root, SESSION), (0, "lane=checks ready=1 open=2 next=D01 T01 §2  Own work"))
+
+    def test_plan_done_ends_a_lane_whose_rows_are_closed_while_another_lanes_stay_open(self):
+        self.git("checkout", "-qb", "spare-lane")
+        guard.acquire(self.root, SESSION, 0, RUN_FILE, "job-1")
+        self.git("checkout", "-q", "checks-lane")  # an unpinned plan-done would now read the checks lane's open row
+        self.assertEqual(guard.open_rows(self.root), 1)
+        self.assertIn("end: plan-done", guard.end(self.root, SESSION, "plan-done"))
+        self.git("checkout", "-q", "spare-lane")
+        guard.acquire(self.root, SESSION, 0, RUN_FILE, "job-2")
+        self.git("checkout", "-q", "checks-lane")
+        doc = guard.read_guard(self.root)  # the same run pinned to the checks lane, whose row is still open
+        doc["lane"] = "checks"
+        with open(os.path.join(self.root, "build", "claude-campaign-guard.json"), "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+        with self.assertRaises(guard.GuardError) as ctx:
+            guard.end(self.root, SESSION, "plan-done")
+        self.assertIn("1 still open", str(ctx.exception))
 
 if __name__ == "__main__":
     unittest.main()

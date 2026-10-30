@@ -12,6 +12,7 @@
     python scripts/campaign_guard.py reconcile --session S --jobs J1,J2
     python scripts/campaign_guard.py health --session S --jobs J1,J2
     python scripts/campaign_guard.py expiry --session S [--now ISO]
+    python scripts/campaign_guard.py rows --session S                (the run's lane: ready, open, next row)
 
 A campaign run has three parts. The guard file (`build/claude-campaign-guard.json`) names the session that owns the
 run, its phase, run file, heartbeat job and run id; it is written and deleted only through this module, under an
@@ -21,6 +22,12 @@ while the run is open and lets go when the run file carries this run's `## Close
 with no change to the tree. The heartbeat is a `CronCreate` job inside the session (process-plan holds its prompt)
 that resumes an idle run. There is no keep-alive outside the session: a session that died is resumed by the operator,
 and the new session takes the guard with `acquire --handover`.
+
+A run is pinned to its lane (`todo/lanes.json`, D00 T01 §19): a new guard records the lane `todo-graph.py query lane`
+names, a re-point or handover of the same run keeps it, and every query the guard runs (the hook's ready count,
+`end --reason plan-done`, `rows` for the heartbeat) runs with `TODO_LANE` set to it, so a worktree that switches branch
+under a run never counts another lane's rows. A graph without `query lane` (Isotone's) records no lane, and its
+queries follow the checkout as before.
 
 The hook fails open on a bad payload, a missing guard or any error, and records the error for the heartbeat to report
 (`hook-error`). Every command takes `--root` to act on a fixture workspace instead of this repository. Ported from
@@ -168,6 +175,44 @@ def _utc_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime(UTC_FORMAT)
 
 
+def _graph(root: str, args: list[str], lane: str | None, timeout: float) -> subprocess.CompletedProcess:
+    """Run this workspace's todo-graph with `args`, with `TODO_LANE` pinned to `lane` when the run has one."""
+    env = dict(os.environ)
+    if lane:
+        env["TODO_LANE"] = lane
+    return subprocess.run([sys.executable, os.path.join(root, "scripts", "todo-graph.py"), *args],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=root,
+                          timeout=max(timeout, 1.0), env=env)
+
+
+def graph_lane(root: str, timeout: float = 120.0, lane: str | None = None) -> str | None:
+    """The lane `todo-graph.py query lane` names for this checkout, or None for a graph that has no such query (its
+    argparse refuses the choice `lane`). Any other failure, or output that is not a lane, refuses: a guard is never
+    written for a lane nobody could read."""
+    try:
+        proc = _graph(root, ["query", "lane"], lane, timeout)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GuardError(f"query lane did not run: {exc}") from None
+    if proc.returncode == 2 and "invalid choice: 'lane'" in proc.stderr:
+        return None
+    if proc.returncode != 0:
+        raise GuardError(f"query lane failed: {proc.stderr.strip() or f'exit {proc.returncode}'}")
+    try:
+        doc = json.loads(proc.stdout)
+    except ValueError:
+        doc = None
+    if not (isinstance(doc, dict) and isinstance(doc.get("lane"), str) and doc["lane"].strip()):
+        raise GuardError(f"query lane printed no lane: {proc.stdout.strip()[:200]!r}")
+    return doc["lane"]
+
+
+def _continues(previous: dict, session: str, run_file: str, handover: str | None) -> bool:
+    """Whether an acquire carries an existing run on (a re-point by its owner, or a handover of its run file), so the
+    run keeps its lane, scope and run id."""
+    return bool(previous) and (previous.get("session_id") == session
+                               or bool(handover and previous.get("run_file") == run_file))
+
+
 def acquire(root: str, session: str, phase: int | None, run_file: str, cron_id: str,
             handover: str | None = None, generation: str | None = None, scope: str | None = None) -> str:
     """Write the guard for `session`. Only one session can hold it: every guard change holds the lock, so two sessions
@@ -183,12 +228,18 @@ def acquire(root: str, session: str, phase: int | None, run_file: str, cron_id: 
         raise GuardError(f"run file {run_file!r} must be a repo-relative path inside the workspace")
     if scope is not None and scope not in SCOPES:
         raise GuardError(f"scope {scope!r} is not one of {', '.join(SCOPES)}")
+    # A new run reads its lane before the lock, so no subprocess is ever held under it; a run carried on keeps its own.
+    try:
+        previous = read_guard(root) or {}
+    except GuardError:
+        previous = {}
+    lane = graph_lane(root) if not _continues(previous, session, run_file, handover) else None
     with _Lock(root):
-        return _acquire_locked(root, session, phase, run_file, cron_id, handover, generation, scope)
+        return _acquire_locked(root, session, phase, run_file, cron_id, handover, generation, scope, lane)
 
 
 def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, cron_id: str,
-                    handover: str | None, generation: str | None, scope: str | None) -> str:
+                    handover: str | None, generation: str | None, scope: str | None, lane: str | None) -> str:
     guard, state_path = _paths(root)
     os.makedirs(os.path.dirname(guard), exist_ok=True)
     exists = os.path.exists(guard)
@@ -197,6 +248,7 @@ def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, c
     except GuardError:
         previous = {}  # a torn or unreadable guard: only an operator handover may replace it (below)
     same_run = previous.get("run_file") == run_file and previous.get("session_id") == session
+    continues = _continues(previous, session, run_file, handover)
     if phase is None:
         if not (previous.get("session_id") == session and isinstance(previous.get("phase"), int)):
             raise GuardError("acquire needs --phase for a new guard (a re-point of your own guard keeps its phase)")
@@ -215,6 +267,10 @@ def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, c
            # this run however the file is edited.
            "run_id": (previous.get("run_id") if (same_run or (handover and previous.get("run_file") == run_file))
                       and previous.get("run_id") else mint_generation())}
+    # The run's lane: kept by a run carried on (a guard written before lanes keeps none), else the one read for it.
+    pinned = previous.get("lane") if continues else lane
+    if pinned:
+        doc["lane"] = pinned
     what = "created"
     if exists:
         owner = str(previous.get("session_id", ""))
@@ -233,22 +289,23 @@ def _acquire_locked(root: str, session: str, phase: int | None, run_file: str, c
             os.unlink(state_path)  # a fresh or handed-over run starts a fresh breaker
         except FileNotFoundError:
             pass
-    return (f"acquire: guard {what} for session {session} (phase {phase}, scope {doc['scope']}, {run_file}, "
-            f"job {cron_id}, generation {doc['generation']}, run {doc['run_id']})")
+    lane_note = f"lane {doc['lane']}, " if doc.get("lane") else ""
+    return (f"acquire: guard {what} for session {session} ({lane_note}phase {phase}, scope {doc['scope']}, "
+            f"{run_file}, job {cron_id}, generation {doc['generation']}, run {doc['run_id']})")
 
 
-def ready_rows(root: str, timeout: float = 300.0, phase: int | None = None) -> tuple[int | None, str]:
+def ready_rows(root: str, timeout: float = 300.0, phase: int | None = None,
+               lane: str | None = None) -> tuple[int | None, str]:
     """How many rows `query ready` offers, and the first one, or (None, "") when the query cannot be read.
 
     The SDK's todo-graph prints a JSON list of ready rows; a graph that prints a `N runnable now` summary (Isotone's)
     is read by that line instead. With `phase`, only that phase's rows count. The text summary does not say which
     phase a row is in, so for a phase it is unknown (None, ""): a phase run then ends on its own closeout or park
-    marker, never on another phase's count, and is never pointed at another phase's row.
+    marker, never on another phase's count, and is never pointed at another phase's row. With `lane`, the query counts
+    that lane's rows whatever branch is checked out.
     """
     try:
-        proc = subprocess.run([sys.executable, os.path.join(root, "scripts", "todo-graph.py"), "query", "ready"],
-                              capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=root,
-                              timeout=max(timeout, 1.0))
+        proc = _graph(root, ["query", "ready"], lane, timeout)
     except (OSError, subprocess.TimeoutExpired):
         return None, ""
     if proc.returncode != 0:
@@ -271,13 +328,12 @@ def ready_rows(root: str, timeout: float = 300.0, phase: int | None = None) -> t
     return int(counts[-1]), (lines[0] if lines else "")
 
 
-def open_rows(root: str, timeout: float = 300.0) -> int | None:
-    """How many rows the plan still has open (not stamped), from `query stats`, or None when it cannot be read. A plan
-    with nothing ready can still hold blocked rows: that is a park, not a finished plan."""
+def open_rows(root: str, timeout: float = 300.0, lane: str | None = None) -> int | None:
+    """How many rows the plan (with `lane`, that lane's share of it) still has open (not stamped), from `query stats`,
+    or None when it cannot be read. A plan with nothing ready can still hold blocked rows: that is a park, not a
+    finished plan."""
     try:
-        proc = subprocess.run([sys.executable, os.path.join(root, "scripts", "todo-graph.py"), "query", "stats"],
-                              capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=root,
-                              timeout=max(timeout, 1.0))
+        proc = _graph(root, ["query", "stats"], lane, timeout)
         stats = json.loads(proc.stdout) if proc.returncode == 0 else None
         return int(stats["total"]) - int(stats["verified"])
     except (OSError, subprocess.TimeoutExpired, ValueError, TypeError, KeyError):
@@ -313,9 +369,15 @@ def end(root: str, session: str, reason: str) -> str:
         raise GuardError(f"reason {reason!r} is not one of {', '.join(END_REASONS)}")
     if not session:
         raise GuardError("end needs --session (the session that owns the guard)")
-    # The plan query runs before the lock, so no subprocess is ever held under it.
-    ready = ready_rows(root)[0] if reason == "plan-done" else None
-    still_open = open_rows(root) if reason == "plan-done" else None
+    # The plan query runs before the lock, so no subprocess is ever held under it, and counts the run's own lane.
+    ready = still_open = None
+    if reason == "plan-done":
+        try:
+            lane = (read_guard(root) or {}).get("lane")
+        except GuardError:
+            lane = None
+        ready = ready_rows(root, lane=lane)[0]
+        still_open = open_rows(root, lane=lane)
     with _Lock(root):
         return _end_locked(root, session, reason, ready, still_open)
 
@@ -433,7 +495,33 @@ def whoami(root: str, session: str, generation: str | None = None) -> str:
         return "NOT THE CURRENT JOB"
     # The run id rides the answer, so the heartbeat reads which markers are this run's.
     scope = guard.get("scope") or "plan"
-    return f"OWNER run={guard.get('run_id')} scope={scope}" if guard.get("run_id") else f"OWNER scope={scope}"
+    lane = f" lane={guard['lane']}" if guard.get("lane") else ""
+    run = f" run={guard.get('run_id')}" if guard.get("run_id") else ""
+    return f"OWNER{run} scope={scope}{lane}"
+
+
+def rows(root: str, session: str) -> tuple[int, str]:
+    """The heartbeat's view of the run's lane: `lane=L ready=N open=M next=<row>`, every count through the guard's
+    pinned lane, or `LANE MISMATCH` (exit 1) when this checkout now works another lane, so the heartbeat parks instead
+    of resuming another lane's rows."""
+    try:
+        guard = read_guard(root)
+    except GuardError:
+        return 1, "MALFORMED GUARD"
+    if guard is None:
+        return 1, "NO GUARD"
+    if str(guard.get("session_id", "")) != session:
+        return 1, "NOT THE OWNER"
+    pinned = guard.get("lane")
+    if pinned:
+        here = graph_lane(root)
+        if here is not None and here != pinned:
+            return 1, f"LANE MISMATCH guard={pinned} checkout={here}"
+    ready, next_row = ready_rows(root, lane=pinned)
+    still_open = open_rows(root, lane=pinned)
+    unknown = lambda n: "unknown" if n is None else str(n)  # noqa: E731
+    return 0, (f"lane={pinned or 'checkout'} ready={unknown(ready)} open={unknown(still_open)} "
+               f"next={next_row or 'none'}")
 
 
 def reset_state(root: str, session: str | None = None, expect_no_guard: bool = False) -> str:
@@ -796,7 +884,7 @@ def stop_decision(root: str, session: str) -> dict | None:
     deadline = time.monotonic() + _env_int("CAMPAIGN_HOOK_BUDGET_SECONDS", int(HOOK_BUDGET_SECONDS))
     phase_only = guard.get("scope") == "phase"
     ready, next_row = ready_rows(root, timeout=_remaining(deadline) / 2,
-                                 phase=guard.get("phase") if phase_only else None)
+                                 phase=guard.get("phase") if phase_only else None, lane=guard.get("lane"))
     if ready == 0:
         return None  # nothing runnable here: blocking cannot produce work that does not exist
     print_ = fingerprint(root, run_rel, run_text, deadline)
@@ -829,7 +917,8 @@ def stop_decision(root: str, session: str) -> dict | None:
     tag = f" run={run_id}" if run_id else ""
     onward = (f" of Phase {guard.get('phase')} only (this run covers that phase)" if phase_only
               else ", then the next phase")
-    reason = (f"Campaign run is still open ({run_rel}). Do not end the turn. Finish the open section's checklist, "
+    lane_note = f"lane {guard['lane']}, " if guard.get("lane") else ""
+    reason = (f"Campaign run is still open ({lane_note}{run_rel}). Do not end the turn. Finish the open section's checklist, "
               f"run its review and stamp it, then the next section{onward}. A commit, a green suite, a "
               f"red CI (repair it) or a status report is not a stop.")
     if next_row:
@@ -953,6 +1042,10 @@ def main(argv: list[str]) -> int:
                 return 0
             code, line = health(root, opts.get("session", ""), jobs)
             print(line, file=sys.stdout if code == 0 else sys.stderr)
+            return code
+        if argv[0] == "rows" and set(opts) == {"session"}:
+            code, line = rows(root, opts["session"])
+            print(line)
             return code
         if argv[0] == "expiry":
             code, line = expiry(root, opts.get("session", ""), opts.get("now"))

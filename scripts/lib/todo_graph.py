@@ -85,6 +85,8 @@ PLAN_CONFIG = "todo/plan.json"
 # Parallel lanes: each a branch worked in its own worktree, alone claiming the TODO files it lists.
 LANES = "todo/lanes.json"
 MAIN_LANE = "main"
+# The Needs that put a row on the coordinator's manual list (`manual_rows`).
+MANUAL_NEEDS = {"operator", "owner-decision", "third-party", "attended", "live-mail", "whatsapp", "meta-api"}
 PLAN_DEFAULTS = {"title": "Implementation plan", "acceptance": None, "phases": {99: "Manual, operator only"}}
 MAX_SECTIONS_PER_FILE = 55
 MAX_ITEMS_PER_SECTION = 30
@@ -1145,8 +1147,9 @@ def markdown_table(headers, rows):
 
 def lanes(root=ROOT):
     """The parallel lanes in todo/lanes.json, loaded strictly: each a branch, worked in its own worktree, that alone
-    claims the TODO files it lists; every other file is the main lane's. Which rows are ready, the plan and its
-    rendering stay the same on every branch: a lane decides only who may claim a ready row (`claimable`)."""
+    claims the domains (`DNN`) and the TODO files it lists; every other row is the main lane's. Which rows are ready,
+    the plan and its rendering stay the same on every branch: a lane decides only who may claim a row (`claimable`)
+    and which rows its queries count (`in_lane`)."""
     path = Path(root) / LANES
     if not path.is_file():
         return {}
@@ -1156,17 +1159,28 @@ def lanes(root=ROOT):
         raise Refused(f"unreadable {LANES}: {exc}") from None
     require(isinstance(data, dict) and set(data) == {"lanes"} and isinstance(data["lanes"], dict),
             f"{LANES} holds one object, lanes")
-    result, owner = {}, {}
+    folders = {d.name[:2]: d.name for d in (Path(root) / "todo").iterdir()
+               if d.is_dir() and re.fullmatch(r"\d\d-[^/]+", d.name)}
+    result, owner, claimed = {}, {}, {}
     for name, lane in data["lanes"].items():
         require(re.fullmatch(r"[a-z][a-z0-9-]*", name) is not None and name != MAIN_LANE,
                 f"{LANES}: lane name {name!r} must be lower-case words joined by hyphens, and not {MAIN_LANE!r}")
-        require(isinstance(lane, dict) and set(lane) == {"branch", "worktree", "files"},
-                f"{LANES}: lane {name} holds branch, worktree and files")
+        require(isinstance(lane, dict) and {"branch", "worktree"} <= set(lane)
+                and set(lane) <= {"branch", "worktree", "domains", "files"} and set(lane) & {"domains", "files"},
+                f"{LANES}: lane {name} holds branch, worktree and domains or files")
         require(all(isinstance(lane[k], str) and lane[k].strip() for k in ("branch", "worktree")),
                 f"{LANES}: lane {name}'s branch and worktree must be text")
         require(lane["branch"] not in ("main", "HEAD"), f"{LANES}: lane {name} cannot work branch {lane['branch']}")
-        require(isinstance(lane["files"], list) and lane["files"], f"{LANES}: lane {name} must list its files")
-        for file in lane["files"]:
+        for key in ("domains", "files"):
+            require(key not in lane or (isinstance(lane[key], list) and lane[key]),
+                    f"{LANES}: lane {name} must list its {key}")
+        for domain in lane.get("domains", []):
+            require(isinstance(domain, str) and re.fullmatch(r"D\d\d", domain) is not None,
+                    f"{LANES}: lane {name} lists domain {domain!r}; a domain is DNN, such as D01")
+            require(domain[1:] in folders, f"{LANES}: lane {name} lists {domain}, which has no todo/{domain[1:]}-* folder")
+            require(domain not in claimed, f"{LANES}: {domain} is claimed by lanes {claimed.get(domain)} and {name}")
+            claimed[domain] = name
+        for file in lane.get("files", []):
             require(isinstance(file, str) and re.fullmatch(r"todo/\d\d-[^/]+/TODO-[^/]+\.md", file) is not None
                     and (Path(root) / file).is_file(), f"{LANES}: lane {name} lists {file!r}, which is not a TODO file")
             require(file not in owner, f"{LANES}: {file} is listed by lanes {owner.get(file)} and {name}")
@@ -1174,6 +1188,9 @@ def lanes(root=ROOT):
         require(all(other["branch"] != lane["branch"] for other in result.values()),
                 f"{LANES}: two lanes work branch {lane['branch']}")
         result[name] = lane
+    for file, name in owner.items():
+        other = claimed.get("D" + file[5:7])
+        require(other in (None, name), f"{LANES}: {file} is listed by lane {name} inside {other}'s domain")
     return result
 
 
@@ -1193,8 +1210,58 @@ def current_lane(root=ROOT, config=None):
 
 
 def lane_of(row, config):
-    """The lane that owns a row: the one listing its file, else main."""
-    return next((name for name, lane in config.items() if row.path in lane["files"]), MAIN_LANE)
+    """The lane that owns a row: the one listing its file, else the one claiming its domain, else main."""
+    domain = "D" + row.path[5:7]
+    return next((name for name, lane in config.items() if row.path in lane.get("files", [])),
+                next((name for name, lane in config.items() if domain in lane.get("domains", [])), MAIN_LANE))
+
+
+def in_lane(row, config, here):
+    """Whether a row is counted by lane `here`'s queries: the lane owns it. Readiness is still read over the whole
+    graph (`disposition`), so a row waiting on another lane's prerequisite stays blocked."""
+    return lane_of(row, config) == here
+
+
+def lane_query(kind, rows, config, here, everything=False, phase=None):
+    """`query ready`, `blocked` or `stats` for lane `here`: only the lane's rows (all of them with `everything`), of
+    one phase with `phase`. Readiness is read over the whole graph, so a row waiting on another lane's prerequisite
+    stays blocked until that prerequisite is stamped and merged."""
+    scope = [r for r in ordered(rows) if (everything or in_lane(r, config, here))
+             and (phase is None or r.phase == phase)]
+    if kind == "ready":
+        return [r.public() for r in scope if disposition(r, rows) == 0]
+    if kind == "blocked":
+        return [r.public() for r in scope if disposition(r, rows) == 4]
+    require(kind == "stats", f"no lane query {kind!r}")
+    result = {"lane": "all" if everything else here, "total": len(scope), "verified": sum(r.done for r in scope),
+              "ready": sum(disposition(r, rows) == 0 for r in scope),
+              "blocked": sum(disposition(r, rows) == 4 for r in scope)}
+    if phase is not None:
+        result["phase"] = phase
+    return result
+
+
+def manual_rows(rows, config):
+    """The coordinator's manual list (`query manual`; docs/specs/2026-10-30-four-lanes-design.md, Manual work): every
+    lane's open rows that wait on the operator or on a paid or attended environment, each with its lane."""
+    return [{**r.public(), "lane": lane_of(r, config), "disposition": disposition(r, rows)}
+            for r in ordered(rows) if not r.done and set(r.needs) & MANUAL_NEEDS]
+
+
+def lane_info(root=ROOT, config=None, here=None):
+    """This checkout's lane as `query lane` prints it: its name, branch, worktree, domains and files; main's domains
+    are the ones no lane claims."""
+    config = lanes(root) if config is None else config
+    here = current_lane(root, config) if here is None else here
+    if here != MAIN_LANE:
+        lane = config[here]
+        return {"lane": here, "branch": lane["branch"], "worktree": lane["worktree"],
+                "domains": list(lane.get("domains", [])), "files": list(lane.get("files", []))}
+    claimed = {d for lane in config.values() for d in lane.get("domains", [])}
+    folders = sorted("D" + d.name[:2] for d in (Path(root) / "todo").iterdir()
+                     if d.is_dir() and re.fullmatch(r"\d\d-[^/]+", d.name))
+    return {"lane": MAIN_LANE, "branch": "main", "worktree": None,
+            "domains": [d for d in folders if d not in claimed], "files": []}
 
 
 def claimable(row, rows, config, here):
