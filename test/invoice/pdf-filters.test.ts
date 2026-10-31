@@ -12,6 +12,7 @@ import {
   isStream,
   MAX_STREAM_DECODED,
   MAX_TOTAL_DECODED,
+  OverBudget,
   type PdfFile,
   type PdfStream,
   readPdf,
@@ -295,6 +296,40 @@ describe("decryption work (round 3)", () => {
     expect(read).toBe(47);
     expect(file.budget.decoded).toBeLessThanOrEqual(MAX_TOTAL_DECODED);
     expect(file.unread.join(" ")).toMatch(/past 48 MiB was not read/);
+  });
+});
+
+describe("string decryption work (round 4)", () => {
+  it("charges decrypting strings, so an object read again and again stops at the cap with OverBudget", async () => {
+    // rc4-r2.pdf with a later save adding an object holding a 1 MiB string, decrypted on every read of it.
+    const base = fixture("rc4-r2.pdf");
+    const file0 = await readPdf(base);
+    const ids = file0.trailer?.entries.get("ID");
+    const id = Array.isArray(ids) && ids[0] && typeof ids[0] === "object" && "bytes" in ids[0] ? ids[0].bytes : "";
+    const hex = Buffer.from(toBytes(id)).toString("hex");
+    const size = file0.trailer?.entries.get("Size") as number;
+    const bytes = await appendUpdate(base, {
+      objects: { [size]: `<</Junk (${"A".repeat(1024 * 1024)})>>` },
+      root: refNum(file0, "Root"),
+      info: refNum(file0, "Info"),
+      size: size + 1,
+      trailerExtra: ` /Encrypt ${refNum(file0, "Encrypt")} 0 R /ID [<${hex}> <${hex}>]`,
+    });
+    const file = await readPdf(bytes);
+    expect(file.decrypted).toBe(true);
+    let reads = 0;
+    let stopped: unknown = null;
+    for (let i = 0; i < 60 && !stopped; i++) {
+      try {
+        await definitionAt(file, 0, size);
+        reads++;
+      } catch (error) {
+        stopped = error;
+      }
+    }
+    expect(stopped).toBeInstanceOf(OverBudget);
+    expect(reads).toBeLessThan(48);
+    expect(file.budget.decoded).toBeLessThanOrEqual(MAX_TOTAL_DECODED + 1024 * 1024);
   });
 });
 

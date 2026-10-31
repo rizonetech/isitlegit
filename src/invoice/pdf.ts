@@ -535,7 +535,12 @@ async function decryptValue(file: PdfFile, value: PdfObject, num: number, gen: n
   const key = await objectKey(file.crypt.key, num, gen);
   const walk = (v: PdfObject, depth: number): PdfObject => {
     if (depth > MAX_DEPTH) return v;
-    if (isString(v))
+    if (isString(v)) {
+      // A string's decryption is work like a stream's, charged to the same total, so an object read again and again
+      // (definitionAt, for each revision compared) cannot decrypt without limit (round 4).
+      file.budget.decoded += v.bytes.length;
+      if (file.budget.decoded > MAX_TOTAL_DECODED)
+        throw new OverBudget(`more than ${MAX_TOTAL_DECODED / 1024 / 1024} MiB of stream data and strings`);
       return {
         kind: "string",
         bytes: byteString(
@@ -545,6 +550,7 @@ async function decryptValue(file: PdfFile, value: PdfObject, num: number, gen: n
           ),
         ),
       };
+    }
     if (Array.isArray(v)) return v.map((x) => walk(x, depth + 1) as PdfValue);
     if (isStream(v)) return { ...v, dict: walk(v.dict, depth + 1) as PdfDict };
     if (isDict(v))
