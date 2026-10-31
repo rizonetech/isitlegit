@@ -53,7 +53,8 @@ export type Parsing = {
   isBodyText(node: MimeNode): boolean;
   // The second stage over the tree as it now stands, with each attachment's own transfer-decoded bytes beside it in
   // order: postal-mime rewrites a text/calendar or application/ics attachment as UTF-8 text, which is not what was sent.
-  finish(): Promise<{ email: Email; attachmentBytes: Uint8Array[] }>;
+  // Each attachment's Content-Type charset parameter as written, or null, in the same order (D02 T05 §2's plan review).
+  finish(): Promise<{ email: Email; attachmentBytes: Uint8Array[]; attachmentCharsets: (string | null)[] }>;
 };
 
 // The first stage over `raw`, every attached message kept as an attachment (`forceRfc822Attachments`).
@@ -121,7 +122,11 @@ export async function readTree(raw: Uint8Array): Promise<Parsing> {
           throw new Error(
             `${collected.length} attachment parts were collected for ${email.attachments.length} attachments`,
           );
-        return { email, attachmentBytes: collected.map((node) => new Uint8Array(node.content ?? new ArrayBuffer(0))) };
+        return {
+          email,
+          attachmentBytes: collected.map((node) => new Uint8Array(node.content ?? new ArrayBuffer(0))),
+          attachmentCharsets: collected.map((node) => node.contentType.parsed.params.charset ?? null),
+        };
       } catch (error) {
         throw new ParseError(`the message could not be parsed: ${(error as Error).message}`);
       }

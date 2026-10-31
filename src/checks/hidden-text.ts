@@ -537,10 +537,15 @@ async function sheets(html: ReadableStream | string): Promise<{ text: string; cu
 // the document's own.
 // `ownSheets`, when the caller already read the document's sheets, saves the first pass (round 6: a cut part was read
 // three times).
+// Where the scanner sends every chunk of visible and hidden text as it arrives, before any cut (D02 T05 §2: the
+// AI-instruction phrases are matched there).
+export type TextSinks = { visible: { feed(text: string): void }; hidden: { feed(text: string): void } };
+
 export async function scanHtml(
   source: () => ReadableStream | string | Promise<ReadableStream | string>,
   extraSheets = "",
   ownSheets?: { text: string; cut: boolean },
+  sinks?: TextSinks,
 ): Promise<Scan> {
   const rules = newRules();
   const sheet = ownSheets ?? (await sheets(await source()));
@@ -588,7 +593,9 @@ export async function scanHtml(
     if (!open || open.reason !== reason) {
       flush();
       open = { reason, text: "", tail: "", beforeVisible: !visible.trim(), instruction: false };
+      sinks?.hidden.feed(" ");
     }
+    sinks?.hidden.feed(text);
     // Whitespace collapses as it arrives, so padding never fills MAX_SPAN_CHARS (round 1). Instruction words are
     // matched on whole words only: the text up to the last whitespace, the rest carried to the next chunk, so a chunk
     // boundary is never a word boundary (round 1); character references are decoded first.
@@ -604,6 +611,7 @@ export async function scanHtml(
       open.text += open.text.endsWith(" ") ? collapsed.replace(/^ /, "").slice(0, room) : collapsed.slice(0, room);
   };
   const addVisible = (text: string) => {
+    sinks?.visible.feed(text);
     if (visible.length < MAX_VISIBLE_CHARS) visible += text.slice(0, MAX_VISIBLE_CHARS - visible.length);
   };
   const top = () => stack[stack.length - 1] as State;
@@ -619,8 +627,10 @@ export async function scanHtml(
   const boundary = (separator: string) => {
     const state = top();
     if (state.silent) return;
-    if (reasonOf(state) && open) open.text += " ";
-    else if (!reasonOf(state)) addVisible(separator);
+    if (reasonOf(state) && open) {
+      open.text += " ";
+      sinks?.hidden.feed(" ");
+    } else if (!reasonOf(state)) addVisible(separator);
   };
 
   // HTML's optional end tags (round 1; WHATWG HTML, optional tags): <body> closes an open <head>; a block element
@@ -751,10 +761,18 @@ export type HiddenText = {
   notScanned: { key: string; why: "missing" | "charset" }[];
 };
 
+// Where the body's text goes, whole, for the AI-instruction phrases (D02 T05 §2): a stream per kind of text, and the
+// cut parts that could not be read.
+export type BodyPhrases = {
+  stream(kind: "visible" | "hidden" | "text"): { feed(text: string): void; end(): void };
+  unread(key: string, why: "missing" | "charset"): void;
+};
+
 // The case's hidden text and visible text, for the `checks` step: the summary's HTML gives both; each HTML part cut for
 // reading is scanned whole from R2, in its own charset, for evidence only, a span the summary already gave not repeated.
 // A part whose object is missing or whose charset cannot be decoded is named as not scanned; any other storage or
-// stream error is thrown, so the step is retried.
+// stream error is thrown, so the step is retried. With `phrases`, every text the body holds goes there whole: each HTML
+// scan's visible and hidden text, the cut plain-text parts, and the plain text.
 export async function hiddenTextOf(
   bucket: R2Bucket,
   summary: {
@@ -762,7 +780,13 @@ export async function hiddenTextOf(
     text: string | null;
     truncated: readonly { mediaType: string; charset: string | null; key: string }[];
   },
+  phrases?: BodyPhrases,
 ): Promise<{ hidden: HiddenText; visible: string }> {
+  const sinks = () => (phrases ? { visible: phrases.stream("visible"), hidden: phrases.stream("hidden") } : undefined);
+  const ended = (open: ReturnType<typeof sinks>) => {
+    open?.visible.end();
+    open?.hidden.end();
+  };
   const partSpans: HiddenText["spans"] = [];
   const notScanned: HiddenText["notScanned"] = [];
   let unresolvedRules = 0;
@@ -771,17 +795,26 @@ export async function hiddenTextOf(
   // The full parts' own style sheets, applied to the summary's HTML too: a rule after the cut still hides the text
   // before it that the summary kept, and every other body part stays in the visible text (round 1).
   let partSheets = "";
+  const plainParts: { key: string; charset: string }[] = [];
   for (const part of summary.truncated) {
-    if (part.mediaType.split(";")[0]?.trim().toLowerCase() !== "text/html") continue;
+    const html = part.mediaType.split(";")[0]?.trim().toLowerCase() === "text/html";
+    if (!html && !phrases) continue;
     const charset = part.charset ?? "utf-8";
     try {
       new TextDecoder(charset);
     } catch {
-      notScanned.push({ key: part.key, why: "charset" });
+      if (html) notScanned.push({ key: part.key, why: "charset" });
+      phrases?.unread(part.key, "charset");
       continue;
     }
     if (!(await bucket.head(part.key))) {
-      notScanned.push({ key: part.key, why: "missing" });
+      if (html) notScanned.push({ key: part.key, why: "missing" });
+      phrases?.unread(part.key, "missing");
+      continue;
+    }
+    if (!html) {
+      // A cut plain-text part, for the phrases only: read after the HTML, so a match the HTML gave keeps its location.
+      plainParts.push({ key: part.key, charset });
       continue;
     }
     // Each pass reads the object afresh, decoded from its charset and encoded again as UTF-8 for the parser.
@@ -792,7 +825,9 @@ export async function hiddenTextOf(
     };
     const sheet = await sheets(await open());
     if (partSheets.length + sheet.text.length <= MAX_SHEET_CHARS) partSheets += sheet.text;
-    const scan = await scanHtml(open, "", sheet);
+    const partSinks = sinks();
+    const scan = await scanHtml(open, "", sheet, partSinks);
+    ended(partSinks);
     unresolvedRules += scan.unresolvedRules;
     unreadColours += scan.unreadColours;
     omittedSpans += scan.omittedSpans;
@@ -802,12 +837,29 @@ export async function hiddenTextOf(
   let visible = summary.text ?? "";
   if (summary.html !== null) {
     const html = summary.html;
-    const scan = await scanHtml(() => html, partSheets);
+    const summarySinks = sinks();
+    const scan = await scanHtml(() => html, partSheets, undefined, summarySinks);
+    ended(summarySinks);
     spans.push(...scan.hidden.map((h) => ({ ...h, part: "summary" })));
     unresolvedRules += scan.unresolvedRules;
     unreadColours += scan.unreadColours;
     omittedSpans += scan.omittedSpans;
     visible = scan.visible;
+  }
+  if (phrases) {
+    for (const part of plainParts) {
+      const object = await bucket.get(part.key);
+      if (!object) throw new Error(`the cut part ${part.key} disappeared while it was read`);
+      const stream = phrases.stream("text");
+      const reader = object.body.pipeThrough(new TextDecoderStream(part.charset)).getReader();
+      for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) stream.feed(chunk.value);
+      stream.end();
+    }
+    if (summary.text !== null) {
+      const stream = phrases.stream("text");
+      stream.feed(summary.text);
+      stream.end();
+    }
   }
   for (const span of partSpans) {
     // A span already kept from another reading of the same text (the summary's prefix, or the same part listed again)

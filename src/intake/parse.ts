@@ -24,6 +24,8 @@ export type ParsedAttachment = {
   mediaType: string;
   contentId: string | null;
   disposition: string | null;
+  // The charset to read a text attachment's bytes with (as `charsetOf` reads it), or null (D02 T05 §2).
+  charset: string | null;
   bytes: Uint8Array;
 };
 
@@ -62,7 +64,7 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
     else omitted += 1;
     leaf.content = leaf.content.slice(0, kept);
   }
-  const { email, attachmentBytes } = await parsing.finish();
+  const { email, attachmentBytes, attachmentCharsets } = await parsing.finish();
   return {
     headers: email.headers.map((h) => ({ name: h.originalKey, value: h.value })),
     text: email.text ?? null,
@@ -72,6 +74,11 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
       mediaType: a.mimeType,
       contentId: a.contentId ?? null,
       disposition: a.disposition ?? null,
+      charset: charsetOf(
+        attachmentCharsets[i] ?? undefined,
+        a.mimeType.toLowerCase(),
+        (attachmentBytes[i] as Uint8Array).buffer as ArrayBuffer,
+      ),
       // The part's own transfer-decoded bytes, never postal-mime's rewrite of a calendar part.
       bytes: attachmentBytes[i] as Uint8Array,
     })),
@@ -106,6 +113,7 @@ export type ParsedSummary = {
     mediaType: string;
     contentId: string | null;
     disposition: string | null;
+    charset: string | null;
     bytes: number;
   }[];
   truncated: { mediaType: string; charset: string | null; key: string; fullBytes: number; keptBytes: number }[];
@@ -140,6 +148,7 @@ export async function storeParsed(
       mediaType: a.mediaType || "application/octet-stream",
       contentId: a.contentId,
       disposition: a.disposition,
+      charset: a.charset,
       bytes: stored.bytes,
     });
   }

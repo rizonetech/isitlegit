@@ -160,7 +160,7 @@ Sections: 61 | Checklist items: 397
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 23 | Checklist items: 105
+Sections: 24 | Checklist items: 109
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -170,6 +170,7 @@ Sections: 23 | Checklist items: 105
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
+| [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
@@ -238,7 +239,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 67 | Checklist items: 278
+Sections: 67 | Checklist items: 282
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -250,10 +251,10 @@ Sections: 67 | Checklist items: 278
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
-| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
+| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
-| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 9     |
-| [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 3     |
+| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 10    |
+| [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 3     |
 | [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
@@ -374,6 +375,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 112/305 verified sections, 73 ready to run now.
+Progress: 112/306 verified sections, 73 ready to run now.
 
-Checklist: 1119/1935 items completed (includes Commit items).
+Checklist: 1122/1943 items completed (includes Commit items).
