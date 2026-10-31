@@ -20,6 +20,7 @@
 ## Sections
 
 - D04 T02 §2 per-case canary credentials: stamped d9ad0f20 (code a17cdf71). Plan review gaps P2 x3 planned in 17a41622; completion `filed` (every gap already owned: D04 T02 §1, §3 to §6, D07 T03 §13); round 1 clean. Migration 0046. Checkpoint 11/11.
+- D03 T03 §2 reference logo store: production load handed to the coordinator 2026-10-31 12:58 SAST: `load --remote --dry-run --generation 20261031T105740Z`, `load --remote --generation 20261031T105740Z`, `--check --remote`, reverse `load --remote --restore`. Keys (23, bucket `isitlegit-artefacts`): `ref/logos/20261031T105740Z/{standard-bank,fnb,absa,nedbank,discovery-bank,tymebank,microsoft,google,apple,docusign,sars,xero,sage,aramex,postnet,takealot,netflix,paypal,payfast,yoco,protea-bank,nimbusmail}.png` and `ref/logos/index.json`. Missing: adobe, dhl, fedex.
 
 ## Critical events
 

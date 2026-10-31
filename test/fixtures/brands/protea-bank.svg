@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="160" viewBox="0 0 512 160">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="160" viewBox="0 0 512 160" role="img">
+  <title>Protea Bank (fictional)</title>
   <!-- Protea Bank: a fictional bank, drawn for IsItLegit's tests and demo. Not a real brand. -->
   <g transform="translate(80 84)">
     <g fill="#B8325A">
