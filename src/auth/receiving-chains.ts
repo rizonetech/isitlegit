@@ -119,7 +119,10 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
     complete = false;
   };
   const rule = (cidr: string, pass: boolean): AddressRule[] => {
-    if (!parseCidr(cidr)) return [];
+    if (!parseCidr(cidr)) {
+      complete = false;
+      return [];
+    }
     if (over()) {
       stop();
       return [];
@@ -145,59 +148,85 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
     }
     return pending;
   };
-  const spf = async (domain: string, path: readonly string[] = []): Promise<AddressRule[]> => {
-    if (path.includes(domain)) {
-      complete = false;
-      return [];
-    }
+  // One SPF record evaluated strictly (RFC 7208 4 to 6): anything this does not fully understand is an error that makes
+  // the rules incomplete, never a term skipped (round 4): a domain with two records, an include or redirect whose
+  // domain has none, a mechanism or argument outside the grammar, a macro, an `exists` or `ptr` (not evaluated here),
+  // `+all`. A domain with no record at the top is no error: the gateway's MX addresses stand alone.
+  const DOMAIN = /^(?=.{1,253}$)(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+  const fail = (): AddressRule[] => {
+    complete = false;
+    return [];
+  };
+  const spf = async (domain: string, path: readonly string[] = [], required = false): Promise<AddressRule[]> => {
+    if (path.includes(domain)) return fail();
     if (over()) {
       stop();
       return [];
     }
-    const record = (await txt(domain)).find((t) => /^v=spf1(?:\s|$)/i.test(t));
-    if (!record) return [];
+    const found = (await txt(domain)).filter((t) => /^v=spf1(?:\s|$)/i.test(t));
+    if (found.length > 1) return fail();
+    const record = found[0];
+    if (record === undefined) return required ? fail() : [];
     const out: AddressRule[] = [];
     let redirect: string | null = null;
-    for (const term of record.split(/\s+/).slice(1)) {
+    let sawAll = false;
+    for (const term of record.trim().split(/\s+/).slice(1)) {
       if (over()) {
         stop();
         break;
       }
-      const qualifier = /^[+\-~?]/.test(term) ? term[0] : "+";
-      const body = /^[+\-~?]/.test(term) ? term.slice(1) : term;
+      if (term.includes("%")) return fail();
+      const modifier = /^([a-z][a-z0-9_.-]*)=(.*)$/i.exec(term);
+      if (modifier) {
+        const [, key = "", value = ""] = modifier;
+        if (key.toLowerCase() === "redirect") {
+          if (redirect !== null || !DOMAIN.test(value.toLowerCase())) return fail();
+          terms++;
+          redirect = value.toLowerCase();
+        } else if (key.toLowerCase() === "exp") {
+          if (!DOMAIN.test(value.toLowerCase())) return fail();
+        }
+        // Any other modifier is ignored, as RFC 7208 6 says.
+        continue;
+      }
+      const qualifier = /^[+\-~?]/.test(term) ? (term[0] as string) : "+";
+      const body = (/^[+\-~?]/.test(term) ? term.slice(1) : term).toLowerCase();
       const pass = qualifier === "+";
-      const name = (body.split(/[:=/]/)[0] ?? "").toLowerCase();
-      const arg = body.includes(":") ? body.slice(body.indexOf(":") + 1) : "";
-      if (name === "ip4" || name === "ip6") out.push(...rule(arg, pass));
-      else if (name === "include") {
+      const parts = /^(all|include|a|mx|ptr|ip4|ip6|exists)(?::([^/]*))?((?:\/\d{1,3})?(?:\/\/\d{1,3})?)$/.exec(body);
+      if (!parts) return fail();
+      const [, mechanism = "", arg, cidrs = ""] = parts;
+      if (mechanism === "ip4" || mechanism === "ip6") {
+        // The address and its prefix together, validated for its family: a bad one is an error, never a drop.
+        const full = `${arg ?? ""}${cidrs}`;
+        const parsed = parseCidr(full);
+        if (!arg || !parsed || (mechanism === "ip4") !== (parsed.bits === 32) || cidrs.includes("//")) return fail();
+        out.push(...rule(full, pass));
+      } else if (mechanism === "all") {
+        if (arg !== undefined || cidrs) return fail();
+        // `+all` passes every address and proves nothing about the gateway.
+        if (pass) return fail();
+        sawAll = true;
+        out.push(...rule("0.0.0.0/0", false), ...rule("::/0", false));
+      } else if (mechanism === "include") {
+        if (!arg || cidrs || !DOMAIN.test(arg)) return fail();
         terms++;
         count++;
-        out.push({ include: await spf(arg.toLowerCase(), [...path, domain]), pass });
-      } else if (name === "a" || name === "mx") {
+        out.push({ include: await spf(arg, [...path, domain], true), pass });
+      } else if (mechanism === "a" || mechanism === "mx") {
+        const target = arg ?? domain;
+        if (arg === "" || !DOMAIN.test(target)) return fail();
+        const v4 = /^\/(\d{1,3})/.exec(cidrs)?.[1] ?? "";
+        const v6 = /\/\/(\d{1,3})$/.exec(cidrs)?.[1] ?? "";
+        if ((v4 && Number(v4) > 32) || (v6 && Number(v6) > 128)) return fail();
         terms++;
-        const [target, len4, len6] = (arg || domain).split("/");
-        const cidr4 = body.includes(":") ? (len4 ?? "") : (body.split("/")[1] ?? "");
-        const cidr6 = body.includes(":") ? (len6 ?? "") : (body.split("/")[2] ?? "");
-        if (name === "a") out.push(...(await hostRules(target || domain, pass, cidr4, cidr6)));
-        else
-          for (const host of await answers(target || domain, "MX"))
-            out.push(...(await hostRules(host, pass, cidr4, cidr6)));
-      } else if (name === "all") {
-        // `+all` passes every address, which proves nothing about the gateway, and rewriting it would turn an
-        // exclusion of it (`-include:` a record ending `+all`) into a permission: the rules are incomplete instead.
-        // Any other `all` matches every address without passing it, ending the evaluation there.
-        if (pass) complete = false;
-        out.push(...rule("0.0.0.0/0", false), ...rule("::/0", false));
-      } else if (body.toLowerCase().startsWith("redirect=")) {
-        terms++;
-        redirect = body.slice(9).toLowerCase();
-      } else if (name === "exists" || name === "ptr") {
-        // Not evaluated here: a term that could match an address unseen makes the rules incomplete.
-        complete = false;
+        if (mechanism === "a") out.push(...(await hostRules(target, pass, v4, v6)));
+        else for (const host of await answers(target, "MX")) out.push(...(await hostRules(host, pass, v4, v6)));
+      } else {
+        // `exists` and `ptr`: not evaluated here, so the rules cannot be known complete.
+        return fail();
       }
     }
-    if (redirect && !record.split(/\s+/).some((t) => /^[+\-~?]?all$/i.test(t)))
-      out.push(...(await spf(redirect, [...path, domain])));
+    if (redirect && !sawAll) out.push(...(await spf(redirect, [...path, domain], true)));
     return out;
   };
   if (gateway.site) rules.push(...(await spf(gateway.site)));

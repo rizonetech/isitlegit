@@ -40,7 +40,7 @@ const gatewayDns: Record<string, string[] | null> = {
   "mx1.gw.filter.example A": ["192.0.2.10"],
   "mx1.gw.filter.example AAAA": [],
   "filter.example TXT": ["v=spf1 include:_spf.filter.example -all"],
-  "_spf.filter.example TXT": ["v=spf1 ip4:198.51.100.0/24 ip6:2001:db8:5::/48 ip4:999.1.1.1/8 ~all"],
+  "_spf.filter.example TXT": ["v=spf1 ip4:198.51.100.0/24 ip6:2001:db8:5::/48 ~all"],
 };
 const withDomain = (
   domain: string,
@@ -99,7 +99,7 @@ describe("the gateway's rules", () => {
   const discover = (answers: Record<string, string[] | null>, now?: () => number) =>
     caseLookups(resolving(answers), now).discover(gateway);
 
-  it("are its MX hosts' addresses, then its SPF in order, an invalid range dropped", async () => {
+  it("are its MX hosts' addresses, then its SPF in order", async () => {
     const found = await discover(gatewayDns);
     expect(found.complete).toBe(true);
     expect(["192.0.2.10", "198.51.100.20", "2001:db8:5::1"].map((a) => gatewayAddress(a, found.rules))).toEqual([
@@ -125,7 +125,36 @@ describe("the gateway's rules", () => {
     ).toEqual([false, false, false, false, true]);
     // `+all` proves nothing: the rules are incomplete, so the chain is unverified, never proven.
     const open = await discover({ "filter.example TXT": ["v=spf1 +all"] });
-    expect([open.complete, gatewayAddress("203.0.113.9", open.rules)]).toEqual([false, false]);
+    expect([open.complete, gatewayAddress("203.0.113.9", open.rules) === true]).toEqual([false, false]);
+  });
+
+  it("are incomplete on any SPF error, never a term skipped (round 4)", async () => {
+    const gw = (record: string, more: Record<string, string[] | null> = {}) =>
+      discover({ "mx1.gw.filter.example A": ["192.0.2.10"], "filter.example TXT": [record], ...more });
+    // An include whose domain has no SPF record, an invalid exclusion before a wider allow, a bad mechanism, a macro,
+    // `exists`, `ptr`, a redirect to nothing.
+    for (const record of [
+      "v=spf1 -include:missing.filter.example ip4:203.0.113.9 -all",
+      "v=spf1 -ip4:203.0.113.9/33 ip4:203.0.113.0/24 -all",
+      "v=spf1 -ip4:999.1.1.1 ip4:203.0.113.0/24 -all",
+      "v=spf1 ip4:2001:db8::1 -all",
+      "v=spf1 ipv4:203.0.113.0/24 -all",
+      "v=spf1 include:%{d}.filter.example -all",
+      "v=spf1 exists:x.filter.example -all",
+      "v=spf1 ptr -all",
+      "v=spf1 redirect=missing.filter.example",
+    ])
+      expect((await gw(record)).complete, record).toBe(false);
+    // Two SPF records for one domain.
+    const twice = await discover({
+      "mx1.gw.filter.example A": ["192.0.2.10"],
+      "filter.example TXT": ["v=spf1 ip4:203.0.113.0/24 -all", "v=spf1 -all"],
+    });
+    expect(twice.complete).toBe(false);
+    // An answer from DNS that is no address.
+    expect((await discover({ "mx1.gw.filter.example A": ["not-an-address"] })).complete).toBe(false);
+    // A domain at the top with no SPF record: the MX addresses stand alone, complete.
+    expect((await discover({ "mx1.gw.filter.example A": ["192.0.2.10"] })).complete).toBe(true);
   });
 
   it("stop at MAX_CHAIN_LOOKUPS terms and MAX_RULES nodes however the includes repeat (round 3)", async () => {
