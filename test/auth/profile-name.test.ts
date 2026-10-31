@@ -37,6 +37,10 @@ describe("a user's name, bounded where it is written", () => {
       "Lindiwe\u009b",
       "\u202einiwdniL",
       "Lindiwe\u2066x\u2069",
+      // At either end too, where trimming would otherwise take them off and store what was refused.
+      "\nLindiwe",
+      "Lindiwe\t",
+      "\u2028Lindiwe\u2029",
     ]) {
       const refused = await update(cookie, name);
       expect(refused.status, JSON.stringify(name)).toBe(400);
