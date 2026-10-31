@@ -7,5 +7,7 @@ export default defineConfig({
   site: "https://isitlegit.co.za",
   output: "static",
   integrations: [appFonts()],
-  vite: { plugins: [tailwindcss()] },
+  // Scripts and images ship as files, never inlined into the page, so the copy action is one hashed module a content
+  // security policy can allow by origin.
+  vite: { plugins: [tailwindcss()], build: { assetsInlineLimit: 0 } },
 });
