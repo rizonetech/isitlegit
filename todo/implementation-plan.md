@@ -246,7 +246,7 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 135
+Sections: 24 | Checklist items: 141
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -272,11 +272,12 @@ Sections: 23 | Checklist items: 135
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
 | [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
+| [ ]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 6     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 89 | Checklist items: 415
+Sections: 90 | Checklist items: 425
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -324,9 +325,10 @@ Sections: 89 | Checklist items: 415
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
-| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
+| [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
+| [ ]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 6     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
@@ -372,7 +374,7 @@ Sections: 89 | Checklist items: 415
 
 ### Phase 7: After the event
 
-Sections: 48 | Checklist items: 241
+Sections: 53 | Checklist items: 255
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -423,6 +425,11 @@ Sections: 48 | Checklist items: 241
 | [ ]    | D07 T04 §18 | Threat kinds under Malicious or suspicious       | owner-decision | 4     |
 | [ ]    | D07 T04 §19 | Chosen reporting period for the counts export    | owner-decision | 3     |
 | [ ]    | D07 T04 §20 | Opt-in weekly counts report by email             | owner-decision | 4     |
+| [ ]    | D07 T04 §22 | Invite several colleagues at once                | owner-decision | 3     |
+| [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision | 3     |
+| [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
+| [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | third-party    | 3     |
+| [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -447,6 +454,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 156/378 verified sections, 87 ready to run now.
+Progress: 157/385 verified sections, 88 ready to run now.
 
-Checklist: 1506/2392 items completed (includes Commit items).
+Checklist: 1517/2422 items completed (includes Commit items).
