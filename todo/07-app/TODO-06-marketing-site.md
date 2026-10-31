@@ -48,6 +48,8 @@ track: day-6
 | 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
+| 17 | §17 | Operator approval of launch terms | §8 | [ ] |
+| 18 | §18 | Public repository and advisory read-back | §6, §8 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -333,7 +335,9 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 ## 8. Terms, security and about pages
 
-`/terms` (plain-language terms for the free launch period, reviewed by the operator before launch), `/security` (how hostile mail is handled and the disclosure policy from `SECURITY.md`), and `/about` (Rizonetech, the named author, a contact address, and that IsItLegit was built for the Meta Global AI Developer Hackathon) (`design/SPEC.md` S7 to S9).
+> **Started:** 2026-10-31T20:03Z
+
+`/terms` (plain-language terms for the free launch period, marked awaiting operator review until the operator records approval in §17), `/security` (how hostile mail is handled and the disclosure policy from `SECURITY.md`), and `/about` (Rizonetech, the named author, a contact address, and that IsItLegit was built for the Meta Global AI Developer Hackathon) (`design/SPEC.md` S7 to S9). **Corrected 2026-10-31** (plan review, 4 P2): `/terms` keeps its draft marker explicitly awaiting review (`site/src/lib/terms.ts`, tested in both draft and approved states) until the operator records approval in §17; `/security` and `/about` pair the GitHub repository, `SECURITY.md` and advisory links with an immediate `hello@isitlegit.co.za` private disclosure address while the repository is private until 3 November (`D99 T02 §5`), with an unauthenticated publication read-back in §18; `/terms` states that launch-terms updates are published on `/terms` with an updated date (no automated broadcast promise while `Adjacency: all=not-applicable`); and the checkpoint and tests verify all substantive sections, claims and negative/mutation cases.
 
 **Phase:** 6
 **Needs:** none
@@ -345,18 +349,18 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 **Build order:**
 
-1. Register the three pages' product claims and external links. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes with required owner sets for every `terms.`, `security.` and `about.` claim.
+1. Register the three pages' product claims, external links and terms-approval helper. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes with required owner sets for every `terms.`, `security.` and `about.` claim, and `site/src/lib/terms.ts` exports `TERMS_REVIEWED_ON` and `termsStatus`.
 2. Build `/terms`, `/security` and `/about` from their approved boards (`Terms`, `Security`, `About`) and `design/SPEC.md` S7 to S9, and record the S7, S8 and S9 wording deviations in `design/SPEC.md`. Done when: each page builds with its question heading, direct answer, byline, claims and links, and passes `article-check` and `test_design_spec`.
-3. Prove the three pages in node and Chromium tests (`terms.test.ts`, `security.test.ts`, `about.test.ts`, `browser.test.ts`). Done when: `pnpm --filter site test` passes across all three pages at 390 and 1440 px in light and dark themes with zero overflow and zero axe violations.
+3. Prove the three pages in node and Chromium tests (`terms.test.ts`, `security.test.ts`, `about.test.ts`, `browser.test.ts`), including negative/mutation assertions and both draft and approved terms states. Done when: `pnpm --filter site test` passes across all three pages at 390 and 1440 px in light and dark themes with zero overflow and zero axe violations.
 
-- [ ] Add `repo` (`https://github.com/rizonetech/isitlegit`), `securityAdvisory` (`https://github.com/rizonetech/isitlegit/security/advisories/new`) and `securityPolicy` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) to `site/src/lib/links.ts` and `allAddresses`, and register the `terms.*`, `security.*` and `about.*` product claims in `site/src/lib/claims.ts` with their required owner sets in `tests/scripts/test_site_claims.py`. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes.
-- [ ] Write `site/src/pages/terms.astro` (`design/SPEC.md` S7, board `Terms`): question heading `"What are the rules for using IsItLegit?"`, direct answer, wrapping `Draft` pill marked `"Draft for the launch period; reviewed by Rizonetech on 31 Oct 2026"` until the operator records approval, byline `"Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech"`, sticky `"On this page"` navigation (`#service-title`, `#verdicts-title`, `#you-title`, `#protect-title`, `#limits-title`, `#changes-title`, each `h2` with `tabindex="-1"`), invite-code disclosure with `inviteRequest`, and the distinction between a partial report when a model or model spend cap is unavailable (`D03 T01 §2`, `D04 T01 §5`) and check refusal past the organisation's 50-check daily limit (`D07 T02 §4`). Done when: the page builds with the draft marker and every section anchor resolves.
-- [ ] Write `site/src/pages/security.astro` (`design/SPEC.md` S8, board `Security`) from `SECURITY.md` and design spec 4.6a: question heading `"How do we handle a hostile email safely?"`, direct answer, byline, six safeguard cards rendered through `Claim.astro` (delimited untrusted blocks and code-owned recipients, deterministic floor, cited Evidence IDs with single retry and rule-based fallback, driver-enforced Muse Wonder walkthrough limits and canary credentials, zod-validated outputs with `tool_choice: "auto"`, and Meta Standard model IDs with `store: false`), five data-protection bullets rendered through `Claim.astro` with a link to `/privacy`, and the `"Found a vulnerability?"` card linking the GitHub Security Advisories form (`securityAdvisory`) and `SECURITY.md` (`securityPolicy`) with the 3-working-day response commitment and scope. Done when: it builds and links the GitHub advisory form and `SECURITY.md`.
-- [ ] Write `site/src/pages/about.astro` (`design/SPEC.md` S9, board `About`) naming Derick Payne and Rizonetech (Pty) Ltd, George, with `hello@isitlegit.co.za` routed to the operator (D99 T01 §2): question heading `"Who is behind IsItLegit?"`, direct answer, byline, company card with Rizonetech's light and dark SVG logos (`design/brand/rizonetech/`) and the FSL-1.1-ALv2 GitHub repository link (`repo`), `"How was it built?"` naming the Meta Global AI Developer Hackathon, independent model review, the four Meta models and Loupe through `Claim.astro`, and a link to `app.results`, `"Why start with small businesses?"` with a sourced SABRIC 2025 figure and link, and three contact cards (`hello@isitlegit.co.za`, `check@isitlegit.co.za` with the sign-up and verified-sender requirement, and `/security` for vulnerability reports). Done when: the page builds and the footer links all three pages.
-- [ ] Record the S7, S8 and S9 wording deviations in `design/SPEC.md`, write `site/test/terms.test.ts`, `site/test/security.test.ts` and `site/test/about.test.ts`, and extend `site/test/browser.test.ts` to `/terms` (including keyboard focus navigation for the `"On this page"` links), `/security` and `/about` at 390 and 1440 px in light and dark themes. Done when: `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test`, `article-check` on all three built pages, and `python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` pass.
+- [ ] Add `repo` (`https://github.com/rizonetech/isitlegit`), `securityAdvisory` (`https://github.com/rizonetech/isitlegit/security/advisories/new`), `securityPolicy` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and `securityEmail` (`mailto:hello@isitlegit.co.za?subject=Security%20vulnerability%20report`) to `site/src/lib/links.ts` and `allAddresses`, create `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON: string | null = null` and `termsStatus(reviewedOn)` returning the awaiting-review draft state when `null` and the dated reviewed state when set), and register the `terms.*`, `security.*` and `about.*` product claims in `site/src/lib/claims.ts` with their required owner sets in `tests/scripts/test_site_claims.py`. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes.
+- [ ] Write `site/src/pages/terms.astro` (`design/SPEC.md` S7, board `Terms`): question heading `"What are the rules for using IsItLegit?"`, direct answer, wrapping `Draft` pill rendered through `termsStatus()` (`"Draft for the launch period; awaiting Rizonetech review"` while `TERMS_REVIEWED_ON` is `null`, transitioning to `"Reviewed by Rizonetech on <date>"` once §17 records approval), byline `"Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech"`, sticky `"On this page"` navigation (`#service-title`, `#verdicts-title`, `#you-title`, `#protect-title`, `#limits-title`, `#changes-title`, each `h2` with `tabindex="-1"`), invite-code disclosure with `inviteRequest`, the distinction between a partial report when a model or model spend cap is unavailable (`D03 T01 §2`, `D04 T01 §5`) and check refusal past the organisation's 50-check daily limit (`D07 T02 §4`), and the on-page publication rule for launch-terms updates (any future paid plan requires a separate commercial agreement and opt-in when billing is built). Done when: the page builds with the awaiting-review draft marker and every section anchor resolves.
+- [ ] Write `site/src/pages/security.astro` (`design/SPEC.md` S8, board `Security`) from `SECURITY.md` and design spec 4.6a: question heading `"How do we handle a hostile email safely?"`, direct answer, byline, six safeguard cards rendered through `Claim.astro` (delimited untrusted blocks and code-owned recipients, deterministic floor, cited Evidence IDs with single retry and rule-based fallback, driver-enforced Muse Wonder walkthrough limits and canary credentials, zod-validated outputs with `tool_choice: "auto"`, and Meta Standard model IDs with `store: false`), five data-protection bullets rendered through `Claim.astro` with a link to `/privacy`, and the `"Found a vulnerability?"` card linking the GitHub Security Advisories form (`securityAdvisory`), `SECURITY.md` (`securityPolicy`) and immediate private email reporting (`securityEmail` at `hello@isitlegit.co.za` while the repository opens publicly on 3 November 2026 under `D99 T02 §5`), with the 3-working-day response commitment and scope. Done when: it builds and links the GitHub advisory form, `SECURITY.md` and `securityEmail`.
+- [ ] Write `site/src/pages/about.astro` (`design/SPEC.md` S9, board `About`) naming Derick Payne and Rizonetech (Pty) Ltd, George, with `hello@isitlegit.co.za` routed to the operator (D99 T01 §2): question heading `"Who is behind IsItLegit?"`, direct answer, byline, company card with Rizonetech's light and dark SVG logos (`design/brand/rizonetech/`) and the FSL-1.1-ALv2 GitHub repository link (`repo`, noting public access from 3 November 2026 for the hackathon submission), `"How was it built?"` naming the Meta Global AI Developer Hackathon, independent model review, the four Meta models and Loupe through `Claim.astro`, and a link to `app.results`, `"Why start with small businesses?"` with a sourced SABRIC 2025 figure and link, and three contact cards (`hello@isitlegit.co.za`, `check@isitlegit.co.za` with the sign-up and verified-sender requirement, and `/security` for vulnerability reports). Done when: the page builds and the footer links all three pages.
+- [ ] Record the S7, S8 and S9 wording deviations in `design/SPEC.md`, write `site/test/terms.test.ts` (asserting all six sections, draft and approved `termsStatus` states, partial-report vs daily-limit refusal distinction, on-page update rule, and negative tests failing when a section or distinction is removed), `site/test/security.test.ts` (asserting all six safeguard claims, five data-protection claims, disclosure scope, 3-working-day commitment, `securityAdvisory`, `securityPolicy` and `securityEmail` links, and negative tests failing on claim substitution/removal or wrong disclosure URLs) and `site/test/about.test.ts` (asserting Rizonetech in George, both SVG logos on disk, Derick Payne, FSL-1.1-ALv2 licence and `repo` link, hackathon and model claim, sourced SABRIC 2025 figure, all three contact destinations, and negative tests failing when a figure loses its source or a contact link breaks), and extend `site/test/browser.test.ts` to `/terms` (including keyboard focus navigation for the `"On this page"` links), `/security` and `/about` at 390 and 1440 px in light and dark themes. Done when: `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test`, `article-check` on all three built pages, and `python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` pass.
 - [ ] Commit: `site: terms, security and about pages`
 
-**Test checkpoint:** `pnpm --filter site build && ls site/dist/terms/index.html site/dist/security/index.html site/dist/about/index.html` lists all three.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test && python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` exits 0, proving all three pages build, pass substantive and negative content checks, and pass Chromium overflow, keyboard focus and axe checks without live model calls.
 
 
 ## 9. Serve the app on app.isitlegit.co.za
@@ -533,6 +537,45 @@ One reproducible synthetic Protect investigation on `/protect` showing the forwa
 - [ ] Commit: `site: protect outcome case study`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the Protect case study in at most one action from `/protect` and finds its input, evidence, alert and bank-confirmation outcome; it fails when any piece is removed.
+
+## 17. Operator approval of launch terms
+
+Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEWED_ON` in `site/src/lib/terms.ts`), flipping `/terms` from the awaiting-review draft badge to the dated reviewed badge before commercial launch. Filed 2026-10-31 by D07 T06 §8's plan review (item 1).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S7 Terms of use, board `design/mockups/png/Terms.png`
+**Job:** a careful buyer sees that Rizonetech has reviewed and approved the launch terms on a recorded date
+**Treatment:** the reviewed date in `site/src/lib/terms.ts`, rendered on `/terms`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's approval date and update `TERMS_REVIEWED_ON`. Done when: `TERMS_REVIEWED_ON` holds the approval date and `/terms` renders `"Reviewed by Rizonetech on <date>"` without the draft marker.
+
+- [ ] Record the operator's approval date here and in `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON`), and update `site/test/terms.test.ts` to assert the approved state on the built page. Done when: `pnpm --filter site build && pnpm --filter site test` passes with `TERMS_REVIEWED_ON` set.
+- [ ] Commit: `site: record operator approval of launch terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/terms` rendering the recorded review date and no awaiting-review draft marker.
+
+## 18. Public repository and advisory read-back
+
+Once `D99 T02 §5` makes `rizonetech/isitlegit` public on 3 November 2026 before the hackathon submission, verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from `/about` and `/security`, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
+
+**Phase:** 6
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication after `D99 T02 §5`. Done when: `docs/live-checks.md` records the HTTP status codes and dates.
+
+- [ ] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (`200`), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (`200`) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (`200` or GitHub sign-in redirect `302` to the advisory form, not `404`), without submitting a report, and record the evidence in `docs/live-checks.md`. Done when: recorded in `docs/live-checks.md`.
+- [ ] Commit: `docs: record public repository and security advisory read-back`
+
+**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit` and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both print `200`, and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/security/advisories/new` is not `404`.
+
 
 ## Verification
 
