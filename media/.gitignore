@@ -3,3 +3,8 @@ out/
 src/data/stats.json
 src/data/voice.ts
 src/data/demo-capture.ts
+
+# Voice recordings are biometric data: never committed, wherever they are dropped.
+voiceover/*.wav
+voiceover/*.mp3
+voiceover/*.m4a
