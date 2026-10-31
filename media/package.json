@@ -11,7 +11,9 @@
     "check:facts": "python3 tools/check-facts.py",
     "render:03": "pnpm run stats && pnpm run check:facts && pnpm run voice && remotion render src/index.ts LoupeV1 out/raw/03-loupe-1-0.mp4 && remotion ffmpeg -loglevel error -y -i out/raw/03-loupe-1-0.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k out/03-loupe-1-0.mp4",
     "render:logo": "pnpm run stats && pnpm run voice && remotion render src/index.ts LogoReveal out/isitlegit-logo-animation-1080p.mp4",
-    "thumbs": "pnpm run stats && pnpm run voice && for v in 01 02 03; do remotion still src/index.ts Thumbnail$v out/thumbnail-$v.jpg --frame=45 --image-format=jpeg --jpeg-quality=90; done"
+    "thumbs": "pnpm run stats && pnpm run voice && for v in 01 02 03; do remotion still src/index.ts Thumbnail$v out/thumbnail-$v.jpg --frame=45 --image-format=jpeg --jpeg-quality=90; done",
+    "capture:demo": "node capture/run.ts",
+    "test:capture": "node --test capture/mail.test.ts"
   },
   "dependencies": {
     "@remotion/cli": "4.0.539",
@@ -21,7 +23,9 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@types/node": "24.10.1",
     "@types/react": "19.2.2",
+    "playwright-core": "1.56.1",
     "typescript": "5.9.3"
   },
   "packageManager": "pnpm@11.16.0"
