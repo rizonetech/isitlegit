@@ -53,3 +53,16 @@ describe("readResults", () => {
     for (const field of Object.keys(GOOD)) assert.match(error, new RegExp(field));
   });
 });
+
+describe("the home page's summary lookup", () => {
+  it("points at the file the eval lane writes, resolved from the page's own folder", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { dirname, resolve } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const { SUMMARY } = await import("../src/lib/results.ts");
+    const page = fileURLToPath(new URL("../src/pages/index.astro", import.meta.url));
+    const pattern = /import\.meta\.glob<string>\("([^"]+)"/.exec(readFileSync(page, "utf8"))?.[1];
+    assert.ok(pattern, "the home page does not look the summary up with import.meta.glob");
+    assert.equal(resolve(dirname(page), pattern), SUMMARY);
+  });
+});

@@ -8,10 +8,13 @@ import malicious from "../../../design/brand/motion/malicious.svg";
 import Base from "../layouts/Base.astro";
 import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
-import { band, readResults } from "../lib/results.ts";
+import { band, parseResults } from "../lib/results.ts";
 import { IC3_2025, INTERPOL_AFRICA_2025, INTERPOL_QUOTE, SABRIC_2025, SABRIC_QUOTE } from "../lib/sources.ts";
 
-const results = band(readResults());
+// The eval's summary, found by Vite at build time relative to this file (none yet: the placeholders show).
+const summaries = import.meta.glob<string>("../../../eval/results-summary.json", { query: "?raw", import: "default", eager: true });
+const [summaryPath, summary] = Object.entries(summaries)[0] ?? [];
+const results = band(summary === undefined ? null : parseResults(summary, summaryPath ?? "eval/results-summary.json"));
 
 
 const threats = [
@@ -203,20 +206,26 @@ const models = [
     </div>
   </section>
 
-  <section aria-labelledby="protect-title" data-region="protect" class="site-container grid gap-48 py-56 md:py-96 lg:grid-cols-2 lg:gap-64 lg:items-center">
-    <div class="flex flex-col gap-20">
+  <section
+    aria-labelledby="protect-title"
+    data-region="protect"
+    class="site-container grid gap-24 py-56 text-center md:py-96 lg:grid-cols-2 lg:gap-x-64 lg:gap-y-20 lg:items-center lg:text-left"
+  >
+    <div data-protect="heading" class="flex flex-col gap-16 lg:col-start-1 lg:row-start-1 lg:self-end">
       <p class="type-eyebrow text-orange-text">Protect your business</p>
       <h2 id="protect-title" class="type-h2 md:type-h1">Scammers use your name too. Make it checkable.</h2>
+    </div>
+    <div data-protect="art" class="flex flex-col items-center gap-24 lg:col-start-2 lg:row-start-1 lg:row-span-2">
+      <img src={seal.src} width="240" height="240" alt="The IsItLegit Protected seal" class="size-seal dark:hidden" />
+      <img src={sealOnDark.src} width="240" height="240" alt="The IsItLegit Protected seal" class="hidden size-seal dark:block" />
+      <img src={badge.src} width={badge.width} height={badge.height} alt="Protected by IsItLegit signature badge" class="h-56 w-auto" />
+    </div>
+    <div data-protect="text" class="flex flex-col gap-20 lg:col-start-1 lg:row-start-2 lg:self-start">
       <p class="text-18 text-ink-2">
         Register your real domains, logo and bank account. When someone forwards mail that claims to be you, we compare it
         with the truth, tell them, and alert you. Your website seal only shows on your own domain.
       </p>
-      <a href={site.protect} class={`self-start ${button.dark}`}>How protection works</a>
-    </div>
-    <div class="flex flex-col items-center gap-24">
-      <img src={seal.src} width="240" height="240" alt="The IsItLegit Protected seal" class="size-seal dark:hidden" />
-      <img src={sealOnDark.src} width="240" height="240" alt="The IsItLegit Protected seal" class="hidden size-seal dark:block" />
-      <img src={badge.src} width={badge.width} height={badge.height} alt="Protected by IsItLegit signature badge" class="h-56 w-auto" />
+      <a href={site.protect} class={`w-full lg:w-auto lg:self-start ${button.dark}`}>How protection works</a>
     </div>
   </section>
 

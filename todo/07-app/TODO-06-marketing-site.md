@@ -41,6 +41,7 @@ track: day-6
 | 7 | §7 | Protect your business page | §2 | [ ] |
 | 8 | §8 | Terms, security and about pages | §2 | [ ] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
+| 10 | §10 | One-step demo check on the home page | §2 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -286,6 +287,28 @@ Every link the app mails names `https://app.isitlegit.co.za` (`wrangler.jsonc`):
 
 > **Verified:** 2026-10-29 | §9 | 4813b1383186c3060a613247baecab22d9942581
 > **Review:** `docs/reviews/d07-t06-s9.json`
+
+## 10. One-step demo check on the home page
+
+A visitor can see IsItLegit judge a message before signing up: one action on the home page runs a fixed synthetic sample (a fictional invoice-fraud mail) and shows its report, with zero registration steps, while real mail still needs membership (`src/intake/email.ts`). Filed 2026-10-31 by D07 T06 §2's completion review (Part 2, item 1): Have I Been Pwned answers in one field and one submission, and IsItLegit's first real check needs signup, sender verification, then a forward from the mail client.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (the SPEC changes before the surface)
+**Job:** a visitor sees a real verdict on a sample in one action and decides to sign up
+**Treatment:** one button, the sample's report from the real report components, clearly labelled as a sample
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S1 names the demo control and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's choice between a prerendered sample report (static, no model call, no spend) and a live run of the pipeline on the fixed sample (Meta spend per click, a rate limit needed). Done when: the choice and its date are in this section and `design/SPEC.md` S1.
+- [ ] Measure the current first-check path for a new member (steps from the home page to a first verdict), the baseline this section beats. Done when: the count is recorded here with the date.
+- [ ] Commit: `site: one-step demo check on the home page`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that activates the demo control once and finds the sample's verdict on the page; it fails when the control needs more than one action or any sign-up step.
 
 ## Verification
 

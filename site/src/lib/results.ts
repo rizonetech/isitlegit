@@ -21,12 +21,18 @@ export const SUMMARY = join(fileURLToPath(new URL("../../..", import.meta.url)),
 
 const fraction = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
 
-// The summary at `path`, or null when there is none. Throws, naming the problem, on anything else.
+// The summary at `path`, or null when there is none. Throws, naming the problem, on anything else. The tests read
+// files with it; the page passes the text Vite found at build time to `parseResults`, since a path computed from this
+// module's URL points into Astro's build output, not the repository.
 export function readResults(path = SUMMARY): Results | null {
-  if (!existsSync(path)) return null;
+  return existsSync(path) ? parseResults(readFileSync(path, "utf8"), path) : null;
+}
+
+// The summary's text, checked. `path` names it in errors.
+export function parseResults(raw: string, path: string): Results {
   let data: unknown;
   try {
-    data = JSON.parse(readFileSync(path, "utf8"));
+    data = JSON.parse(raw);
   } catch (error) {
     throw new Error(`results: ${path} is not JSON (${(error as Error).message})`);
   }

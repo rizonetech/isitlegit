@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { allAddresses, app, CHECK_ADDRESS, companyLinks, productLinks, site } from "../src/lib/links.ts";
+import { band, readResults } from "../src/lib/results.ts";
 import { homeFigures, IC3_2025, INTERPOL_AFRICA_2025, INTERPOL_QUOTE, SABRIC_2025, SABRIC_QUOTE } from "../src/lib/sources.ts";
 
 const DIST = fileURLToPath(new URL("../dist", import.meta.url));
@@ -212,11 +213,23 @@ describe("the sections", () => {
     linkTo(protect, site.protect, "How protection works", "Protect your business");
   });
 
-  it("Measured, not claimed: the placeholders while there is no summary, and See the results", () => {
+  it("Protect your business reads heading, seal, explanation, then the action, as the phone board orders it", () => {
+    const protect = region("protect");
+    const at = (needle: string) => protect.indexOf(needle);
+    const order = [at('id="protect-title"'), at('alt="The IsItLegit Protected seal"'), at("Register your real domains"), at(`href="${site.protect}"`)];
+    assert.ok(order.every((n) => n >= 0), `a piece is missing: ${order.join(", ")}`);
+    assert.deepEqual([...order].sort((x, y) => x - y), order, "the protection block is out of the board's order");
+    assert.match(protect, new RegExp(`<a href="${site.protect}" class="w-full lg:w-auto`), "the action is not full width on a phone");
+  });
+
+  it("Measured, not claimed: the eval's numbers when its summary exists, the placeholders while it does not", () => {
     const results = region("results");
-    for (const value of ["[XX]% phishing caught", "[X]% false alarms", "[XX] s median to verdict", "[N] labelled samples"]) {
+    const shown = band(readResults());
+    for (const value of [`${shown.detection} phishing caught`, `${shown.falseAlarms} false alarms`, `${shown.median} median to verdict`, `${shown.samples} labelled samples`]) {
       has(results, value, "the results band");
     }
+    if (shown.date) has(results, `Latest run: ${shown.date}.`, "the results band");
+    else assert.ok(!text(results).includes("Latest run"), "a run date shows with no summary");
     linkTo(results, app.results, "See the results", "the results band");
   });
 
