@@ -113,7 +113,7 @@ Sections: 62 | Checklist items: 421
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
-| [ ]    | D02 T01 §3  | Check outcomes stored per case                        | none     | 5     |
+| [x]    | D02 T01 §3  | Check outcomes stored per case                        | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
 | [x]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 7     |
 | [x]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
@@ -380,6 +380,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 117/311 verified sections, 75 ready to run now.
+Progress: 118/311 verified sections, 75 ready to run now.
 
 Checklist: 1157/1983 items completed (includes Commit items).

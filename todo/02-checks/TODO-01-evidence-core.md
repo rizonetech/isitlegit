@@ -36,7 +36,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
-| 3 | §3 | Check outcomes stored per case | §2 | [ ] |
+| 3 | §3 | Check outcomes stored per case | §2 | [x] |
 | 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
 
 ## 1. Evidence type, IDs and registry
@@ -125,6 +125,9 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 - [x] Commit: `checks: check outcomes stored per case` Done 2026-10-31: f659cc37, with the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §3 | 055cb1428dd0fcc113752f2ee9a8480280671a72
+> **Review:** `docs/reviews/d02-t01-s3.json`
 
 ## 4. Check revision stored with each outcome
 
