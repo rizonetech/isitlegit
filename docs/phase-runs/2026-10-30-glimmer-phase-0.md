@@ -79,3 +79,5 @@ Park record:
 - D03 T04 §31, §32, §33: wait on §13, or on D05 T04 §2.
 - Resume: one-shot job e08306f3 at 00:07 SAST re-acquires the guard and its heartbeat, then runs §1's comparison and §13's warm-ups.
 
+- 2026-10-31 20:27 UTC: resumed (operator, 22:16 SAST: "safe to carry on now"; run 39f6f627ba1b, heartbeat c4cc5ab8, generation f875f537e31b; the 00:07 job e08306f3 cancelled as no longer needed). The operator made the deployment's 30 minutes a day an average with one day borrowed ahead (asked and answered: one day, of three options), filed as D03 T04 §34 (f74707f9) and built (bd9f0a2b); its plan review is running. With 36.1 of today's 60 minutes left, §1's Loupe comparison runs now inside a warm-up from 0 replicas, its live gateway check included.
+

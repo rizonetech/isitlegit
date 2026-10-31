@@ -165,6 +165,21 @@ describe("reserveBurst on D1", () => {
     });
     expect(await reserveBurst(exec, reservation("next", 30))).toMatchObject({ ok: true });
   });
+  // §34 plan review gap 1: a refusal caused by earlier days' minutes is named with the figures that refused it.
+  it("names a refusal from every day's minutes through the reservation's day", async () => {
+    await db
+      .prepare(
+        "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, settled_at) VALUES ('y:2026-10-31', 'y', '2026-10-31', 'local', 't', 'warm-up', '2026-10-31T06:00:00Z', 60, 60, '2026-10-31T06:30:00Z')",
+      )
+      .run();
+    expect(await reserveBurst(exec, reservation("next", 31))).toEqual({
+      ok: false,
+      reason: "average-minutes",
+      day: "2026-11-01",
+      detail:
+        "through 2026-11-01 the deployment would hold 91 of its 90 minutes (30 a day on average since 2026-10-31, 1 day ahead)",
+    });
+  });
   it("answers a repeated id from its first rows and never charges it twice", async () => {
     const first = await reserveBurst(exec, reservation("run-1", 12));
     const again = await reserveBurst(exec, reservation("run-1", 12, new Date(MORNING.getTime() + 60_000)));

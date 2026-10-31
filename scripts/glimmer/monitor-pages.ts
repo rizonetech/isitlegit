@@ -879,7 +879,10 @@ if (import.meta.filename === process.argv[1]) {
   const [command, ...flags] = process.argv.slice(2);
   // `--retry-errors` asks again only the pages whose answer was an error; answered pages are never asked twice.
   const retryErrors = flags.includes("--retry-errors");
-  if (flags.some((flag) => flag !== "--retry-errors")) {
+  // `--free`: Loupe's answer left unconstrained (no JSON schema format), as the held-out run asked it, into runs/free/,
+  // to tell what the format does to its answers. The gateway check is not repeated.
+  const free = flags.includes("--free");
+  if (flags.some((flag) => flag !== "--retry-errors" && flag !== "--free")) {
     console.error(`monitor-pages: unknown flag in ${flags.join(" ")}`);
     process.exit(2);
   }
@@ -901,15 +904,15 @@ if (import.meta.filename === process.argv[1]) {
       whileWarm: async () => {
         // §1's live check, on the warm deployment so it costs no cold start: the Worker's own one-token request
         // through AI Gateway's `fireworks` route, its log id kept so the log can be read back for metadata only.
-        await gatewayCheck(key);
+        if (!free) await gatewayCheck(key);
         // The reserved window bounds every request and every wait, not only the start of each page (round 1).
         const deadlineAt = Date.now() + 5 * 60_000;
         answered = await runAnswers({
           dataset,
-          runs: RUNS_DIR,
+          runs: free ? join(RUNS_DIR, "free") : RUNS_DIR,
           screener: "loupe",
           ask: askLoupe(key, DEPLOYED_MODEL, {
-            body: { response_format: format },
+            body: free ? {} : { response_format: format },
             requestMs: 10_000,
             maxWaitMs: 60_000,
             deadlineAt,
@@ -922,7 +925,10 @@ if (import.meta.filename === process.argv[1]) {
       },
     });
     // The warm-up the comparison ran inside: its cold start and the minutes it was charged, which price Loupe's pages.
-    writeAtomic(join(RUNS_DIR, "loupe.warmup.json"), `${JSON.stringify(receipt, null, 2)}\n`);
+    writeAtomic(
+      join(free ? join(RUNS_DIR, "free") : RUNS_DIR, "loupe.warmup.json"),
+      `${JSON.stringify(receipt, null, 2)}\n`,
+    );
     console.log(JSON.stringify({ warmup: receipt, answered }, null, 2));
   } else if (command === "spark") {
     configureNetwork();
