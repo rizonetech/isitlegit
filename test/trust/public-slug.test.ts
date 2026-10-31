@@ -109,6 +109,28 @@ describe("recovery and retired addresses (completion review)", () => {
     expect((await publicSlug(db, c.orgId)).slug).toBe("hoopoe-freight-2");
   });
 
+  it("never lets two racing requests end with a retired address in use (round 1)", async () => {
+    const a = await business("Oxpecker Freight");
+    const b = await business("Sunbird Freight");
+    await protect(a.orgId, a.contact);
+    await protect(b.orgId, b.contact);
+    const old = (await publicSlug(db, a.orgId)).slug as string;
+    await Promise.allSettled([
+      changePublicSlug(db, a.orgId, "owner", `oxpecker-${n}`),
+      changePublicSlug(db, b.orgId, "owner", old),
+    ]);
+    const holders = await db.prepare("SELECT org_id FROM identities WHERE public_slug = ?").bind(old).all();
+    const retiredRow = await db.prepare("SELECT 1 FROM retired_public_slugs WHERE slug = ?").bind(old).first();
+    // Either a still holds it (b refused), or a gave it up and nobody holds it.
+    if (retiredRow) expect(holders.results).toEqual([]);
+    else expect(holders.results.map((r) => r.org_id)).toEqual([a.orgId]);
+    // And no write, of any kind, puts a retired address back in use.
+    if (retiredRow)
+      await expect(
+        db.prepare("UPDATE identities SET public_slug = ? WHERE org_id = ?").bind(old, b.orgId).run(),
+      ).rejects.toThrow(/retired/);
+  });
+
   it("says an unchanged address changed nothing and keeps the change unspent", async () => {
     const a = await business("Weaver Paper");
     await protect(a.orgId, a.contact);

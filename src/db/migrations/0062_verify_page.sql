@@ -17,3 +17,11 @@ CREATE TABLE retired_public_slugs (
   org_id TEXT NOT NULL REFERENCES "organization" (id) ON DELETE CASCADE,
   retired_at TEXT NOT NULL
 );
+
+-- Enforced where the address is written, so two requests racing (one giving an address up, one taking it) can never
+-- end with a retired address in use (round 1): any write of a retired address fails.
+CREATE TRIGGER identities_public_slug_not_retired BEFORE UPDATE OF public_slug ON identities
+WHEN NEW.public_slug IS NOT NULL AND EXISTS (SELECT 1 FROM retired_public_slugs WHERE slug = NEW.public_slug)
+BEGIN
+  SELECT RAISE(ABORT, 'identities: public address retired');
+END;

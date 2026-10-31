@@ -9,7 +9,9 @@ import { publicSlugOf, SLUG, withSuffix } from "./slug";
 
 // Numbers tried before giving up on one assignment: far past any real collision, and the backfill tries again later.
 const MAX_TRIES = 10_000;
-const taken = (error: unknown) => /UNIQUE constraint failed: identities\.public_slug/.test(String(error));
+// A slug in use (the unique index) or given up (the retirement trigger, migration 0062): either way, not this one.
+const taken = (error: unknown) =>
+  /UNIQUE constraint failed: identities\.public_slug|public address retired/.test(String(error));
 const retired = async (db: D1Database, slug: string) =>
   (await db.prepare("SELECT 1 AS r FROM retired_public_slugs WHERE slug = ?").bind(slug).first()) !== null;
 
