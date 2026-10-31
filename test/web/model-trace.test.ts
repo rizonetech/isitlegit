@@ -262,31 +262,90 @@ describe("the model trace", () => {
     await sendRow(id, "uncertain", "f".repeat(64));
     await finish(id);
     const open = await page(`/r/${id}?trace=1`, cookie);
-    expect(open).toContain(`hx-get="/r/${id}/trace-mail"`);
+    expect(open).toContain(`hx-get="/r/${id}/trace-mail?run=${id}"`);
     expect(open).toContain('hx-trigger="every 15s"');
     expect(open).toContain("Reply: may have been sent");
     // The refresh answers the section alone, and says the send settled once it has, without the polling attributes.
-    const again = await page(`/r/${id}/trace-mail`, cookie);
+    const again = await page(`/r/${id}/trace-mail?run=${id}`, cookie);
     expect(again).toMatch(/^<section id="trace-mail"/);
     expect(again).toContain("hx-trigger");
     await db.prepare("UPDATE mail_sends SET status = 'sent' WHERE case_id = ?").bind(id).run();
-    const settled = await page(`/r/${id}/trace-mail`, cookie);
+    const settled = await page(`/r/${id}/trace-mail?run=${id}`, cookie);
     expect(settled).toContain("Reply: sent");
     expect(settled).not.toContain("hx-trigger");
-    expect(await page(`/r/${id}?trace=1`, cookie)).not.toContain(`hx-get="/r/${id}/trace-mail"`);
+    expect(await page(`/r/${id}?trace=1`, cookie)).not.toContain(`hx-get="/r/${id}/trace-mail?run=${id}"`);
     // Nothing for a link holder, a stranger, a signed-out reader or a running report.
     const link = new URL(await signReportLink(e.REPORT_LINK_SECRET, id, orgId), "http://localhost").search;
     for (const res of [
       await call(`/r/${id}/trace-mail${link}`),
-      await call(`/r/${id}/trace-mail`),
-      await call(`/r/${id}/trace-mail`, {
+      await call(`/r/${id}/trace-mail?run=${id}`),
+      await call(`/r/${id}/trace-mail?run=${id}`, {
         headers: { cookie: (await signIn(`other-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`)).cookie },
       }),
     ]) {
       expect(await res.text()).not.toContain("Reply:");
     }
     await db.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(id).run();
+    expect(await page(`/r/${id}/trace-mail?run=${id}`, cookie)).not.toContain("Reply:");
+  });
+
+  // Review round 1: the refresh answers only for the run it was drawn for, so a retry in another tab never puts the new
+  // run's mail beside the old run's calls.
+  it("refuses a mail refresh drawn for another run, and asks for the run it is on", async () => {
+    const { cookie, id } = await member();
+    await sendRow(id, "uncertain", "1".repeat(64), "2026-10-31T10:00:00.000Z");
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).toContain(`/r/${id}/trace-mail?run=${id}`);
+    // A retry elsewhere: the case is on a new run, whose mail this tab's refresh must not draw.
+    const second = `${id}RSECOND`;
+    await db
+      .prepare(
+        "INSERT INTO case_events (case_id, step, status, started_at, actor, run_id) VALUES (?, 'retry', 'started', ?, 'member', ?)",
+      )
+      .bind(id, "2026-10-31T11:00:00.000Z", second)
+      .run();
+    await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(second, id).run();
+    await sendRow(id, "sent", "2".repeat(64), "2026-10-31T11:05:00.000Z");
+    const stale = await page(`/r/${id}/trace-mail?run=${id}`, cookie);
+    expect(stale).not.toContain("Reply:");
     expect(await page(`/r/${id}/trace-mail`, cookie)).not.toContain("Reply:");
+    expect(await page(`/r/${id}/trace-mail?run=${second}`, cookie)).toContain("Reply: sent");
+  });
+
+  // Review round 1: a failed report whose reply has not started has no send row yet, which is not "no mail expected": it
+  // keeps asking, says so, and stops when the reply step ends or the case has gone quiet.
+  it("keeps asking for a reply that has not started, then stops once the reply step ends or the case goes quiet", async () => {
+    const { cookie, id } = await member();
+    const recent = new Date().toISOString();
+    const step = (name: string, status: string, at: string) =>
+      db
+        .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms) VALUES (?, ?, ?, ?, 100)")
+        .bind(id, name, status, at)
+        .run();
+    await step("admit", "done", recent);
+    await step("reply", "started", recent);
+    await finish(id);
+    const waiting = await page(`/r/${id}?trace=1`, cookie);
+    expect(waiting).toContain("The reply has not been sent yet.");
+    expect(waiting).toContain(`hx-get="/r/${id}/trace-mail?run=${id}"`);
+    // Its send appears and the reply step ends: settled, no more asking.
+    await sendRow(id, "sent", "3".repeat(64));
+    await step("reply", "done", new Date().toISOString());
+    const done = await page(`/r/${id}/trace-mail?run=${id}`, cookie);
+    expect(done).toContain("Reply: sent");
+    expect(done).not.toContain("hx-trigger");
+    // A case that has gone quiet (nothing in ten minutes) is not awaited for ever.
+    const quiet = await member();
+    const old = new Date(Date.now() - 20 * 60_000).toISOString();
+    await db
+      .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms) VALUES (?, 'reply', 'started', ?, 100)")
+      .bind(quiet.id, old)
+      .run();
+    await finish(quiet.id);
+    const stopped = await page(`/r/${quiet.id}?trace=1`, quiet.cookie);
+    expect(stopped).toContain("No mail was sent for this case.");
+    expect(stopped).not.toContain("hx-trigger");
   });
 
   it("says plainly when no model was used, and shows an unsettled call's time and outcome as not recorded", async () => {

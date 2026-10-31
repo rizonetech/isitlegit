@@ -88,6 +88,7 @@ const TRACE = {
     total: { ms: 33600, unknownTime: 1, measuredUsd: 0.006, estimatedUsd: 0.005, estimatedCalls: 2 },
   },
   facts: { findings: 9, cited: ["E7", "E4", "E2"] },
+  run: "01JCASE0000000000000000000",
 } as unknown as NonNullable<Parameters<typeof ReportDocument>[0]["trace"]>;
 const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "audio"; trace?: boolean }> = {
   trace: {

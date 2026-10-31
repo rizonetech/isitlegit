@@ -10,7 +10,7 @@ import { artefactUrl } from "../artefact-url";
 import { cx } from "../components/attrs";
 import { Button } from "../components/Button";
 import { type CardItem, CHECK_WORDS, EvidenceCards } from "../components/evidence/cards";
-import { ModelTracePanel, type TraceFacts } from "../components/model-trace";
+import { ModelTracePanel, replyAwaited, type TraceFacts } from "../components/model-trace";
 import { PartialNotice } from "../components/States";
 import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
@@ -89,7 +89,7 @@ export type LiveProps = {
   uploadName?: string | null;
   // The model trace (D07 T03 §5), a member's only and read only once the report is past running, so the poll that
   // finishes it carries it; `traceOpen` is the address's `?trace=1`, kept on the poll so a watched report finishes open.
-  trace?: { data: ModelTrace; facts: TraceFacts } | null;
+  trace?: { data: ModelTrace; facts: TraceFacts; run: string } | null;
   traceOpen?: boolean;
   now?: Date;
   // The phone's line of which message this is (D07 T03 §9's `MetaLine`), drawn under the band so the poll keeps it
@@ -429,6 +429,8 @@ export function ReportLive(props: LiveProps) {
           {props.trace && (
             <ModelTracePanel
               caseId={caseId}
+              run={props.trace.run}
+              awaiting={replyAwaited(props.channel, progress, now)}
               trace={props.trace.data}
               facts={props.trace.facts}
               open={props.traceOpen === true}
@@ -467,6 +469,8 @@ export function ReportLive(props: LiveProps) {
           {props.trace && (
             <ModelTracePanel
               caseId={caseId}
+              run={props.trace.run}
+              awaiting={replyAwaited(props.channel, progress, now)}
               trace={props.trace.data}
               facts={props.trace.facts}
               open={props.traceOpen === true}

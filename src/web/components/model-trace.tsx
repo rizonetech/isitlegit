@@ -3,6 +3,7 @@
 // actions in order and the mail the case sent. Pure: the reader (src/db/model-trace.ts) stores nothing typed by hand,
 // and "what it did" is derived from the stored verdict and walk, saying so when a result is not stored.
 import type { ModelTrace, TraceAction, TraceCall, TraceSend } from "../../db/model-trace-types";
+import type { Progress } from "../pages/report-progress";
 
 // The recorded steps in the board's plain words; a step this map does not know reads as its recorded name.
 const STEP_WORDS: Record<string, string> = {
@@ -128,12 +129,25 @@ function Row(props: { call: TraceCall; facts: TraceFacts; chosen: number | null 
   );
 }
 
-// The case's mail (from `mail_sends`, never an address). While a send is unsettled (waiting, or may have been sent) the
-// section asks for itself again every 15 seconds and swaps only itself, so the open panel settles without a reload and
-// without losing its disclosure state; once every send is settled it stops (D07 T03 §5, completion review).
+// Whether the case's reply is still to come: an emailed case whose reply step has not ended and that moved lately (the
+// reply row does not exist until that step starts, and a Workflow that stopped must not keep a page asking for ever).
+const AWAIT_MS = 10 * 60_000;
+export function replyAwaited(channel: "email" | "upload", progress: Progress, now: Date): boolean {
+  if (channel !== "email") return false;
+  const reply = progress.steps.find((s) => s.step === "reply")?.state ?? "waiting";
+  if (reply === "done" || reply === "failed") return false;
+  const last = Math.max(...progress.steps.map((s) => (s.at ? Date.parse(s.at) : 0)));
+  return last > 0 && now.getTime() - last < AWAIT_MS;
+}
+
+// The case's mail (from `mail_sends`, never an address). While a send is unsettled (waiting, or may have been sent), or
+// the reply is still to come, the section asks for itself again every 15 seconds and swaps only itself, so the open
+// panel settles without a reload and without losing its disclosure state; it names the run it was drawn for, and the
+// answer is refused for any other (a retry in another tab), so two runs never mix; once every send is settled and no
+// reply is awaited it stops (D07 T03 §5, completion review).
 const UNSETTLED = new Set(["pending", "uncertain"]);
-export function TraceMail(props: { sends: readonly TraceSend[]; caseId: string }) {
-  const settling = props.sends.some((m) => UNSETTLED.has(m.status));
+export function TraceMail(props: { sends: readonly TraceSend[]; caseId: string; run: string; awaiting: boolean }) {
+  const settling = props.awaiting || props.sends.some((m) => UNSETTLED.has(m.status));
   return (
     <section
       id="trace-mail"
@@ -141,7 +155,7 @@ export function TraceMail(props: { sends: readonly TraceSend[]; caseId: string }
       class="flex flex-col gap-8"
       {...(settling
         ? {
-            "hx-get": `/r/${props.caseId}/trace-mail`,
+            "hx-get": `/r/${props.caseId}/trace-mail?run=${encodeURIComponent(props.run)}`,
             "hx-trigger": "every 15s",
             "hx-swap": "outerHTML",
             "data-quiet-poll": "",
@@ -152,7 +166,7 @@ export function TraceMail(props: { sends: readonly TraceSend[]; caseId: string }
         Mail sent for this case
       </h3>
       {props.sends.length === 0 ? (
-        <p class="text-14">No mail was sent for this case.</p>
+        <p class="text-14">{props.awaiting ? "The reply has not been sent yet." : "No mail was sent for this case."}</p>
       ) : (
         <ul class="flex flex-col gap-4 text-14">
           {props.sends.map((m) => (
@@ -166,7 +180,14 @@ export function TraceMail(props: { sends: readonly TraceSend[]; caseId: string }
   );
 }
 
-export function ModelTracePanel(props: { trace: ModelTrace; facts: TraceFacts; caseId: string; open?: boolean }) {
+export function ModelTracePanel(props: {
+  trace: ModelTrace;
+  facts: TraceFacts;
+  caseId: string;
+  run: string;
+  awaiting: boolean;
+  open?: boolean;
+}) {
   const { trace } = props;
   const { total } = trace;
   const chosen = chosenBy(trace);
@@ -249,7 +270,7 @@ export function ModelTracePanel(props: { trace: ModelTrace; facts: TraceFacts; c
             ))}
           </section>
         )}
-        <TraceMail sends={trace.sends} caseId={props.caseId} />
+        <TraceMail sends={trace.sends} caseId={props.caseId} run={props.run} awaiting={props.awaiting} />
       </div>
     </details>
   );

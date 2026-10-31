@@ -20,7 +20,7 @@ import { getCase } from "../../db/cases";
 import { readFeedback } from "../../db/feedback";
 import { readModelTrace, readTraceSends } from "../../db/model-trace";
 import { getVerdict } from "../../db/verdicts";
-import { TraceMail } from "../components/model-trace";
+import { replyAwaited, TraceMail } from "../components/model-trace";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
@@ -103,6 +103,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           held,
           await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
           url.searchParams.get("trace") === "1",
+          url.searchParams.get("run"),
         );
         if (out) return answer(out);
       }
@@ -166,6 +167,8 @@ async function render(
   retry: LiveProps["retry"] = null,
   // The address's `?trace=1` (D07 T03 §5): the model trace open, as the demo shows it.
   traceOpen = false,
+  // The run a mail refresh was drawn for (D07 T03 §5): its answer is that run's alone.
+  traceRun: string | null = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -177,12 +180,17 @@ async function render(
   const run = found.value.runId ?? id;
   // The trace's mail section alone (D07 T03 §5): a member's, past running; anyone else has nothing to refresh.
   if (mode === "mail") {
-    if (view !== "member" || found.value.status === "received" || found.value.status === "running")
+    // Only for the run the section was drawn for: another tab's retry makes this one's answer nothing, never the new
+    // run's mail beside the old run's calls.
+    if (view !== "member" || found.value.status === "received" || found.value.status === "running" || traceRun !== run)
       return new Response(null, { status: 204, headers: HEADERS });
-    return new Response(String(<TraceMail caseId={id} sends={await readTraceSends(db, id, run)} />), {
-      headers: HEADERS,
-    });
+    const awaiting = replyAwaited(found.value.channel, progressOf(await readCaseEvents(db, id, run)), new Date());
+    return new Response(
+      String(<TraceMail caseId={id} run={run} awaiting={awaiting} sends={await readTraceSends(db, id, run)} />),
+      { headers: HEADERS },
+    );
   }
+
   const evidence = await readEvidence(db, id, run);
   // Progress is pinned to the same run as everything above (a retry landing between the reads cannot join two runs), and
   // a retry whose start is unconfirmed is a fact of that stored state: `received` under a retry's run id that has
@@ -205,6 +213,7 @@ async function render(
   const trace =
     view === "member" && found.value.status !== "received" && found.value.status !== "running"
       ? {
+          run,
           data: await readModelTrace(db, id, run),
           facts: {
             findings: evidence.filter((e) => e.check !== "not_checked").length,

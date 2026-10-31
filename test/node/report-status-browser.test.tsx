@@ -89,6 +89,7 @@ const TRACE = {
     total: { ms: 2600, unknownTime: 0, measuredUsd: 0.004, estimatedUsd: 0, estimatedCalls: 0 },
   },
   facts: { findings: 1, cited: [] },
+  run: ID,
 } as unknown as NonNullable<Parameters<typeof ReportLive>[0]["trace"]>;
 const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
   status: "running",
@@ -185,6 +186,7 @@ const state = {
   // `withhold` starts it and answers nothing the page can follow, as a lost answer or a stopped page leaves it.
   mailAnswers: [] as ("503" | "sent")[],
   mailPolls: 0,
+  mailUrls: [] as string[],
   retries: 0,
   retry: "accept" as "accept" | "withhold",
 };
@@ -198,6 +200,7 @@ beforeAll(async () => {
     const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
     if (path === `/r/${ID}/trace-mail`) {
       state.mailPolls++;
+      state.mailUrls.push(req.url ?? "");
       const next = state.mailAnswers.shift() ?? "sent";
       if (next === "503") return res.writeHead(503).end();
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -206,6 +209,8 @@ beforeAll(async () => {
           String(
             <TraceMail
               caseId={ID}
+              run={ID}
+              awaiting={false}
               sends={[{ kind: "reply", status: next, attempts: 1, error: null, at: "2026-10-31T10:00:00.000Z" }]}
             />,
           ),
@@ -323,6 +328,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     await expect.poll(() => p.getByText("Reply: sent").count(), { timeout: 15_000 }).toBe(1);
     expect(await p.getByText("Reply: may have been sent").count()).toBe(0);
     expect(state.mailPolls).toBeGreaterThanOrEqual(2);
+    // Every refresh named the run it was drawn for.
+    expect(state.mailUrls.every((u) => u.includes(`run=${ID}`))).toBe(true);
     // No stale line, no navigation, the panel still open: only the mail section changed.
     expect(await p.locator("#report-stale").count()).toBe(0);
     expect(state.pages).toBe(1);
