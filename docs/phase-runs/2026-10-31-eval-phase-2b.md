@@ -1,0 +1,8 @@
+# Phase run: Phase 2 again, the eval lane
+
+Started 2026-10-31 11:26 UTC by `process-plan`, scope plan, on branch `eval-lane`: D08 T01 §1 (the checks lane's loader) reached main at 93d9b8e4 and was merged in at 80bd6c49, so D08 T01 §2 is ready. Phase 6 is parked on the operator's live run of D09 T01 §1 (`docs/phase-runs/2026-10-31-eval-phase-6.md`); the coordinator allowed D09 T01 §1's reviewed, unstamped code to ride to main with D08 T01 §2's stamp (2026-10-31 11:24 UTC), its script still refusing without `--confirm-production`.
+
+## Sections
+
+## Critical events
+- 2026-10-31T11:26Z run guard re-pointed: heartbeat job `374a1421`, generation `5b3ea624bf56`, run `819396a01eeb`, scope plan, lane eval.
