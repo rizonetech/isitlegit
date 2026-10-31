@@ -551,7 +551,9 @@ describe("round 1 cases", () => {
     ]);
     expect(from.length).toBeGreaterThan(160);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
-    expect(world.sends).toEqual([{ to: from, text: expect.stringContaining("Checks are paused for your organisation") }]);
+    expect(world.sends).toEqual([
+      { to: from, text: expect.stringContaining("Checks are paused for your organisation") },
+    ]);
   });
 });
 
