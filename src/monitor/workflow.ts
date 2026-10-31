@@ -8,7 +8,16 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import puppeteer from "@cloudflare/puppeteer";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
 import { type Burst, REQUEST_MS, settleGlimmer, WARMUP_LIMIT_MS, wakeGlimmer } from "../vision/glimmer-wake";
-import { type Capture, CaptureFailed, type Lookup, type MonitorDeps, monitorOrg, protectedOrgs, sastDay } from "./run";
+import {
+  type Capture,
+  CaptureFailed,
+  type Lookup,
+  type MonitorDeps,
+  monitorOrg,
+  protectedOrgs,
+  type RunSummary,
+  sastDay,
+} from "./run";
 
 export type MonitorParams = { orgId: string; day: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
@@ -134,25 +143,42 @@ export async function settleAgain(
   return true;
 }
 
+// The Workflow's body: the run in one retried step, then the run's reservation settled in a step of its own, keyed by
+// the run's id, whatever the run step returned or however it failed (an attempt whose last write failed hands nothing
+// back, and its retry may have nothing to capture and so never wake; round 3). The settle step reads the ledger and is
+// a no-op when nothing is held. A run that failed still fails, after the settlement.
+type Steps = Pick<WorkflowStep, "do">;
+export async function runMonitor(
+  step: Steps,
+  deps: MonitorDeps & { heldSince: (id: string) => Promise<number | null> },
+  orgId: string,
+  runId: string,
+): Promise<RunSummary> {
+  let summary: RunSummary | undefined;
+  let failure: unknown;
+  try {
+    summary = await step.do(
+      "monitor",
+      { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
+      async () => monitorOrg(deps, orgId, runId),
+    );
+  } catch (error) {
+    failure = error;
+  }
+  const held: Burst = summary?.unsettled ?? { id: runId, wakeAt: Number.NaN, deadline: Number.NaN };
+  await step.do(
+    "settle",
+    { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
+    () => settleAgain(deps, held),
+  );
+  if (failure !== undefined) throw failure;
+  return summary as RunSummary;
+}
+
 export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
     const runId = `monitor-${event.payload.orgId}-${event.payload.day}`;
-    const deps = monitorDeps(this.env, runId);
-    // A failed run throws, so the step retries it; a retry is idempotent (the hosts' state and the run row are
-    // upserts, and owed captures are read back from the hosts' state).
-    const summary = await step.do(
-      "monitor",
-      { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
-      async () => monitorOrg(deps, event.payload.orgId, runId),
-    );
-    const unsettled = summary.unsettled;
-    if (unsettled)
-      await step.do(
-        "settle",
-        { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
-        () => settleAgain(deps, unsettled),
-      );
-    return summary;
+    return runMonitor(step, monitorDeps(this.env, runId), event.payload.orgId, runId);
   }
 }
 

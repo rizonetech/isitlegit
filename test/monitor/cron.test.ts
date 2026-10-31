@@ -22,7 +22,14 @@ import {
   SCREEN_CALLS_PER_RUN,
   sastDay,
 } from "../../src/monitor/run";
-import { browserCapture, dohLookup, monitorDeps, scheduledMonitor, settleAgain } from "../../src/monitor/workflow";
+import {
+  browserCapture,
+  dohLookup,
+  monitorDeps,
+  runMonitor,
+  scheduledMonitor,
+  settleAgain,
+} from "../../src/monitor/workflow";
 import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "../../src/schedules";
 import { setIdentity } from "../../src/trust/identity";
 import { burstMinutes } from "../../src/vision/glimmer-minutes";
@@ -528,6 +535,70 @@ describe("Glimmer on the real ledger (gap 9)", () => {
       expect(row?.settled_at).not.toBeNull();
       expect(row?.used_minutes).toBeLessThanOrEqual(REQUEST_MS / 60_000 + 6 + 1e-6);
     });
+
+  it("settles a reservation an attempt left held even when its retry has nothing to capture (round 3)", async () => {
+    for (const ending of ["the retry succeeds", "every attempt fails"] as const) {
+      await db.prepare("DELETE FROM glimmer_runtime").run();
+      const b = await business();
+      const runId = `monitor-${b.orgId}-held-${ending.length}`;
+      const fetcher = (async () => new Response(COMPLETION, { status: 200 })) as unknown as typeof fetch;
+      // The database goes down once the capture is stored, for the settlement and the run's last write.
+      let down = false;
+      const flaky = new Proxy(db, {
+        get(target, key) {
+          if (key === "prepare")
+            return (sql: string) => {
+              if (
+                down &&
+                (sql.includes("reserved_minutes, used_minutes, last_answer_at") ||
+                  sql.startsWith("UPDATE monitor_runs"))
+              )
+                throw new Error("D1_ERROR: overloaded");
+              return target.prepare(sql);
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      const real = monitorDeps({ ...env, ...ENV, DB: flaky } as unknown as Env, runId, { fetcher });
+      const deps = {
+        ...real,
+        db: flaky,
+        resolve: async (h: string) => (h === b.candidates[0] ? live("192.0.2.140") : ({ status: "none" } as Lookup)),
+        capture: async (h: string) => {
+          down = true;
+          return { screenshot: new Uint8Array([1]), text: h, url: `https://${h}/` };
+        },
+      };
+      // A step runner as Workflows retry: the run step up to three attempts, the database back between them when the
+      // retry is to succeed.
+      const step = {
+        do: async (name: string, _options: unknown, work: () => Promise<unknown>) => {
+          const attempts = name === "monitor" ? 3 : 1;
+          let last: unknown;
+          for (let a = 0; a < attempts; a++) {
+            if (a > 0 && ending === "the retry succeeds") down = false;
+            if (name === "settle") down = false;
+            try {
+              return await work();
+            } catch (error) {
+              last = error;
+              await new Promise((r) => setTimeout(r, 1));
+            }
+          }
+          throw last;
+        },
+      } as unknown as Parameters<typeof runMonitor>[0];
+      const done = runMonitor(step, deps, b.orgId, runId);
+      if (ending === "every attempt fails") await expect(done, ending).rejects.toThrow("overloaded");
+      else expect((await done).unsettled, ending).toBeUndefined();
+      const row = await db
+        .prepare("SELECT settled_at FROM glimmer_runtime WHERE reservation_id = ?")
+        .bind(runId)
+        .first<{ settled_at: string | null }>();
+      expect(row?.settled_at, ending).not.toBeNull();
+    }
+  });
 });
 
 describe("the browser capture (gap 12)", () => {
