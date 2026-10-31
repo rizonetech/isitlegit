@@ -49,3 +49,12 @@ No genuine-mail corpus passes, so every genuine sample comes from the synthetic 
 [6]: https://github.com/rf-peixoto/phishing_pot
 [7]: https://plg.uwaterloo.ca/~gvcormac/treccorpus07/
 [8]: http://www.aueb.gr/users/ion/data/enron-spam/
+
+## Voice fixture: director urgent payment (D01 T03 §3)
+
+| File | Made by | Rights |
+| --- | --- | --- |
+| `test/fixtures/audio/director-urgent-payment.ogg` | `scripts/fixtures/make-voice.ts` from `test/fixtures/audio/director-urgent-payment.json` | Project's own |
+
+- Provenance: a two-speaker voice note synthesised offline on 2026-10-31 by Windows' own speech synthesis (`System.Speech`, the "Microsoft David Desktop" and "Microsoft Zira Desktop" voices, called through `powershell.exe` from WSL), each turn as 48 kHz mono 16-bit PCM, joined with half a second of silence and encoded as Ogg Opus with libopus (`opusscript`). Same bytes on every run (sha256 `ad13ce23b5d0a9a075e7be2c10cc78d3ee7f33e1e3ee1b894ef3c688bf00d8c2`).
+- Content: invented throughout. The caller ("Pieter Botha, the managing director of Karoo Fresh Produce"), the clerk ("Thandi"), the invoice, the amount and the account number are fictional; no real person's voice, no voice clone and no outbound service was used.

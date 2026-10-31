@@ -36,6 +36,10 @@ export default defineConfig({
                 PUBLIC_ORIGIN: "https://isitlegit.test",
                 REPORT_LINK_SECRET: "test-report-link-secret-0123456789abcdef",
                 SMTP2GO_API_KEY: `api-${"t".repeat(32)}`,
+                // Test-only Meta credentials, so a Workflow step that calls a model (D01 T03 §3) reaches the gateway
+                // URL, which every such test stubs; no test reaches Meta.
+                META_API_KEY: "LLM_test_key_workflow_0123456789",
+                CF_AIG_TOKEN: "aig-test-token-workflow-0123456789",
               },
             },
           }),

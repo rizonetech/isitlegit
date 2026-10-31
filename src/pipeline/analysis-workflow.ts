@@ -43,7 +43,12 @@ import {
   threading,
 } from "../mail/reply";
 import { sendMail } from "../mail/smtp2go";
+import { d1Budget } from "../meta/budget";
+import type { MetaEnv } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
+import { ModelOutputError } from "../meta/structured";
+import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
+import { transcribe as transcribeChunks } from "../voice/transcribe";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -57,7 +62,7 @@ import { recordEvent } from "./events";
 // step results, never from state read outside a step.
 export type AnalysisParams = { caseId: string };
 
-export type StepName = "admit" | "parse" | "checks" | "verdict" | "store" | "reply" | "finish";
+export type StepName = "admit" | "parse" | "transcribe" | "checks" | "verdict" | "store" | "reply" | "finish";
 // What the reply reports: the verdict, or which step failed and its error class (no verdict, perhaps no summary).
 export type ReportState =
   | { status: "ready"; verdict: Verdict }
@@ -79,6 +84,14 @@ const REPLY_RETRIES: WorkflowStepConfig = {
   retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
   timeout: `${REPLY_STEP_TIMEOUT_MS / 1000} seconds`,
 };
+// The transcription's own budget (D01 T03 §3): up to three 10-minute chunks, each a paid call the client already
+// retries inside its deadline, so two attempts of five minutes; a second attempt pays for every chunk again.
+export const TRANSCRIBE_STEP_TIMEOUT_MS = 300_000;
+export const TRANSCRIBE_CALL_MS = 90_000;
+const TRANSCRIBE_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
+  timeout: `${TRANSCRIBE_STEP_TIMEOUT_MS / 1000} seconds`,
+};
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
 const FAIL_RETRIES: WorkflowStepConfig = {
@@ -98,7 +111,17 @@ export const STUB_VERDICT: VerdictView = {
 
 // A step error the Workflow must not retry carries only its class as its message (`NonRetryableError` keeps its own name,
 // which is how the engine knows it), so no message content reaches the instance's error or the event.
-const FATAL = ["ParseError", "RawMissing", "CaseRefused"] as const;
+// A recording that cannot be read, is too long or of a type not taken, and a transcription answer outside its shape,
+// are final too (D01 T03 §3): a retry would decode the same bytes again, or pay for the same answer again.
+const FATAL = [
+  "ParseError",
+  "RawMissing",
+  "CaseRefused",
+  "CorruptAudio",
+  "AudioTooLong",
+  "UnsupportedAudio",
+  "ModelOutputError",
+] as const;
 const fatal = (errorClass: (typeof FATAL)[number]) => new NonRetryableError(errorClass);
 // The class of the error a step threw after its last attempt. The engine hands a non-retryable error on as a plain
 // Error, so its class is read from its message, and only when it is one of the classes above: any other message stays
@@ -156,7 +179,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
-      step.do(name, name === "reply" ? REPLY_RETRIES : RETRIES, () =>
+      step.do(name, name === "reply" ? REPLY_RETRIES : name === "transcribe" ? TRANSCRIBE_RETRIES : RETRIES, () =>
         safely(async () => {
           const startedAt = new Date().toISOString();
           const began = Date.now();
@@ -202,6 +225,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     let current: StepName = "parse";
     try {
       const key = await timed("parse", () => parse(store, caseId, { channel, sourceKind, headersAvailable }));
+      // A voice note's transcript, for the voice evidence that reads it (D01 T03 §3, §4).
+      if (sourceKind === "audio") {
+        current = "transcribe";
+        await timed("transcribe", () => transcribe(this.env, store, caseId, key));
+      }
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
       await timed("checks", async () =>
@@ -473,6 +501,47 @@ export async function checks(
   const { items, outcomes } = await runChecksWithOutcomes(view);
   const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision);
   return { evidence: saved.length };
+}
+
+// Transcribes an uploaded voice note (D01 T03 §3): the stored recording the summary names, decoded to 10-minute WAV
+// chunks and sent in turn under the case's budget, the transcript stored as its `audio` artefact. A recording that
+// cannot be read, is too long or of a type not taken, and an answer outside its shape, end the step at once.
+export async function transcribe(
+  env: MetaEnv & { DB: D1Database },
+  store: Store,
+  caseId: string,
+  key: string,
+): Promise<{ transcript: string; chunks: number }> {
+  const summary = await readArtefact(store, caseId, key);
+  if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
+  const source = (
+    JSON.parse(new TextDecoder().decode(summary.body)) as { source?: { key?: string; mediaType?: string } }
+  ).source;
+  const recording = source?.key ? await readArtefact(store, caseId, source.key) : null;
+  if (!recording || !("body" in recording)) throw fatal("RawMissing");
+  const ctx = {
+    env,
+    budget: d1Budget(env.DB, { caller: "transcribe", caseId }),
+    owner: { kind: "case" as const, caseId, step: "transcribe" },
+    // Each chunk's call, retries included: three fit inside the step's attempt.
+    deadlineMs: TRANSCRIBE_CALL_MS,
+  };
+  try {
+    const { transcript, key: stored } = await transcribeChunks(
+      store,
+      caseId,
+      decodeToWavChunks(recording.body, source?.mediaType ?? ""),
+      ctx,
+    );
+    return { transcript: stored, chunks: transcript.chunks };
+  } catch (error) {
+    // Named here, never from the class's own name, which a minified build may change.
+    if (error instanceof CorruptAudio) throw fatal("CorruptAudio");
+    if (error instanceof AudioTooLong) throw fatal("AudioTooLong");
+    if (error instanceof UnsupportedAudio) throw fatal("UnsupportedAudio");
+    if (error instanceof ModelOutputError) throw fatal("ModelOutputError");
+    throw error;
+  }
 }
 
 // The verdict from the case's stored evidence, in its order. The stub stands until the verdict agent exists (D04 T01);
