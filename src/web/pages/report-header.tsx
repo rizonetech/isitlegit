@@ -22,6 +22,16 @@ export type HeaderFacts = {
 
 const subjectOf = (facts: HeaderFacts) => facts.subject?.trim() || "No subject";
 
+// A short fingerprint of what the header says (FNV-1a over its facts): the status poll sends the header out of band only
+// when this differs from the one the page holds, so a reader's focus, copy feedback or selection in the header survives
+// every poll that changes nothing (in practice, all but the one after parsing).
+export function headerKey(facts: HeaderFacts): string {
+  const text = JSON.stringify([facts.subject, facts.fromName, facts.fromAddress, facts.checker, facts.forwardedBy]);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return hash.toString(36);
+}
+
 // "Name <address>", or whichever part is stored, or null.
 function senderOf(facts: HeaderFacts): string | null {
   const name = facts.fromName?.trim();
@@ -52,7 +62,12 @@ export function ReportHeader(props: {
   const sender = senderOf(facts);
   const member = view === "member";
   return (
-    <div id="report-header" class="flex flex-col gap-12" {...(props.oob ? { "hx-swap-oob": "true" } : {})}>
+    <div
+      id="report-header"
+      data-key={headerKey(facts)}
+      class="flex flex-col gap-12"
+      {...(props.oob ? { "hx-swap-oob": "true" } : {})}
+    >
       {member && (
         <>
           <a href="/cases" class="md:hidden self-start inline-flex items-center min-h-24 type-small text-orange-text">
@@ -91,12 +106,19 @@ export function ReportHeader(props: {
               Download PDF
             </Button>
           </span>
-          <Button variant="ghost" size="small" data-copy={props.copy}>
-            Copy link
-          </Button>
-          {/* What a refused copy selects, shown only then (src/web/client/app.ts). */}
-          <span data-copy-source hidden class="basis-full font-mono text-13 wrap-anywhere">
-            {props.copy}
+          {/* Copy link works only through the app script, so it is shown by the same mark as Download PDF. Without
+              the script the address itself is shown to select by hand; with it, only after a refused copy, which marks
+              it shown (src/web/client/app.ts). */}
+          <span data-copy-control="" class="hidden [[data-script]_&]:inline-flex">
+            <Button variant="ghost" size="small" data-copy={props.copy}>
+              Copy link
+            </Button>
+          </span>
+          <span data-copy-reveal="" class="basis-full text-13 text-muted [[data-script]_&:not([data-shown])]:hidden">
+            Link to this report:{" "}
+            <span data-copy-source class="font-mono text-ink wrap-anywhere">
+              {props.copy}
+            </span>
           </span>
           <p data-copy-status role="status" aria-live="polite" class="basis-full text-13 text-muted" />
         </div>

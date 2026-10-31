@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ReportHeader } from "../../src/web/pages/report-header";
+import { headerKey, MetaLine, ReportHeader } from "../../src/web/pages/report-header";
 import { ReportLive } from "../../src/web/pages/report-live";
 import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
@@ -75,8 +75,9 @@ function page(f: Fixture) {
     />,
   );
 }
-// The status poll's answer, as src/web/pages/report.tsx sends it: the live region, then the header out of band.
-function status(f: Fixture) {
+// The status poll's answer, as src/web/pages/report.tsx sends it: the live region, then the header out of band only
+// when it differs from the one the poll says the page holds (`h`).
+function status(f: Fixture, held: string | null) {
   const stored = base(f);
   const facts = headerFacts(stored, f.view === "member" ? "Sipho Dube" : null);
   return (
@@ -93,11 +94,11 @@ function status(f: Fixture) {
         coverage={null}
         view={f.view}
         {...(f.view === "public" ? { link: LINK } : {})}
-        meta={
-          <p class="md:hidden print:hidden type-small text-muted wrap-anywhere">{`${facts.subject} · ${facts.at}`}</p>
-        }
+        meta={<MetaLine facts={facts} />}
+        headerKey={headerKey(facts)}
       />,
-    ) + String(<ReportHeader facts={facts} view={f.view} copy={copyOf(f.view)} oob />)
+    ) +
+    (held === headerKey(facts) ? "" : String(<ReportHeader facts={facts} view={f.view} copy={copyOf(f.view)} oob />))
   );
 }
 
@@ -105,16 +106,19 @@ const state = {
   origin: "",
   first: { stored: FULL, view: "member" } as Fixture,
   next: null as Fixture | null,
+  polls: 0,
 };
 let browser: Browser;
 let server: Server;
 beforeAll(async () => {
   browser = await launch();
   server = createServer((req, res) => {
-    const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+    const asked = new URL(req.url ?? "/", "http://127.0.0.1");
+    const path = asked.pathname;
     if (path === `/r/${ID}/status`) {
+      state.polls++;
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      return res.end(status(state.next ?? state.first));
+      return res.end(status(state.next ?? state.first, asked.searchParams.get("h")));
     }
     if (path === `/r/${ID}`) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
@@ -148,7 +152,7 @@ async function open(
   first: Fixture,
   options: { width?: number; theme?: "light" | "dark"; script?: boolean; clipboard?: "grant" | "refuse" } = {},
 ) {
-  Object.assign(state, { first, next: null });
+  Object.assign(state, { first, next: null, polls: 0 });
   const context = await browser.newContext({ viewport: { width: options.width ?? 1280, height: 900 } });
   if (options.clipboard === "grant") await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const p: Page = await context.newPage();
@@ -209,50 +213,90 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report header in Chromi
       }
   });
 
-  it("copies the report's own link from the keyboard, the plain one for a member and the signed one for a link holder", async () => {
-    for (const view of ["member", "public"] as const) {
-      const { p, context } = await open({ stored: FULL, view }, { clipboard: "grant" });
+  const MATRIX = (["member", "public"] as const).flatMap((view) =>
+    [360, 1280].flatMap((width) => (["light", "dark"] as const).map((theme) => ({ view, width, theme }))),
+  );
+
+  it("copies the report's own link from the keyboard in each view, width and theme", async () => {
+    for (const { view, width, theme } of MATRIX) {
+      const { p, context } = await open({ stored: FULL, view }, { width, theme, clipboard: "grant" });
       await p.getByRole("button", { name: "Copy link" }).focus();
       await p.keyboard.press("Enter");
       await expect.poll(() => p.locator("#report-header [data-copy-status]").textContent()).toBe("Copied");
-      expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(copyOf(view));
+      expect(await p.evaluate(() => navigator.clipboard.readText()), `${view} ${width} ${theme}`).toBe(copyOf(view));
       await context.close();
     }
   });
 
-  it("recovers from a refused clipboard: says so and shows the link selected to copy by hand", async () => {
-    const { p, context } = await open({ stored: FULL, view: "public" }, { clipboard: "refuse" });
+  it("recovers from a refused clipboard in each view: says so and shows the link selected to copy by hand", async () => {
+    for (const view of ["member", "public"] as const)
+      for (const width of [360, 1280]) {
+        const { p, context } = await open({ stored: FULL, view }, { width, clipboard: "refuse" });
+        await p.getByRole("button", { name: "Copy link" }).focus();
+        await p.keyboard.press("Enter");
+        await expect
+          .poll(() => p.locator("#report-header [data-copy-status]").textContent())
+          .toBe("Copy failed: select the address to copy it");
+        expect(await p.locator("#report-header [data-copy-source]").isVisible()).toBe(true);
+        expect(await p.evaluate(() => window.getSelection()?.toString()), `${view} ${width}`).toBe(copyOf(view));
+        await context.close();
+      }
+  });
+
+  it("opens the browser's print from the keyboard in each view", async () => {
+    for (const view of ["member", "public"] as const)
+      for (const width of [360, 1280]) {
+        const { p, context } = await open({ stored: FULL, view }, { width });
+        await p.getByRole("button", { name: "Download PDF" }).focus();
+        await p.keyboard.press("Enter");
+        expect(await p.evaluate(() => (window as unknown as { printed: number }).printed), `${view} ${width}`).toBe(1);
+        await context.close();
+      }
+  });
+
+  it("shows neither action without the script, and the address to select by hand instead", async () => {
+    for (const view of ["member", "public"] as const) {
+      const { p, context } = await open({ stored: FULL, view }, { script: false });
+      expect(await p.getByRole("button", { name: "Download PDF", includeHidden: true }).isVisible()).toBe(false);
+      expect(await p.getByRole("button", { name: "Copy link", includeHidden: true }).isVisible()).toBe(false);
+      const source = p.locator("#report-header [data-copy-source]");
+      expect(await source.isVisible()).toBe(true);
+      expect(await source.textContent()).toBe(copyOf(view));
+      await context.close();
+    }
+  });
+
+  it("keeps the subject and sender in print, without the buttons, in each view, width and theme", async () => {
+    for (const { view, width, theme } of MATRIX) {
+      const { p, context } = await open({ stored: FULL, view }, { width, theme });
+      await p.emulateMedia({ media: "print" });
+      const where = `${view} ${width} ${theme}`;
+      // Drawn, not only kept for screen readers (a 1 px box counts as visible to Playwright).
+      expect((await p.getByRole("heading", { level: 1 }).boundingBox())?.width ?? 0, where).toBeGreaterThan(1);
+      expect(await p.getByText("NimbusMail Security <no-reply@nimbusmai1-login.example>").isVisible(), where).toBe(
+        true,
+      );
+      expect(await p.getByRole("button", { name: "Copy link" }).isVisible(), where).toBe(false);
+      expect(await p.locator("#report-header [data-copy-reveal]").isVisible(), where).toBe(false);
+      await context.close();
+    }
+  });
+
+  it("keeps focus, copy feedback and a hand selection in the header through polls that change nothing", async () => {
+    const { p, context } = await open({ stored: FULL, view: "public", running: true }, { clipboard: "refuse" });
     await p.getByRole("button", { name: "Copy link" }).focus();
     await p.keyboard.press("Enter");
     await expect
       .poll(() => p.locator("#report-header [data-copy-status]").textContent())
       .toBe("Copy failed: select the address to copy it");
-    expect(await p.locator("#report-header [data-copy-source]").isVisible()).toBe(true);
+    const polls = state.polls;
+    await expect.poll(() => state.polls, { timeout: 10_000 }).toBeGreaterThanOrEqual(polls + 3);
+    expect(await p.evaluate(() => document.activeElement?.textContent)).toBe("Copy link");
+    expect(await p.locator("#report-header [data-copy-status]").textContent()).toBe(
+      "Copy failed: select the address to copy it",
+    );
     expect(await p.evaluate(() => window.getSelection()?.toString())).toBe(copyOf("public"));
     await context.close();
-  });
-
-  it("opens the browser's print from the keyboard, and shows no Download PDF without the script", async () => {
-    const { p, context } = await open({ stored: FULL, view: "member" });
-    await p.getByRole("button", { name: "Download PDF" }).focus();
-    await p.keyboard.press("Enter");
-    expect(await p.evaluate(() => (window as unknown as { printed: number }).printed)).toBe(1);
-    await context.close();
-    const bare = await open({ stored: FULL, view: "member" }, { script: false });
-    expect(await bare.p.getByRole("button", { name: "Download PDF", includeHidden: true }).isVisible()).toBe(false);
-    await bare.context.close();
-  });
-
-  it("keeps the subject and sender in print, without the buttons", async () => {
-    for (const width of [360, 1280]) {
-      const { p, context } = await open({ stored: FULL, view: "member" }, { width });
-      await p.emulateMedia({ media: "print" });
-      // Drawn, not only kept for screen readers (a 1 px box counts as visible to Playwright).
-      expect((await p.getByRole("heading", { level: 1 }).boundingBox())?.width ?? 0).toBeGreaterThan(1);
-      expect(await p.getByText("NimbusMail Security <no-reply@nimbusmai1-login.example>").isVisible()).toBe(true);
-      expect(await p.getByRole("button", { name: "Copy link" }).isVisible()).toBe(false);
-      await context.close();
-    }
   });
 
   it("catches up with parsing: a report opened before its subject was stored shows it once a poll does", async () => {

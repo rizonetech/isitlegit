@@ -44,8 +44,10 @@ export type LiveProps = {
   link?: string;
   now?: Date;
   // The phone's line of which message this is (D07 T03 §9's `MetaLine`), drawn under the band so the poll keeps it
-  // current.
+  // current, and the fingerprint of the header the page holds, sent with each poll so the header is replaced only when
+  // it changed (`headerKey`).
   meta?: unknown;
+  headerKey?: string;
 };
 
 const clock = new Intl.DateTimeFormat("en-GB", {
@@ -237,6 +239,7 @@ export function ReportLive(props: LiveProps) {
         // A poll still waiting keeps its request to its answer or this timeout; htmx drops the next trigger meanwhile, so
         // a slow server is still answered (test/node/report-status-browser.test.tsx).
         "hx-request": '{"timeout":10000}',
+        ...(props.headerKey ? { "hx-vals": JSON.stringify({ h: props.headerKey }) } : {}),
         "data-poll": `/r/${caseId}${link}`,
       }
     : {};

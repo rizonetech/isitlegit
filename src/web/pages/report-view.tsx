@@ -6,7 +6,7 @@ import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { Document } from "../components/Document";
 import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
-import { type HeaderFacts, MetaLine, ReportHeader } from "./report-header";
+import { type HeaderFacts, headerKey, MetaLine, ReportHeader } from "./report-header";
 import { type Coverage, type LiveProps, ReportLive } from "./report-live";
 import { type Progress, progressOf } from "./report-progress";
 import type { ReportVerdict } from "./report-verdict";
@@ -128,6 +128,7 @@ function ReportBody(props: {
           view={view}
           {...(props.link ? { link: props.link } : {})}
           meta={<MetaLine facts={facts} />}
+          headerKey={headerKey(facts)}
         />
       )}
       <footer class="type-small text-muted border-t border-line pt-16">

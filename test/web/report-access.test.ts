@@ -533,4 +533,43 @@ describe("the report header", () => {
     expect(status).toMatch(/<h1[^>]*>Parsed at last<\/h1>/);
     expect(status).toContain("Parsed at last · ");
   });
+
+  it("leaves the page's header alone when a poll holds the current one, for a member and a signed link", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { subject: "Settled subject" });
+    await db.prepare("UPDATE cases SET status = 'running', verdict = NULL WHERE id = ?").bind(id).run();
+    const page = await (await get(`/r/${id}`, reader.cookie)).text();
+    const key = /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    expect(key).not.toBe("");
+    // The live region names the same key in the poll's values.
+    expect(page).toContain(`hx-vals="{&quot;h&quot;:&quot;${key}&quot;}"`);
+    const same = await (await get(`/r/${id}/status?h=${key}`, reader.cookie)).text();
+    expect(same).toContain('id="report-live"');
+    expect(same).not.toContain('id="report-header"');
+    const stale = await (await get(`/r/${id}/status?h=stale`, reader.cookie)).text();
+    expect(stale).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+    // A signed link's poll carries the key beside its three signed parameters and still opens.
+    const link = await signReportLink(SECRET, id, a);
+    const publicPage = await (await get(link)).text();
+    const publicKey = /id="report-header" data-key="([^"]+)"/.exec(publicPage)?.[1] ?? "";
+    const polled = await get(`/r/${id}/status${link.slice(link.indexOf("?"))}&h=${publicKey}`);
+    expect(polled.status).toBe(200);
+    const body = await polled.text();
+    expect(body).toContain('id="report-live"');
+    expect(body).not.toContain('id="report-header"');
+  });
+
+  it("shows Copy link only where the app script runs, and the address to select by hand without it", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { subject: "Share me" });
+    const html = top(await (await get(`/r/${id}`, reader.cookie)).text());
+    expect(html).toMatch(
+      /<span data-copy-control="" class="hidden \[\[data-script\]_&amp;\]:inline-flex">[\s\S]*Copy link/,
+    );
+    expect(html).toMatch(
+      /data-copy-reveal=""[^>]*>Link to this report: <span data-copy-source[^>]*>http:\/\/localhost\/r\//,
+    );
+  });
 });

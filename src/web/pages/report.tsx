@@ -22,7 +22,7 @@ import { getVerdict } from "../../db/verdicts";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
-import { MetaLine, ReportHeader } from "./report-header";
+import { headerKey, MetaLine, ReportHeader } from "./report-header";
 import { ReportLive } from "./report-live";
 import { progressOf } from "./report-progress";
 import { headerFacts, ReportDocument } from "./report-view";
@@ -51,6 +51,10 @@ reportRoutes.get("/r/:caseId/status", (c) => serve(c, "status"));
 async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Promise<Response> {
   const id = c.req.param("caseId") ?? "";
   const url = new URL(c.req.url);
+  // A status poll names the header it holds (`h`, D07 T03 §9's `headerKey`), taken out before anything reads the
+  // address: a signed link has exactly its three parameters.
+  const held = mode === "status" ? url.searchParams.get("h") : null;
+  url.searchParams.delete("h");
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   const report = `/r/${id}${hasLink ? url.search : ""}`;
   const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
@@ -87,6 +91,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           undefined,
           mode,
           url.origin,
+          held,
         );
         if (out) return answer(out);
       }
@@ -106,6 +111,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           url.search,
           mode,
           url.origin,
+          held,
         );
         return answer(out ?? (mode === "status" ? elsewhere() : errorPage(404, id)));
       }
@@ -142,8 +148,9 @@ async function render(
   // A link holder's signature parameters, which the cards' file links and the status poll carry.
   link?: string,
   mode: "page" | "status" = "page",
-  // The address the reader is on, for the header's Copy link (D07 T03 §9).
+  // The address the reader is on, for the header's Copy link (D07 T03 §9), and the header a poll holds.
   origin = "",
+  held: string | null = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -182,11 +189,13 @@ async function render(
           view={view}
           {...(link ? { link } : {})}
           meta={<MetaLine facts={facts} />}
+          headerKey={headerKey(facts)}
         />,
       ) +
-        // The header out of band, so a report opened before its message was parsed shows the subject and sender
-        // once they are stored.
-        String(<ReportHeader facts={facts} view={view} copy={copy} oob />),
+        // The header out of band when it differs from the one the page holds, so a report opened before its message
+        // was parsed shows the subject and sender once they are stored, and a reader's focus or selection in the
+        // header survives every poll that changes nothing.
+        (held === headerKey(facts) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
       { headers: HEADERS },
     );
   const shell =

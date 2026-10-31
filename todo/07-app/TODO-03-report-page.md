@@ -67,6 +67,7 @@ track: day-2
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
 | 26 | §26 | Feedback from a signed link | §6 | [ ] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
+| 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -380,6 +381,10 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 > **Corrected 2026-10-31 (plan review):** (8) The header catches up with parsing: a case opened before its parse step has no subject or sender yet, so the status poll (§4) also returns the header, swapped out of band (`hx-swap-oob` on `#report-header`), until the case has finished. (9) An upload whose uploader is unknown (no `uploaded_by`, a member who has since left, a blank name, or a user of another organisation) says "Uploaded · <time>", naming no one; a forward whose sender is no member names the forwarding address. (10) The phone line joins only the parts that exist, with no empty label or dangling separator: the subject (or "No subject"), "from <address>", or "from <name>" when only a name was stored, or nothing, then the time. (11) The checkpoint runs the browser test, which works both actions from the keyboard, recovers from a refused clipboard with visible feedback and a selectable address, and checks the header's subject and sender survive print media, in the member and signed-link views at phone and desktop widths in both themes.
 >
 > **Corrected 2026-10-31 (build):** (12) Every status answer carries the header out of band, not only until the case finishes, so the last answer (the verdict's) settles it too. (13) Download PDF is shown by the stylesheet under a mark the app script sets (`data-script` on the page), not by the script revealing each control: a header the poll swaps in every 2 seconds would otherwise flicker. (14) The forwarder's name is read by `checkerName` in `src/db/case-list.ts` beside the list's own rule (the same match: a member of the case's organisation, a name that is not blank), which also names an upload's uploader; the list keeps its one-query subquery. (15) A stored subject is at most 300 characters (the column's check), so the longest hostile subject tested is 300.
+>
+> **Corrected 2026-10-31 (completion review):** (16) The status poll sends the header only when its facts changed (`headerKey`, sent by the poll as `h` and taken off the address before a signed link is read), so focus, copy feedback and a hand selection in the header survive every other poll. (17) Copy link, like Download PDF, shows only where the app script runs; without it the report's address is shown to select by hand ("Link to this report:").
+>
+> **Deferred:** an upload's file name as its header's title -> XREF: D07 T03 §28
 >
 **Phase:** 2
 **Needs:** none
@@ -794,6 +799,29 @@ Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). Th
 - [ ] Commit: `web: reply and report in the member's language`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/web/report-access.test.ts` passes in every supported language.
+
+## 28. Uploaded file's name in the header
+
+Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded document, image or voice note has no email subject, so its header reads "No subject", though the case stores the file's name (`uploadName` in `src/db/cases.ts`). Microsoft Defender for Office 365's entity page names the files it inspected; here two uploaded invoices cannot be told apart by their header. The boards draw only an emailed case's header, so the upload's header is a design change first.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the header), an upload's header added to the boards
+**Job:** a member tells two uploaded files apart by their reports' headers
+**Treatment:** the file's name as the title of an upload's report, labelled as a file, kept in print
+**Chrome:** the report header (§9)
+
+**Build order:**
+
+1. Draw the upload's header in the design. Done when: the board and SPEC M3 show it.
+2. Title an upload's report by its file name. Done when: the header shows it, safely, in every view.
+
+- [ ] Add an upload's header to `design/SPEC.md` M3 and its board: the file's name as the title, labelled "Uploaded file", and the subject rule kept for email. Done when: the SPEC entry and the board exist. Cheaper substitute: the file name in the meta line only.
+- [ ] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, and a hostile file name renders as text and wraps.
+- [ ] Commit: `web: the uploaded file's name in the header`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with an upload titled by its file name.
 
 ## Verification
 

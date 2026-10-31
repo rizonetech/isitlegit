@@ -50,7 +50,7 @@ function selectSource(button: Element): void {
   const selection = window.getSelection();
   if (!source || !selection) return;
   // A source kept out of sight until it is needed (the report's link, D07 T03 §9) is shown to be selected.
-  source.removeAttribute("hidden");
+  source.closest<HTMLElement>("[data-copy-reveal]")?.setAttribute("data-shown", "");
   const range = document.createRange();
   range.selectNodeContents(source);
   selection.removeAllRanges();
