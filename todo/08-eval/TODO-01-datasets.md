@@ -64,7 +64,11 @@ One schema for every set: file path, label (attack or genuine), category (creden
 
 ## 2. Public corpora chosen by licence
 
+> **Started:** 2026-10-31T11:36Z
+
 Public phishing and genuine-mail corpora are used only if their licence allows our use in a public repository and a commercial product (spec 4.9). Each candidate's licence is read on its own page; anything unclear is not used.
+
+**Corrected 2026-10-31** (plan fact-check against the merged loader, D08 T01 §1): a set is a folder `eval/sets/<source>/` holding the sample files and a `labels.json` in `eval/schema.ts`'s `Label` format (path, `attack` or `genuine`, one of the eight categories, the expected check names, source), which `loadSets` (`eval/load.ts`) reads whole; the docs test belongs in the Node project (`test/node/`), since the Worker project's tests cannot read the repository's files; the sets table in `eval/DATASETS.md` (Source, Licence, URL, Date, Count, Use) is the one the loader's test already pins. A corpus sample is real mail someone received: only what the corpus itself publishes is kept, and no personal address, phone number or bank detail it did not already publish is added; a sample whose content is not clearly an attack or clearly genuine is left out rather than guessed.
 
 **Phase:** 2
 **Needs:** none
@@ -73,14 +77,15 @@ Public phishing and genuine-mail corpora are used only if their licence allows o
 **Build order:**
 
 1. Research candidates and record decisions. Done when: `eval/DATASETS.md` lists each candidate with accept or reject and the licence text it rests on.
-2. Import the accepted ones. Done when: their samples are in `eval/sets/<source>/` with labels.
+2. Import the accepted ones. Done when: their samples are in `eval/sets/<source>/` with labels that `loadSets` reads.
 
-- [ ] Research at least five candidate corpora (for example the Enron corpus for genuine mail, Nazario phishing corpus, SpamAssassin public corpus, PhishTank-derived sets) and record licence, URL and decision in `eval/DATASETS.md`. Done when: each row has the licence quote or link. Cheaper substitute: assuming "public" means "allowed".
-- [ ] Import up to 60 samples from accepted corpora, removing any real personal address or bank detail beyond what the corpus itself publishes, and label them. Done when: the labels validate.
-- [ ] If no corpus is acceptable, record that and raise the synthetic target in §3 to 150. Done when: either imports exist or the decision is recorded.
+- [ ] Research at least five candidate corpora (for example the Enron corpus for genuine mail, Nazario phishing corpus, SpamAssassin public corpus, PhishTank-derived sets) and record licence, URL and decision in `eval/DATASETS.md`, under a "Candidate corpora" table (Corpus, Licence, URL, Read on, Decision, Why). Done when: each row has the licence quote or link and the date it was read. Cheaper substitute: assuming "public" means "allowed".
+- [ ] Import up to 60 samples from accepted corpora into `eval/sets/<source>/`, each file as the corpus publishes it, removing nothing the corpus publishes and adding nothing it does not, with a `labels.json` (label, category and expected checks decided by reading each sample; `source` names the corpus and its file). Done when: `loadSets("eval/sets")` loads them and each source has a row in the sets table with its licence, URL, date, count and use.
+- [ ] If no corpus is acceptable, record that and raise the synthetic target in §3 to 150. Done when: either imports exist or the decision is recorded in `eval/DATASETS.md` and §3.
+- [ ] Write `test/node/eval-datasets-doc.test.ts`: every folder under `eval/sets/` has a sets-table row naming it, with a licence and a URL, and every sets-table row names a folder that exists with as many samples as its Count; every candidate row has a decision and a licence. Done when: the test fails on a folder with no row, a row with no folder, a Count that differs and a candidate with no decision.
 - [ ] Commit: `eval: public corpora chosen by licence`
 
-**Test checkpoint:** `pnpm exec vitest run test/eval/datasets-doc.test.ts` passes, checking every set folder has a row in `eval/DATASETS.md` with a licence.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes, and the datasets test fails when a set folder has no row with a licence, a row's Count differs from its labels, or a candidate has no decision.
 
 ## 3. Synthetic South African mail set
 
