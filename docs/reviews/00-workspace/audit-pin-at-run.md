@@ -49,3 +49,30 @@ Lens verdicts:
 Read-only in-memory probes confirmed both frontier results using the candidate’s `pins_at()`. Fixture tests were not run; no files changed.
 
 **OVERALL: needs-attention**
+
+## Round 3: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T15:05:00Z
+- Effort: medium
+- Lenses: adversarial, integration, source-defect, plan-delivery
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 16
+- Digest: 1149952b93600463
+
+No new P1 to P3 findings in the combined diff.
+
+The argument holds relative to the existing `Pin` contract: every eligible historical pin could already be named explicitly. This permits historical schedules, but does not establish which pin actually ran the pass. The Run boundary further restricts that existing acceptance set.
+
+Read-only probes confirmed equivalent timezone offsets and successful skipping of a historical pin lacking the light schedule. Single-candidate mismatch messages retain their prior wording; multiple candidates add alternatives. No new regression found in the final-step checks or stamped final-mode enforcement.
+
+Lens verdicts:
+
+- **adversarial:** approve.
+- **integration:** approve.
+- **source-defect:** approve under the stated historical-pin policy.
+- **plan-delivery:** approve.
+
+Reviewed the two scoped files, prior rounds, manifesto, reviewer pin, dispatcher and CLI error handling. Fixture tests were not run in the read-only sandbox. No files changed.
+
+**OVERALL: approve**
